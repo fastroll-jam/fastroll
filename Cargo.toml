@@ -1,0 +1,6 @@
+[package]
+name = "rjam"
+description = "JAM Rust implementation"
+version = "0.1.0"
+
+[dependencies]
