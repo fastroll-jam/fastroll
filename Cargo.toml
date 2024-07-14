@@ -2,5 +2,7 @@
 name = "rjam"
 description = "JAM Rust implementation"
 version = "0.1.0"
+edition = "2021"
 
 [dependencies]
+parity-scale-codec = { version = "3.6.12", features = ["derive"] }
