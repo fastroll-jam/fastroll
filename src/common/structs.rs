@@ -1,21 +1,4 @@
-// Constants
-pub const VALIDATOR_COUNT: usize = 1023; // 1023 validators
-pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
-pub const EPOCH_LENGTH: usize = 600; // 600 timeslots per epoch
-pub const CORE_COUNT: usize = 341; // (1023 / 3 = 341) cores
-
-// Types
-pub type Hash32 = [u8; 32]; // FIXME: should be subset of `[u8; 32]`
-pub type Octet = Vec<u8>;
-pub type BandersnatchPubKey = Hash32;
-pub type BandersnatchSignature = [u8; 64];
-pub type BandersnatchRingRoot = [u8; 196608];
-pub type BandersnatchRingVrfProof = [u8; 784];
-pub type Ed25519PubKey = Hash32;
-pub type Ed25519Signature = [u8; 64];
-pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
-pub type Ticket = (Hash32, u8); // u8 range [0, 2)
-pub type SignedGas = i64;
+use crate::common::types::{Hash32, Octet, SignedGas};
 
 // Structs
 pub(crate) struct WorkReport {
