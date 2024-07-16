@@ -1,4 +1,3 @@
-use crate::common::Hash32;
 use parity_scale_codec::{Encode, Output};
 
 // Encoding and size hint functions for optional values
