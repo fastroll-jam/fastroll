@@ -20,7 +20,7 @@ pub struct BlockHeader {
     epoch_marker: EpochMarker,
     winning_tickets_marker: WinningTicketsMarker,
     judgements_marker: JudgementsMarker,
-    block_author_index: u16, // range [0, 1023)
+    block_author_index: u32, //  N_V
     vrf_signature: BandersnatchSignature,
     block_seal: BandersnatchSignature,
 }

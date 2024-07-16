@@ -3,7 +3,7 @@ use crate::{
         encode_length_discriminated_field, encode_optional_field,
         size_hint_length_discriminated_field, size_hint_optional_field,
     },
-    common::types::{Hash32, Octet, SignedGas},
+    common::types::{Hash32, Octet, UnsignedGas},
 };
 use parity_scale_codec::{Encode, Output};
 
@@ -91,11 +91,11 @@ impl Encode for AvailabilitySpecifications {
 }
 
 struct WorkItemResult {
-    service_index: u32,                  // s; N_S
-    service_code_hash: Hash32,           // c
-    payload_hash: Hash32,                // l
-    gas_prioritization_ratio: SignedGas, // g
-    refinement_output: RefinementOutput, // o
+    service_index: u32,                    // s; N_S
+    service_code_hash: Hash32,             // c
+    payload_hash: Hash32,                  // l
+    gas_prioritization_ratio: UnsignedGas, // g
+    refinement_output: RefinementOutput,   // o
 }
 
 impl Encode for WorkItemResult {

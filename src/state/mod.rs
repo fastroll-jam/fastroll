@@ -7,19 +7,20 @@ use std::collections::HashMap;
 type ValidatorKey = [u8; 336];
 
 pub struct GlobalState {
-    recent_timeslot: u32,
-    safrole_state: SafroleState,
-    staging_validator_set: [ValidatorKey; VALIDATOR_COUNT],
-    active_validator_set: [ValidatorKey; VALIDATOR_COUNT],
-    past_validator_set: [ValidatorKey; VALIDATOR_COUNT],
-    entropy_accumulator: [Hash32; 4],
-    service_accounts: HashMap<u32, ServiceAccountState>, // TODO: use Merkle Trie instead
-    privileged_services: (u32, u32, u32),                // (chi_m, chi_a, chi_v)
-    pending_reports: [Option<PendingReport>; CORE_COUNT],
-    authorization_pool: [Vec<Hash32>; CORE_COUNT], // Vec<Hash32> length up to `O = 8`.
-    authorization_queue: [[Hash32; 80]; CORE_COUNT],
-    block_history: Vec<BlockHistoryEntry>, // Vec<BlockHistoryEntry> length up to `H = 8`.
-    judgements: Vec<JudgementEntry>,
+    recent_timeslot: u32,                                             // tau
+    safrole_state: SafroleState,                                      // gamma
+    staging_validator_set: [ValidatorKey; VALIDATOR_COUNT],           // iota
+    active_validator_set: [ValidatorKey; VALIDATOR_COUNT],            // kappa
+    past_validator_set: [ValidatorKey; VALIDATOR_COUNT],              // lambda
+    entropy_accumulator: [Hash32; 4],                                 // eta
+    service_accounts: HashMap<u32, ServiceAccountState>, // sigma; TODO: use Merkle Trie instead
+    privileged_services: PrivilegedServicesState,        // chi;
+    pending_reports: [Option<PendingReport>; CORE_COUNT], // rho
+    authorization_pool: [Vec<Hash32>; CORE_COUNT],       // alpha; Vec<Hash32> length up to `O = 8`.
+    authorization_queue: [[Hash32; 80]; CORE_COUNT],     // phi
+    block_history: Vec<BlockHistoryEntry>, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
+    judgements: JudgementsState,           // psi
+    validator_statistics: [[ValidatorStatEntry; VALIDATOR_COUNT]; 2], // pi
 }
 
 struct SafroleState {
@@ -36,9 +37,14 @@ enum SlotSealerType {
 
 struct ServiceAccountState {}
 
+struct PrivilegedServicesState {
+    empower_service_index: u32,   // m; N_S
+    assign_service_index: u32,    // a; N_S
+    designate_service_index: u32, // v; N_S
+}
+
 struct PendingReport {
     work_report: WorkReport,
-    guarantors: Vec<Ed25519PubKey>, // length range [2, 3]
     timeslot: u32,
 }
 
@@ -49,9 +55,18 @@ struct BlockHistoryEntry {
     work_report_hashes: Vec<Hash32>, // length up to `C = 341`.
 }
 
-struct JudgementEntry {
-    allow_set: Hash32,
-    ban_set: Hash32,
-    punish_set: Vec<BandersnatchPubKey>,
-    last_epoch_validator_set: [ValidatorKey; VALIDATOR_COUNT],
+struct JudgementsState {
+    good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
+    bad_set: Vec<Hash32>,           // psi_b; recording hash of incorrect work-reports
+    wonky_set: Vec<Hash32>,         // psi_w; recording hash of work-reports that cannot be judged
+    punish_set: Vec<Ed25519PubKey>, // psi_p; recording Ed25519 public keys of validators which have misjudged.
+}
+
+struct ValidatorStatEntry {
+    block_production_count: u64, // b; the number of blocks produced by the validator.
+    ticket_count: u64,           // t; the number of tickets introduced by the validator.
+    preimage_count: u64,         // p; the number of preimages introduced by the validator.
+    preimage_data_octet_count: u64, // d; the total number of octets across all preimages introduced by the validator.
+    guarantee_count: u64,           // g; the number of reports guaranteed by the validator.
+    assurance_count: u64, // a; the number of availability assurances made by the validator.
 }

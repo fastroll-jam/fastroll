@@ -5,7 +5,7 @@ use crate::common::{
 use bit_vec::BitVec;
 
 type TicketsExtrinsic = Vec<(u32, BandersnatchRingVrfProof)>; // (N_N, [u8; 784])
-type GuaranteesExtrinsic = Vec<(u32, WorkReport, u32, [Option<Ed25519Signature>; 3])>; // (N_C, WorkReport, N_T, [Ed25519Signature?; 3]); length up to CORE_COUNT
+type GuaranteesExtrinsic = Vec<(WorkReport, u32, Vec<(u32, Ed25519Signature)>)>; // (WorkReport, N_T, [(N_V, Ed25519Signature)]_{2:3}; length up to CORE_COUNT
 type AssurancesExtrinsic = Vec<(Hash32, BitVec, u32, Ed25519Signature)>; // length up to VALIDATOR_COUNT
 type PreimageLookupExtrinsic = Vec<(u32, Octet)>;
 type JudgementsExtrinsic = (
@@ -13,7 +13,7 @@ type JudgementsExtrinsic = (
         Hash32,
         u32,
         [(bool, u32, Ed25519Signature); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1],
-    )>, // judgements
+    )>, // votes
     Vec<(Hash32, Ed25519PubKey, Ed25519SignatureWithKeyAndMessage)>, // culprits
     Vec<(Hash32, Ed25519PubKey, Ed25519SignatureWithKeyAndMessage)>, // faults
 );
