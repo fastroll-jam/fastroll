@@ -25,8 +25,8 @@ pub(crate) fn size_hint_optional_field<T: Encode>(field: &Option<T>) -> usize {
 }
 
 // Encoding and size hint functions for length-discriminated values
-pub(crate) fn encode_length_discriminated_field<W: Output + ?Sized>(
-    field: &[Hash32],
+pub(crate) fn encode_length_discriminated_field<T: Encode, W: Output + ?Sized>(
+    field: &[T],
     dest: &mut W,
 ) {
     let length = field.len();
@@ -37,10 +37,10 @@ pub(crate) fn encode_length_discriminated_field<W: Output + ?Sized>(
     field.encode_to(dest); // Encode the value
 }
 
-pub(crate) fn size_hint_length_discriminated_field(field: &[Hash32]) -> usize {
+pub(crate) fn size_hint_length_discriminated_field<T: Encode>(field: &[T]) -> usize {
     let length = field.len();
     if length > 255 {
         panic!("Length exceeds maximum value for u8"); // TODO: better handling
     }
-    (field.len() as u8).size_hint() + field.size_hint() // Length of the length discriminator + size of the value
+    (length as u8).size_hint() + field.size_hint() // Length of the length discriminator + size of the value
 }
