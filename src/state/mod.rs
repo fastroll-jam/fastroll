@@ -19,7 +19,7 @@ pub struct GlobalState {
     authorization_pool: [Vec<Hash32>; CORE_COUNT],       // alpha; Vec<Hash32> length up to `O = 8`.
     authorization_queue: [[Hash32; 80]; CORE_COUNT],     // phi
     block_history: Vec<BlockHistoryEntry>, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
-    judgements: JudgementsState,           // psi
+    verdicts: VerdictsState,               // psi
     validator_statistics: [[ValidatorStatEntry; VALIDATOR_COUNT]; 2], // pi
 }
 
@@ -55,7 +55,7 @@ struct BlockHistoryEntry {
     work_report_hashes: Vec<Hash32>, // length up to `C = 341`.
 }
 
-struct JudgementsState {
+struct VerdictsState {
     good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
     bad_set: Vec<Hash32>,           // psi_b; recording hash of incorrect work-reports
     wonky_set: Vec<Hash32>,         // psi_w; recording hash of work-reports that cannot be judged
