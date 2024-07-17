@@ -11,7 +11,7 @@ use parity_scale_codec::{Encode, Output};
 pub(crate) struct WorkReport {
     authorizer_hash: Hash32,               // a
     core_index: u32,                       // c; N_C
-    authorizer_output: Octets,              // o
+    authorizer_output: Octets,             // o
     refinement_context: RefinementContext, // x
     specs: AvailabilitySpecifications,     // s
     results: Vec<WorkItemResult>,          // r; length range [1, 4]

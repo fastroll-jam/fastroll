@@ -1,4 +1,7 @@
-use crate::common::{BandersnatchPubKey, BandersnatchRingRoot, Ed25519PubKey, Hash32, Ticket, WorkReport, CORE_COUNT, EPOCH_LENGTH, VALIDATOR_COUNT, Octets};
+use crate::common::{
+    BandersnatchPubKey, BandersnatchRingRoot, Ed25519PubKey, Hash32, Octets, Ticket, UnsignedGas,
+    WorkReport, CORE_COUNT, EPOCH_LENGTH, VALIDATOR_COUNT,
+};
 use std::collections::HashMap;
 
 type ValidatorKey = [u8; 336];
@@ -32,7 +35,15 @@ enum SlotSealerType {
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
 }
 
-struct ServiceAccountState {}
+struct ServiceAccountState {
+    storage: HashMap<Hash32, Octets>,          // s
+    preimages: HashMap<Hash32, Octets>,        // p
+    lookups: HashMap<(Hash32, u32), Vec<u32>>, // l; Vec<u32> length up to 3
+    code_hash: Hash32,                         // c
+    balance: u64,                              // b
+    gas_limit_accumulate: UnsignedGas,         // g
+    gas_limit_on_transfer: UnsignedGas,        // m
+}
 
 struct PrivilegedServicesState {
     empower_service_index: u32,   // m; N_S
