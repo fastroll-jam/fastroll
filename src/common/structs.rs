@@ -3,7 +3,7 @@ use crate::{
         encode_length_discriminated_field, encode_optional_field,
         size_hint_length_discriminated_field, size_hint_optional_field,
     },
-    common::types::{Hash32, Octet, UnsignedGas},
+    common::types::{Hash32, Octets, UnsignedGas},
 };
 use parity_scale_codec::{Encode, Output};
 
@@ -11,7 +11,7 @@ use parity_scale_codec::{Encode, Output};
 pub(crate) struct WorkReport {
     authorizer_hash: Hash32,               // a
     core_index: u32,                       // c; N_C
-    authorizer_output: Octet,              // o
+    authorizer_output: Octets,              // o
     refinement_context: RefinementContext, // x
     specs: AvailabilitySpecifications,     // s
     results: Vec<WorkItemResult>,          // r; length range [1, 4]
@@ -119,7 +119,7 @@ impl Encode for WorkItemResult {
 }
 
 enum RefinementOutput {
-    Output(Octet),
+    Output(Octets),
     Error(RefinementErrors),
 }
 

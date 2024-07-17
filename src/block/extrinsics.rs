@@ -2,7 +2,7 @@ use crate::{
     codec::{encode_length_discriminated_field, size_hint_length_discriminated_field},
     common::{
         BandersnatchRingVrfProof, Ed25519PubKey, Ed25519Signature,
-        Ed25519SignatureWithKeyAndMessage, Hash32, Octet, WorkReport,
+        Ed25519SignatureWithKeyAndMessage, Hash32, Octets, WorkReport,
         FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
     },
 };
@@ -112,7 +112,7 @@ impl Encode for AssuranceExtrinsicEntry {
 
 struct PreimageLookupExtrinsicEntry {
     service_index: u32, // N_S
-    preimage_data: Octet,
+    preimage_data: Octets,
 }
 
 impl Encode for PreimageLookupExtrinsicEntry {

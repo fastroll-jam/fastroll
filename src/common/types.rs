@@ -1,6 +1,6 @@
 // Types
 pub type Hash32 = [u8; 32]; // FIXME: should be subset of `[u8; 32]`
-pub type Octet = Vec<u8>;
+pub type Octets = Vec<u8>;
 pub type BandersnatchPubKey = Hash32;
 pub type BandersnatchSignature = [u8; 64];
 pub type BandersnatchRingRoot = [u8; 196608];

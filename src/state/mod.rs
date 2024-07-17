@@ -1,7 +1,4 @@
-use crate::common::{
-    BandersnatchPubKey, BandersnatchRingRoot, Ed25519PubKey, Hash32, Ticket, WorkReport,
-    CORE_COUNT, EPOCH_LENGTH, VALIDATOR_COUNT,
-};
+use crate::common::{BandersnatchPubKey, BandersnatchRingRoot, Ed25519PubKey, Hash32, Ticket, WorkReport, CORE_COUNT, EPOCH_LENGTH, VALIDATOR_COUNT, Octets};
 use std::collections::HashMap;
 
 type ValidatorKey = [u8; 336];
