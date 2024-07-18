@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use parity_scale_codec::{Encode, Output};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 type ValidatorKey = [u8; 336];
 
@@ -26,7 +26,7 @@ pub struct GlobalState {
     active_validator_set: [ValidatorKey; VALIDATOR_COUNT],            // kappa
     past_validator_set: [ValidatorKey; VALIDATOR_COUNT],              // lambda
     entropy_accumulator: [Hash32; 4],                                 // eta
-    service_accounts: HashMap<u32, ServiceAccountState>, // sigma TODO: use Merkle Trie instead
+    service_accounts: BTreeMap<u32, ServiceAccountState>, // sigma
     privileged_services: PrivilegedServicesState,        // chi
     pending_reports: PendingReports,                     // rho
     authorization_pool: AuthorizationPool,               // alpha
