@@ -16,6 +16,30 @@ fn construct_key(i: u8) -> Hash32 {
     key
 }
 
+fn construct_key_with_service(i: u8, s: u32) -> Hash32 {
+    let mut key = [0u8; 32];
+    key[0] = i;
+    key[1..5].copy_from_slice(&s.to_be_bytes());
+    key
+}
+
+fn construct_key_with_service_and_data(s: u32, h: Octets) -> [u8; 32] {
+    let mut key = [0u8; 32];
+
+    let s_bytes = s.to_be_bytes();
+    let mut h_bytes: Vec<u8> = h.clone();
+    h_bytes.truncate(28);
+
+    for i in 0..4 {
+        key[i * 2] = s_bytes[i]; // 0, 2, 4, 6
+        key[i * 2 + 1] = h_bytes[i]; // 1, 3, 5, 7
+    }
+
+    key[8..32].copy_from_slice(&h_bytes[4..28]);
+
+    key
+}
+
 // Mapping from key to serialized GlobalState
 fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
     let mut map = HashMap::new();
@@ -33,6 +57,7 @@ fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
     map.insert(construct_key(11), se(&state.recent_timeslot)); // tau
     map.insert(construct_key(12), se(&state.privileged_services)); // chi
     map.insert(construct_key(13), se(&state.validator_statistics)); // pi
+
 
     map
 }
