@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use parity_scale_codec::{Encode, Output};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 type ValidatorKey = [u8; 336];
 
@@ -26,11 +26,11 @@ pub struct GlobalState {
     active_validator_set: [ValidatorKey; VALIDATOR_COUNT],            // kappa
     past_validator_set: [ValidatorKey; VALIDATOR_COUNT],              // lambda
     entropy_accumulator: [Hash32; 4],                                 // eta
-    service_accounts: BTreeMap<u32, ServiceAccountState>, // sigma
-    privileged_services: PrivilegedServicesState,        // chi
-    pending_reports: PendingReports,                     // rho
-    authorization_pool: AuthorizationPool,               // alpha
-    authorization_queue: [[Hash32; 80]; CORE_COUNT],     // phi
+    service_accounts: BTreeMap<u32, ServiceAccountState>,             // sigma
+    privileged_services: PrivilegedServicesState,                     // chi
+    pending_reports: PendingReports,                                  // rho
+    authorization_pool: AuthorizationPool,                            // alpha
+    authorization_queue: [[Hash32; 80]; CORE_COUNT],                  // phi
     block_history: Vec<BlockHistoryEntry>, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
     verdicts: VerdictsState,               // psi
     validator_statistics: [[ValidatorStatEntry; VALIDATOR_COUNT]; 2], // pi
@@ -73,13 +73,25 @@ impl Encode for SlotSealerType {
 }
 
 struct ServiceAccountState {
-    storage: HashMap<Hash32, Octets>,          // s
-    preimages: HashMap<Hash32, Octets>,        // p
-    lookups: HashMap<(Hash32, u32), Vec<u32>>, // l; Vec<u32> length up to 3
-    code_hash: Hash32,                         // c
-    balance: u64,                              // b
-    gas_limit_accumulate: UnsignedGas,         // g
-    gas_limit_on_transfer: UnsignedGas,        // m
+    storage: BTreeMap<Hash32, Octets>,          // s
+    preimages: BTreeMap<Hash32, Octets>,        // p
+    lookups: BTreeMap<(Hash32, u32), Vec<u32>>, // l; Vec<u32> length up to 3
+    code_hash: Hash32,                          // c
+    balance: u64,                               // b
+    gas_limit_accumulate: UnsignedGas,          // g
+    gas_limit_on_transfer: UnsignedGas,         // m
+}
+
+impl ServiceAccountState {
+    // get the number of items in the storage, which is represented as `i` of account state.
+    fn get_item_counts_footprint(&self) -> u32 {
+        todo!()
+    }
+
+    // get the number of total octets used in the storage, which is represented as `l` of account state.
+    fn get_total_octets_footprint(&self) -> u64 {
+        todo!()
+    }
 }
 
 #[derive(Encode)]
