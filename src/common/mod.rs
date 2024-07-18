@@ -3,5 +3,5 @@ pub mod structs;
 pub mod types;
 
 pub use constants::*;
-pub use structs::*;
+pub(crate) use structs::*;
 pub use types::*;
