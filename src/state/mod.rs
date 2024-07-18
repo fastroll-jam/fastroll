@@ -1,3 +1,5 @@
+mod merklization;
+
 use crate::codec::{
     encode_length_discriminated_sorted_field, encode_optional_field,
     size_hint_length_discriminated_sorted_field, size_hint_optional_field,
@@ -80,6 +82,7 @@ struct ServiceAccountState {
     gas_limit_on_transfer: UnsignedGas,        // m
 }
 
+#[derive(Encode)]
 struct PrivilegedServicesState {
     empower_service_index: u32,   // m; N_S
     assign_service_index: u32,    // a; N_S
@@ -92,10 +95,7 @@ struct PendingReports {
 
 impl Encode for PendingReports {
     fn size_hint(&self) -> usize {
-        self.entries
-            .iter()
-            .map(|entry| size_hint_optional_field(entry))
-            .sum()
+        self.entries.iter().map(size_hint_optional_field).sum()
     }
 
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
@@ -187,6 +187,7 @@ impl Encode for VerdictsState {
     }
 }
 
+#[derive(Encode)]
 struct ValidatorStatEntry {
     block_production_count: u64, // b; the number of blocks produced by the validator.
     ticket_count: u64,           // t; the number of tickets introduced by the validator.

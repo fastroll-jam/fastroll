@@ -65,25 +65,30 @@ pub(crate) fn size_hint_length_discriminated_optional_field<T: Encode>(
     1 + field.iter().map(size_hint_optional_field).sum::<usize>()
 }
 
-pub(crate) fn encode_length_discriminated_sorted_field<T: Encode + Ord + Clone, W: Output + ?Sized>(
+pub(crate) fn encode_length_discriminated_sorted_field<
+    T: Encode + Ord + Clone,
+    W: Output + ?Sized,
+>(
     field: &[T],
     dest: &mut W,
 ) {
     let mut sorted_field = field.to_vec();
     sorted_field.sort();
-    let length = sorted_field.len() as u16;
-    if length > u16::MAX {
+    let length = sorted_field.len();
+    if length > 65_535 {
         panic!("Length exceeds maximum value for u16"); // TODO: better handling
     }
-    length.encode_to(dest);
+    (length as u16).encode_to(dest);
     sorted_field.encode_to(dest);
 }
 
-pub(crate) fn size_hint_length_discriminated_sorted_field<T: Encode + Ord + Clone>(field: &[T]) -> usize {
+pub(crate) fn size_hint_length_discriminated_sorted_field<T: Encode + Ord + Clone>(
+    field: &[T],
+) -> usize {
     let mut sorted_field = field.to_vec();
     sorted_field.sort();
-    let length = sorted_field.len() as u16;
-    if length > u16::MAX {
+    let length = sorted_field.len();
+    if length > 65_535 {
         panic!("Length exceeds maximum value for u16"); // TODO: better handling
     }
     2 + sorted_field.size_hint() // 2 bytes for the length discriminator (u16)
