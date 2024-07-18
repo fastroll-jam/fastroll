@@ -49,7 +49,7 @@ struct TicketExtrinsicEntry {
 struct GuaranteeExtrinsicEntry {
     work_report: WorkReport,                  // w
     timeslot: u32,                            // t; N_T
-    credential: Vec<(u32, Ed25519Signature)>, // a; (WorkReport, N_T, [(N_V, Ed25519Signature)]_{2:3}; length up to CORE_COUNT
+    credential: Vec<(u16, Ed25519Signature)>, // a; (WorkReport, N_T, [(N_V, Ed25519Signature)]_{2:3}; length up to CORE_COUNT
 }
 
 impl Encode for GuaranteeExtrinsicEntry {
@@ -69,7 +69,7 @@ impl Encode for GuaranteeExtrinsicEntry {
 struct AssuranceExtrinsicEntry {
     anchor_parent_hash: Hash32,    // a
     assuring_cores_bitvec: BitVec, // f
-    validator_index: u32,          // v; N_V
+    validator_index: u16,          // v; N_V
     signature: Ed25519Signature,   // s
 }
 
@@ -166,21 +166,20 @@ impl Encode for Verdict {
 
 struct Vote {
     is_report_valid: bool,
-    voter_index: u32, // N_V
+    voter_index: u16, // N_V
     voter_signature: Ed25519SignatureWithKeyAndMessage,
 }
 
 impl Encode for Vote {
     fn size_hint(&self) -> usize {
         self.is_report_valid.size_hint()
-            + 2 // first 2 bytes of voter_index
+            + self.voter_index.size_hint()
             + self.voter_signature.size_hint()
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
         self.is_report_valid.encode_to(dest);
-        let encoded_voter_index = self.voter_index.encode();
-        dest.write(&encoded_voter_index[..2]);
+        self.voter_index.encode_to(dest);
         self.voter_signature.encode_to(dest);
     }
 }

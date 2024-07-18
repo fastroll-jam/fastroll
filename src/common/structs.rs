@@ -52,7 +52,7 @@ impl Encode for RefinementContext {
             + self.anchor_state_root.size_hint()
             + self.beefy_root.size_hint()
             + self.lookup_anchor_header_hash.size_hint()
-            + 4 // first 4 bytes of lookup_anchor_timeslot
+            + self.lookup_anchor_timeslot.size_hint()
             + size_hint_optional_field(&self.prerequisite_work_package)
     }
 
@@ -61,8 +61,7 @@ impl Encode for RefinementContext {
         self.anchor_state_root.encode_to(dest);
         self.beefy_root.encode_to(dest);
         self.lookup_anchor_header_hash.encode_to(dest);
-        let encoded_timeslot = self.lookup_anchor_timeslot.encode();
-        dest.write(&encoded_timeslot[..4]);
+        self.lookup_anchor_timeslot.encode_to(dest);
         encode_optional_field(&self.prerequisite_work_package, dest);
     }
 }
@@ -77,15 +76,14 @@ struct AvailabilitySpecifications {
 impl Encode for AvailabilitySpecifications {
     fn size_hint(&self) -> usize {
         self.work_package_hash.size_hint()
-            + 4 // first 4 bytes of work_package_length
+            + self.work_package_length.size_hint()
             + self.erasure_root.size_hint()
     }
 
     // Note: segment-root not part of the encoding (GP v0.3.0)
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
         self.work_package_hash.encode_to(dest);
-        let encoded_work_package_length = self.work_package_length.encode();
-        dest.write(&encoded_work_package_length[..4]);
+        self.work_package_length.encode_to(dest);
         self.erasure_root.encode_to(dest);
     }
 }
@@ -100,20 +98,18 @@ struct WorkItemResult {
 
 impl Encode for WorkItemResult {
     fn size_hint(&self) -> usize {
-        4 // first 4 bytes of service_index
+        self.service_index.size_hint()
             + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
-            + 8 // first 8 bytes of gas_prioritization_ratio
+            + self.gas_prioritization_ratio.size_hint()
             + self.refinement_output.size_hint()
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        let encoded_service_index = self.service_index.encode();
-        dest.write(&encoded_service_index[..4]);
+        self.service_index.encode_to(dest);
         self.service_code_hash.encode_to(dest);
         self.payload_hash.encode_to(dest);
-        let encoded_gas_prioritization_ratio = self.gas_prioritization_ratio.encode();
-        dest.write(&encoded_gas_prioritization_ratio[..8]);
+        self.gas_prioritization_ratio.encode_to(dest);
         self.refinement_output.encode_to(dest);
     }
 }
