@@ -1,4 +1,5 @@
 mod merklization;
+mod serialization;
 
 use crate::codec::{
     encode_length_discriminated_sorted_field, encode_optional_field,
