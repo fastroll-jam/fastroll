@@ -1,12 +1,18 @@
-use crate::common::{Hash32, Octets};
+use crate::{
+    common::{Hash32, Octets},
+    state::{serialization::serialize_state, GlobalState},
+};
 use bit_vec::BitVec;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use std::ops::{Bound, RangeBounds};
-
+use std::{
+    collections::HashMap,
+    ops::{Bound, RangeBounds},
+};
 // State Merklization
 
 const NODE_SIZE_BITS: usize = 512;
 const NODE_SIZE_BYTES: usize = NODE_SIZE_BITS / 8;
+const EMPTY_HASH: Hash32 = [0u8; 32];
 
 type Blake2b256 = Blake2b<U32>;
 
@@ -83,16 +89,15 @@ where
 }
 
 // Node encoding functions
-// TODO: should return BitVec instead?
-fn encode_branch(left: Hash32, right: Hash32) -> Octets {
+fn encode_branch(left: Hash32, right: Hash32) -> BitVec {
     let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
     node.set(0, false); // indicator for the Branch Node
     node.extend(slice_bitvec(&bytes_to_lsb_bits(left.to_vec()), 1..));
     node.extend(bytes_to_lsb_bits(right.to_vec()));
-    lsb_bits_to_bytes(node)
+    node
 }
 
-fn encode_leaf(key: Hash32, value: Octets) -> Octets {
+fn encode_leaf(key: Hash32, value: Octets) -> BitVec {
     let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
     node.set(0, true); // indicator for the Leaf Node
     if value.len() <= 32 {
@@ -113,5 +118,43 @@ fn encode_leaf(key: Hash32, value: Octets) -> Octets {
         node.extend(slice_bitvec(&bytes_to_lsb_bits(key.to_vec()), 0..248));
         node.extend(bytes_to_lsb_bits(blake2b_256(&value).to_vec()));
     }
-    lsb_bits_to_bytes(node)
+
+    node
+}
+
+// The state map Merklization function (`M`)
+fn merklize_map(d: HashMap<BitVec, (Hash32, Octets)>) -> Hash32 {
+    if d.is_empty() {
+        return EMPTY_HASH;
+    }
+
+    if d.len() == 1 {
+        let (_bits_key, (k, v)) = d.into_iter().next().unwrap();
+        return blake2b_256(&lsb_bits_to_bytes(encode_leaf(k, v)));
+    }
+
+    let mut left = HashMap::new();
+    let mut right = HashMap::new();
+    for (bits_key, p) in d {
+        let key = bits_key.clone();
+        if key[0] {
+            right.insert(slice_bitvec(&key, 1..), p); // b0 = 1
+        } else {
+            left.insert(slice_bitvec(&key, 1..), p); // b0 = 0
+        }
+    }
+    blake2b_256(&lsb_bits_to_bytes(encode_branch(
+        merklize_map(left),
+        merklize_map(right),
+    )))
+}
+
+// The basic Merklization function (`M_sigma`)
+fn merklize_state(state: &GlobalState) -> Hash32 {
+    let serialized_state = serialize_state(state);
+    let mut state_map = HashMap::new();
+    for (k, v) in serialized_state {
+        state_map.insert(bytes_to_lsb_bits(k.to_vec()), (k, v));
+    }
+    merklize_map(state_map)
 }

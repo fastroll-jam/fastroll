@@ -51,7 +51,7 @@ fn construct_key_with_service_and_hash(s: u32, h: &Hash32) -> [u8; 32] {
 }
 
 // Mapping from key to serialized GlobalState
-fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
+pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
     let mut map = HashMap::new();
 
     map.insert(construct_key(1), state.authorization_pool.encode()); // alpha
