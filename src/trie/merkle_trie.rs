@@ -1,13 +1,13 @@
 use crate::{
     common::{Hash32, Octets},
-    state::{
+    state::global_state::GlobalState,
+    trie::{
         db::KeyValueDB,
         serialization::serialize_state,
         utils::{
             bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec,
             MerklizationError, EMPTY_HASH, NODE_SIZE_BITS,
         },
-        GlobalState,
     },
 };
 use bit_vec::BitVec;

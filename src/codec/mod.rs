@@ -10,10 +10,10 @@ enum Length {
 impl Length {
     fn size_hint(&self) -> usize {
         match *self {
-            Length::U8(_) => 1 + 1,                               // Prefix byte + u8
-            Length::U16(_) => 1 + 2,                              // Prefix byte + u16
-            Length::U32(_) => 1 + 4,                              // Prefix byte + u32
-            Length::U64(_) => 1 + 8,                              // Prefix byte + u64
+            Length::U8(_) => 1 + 1,  // Prefix byte + u8
+            Length::U16(_) => 1 + 2, // Prefix byte + u16
+            Length::U32(_) => 1 + 4, // Prefix byte + u32
+            Length::U64(_) => 1 + 8, // Prefix byte + u64
         }
     }
 

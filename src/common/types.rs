@@ -11,3 +11,4 @@ pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
 pub type Ticket = (Hash32, u32); // N_N; u32 range [0, 2)
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;
+pub type ValidatorKey = [u8; 336];
