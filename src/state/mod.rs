@@ -1,14 +1,14 @@
-mod merklization;
+mod db;
+mod merkle_trie;
 mod serialization;
+mod utils;
 
-use crate::codec::{
-    encode_length_discriminated_sorted_field, encode_optional_field,
-    size_hint_length_discriminated_sorted_field, size_hint_optional_field,
-};
 use crate::{
     codec::{
         encode_length_discriminated_field, encode_length_discriminated_optional_field,
+        encode_length_discriminated_sorted_field, encode_optional_field,
         size_hint_length_discriminated_field, size_hint_length_discriminated_optional_field,
+        size_hint_length_discriminated_sorted_field, size_hint_optional_field,
     },
     common::{
         BandersnatchPubKey, BandersnatchRingRoot, Ed25519PubKey, Hash32, Octets, Ticket,
