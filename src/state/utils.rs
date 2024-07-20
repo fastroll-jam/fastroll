@@ -55,6 +55,21 @@ pub(crate) fn lsb_bits_to_bytes(bits: BitVec) -> Octets {
     bytes
 }
 
+pub(crate) fn bytes_to_hash(data: Octets) -> Hash32 {
+    if data.len() != 32 {
+        panic!("Expected 32 bytes, got {}", data.len());
+    }
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&data);
+    hash
+}
+
+pub(crate) fn bitvec_to_hash(data: BitVec) -> Hash32 {
+    let bytes: Octets = lsb_bits_to_bytes(data);
+    bytes_to_hash(bytes)
+}
+
+
 // BitVec helper function
 pub(crate) fn slice_bitvec<R>(bits: &BitVec, range: R) -> BitVec
 where

@@ -1,20 +1,24 @@
-use crate::common::{Hash32, Octets};
-use crate::state::{
-    db::KeyValueDB,
-    serialization::serialize_state,
-    utils::{
-        blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec, EMPTY_HASH, NODE_SIZE_BITS,
+use crate::{
+    common::{Hash32, Octets},
+    state::{
+        db::KeyValueDB,
+        serialization::serialize_state,
+        utils::{
+            blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec, EMPTY_HASH,
+            NODE_SIZE_BITS,
+        },
+        GlobalState,
     },
-    GlobalState,
 };
 use bit_vec::BitVec;
 use std::collections::HashMap;
+use crate::state::utils::bitvec_to_hash;
 
 // Merkle Trie representation and helper functions
 
 // KVDB interactions
-fn store_node(db: &dyn KeyValueDB, hash: Hash32, serialized_node: &[u8]) {
-    db.put(&hash, serialized_node)
+fn store_node(db: &dyn KeyValueDB, hash: &Hash32, serialized_node: &[u8]) {
+    db.put(hash, serialized_node)
         .expect("Failed to store node");
 }
 
@@ -24,7 +28,7 @@ pub(crate) fn store_data(db: &dyn KeyValueDB, data: &[u8]) -> Hash32 {
     data_hash
 }
 
-fn get_node(db: &dyn KeyValueDB, hash: &Hash32) -> Option<Vec<u8>> {
+fn get_node(db: &dyn KeyValueDB, hash: &Hash32) -> Option<Octets> {
     db.get(hash).expect("Failed to get node")
 }
 
@@ -74,7 +78,7 @@ fn merklize_map(db: &dyn KeyValueDB, d: HashMap<BitVec, (Hash32, Octets)>) -> Ha
         let leaf = encode_leaf(db, k, v); // this involves storing data the leaf node points to the KVDB.
         let leaf_bytes = lsb_bits_to_bytes(leaf.clone());
         let leaf_hash = blake2b_256(&leaf_bytes);
-        store_node(db, leaf_hash, &leaf_bytes); // key: Hash(value), value: bits^-1(L(k, v))
+        store_node(db, &leaf_hash, &leaf_bytes); // key: Hash(value), value: bits^-1(L(k, v))
         return leaf_hash;
     }
 
@@ -93,7 +97,7 @@ fn merklize_map(db: &dyn KeyValueDB, d: HashMap<BitVec, (Hash32, Octets)>) -> Ha
     let branch = encode_branch(left_hash, right_hash);
     let branch_bytes = lsb_bits_to_bytes(branch.clone());
     let branch_hash = blake2b_256(&branch_bytes);
-    store_node(db, branch_hash, &branch_bytes);
+    store_node(db, &branch_hash, &branch_bytes);
     branch_hash
 }
 
@@ -105,4 +109,55 @@ fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Hash32 {
         state_map.insert(bytes_to_lsb_bits(k.to_vec()), (k, v));
     }
     merklize_map(db, state_map)
+}
+
+fn retrieve(db: &dyn KeyValueDB, root_hash: Hash32, merkle_path: BitVec) -> Option<Octets> {
+    let mut current_node_hash = root_hash;
+
+    for bit in merkle_path {
+        // If branch node, proceed. If leaf node, fetch the data
+        if is_leaf(db, &current_node_hash) {
+            let data = get_data_from_leaf_hash(db, &current_node_hash);
+            return Some(data);
+        }
+        current_node_hash = get_child_hash(db, current_node_hash, !bit)
+    }
+
+    // Final node should be a leaf node
+    if is_leaf(db, &current_node_hash) {
+        let data = get_data_from_leaf_hash(db, &current_node_hash);
+        return Some(data);
+    }
+
+    None
+}
+
+fn get_child_hash(db: &dyn KeyValueDB, node_hash: Hash32, left: bool) -> Hash32 {
+    // note: only branch node should call this
+    let node_bytes = get_node(db, &node_hash).unwrap();
+    let node_bits = bytes_to_lsb_bits(node_bytes);
+
+    let hash_bits = if left {
+        slice_bitvec(&node_bits, 1..(NODE_SIZE_BITS / 2)) // index 0 for branch identifier
+    } else {
+        slice_bitvec(&node_bits, (NODE_SIZE_BITS / 2)..NODE_SIZE_BITS) // index 0 for branch identifier
+    };
+
+    lsb_bits_to_bytes(hash_bits)
+        .try_into()
+        .expect("Hash length mismatch")
+}
+
+fn is_leaf(db: &dyn KeyValueDB, node_hash: &Hash32) -> bool {
+    let node_bytes = get_node(db, node_hash).unwrap();
+    let node_bits = bytes_to_lsb_bits(node_bytes);
+
+    node_bits[0]
+}
+
+fn get_data_from_leaf_hash(db: &dyn KeyValueDB, leaf_hash: &Hash32) -> Octets {
+    let node_bytes = get_node(db, leaf_hash).unwrap();
+    let node_bits = bytes_to_lsb_bits(node_bytes);
+    let data_hash = bitvec_to_hash(slice_bitvec(&node_bits, 256..));
+    get_node(db, &data_hash).unwrap()
 }
