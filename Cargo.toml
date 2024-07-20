@@ -8,3 +8,4 @@ edition = "2021"
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
 parity-scale-codec = { version = "3.6.12", features = ["derive"] }
+thiserror = "1.0.63"

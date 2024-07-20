@@ -2,6 +2,7 @@ use crate::common::{Hash32, Octets};
 use bit_vec::BitVec;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use std::ops::{Bound, RangeBounds};
+use thiserror::Error;
 
 // State Merklization Util Functions
 
@@ -11,15 +12,31 @@ pub(crate) const EMPTY_HASH: Hash32 = [0u8; 32];
 
 type Blake2b256 = Blake2b<U32>;
 
+#[derive(Debug, Error)]
+pub enum MerklizationError {
+    #[error("Blake2b hash length mismatch")]
+    HashLengthMismatch,
+    #[error("Expected 32 bytes, got {0}")]
+    InvalidByteLength(usize),
+    #[error("Node not found")]
+    NodeNotFound,
+    #[error("Failed to store node")]
+    StoreNodeError,
+    #[error("Failed to get node")]
+    GetNodeError,
+    #[error("Hash length mismatch")]
+    HashLengthMismatchError,
+}
+
 // Black2b-256 hash
-pub(crate) fn blake2b_256(value: &[u8]) -> Hash32 {
+pub(crate) fn blake2b_256(value: &[u8]) -> Result<Hash32, MerklizationError> {
     let mut hasher = Blake2b256::new();
     hasher.update(value);
     let result = hasher.finalize();
     result
         .as_slice()
         .try_into()
-        .expect("Blake2b hash length mismatch")
+        .map_err(|_| MerklizationError::HashLengthMismatch)
 }
 
 // The `bits` function
@@ -30,7 +47,6 @@ pub(crate) fn bytes_to_lsb_bits(data: Octets) -> BitVec {
             bits.push((byte >> i) & 1 == 1);
         }
     }
-
     bits
 }
 
@@ -51,24 +67,22 @@ pub(crate) fn lsb_bits_to_bytes(bits: BitVec) -> Octets {
     if bits.len() % 8 != 0 {
         bytes.push(current_byte);
     }
-
     bytes
 }
 
-pub(crate) fn bytes_to_hash(data: Octets) -> Hash32 {
+pub(crate) fn bytes_to_hash(data: Octets) -> Result<Hash32, MerklizationError> {
     if data.len() != 32 {
-        panic!("Expected 32 bytes, got {}", data.len());
+        return Err(MerklizationError::InvalidByteLength(data.len()));
     }
     let mut hash = [0u8; 32];
     hash.copy_from_slice(&data);
-    hash
+    Ok(hash)
 }
 
-pub(crate) fn bitvec_to_hash(data: BitVec) -> Hash32 {
+pub(crate) fn bitvec_to_hash(data: BitVec) -> Result<Hash32, MerklizationError> {
     let bytes: Octets = lsb_bits_to_bytes(data);
     bytes_to_hash(bytes)
 }
-
 
 // BitVec helper function
 pub(crate) fn slice_bitvec<R>(bits: &BitVec, range: R) -> BitVec

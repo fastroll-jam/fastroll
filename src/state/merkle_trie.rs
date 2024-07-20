@@ -4,32 +4,38 @@ use crate::{
         db::KeyValueDB,
         serialization::serialize_state,
         utils::{
-            blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec, EMPTY_HASH,
-            NODE_SIZE_BITS,
+            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec,
+            MerklizationError, EMPTY_HASH, NODE_SIZE_BITS,
         },
         GlobalState,
     },
 };
 use bit_vec::BitVec;
 use std::collections::HashMap;
-use crate::state::utils::bitvec_to_hash;
 
 // Merkle Trie representation and helper functions
 
 // KVDB interactions
-fn store_node(db: &dyn KeyValueDB, hash: &Hash32, serialized_node: &[u8]) {
+fn store_node(
+    db: &dyn KeyValueDB,
+    hash: &Hash32,
+    serialized_node: &[u8],
+) -> Result<(), MerklizationError> {
     db.put(hash, serialized_node)
-        .expect("Failed to store node");
+        .map_err(|_| MerklizationError::StoreNodeError)
 }
 
-pub(crate) fn store_data(db: &dyn KeyValueDB, data: &[u8]) -> Hash32 {
-    let data_hash = blake2b_256(data);
-    db.put(&data_hash, data).expect("Failed to store data");
-    data_hash
+pub(crate) fn store_data(db: &dyn KeyValueDB, data: &[u8]) -> Result<Hash32, MerklizationError> {
+    let data_hash = blake2b_256(data)?;
+    db.put(&data_hash, data)
+        .map_err(|_| MerklizationError::StoreNodeError)?;
+    Ok(data_hash)
 }
 
-fn get_node(db: &dyn KeyValueDB, hash: &Hash32) -> Option<Octets> {
-    db.get(hash).expect("Failed to get node")
+fn get_node(db: &dyn KeyValueDB, hash: &Hash32) -> Result<Octets, MerklizationError> {
+    db.get(hash)
+        .map_err(|_| MerklizationError::GetNodeError)
+        .and_then(|opt| opt.ok_or(MerklizationError::NodeNotFound))
 }
 
 // Node encoding functions
@@ -41,7 +47,11 @@ pub(crate) fn encode_branch(left: Hash32, right: Hash32) -> BitVec {
     node
 }
 
-pub(crate) fn encode_leaf(db: &dyn KeyValueDB, key: Hash32, value: Octets) -> BitVec {
+pub(crate) fn encode_leaf(
+    db: &dyn KeyValueDB,
+    key: Hash32,
+    value: Octets,
+) -> Result<BitVec, MerklizationError> {
     let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
     node.set(0, true); // indicator for the Leaf Node
     if value.len() <= 32 {
@@ -58,28 +68,31 @@ pub(crate) fn encode_leaf(db: &dyn KeyValueDB, key: Hash32, value: Octets) -> Bi
             node.push(false); // filling the remaining bits with zeroes
         }
     } else {
-        let value_hash = store_data(db, &value); // store the data to the KVDB.
+        let value_hash = store_data(db, &value)?; // store the data to the KVDB.
         node.set(1, true); // indicator for the Regular Leaf
         node.extend(slice_bitvec(&bytes_to_lsb_bits(key.to_vec()), 0..248));
         node.extend(bytes_to_lsb_bits(value_hash.to_vec()));
     }
 
-    node
+    Ok(node)
 }
 
 // The state map Merklization function (`M`)
-fn merklize_map(db: &dyn KeyValueDB, d: HashMap<BitVec, (Hash32, Octets)>) -> Hash32 {
+fn merklize_map(
+    db: &dyn KeyValueDB,
+    d: HashMap<BitVec, (Hash32, Octets)>,
+) -> Result<Hash32, MerklizationError> {
     if d.is_empty() {
-        return EMPTY_HASH;
+        return Ok(EMPTY_HASH);
     }
 
     if d.len() == 1 {
         let (_bits_key, (k, v)) = d.into_iter().next().unwrap();
-        let leaf = encode_leaf(db, k, v); // this involves storing data the leaf node points to the KVDB.
+        let leaf = encode_leaf(db, k, v)?; // this involves storing data the leaf node points to the KVDB.
         let leaf_bytes = lsb_bits_to_bytes(leaf.clone());
-        let leaf_hash = blake2b_256(&leaf_bytes);
-        store_node(db, &leaf_hash, &leaf_bytes); // key: Hash(value), value: bits^-1(L(k, v))
-        return leaf_hash;
+        let leaf_hash = blake2b_256(&leaf_bytes)?;
+        store_node(db, &leaf_hash, &leaf_bytes)?; // key: Hash(value), value: bits^-1(L(k, v))
+        return Ok(leaf_hash);
     }
 
     let mut left = HashMap::new();
@@ -92,17 +105,17 @@ fn merklize_map(db: &dyn KeyValueDB, d: HashMap<BitVec, (Hash32, Octets)>) -> Ha
             left.insert(slice_bitvec(&key, 1..), p); // b0 = 0
         }
     }
-    let left_hash = merklize_map(db, left);
-    let right_hash = merklize_map(db, right);
+    let left_hash = merklize_map(db, left)?;
+    let right_hash = merklize_map(db, right)?;
     let branch = encode_branch(left_hash, right_hash);
     let branch_bytes = lsb_bits_to_bytes(branch.clone());
-    let branch_hash = blake2b_256(&branch_bytes);
-    store_node(db, &branch_hash, &branch_bytes);
-    branch_hash
+    let branch_hash = blake2b_256(&branch_bytes)?;
+    store_node(db, &branch_hash, &branch_bytes)?;
+    Ok(branch_hash)
 }
 
 // The basic Merklization function (`M_sigma`)
-fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Hash32 {
+fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Result<Hash32, MerklizationError> {
     let serialized_state = serialize_state(state);
     let mut state_map = HashMap::new();
     for (k, v) in serialized_state {
@@ -111,30 +124,38 @@ fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Hash32 {
     merklize_map(db, state_map)
 }
 
-fn retrieve(db: &dyn KeyValueDB, root_hash: Hash32, merkle_path: BitVec) -> Option<Octets> {
+fn retrieve(
+    db: &dyn KeyValueDB,
+    root_hash: Hash32,
+    merkle_path: BitVec,
+) -> Result<Octets, MerklizationError> {
     let mut current_node_hash = root_hash;
 
     for bit in merkle_path {
         // If branch node, proceed. If leaf node, fetch the data
-        if is_leaf(db, &current_node_hash) {
-            let data = get_data_from_leaf_hash(db, &current_node_hash);
-            return Some(data);
+        if is_leaf(db, &current_node_hash)? {
+            let data = get_data_from_leaf_hash(db, &current_node_hash)?;
+            return Ok(data);
         }
-        current_node_hash = get_child_hash(db, current_node_hash, !bit)
+        current_node_hash = get_child_hash(db, current_node_hash, !bit)?;
     }
 
     // Final node should be a leaf node
-    if is_leaf(db, &current_node_hash) {
-        let data = get_data_from_leaf_hash(db, &current_node_hash);
-        return Some(data);
+    if is_leaf(db, &current_node_hash)? {
+        let data = get_data_from_leaf_hash(db, &current_node_hash)?;
+        return Ok(data);
     }
 
-    None
+    Err(MerklizationError::NodeNotFound)
 }
 
-fn get_child_hash(db: &dyn KeyValueDB, node_hash: Hash32, left: bool) -> Hash32 {
+fn get_child_hash(
+    db: &dyn KeyValueDB,
+    node_hash: Hash32,
+    left: bool,
+) -> Result<Hash32, MerklizationError> {
     // note: only branch node should call this
-    let node_bytes = get_node(db, &node_hash).unwrap();
+    let node_bytes = get_node(db, &node_hash)?;
     let node_bits = bytes_to_lsb_bits(node_bytes);
 
     let hash_bits = if left {
@@ -145,19 +166,22 @@ fn get_child_hash(db: &dyn KeyValueDB, node_hash: Hash32, left: bool) -> Hash32 
 
     lsb_bits_to_bytes(hash_bits)
         .try_into()
-        .expect("Hash length mismatch")
+        .map_err(|_| MerklizationError::HashLengthMismatchError)
 }
 
-fn is_leaf(db: &dyn KeyValueDB, node_hash: &Hash32) -> bool {
-    let node_bytes = get_node(db, node_hash).unwrap();
+fn is_leaf(db: &dyn KeyValueDB, node_hash: &Hash32) -> Result<bool, MerklizationError> {
+    let node_bytes = get_node(db, node_hash)?;
     let node_bits = bytes_to_lsb_bits(node_bytes);
 
-    node_bits[0]
+    Ok(node_bits[0])
 }
 
-fn get_data_from_leaf_hash(db: &dyn KeyValueDB, leaf_hash: &Hash32) -> Octets {
-    let node_bytes = get_node(db, leaf_hash).unwrap();
+fn get_data_from_leaf_hash(
+    db: &dyn KeyValueDB,
+    leaf_hash: &Hash32,
+) -> Result<Octets, MerklizationError> {
+    let node_bytes = get_node(db, leaf_hash)?;
     let node_bits = bytes_to_lsb_bits(node_bytes);
-    let data_hash = bitvec_to_hash(slice_bitvec(&node_bits, 256..));
-    get_node(db, &data_hash).unwrap()
+    let data_hash = bitvec_to_hash(slice_bitvec(&node_bits, 256..))?;
+    get_node(db, &data_hash)
 }
