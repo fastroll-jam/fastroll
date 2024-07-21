@@ -1,3 +1,4 @@
+use rocksdb::{Options, DB as RocksDB};
 use std::sync::Arc;
 
 // Key-Value database representation
@@ -6,6 +7,30 @@ use std::sync::Arc;
 pub(crate) trait KeyValueDB: Sync + Send {
     fn put(&self, key: &[u8], value: &[u8]) -> Result<(), String>;
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, String>;
+}
+
+// Wrapper around RocksDB to implement KeyValueDB
+struct RocksDBWrapper {
+    db: RocksDB,
+}
+
+impl RocksDBWrapper {
+    fn new(path: &str) -> Self {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        let db = RocksDB::open(&opts, path).expect("Failed to open RocksDB");
+        RocksDBWrapper { db }
+    }
+}
+
+impl KeyValueDB for RocksDBWrapper {
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), String> {
+        self.db.put(key, value).map_err(|e| e.to_string())
+    }
+
+    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
+        self.db.get(key).map_err(|e| e.to_string())
+    }
 }
 
 struct DB {
