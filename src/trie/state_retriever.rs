@@ -1,7 +1,8 @@
+// FIXME: move to `state` module
 use crate::{
     common::{Hash32, Octets},
+    db::manager::GLOBAL_KVDB_MANAGER,
     trie::{
-        db::{KeyValueDB, GLOBAL_STATE_MANAGER},
         merkle_trie::retrieve,
         serialization::{
             construct_key, construct_key_with_service_and_data,
@@ -11,27 +12,26 @@ use crate::{
     },
 };
 use parity_scale_codec::Encode;
-use std::sync::Arc;
 
 fn get_current_root_hash() -> Hash32 {
     todo!() // move to `block/header.rs`
 }
 
-pub struct StateRetriever {
-    db: Arc<dyn KeyValueDB>,
-}
+pub struct StateRetriever;
 
 impl StateRetriever {
     pub(crate) fn new() -> Self {
-        let db = GLOBAL_STATE_MANAGER.lock().unwrap().get_db();
-        Self { db }
+        StateRetriever
     }
+
     // Getter functions to retrieve current state of each state component
     // FIXME: apply decoders so that each getter function can return the Rust type representation
     fn retrieve_state(&self, merkle_path_hash: Hash32) -> Octets {
+        let db_manager = GLOBAL_KVDB_MANAGER.lock().unwrap();
         let merkle_path = bytes_to_lsb_bits(merkle_path_hash.to_vec());
         let root_hash = get_current_root_hash();
-        retrieve(&self.db, root_hash, merkle_path).expect("Failed to fetch current state component")
+        retrieve(&db_manager, root_hash, merkle_path)
+            .expect("Failed to fetch current state component")
     }
 
     pub fn get_authorization_pool(&self) -> Octets {
