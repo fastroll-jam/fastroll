@@ -1,7 +1,6 @@
-use crate::block::{extrinsics::Extrinsics, header::BlockHeader};
+use crate::{block::header::BlockHeader, extrinsics::Extrinsics};
 use parity_scale_codec::{Encode, Output};
 
-mod extrinsics;
 mod header;
 
 pub struct Block {
