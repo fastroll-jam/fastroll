@@ -1,4 +1,3 @@
-// FIXME: move to `state` module
 use crate::{
     common::{Hash32, Octets},
     db::manager::GLOBAL_KVDB_MANAGER,

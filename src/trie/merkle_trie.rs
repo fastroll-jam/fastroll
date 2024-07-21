@@ -1,17 +1,17 @@
 use crate::{
     common::{Hash32, Octets},
     db::manager::KVDBManager,
-    state::global_state::GlobalState,
     trie::{
         serialization::serialize_state,
         utils::{
-            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec,
-            MerklizationError, EMPTY_HASH, NODE_SIZE_BITS,
+            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, EMPTY_HASH, lsb_bits_to_bytes,
+            MerklizationError, NODE_SIZE_BITS, slice_bitvec,
         },
     },
 };
 use bit_vec::BitVec;
 use std::collections::HashMap;
+use crate::state::global_state::GlobalState;
 
 // Merkle Trie representation and helper functions
 

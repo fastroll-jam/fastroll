@@ -1,6 +1,6 @@
 use crate::{
     common::{Hash32, ValidatorKey, CORE_COUNT, VALIDATOR_COUNT},
-    state::{
+    state::components::{
         authorization::AuthorizationPool, block_history::BlockHistoryEntry,
         pending_reports::PendingReports, privileged_services::PrivilegedServicesState,
         safrole::SafroleState, service_accounts::ServiceAccountState,

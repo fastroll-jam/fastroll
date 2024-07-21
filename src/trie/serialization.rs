@@ -1,10 +1,10 @@
 use crate::{
     codec::encode_length_discriminated_field,
     common::{Hash32, Octets},
-    state::global_state::GlobalState,
 };
 use parity_scale_codec::Encode;
 use std::collections::HashMap;
+use crate::state::global_state::GlobalState;
 
 // State Serialization
 
