@@ -3,4 +3,4 @@ mod codec;
 mod common;
 mod extrinsics;
 mod state;
-mod trie;
+pub mod trie;

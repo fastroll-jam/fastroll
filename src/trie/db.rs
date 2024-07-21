@@ -59,7 +59,7 @@ impl KeyValueDB for RocksDBWrapper {
 }
 
 // Global state manager for the KVDB instance
-pub(crate) struct GlobalStateManager {
+pub struct GlobalStateManager {
     db: Arc<dyn KeyValueDB>,
 }
 
@@ -68,7 +68,7 @@ impl GlobalStateManager {
         GlobalStateManager { db }
     }
 
-    fn get_db(&self) -> Arc<dyn KeyValueDB> {
+    pub(crate) fn get_db(&self) -> Arc<dyn KeyValueDB> {
         Arc::clone(&self.db)
     }
 
@@ -77,7 +77,7 @@ impl GlobalStateManager {
 
 // Lazy initialization for a Singleton access to the DB instance
 lazy_static! {
-    pub(crate) static ref GLOBAL_STATE_MANAGER: Mutex<GlobalStateManager> = {
+    pub static ref GLOBAL_STATE_MANAGER: Mutex<GlobalStateManager> = {
         dotenv().ok();
         let db_path = env::var("ROCKSDB_PATH").expect("ROCKSDB_PATH must be set correctly");
 
