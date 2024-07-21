@@ -8,37 +8,64 @@ use std::collections::HashMap;
 
 // State Serialization
 
-fn construct_key(i: u8) -> Hash32 {
+// Index of each state component used for Merkle path construction
+pub(crate) enum M {
+    Alpha = 1,
+    Phi = 2,
+    Beta = 3,
+    Gamma = 4,
+    Psi = 5,
+    Eta = 6,
+    Iota = 7,
+    Kappa = 8,
+    Lambda = 9,
+    Rho = 10,
+    Tau = 11,
+    Chi = 12,
+    Pi = 13,
+    Sigma = 255,
+}
+
+impl From<M> for u8 {
+    fn from(val: M) -> Self {
+        val as u8
+    }
+}
+
+pub(crate) fn construct_key<T: Into<u8>>(i: T) -> Hash32 {
     let mut key = [0u8; 32];
-    key[0] = i;
+    key[0] = i.into();
     key
 }
 
-fn construct_key_with_service(i: u8, s: u32) -> Hash32 {
+pub(crate) fn construct_key_with_service<T: Into<u8>>(i: T, s: u32) -> Hash32 {
     let mut key = [0u8; 32];
-    key[0] = i;
+    key[0] = i.into();
     key[1..5].copy_from_slice(&s.to_be_bytes());
     key
 }
 
-fn construct_key_with_service_and_data(s: u32, h: Octets) -> [u8; 32] {
+pub(crate) fn construct_key_with_service_and_data(s: u32, h: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
 
     let s_bytes = s.to_be_bytes();
-    let mut h_bytes: Vec<u8> = h.clone();
-    h_bytes.truncate(28);
+    let h_len = h.len().min(28);
 
     for i in 0..4 {
-        key[i * 2] = s_bytes[i]; // 0, 2, 4, 6
-        key[i * 2 + 1] = h_bytes[i]; // 1, 3, 5, 7
+        key[i * 2] = s_bytes[i];
+        if i < h_len {
+            key[i * 2 + 1] = h[i];
+        }
     }
 
-    key[8..32].copy_from_slice(&h_bytes[4..28]);
+    if h_len > 4 {
+        key[8..8 + h_len - 4].copy_from_slice(&h[4..h_len]);
+    }
 
     key
 }
 
-fn construct_key_with_service_and_hash(s: u32, h: &Hash32) -> [u8; 32] {
+pub(crate) fn construct_key_with_service_and_hash(s: u32, h: &Hash32) -> [u8; 32] {
     let mut key = [0u8; 32];
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
@@ -54,26 +81,26 @@ fn construct_key_with_service_and_hash(s: u32, h: &Hash32) -> [u8; 32] {
 pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
     let mut map = HashMap::new();
 
-    map.insert(construct_key(1), state.authorization_pool.encode()); // alpha
-    map.insert(construct_key(2), state.authorization_queue.encode()); // phi
+    map.insert(construct_key(M::Alpha), state.authorization_pool.encode()); // alpha
+    map.insert(construct_key(M::Phi), state.authorization_queue.encode()); // phi
     let mut encoded_block_history = vec![];
     encode_length_discriminated_field(&state.block_history, &mut encoded_block_history);
-    map.insert(construct_key(3), encoded_block_history); // beta
-    map.insert(construct_key(4), state.safrole_state.encode()); // gamma
-    map.insert(construct_key(5), state.verdicts.encode()); // psi
-    map.insert(construct_key(6), state.entropy_accumulator.encode()); // eta
-    map.insert(construct_key(7), state.staging_validator_set.encode()); // iota
-    map.insert(construct_key(8), state.active_validator_set.encode()); // kappa
-    map.insert(construct_key(9), state.past_validator_set.encode()); // lambda
-    map.insert(construct_key(10), state.pending_reports.encode()); // rho
-    map.insert(construct_key(11), state.recent_timeslot.encode()); // tau
-    map.insert(construct_key(12), state.privileged_services.encode()); // chi
-    map.insert(construct_key(13), state.validator_statistics.encode()); // pi
+    map.insert(construct_key(M::Beta), encoded_block_history); // beta
+    map.insert(construct_key(M::Gamma), state.safrole_state.encode()); // gamma
+    map.insert(construct_key(M::Psi), state.verdicts.encode()); // psi
+    map.insert(construct_key(M::Eta), state.entropy_accumulator.encode()); // eta
+    map.insert(construct_key(M::Iota), state.staging_validator_set.encode()); // iota
+    map.insert(construct_key(M::Kappa), state.active_validator_set.encode()); // kappa
+    map.insert(construct_key(M::Lambda), state.past_validator_set.encode()); // lambda
+    map.insert(construct_key(M::Rho), state.pending_reports.encode()); // rho
+    map.insert(construct_key(M::Tau), state.recent_timeslot.encode()); // tau
+    map.insert(construct_key(M::Chi), state.privileged_services.encode()); // chi
+    map.insert(construct_key(M::Pi), state.validator_statistics.encode()); // pi
 
     // service state
     for (service, account) in &state.service_accounts {
         map.insert(
-            construct_key_with_service(255u8, *service),
+            construct_key_with_service(M::Sigma, *service),
             (
                 account.code_hash,                    // Hash32
                 account.balance,                      // u64
@@ -105,7 +132,7 @@ pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
             encode_length_discriminated_field(lookup_value, &mut encoded_lookup_value);
 
             map.insert(
-                construct_key_with_service_and_data(*service, lookup_key.encode()), // FIXME: with exact encoding rule for the `h`
+                construct_key_with_service_and_data(*service, &lookup_key.encode()), // FIXME: with exact encoding rule for the `h`
                 encoded_lookup_value,
             );
         }

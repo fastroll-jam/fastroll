@@ -50,7 +50,7 @@ pub(crate) fn encode_branch(left: Hash32, right: Hash32) -> BitVec {
 pub(crate) fn encode_leaf(
     db: &dyn KeyValueDB,
     key: Hash32,
-    value: Octets,
+    value: &Octets,
 ) -> Result<BitVec, MerklizationError> {
     let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
     node.set(0, true); // indicator for the Leaf Node
@@ -68,7 +68,7 @@ pub(crate) fn encode_leaf(
             node.push(false); // filling the remaining bits with zeroes
         }
     } else {
-        let value_hash = store_data(db, &value)?; // store the data to the KVDB.
+        let value_hash = store_data(db, value)?; // store the data to the KVDB.
         node.set(1, true); // indicator for the Regular Leaf
         node.extend(slice_bitvec(&bytes_to_lsb_bits(key.to_vec()), 0..248));
         node.extend(bytes_to_lsb_bits(value_hash.to_vec()));
@@ -88,7 +88,7 @@ fn merklize_map(
 
     if d.len() == 1 {
         let (_bits_key, (k, v)) = d.into_iter().next().unwrap();
-        let leaf = encode_leaf(db, k, v)?; // this involves storing data the leaf node points to the KVDB.
+        let leaf = encode_leaf(db, k, &v)?; // this involves storing data the leaf node points to the KVDB.
         let leaf_bytes = lsb_bits_to_bytes(leaf.clone());
         let leaf_hash = blake2b_256(&leaf_bytes)?;
         store_node(db, &leaf_hash, &leaf_bytes)?; // key: Hash(value), value: bits^-1(L(k, v))
@@ -113,7 +113,6 @@ fn merklize_map(
     store_node(db, &branch_hash, &branch_bytes)?;
     Ok(branch_hash)
 }
-
 // The basic Merklization function (`M_sigma`)
 fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Result<Hash32, MerklizationError> {
     let serialized_state = serialize_state(state);
@@ -124,7 +123,7 @@ fn merklize_state(db: &dyn KeyValueDB, state: &GlobalState) -> Result<Hash32, Me
     merklize_map(db, state_map)
 }
 
-fn retrieve(
+pub(crate) fn retrieve(
     db: &dyn KeyValueDB,
     root_hash: Hash32,
     merkle_path: BitVec,
