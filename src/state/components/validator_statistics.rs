@@ -1,6 +1,6 @@
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 
-#[derive(Encode)]
+#[derive(Encode, Decode)]
 pub(crate) struct ValidatorStatEntry {
     block_production_count: u32, // b; the number of blocks produced by the validator.
     ticket_count: u32,           // t; the number of tickets introduced by the validator.

@@ -1,11 +1,12 @@
 use crate::{
     codec::{
+        decode_length_discriminated_field, decode_optional_field,
         encode_length_discriminated_field, encode_optional_field,
         size_hint_length_discriminated_field, size_hint_optional_field,
     },
     common::{BandersnatchPubKey, BandersnatchSignature, Hash32, Ticket, EPOCH_LENGTH},
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 type EpochMarker = Option<(Hash32, [BandersnatchPubKey; 1023])>;
 type WinningTicketsMarker = Option<[Ticket; EPOCH_LENGTH]>;
@@ -50,5 +51,22 @@ impl Encode for BlockHeader {
         self.block_author_index.encode_to(dest);
         self.vrf_signature.encode_to(dest);
         self.block_seal.encode_to(dest);
+    }
+}
+
+impl Decode for BlockHeader {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        Ok(Self {
+            parent_hash: Hash32::decode(input)?,
+            prior_state_root: Hash32::decode(input)?,
+            extrinsic_hash: Hash32::decode(input)?,
+            timeslot_index: u32::decode(input)?,
+            epoch_marker: decode_optional_field(input)?,
+            winning_tickets_marker: decode_optional_field(input)?,
+            judgements_marker: decode_length_discriminated_field(input)?,
+            block_author_index: u16::decode(input)?,
+            vrf_signature: BandersnatchSignature::decode(input)?,
+            block_seal: BandersnatchSignature::decode(input)?,
+        })
     }
 }

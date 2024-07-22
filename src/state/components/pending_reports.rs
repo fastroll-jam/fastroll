@@ -2,7 +2,7 @@ use crate::{
     codec::{encode_optional_field, size_hint_optional_field},
     common::{WorkReport, CORE_COUNT},
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct PendingReports {
     entries: [Option<PendingReport>; CORE_COUNT],
@@ -33,5 +33,16 @@ impl Encode for PendingReport {
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
         self.work_report.encode_to(dest);
         self.timeslot.encode_to(dest);
+    }
+}
+
+impl Decode for PendingReport {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let work_report = WorkReport::decode(input)?;
+        let timeslot = u32::decode(input)?;
+        Ok(Self {
+            work_report,
+            timeslot,
+        })
     }
 }

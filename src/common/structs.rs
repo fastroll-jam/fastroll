@@ -1,11 +1,15 @@
 use crate::{
     codec::{
+        decode_length_discriminated_field, decode_optional_field,
         encode_length_discriminated_field, encode_optional_field,
         size_hint_length_discriminated_field, size_hint_optional_field,
     },
-    common::types::{Hash32, Octets, UnsignedGas},
+    common::{
+        types::{Hash32, Octets, UnsignedGas},
+        HASH32_DEFAULT,
+    },
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 // Structs
 pub(crate) struct WorkReport {
@@ -34,6 +38,26 @@ impl Encode for WorkReport {
         self.refinement_context.encode_to(dest);
         self.specs.encode_to(dest);
         encode_length_discriminated_field(&self.results, dest);
+    }
+}
+
+impl Decode for WorkReport {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let authorizer_hash = Hash32::decode(input)?;
+        let core_index = u32::decode(input)?;
+        let authorizer_output = decode_length_discriminated_field(input)?;
+        let refinement_context = RefinementContext::decode(input)?;
+        let specs = AvailabilitySpecifications::decode(input)?;
+        let results = decode_length_discriminated_field(input)?;
+
+        Ok(WorkReport {
+            authorizer_hash,
+            core_index,
+            authorizer_output,
+            refinement_context,
+            specs,
+            results,
+        })
     }
 }
 
@@ -66,6 +90,26 @@ impl Encode for RefinementContext {
     }
 }
 
+impl Decode for RefinementContext {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let anchor_header_hash = Hash32::decode(input)?;
+        let anchor_state_root = Hash32::decode(input)?;
+        let beefy_root = Hash32::decode(input)?;
+        let lookup_anchor_header_hash = Hash32::decode(input)?;
+        let lookup_anchor_timeslot = u32::decode(input)?;
+        let prerequisite_work_package = decode_optional_field(input)?;
+
+        Ok(RefinementContext {
+            anchor_header_hash,
+            anchor_state_root,
+            beefy_root,
+            lookup_anchor_header_hash,
+            lookup_anchor_timeslot,
+            prerequisite_work_package,
+        })
+    }
+}
+
 struct AvailabilitySpecifications {
     work_package_hash: Hash32,
     work_package_length: u32, // N_N
@@ -85,6 +129,22 @@ impl Encode for AvailabilitySpecifications {
         self.work_package_hash.encode_to(dest);
         self.work_package_length.encode_to(dest);
         self.erasure_root.encode_to(dest);
+    }
+}
+
+impl Decode for AvailabilitySpecifications {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let work_package_hash = Hash32::decode(input)?;
+        let work_package_length = u32::decode(input)?;
+        let erasure_root = Hash32::decode(input)?;
+        let segment_root = HASH32_DEFAULT; // Default value since it is not part of the encoding
+
+        Ok(AvailabilitySpecifications {
+            work_package_hash,
+            work_package_length,
+            erasure_root,
+            segment_root,
+        })
     }
 }
 
@@ -111,6 +171,24 @@ impl Encode for WorkItemResult {
         self.payload_hash.encode_to(dest);
         self.gas_prioritization_ratio.encode_to(dest);
         self.refinement_output.encode_to(dest);
+    }
+}
+
+impl Decode for WorkItemResult {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let service_index = u32::decode(input)?;
+        let service_code_hash = Hash32::decode(input)?;
+        let payload_hash = Hash32::decode(input)?;
+        let gas_prioritization_ratio = UnsignedGas::decode(input)?;
+        let refinement_output = RefinementOutput::decode(input)?;
+
+        Ok(WorkItemResult {
+            service_index,
+            service_code_hash,
+            payload_hash,
+            gas_prioritization_ratio,
+            refinement_output,
+        })
     }
 }
 
@@ -148,6 +226,38 @@ impl Encode for RefinementOutput {
                 RefinementErrors::ServiceCodeLookupError => 3u8.encode_to(dest),
                 RefinementErrors::CodeSizeExceeded => 4u8.encode_to(dest),
             },
+        }
+    }
+}
+
+impl Decode for RefinementOutput {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        match u8::decode(input)? {
+            0 => {
+                let data = decode_length_discriminated_field(input)?;
+                Ok(RefinementOutput::Output(data))
+            }
+            1 => Ok(RefinementOutput::Error(RefinementErrors::OutOfGas)),
+            2 => Ok(RefinementOutput::Error(
+                RefinementErrors::UnexpectedTermination,
+            )),
+            3 => Ok(RefinementOutput::Error(
+                RefinementErrors::ServiceCodeLookupError,
+            )),
+            4 => Ok(RefinementOutput::Error(RefinementErrors::CodeSizeExceeded)),
+            _ => Err(Error::from("Invalid RefinementOutput prefix")),
+        }
+    }
+}
+
+impl Decode for RefinementErrors {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        match u8::decode(input)? {
+            1 => Ok(RefinementErrors::OutOfGas),
+            2 => Ok(RefinementErrors::UnexpectedTermination),
+            3 => Ok(RefinementErrors::ServiceCodeLookupError),
+            4 => Ok(RefinementErrors::CodeSizeExceeded),
+            _ => Err(Error::from("Invalid RefinementErrors prefix")),
         }
     }
 }

@@ -1,10 +1,11 @@
 use crate::{
     codec::{
-        encode_length_discriminated_sorted_field, size_hint_length_discriminated_sorted_field,
+        decode_length_discriminated_sorted_field, encode_length_discriminated_sorted_field,
+        size_hint_length_discriminated_sorted_field,
     },
     common::{Ed25519PubKey, Hash32},
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct VerdictsState {
     good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
@@ -26,5 +27,21 @@ impl Encode for VerdictsState {
         encode_length_discriminated_sorted_field(&self.bad_set, dest);
         encode_length_discriminated_sorted_field(&self.wonky_set, dest);
         encode_length_discriminated_sorted_field(&self.punish_set, dest);
+    }
+}
+
+impl Decode for VerdictsState {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let good_set = decode_length_discriminated_sorted_field(input)?;
+        let bad_set = decode_length_discriminated_sorted_field(input)?;
+        let wonky_set = decode_length_discriminated_sorted_field(input)?;
+        let punish_set = decode_length_discriminated_sorted_field(input)?;
+
+        Ok(Self {
+            good_set,
+            bad_set,
+            wonky_set,
+            punish_set,
+        })
     }
 }

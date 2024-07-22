@@ -1,12 +1,15 @@
 use crate::{
-    codec::{encode_length_discriminated_field, size_hint_length_discriminated_field},
+    codec::{
+        decode_length_discriminated_field, encode_length_discriminated_field,
+        size_hint_length_discriminated_field,
+    },
     extrinsics::{
         assurances::AssuranceExtrinsicEntry, guarantees::GuaranteeExtrinsicEntry,
         preimages::PreimageLookupExtrinsicEntry, tickets::TicketExtrinsicEntry,
         verdicts::VerdictsExtrinsic,
     },
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 mod assurances;
 mod guarantees;
@@ -42,5 +45,17 @@ impl Encode for Extrinsics {
         encode_length_discriminated_field(&self.preimage_lookups_extrinsic, dest);
         encode_length_discriminated_field(&self.assurances_extrinsic, dest);
         encode_length_discriminated_field(&self.guarantees_extrinsic, dest);
+    }
+}
+
+impl Decode for Extrinsics {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        Ok(Self {
+            tickets_extrinsic: decode_length_discriminated_field(input)?,
+            verdicts_extrinsic: VerdictsExtrinsic::decode(input)?,
+            preimage_lookups_extrinsic: decode_length_discriminated_field(input)?,
+            assurances_extrinsic: decode_length_discriminated_field(input)?,
+            guarantees_extrinsic: decode_length_discriminated_field(input)?,
+        })
     }
 }

@@ -1,11 +1,12 @@
 use crate::{
     codec::{
+        decode_length_discriminated_field, decode_length_discriminated_optional_field,
         encode_length_discriminated_field, encode_length_discriminated_optional_field,
         size_hint_length_discriminated_field, size_hint_length_discriminated_optional_field,
     },
     common::Hash32,
 };
-use parity_scale_codec::{Encode, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct BlockHistoryEntry {
     header_hash: Hash32,
@@ -27,5 +28,21 @@ impl Encode for BlockHistoryEntry {
         encode_length_discriminated_optional_field(&self.accumulation_result_root, dest); // E_M; MMR encoding
         self.state_root.encode_to(dest);
         encode_length_discriminated_field(&self.work_report_hashes, dest);
+    }
+}
+
+impl Decode for BlockHistoryEntry {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let header_hash = Hash32::decode(input)?;
+        let accumulation_result_root = decode_length_discriminated_optional_field(input)?; // E_M; MMR decoding
+        let state_root = Hash32::decode(input)?;
+        let work_report_hashes = decode_length_discriminated_field(input)?;
+
+        Ok(Self {
+            header_hash,
+            accumulation_result_root,
+            state_root,
+            work_report_hashes,
+        })
     }
 }

@@ -1,17 +1,17 @@
 use crate::{
     common::{Hash32, Octets},
     db::manager::KVDBManager,
+    state::global_state::GlobalState,
     trie::{
         serialization::serialize_state,
         utils::{
-            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, EMPTY_HASH, lsb_bits_to_bytes,
-            MerklizationError, NODE_SIZE_BITS, slice_bitvec,
+            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec,
+            MerklizationError, EMPTY_HASH, NODE_SIZE_BITS,
         },
     },
 };
 use bit_vec::BitVec;
 use std::collections::HashMap;
-use crate::state::global_state::GlobalState;
 
 // Merkle Trie representation and helper functions
 
@@ -150,7 +150,7 @@ fn get_child_hash(
 }
 
 fn is_leaf(db_manager: &KVDBManager, node_hash: &Hash32) -> Result<bool, MerklizationError> {
-    let node_bytes = db_manager.get_node(&node_hash)?;
+    let node_bytes = db_manager.get_node(node_hash)?;
     let node_bits = bytes_to_lsb_bits(node_bytes);
 
     Ok(node_bits[0])
@@ -160,7 +160,7 @@ fn get_data_from_leaf_hash(
     db_manager: &KVDBManager,
     leaf_hash: &Hash32,
 ) -> Result<Octets, MerklizationError> {
-    let node_bytes = db_manager.get_node(&leaf_hash)?;
+    let node_bytes = db_manager.get_node(leaf_hash)?;
     let node_bits = bytes_to_lsb_bits(node_bytes);
     let data_hash = bitvec_to_hash(slice_bitvec(&node_bits, 256..))?;
     db_manager.get_node(&data_hash)
