@@ -1,205 +1,246 @@
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use std::{
+    error::Error,
+    fmt,
+    fmt::{Debug, Display, Formatter},
+};
 
-enum Length {
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
+pub(crate) mod utils;
+
+/// Error types for JAM SCALE Codec
+#[derive(Debug)]
+pub enum JamCodecError {
+    InvalidSize(String),
+    ConversionError(String),
+    InputError(String),
+    EncodingError(String),
 }
 
-impl Encode for Length {
-    fn size_hint(&self) -> usize {
-        match *self {
-            Length::U8(_) => 1 + 1,  // Prefix byte + u8
-            Length::U16(_) => 1 + 2, // Prefix byte + u16
-            Length::U32(_) => 1 + 4, // Prefix byte + u32
-            Length::U64(_) => 1 + 8, // Prefix byte + u64
+impl Display for JamCodecError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            JamCodecError::InvalidSize(msg) => write!(f, "Invalid size: {}", msg),
+            JamCodecError::ConversionError(msg) => write!(f, "Conversion error: {}", msg),
+            JamCodecError::InputError(msg) => write!(f, "Input error: {}", msg),
+            JamCodecError::EncodingError(msg) => write!(f, "Encoding error: {}", msg),
         }
     }
+}
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        match *self {
-            Length::U8(v) => {
-                0u8.encode_to(dest); // prefix for indicating length discriminator type
-                v.encode_to(dest);
+impl From<&'static str> for JamCodecError {
+    fn from(desc: &'static str) -> JamCodecError {
+        JamCodecError::InputError(desc.to_string())
+    }
+}
+
+/// Trait that allows reading of data into a slice (this mirrors `Input` trait of `parity-scale-codec`)
+pub trait JamInput {
+    fn remaining_len(&mut self) -> Result<Option<usize>, JamCodecError>;
+
+    fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError>;
+
+    fn read_byte(&mut self) -> Result<u8, JamCodecError> {
+        let mut buf = [0u8];
+        self.read(&mut buf[..])?;
+        Ok(buf[0])
+    }
+}
+
+impl<'a> JamInput for &'a [u8] {
+    fn remaining_len(&mut self) -> Result<Option<usize>, JamCodecError> {
+        Ok(Some(self.len()))
+    }
+
+    fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError> {
+        if into.len() > self.len() {
+            return Err("Not enough data to fill buffer".into());
+        }
+        let len = into.len();
+        into.copy_from_slice(&self[..len]);
+        *self = &self[len..];
+        Ok(())
+    }
+}
+
+/// Trait that allows writing of data (this mirrors `Output` trait of `parity-scale-codec`)
+pub trait JamOutput {
+    /// Write to the output.
+    fn write(&mut self, bytes: &[u8]);
+
+    /// Write a single byte to the output.
+    fn push_byte(&mut self, byte: u8) {
+        self.write(&[byte]);
+    }
+}
+
+impl JamOutput for Vec<u8> {
+    fn write(&mut self, bytes: &[u8]) {
+        self.extend_from_slice(bytes)
+    }
+}
+
+pub trait JamEncode {
+    fn size_hint(&self) -> usize;
+
+    // Variable length little-endian integer type encoding
+    // The first byte includes both length-indicator prefix and part of the encoded data
+    fn encode_to<T: JamOutput + ?Sized>(&self, dest: &mut T)
+    where
+        Self: Copy + TryInto<u64>,
+        <Self as TryInto<u64>>::Error: Debug,
+    {
+        let x: u64 = (*self).try_into().expect("Value must fit into u64");
+
+        // Case 1: for x == 0
+        if x == 0 {
+            dest.write(&[0]);
+            return;
+        }
+
+        let mut encoded = Vec::new();
+        let mut value = x;
+
+        // Case 2: for x >= 1 and < 2^56
+        for l in 0..8 {
+            if value < 2u64.pow(7 * (l + 1)) {
+                if l == 0 {
+                    encoded.push(value as u8);
+                } else {
+                    encoded.push(255 - 2u8.pow(8 - l) + 1 + (value >> (8 * l)) as u8);
+                    for _ in 0..l {
+                        encoded.push((value & 0xFF) as u8);
+                        value >>= 8;
+                    }
+                }
+                dest.write(&encoded);
+                return;
             }
-            Length::U16(v) => {
-                1u8.encode_to(dest); // prefix for indicating length discriminator type
-                v.encode_to(dest);
-            }
-            Length::U32(v) => {
-                2u8.encode_to(dest); // prefix for indicating length discriminator type
-                v.encode_to(dest);
-            }
-            Length::U64(v) => {
-                3u8.encode_to(dest); // prefix for indicating length discriminator type
-                v.encode_to(dest);
-            }
+        }
+
+        // Case 3: for x >= 2^56 and < 2^64
+        encoded.push(0xFF);
+        encoded.extend_from_slice(&x.to_le_bytes());
+        dest.write(&encoded);
+    }
+
+    // Fixed length little-endian integer type encoding
+    fn encode_to_fixed<T: JamOutput + ?Sized>(&self, dest: &mut T, size_in_bytes: usize)
+    where
+        Self: Copy + TryInto<u64>,
+        <Self as TryInto<u64>>::Error: Debug,
+    {
+        let mut buf = vec![0u8; size_in_bytes];
+        let mut value: u64 = (*self).try_into().expect("The value must fit into u64");
+
+        for buf_byte in buf.iter_mut().take(size_in_bytes) {
+            *buf_byte = (value & 0xFF) as u8;
+            value >>= 8;
+        }
+
+        if value != 0 {
+            panic!("Value is too large to fit in {} bytes", size_in_bytes);
+        }
+
+        dest.write(&buf);
+    }
+
+    // Variable length little-endian integer type encoding
+    fn encode(&self) -> Vec<u8>
+    where
+        Self: Copy + TryInto<u64>,
+        <Self as TryInto<u64>>::Error: Debug,
+    {
+        let mut r = Vec::with_capacity(self.size_hint());
+        self.encode_to(&mut r);
+        r
+    }
+
+    // Fixed length little-endian integer type encoding
+    fn encode_fixed(&self) -> Vec<u8>
+    where
+        Self: Copy + TryInto<u64>,
+        <Self as TryInto<u64>>::Error: Debug,
+    {
+        let size = self.size_hint();
+        let mut r = Vec::with_capacity(size);
+        self.encode_to_fixed(&mut r, size);
+        r
+    }
+}
+
+pub trait JamDecode: Sized + TryFrom<u64> + Into<u64> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: TryFrom<u64>,
+        <Self as TryFrom<u64>>::Error: Display,
+    {
+        decode_impl(input)
+    }
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size_in_bytes: usize) -> Result<Self, JamCodecError>
+    where
+        Self: TryFrom<u64>,
+        <Self as TryFrom<u64>>::Error: Display,
+    {
+        let type_size = size_of::<Self>();
+        if size_in_bytes != type_size {
+            return Err(JamCodecError::InvalidSize(format!(
+                "Invalid size for {}",
+                std::any::type_name::<Self>()
+            )));
+        }
+
+        let mut value: u64 = 0;
+        for i in 0..size_in_bytes {
+            value |= (input.read_byte()? as u64) << (8 * i);
+        }
+
+        Self::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
+    }
+}
+
+fn decode_impl<I: JamInput, T: JamDecode + TryFrom<u64>>(input: &mut I) -> Result<T, JamCodecError>
+where
+    <T as TryFrom<u64>>::Error: Display,
+{
+    let first_byte = input.read_byte()?;
+
+    // Case 1: x == 0
+    if first_byte == 0 {
+        return T::try_from(0).map_err(|e| JamCodecError::ConversionError(e.to_string()));
+    }
+
+    // Count the number of leading one(`1`)s to determine the length prefix
+    let mut length_prefix = 0;
+    for i in (0..8).rev() {
+        if (first_byte & (1 << i)) != 0 {
+            length_prefix += 1;
+        } else {
+            break;
         }
     }
-}
 
-impl Decode for Length {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let prefix = u8::decode(input)?;
-        match prefix {
-            0 => Ok(Length::U8(u8::decode(input)?)),
-            1 => Ok(Length::U16(u16::decode(input)?)),
-            2 => Ok(Length::U32(u32::decode(input)?)),
-            3 => Ok(Length::U64(u64::decode(input)?)),
-            _ => Err(Error::from("Invalid Length prefix")),
+    if length_prefix == 8 {
+        // Case 3: x >= 2^56 and < 2^64
+        let mut value: u64 = 0;
+        for i in 0..8 {
+            value |= (input.read_byte()? as u64) << (8 * i);
         }
+        return T::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()));
     }
-}
 
-fn determine_length_type(length: usize) -> Length {
-    if length <= u8::MAX as usize {
-        Length::U8(length as u8)
-    } else if length <= u16::MAX as usize {
-        Length::U16(length as u16)
-    } else if length <= u32::MAX as usize {
-        Length::U32(length as u32)
-    } else if length <= u64::MAX as usize {
-        Length::U64(length as u64)
-    } else {
-        panic!("Length exceeds maximum value for supported types");
+    // Case 2: 2^7l <= x < 2^7(l+1)
+    let l = length_prefix;
+    let quotient = (first_byte & ((1 << (8 - l)) - 1)) as u64;
+
+    let mut remainder: u64 = 0;
+    for i in 0..l {
+        remainder |= (input.read_byte()? as u64) << (8 * i);
     }
-}
 
-// Encoding and size hint functions for optional values
-pub(crate) fn encode_optional_field<T: Encode, W: Output + ?Sized>(
-    field: &Option<T>,
-    dest: &mut W,
-) {
-    match field {
-        Some(value) => {
-            1u8.encode_to(dest); // Encode the presence marker (1)
-            value.encode_to(dest); // Encode the value
-        }
-        None => {
-            0u8.encode_to(dest); // Encode the absence marker (0)
-        }
-    }
-}
-
-// Decoding function for optional fields
-pub(crate) fn decode_optional_field<T: Decode, I: Input>(
-    input: &mut I,
-) -> Result<Option<T>, Error> {
-    let presence_marker = u8::decode(input)?;
-    if presence_marker == 1 {
-        Ok(Some(T::decode(input)?))
-    } else if presence_marker == 0 {
-        Ok(None)
-    } else {
-        Err(Error::from("Invalid presence marker"))
-    }
-}
-
-pub(crate) fn size_hint_optional_field<T: Encode>(field: &Option<T>) -> usize {
-    match field {
-        Some(value) => 1 + value.size_hint(), // 1 byte for the presence marker + size of the value
-        None => 1,                            // 1 byte for the absence marker
-    }
-}
-
-// Encoding and size hint functions for length-discriminated values
-pub(crate) fn encode_length_discriminated_field<T: Encode, W: Output + ?Sized>(
-    field: &[T],
-    dest: &mut W,
-) {
-    let length = field.len();
-    let length_type = determine_length_type(length);
-    length_type.encode_to(dest); // Encode the length discriminator with the prefix
-    field.encode_to(dest); // Encode the value
-}
-
-// Decoding function for length-discriminated fields
-pub(crate) fn decode_length_discriminated_field<T: Decode, I: Input>(
-    input: &mut I,
-) -> Result<Vec<T>, Error> {
-    let length_type = Length::decode(input)?;
-    let length = match length_type {
-        Length::U8(l) => l as usize,
-        Length::U16(l) => l as usize,
-        Length::U32(l) => l as usize,
-        Length::U64(l) => l as usize,
-    };
-    (0..length).map(|_| T::decode(input)).collect()
-}
-
-pub(crate) fn size_hint_length_discriminated_field<T: Encode>(field: &[T]) -> usize {
-    let length = field.len();
-    let length_type = determine_length_type(length);
-    length_type.size_hint() + field.size_hint() // Length of the length discriminator + size of the value
-}
-
-// Encoding and size hint functions for length-discriminated optional values
-pub(crate) fn encode_length_discriminated_optional_field<T: Encode, W: Output + ?Sized>(
-    field: &[Option<T>],
-    dest: &mut W,
-) {
-    let length = field.len();
-    let length_type = determine_length_type(length);
-    length_type.encode_to(dest);
-    for item in field {
-        encode_optional_field(item, dest);
-    }
-}
-
-// Decoding function for length-discriminated optional fields
-pub(crate) fn decode_length_discriminated_optional_field<T: Decode, I: Input>(
-    input: &mut I,
-) -> Result<Vec<Option<T>>, Error> {
-    let length_type = Length::decode(input)?;
-    let length = match length_type {
-        Length::U8(l) => l as usize,
-        Length::U16(l) => l as usize,
-        Length::U32(l) => l as usize,
-        Length::U64(l) => l as usize,
-    };
-    (0..length).map(|_| decode_optional_field(input)).collect()
-}
-
-pub(crate) fn size_hint_length_discriminated_optional_field<T: Encode>(
-    field: &[Option<T>],
-) -> usize {
-    let length = field.len();
-    let length_type = determine_length_type(length);
-    length_type.size_hint() + field.iter().map(size_hint_optional_field).sum::<usize>()
-}
-
-// Encoding and size hint functions for length-discriminated sorted values
-pub(crate) fn encode_length_discriminated_sorted_field<
-    T: Encode + Ord + Clone,
-    W: Output + ?Sized,
->(
-    field: &[T],
-    dest: &mut W,
-) {
-    let mut sorted_field = field.to_vec();
-    sorted_field.sort();
-    let length = sorted_field.len();
-    let length_type = determine_length_type(length);
-    length_type.encode_to(dest); // Encode the length discriminator with the prefix
-    sorted_field.encode_to(dest); // Encode the value
-}
-
-// Decoding function for length-discriminated sorted fields
-pub(crate) fn decode_length_discriminated_sorted_field<T: Decode + Ord, I: Input>(
-    input: &mut I,
-) -> Result<Vec<T>, Error> {
-    let mut result = decode_length_discriminated_field(input)?;
-    result.sort();
-    Ok(result)
-}
-
-pub(crate) fn size_hint_length_discriminated_sorted_field<T: Encode + Ord + Clone>(
-    field: &[T],
-) -> usize {
-    let mut sorted_field = field.to_vec();
-    sorted_field.sort();
-    let length = sorted_field.len();
-    let length_type = determine_length_type(length);
-    length_type.size_hint() + sorted_field.size_hint() // Length of the length discriminator + size of the value
+    // Combine quotient and remainder to get the final value
+    // According to the definition of SCALE encoding in the GP, the quotient is stored in the first
+    // byte following the length prefixes, and the remainder is stored in the subsequent fixed-length
+    // encoded data.
+    let value = (quotient << (8 * l)) | remainder;
+    T::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
 }

@@ -1,5 +1,5 @@
 use crate::{
-    codec::{encode_optional_field, size_hint_optional_field},
+    codec::utils::{encode_optional_field, size_hint_optional_field},
     common::{WorkReport, CORE_COUNT},
 };
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};

@@ -1,5 +1,5 @@
 use crate::{
-    codec::{encode_length_discriminated_field, size_hint_length_discriminated_field},
+    codec::utils::{encode_length_discriminated_field, size_hint_length_discriminated_field},
     common::{
         BandersnatchPubKey, BandersnatchRingRoot, Ticket, ValidatorKey,
         BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT, VALIDATOR_KEY_DEFAULT,

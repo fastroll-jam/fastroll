@@ -1,5 +1,5 @@
 use crate::{
-    codec::{
+    codec::utils::{
         decode_length_discriminated_field, encode_length_discriminated_field,
         size_hint_length_discriminated_field,
     },
@@ -40,31 +40,5 @@ impl Decode for AuthorizationPool {
         }
 
         Ok(Self { entries })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Helper function to create a sample AuthorizationPool
-    fn create_sample_pool() -> AuthorizationPool {
-        let mut entries = create_empty_entries();
-        entries[0] = vec![Hash32::from([1; 32]), Hash32::from([2; 32])];
-        entries[1] = vec![Hash32::from([3; 32])];
-        AuthorizationPool { entries }
-    }
-
-    // Expected:
-    // prefix 0 + length 2 + (1, 1, 1, ...) + (2, 2, 2, ...)
-    // prefix 0 + length 1 + (3, 3, 3, ...)
-    // padding -> No!
-
-    #[test]
-    fn test_encode() {
-        let pool = create_sample_pool();
-        let encoded = pool.encode(); // length = 2, 1 for each entry
-        println!("encoded: {:?}", encoded);
-        println!("length of encoded: {:?}", encoded.len());
     }
 }

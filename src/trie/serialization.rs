@@ -1,5 +1,5 @@
 use crate::{
-    codec::encode_length_discriminated_field,
+    codec::utils::encode_length_discriminated_field,
     common::{Hash32, Octets},
     state::global_state::GlobalState,
 };

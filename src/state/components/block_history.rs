@@ -1,5 +1,5 @@
 use crate::{
-    codec::{
+    codec::utils::{
         decode_length_discriminated_field, decode_length_discriminated_optional_field,
         encode_length_discriminated_field, encode_length_discriminated_optional_field,
         size_hint_length_discriminated_field, size_hint_length_discriminated_optional_field,
