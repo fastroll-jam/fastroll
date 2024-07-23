@@ -79,11 +79,7 @@ pub trait JamEncode {
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T);
 
-    fn encode(&self) -> Vec<u8>
-    where
-        Self: Copy + TryInto<u64>,
-        <Self as TryInto<u64>>::Error: Debug,
-    {
+    fn encode(&self) -> Vec<u8> {
         let mut r = Vec::with_capacity(self.size_hint());
         self.encode_to(&mut r);
         r
@@ -220,6 +216,40 @@ macro_rules! impl_jam_codec_for_uint {
 
 impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
 
+impl<T: JamEncode> JamEncode for Option<T> {
+    fn size_hint(&self) -> usize {
+        match self {
+            None => 1, // 1 byte for the presence marker
+            Some(value) => 1 + value.size_hint(),
+        }
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) {
+        match self {
+            None => {
+                // Note: even with smaller integer type, this will be converted to u64 then
+                // dynamically encoded by integer encoders
+                0u64.encode_to(dest); // Encode the absence marker (0)
+            }
+            Some(value) => {
+                1u64.encode_to(dest); // Encode the presence marker (1)
+                value.encode_to(dest); // Encode the value
+            }
+        }
+    }
+}
+
+impl<T: JamDecode> JamDecode for Option<T> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let presence = input.read_byte()?;
+        match presence {
+            0 => Ok(None),
+            1 => Ok(Some(T::decode(input)?)),
+            _ => Err(JamCodecError::InputError("Invalid Option encoding".into())),
+        }
+    }
+}
+
 // Auxiliary codec functions that are not part of the trait
 
 // Fixed length little-endian integer type encoding
@@ -282,7 +312,7 @@ where
 mod tests {
     use super::*;
 
-    // Helper function to encode and then decode a value
+    // Helper function to encode and then decode an integer value
     fn encode_decode<T: JamEncode + JamDecode + PartialEq + Debug + Copy>(
         value: T,
     ) -> Result<T, JamCodecError>
@@ -325,6 +355,7 @@ mod tests {
 
     #[test]
     fn test_u32_codec() {
+        assert_eq!(encode_decode(1_000_000u32).unwrap(), 1_000_000u32);
         assert_eq!(encode_decode(0u32).unwrap(), 0u32);
         assert_eq!(encode_decode(1u32).unwrap(), 1u32);
         assert_eq!(encode_decode(16384u32).unwrap(), 16384u32);
@@ -375,6 +406,41 @@ mod tests {
         assert!(matches!(
             decode_fixed::<&[u8], u16>(&mut slice, 4),
             Err(JamCodecError::InvalidSize(_))
+        ));
+    }
+
+    #[test]
+    fn test_option_codec() {
+        // Test None
+        let none: Option<u32> = None;
+        let encoded_none = none.encode();
+        assert_eq!(encoded_none, vec![0]);
+        let mut slice_none = &encoded_none[..];
+        let decoded_none: Option<u32> = JamDecode::decode(&mut slice_none).unwrap();
+        assert_eq!(none, decoded_none);
+
+        // Test Some
+        let some: Option<u32> = Some(42);
+        let encoded_some = some.encode();
+        assert_eq!(encoded_some, vec![1, 42]);
+        let mut slice_some = &encoded_some[..];
+        let decoded_some: Option<u32> = JamDecode::decode(&mut slice_some).unwrap();
+        assert_eq!(some, decoded_some);
+
+        // Test Some with a larger value
+        let some_large: Option<u32> = Some(1_000_000);
+        let encoded_some_large = some_large.encode();
+        assert_eq!(encoded_some_large, vec![1, 207, 64, 66]);
+        let mut slice_some_large = &encoded_some_large[..];
+        let decoded_some_large: Option<u32> = JamDecode::decode(&mut slice_some_large).unwrap();
+        assert_eq!(some_large, decoded_some_large);
+
+        // Test invalid encoding
+        let invalid_encoding = vec![2]; // 2 is not a valid presence marker
+        let mut slice_invalid = &invalid_encoding[..];
+        assert!(matches!(
+            Option::<u32>::decode(&mut slice_invalid),
+            Err(JamCodecError::InputError(_))
         ));
     }
 }
