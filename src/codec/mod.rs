@@ -2,6 +2,7 @@ use std::{
     error::Error,
     fmt,
     fmt::{Debug, Display, Formatter},
+    mem::size_of,
 };
 
 pub(crate) mod utils;
@@ -249,8 +250,7 @@ macro_rules! impl_jam_codec_for_uint {
     ($($t:ty),*) => {
         $(
             impl JamEncode for $t {
-                fn size_hint(&self) -> usize {
-                    std::mem::size_of::<Self>()
+                fn size_hint(&self) -> usize { size_of::<Self>()
                 }
             }
 
