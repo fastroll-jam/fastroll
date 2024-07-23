@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fmt,
     fmt::{Debug, Display, Formatter},
     mem::size_of,
@@ -80,7 +79,7 @@ pub trait JamEncode {
 
     // Variable length little-endian integer type encoding
     // The first byte includes both length-indicator prefix and part of the encoded data
-    fn encode_to<T: JamOutput + ?Sized>(&self, dest: &mut T)
+    fn encode_to<T: JamOutput>(&self, dest: &mut T)
     where
         Self: Copy + TryInto<u64>,
         <Self as TryInto<u64>>::Error: Debug,
@@ -140,7 +139,7 @@ pub trait JamEncode {
     }
 
     // Fixed length little-endian integer type encoding
-    fn encode_to_fixed<T: JamOutput + ?Sized>(&self, dest: &mut T, size_in_bytes: usize)
+    fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize)
     where
         Self: Copy + TryInto<u64>,
         <Self as TryInto<u64>>::Error: Debug,
@@ -183,7 +182,7 @@ pub trait JamEncode {
     }
 }
 
-pub trait JamDecode: Sized + TryFrom<u64> {
+pub trait JamDecode {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: TryFrom<u64>,
