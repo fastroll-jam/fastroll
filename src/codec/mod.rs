@@ -34,8 +34,6 @@ impl From<&'static str> for JamCodecError {
 
 /// Trait that allows reading of data into a slice (this mirrors `Input` trait of `parity-scale-codec`)
 pub trait JamInput {
-    fn remaining_len(&mut self) -> Result<Option<usize>, JamCodecError>;
-
     fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError>;
 
     fn read_byte(&mut self) -> Result<u8, JamCodecError> {
@@ -46,13 +44,11 @@ pub trait JamInput {
 }
 
 impl<'a> JamInput for &'a [u8] {
-    fn remaining_len(&mut self) -> Result<Option<usize>, JamCodecError> {
-        Ok(Some(self.len()))
-    }
-
     fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError> {
         if into.len() > self.len() {
-            return Err("Not enough data to fill buffer".into());
+            return Err(JamCodecError::InputError(
+                "Not enough data to fill buffer".into(),
+            ));
         }
         let len = into.len();
         into.copy_from_slice(&self[..len]);
@@ -88,38 +84,58 @@ pub trait JamEncode {
         Self: Copy + TryInto<u64>,
         <Self as TryInto<u64>>::Error: Debug,
     {
+        // Convert the value to u64
         let x: u64 = (*self).try_into().expect("Value must fit into u64");
 
-        // Case 1: for x == 0
+        // Case 1: x == 0
         if x == 0 {
-            dest.write(&[0]);
+            dest.push_byte(0);
             return;
         }
 
-        let mut encoded = Vec::new();
-        let mut value = x;
+        // Case 2: 1 <= x < 2^56
+        if x < (1 << 56) {
+            // determine l (0 to 7)
+            let l = if (1..(1 << 7)).contains(&x) {
+                0
+            } else if ((1 << 7)..(1 << 14)).contains(&x) {
+                1
+            } else if ((1 << 14)..(1 << 21)).contains(&x) {
+                2
+            } else if ((1 << 21)..(1 << 28)).contains(&x) {
+                3
+            } else if ((1 << 28)..(1 << 35)).contains(&x) {
+                4
+            } else if ((1 << 35)..(1 << 42)).contains(&x) {
+                5
+            } else if ((1 << 42)..(1 << 49)).contains(&x) {
+                6
+            } else {
+                7
+            };
 
-        // Case 2: for x >= 1 and < 2^56
-        for l in 0..8 {
-            if value < 2u64.pow(7 * (l + 1)) {
-                if l == 0 {
-                    encoded.push(value as u8);
-                } else {
-                    encoded.push(255 - 2u8.pow(8 - l) + 1 + (value >> (8 * l)) as u8);
-                    for _ in 0..l {
-                        encoded.push((value & 0xFF) as u8);
-                        value >>= 8;
-                    }
-                }
-                dest.write(&encoded);
-                return;
+            // Set the prefix byte
+            let prefix = if l == 0 { 0 } else { 0xFFu8 << (8 - l) };
+
+            // Divide x by 2^8l
+            let divisor = 1u64 << (8 * l);
+            let quotient = x / divisor;
+            let remainder = x % divisor;
+
+            // Combine the prefix and quotient in the first byte
+            let first_byte = prefix | (quotient as u8);
+            dest.push_byte(first_byte);
+
+            // Encode the remainder in little-endian format
+            for i in 0..l {
+                dest.push_byte(((remainder >> (8 * i)) & 0xFF) as u8);
             }
         }
-
-        // Case 3: for x >= 2^56 and < 2^64
-        encoded.push(0xFF);
-        encoded.extend_from_slice(&x.to_le_bytes());
-        dest.write(&encoded);
+        // Case 3: 2^56 <= x < 2^64
+        else {
+            dest.push_byte(0xFF);
+            dest.write(&x.to_le_bytes());
+        }
     }
 
     // Fixed length little-endian integer type encoding
@@ -128,19 +144,18 @@ pub trait JamEncode {
         Self: Copy + TryInto<u64>,
         <Self as TryInto<u64>>::Error: Debug,
     {
-        let mut buf = vec![0u8; size_in_bytes];
-        let mut value: u64 = (*self).try_into().expect("The value must fit into u64");
+        let value: u64 = (*self).try_into().expect("The value must fit into u64");
+        let bytes = value.to_le_bytes();
 
-        for buf_byte in buf.iter_mut().take(size_in_bytes) {
-            *buf_byte = (value & 0xFF) as u8;
-            value >>= 8;
+        if size_in_bytes > 8 {
+            panic!("Size cannot be larger than 8 bytes for u64");
         }
 
-        if value != 0 {
+        if bytes[size_in_bytes..].iter().any(|&b| b != 0) {
             panic!("Value is too large to fit in {} bytes", size_in_bytes);
         }
 
-        dest.write(&buf);
+        dest.write(&bytes[..size_in_bytes]);
     }
 
     // Variable length little-endian integer type encoding
@@ -167,13 +182,45 @@ pub trait JamEncode {
     }
 }
 
-pub trait JamDecode: Sized + TryFrom<u64> + Into<u64> {
+pub trait JamDecode: Sized + TryFrom<u64> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: TryFrom<u64>,
         <Self as TryFrom<u64>>::Error: Display,
     {
-        decode_impl(input)
+        let first_byte = input.read_byte()?;
+
+        // Case 1: x == 0
+        if first_byte == 0 {
+            return Self::try_from(0).map_err(|e| JamCodecError::ConversionError(e.to_string()));
+        }
+
+        // Count the number of leading one(`1`)s to determine the length prefix
+        let length_prefix = first_byte.leading_ones() as usize;
+
+        if length_prefix == 8 {
+            // Case 3: 2^56 <= x < 2^64
+            let mut value: u64 = 0;
+            for i in 0..8 {
+                value |= (input.read_byte()? as u64) << (8 * i);
+            }
+            return Self::try_from(value)
+                .map_err(|e| JamCodecError::ConversionError(e.to_string()));
+        }
+
+        // Case 2: 2^7l <= x < 2^7(l+1)
+        let l = length_prefix;
+        let mask = 0xFFu8 >> l;
+        let quotient = (first_byte & mask) as u64;
+
+        let mut remainder: u64 = 0;
+        for i in 0..l {
+            remainder |= (input.read_byte()? as u64) << (8 * i);
+        }
+
+        // Combine quotient and remainder to get the final decoded value
+        let value = (quotient << (8 * l)) | remainder;
+        Self::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
     }
 
     fn decode_fixed<I: JamInput>(input: &mut I, size_in_bytes: usize) -> Result<Self, JamCodecError>
@@ -198,49 +245,121 @@ pub trait JamDecode: Sized + TryFrom<u64> + Into<u64> {
     }
 }
 
-fn decode_impl<I: JamInput, T: JamDecode + TryFrom<u64>>(input: &mut I) -> Result<T, JamCodecError>
-where
-    <T as TryFrom<u64>>::Error: Display,
-{
-    let first_byte = input.read_byte()?;
+macro_rules! impl_jam_codec_for_uint {
+    ($($t:ty),*) => {
+        $(
+            impl JamEncode for $t {
+                fn size_hint(&self) -> usize {
+                    std::mem::size_of::<Self>()
+                }
+            }
 
-    // Case 1: x == 0
-    if first_byte == 0 {
-        return T::try_from(0).map_err(|e| JamCodecError::ConversionError(e.to_string()));
+            impl JamDecode for $t {
+                // The `decode` and `decode_fixed` methods are provided by the default implementation
+            }
+        )*
     }
+}
 
-    // Count the number of leading one(`1`)s to determine the length prefix
-    let mut length_prefix = 0;
-    for i in (0..8).rev() {
-        if (first_byte & (1 << i)) != 0 {
-            length_prefix += 1;
-        } else {
-            break;
+impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper function to encode and then decode a value
+    fn encode_decode<T: JamEncode + JamDecode + PartialEq + Debug + Copy>(
+        value: T,
+    ) -> Result<T, JamCodecError>
+    where
+        T: TryFrom<u64> + TryInto<u64>,
+        <T as TryFrom<u64>>::Error: Display,
+        <T as TryInto<u64>>::Error: Debug,
+    {
+        let encoded = value.encode();
+        println!("\nValue: {:?}", value);
+        println!("Encoded: {:02X?}", encoded);
+        let mut slice = &encoded[..];
+        let decoded = T::decode(&mut slice)?;
+        println!("Decoded: {:?}", decoded);
+        if value != decoded {
+            println!("Mismatch: original {:?} != decoded {:?}", value, decoded);
         }
+        Ok(decoded)
     }
 
-    if length_prefix == 8 {
-        // Case 3: x >= 2^56 and < 2^64
-        let mut value: u64 = 0;
-        for i in 0..8 {
-            value |= (input.read_byte()? as u64) << (8 * i);
-        }
-        return T::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()));
+    #[test]
+    fn test_u8_codec() {
+        assert_eq!(encode_decode(0u8).unwrap(), 0u8);
+        assert_eq!(encode_decode(1u8).unwrap(), 1u8);
+        assert_eq!(encode_decode(63u8).unwrap(), 63u8);
+        assert_eq!(encode_decode(64u8).unwrap(), 64u8);
+        assert_eq!(encode_decode(u8::MAX).unwrap(), u8::MAX);
     }
 
-    // Case 2: 2^7l <= x < 2^7(l+1)
-    let l = length_prefix;
-    let quotient = (first_byte & ((1 << (8 - l)) - 1)) as u64;
-
-    let mut remainder: u64 = 0;
-    for i in 0..l {
-        remainder |= (input.read_byte()? as u64) << (8 * i);
+    #[test]
+    fn test_u16_codec() {
+        assert_eq!(encode_decode(0u16).unwrap(), 0u16);
+        assert_eq!(encode_decode(1u16).unwrap(), 1u16);
+        assert_eq!(encode_decode(63u16).unwrap(), 63u16);
+        assert_eq!(encode_decode(64u16).unwrap(), 64u16);
+        assert_eq!(encode_decode(16383u16).unwrap(), 16383u16);
+        assert_eq!(encode_decode(16384u16).unwrap(), 16384u16);
+        assert_eq!(encode_decode(u16::MAX).unwrap(), u16::MAX);
     }
 
-    // Combine quotient and remainder to get the final value
-    // According to the definition of SCALE encoding in the GP, the quotient is stored in the first
-    // byte following the length prefixes, and the remainder is stored in the subsequent fixed-length
-    // encoded data.
-    let value = (quotient << (8 * l)) | remainder;
-    T::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
+    #[test]
+    fn test_u32_codec() {
+        assert_eq!(encode_decode(0u32).unwrap(), 0u32);
+        assert_eq!(encode_decode(1u32).unwrap(), 1u32);
+        assert_eq!(encode_decode(16384u32).unwrap(), 16384u32);
+        assert_eq!(encode_decode(1048575u32).unwrap(), 1048575u32);
+        assert_eq!(encode_decode(1048576u32).unwrap(), 1048576u32);
+        assert_eq!(encode_decode(u32::MAX).unwrap(), u32::MAX);
+    }
+
+    #[test]
+    fn test_u64_codec() {
+        assert_eq!(encode_decode(0u64).unwrap(), 0u64);
+        assert_eq!(encode_decode(1u64).unwrap(), 1u64);
+        assert_eq!(encode_decode(1048575u64).unwrap(), 1048575u64);
+        assert_eq!(encode_decode(1048576u64).unwrap(), 1048576u64);
+        assert_eq!(encode_decode(1u64 << 32).unwrap(), 1u64 << 32);
+        assert_eq!(encode_decode(1u64 << 56).unwrap(), 1u64 << 56);
+        assert_eq!(encode_decode(u64::MAX).unwrap(), u64::MAX);
+    }
+
+    #[test]
+    fn test_fixed_encoding() {
+        let value: u32 = 0x12345678;
+        let mut dest = Vec::new();
+        value.encode_to_fixed(&mut dest, 4);
+        assert_eq!(dest, vec![0x78, 0x56, 0x34, 0x12]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Value is too large to fit in 2 bytes")]
+    fn test_fixed_encoding_overflow() {
+        let value: u32 = 0x12345678;
+        let mut dest = Vec::new();
+        value.encode_to_fixed(&mut dest, 2);
+    }
+
+    #[test]
+    fn test_decode_fixed() {
+        let encoded = vec![0x78, 0x56, 0x34, 0x12];
+        let mut slice = &encoded[..];
+        let decoded = u32::decode_fixed(&mut slice, 4).unwrap();
+        assert_eq!(decoded, 0x12345678);
+    }
+
+    #[test]
+    fn test_decode_fixed_invalid_size() {
+        let encoded = vec![0x78, 0x56, 0x34, 0x12];
+        let mut slice = &encoded[..];
+        assert!(matches!(
+            u16::decode_fixed(&mut slice, 4),
+            Err(JamCodecError::InvalidSize(_))
+        ));
+    }
 }
