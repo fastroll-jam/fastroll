@@ -33,7 +33,7 @@ impl From<&'static str> for JamCodecError {
     }
 }
 
-/// Trait that allows reading of data into a slice (this mirrors `Input` trait of `parity-scale-codec`)
+/// Trait that allows reading of data into a slice
 pub trait JamInput {
     fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError>;
 
@@ -58,7 +58,7 @@ impl<'a> JamInput for &'a [u8] {
     }
 }
 
-/// Trait that allows writing of data (this mirrors `Output` trait of `parity-scale-codec`)
+/// Trait that allows writing of data
 pub trait JamOutput {
     /// Write to the output.
     fn write(&mut self, bytes: &[u8]);
@@ -278,6 +278,7 @@ impl<T: JamDecode> JamDecode for Option<T> {
     }
 }
 
+// Fixed-length array codec without length discriminator
 impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
     fn size_hint(&self) -> usize {
         self.iter().map(|e| e.size_hint()).sum()
@@ -389,63 +390,71 @@ impl JamDecode for BitVec {
     }
 }
 
-// Auxiliary codec functions that are not part of the trait
+///
+pub trait JamEncodeFixed {
+    // Fixed length little-endian integer type encoding
+    fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize);
 
-// Fixed length little-endian integer type encoding
-pub fn encode_to_fixed<T: JamOutput, U: Copy + TryInto<u64>>(
-    value: &U,
-    dest: &mut T,
-    size_in_bytes: usize,
-) where
-    <U as TryInto<u64>>::Error: Debug,
-{
-    let value: u64 = (*value).try_into().expect("The value must fit into u64");
-    let bytes = value.to_le_bytes();
-
-    if size_in_bytes > 8 {
-        panic!("Size cannot be larger than 8 bytes for u64");
+    fn encode_fixed(&self, size_in_bytes: usize) -> Vec<u8> {
+        let mut r = Vec::with_capacity(size_in_bytes);
+        self.encode_to_fixed(&mut r, size_in_bytes);
+        r
     }
-
-    if bytes[size_in_bytes..].iter().any(|&b| b != 0) {
-        panic!("Value is too large to fit in {} bytes", size_in_bytes);
-    }
-
-    dest.write(&bytes[..size_in_bytes]);
 }
 
-// Fixed length little-endian integer type encoding
-pub fn encode_fixed<T: Copy + TryInto<u64>>(value: &T, size_in_bytes: usize) -> Vec<u8>
-where
-    <T as TryInto<u64>>::Error: Debug,
-{
-    let mut r = Vec::with_capacity(size_in_bytes);
-    encode_to_fixed(value, &mut r, size_in_bytes);
-    r
+pub trait JamDecodeFixed {
+    // Fixed length little-endian integer type decoding
+    fn decode_fixed<I: JamInput>(
+        input: &mut I,
+        size_in_bytes: usize,
+    ) -> Result<Self, JamCodecError>
+    where
+        Self: Sized;
 }
 
-// Fixed length little-endian integer type decoding
-pub fn decode_fixed<I: JamInput, U: TryFrom<u64>>(
-    input: &mut I,
-    size_in_bytes: usize,
-) -> Result<U, JamCodecError>
-where
-    <U as TryFrom<u64>>::Error: Display,
-{
-    let type_size = size_of::<U>();
-    if size_in_bytes != type_size {
-        return Err(JamCodecError::InvalidSize(format!(
-            "Invalid size for {}",
-            std::any::type_name::<U>()
-        )));
-    }
+macro_rules! impl_jam_fixed_codec_for_uint {
+    ($($t:ty),*) => {
+        $(
+           impl JamEncodeFixed for $t {
+                fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize) {
+                    let value: u64 = (*self).try_into().expect("The value must fit into u64");
+                    let bytes = value.to_le_bytes();
 
-    let mut value: u64 = 0;
-    for i in 0..size_in_bytes {
-        value |= (input.read_byte()? as u64) << (8 * i);
-    }
+                    if size_in_bytes > 8 {
+                        panic!("Size cannot be larger than 8 bytes for u64");
+                    }
 
-    U::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
+                    if bytes[size_in_bytes..].iter().any(|&b| b != 0) {
+                        panic!("Value is too large to fit in {} bytes", size_in_bytes);
+                    }
+
+                    dest.write(&bytes[..size_in_bytes]);
+                }
+            }
+
+            impl JamDecodeFixed for $t {
+                fn decode_fixed<I: JamInput>(input: &mut I, size_in_bytes: usize) -> Result<Self, JamCodecError> {
+                    let type_size = size_of::<Self>();
+                    if size_in_bytes != type_size {
+                        return Err(JamCodecError::InvalidSize(format!(
+                            "Invalid size for {}",
+                            std::any::type_name::<Self>()
+                        )));
+                    }
+
+                    let mut value: u64 = 0;
+                    for i in 0..size_in_bytes {
+                        value |= (input.read_byte()? as u64) << (8 * i);
+                    }
+
+                    Self::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
+                }
+            }
+        )*
+    }
 }
+
+impl_jam_fixed_codec_for_uint!(u8, u16, u32, u64, usize);
 
 #[cfg(test)]
 mod tests {
@@ -542,7 +551,7 @@ mod tests {
     fn test_fixed_encoding() {
         let value: u32 = 0x12345678;
         let mut dest = Vec::new();
-        encode_to_fixed(&value, &mut dest, 4);
+        value.encode_to_fixed(&mut dest, 4);
         assert_eq!(dest, vec![0x78, 0x56, 0x34, 0x12]);
     }
 
@@ -551,14 +560,14 @@ mod tests {
     fn test_fixed_encoding_overflow() {
         let value: u32 = 0x12345678;
         let mut dest = Vec::new();
-        encode_to_fixed(&value, &mut dest, 2);
+        value.encode_to_fixed(&mut dest, 2);
     }
 
     #[test]
     fn test_decode_fixed() {
         let encoded = vec![0x78, 0x56, 0x34, 0x12];
         let mut slice = &encoded[..];
-        let decoded: u32 = decode_fixed(&mut slice, 4).unwrap();
+        let decoded: u32 = u32::decode_fixed(&mut slice, 4).unwrap();
         assert_eq!(decoded, 0x12345678);
     }
 
@@ -567,7 +576,7 @@ mod tests {
         let encoded = vec![0x78, 0x56, 0x34, 0x12];
         let mut slice = &encoded[..];
         assert!(matches!(
-            decode_fixed::<&[u8], u16>(&mut slice, 4),
+            u16::decode_fixed(&mut slice, 4),
             Err(JamCodecError::InvalidSize(_))
         ));
     }
