@@ -1,3 +1,4 @@
+use bit_vec::BitVec;
 use std::{
     fmt,
     fmt::{Debug, Display, Formatter},
@@ -152,6 +153,32 @@ where
     }
 }
 
+fn impl_size_hint_for_integers<T: TryInto<u64>>(value: T) -> usize
+where
+    <T as TryInto<u64>>::Error: Debug,
+{
+    let x: u64 = value.try_into().expect("Value must fit into u64");
+    if (0..(1 << 7)).contains(&x) {
+        1
+    } else if ((1 << 7)..(1 << 14)).contains(&x) {
+        2
+    } else if ((1 << 14)..(1 << 21)).contains(&x) {
+        3
+    } else if ((1 << 21)..(1 << 28)).contains(&x) {
+        4
+    } else if ((1 << 28)..(1 << 35)).contains(&x) {
+        5
+    } else if ((1 << 35)..(1 << 42)).contains(&x) {
+        6
+    } else if ((1 << 42)..(1 << 49)).contains(&x) {
+        7
+    } else if ((1 << 49)..(1 << 56)).contains(&x) {
+        8
+    } else {
+        9
+    }
+}
+
 fn impl_decode_to_for_integers<I: JamInput, U: TryFrom<u64>>(
     input: &mut I,
 ) -> Result<U, JamCodecError>
@@ -197,7 +224,7 @@ macro_rules! impl_jam_codec_for_uint {
         $(
             impl JamEncode for $t {
                 fn size_hint(&self) -> usize {
-                    size_of::<$t>()
+                    impl_size_hint_for_integers(*self)
                 }
 
                 fn encode_to<T: JamOutput>(&self, dest: &mut T) {
@@ -302,6 +329,63 @@ impl<T: JamDecode> JamDecode for Vec<T> {
             vec.push(T::decode(input)?);
         }
         Ok(vec)
+    }
+}
+
+// SCALE codec for BitVec type
+impl JamEncode for BitVec {
+    fn size_hint(&self) -> usize {
+        let length_size = ((self.len() + 7) / 8).size_hint();
+        length_size + (self.len() + 7) / 8
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) {
+        // Encode the length first
+        self.len().encode_to(dest);
+
+        // Pack bits into octets
+        let mut current_byte = 0u8;
+        let mut bit_count = 0;
+
+        for bit in self.iter() {
+            if bit {
+                current_byte |= 1 << bit_count;
+            }
+            bit_count += 1;
+
+            if bit_count == 8 {
+                dest.push_byte(current_byte);
+                current_byte = 0;
+                bit_count = 0;
+            }
+        }
+
+        // Push the last byte if there are remaining bits
+        if bit_count > 0 {
+            dest.push_byte(current_byte);
+        }
+    }
+}
+
+impl JamDecode for BitVec {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        // Decode the length first
+        let len = usize::decode(input)?;
+        let mut bv = BitVec::with_capacity(len);
+
+        let byte_count = (len + 7) / 8;
+        for _ in 0..byte_count {
+            let byte = input.read_byte()?;
+            for i in 0..8 {
+                if bv.len() < len {
+                    bv.push(byte & (1 << i) != 0);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        Ok(bv)
     }
 }
 
@@ -605,6 +689,86 @@ mod tests {
         let mut slice_insufficient = &insufficient_data[..];
         assert!(matches!(
             Vec::<u8>::decode(&mut slice_insufficient),
+            Err(JamCodecError::InputError(_))
+        ));
+    }
+
+    #[test]
+    fn test_bitvec_empty() {
+        let bv = BitVec::new();
+        let encoded = bv.encode();
+        assert_eq!(encoded, vec![0]); // Just the length (0) encoded
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_partial_byte() {
+        let mut bv = BitVec::new();
+        bv.push(true);
+        bv.push(false);
+        bv.push(true);
+
+        let encoded = bv.encode();
+        assert_eq!(encoded, vec![3, 0b00000101]);
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_multiple_bytes() {
+        let mut bv = BitVec::new();
+        for i in 0..20 {
+            bv.push(i % 2 == 0);
+        }
+
+        let encoded = bv.encode();
+        assert_eq!(encoded, vec![20, 0b01010101, 0b01010101, 0b00000101]);
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_large() {
+        let mut bv = BitVec::new();
+        for i in 0..1000 {
+            bv.push(i % 3 == 0);
+        }
+
+        let encoded = bv.encode();
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_size_hint() {
+        let mut bv = BitVec::new();
+        for i in 0..100 {
+            bv.push(i % 2 == 0);
+        }
+
+        let encoded = bv.encode();
+        assert_eq!(bv.size_hint(), encoded.len());
+    }
+
+    #[test]
+    fn test_bitvec_partial_decode() {
+        let mut bv = BitVec::new();
+        for i in 0..20 {
+            bv.push(i % 2 == 0);
+        }
+
+        let encoded = bv.encode();
+        let mut partial_slice = &encoded[..encoded.len() - 1];
+        assert!(matches!(
+            BitVec::decode(&mut partial_slice),
             Err(JamCodecError::InputError(_))
         ));
     }
