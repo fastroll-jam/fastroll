@@ -293,9 +293,9 @@ impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
 
 impl<E: JamDecode, const N: usize> JamDecode for [E; N] {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut arr = Vec::with_capacity(N);
+        let mut arr: Vec<E> = Vec::with_capacity(N);
         for _ in 0..N {
-            arr.push(E::decode(input)?);
+            arr.push(JamDecode::decode(input)?);
         }
         arr.try_into()
             .map_err(|_| JamCodecError::InputError("Failed to convert Vec to array".into()))
@@ -323,11 +323,11 @@ impl<T: JamEncode> JamEncode for Vec<T> {
 impl<T: JamDecode> JamDecode for Vec<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
-        let len = usize::decode(input)?;
-        let mut vec = Vec::with_capacity(len);
+        let len: usize = JamDecode::decode(input)?;
+        let mut vec: Vec<T> = Vec::with_capacity(len);
         // Then decode each element
         for _ in 0..len {
-            vec.push(T::decode(input)?);
+            vec.push(JamDecode::decode(input)?);
         }
         Ok(vec)
     }
@@ -342,7 +342,7 @@ impl JamEncode for BitVec {
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) {
         // Encode the length first
-        self.len().encode_to(dest);
+        self.len().encode_to(dest); // Note: number of bits used for length discriminator (different from integers using number of bytes)
 
         // Pack bits into octets
         let mut current_byte = 0u8;
@@ -371,7 +371,7 @@ impl JamEncode for BitVec {
 impl JamDecode for BitVec {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
-        let len = usize::decode(input)?;
+        let len: usize = JamDecode::decode(input)?;
         let mut bv = BitVec::with_capacity(len);
 
         let byte_count = (len + 7) / 8;
@@ -390,24 +390,32 @@ impl JamDecode for BitVec {
     }
 }
 
-///
-pub trait JamEncodeFixed {
-    // Fixed length little-endian integer type encoding
-    fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize);
+pub enum SizeUnit {
+    Bytes,
+    Bits,
+}
 
-    fn encode_fixed(&self, size_in_bytes: usize) -> Vec<u8> {
+pub trait JamEncodeFixed {
+    const SIZE_UNIT: SizeUnit; // associate constant to specify the unit of the size (whether it counts the number of bytes or bits)
+
+    fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size: usize)
+        -> Result<(), JamCodecError>;
+
+    fn encode_fixed(&self, size: usize) -> Result<Vec<u8>, JamCodecError> {
+        let size_in_bytes = match Self::SIZE_UNIT {
+            SizeUnit::Bytes => size,
+            SizeUnit::Bits => (size + 7) / 8,
+        };
         let mut r = Vec::with_capacity(size_in_bytes);
-        self.encode_to_fixed(&mut r, size_in_bytes);
-        r
+        self.encode_to_fixed(&mut r, size)?;
+        Ok(r)
     }
 }
 
 pub trait JamDecodeFixed {
-    // Fixed length little-endian integer type decoding
-    fn decode_fixed<I: JamInput>(
-        input: &mut I,
-        size_in_bytes: usize,
-    ) -> Result<Self, JamCodecError>
+    const SIZE_UNIT: SizeUnit;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
     where
         Self: Sized;
 }
@@ -415,8 +423,10 @@ pub trait JamDecodeFixed {
 macro_rules! impl_jam_fixed_codec_for_uint {
     ($($t:ty),*) => {
         $(
-           impl JamEncodeFixed for $t {
-                fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize) {
+            impl JamEncodeFixed for $t {
+                const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+                fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize) -> Result<(), JamCodecError> {
                     let value: u64 = (*self).try_into().expect("The value must fit into u64");
                     let bytes = value.to_le_bytes();
 
@@ -429,10 +439,13 @@ macro_rules! impl_jam_fixed_codec_for_uint {
                     }
 
                     dest.write(&bytes[..size_in_bytes]);
+                    Ok(())
                 }
             }
 
             impl JamDecodeFixed for $t {
+                const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
                 fn decode_fixed<I: JamInput>(input: &mut I, size_in_bytes: usize) -> Result<Self, JamCodecError> {
                     let type_size = size_of::<Self>();
                     if size_in_bytes != type_size {
@@ -456,6 +469,74 @@ macro_rules! impl_jam_fixed_codec_for_uint {
 
 impl_jam_fixed_codec_for_uint!(u8, u16, u32, u64, usize);
 
+impl JamEncodeFixed for BitVec {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
+
+    fn encode_to_fixed<T: JamOutput>(
+        &self,
+        dest: &mut T,
+        size_in_bits: usize,
+    ) -> Result<(), JamCodecError> {
+        if self.len() != size_in_bits {
+            return Err(JamCodecError::InvalidSize(format!(
+                "Bitstring length ({}) does not match the expected size in bits ({})",
+                self.len(),
+                size_in_bits
+            )));
+        }
+
+        // Pack bits into octets
+        let mut current_byte = 0u8;
+        let mut bit_count = 0;
+
+        for bit in self.iter() {
+            if bit {
+                current_byte |= 1 << bit_count;
+            }
+            bit_count += 1;
+
+            if bit_count == 8 {
+                dest.push_byte(current_byte);
+                current_byte = 0;
+                bit_count = 0;
+            }
+        }
+
+        // Push the last byte if there are remaining bits
+        if bit_count > 0 {
+            dest.push_byte(current_byte);
+        }
+        Ok(())
+    }
+}
+
+impl JamDecodeFixed for BitVec {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size_in_bits: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut bv = BitVec::with_capacity(size_in_bits);
+        let expected_bytes = (size_in_bits + 7) / 8;
+        let mut bytes_read = 0;
+
+        while bytes_read < expected_bytes {
+            let byte = input.read_byte()?;
+            bytes_read += 1;
+
+            for i in 0..8 {
+                if bv.len() < size_in_bits {
+                    bv.push(byte & (1 << i) != 0);
+                } else {
+                    break;
+                }
+            }
+        }
+        Ok(bv)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,7 +554,7 @@ mod tests {
         println!("\nValue: {:?}", value);
         println!("Encoded: {:02X?}", encoded);
         let mut slice = &encoded[..];
-        let decoded = T::decode(&mut slice)?;
+        let decoded: T = JamDecode::decode(&mut slice)?;
         println!("Decoded: {:?}", decoded);
         if value != decoded {
             println!("Mismatch: original {:?} != decoded {:?}", value, decoded);
@@ -551,7 +632,9 @@ mod tests {
     fn test_fixed_encoding() {
         let value: u32 = 0x12345678;
         let mut dest = Vec::new();
-        value.encode_to_fixed(&mut dest, 4);
+        value
+            .encode_to_fixed(&mut dest, 4)
+            .expect("Fixed encoding must succeed");
         assert_eq!(dest, vec![0x78, 0x56, 0x34, 0x12]);
     }
 
@@ -560,14 +643,16 @@ mod tests {
     fn test_fixed_encoding_overflow() {
         let value: u32 = 0x12345678;
         let mut dest = Vec::new();
-        value.encode_to_fixed(&mut dest, 2);
+        value
+            .encode_to_fixed(&mut dest, 2)
+            .expect("Fixed encoding must succeed");
     }
 
     #[test]
     fn test_decode_fixed() {
         let encoded = vec![0x78, 0x56, 0x34, 0x12];
         let mut slice = &encoded[..];
-        let decoded: u32 = u32::decode_fixed(&mut slice, 4).unwrap();
+        let decoded: u32 = JamDecodeFixed::decode_fixed(&mut slice, 4).unwrap();
         assert_eq!(decoded, 0x12345678);
     }
 
@@ -714,6 +799,17 @@ mod tests {
     }
 
     #[test]
+    fn test_bitvec_fixed_empty() {
+        let bv = BitVec::new();
+        let encoded = bv.encode_fixed(0).expect("Fixed encoding must succeed");
+        assert_eq!(encoded, vec![]); // empty array
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecodeFixed::decode_fixed(&mut slice, 0).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
     fn test_bitvec_partial_byte() {
         let mut bv = BitVec::new();
         bv.push(true);
@@ -725,6 +821,21 @@ mod tests {
 
         let mut slice = &encoded[..];
         let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_fixed_partial_byte() {
+        let mut bv = BitVec::new();
+        bv.push(true);
+        bv.push(false);
+        bv.push(true);
+
+        let encoded = bv.encode_fixed(3).expect("Fixed encoding must succeed");
+        assert_eq!(encoded, vec![0b00000101]);
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecodeFixed::decode_fixed(&mut slice, 3).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -744,6 +855,21 @@ mod tests {
     }
 
     #[test]
+    fn test_bitvec_fixed_multiple_bytes() {
+        let mut bv = BitVec::new();
+        for i in 0..20 {
+            bv.push(i % 2 == 0);
+        }
+
+        let encoded = bv.encode_fixed(20).expect("Fixed encoding must succeed");
+        assert_eq!(encoded, vec![0b01010101, 0b01010101, 0b00000101]);
+
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecodeFixed::decode_fixed(&mut slice, 20).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
     fn test_bitvec_large() {
         let mut bv = BitVec::new();
         for i in 0..1000 {
@@ -753,6 +879,19 @@ mod tests {
         let encoded = bv.encode();
         let mut slice = &encoded[..];
         let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(bv, decoded);
+    }
+
+    #[test]
+    fn test_bitvec_fixed_large() {
+        let mut bv = BitVec::new();
+        for i in 0..1000 {
+            bv.push(i % 3 == 0);
+        }
+
+        let encoded = bv.encode_fixed(1000).expect("Fixed encoding must succeed");
+        let mut slice = &encoded[..];
+        let decoded: BitVec = JamDecodeFixed::decode_fixed(&mut slice, 1000).unwrap();
         assert_eq!(bv, decoded);
     }
 
@@ -780,5 +919,31 @@ mod tests {
             BitVec::decode(&mut partial_slice),
             Err(JamCodecError::InputError(_))
         ));
+    }
+
+    #[test]
+    fn test_bitvec_fixed_partial_decode() {
+        let mut bv = BitVec::new();
+        for i in 0..20 {
+            bv.push(i % 2 == 0);
+        }
+
+        let encoded = bv.encode_fixed(20).expect("Fixed encoding must succeed");
+        let mut partial_slice = &encoded[..encoded.len() - 1];
+        assert!(matches!(
+            BitVec::decode_fixed(&mut partial_slice, 20),
+            Err(JamCodecError::InputError(_))
+        ));
+    }
+
+    #[test]
+    fn test_bitvec_fixed_encode_length_mismatch() {
+        let mut bv = BitVec::new();
+        bv.push(true);
+        bv.push(false);
+        bv.push(true);
+
+        let encoded = bv.encode_fixed(4);
+        assert!(matches!(encoded, Err(JamCodecError::InvalidSize(_))));
     }
 }
