@@ -216,6 +216,7 @@ macro_rules! impl_jam_codec_for_uint {
 
 impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
 
+// SCALE Codec for Option<T> types
 impl<T: JamEncode> JamEncode for Option<T> {
     fn size_hint(&self) -> usize {
         match self {
@@ -247,6 +248,60 @@ impl<T: JamDecode> JamDecode for Option<T> {
             1 => Ok(Some(T::decode(input)?)),
             _ => Err(JamCodecError::InputError("Invalid Option encoding".into())),
         }
+    }
+}
+
+impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
+    fn size_hint(&self) -> usize {
+        self.iter().map(|e| e.size_hint()).sum()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) {
+        for element in self {
+            element.encode_to(dest);
+        }
+    }
+}
+
+impl<E: JamDecode, const N: usize> JamDecode for [E; N] {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let mut arr = Vec::with_capacity(N);
+        for _ in 0..N {
+            arr.push(E::decode(input)?);
+        }
+        arr.try_into()
+            .map_err(|_| JamCodecError::InputError("Failed to convert Vec to array".into()))
+    }
+}
+
+// Length discriminated SCALE codec for Vec<T> type. The length discriminator also follows the SCALE
+// code rules of integer types.
+impl<T: JamEncode> JamEncode for Vec<T> {
+    fn size_hint(&self) -> usize {
+        // Size hint for the length prefix + sum of size hints for all elements
+        self.len().size_hint() + self.iter().map(|e| e.size_hint()).sum::<usize>()
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) {
+        // Encode the length first
+        self.len().encode_to(dest);
+        // Then encode each element
+        for element in self {
+            element.encode_to(dest);
+        }
+    }
+}
+
+impl<T: JamDecode> JamDecode for Vec<T> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        // Decode the length first
+        let len = usize::decode(input)?;
+        let mut vec = Vec::with_capacity(len);
+        // Then decode each element
+        for _ in 0..len {
+            vec.push(T::decode(input)?);
+        }
+        Ok(vec)
     }
 }
 
@@ -340,6 +395,8 @@ mod tests {
         assert_eq!(encode_decode(63u8).unwrap(), 63u8);
         assert_eq!(encode_decode(64u8).unwrap(), 64u8);
         assert_eq!(encode_decode(u8::MAX).unwrap(), u8::MAX);
+        assert_eq!(127u8.encode(), vec![127]);
+        assert_eq!(128u8.encode(), vec![0b10000000, 128]); // 0b10000000 for prefix
     }
 
     #[test]
@@ -351,17 +408,19 @@ mod tests {
         assert_eq!(encode_decode(16383u16).unwrap(), 16383u16);
         assert_eq!(encode_decode(16384u16).unwrap(), 16384u16);
         assert_eq!(encode_decode(u16::MAX).unwrap(), u16::MAX);
+        assert_eq!(16383u16.encode(), vec![0b10000000 | 0x3F, 0xFF]);
+        assert_eq!(16384u16.encode(), vec![0b11000000, 0x00, 0x40]);
     }
 
     #[test]
     fn test_u32_codec() {
-        assert_eq!(encode_decode(1_000_000u32).unwrap(), 1_000_000u32);
         assert_eq!(encode_decode(0u32).unwrap(), 0u32);
         assert_eq!(encode_decode(1u32).unwrap(), 1u32);
         assert_eq!(encode_decode(16384u32).unwrap(), 16384u32);
         assert_eq!(encode_decode(1048575u32).unwrap(), 1048575u32);
         assert_eq!(encode_decode(1048576u32).unwrap(), 1048576u32);
         assert_eq!(encode_decode(u32::MAX).unwrap(), u32::MAX);
+        assert_eq!((1u32 << 21).encode(), vec![0b11100000, 0x00, 0x00, 0x20]); // 0b11100000 for prefix
     }
 
     #[test]
@@ -373,6 +432,26 @@ mod tests {
         assert_eq!(encode_decode(1u64 << 32).unwrap(), 1u64 << 32);
         assert_eq!(encode_decode(1u64 << 56).unwrap(), 1u64 << 56);
         assert_eq!(encode_decode(u64::MAX).unwrap(), u64::MAX);
+        assert_eq!(
+            (1u64 << 28).encode(),
+            vec![0b11110000, 0x00, 0x00, 0x00, 0x10]
+        ); // 0b11110000 for prefix
+        assert_eq!(
+            (1u64 << 35).encode(),
+            vec![0b11111000, 0x00, 0x00, 0x00, 0x00, 0x08]
+        ); // 0b11111000 for prefix
+        assert_eq!(
+            (1u64 << 42).encode(),
+            vec![0b11111100, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04]
+        ); // 0b11111100 for prefix
+        assert_eq!(
+            (1u64 << 49).encode(),
+            vec![0b11111110, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02]
+        ); // 0b11111110 for prefix
+        assert_eq!(
+            (1u64 << 56).encode(),
+            vec![0b11111111, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]
+        ); // 0b11111111 for prefix
     }
 
     #[test]
@@ -440,6 +519,92 @@ mod tests {
         let mut slice_invalid = &invalid_encoding[..];
         assert!(matches!(
             Option::<u32>::decode(&mut slice_invalid),
+            Err(JamCodecError::InputError(_))
+        ));
+    }
+
+    #[test]
+    fn test_array_codec() {
+        // Test [u8; 4]
+        let arr4: [u8; 4] = [1, 2, 3, 4];
+        let encoded_arr4 = arr4.encode();
+        assert_eq!(encoded_arr4, vec![1, 2, 3, 4]);
+        let mut slice_arr4 = &encoded_arr4[..];
+        let decoded_arr4: [u8; 4] = JamDecode::decode(&mut slice_arr4).unwrap();
+        assert_eq!(arr4, decoded_arr4);
+
+        // Test [u8; 0] (empty array)
+        let arr0: [u8; 0] = [];
+        let encoded_arr0 = arr0.encode();
+        assert_eq!(encoded_arr0, vec![]);
+        let mut slice_arr0 = &encoded_arr0[..];
+        let decoded_arr0: [u8; 0] = JamDecode::decode(&mut slice_arr0).unwrap();
+        assert_eq!(arr0, decoded_arr0);
+
+        // Test [u32; 3]
+        let arr_u32: [u32; 3] = [1, 1000, 1_000_000];
+        let encoded_arr_u32 = arr_u32.encode();
+        assert_eq!(encoded_arr_u32, vec![1, 131, 232, 207, 64, 66]);
+        let mut slice_arr_u32 = &encoded_arr_u32[..];
+        let decoded_arr_u32: [u32; 3] = JamDecode::decode(&mut slice_arr_u32).unwrap();
+        assert_eq!(arr_u32, decoded_arr_u32);
+
+        // Test [Option<u8>; 2]
+        let arr_opt: [Option<u8>; 2] = [Some(42), None];
+        let encoded_arr_opt = arr_opt.encode();
+        assert_eq!(encoded_arr_opt, vec![1, 42, 0]);
+        let mut slice_arr_opt = &encoded_arr_opt[..];
+        let decoded_arr_opt: [Option<u8>; 2] = JamDecode::decode(&mut slice_arr_opt).unwrap();
+        assert_eq!(arr_opt, decoded_arr_opt);
+
+        // Test decoding with insufficient input
+        let insufficient_data = vec![1, 2, 3];
+        let mut slice_insufficient = &insufficient_data[..];
+        assert!(matches!(
+            <[u8; 4]>::decode(&mut slice_insufficient),
+            Err(JamCodecError::InputError(_))
+        ));
+    }
+
+    #[test]
+    fn test_vec_codec() {
+        // Test empty Vec
+        let empty_vec: Vec<u32> = vec![];
+        let encoded_empty = empty_vec.encode();
+        assert_eq!(encoded_empty, vec![0]); // Just the length (0) encoded
+        let mut slice_empty = &encoded_empty[..];
+        let decoded_empty: Vec<u32> = JamDecode::decode(&mut slice_empty).unwrap();
+        assert_eq!(empty_vec, decoded_empty);
+
+        // Test Vec with small integers
+        let small_vec: Vec<u8> = vec![1, 2, 3];
+        let encoded_small = small_vec.encode();
+        assert_eq!(encoded_small, vec![3, 1, 2, 3]); // Length (3) followed by elements
+        let mut slice_small = &encoded_small[..];
+        let decoded_small: Vec<u8> = JamDecode::decode(&mut slice_small).unwrap();
+        assert_eq!(small_vec, decoded_small);
+
+        // Test Vec with larger integers
+        let large_vec: Vec<u32> = vec![1, 1000, 1_000_000];
+        let encoded_large = large_vec.encode();
+        assert_eq!(encoded_large, vec![3, 1, 131, 232, 207, 64, 66]);
+        let mut slice_large = &encoded_large[..];
+        let decoded_large: Vec<u32> = JamDecode::decode(&mut slice_large).unwrap();
+        assert_eq!(large_vec, decoded_large);
+
+        // Test Vec of Option<u8>
+        let opt_vec: Vec<Option<u8>> = vec![Some(42), None, Some(255)];
+        let encoded_opt = opt_vec.encode();
+        assert_eq!(encoded_opt, vec![3, 1, 42, 0, 1, 1 << 7, 255]);
+        let mut slice_opt = &encoded_opt[..];
+        let decoded_opt: Vec<Option<u8>> = JamDecode::decode(&mut slice_opt).unwrap();
+        assert_eq!(opt_vec, decoded_opt);
+
+        // Test decoding with insufficient input
+        let insufficient_data = vec![3, 1, 2]; // Claims to have 3 elements but only has 2
+        let mut slice_insufficient = &insufficient_data[..];
+        assert!(matches!(
+            Vec::<u8>::decode(&mut slice_insufficient),
             Err(JamCodecError::InputError(_))
         ));
     }
