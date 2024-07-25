@@ -1,7 +1,7 @@
 use crate::{
     common::{Hash32, Octets},
     db::manager::KVDBManager,
-    state::global_state::GlobalState,
+    state::global_state::{GlobalState, GlobalStateError},
     trie::{
         serialization::serialize_state,
         utils::{
@@ -12,7 +12,6 @@ use crate::{
 };
 use bit_vec::BitVec;
 use std::collections::HashMap;
-
 // Merkle Trie representation and helper functions
 
 // Node encoding functions
@@ -58,7 +57,7 @@ pub(crate) fn encode_leaf(
 fn merklize_map(
     db_manager: &KVDBManager,
     d: HashMap<BitVec, (Hash32, Octets)>,
-) -> Result<Hash32, MerklizationError> {
+) -> Result<Hash32, GlobalStateError> {
     if d.is_empty() {
         return Ok(EMPTY_HASH);
     }
@@ -95,8 +94,8 @@ fn merklize_map(
 fn merklize_state(
     db_manager: &KVDBManager,
     state: &GlobalState,
-) -> Result<Hash32, MerklizationError> {
-    let serialized_state = serialize_state(state);
+) -> Result<Hash32, GlobalStateError> {
+    let serialized_state = serialize_state(state)?;
     let mut state_map = HashMap::new();
     for (k, v) in serialized_state {
         state_map.insert(bytes_to_lsb_bits(k.to_vec()), (k, v));

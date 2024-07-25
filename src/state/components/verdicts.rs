@@ -1,12 +1,9 @@
 use crate::{
-    codec::utils::{
-        decode_length_discriminated_sorted_field, encode_length_discriminated_sorted_field,
-        size_hint_length_discriminated_sorted_field,
-    },
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{Ed25519PubKey, Hash32},
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
+// TODO: these sets should always be sorted
 pub(crate) struct VerdictsState {
     good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
     bad_set: Vec<Hash32>,           // psi_b; recording hash of incorrect work-reports
@@ -14,34 +11,30 @@ pub(crate) struct VerdictsState {
     punish_set: Vec<Ed25519PubKey>, // psi_p; recording Ed25519 public keys of validators which have misjudged.
 }
 
-impl Encode for VerdictsState {
+impl JamEncode for VerdictsState {
     fn size_hint(&self) -> usize {
-        size_hint_length_discriminated_sorted_field(&self.good_set)
-            + size_hint_length_discriminated_sorted_field(&self.bad_set)
-            + size_hint_length_discriminated_sorted_field(&self.wonky_set)
-            + size_hint_length_discriminated_sorted_field(&self.punish_set)
+        self.good_set.size_hint()
+            + self.bad_set.size_hint()
+            + self.wonky_set.size_hint()
+            + self.punish_set.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        encode_length_discriminated_sorted_field(&self.good_set, dest);
-        encode_length_discriminated_sorted_field(&self.bad_set, dest);
-        encode_length_discriminated_sorted_field(&self.wonky_set, dest);
-        encode_length_discriminated_sorted_field(&self.punish_set, dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.good_set.encode_to(dest)?;
+        self.bad_set.encode_to(dest)?;
+        self.wonky_set.encode_to(dest)?;
+        self.punish_set.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for VerdictsState {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let good_set = decode_length_discriminated_sorted_field(input)?;
-        let bad_set = decode_length_discriminated_sorted_field(input)?;
-        let wonky_set = decode_length_discriminated_sorted_field(input)?;
-        let punish_set = decode_length_discriminated_sorted_field(input)?;
-
+impl JamDecode for VerdictsState {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            good_set,
-            bad_set,
-            wonky_set,
-            punish_set,
+            good_set: Vec::decode(input)?,
+            bad_set: Vec::decode(input)?,
+            wonky_set: Vec::decode(input)?,
+            punish_set: Vec::decode(input)?,
         })
     }
 }

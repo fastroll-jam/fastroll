@@ -1,4 +1,4 @@
-pub(crate) mod authorization;
+pub(crate) mod authorizer;
 pub(crate) mod block_history;
 pub(crate) mod pending_reports;
 pub(crate) mod privileged_services;

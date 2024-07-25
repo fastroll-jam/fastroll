@@ -1,13 +1,9 @@
 use crate::{
-    codec::utils::{
-        decode_length_discriminated_field, encode_length_discriminated_field,
-        size_hint_length_discriminated_field,
-    },
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{
         Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
     },
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct VerdictsExtrinsic {
     verdicts: Vec<Verdict>, // j
@@ -15,26 +11,25 @@ pub(crate) struct VerdictsExtrinsic {
     faults: Vec<Fault>,     // f
 }
 
-impl Encode for VerdictsExtrinsic {
+impl JamEncode for VerdictsExtrinsic {
     fn size_hint(&self) -> usize {
-        size_hint_length_discriminated_field(&self.verdicts)
-            + size_hint_length_discriminated_field(&self.culprits)
-            + size_hint_length_discriminated_field(&self.faults)
+        self.verdicts.size_hint() + self.culprits.size_hint() + self.faults.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        encode_length_discriminated_field(&self.verdicts, dest);
-        encode_length_discriminated_field(&self.culprits, dest);
-        encode_length_discriminated_field(&self.faults, dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.verdicts.encode_to(dest)?;
+        self.culprits.encode_to(dest)?;
+        self.faults.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for VerdictsExtrinsic {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+impl JamDecode for VerdictsExtrinsic {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            verdicts: decode_length_discriminated_field(input)?,
-            culprits: decode_length_discriminated_field(input)?,
-            faults: decode_length_discriminated_field(input)?,
+            verdicts: Vec::decode(input)?,
+            culprits: Vec::decode(input)?,
+            faults: Vec::decode(input)?,
         })
     }
 }
@@ -45,29 +40,28 @@ struct Verdict {
     votes: [Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1], // v
 }
 
-impl Encode for Verdict {
+impl JamEncode for Verdict {
     fn size_hint(&self) -> usize {
         self.report_hash.size_hint() + self.epoch_index.size_hint() + self.votes.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        self.report_hash.encode_to(dest);
-        self.epoch_index.encode_to(dest);
-        self.votes.encode_to(dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.report_hash.encode_to(dest)?;
+        self.epoch_index.encode_to(dest)?;
+        self.votes.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for Verdict {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let report_hash = Hash32::decode(input)?;
-        let epoch_index = u32::decode(input)?;
+impl JamDecode for Verdict {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let mut votes = [Vote::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1];
         for vote in &mut votes {
             *vote = Vote::decode(input)?;
         }
         Ok(Self {
-            report_hash,
-            epoch_index,
+            report_hash: Hash32::decode(input)?,
+            epoch_index: u32::decode(input)?,
             votes,
         })
     }
@@ -80,22 +74,23 @@ struct Vote {
     voter_signature: Ed25519SignatureWithKeyAndMessage,
 }
 
-impl Encode for Vote {
+impl JamEncode for Vote {
     fn size_hint(&self) -> usize {
         self.is_report_valid.size_hint()
             + self.voter_index.size_hint()
             + self.voter_signature.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        self.is_report_valid.encode_to(dest);
-        self.voter_index.encode_to(dest);
-        self.voter_signature.encode_to(dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.is_report_valid.encode_to(dest)?;
+        self.voter_index.encode_to(dest)?;
+        self.voter_signature.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for Vote {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+impl JamDecode for Vote {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             is_report_valid: bool::decode(input)?,
             voter_index: u16::decode(input)?,
@@ -115,16 +110,66 @@ impl Default for Vote {
     }
 }
 
-#[derive(Encode, Decode)]
 struct Culprit {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
 }
 
-#[derive(Encode, Decode)]
+impl JamEncode for Culprit {
+    fn size_hint(&self) -> usize {
+        self.report_hash.size_hint() + self.validator_key.size_hint() + self.signature.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.report_hash.encode_to(dest)?;
+        self.validator_key.encode_to(dest)?;
+        self.signature.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for Culprit {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            report_hash: Hash32::decode(input)?,
+            validator_key: Ed25519PubKey::decode(input)?,
+            signature: Ed25519SignatureWithKeyAndMessage::decode(input)?,
+        })
+    }
+}
+
 struct Fault {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
+}
+
+impl JamEncode for Fault {
+    fn size_hint(&self) -> usize {
+        self.report_hash.size_hint() + self.validator_key.size_hint() + self.signature.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.report_hash.encode_to(dest)?;
+        self.validator_key.encode_to(dest)?;
+        self.signature.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for Fault {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            report_hash: Hash32::decode(input)?,
+            validator_key: Ed25519PubKey::decode(input)?,
+            signature: Ed25519SignatureWithKeyAndMessage::decode(input)?,
+        })
+    }
 }

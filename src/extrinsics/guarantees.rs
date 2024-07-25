@@ -1,11 +1,7 @@
 use crate::{
-    codec::utils::{
-        decode_length_discriminated_field, encode_length_discriminated_field,
-        size_hint_length_discriminated_field,
-    },
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{Ed25519Signature, WorkReport},
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct GuaranteeExtrinsicEntry {
     work_report: WorkReport,                  // w
@@ -13,30 +9,25 @@ pub(crate) struct GuaranteeExtrinsicEntry {
     credential: Vec<(u16, Ed25519Signature)>, // a; (WorkReport, N_T, [(N_V, Ed25519Signature)]_{2:3}; length up to CORE_COUNT
 }
 
-impl Encode for GuaranteeExtrinsicEntry {
+impl JamEncode for GuaranteeExtrinsicEntry {
     fn size_hint(&self) -> usize {
-        self.timeslot.size_hint()
-            + self.work_report.size_hint()
-            + size_hint_length_discriminated_field(&self.credential)
+        self.timeslot.size_hint() + self.work_report.size_hint() + self.credential.size_hint()
     }
 
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        self.timeslot.encode_to(dest); // TODO: check what `c` of `E_G` means (GP v0.3.0)
-        self.work_report.encode_to(dest);
-        encode_length_discriminated_field(&self.credential, dest);
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.timeslot.encode_to(dest)?; // TODO: check what `c` of `E_G` means (GP v0.3.0)
+        self.work_report.encode_to(dest)?;
+        self.credential.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for GuaranteeExtrinsicEntry {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let timeslot = u32::decode(input)?;
-        let work_report = WorkReport::decode(input)?;
-        let credential = decode_length_discriminated_field(input)?;
-
+impl JamDecode for GuaranteeExtrinsicEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            work_report,
-            timeslot,
-            credential,
+            work_report: WorkReport::decode(input)?,
+            timeslot: u32::decode(input)?,
+            credential: Vec::decode(input)?,
         })
     }
 }

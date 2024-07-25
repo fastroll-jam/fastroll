@@ -1,11 +1,9 @@
 use crate::{
-    codec::utils::encode_length_discriminated_field,
+    codec::JamEncode,
     common::{Hash32, Octets},
-    state::global_state::GlobalState,
+    state::global_state::{GlobalState, GlobalStateError},
 };
-use parity_scale_codec::Encode;
 use std::collections::HashMap;
-
 // State Serialization
 
 // Index of each state component used for Merkle path construction
@@ -78,24 +76,30 @@ pub(crate) fn construct_key_with_service_and_hash(s: u32, h: &Hash32) -> [u8; 32
 }
 
 // Mapping from key to serialized GlobalState
-pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
+pub(crate) fn serialize_state(
+    state: &GlobalState,
+) -> Result<HashMap<Hash32, Octets>, GlobalStateError> {
     let mut map = HashMap::new();
 
-    map.insert(construct_key(M::Alpha), state.authorization_pool.encode()); // alpha
-    map.insert(construct_key(M::Phi), state.authorization_queue.encode()); // phi
-    let mut encoded_block_history = vec![];
-    encode_length_discriminated_field(&state.block_history, &mut encoded_block_history);
-    map.insert(construct_key(M::Beta), encoded_block_history); // beta
-    map.insert(construct_key(M::Gamma), state.safrole_state.encode()); // gamma
-    map.insert(construct_key(M::Psi), state.verdicts.encode()); // psi
-    map.insert(construct_key(M::Eta), state.entropy_accumulator.encode()); // eta
-    map.insert(construct_key(M::Iota), state.staging_validator_set.encode()); // iota
-    map.insert(construct_key(M::Kappa), state.active_validator_set.encode()); // kappa
-    map.insert(construct_key(M::Lambda), state.past_validator_set.encode()); // lambda
-    map.insert(construct_key(M::Rho), state.pending_reports.encode()); // rho
-    map.insert(construct_key(M::Tau), state.recent_timeslot.encode()); // tau
-    map.insert(construct_key(M::Chi), state.privileged_services.encode()); // chi
-    map.insert(construct_key(M::Pi), state.validator_statistics.encode()); // pi
+    map.insert(construct_key(M::Alpha), state.authorizer_pool.encode()?); // alpha
+    map.insert(construct_key(M::Phi), state.authorizer_queue.encode()?); // phi
+    map.insert(construct_key(M::Beta), state.block_history.encode()?); // beta
+    map.insert(construct_key(M::Gamma), state.safrole_state.encode()?); // gamma
+    map.insert(construct_key(M::Psi), state.verdicts.encode()?); // psi
+    map.insert(construct_key(M::Eta), state.entropy_accumulator.encode()?); // eta
+    map.insert(
+        construct_key(M::Iota),
+        state.staging_validator_set.encode()?,
+    ); // iota
+    map.insert(
+        construct_key(M::Kappa),
+        state.active_validator_set.encode()?,
+    ); // kappa
+    map.insert(construct_key(M::Lambda), state.past_validator_set.encode()?); // lambda
+    map.insert(construct_key(M::Rho), state.pending_reports.encode()?); // rho
+    map.insert(construct_key(M::Tau), state.recent_timeslot.encode()?); // tau
+    map.insert(construct_key(M::Chi), state.privileged_services.encode()?); // chi
+    map.insert(construct_key(M::Pi), state.validator_statistics.encode()?); // pi
 
     // service state
     for (service, account) in &state.service_accounts {
@@ -109,7 +113,7 @@ pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
                 account.get_total_octets_footprint(), // u64
                 account.get_item_counts_footprint(),  // u32
             )
-                .encode(),
+                .encode()?,
         );
 
         for (storage_key, storage_value) in &account.storage {
@@ -129,14 +133,14 @@ pub(crate) fn serialize_state(state: &GlobalState) -> HashMap<Hash32, Octets> {
         // lookup_value is a sequence of timeslots with length up to 3 which describes the historical status of preimages.
         for (lookup_key, lookup_value) in &account.lookups {
             let mut encoded_lookup_value = vec![];
-            encode_length_discriminated_field(lookup_value, &mut encoded_lookup_value);
+            lookup_value.encode_to(&mut encoded_lookup_value)?;
 
             map.insert(
-                construct_key_with_service_and_data(*service, &lookup_key.encode()), // FIXME: with exact encoding rule for the `h`
+                construct_key_with_service_and_data(*service, &lookup_key.encode()?), // FIXME: with exact encoding rule for the `h`
                 encoded_lookup_value,
             );
         }
     }
 
-    map
+    Ok(map)
 }

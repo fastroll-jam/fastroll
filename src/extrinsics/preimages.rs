@@ -1,36 +1,30 @@
 use crate::{
-    codec::utils::{
-        decode_length_discriminated_field, encode_length_discriminated_field,
-        size_hint_length_discriminated_field,
-    },
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::Octets,
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 pub(crate) struct PreimageLookupExtrinsicEntry {
     service_index: u32, // N_S
     preimage_data: Octets,
 }
 
-impl Encode for PreimageLookupExtrinsicEntry {
+impl JamEncode for PreimageLookupExtrinsicEntry {
     fn size_hint(&self) -> usize {
-        self.service_index.size_hint() + size_hint_length_discriminated_field(&self.preimage_data)
+        self.service_index.size_hint() + self.preimage_data.size_hint()
     }
 
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        self.service_index.encode_to(dest);
-        encode_length_discriminated_field(&self.preimage_data, dest);
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_index.encode_to(dest)?;
+        self.preimage_data.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for PreimageLookupExtrinsicEntry {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let service_index = u32::decode(input)?;
-        let preimage_data: Octets = decode_length_discriminated_field(input)?;
-
+impl JamDecode for PreimageLookupExtrinsicEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            service_index,
-            preimage_data,
+            service_index: u32::decode(input)?,
+            preimage_data: Octets::decode(input)?,
         })
     }
 }

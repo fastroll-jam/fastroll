@@ -1,11 +1,10 @@
 use bit_vec::BitVec;
 use std::{
+    error::Error,
     fmt,
     fmt::{Debug, Display, Formatter},
     mem::size_of,
 };
-
-pub(crate) mod utils;
 
 /// Error types for JAM SCALE Codec
 #[derive(Debug)]
@@ -26,6 +25,8 @@ impl Display for JamCodecError {
         }
     }
 }
+
+impl Error for JamCodecError {}
 
 impl From<&'static str> for JamCodecError {
     fn from(desc: &'static str) -> JamCodecError {
@@ -78,12 +79,12 @@ impl JamOutput for Vec<u8> {
 pub trait JamEncode {
     fn size_hint(&self) -> usize;
 
-    fn encode_to<T: JamOutput>(&self, dest: &mut T);
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError>;
 
-    fn encode(&self) -> Vec<u8> {
+    fn encode(&self) -> Result<Vec<u8>, JamCodecError> {
         let mut r = Vec::with_capacity(self.size_hint());
-        self.encode_to(&mut r);
-        r
+        self.encode_to(&mut r)?;
+        Ok(r)
     }
 }
 
@@ -95,7 +96,10 @@ pub trait JamDecode {
 
 // Variable length little-endian integer type encoding
 // The first byte includes both length-indicator prefix and part of the encoded data
-fn impl_encode_to_for_integers<T: JamOutput, U: Copy + TryInto<u64>>(value: &U, dest: &mut T)
+fn impl_encode_to_for_integers<T: JamOutput, U: Copy + TryInto<u64>>(
+    value: &U,
+    dest: &mut T,
+) -> Result<(), JamCodecError>
 where
     <U as TryInto<u64>>::Error: Debug,
 {
@@ -105,7 +109,7 @@ where
     // Case 1: x == 0
     if x == 0 {
         dest.push_byte(0);
-        return;
+        return Ok(());
     }
 
     // Case 2: 1 <= x < 2^56
@@ -145,11 +149,13 @@ where
         for i in 0..l {
             dest.push_byte(((remainder >> (8 * i)) & 0xFF) as u8);
         }
+        Ok(())
     }
     // Case 3: 2^56 <= x < 2^64
     else {
         dest.push_byte(0xFF);
         dest.write(&x.to_le_bytes());
+        Ok(())
     }
 }
 
@@ -227,7 +233,7 @@ macro_rules! impl_jam_codec_for_uint {
                     impl_size_hint_for_integers(*self)
                 }
 
-                fn encode_to<T: JamOutput>(&self, dest: &mut T) {
+                fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
                     impl_encode_to_for_integers(self, dest)
                 }
             }
@@ -243,6 +249,31 @@ macro_rules! impl_jam_codec_for_uint {
 
 impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
 
+// 1-byte boolean codec
+impl JamEncode for bool {
+    fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        dest.push_byte(if *self { 1 } else { 0 });
+        Ok(())
+    }
+}
+
+impl JamDecode for bool {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        match input.read_byte()? {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(JamCodecError::InputError("Invalid boolean value".into())),
+        }
+    }
+}
+
 // SCALE Codec for Option<T> types
 impl<T: JamEncode> JamEncode for Option<T> {
     fn size_hint(&self) -> usize {
@@ -252,16 +283,18 @@ impl<T: JamEncode> JamEncode for Option<T> {
         }
     }
 
-    fn encode_to<O: JamOutput>(&self, dest: &mut O) {
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
         match self {
             None => {
                 // Note: even with smaller integer type, this will be converted to u64 then
                 // dynamically encoded by integer encoders
-                0u64.encode_to(dest); // Encode the absence marker (0)
+                0u64.encode_to(dest)?; // Encode the absence marker (0)
+                Ok(())
             }
             Some(value) => {
-                1u64.encode_to(dest); // Encode the presence marker (1)
-                value.encode_to(dest); // Encode the value
+                1u64.encode_to(dest)?; // Encode the presence marker (1)
+                value.encode_to(dest)?; // Encode the value
+                Ok(())
             }
         }
     }
@@ -284,10 +317,11 @@ impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
         self.iter().map(|e| e.size_hint()).sum()
     }
 
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) {
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         for element in self {
-            element.encode_to(dest);
+            element.encode_to(dest)?;
         }
+        Ok(())
     }
 }
 
@@ -310,13 +344,14 @@ impl<T: JamEncode> JamEncode for Vec<T> {
         self.len().size_hint() + self.iter().map(|e| e.size_hint()).sum::<usize>()
     }
 
-    fn encode_to<O: JamOutput>(&self, dest: &mut O) {
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
         // Encode the length first
-        self.len().encode_to(dest);
+        self.len().encode_to(dest)?;
         // Then encode each element
         for element in self {
-            element.encode_to(dest);
+            element.encode_to(dest)?;
         }
+        Ok(())
     }
 }
 
@@ -340,9 +375,9 @@ impl JamEncode for BitVec {
         length_size + (self.len() + 7) / 8
     }
 
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) {
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         // Encode the length first
-        self.len().encode_to(dest); // Note: number of bits used for length discriminator (different from integers using number of bytes)
+        self.len().encode_to(dest)?; // Note: number of bits used for length discriminator (different from integers using number of bytes)
 
         // Pack bits into octets
         let mut current_byte = 0u8;
@@ -365,6 +400,7 @@ impl JamEncode for BitVec {
         if bit_count > 0 {
             dest.push_byte(current_byte);
         }
+        Ok(())
     }
 }
 
@@ -469,6 +505,50 @@ macro_rules! impl_jam_fixed_codec_for_uint {
 
 impl_jam_fixed_codec_for_uint!(u8, u16, u32, u64, usize);
 
+macro_rules! impl_jam_codec_for_tuple {
+    ($($ty:ident),+) => {
+        #[allow(non_snake_case)]
+        impl<$($ty),+> JamEncode for ($($ty,)+)
+        where
+            $($ty: JamEncode,)+
+        {
+            fn size_hint(&self) -> usize {
+                let ($($ty,)+) = self;
+                0 $(+ $ty.size_hint())+
+            }
+
+            fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+                let ($($ty,)+) = self;
+                $($ty.encode_to(dest)?;)+
+                Ok(())
+            }
+        }
+
+        impl<$($ty),+> JamDecode for ($($ty,)+)
+        where
+            $($ty: JamDecode,)+
+        {
+            fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+                Ok(($($ty::decode(input)?,)+))
+            }
+        }
+    }
+}
+
+// Implement for tuples with 1 to 12 elements
+impl_jam_codec_for_tuple!(T1);
+impl_jam_codec_for_tuple!(T1, T2);
+impl_jam_codec_for_tuple!(T1, T2, T3);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+
 impl JamEncodeFixed for BitVec {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 
@@ -542,88 +622,89 @@ mod tests {
     use super::*;
 
     // Helper function to encode and then decode an integer value
-    fn encode_decode<T: JamEncode + JamDecode + PartialEq + Debug + Copy>(
-        value: T,
-    ) -> Result<T, JamCodecError>
+    fn encode_decode<T: JamEncode + JamDecode + PartialEq + Debug + Copy>(value: T) -> T
     where
         T: TryFrom<u64> + TryInto<u64>,
         <T as TryFrom<u64>>::Error: Display,
         <T as TryInto<u64>>::Error: Debug,
     {
-        let encoded = value.encode();
+        let encoded = value.encode().unwrap();
         println!("\nValue: {:?}", value);
         println!("Encoded: {:02X?}", encoded);
         let mut slice = &encoded[..];
-        let decoded: T = JamDecode::decode(&mut slice)?;
+        let decoded: T = JamDecode::decode(&mut slice).unwrap();
         println!("Decoded: {:?}", decoded);
         if value != decoded {
             println!("Mismatch: original {:?} != decoded {:?}", value, decoded);
         }
-        Ok(decoded)
+        decoded
     }
 
     #[test]
     fn test_u8_codec() {
-        assert_eq!(encode_decode(0u8).unwrap(), 0u8);
-        assert_eq!(encode_decode(1u8).unwrap(), 1u8);
-        assert_eq!(encode_decode(63u8).unwrap(), 63u8);
-        assert_eq!(encode_decode(64u8).unwrap(), 64u8);
-        assert_eq!(encode_decode(u8::MAX).unwrap(), u8::MAX);
-        assert_eq!(127u8.encode(), vec![127]);
-        assert_eq!(128u8.encode(), vec![0b10000000, 128]); // 0b10000000 for prefix
+        assert_eq!(encode_decode(0u8), 0u8);
+        assert_eq!(encode_decode(1u8), 1u8);
+        assert_eq!(encode_decode(63u8), 63u8);
+        assert_eq!(encode_decode(64u8), 64u8);
+        assert_eq!(encode_decode(u8::MAX), u8::MAX);
+        assert_eq!(127u8.encode().unwrap(), vec![127]);
+        assert_eq!(128u8.encode().unwrap(), vec![0b10000000, 128]); // 0b10000000 for prefix
     }
 
     #[test]
     fn test_u16_codec() {
-        assert_eq!(encode_decode(0u16).unwrap(), 0u16);
-        assert_eq!(encode_decode(1u16).unwrap(), 1u16);
-        assert_eq!(encode_decode(63u16).unwrap(), 63u16);
-        assert_eq!(encode_decode(64u16).unwrap(), 64u16);
-        assert_eq!(encode_decode(16383u16).unwrap(), 16383u16);
-        assert_eq!(encode_decode(16384u16).unwrap(), 16384u16);
-        assert_eq!(encode_decode(u16::MAX).unwrap(), u16::MAX);
-        assert_eq!(16383u16.encode(), vec![0b10000000 | 0x3F, 0xFF]);
-        assert_eq!(16384u16.encode(), vec![0b11000000, 0x00, 0x40]);
+        assert_eq!(encode_decode(0u16), 0u16);
+        assert_eq!(encode_decode(1u16), 1u16);
+        assert_eq!(encode_decode(63u16), 63u16);
+        assert_eq!(encode_decode(64u16), 64u16);
+        assert_eq!(encode_decode(16383u16), 16383u16);
+        assert_eq!(encode_decode(16384u16), 16384u16);
+        assert_eq!(encode_decode(u16::MAX), u16::MAX);
+        assert_eq!(16383u16.encode().unwrap(), vec![0b10000000 | 0x3F, 0xFF]);
+        assert_eq!(16384u16.encode().unwrap(), vec![0b11000000, 0x00, 0x40]);
     }
 
     #[test]
     fn test_u32_codec() {
-        assert_eq!(encode_decode(0u32).unwrap(), 0u32);
-        assert_eq!(encode_decode(1u32).unwrap(), 1u32);
-        assert_eq!(encode_decode(16384u32).unwrap(), 16384u32);
-        assert_eq!(encode_decode(1048575u32).unwrap(), 1048575u32);
-        assert_eq!(encode_decode(1048576u32).unwrap(), 1048576u32);
-        assert_eq!(encode_decode(u32::MAX).unwrap(), u32::MAX);
-        assert_eq!((1u32 << 21).encode(), vec![0b11100000, 0x00, 0x00, 0x20]); // 0b11100000 for prefix
+        assert_eq!(encode_decode(0u32), 0u32);
+        assert_eq!(encode_decode(1u32), 1u32);
+        assert_eq!(encode_decode(16384u32), 16384u32);
+        assert_eq!(encode_decode(1048575u32), 1048575u32);
+        assert_eq!(encode_decode(1048576u32), 1048576u32);
+        assert_eq!(encode_decode(u32::MAX), u32::MAX);
+        assert_eq!(
+            (1u32 << 21).encode().unwrap(),
+            vec![0b11100000, 0x00, 0x00, 0x20]
+        ); // 0b11100000 for prefix
     }
 
     #[test]
     fn test_u64_codec() {
-        assert_eq!(encode_decode(0u64).unwrap(), 0u64);
-        assert_eq!(encode_decode(1u64).unwrap(), 1u64);
-        assert_eq!(encode_decode(1048575u64).unwrap(), 1048575u64);
-        assert_eq!(encode_decode(1048576u64).unwrap(), 1048576u64);
-        assert_eq!(encode_decode(1u64 << 32).unwrap(), 1u64 << 32);
-        assert_eq!(encode_decode(1u64 << 56).unwrap(), 1u64 << 56);
-        assert_eq!(encode_decode(u64::MAX).unwrap(), u64::MAX);
+        assert_eq!(encode_decode(0u64), 0u64);
+        assert_eq!(encode_decode(1u64), 1u64);
+        assert_eq!(encode_decode(1048575u64), 1048575u64);
+        assert_eq!(encode_decode(1048576u64), 1048576u64);
+        assert_eq!(encode_decode(1u64 << 32), 1u64 << 32);
+        assert_eq!(encode_decode(1u64 << 56), 1u64 << 56);
+        assert_eq!(encode_decode(u64::MAX), u64::MAX);
         assert_eq!(
-            (1u64 << 28).encode(),
+            (1u64 << 28).encode().unwrap(),
             vec![0b11110000, 0x00, 0x00, 0x00, 0x10]
         ); // 0b11110000 for prefix
         assert_eq!(
-            (1u64 << 35).encode(),
+            (1u64 << 35).encode().unwrap(),
             vec![0b11111000, 0x00, 0x00, 0x00, 0x00, 0x08]
         ); // 0b11111000 for prefix
         assert_eq!(
-            (1u64 << 42).encode(),
+            (1u64 << 42).encode().unwrap(),
             vec![0b11111100, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04]
         ); // 0b11111100 for prefix
         assert_eq!(
-            (1u64 << 49).encode(),
+            (1u64 << 49).encode().unwrap(),
             vec![0b11111110, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02]
         ); // 0b11111110 for prefix
         assert_eq!(
-            (1u64 << 56).encode(),
+            (1u64 << 56).encode().unwrap(),
             vec![0b11111111, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]
         ); // 0b11111111 for prefix
     }
@@ -670,7 +751,7 @@ mod tests {
     fn test_option_codec() {
         // Test None
         let none: Option<u32> = None;
-        let encoded_none = none.encode();
+        let encoded_none = none.encode().unwrap();
         assert_eq!(encoded_none, vec![0]);
         let mut slice_none = &encoded_none[..];
         let decoded_none: Option<u32> = JamDecode::decode(&mut slice_none).unwrap();
@@ -678,7 +759,7 @@ mod tests {
 
         // Test Some
         let some: Option<u32> = Some(42);
-        let encoded_some = some.encode();
+        let encoded_some = some.encode().unwrap();
         assert_eq!(encoded_some, vec![1, 42]);
         let mut slice_some = &encoded_some[..];
         let decoded_some: Option<u32> = JamDecode::decode(&mut slice_some).unwrap();
@@ -686,7 +767,7 @@ mod tests {
 
         // Test Some with a larger value
         let some_large: Option<u32> = Some(1_000_000);
-        let encoded_some_large = some_large.encode();
+        let encoded_some_large = some_large.encode().unwrap();
         assert_eq!(encoded_some_large, vec![1, 207, 64, 66]);
         let mut slice_some_large = &encoded_some_large[..];
         let decoded_some_large: Option<u32> = JamDecode::decode(&mut slice_some_large).unwrap();
@@ -705,7 +786,7 @@ mod tests {
     fn test_array_codec() {
         // Test [u8; 4]
         let arr4: [u8; 4] = [1, 2, 3, 4];
-        let encoded_arr4 = arr4.encode();
+        let encoded_arr4 = arr4.encode().unwrap();
         assert_eq!(encoded_arr4, vec![1, 2, 3, 4]);
         let mut slice_arr4 = &encoded_arr4[..];
         let decoded_arr4: [u8; 4] = JamDecode::decode(&mut slice_arr4).unwrap();
@@ -713,7 +794,7 @@ mod tests {
 
         // Test [u8; 0] (empty array)
         let arr0: [u8; 0] = [];
-        let encoded_arr0 = arr0.encode();
+        let encoded_arr0 = arr0.encode().unwrap();
         assert_eq!(encoded_arr0, vec![]);
         let mut slice_arr0 = &encoded_arr0[..];
         let decoded_arr0: [u8; 0] = JamDecode::decode(&mut slice_arr0).unwrap();
@@ -721,7 +802,7 @@ mod tests {
 
         // Test [u32; 3]
         let arr_u32: [u32; 3] = [1, 1000, 1_000_000];
-        let encoded_arr_u32 = arr_u32.encode();
+        let encoded_arr_u32 = arr_u32.encode().unwrap();
         assert_eq!(encoded_arr_u32, vec![1, 131, 232, 207, 64, 66]);
         let mut slice_arr_u32 = &encoded_arr_u32[..];
         let decoded_arr_u32: [u32; 3] = JamDecode::decode(&mut slice_arr_u32).unwrap();
@@ -729,7 +810,7 @@ mod tests {
 
         // Test [Option<u8>; 2]
         let arr_opt: [Option<u8>; 2] = [Some(42), None];
-        let encoded_arr_opt = arr_opt.encode();
+        let encoded_arr_opt = arr_opt.encode().unwrap();
         assert_eq!(encoded_arr_opt, vec![1, 42, 0]);
         let mut slice_arr_opt = &encoded_arr_opt[..];
         let decoded_arr_opt: [Option<u8>; 2] = JamDecode::decode(&mut slice_arr_opt).unwrap();
@@ -748,7 +829,7 @@ mod tests {
     fn test_vec_codec() {
         // Test empty Vec
         let empty_vec: Vec<u32> = vec![];
-        let encoded_empty = empty_vec.encode();
+        let encoded_empty = empty_vec.encode().unwrap();
         assert_eq!(encoded_empty, vec![0]); // Just the length (0) encoded
         let mut slice_empty = &encoded_empty[..];
         let decoded_empty: Vec<u32> = JamDecode::decode(&mut slice_empty).unwrap();
@@ -756,7 +837,7 @@ mod tests {
 
         // Test Vec with small integers
         let small_vec: Vec<u8> = vec![1, 2, 3];
-        let encoded_small = small_vec.encode();
+        let encoded_small = small_vec.encode().unwrap();
         assert_eq!(encoded_small, vec![3, 1, 2, 3]); // Length (3) followed by elements
         let mut slice_small = &encoded_small[..];
         let decoded_small: Vec<u8> = JamDecode::decode(&mut slice_small).unwrap();
@@ -764,7 +845,7 @@ mod tests {
 
         // Test Vec with larger integers
         let large_vec: Vec<u32> = vec![1, 1000, 1_000_000];
-        let encoded_large = large_vec.encode();
+        let encoded_large = large_vec.encode().unwrap();
         assert_eq!(encoded_large, vec![3, 1, 131, 232, 207, 64, 66]);
         let mut slice_large = &encoded_large[..];
         let decoded_large: Vec<u32> = JamDecode::decode(&mut slice_large).unwrap();
@@ -772,7 +853,7 @@ mod tests {
 
         // Test Vec of Option<u8>
         let opt_vec: Vec<Option<u8>> = vec![Some(42), None, Some(255)];
-        let encoded_opt = opt_vec.encode();
+        let encoded_opt = opt_vec.encode().unwrap();
         assert_eq!(encoded_opt, vec![3, 1, 42, 0, 1, 1 << 7, 255]);
         let mut slice_opt = &encoded_opt[..];
         let decoded_opt: Vec<Option<u8>> = JamDecode::decode(&mut slice_opt).unwrap();
@@ -790,7 +871,7 @@ mod tests {
     #[test]
     fn test_bitvec_empty() {
         let bv = BitVec::new();
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![0]); // Just the length (0) encoded
 
         let mut slice = &encoded[..];
@@ -816,7 +897,7 @@ mod tests {
         bv.push(false);
         bv.push(true);
 
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![3, 0b00000101]);
 
         let mut slice = &encoded[..];
@@ -846,7 +927,7 @@ mod tests {
             bv.push(i % 2 == 0);
         }
 
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         assert_eq!(encoded, vec![20, 0b01010101, 0b01010101, 0b00000101]);
 
         let mut slice = &encoded[..];
@@ -876,7 +957,7 @@ mod tests {
             bv.push(i % 3 == 0);
         }
 
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         let mut slice = &encoded[..];
         let decoded: BitVec = JamDecode::decode(&mut slice).unwrap();
         assert_eq!(bv, decoded);
@@ -902,7 +983,7 @@ mod tests {
             bv.push(i % 2 == 0);
         }
 
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         assert_eq!(bv.size_hint(), encoded.len());
     }
 
@@ -913,7 +994,7 @@ mod tests {
             bv.push(i % 2 == 0);
         }
 
-        let encoded = bv.encode();
+        let encoded = bv.encode().unwrap();
         let mut partial_slice = &encoded[..encoded.len() - 1];
         assert!(matches!(
             BitVec::decode(&mut partial_slice),

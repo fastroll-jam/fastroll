@@ -1,5 +1,8 @@
-use crate::{block::header::BlockHeader, extrinsics::Extrinsics};
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use crate::{
+    block::header::BlockHeader,
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
+    extrinsics::Extrinsics,
+};
 
 mod header;
 
@@ -8,24 +11,24 @@ pub struct Block {
     extrinsics: Extrinsics,
 }
 
-impl Encode for Block {
+impl JamEncode for Block {
     fn size_hint(&self) -> usize {
         self.header.size_hint() + self.extrinsics.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        self.header.encode_to(dest);
-        self.extrinsics.encode_to(dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.header.encode_to(dest)?;
+        self.extrinsics.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for Block {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let header = BlockHeader::decode(input)?;
-        let extrinsics = Extrinsics::decode(input)?;
-
+impl JamDecode for Block {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // TODO: additional validation on Block structure, etc.
-
-        Ok(Self { header, extrinsics })
+        Ok(Self {
+            header: BlockHeader::decode(input)?,
+            extrinsics: Extrinsics::decode(input)?,
+        })
     }
 }

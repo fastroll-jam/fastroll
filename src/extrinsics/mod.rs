@@ -1,15 +1,11 @@
 use crate::{
-    codec::utils::{
-        decode_length_discriminated_field, encode_length_discriminated_field,
-        size_hint_length_discriminated_field,
-    },
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     extrinsics::{
         assurances::AssuranceExtrinsicEntry, guarantees::GuaranteeExtrinsicEntry,
         preimages::PreimageLookupExtrinsicEntry, tickets::TicketExtrinsicEntry,
         verdicts::VerdictsExtrinsic,
     },
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 mod assurances;
 mod guarantees;
@@ -30,32 +26,33 @@ pub struct Extrinsics {
     verdicts_extrinsic: VerdictsExtrinsic,                // E_V
 }
 
-impl Encode for Extrinsics {
+impl JamEncode for Extrinsics {
     fn size_hint(&self) -> usize {
-        size_hint_length_discriminated_field(&self.tickets_extrinsic)
+        self.tickets_extrinsic.size_hint()
             + self.verdicts_extrinsic.size_hint()
-            + size_hint_length_discriminated_field(&self.preimage_lookups_extrinsic)
-            + size_hint_length_discriminated_field(&self.assurances_extrinsic)
-            + size_hint_length_discriminated_field(&self.guarantees_extrinsic)
+            + self.preimage_lookups_extrinsic.size_hint()
+            + self.assurances_extrinsic.size_hint()
+            + self.guarantees_extrinsic.size_hint()
     }
 
-    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        encode_length_discriminated_field(&self.tickets_extrinsic, dest);
-        self.verdicts_extrinsic.encode_to(dest);
-        encode_length_discriminated_field(&self.preimage_lookups_extrinsic, dest);
-        encode_length_discriminated_field(&self.assurances_extrinsic, dest);
-        encode_length_discriminated_field(&self.guarantees_extrinsic, dest);
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.tickets_extrinsic.encode_to(dest)?;
+        self.verdicts_extrinsic.encode_to(dest)?;
+        self.preimage_lookups_extrinsic.encode_to(dest)?;
+        self.assurances_extrinsic.encode_to(dest)?;
+        self.guarantees_extrinsic.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for Extrinsics {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+impl JamDecode for Extrinsics {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            tickets_extrinsic: decode_length_discriminated_field(input)?,
+            tickets_extrinsic: TicketsExtrinsic::decode(input)?,
             verdicts_extrinsic: VerdictsExtrinsic::decode(input)?,
-            preimage_lookups_extrinsic: decode_length_discriminated_field(input)?,
-            assurances_extrinsic: decode_length_discriminated_field(input)?,
-            guarantees_extrinsic: decode_length_discriminated_field(input)?,
+            preimage_lookups_extrinsic: PreimageLookupsExtrinsic::decode(input)?,
+            assurances_extrinsic: AssurancesExtrinsic::decode(input)?,
+            guarantees_extrinsic: GuaranteesExtrinsic::decode(input)?,
         })
     }
 }

@@ -1,10 +1,13 @@
-use crate::common::{Hash32, Octets, UnsignedGas};
+use crate::{
+    common::{Hash32, Octets, UnsignedGas},
+    state::global_state::Timeslot,
+};
 use std::collections::BTreeMap;
 
 pub(crate) struct ServiceAccountState {
     pub(crate) storage: BTreeMap<Hash32, Octets>,   // s
     pub(crate) preimages: BTreeMap<Hash32, Octets>, // p
-    pub(crate) lookups: BTreeMap<(Hash32, u32), Vec<u32>>, // l; Vec<u32> length up to 3
+    pub(crate) lookups: BTreeMap<(Hash32, u32), Vec<Timeslot>>, // l; Vec<u32> length up to 3
     pub(crate) code_hash: Hash32,                   // c
     pub(crate) balance: u64,                        // b
     pub(crate) gas_limit_accumulate: UnsignedGas,   // g

@@ -1,48 +1,31 @@
 use crate::{
-    codec::utils::{encode_optional_field, size_hint_optional_field},
-    common::{WorkReport, CORE_COUNT},
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
+    common::WorkReport,
+    state::global_state::Timeslot,
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-
-pub(crate) struct PendingReports {
-    entries: [Option<PendingReport>; CORE_COUNT],
-}
-
-impl Encode for PendingReports {
-    fn size_hint(&self) -> usize {
-        self.entries.iter().map(size_hint_optional_field).sum()
-    }
-
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        for entry in &self.entries {
-            encode_optional_field(entry, dest);
-        }
-    }
-}
 
 pub(crate) struct PendingReport {
     work_report: WorkReport,
     timeslot: u32,
 }
 
-impl Encode for PendingReport {
+impl JamEncode for PendingReport {
     fn size_hint(&self) -> usize {
         self.work_report.size_hint() + self.timeslot.size_hint()
     }
 
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        self.work_report.encode_to(dest);
-        self.timeslot.encode_to(dest);
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.work_report.encode_to(dest)?;
+        self.timeslot.encode_to(dest)?;
+        Ok(())
     }
 }
 
-impl Decode for PendingReport {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let work_report = WorkReport::decode(input)?;
-        let timeslot = u32::decode(input)?;
+impl JamDecode for PendingReport {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            work_report,
-            timeslot,
+            work_report: WorkReport::decode(input)?,
+            timeslot: Timeslot::decode(input)?,
         })
     }
 }
