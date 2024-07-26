@@ -2,10 +2,10 @@ use crate::{
     codec::JamCodecError,
     common::{Hash32, ValidatorKey, CORE_COUNT, VALIDATOR_COUNT},
     state::components::{
-        block_history::BlockHistoryEntry,
-        pending_reports::PendingReport, privileged_services::PrivilegedServicesState,
+        block_histories::BlockHistoryEntry, disputes::DisputesState,
+        pending_reports::PendingReport, privileged_services::PrivilegedServices,
         safrole::SafroleState, service_accounts::ServiceAccountState,
-        validator_statistics::ValidatorStatEntry, verdicts::VerdictsState,
+        validator_statistics::ValidatorStatEntry,
     },
     trie::utils::MerklizationError,
 };
@@ -34,19 +34,19 @@ pub(crate) type BlockHistories = Vec<BlockHistoryEntry>;
 pub(crate) type ValidatorStats = [[ValidatorStatEntry; VALIDATOR_COUNT]; 2];
 
 pub(crate) struct GlobalState {
-    pub(crate) recent_timeslot: u32,                         // tau
-    pub(crate) safrole_state: SafroleState,                  // gamma
-    pub(crate) staging_validator_set: ValidatorSet,          // iota
-    pub(crate) active_validator_set: ValidatorSet,           // kappa
-    pub(crate) past_validator_set: ValidatorSet,             // lambda
-    pub(crate) entropy_accumulator: EntropyAccumulator,      // eta
-    pub(crate) service_accounts: ServiceAccounts,            // sigma
-    pub(crate) privileged_services: PrivilegedServicesState, // chi
-    pub(crate) pending_reports: PendingReports,              // rho
-    pub(crate) authorizer_pool: AuthorizerPool,        // alpha
-    pub(crate) authorizer_queue: AuthorizerQueue,            // phi
-    pub(crate) block_history: BlockHistories, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
-    pub(crate) verdicts: VerdictsState,       // psi
+    pub(crate) recent_timeslot: Timeslot,               // tau
+    pub(crate) safrole_state: SafroleState,             // gamma
+    pub(crate) staging_validator_set: ValidatorSet,     // iota
+    pub(crate) active_validator_set: ValidatorSet,      // kappa
+    pub(crate) past_validator_set: ValidatorSet,        // lambda
+    pub(crate) entropy_accumulator: EntropyAccumulator, // eta
+    pub(crate) service_accounts: ServiceAccounts,       // sigma
+    pub(crate) privileged_services: PrivilegedServices, // chi
+    pub(crate) pending_reports: PendingReports,         // rho
+    pub(crate) authorizer_pool: AuthorizerPool,         // alpha
+    pub(crate) authorizer_queue: AuthorizerQueue,       // phi
+    pub(crate) block_histories: BlockHistories, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
+    pub(crate) disputes: DisputesState,         // psi
     pub(crate) validator_statistics: ValidatorStats, // pi
 }
 

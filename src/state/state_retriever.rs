@@ -4,11 +4,10 @@ use crate::{
     db::manager::GLOBAL_KVDB_MANAGER,
     state::{
         components::{
-            privileged_services::PrivilegedServicesState,
-            safrole::SafroleState, verdicts::VerdictsState,
+            disputes::DisputesState, privileged_services::PrivilegedServices, safrole::SafroleState,
         },
         global_state::{
-            AuthorizerQueue, BlockHistories, EntropyAccumulator, GlobalStateError,
+            AuthorizerPool, AuthorizerQueue, BlockHistories, EntropyAccumulator, GlobalStateError,
             PendingReports, Timeslot, ValidatorSet, ValidatorStats,
         },
     },
@@ -21,7 +20,6 @@ use crate::{
         utils::{bytes_to_lsb_bits, MerklizationError},
     },
 };
-use crate::state::global_state::AuthorizerPool;
 
 fn get_current_root_hash() -> Hash32 {
     todo!() // move to `block/header.rs`
@@ -52,7 +50,7 @@ impl StateRetriever {
         Ok(AuthorizerQueue::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_block_history(&self) -> Result<BlockHistories, GlobalStateError> {
+    pub fn get_block_histories(&self) -> Result<BlockHistories, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Beta))?;
         Ok(BlockHistories::decode(&mut serialized.as_slice())?)
     }
@@ -62,9 +60,9 @@ impl StateRetriever {
         Ok(SafroleState::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_verdicts(&self) -> Result<VerdictsState, GlobalStateError> {
+    pub fn get_disputes(&self) -> Result<DisputesState, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Psi))?;
-        Ok(VerdictsState::decode(&mut serialized.as_slice())?)
+        Ok(DisputesState::decode(&mut serialized.as_slice())?)
     }
 
     pub fn get_entropy_accumulator(&self) -> Result<EntropyAccumulator, GlobalStateError> {
@@ -97,9 +95,9 @@ impl StateRetriever {
         Ok(Timeslot::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_privileged_services(&self) -> Result<PrivilegedServicesState, GlobalStateError> {
+    pub fn get_privileged_services(&self) -> Result<PrivilegedServices, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Chi))?;
-        Ok(PrivilegedServicesState::decode(&mut serialized.as_slice())?)
+        Ok(PrivilegedServices::decode(&mut serialized.as_slice())?)
     }
 
     pub fn get_validator_statistics(&self) -> Result<ValidatorStats, GlobalStateError> {

@@ -5,29 +5,29 @@ use crate::{
     },
 };
 
-pub(crate) struct VerdictsExtrinsic {
-    verdicts: Vec<Verdict>, // j
+pub(crate) struct DisputesExtrinsic {
+    disputes: Vec<Verdict>, // v
     culprits: Vec<Culprit>, // c
     faults: Vec<Fault>,     // f
 }
 
-impl JamEncode for VerdictsExtrinsic {
+impl JamEncode for DisputesExtrinsic {
     fn size_hint(&self) -> usize {
-        self.verdicts.size_hint() + self.culprits.size_hint() + self.faults.size_hint()
+        self.disputes.size_hint() + self.culprits.size_hint() + self.faults.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
-        self.verdicts.encode_to(dest)?;
+        self.disputes.encode_to(dest)?;
         self.culprits.encode_to(dest)?;
         self.faults.encode_to(dest)?;
         Ok(())
     }
 }
 
-impl JamDecode for VerdictsExtrinsic {
+impl JamDecode for DisputesExtrinsic {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            verdicts: Vec::decode(input)?,
+            disputes: Vec::decode(input)?,
             culprits: Vec::decode(input)?,
             faults: Vec::decode(input)?,
         })
@@ -37,7 +37,7 @@ impl JamDecode for VerdictsExtrinsic {
 struct Verdict {
     report_hash: Hash32,                                 // r
     epoch_index: u32,                                    // a
-    votes: [Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1], // v
+    votes: [Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1], // j
 }
 
 impl JamEncode for Verdict {
