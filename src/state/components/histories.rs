@@ -1,7 +1,11 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::Hash32,
+    impl_jam_codec_for_newtype,
 };
+
+pub(crate) struct BlockHistories(pub(crate) Vec<BlockHistoryEntry>);
+impl_jam_codec_for_newtype!(BlockHistories, Vec<BlockHistoryEntry>);
 
 pub(crate) struct BlockHistoryEntry {
     header_hash: Hash32,

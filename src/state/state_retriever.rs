@@ -4,12 +4,18 @@ use crate::{
     db::manager::GLOBAL_KVDB_MANAGER,
     state::{
         components::{
-            disputes::DisputesState, privileged_services::PrivilegedServices, safrole::SafroleState,
+            authorizer::{AuthorizerPool, AuthorizerQueue},
+            disputes::DisputesState,
+            entropy::EntropyAccumulator,
+            histories::BlockHistories,
+            privileged_services::PrivilegedServices,
+            reports::PendingReports,
+            safrole::SafroleState,
+            timeslot::Timeslot,
+            validator_statistics::ValidatorStats,
+            validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
         },
-        global_state::{
-            AuthorizerPool, AuthorizerQueue, BlockHistories, EntropyAccumulator, GlobalStateError,
-            PendingReports, Timeslot, ValidatorSet, ValidatorStats,
-        },
+        global_state::GlobalStateError,
     },
     trie::{
         merkle_trie::retrieve,
@@ -70,19 +76,19 @@ impl StateRetriever {
         Ok(EntropyAccumulator::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_staging_validator_set(&self) -> Result<ValidatorSet, GlobalStateError> {
+    pub fn get_staging_validator_set(&self) -> Result<StagingValidatorSet, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Iota))?;
-        Ok(ValidatorSet::decode(&mut serialized.as_slice())?)
+        Ok(StagingValidatorSet::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_active_validator_set(&self) -> Result<ValidatorSet, GlobalStateError> {
+    pub fn get_active_validator_set(&self) -> Result<ActiveValidatorSet, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Kappa))?;
-        Ok(ValidatorSet::decode(&mut serialized.as_slice())?)
+        Ok(ActiveValidatorSet::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_past_validator_set(&self) -> Result<ValidatorSet, GlobalStateError> {
+    pub fn get_past_validator_set(&self) -> Result<PastValidatorSet, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Lambda))?;
-        Ok(ValidatorSet::decode(&mut serialized.as_slice())?)
+        Ok(PastValidatorSet::decode(&mut serialized.as_slice())?)
     }
 
     pub fn get_pending_reports(&self) -> Result<PendingReports, GlobalStateError> {
@@ -90,7 +96,7 @@ impl StateRetriever {
         Ok(PendingReports::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_recent_timeslot(&self) -> Result<u32, GlobalStateError> {
+    pub fn get_recent_timeslot(&self) -> Result<Timeslot, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Tau))?;
         Ok(Timeslot::decode(&mut serialized.as_slice())?)
     }

@@ -102,7 +102,7 @@ pub(crate) fn serialize_state(
     map.insert(construct_key(M::Pi), state.validator_statistics.encode()?); // pi
 
     // service state
-    for (service, account) in &state.service_accounts {
+    for (service, account) in &state.service_accounts.0 {
         map.insert(
             construct_key_with_service(M::Sigma, *service),
             (

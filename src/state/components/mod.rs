@@ -1,7 +1,11 @@
-pub(crate) mod block_histories;
+pub(crate) mod authorizer;
 pub(crate) mod disputes;
-pub(crate) mod pending_reports;
+pub(crate) mod entropy;
+pub(crate) mod histories;
 pub(crate) mod privileged_services;
+pub(crate) mod reports;
 pub(crate) mod safrole;
-pub(crate) mod service_accounts;
+pub(crate) mod services;
+pub(crate) mod timeslot;
 pub(crate) mod validator_statistics;
+pub(crate) mod validators;

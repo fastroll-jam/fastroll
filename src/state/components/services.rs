@@ -1,8 +1,10 @@
 use crate::{
     common::{Hash32, Octets, UnsignedGas},
-    state::global_state::Timeslot,
+    state::components::timeslot::Timeslot,
 };
 use std::collections::BTreeMap;
+
+pub(crate) struct ServiceAccounts(pub(crate) BTreeMap<u32, ServiceAccountState>);
 
 pub(crate) struct ServiceAccountState {
     pub(crate) storage: BTreeMap<Hash32, Octets>,   // s

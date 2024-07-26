@@ -1,4 +1,8 @@
-use crate::codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use crate::{
+    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
+    common::VALIDATOR_COUNT,
+    impl_jam_codec_for_newtype,
+};
 
 pub(crate) struct ValidatorStatEntry {
     block_production_count: u32, // b; the number of blocks produced by the validator.
@@ -8,6 +12,9 @@ pub(crate) struct ValidatorStatEntry {
     guarantee_count: u32,           // g; the number of reports guaranteed by the validator.
     assurance_count: u32, // a; the number of availability assurances made by the validator.
 }
+
+pub(crate) struct ValidatorStats(pub(crate) [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
+impl_jam_codec_for_newtype!(ValidatorStats, [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
 
 impl JamEncode for ValidatorStatEntry {
     fn size_hint(&self) -> usize {

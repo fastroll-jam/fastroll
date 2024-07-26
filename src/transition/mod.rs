@@ -7,7 +7,7 @@ use std::{
 pub enum TransitionError {}
 
 impl Display for TransitionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

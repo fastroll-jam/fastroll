@@ -1,12 +1,16 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::WorkReport,
-    state::global_state::Timeslot,
+    common::{WorkReport, CORE_COUNT},
+    impl_jam_codec_for_newtype,
+    state::components::timeslot::Timeslot,
 };
+
+pub(crate) struct PendingReports(pub(crate) [Option<PendingReport>; CORE_COUNT]);
+impl_jam_codec_for_newtype!(PendingReports, [Option<PendingReport>; CORE_COUNT]);
 
 pub(crate) struct PendingReport {
     work_report: WorkReport,
-    timeslot: u32,
+    timeslot: Timeslot,
 }
 
 impl JamEncode for PendingReport {
@@ -25,7 +29,7 @@ impl JamDecode for PendingReport {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             work_report: WorkReport::decode(input)?,
-            timeslot: Timeslot::decode(input)?,
+            timeslot: JamDecode::decode(input)?,
         })
     }
 }
