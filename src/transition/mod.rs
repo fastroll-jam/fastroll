@@ -14,7 +14,7 @@ impl Display for TransitionError {
 
 impl Error for TransitionError {}
 
-struct TransitionContext {}
+pub(crate) struct TransitionContext {}
 
 pub trait Transition {
     fn next(&mut self, context: &TransitionContext) -> Result<Self, TransitionError>

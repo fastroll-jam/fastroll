@@ -1,9 +1,10 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{
-        BandersnatchPubKey, BandersnatchRingRoot, Ticket, ValidatorKey,
-        BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT, VALIDATOR_KEY_DEFAULT,
+        BandersnatchPubKey, BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT,
+        EPOCH_LENGTH, VALIDATOR_COUNT,
     },
+    state::components::validators::ValidatorKey,
 };
 
 pub(crate) struct SafroleState {
@@ -32,7 +33,7 @@ impl JamEncode for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut pending_validator_set = [VALIDATOR_KEY_DEFAULT; VALIDATOR_COUNT];
+        let mut pending_validator_set = [ValidatorKey::default(); VALIDATOR_COUNT];
         for validator in pending_validator_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }
