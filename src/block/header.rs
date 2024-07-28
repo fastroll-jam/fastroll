@@ -1,9 +1,11 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::{BandersnatchPubKey, BandersnatchSignature, Hash32, Ticket, EPOCH_LENGTH},
+    common::{
+        BandersnatchPubKey, BandersnatchSignature, Hash32, Ticket, EPOCH_LENGTH, VALIDATOR_COUNT,
+    },
 };
 
-type EpochMarker = Option<(Hash32, [BandersnatchPubKey; 1023])>;
+type EpochMarker = Option<(Hash32, [BandersnatchPubKey; VALIDATOR_COUNT])>;
 type WinningTicketsMarker = Option<[Ticket; EPOCH_LENGTH]>;
 type JudgementsMarker = Vec<Hash32>;
 

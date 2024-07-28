@@ -4,12 +4,27 @@ use crate::{
     impl_jam_codec_for_newtype,
 };
 
+pub(crate) type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
+
 #[derive(Copy, Clone)]
-pub(crate) struct ValidatorKey {
-    bandersnatch_key: [u8; 32],
-    ed25519_key: [u8; 32],
-    bls_key: [u8; 144],
-    metadata: [u8; 128],
+pub struct ValidatorKey {
+    pub bandersnatch_key: [u8; 32],
+    pub ed25519_key: [u8; 32],
+    pub bls_key: [u8; 144],
+    pub metadata: [u8; 128],
+}
+
+impl ValidatorKey {
+    pub fn to_bytes(&self) -> [u8; 336] {
+        let mut result = [0u8; 336];
+
+        result[0..32].copy_from_slice(&self.bandersnatch_key);
+        result[32..64].copy_from_slice(&self.ed25519_key);
+        result[64..208].copy_from_slice(&self.bls_key);
+        result[208..336].copy_from_slice(&self.metadata);
+
+        result
+    }
 }
 
 impl Default for ValidatorKey {
@@ -54,11 +69,11 @@ impl JamDecode for ValidatorKey {
     }
 }
 
-pub(crate) struct StagingValidatorSet(pub(crate) [ValidatorKey; VALIDATOR_COUNT]);
-impl_jam_codec_for_newtype!(StagingValidatorSet, [ValidatorKey; VALIDATOR_COUNT]);
+pub(crate) struct StagingValidatorSet(pub(crate) ValidatorSet);
+impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
-pub(crate) struct ActiveValidatorSet(pub(crate) [ValidatorKey; VALIDATOR_COUNT]);
-impl_jam_codec_for_newtype!(ActiveValidatorSet, [ValidatorKey; VALIDATOR_COUNT]);
+pub(crate) struct ActiveValidatorSet(pub(crate) ValidatorSet);
+impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
-pub(crate) struct PastValidatorSet(pub(crate) [ValidatorKey; VALIDATOR_COUNT]);
-impl_jam_codec_for_newtype!(PastValidatorSet, [ValidatorKey; VALIDATOR_COUNT]);
+pub(crate) struct PastValidatorSet(pub(crate) ValidatorSet);
+impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
