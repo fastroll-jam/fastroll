@@ -14,7 +14,14 @@ impl Display for TransitionError {
 
 impl Error for TransitionError {}
 
-pub(crate) struct TransitionContext {}
+pub(crate) enum SlotType {
+    NewBlock,
+    NewEpoch, // The timeslot opens a new epoch
+}
+
+pub(crate) struct TransitionContext {
+    pub(crate) slot_type: SlotType,
+}
 
 pub trait Transition {
     fn next(&mut self, context: &TransitionContext) -> Result<Self, TransitionError>

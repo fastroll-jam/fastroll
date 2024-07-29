@@ -4,14 +4,19 @@ use crate::{
         BandersnatchPubKey, BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT,
         EPOCH_LENGTH, VALIDATOR_COUNT,
     },
-    state::components::validators::ValidatorKey,
+    crypto::generate_ring_root,
+    state::{
+        components::validators::{ValidatorKey, ValidatorSet},
+        state_retriever::StateRetriever,
+    },
+    transition::{SlotType, Transition, TransitionContext, TransitionError},
 };
 
 pub(crate) struct SafroleState {
-    pending_validator_set: [ValidatorKey; VALIDATOR_COUNT], // gamma_k
-    ring_root: BandersnatchRingRoot,                        // gamma_z
-    slot_sealers: SlotSealerType,                           // gamma_s
-    ticket_accumulator: Vec<Ticket>,                        // gamma_a; max length EPOCH_LENGTH
+    pending_validator_set: ValidatorSet, // gamma_k
+    ring_root: BandersnatchRingRoot,     // gamma_z
+    slot_sealers: SlotSealerType,        // gamma_s
+    ticket_accumulator: Vec<Ticket>,     // gamma_a; max length EPOCH_LENGTH
 }
 
 impl JamEncode for SafroleState {
