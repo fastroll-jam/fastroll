@@ -3,6 +3,7 @@ use crate::{
     common::{Ed25519Signature, WorkReport},
 };
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct GuaranteeExtrinsicEntry {
     work_report: WorkReport,                  // w
     timeslot: u32,                            // t; N_T

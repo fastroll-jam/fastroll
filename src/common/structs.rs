@@ -7,6 +7,7 @@ use crate::{
 };
 
 // Structs
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct WorkReport {
     authorizer_hash: Hash32,               // a
     core_index: u32,                       // c; N_C
@@ -57,6 +58,7 @@ impl JamDecode for WorkReport {
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct RefinementContext {
     anchor_header_hash: Hash32,                // a
     anchor_state_root: Hash32,                 // s; posterior state root of the anchor block
@@ -107,6 +109,7 @@ impl JamDecode for RefinementContext {
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct AvailabilitySpecifications {
     work_package_hash: Hash32,
     work_package_length: u32, // N_N
@@ -146,6 +149,7 @@ impl JamDecode for AvailabilitySpecifications {
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct WorkItemResult {
     service_index: u32,                    // s; N_S
     service_code_hash: Hash32,             // c
@@ -191,11 +195,13 @@ impl JamDecode for WorkItemResult {
     }
 }
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 enum RefinementOutput {
     Output(Octets),
     Error(RefinementErrors),
 }
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 enum RefinementErrors {
     OutOfGas,
     UnexpectedTermination,

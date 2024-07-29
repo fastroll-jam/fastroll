@@ -3,6 +3,7 @@ use crate::{
     common::BandersnatchRingVrfProof,
 };
 
+#[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct TicketExtrinsicEntry {
     entry_index: u32,                       // r; N_N
     ticket_proof: BandersnatchRingVrfProof, // p

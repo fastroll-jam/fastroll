@@ -6,6 +6,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct AssuranceExtrinsicEntry {
     anchor_parent_hash: Hash32,    // a
     assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator

@@ -8,6 +8,7 @@ use crate::{
 };
 
 pub(crate) mod components;
+pub(crate) mod extrinsics_pool;
 
 type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
 type GuaranteesExtrinsic = Vec<GuaranteeExtrinsicEntry>;

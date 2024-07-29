@@ -3,6 +3,7 @@ use crate::{
     common::Octets,
 };
 
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct PreimageLookupExtrinsicEntry {
     service_index: u32, // N_S
     preimage_data: Octets,

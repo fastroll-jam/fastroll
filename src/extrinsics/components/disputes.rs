@@ -6,18 +6,18 @@ use crate::{
 };
 
 pub(crate) struct DisputesExtrinsic {
-    disputes: Vec<Verdict>, // v
+    verdicts: Vec<Verdict>, // v
     culprits: Vec<Culprit>, // c
     faults: Vec<Fault>,     // f
 }
 
 impl JamEncode for DisputesExtrinsic {
     fn size_hint(&self) -> usize {
-        self.disputes.size_hint() + self.culprits.size_hint() + self.faults.size_hint()
+        self.verdicts.size_hint() + self.culprits.size_hint() + self.faults.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
-        self.disputes.encode_to(dest)?;
+        self.verdicts.encode_to(dest)?;
         self.culprits.encode_to(dest)?;
         self.faults.encode_to(dest)?;
         Ok(())
@@ -27,14 +27,15 @@ impl JamEncode for DisputesExtrinsic {
 impl JamDecode for DisputesExtrinsic {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            disputes: Vec::decode(input)?,
+            verdicts: Vec::decode(input)?,
             culprits: Vec::decode(input)?,
             faults: Vec::decode(input)?,
         })
     }
 }
 
-struct Verdict {
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
+pub(crate) struct Verdict {
     report_hash: Hash32,                                 // r
     epoch_index: u32,                                    // a
     votes: [Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1], // j
@@ -67,7 +68,7 @@ impl JamDecode for Verdict {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct Vote {
     is_report_valid: bool,
     voter_index: u16, // N_V
@@ -110,7 +111,8 @@ impl Default for Vote {
     }
 }
 
-struct Culprit {
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
+pub(crate) struct Culprit {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
@@ -142,7 +144,8 @@ impl JamDecode for Culprit {
     }
 }
 
-struct Fault {
+#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
+pub(crate) struct Fault {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
