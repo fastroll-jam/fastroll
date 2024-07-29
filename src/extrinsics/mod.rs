@@ -1,17 +1,13 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    extrinsics::{
+    extrinsics::components::{
         assurances::AssuranceExtrinsicEntry, disputes::DisputesExtrinsic,
         guarantees::GuaranteeExtrinsicEntry, preimages::PreimageLookupExtrinsicEntry,
         tickets::TicketExtrinsicEntry,
     },
 };
 
-mod assurances;
-mod disputes;
-mod guarantees;
-mod preimages;
-mod tickets;
+pub(crate) mod components;
 
 type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
 type GuaranteesExtrinsic = Vec<GuaranteeExtrinsicEntry>;
