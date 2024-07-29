@@ -12,7 +12,7 @@ use ark_ec_vrfs::{
     Public, Suite,
 };
 
-fn validator_set_to_ring<S: Suite>(
+pub(crate) fn validator_set_to_ring<S: Suite>(
     validator_set: &ValidatorSet,
 ) -> Result<Vec<Public<S>>, SerializationError> {
     let mut public_keys = vec![];

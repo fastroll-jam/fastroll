@@ -57,7 +57,7 @@ impl Prover {
     pub fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
         Self {
             prover_idx,
-            secret: Secret::from_seed(&prover_idx.to_le_bytes()),
+            secret: Secret::from_seed(&prover_idx.to_le_bytes()), // FIXME: proper Secret handling
             ring,
         }
     }

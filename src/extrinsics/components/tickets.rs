@@ -5,8 +5,8 @@ use crate::{
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct TicketExtrinsicEntry {
-    entry_index: u32,                       // r; N_N
-    ticket_proof: BandersnatchRingVrfProof, // p
+    pub(crate) entry_index: u8,                        // r; N_N
+    pub(crate) ticket_proof: BandersnatchRingVrfProof, // p; the ticket identifier
 }
 
 impl JamEncode for TicketExtrinsicEntry {
@@ -27,7 +27,7 @@ impl JamDecode for TicketExtrinsicEntry {
         Self: Sized,
     {
         Ok(Self {
-            entry_index: u32::decode(input)?,
+            entry_index: u8::decode(input)?,
             ticket_proof: BandersnatchRingVrfProof::decode(input)?,
         })
     }

@@ -30,7 +30,7 @@ pub enum ExtrinsicType {
     Disputes(DisputesEntryType),
 }
 
-// Entry for storing to the main ExtrinsicPool storage.
+// Extrinsics entry stored to the main `ExtrinsicPool` in-memory pool
 #[derive(Clone)]
 pub struct Extrinsic {
     hash: Hash32,

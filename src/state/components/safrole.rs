@@ -13,10 +13,10 @@ use crate::{
 };
 
 pub(crate) struct SafroleState {
-    pending_validator_set: ValidatorSet, // gamma_k
-    ring_root: BandersnatchRingRoot,     // gamma_z
-    slot_sealers: SlotSealerType,        // gamma_s
-    ticket_accumulator: Vec<Ticket>,     // gamma_a; max length EPOCH_LENGTH
+    pub(crate) pending_validator_set: ValidatorSet, // gamma_k
+    pub(crate) ring_root: BandersnatchRingRoot,     // gamma_z
+    pub(crate) slot_sealers: SlotSealerType,        // gamma_s
+    pub(crate) ticket_accumulator: Vec<Ticket>,     // gamma_a; max length EPOCH_LENGTH
 }
 
 impl JamEncode for SafroleState {

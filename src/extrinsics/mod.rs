@@ -9,12 +9,14 @@ use crate::{
 
 pub(crate) mod components;
 pub(crate) mod extrinsics_pool;
+pub(crate) mod submission;
 
 type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
 type GuaranteesExtrinsic = Vec<GuaranteeExtrinsicEntry>;
 type AssurancesExtrinsic = Vec<AssuranceExtrinsicEntry>; // length up to VALIDATOR_COUNT
 type PreimageLookupsExtrinsic = Vec<PreimageLookupExtrinsicEntry>;
 
+// Struct used for Extrinsics serialization
 pub struct Extrinsics {
     tickets_extrinsic: TicketsExtrinsic,                  // E_T
     guarantees_extrinsic: GuaranteesExtrinsic,            // E_G
