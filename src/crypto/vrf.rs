@@ -1,3 +1,4 @@
+use crate::common::Hash32;
 /// The following code originates from the `bandersnatch-vrfs-spec` repository.
 /// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bandersnatch};
@@ -17,6 +18,13 @@ pub(crate) struct IetfVrfSignature {
 pub(crate) struct RingVrfSignature {
     output: Output,
     proof: RingProof,
+}
+
+// Additional impl (the `Y` hashing function)
+impl RingVrfSignature {
+    pub(crate) fn output_hash(&self) -> Hash32 {
+        self.output.hash()[..32].try_into().unwrap()
+    }
 }
 
 fn ring_context() -> &'static RingContext {

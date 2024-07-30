@@ -1,14 +1,9 @@
 use crate::{
-    common::Hash32,
-    extrinsics::components::{
-        assurances::AssuranceExtrinsicEntry,
-        disputes::{Culprit, Fault, Verdict},
-        guarantees::GuaranteeExtrinsicEntry,
-        preimages::PreimageLookupExtrinsicEntry,
-        tickets::TicketExtrinsicEntry,
-    },
+    common::{Hash32, Octets},
+    extrinsics::components::disputes::{Culprit, Fault, Verdict},
     state::components::timeslot::Timeslot,
 };
+use lazy_static::lazy_static;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
@@ -23,26 +18,33 @@ pub enum DisputesEntryType {
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub enum ExtrinsicType {
-    Ticket(TicketExtrinsicEntry),
-    Guarantee(GuaranteeExtrinsicEntry),
-    Assurance(AssuranceExtrinsicEntry),
-    PreimageLookup(PreimageLookupExtrinsicEntry),
-    Disputes(DisputesEntryType),
+    Ticket,
+    Guarantee,
+    Assurance,
+    PreimageLookup,
+    Disputes,
 }
 
-// Extrinsics entry stored to the main `ExtrinsicPool` in-memory pool
+const EXTRINSICS_POOL_MAX_SIZE: usize = 1000; // TODO: config
+lazy_static! {
+    pub static ref EXTRINSICS_POOL: RwLock<ExtrinsicsPool> =
+        RwLock::new(ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE));
+}
+
+// TODO: add Extrinsic Deserializer
+// Extrinsics entry stored to the main `ExtrinsicsPool` in-memory pool
 #[derive(Clone)]
-pub struct Extrinsic {
-    hash: Hash32,
-    data: Vec<u8>, // serialized extrinsic data
-    extrinsic_type: ExtrinsicType,
-    timeslot: Timeslot,
-    timestamp: u32, // optional?
+pub struct ExtrinsicEntry {
+    pub hash: Hash32,
+    pub data: Octets, // serialized extrinsic data
+    pub extrinsic_type: ExtrinsicType,
+    pub timeslot: Timeslot,
+    pub timestamp: u32, // optional?
 }
 
-pub struct ExtrinsicPool {
+pub struct ExtrinsicsPool {
     // Main storage
-    extrinsics: Arc<RwLock<HashMap<Hash32, Extrinsic>>>,
+    extrinsics: Arc<RwLock<HashMap<Hash32, ExtrinsicEntry>>>,
 
     // Index for type and timeslot lookups
     type_timeslot_index: Arc<RwLock<BTreeMap<(ExtrinsicType, Timeslot), Vec<Hash32>>>>,
@@ -50,7 +52,7 @@ pub struct ExtrinsicPool {
     max_size: usize,
 }
 
-impl ExtrinsicPool {
+impl ExtrinsicsPool {
     pub fn new(max_size: usize) -> Self {
         Self {
             extrinsics: Arc::new(RwLock::new(HashMap::new())),
@@ -61,22 +63,22 @@ impl ExtrinsicPool {
 
     // TODO: error handling
     // Write extrinsic entry to the pools
-    pub fn add_extrinsic(&self, extrinsic: Extrinsic) -> Result<(), String> {
+    pub fn add_extrinsic(&self, entry: ExtrinsicEntry) -> Result<(), String> {
         let mut extrinsics = self.extrinsics.write().unwrap();
         let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
 
         if extrinsics.len() >= self.max_size {
-            return Err("ExtrinsicPool is full".to_string());
+            return Err("ExtrinsicsPool is full".to_string());
         }
 
         // Add to the main storage
-        extrinsics.insert(extrinsic.hash, extrinsic.clone());
+        extrinsics.insert(entry.hash, entry.clone());
 
         // Add to the type-timeslot lookup index
         type_timeslot_index
-            .entry((extrinsic.extrinsic_type.clone(), extrinsic.timeslot))
+            .entry((entry.extrinsic_type.clone(), entry.timeslot))
             .or_insert_with(Vec::new)
-            .push(extrinsic.hash);
+            .push(entry.hash);
 
         Ok(())
     }
@@ -86,7 +88,7 @@ impl ExtrinsicPool {
         &self,
         extrinsic_type: ExtrinsicType,
         timeslot: Timeslot,
-    ) -> Vec<Extrinsic> {
+    ) -> Vec<ExtrinsicEntry> {
         let type_timeslot_index = self.type_timeslot_index.read().unwrap();
         let extrinsics = self.extrinsics.read().unwrap();
 
@@ -102,7 +104,7 @@ impl ExtrinsicPool {
     }
 
     // Delete extrinsic entry from the pools
-    pub fn remove_extrinsic(&self, hash: &Hash32) -> Option<Extrinsic> {
+    pub fn remove_extrinsic(&self, hash: &Hash32) -> Option<ExtrinsicEntry> {
         let mut extrinsics = self.extrinsics.write().unwrap();
         let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
 

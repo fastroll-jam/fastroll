@@ -4,13 +4,11 @@ use crate::{
         BandersnatchPubKey, BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT,
         EPOCH_LENGTH, VALIDATOR_COUNT,
     },
-    crypto::generate_ring_root,
-    state::{
-        components::validators::{ValidatorKey, ValidatorSet},
-        state_retriever::StateRetriever,
-    },
-    transition::{SlotType, Transition, TransitionContext, TransitionError},
+    crypto::vrf::RingVrfSignature,
+    extrinsics::components::tickets::TicketExtrinsicEntry,
+    state::components::validators::{ValidatorKey, ValidatorSet},
 };
+use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 
 pub(crate) struct SafroleState {
     pub(crate) pending_validator_set: ValidatorSet, // gamma_k
@@ -121,4 +119,17 @@ impl JamDecode for SlotSealerType {
             )),
         }
     }
+}
+
+fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: Vec<TicketExtrinsicEntry>) -> Vec<Ticket> {
+    ticket_extrinsics
+        .iter()
+        .map(|ticket| {
+            let vrf_output_hash =
+                RingVrfSignature::deserialize_compressed(&ticket.ticket_proof[..])
+                    .unwrap()
+                    .output_hash();
+            (vrf_output_hash, ticket.entry_index)
+        })
+        .collect()
 }

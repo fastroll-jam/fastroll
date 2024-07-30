@@ -3,7 +3,7 @@ mod codec;
 mod common;
 pub mod crypto;
 pub mod db;
-mod extrinsics;
+pub mod extrinsics;
 mod state;
 mod transition;
 pub mod trie;

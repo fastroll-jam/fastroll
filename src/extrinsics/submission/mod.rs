@@ -11,7 +11,7 @@ use crate::{
 pub(crate) fn submit_ticket_extrinsic(retriever: &StateRetriever) {
     let prover_idx: usize = 0; // FIXME: proper indexing required for validator identity
 
-    let safrole_state = retriever.get_safrole_state().unwrap(); // TODO: state caching if needed
+    let safrole_state = retriever.get_safrole_state().unwrap(); // TODO: state caching if needed / Error handling
     let pending_validator_set = safrole_state.pending_validator_set;
 
     let ring = validator_set_to_ring(&pending_validator_set).unwrap(); // the ring should be valid validators of the next epoch
@@ -36,5 +36,6 @@ pub(crate) fn submit_ticket_extrinsic(retriever: &StateRetriever) {
         ticket_proof: ring_vrf_proof,
     };
 
-    // TODO: propagate the extrinsic via JAMSNP protocol and add it to the ExtrinsicsPool
+    // TODO: propagate the extrinsic via JAMSNP protocol
+    // TODO: add submitted extrinsic to the ExtrinsicsPool
 }
