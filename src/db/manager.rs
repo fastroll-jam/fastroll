@@ -1,7 +1,8 @@
 use crate::{
     common::{Hash32, Octets},
+    crypto::utils::blake2b_256,
     db::wrappers::{KeyValueDB, RocksDBWrapper},
-    trie::utils::{blake2b_256, MerklizationError},
+    trie::utils::MerklizationError,
 };
 use dotenv::dotenv;
 use lazy_static::lazy_static;

@@ -1,5 +1,6 @@
 use crate::{
     codec::JamCodecError,
+    crypto::utils::CryptoError,
     state::components::{
         authorizer::{AuthorizerPool, AuthorizerQueue},
         disputes::DisputesState,
@@ -20,14 +21,19 @@ use std::{
     fmt,
     fmt::{Display, Formatter},
 };
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum GlobalStateError {
-    MerklizationError(MerklizationError),
-    JamCodecError(JamCodecError),
-    Other(String), // generic error type
+    #[error("Merklization error: {0}")]
+    MerklizationError(#[from] MerklizationError),
+    #[error("JAM codec error: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
+    #[error("{0}")]
+    Other(String),
 }
-
 pub(crate) struct GlobalState {
     pub(crate) recent_timeslot: Timeslot,                  // tau
     pub(crate) safrole_state: SafroleState,                // gamma
@@ -43,28 +49,4 @@ pub(crate) struct GlobalState {
     pub(crate) block_histories: BlockHistories, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
     pub(crate) disputes: DisputesState,         // psi
     pub(crate) validator_statistics: ValidatorStats, // pi
-}
-
-impl Display for GlobalStateError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            GlobalStateError::MerklizationError(e) => write!(f, "Merklization error: {}", e),
-            GlobalStateError::JamCodecError(e) => write!(f, "JamCodec error: {}", e),
-            GlobalStateError::Other(e) => write!(f, "error: {}", e),
-        }
-    }
-}
-
-impl Error for GlobalStateError {}
-
-impl From<MerklizationError> for GlobalStateError {
-    fn from(error: MerklizationError) -> Self {
-        GlobalStateError::MerklizationError(error)
-    }
-}
-
-impl From<JamCodecError> for GlobalStateError {
-    fn from(error: JamCodecError) -> Self {
-        GlobalStateError::JamCodecError(error)
-    }
 }

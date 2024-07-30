@@ -4,6 +4,7 @@ use crate::{
 };
 use std::{cmp::Reverse, collections::BinaryHeap};
 
+#[derive(Clone)]
 pub struct SortedLimitedTickets {
     heap: BinaryHeap<Reverse<Ticket>>,
 }

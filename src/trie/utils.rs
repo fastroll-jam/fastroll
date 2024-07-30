@@ -1,4 +1,7 @@
-use crate::common::{Hash32, Octets};
+use crate::{
+    common::{Hash32, Octets},
+    crypto::utils::CryptoError,
+};
 use bit_vec::BitVec;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use std::ops::{Bound, RangeBounds};
@@ -10,12 +13,8 @@ pub(crate) const NODE_SIZE_BITS: usize = 512;
 const NODE_SIZE_BYTES: usize = NODE_SIZE_BITS / 8;
 pub(crate) const EMPTY_HASH: Hash32 = [0u8; 32];
 
-type Blake2b256 = Blake2b<U32>;
-
 #[derive(Debug, Error)]
 pub enum MerklizationError {
-    #[error("Blake2b hash length mismatch")]
-    HashLengthMismatch,
     #[error("Expected 32 bytes, got {0}")]
     InvalidByteLength(usize),
     #[error("Node not found")]
@@ -26,17 +25,8 @@ pub enum MerklizationError {
     GetNodeError,
     #[error("Hash length mismatch")]
     HashLengthMismatchError,
-}
-
-// Black2b-256 hash
-pub(crate) fn blake2b_256(value: &[u8]) -> Result<Hash32, MerklizationError> {
-    let mut hasher = Blake2b256::new();
-    hasher.update(value);
-    let result = hasher.finalize();
-    result
-        .as_slice()
-        .try_into()
-        .map_err(|_| MerklizationError::HashLengthMismatch)
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
 }
 
 // The `bits` function

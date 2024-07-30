@@ -1,12 +1,13 @@
 use crate::{
     common::{Hash32, Octets},
+    crypto::utils::blake2b_256,
     db::manager::KVDBManager,
     state::global_state::{GlobalState, GlobalStateError},
     trie::{
         serialization::serialize_state,
         utils::{
-            bitvec_to_hash, blake2b_256, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec,
-            MerklizationError, EMPTY_HASH, NODE_SIZE_BITS,
+            bitvec_to_hash, bytes_to_lsb_bits, lsb_bits_to_bytes, slice_bitvec, MerklizationError,
+            EMPTY_HASH, NODE_SIZE_BITS,
         },
     },
 };

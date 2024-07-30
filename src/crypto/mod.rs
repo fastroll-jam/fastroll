@@ -1,3 +1,4 @@
+pub(crate) mod utils;
 pub(crate) mod vrf;
 
 use crate::{

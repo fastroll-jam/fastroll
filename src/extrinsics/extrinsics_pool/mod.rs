@@ -108,7 +108,7 @@ impl ExtrinsicsPool {
         let mut extrinsics = self.extrinsics.write().unwrap();
         let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
 
-        extrinsics.remove(hash).map(|extrinsic| {
+        extrinsics.remove(hash).inspect(|extrinsic| {
             if let Some(hashes) =
                 type_timeslot_index.get_mut(&(extrinsic.extrinsic_type.clone(), extrinsic.timeslot))
             {
@@ -119,7 +119,6 @@ impl ExtrinsicsPool {
                         .remove(&(extrinsic.extrinsic_type.clone(), extrinsic.timeslot));
                 }
             }
-            extrinsic
         })
     }
 }

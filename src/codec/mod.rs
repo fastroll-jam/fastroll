@@ -5,33 +5,19 @@ use std::{
     fmt::{Debug, Display, Formatter},
     mem::size_of,
 };
+use thiserror::Error;
 
 /// Error types for JAM SCALE Codec
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum JamCodecError {
+    #[error("Invalid size: {0}")]
     InvalidSize(String),
+    #[error("Conversion error: {0}")]
     ConversionError(String),
+    #[error("Input error: {0}")]
     InputError(String),
+    #[error("Encoding error: {0}")]
     EncodingError(String),
-}
-
-impl Display for JamCodecError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            JamCodecError::InvalidSize(msg) => write!(f, "Invalid size: {}", msg),
-            JamCodecError::ConversionError(msg) => write!(f, "Conversion error: {}", msg),
-            JamCodecError::InputError(msg) => write!(f, "Input error: {}", msg),
-            JamCodecError::EncodingError(msg) => write!(f, "Encoding error: {}", msg),
-        }
-    }
-}
-
-impl Error for JamCodecError {}
-
-impl From<&'static str> for JamCodecError {
-    fn from(desc: &'static str) -> JamCodecError {
-        JamCodecError::InputError(desc.to_string())
-    }
 }
 
 /// Trait that allows reading of data into a slice

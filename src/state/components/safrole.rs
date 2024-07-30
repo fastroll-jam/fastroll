@@ -1,13 +1,16 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{
-        data_structures::sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey,
-        BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
-        VALIDATOR_COUNT,
+        sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, BandersnatchRingRoot,
+        Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
     },
-    crypto::vrf::RingVrfSignature,
-    extrinsics::components::tickets::TicketExtrinsicEntry,
-    state::components::validators::{ValidatorKey, ValidatorSet},
+    crypto::{generate_ring_root, vrf::RingVrfSignature},
+    extrinsics::{components::tickets::TicketExtrinsicEntry, manager::get_ticket_extrinsics},
+    state::{
+        components::validators::{ValidatorKey, ValidatorSet},
+        state_retriever::StateRetriever,
+    },
+    transition::{Transition, TransitionContext, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 
@@ -133,4 +136,21 @@ fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: Vec<TicketExtrinsicEntry>
             (vrf_output_hash, ticket.entry_index)
         })
         .collect()
+}
+
+fn outside_in_array<T, const N: usize>(mut arr: [T; N]) -> [T; N] {
+    let mid = N / 2;
+    for i in 0..mid {
+        arr.swap(i + 1, N - (i + 1));
+    }
+    arr
+}
+
+fn outside_in_vec<T>(mut vec: Vec<T>) -> Vec<T> {
+    let len = vec.len();
+    let mid = len / 2;
+    for i in 0..mid {
+        vec.swap(i + 1, len - (i + 1));
+    }
+    vec
 }

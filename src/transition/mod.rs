@@ -4,24 +4,12 @@ use std::{
     error::Error,
     fmt::{Display, Formatter},
 };
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TransitionError {
-    SerializationError(SerializationError),
-}
-
-impl Display for TransitionError {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl Error for TransitionError {}
-
-impl From<SerializationError> for TransitionError {
-    fn from(error: SerializationError) -> Self {
-        TransitionError::SerializationError(error)
-    }
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] SerializationError),
 }
 
 pub(crate) enum SlotType {
