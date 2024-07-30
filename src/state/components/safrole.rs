@@ -1,8 +1,9 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{
-        BandersnatchPubKey, BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT,
-        EPOCH_LENGTH, VALIDATOR_COUNT,
+        data_structures::sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey,
+        BandersnatchRingRoot, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
+        VALIDATOR_COUNT,
     },
     crypto::vrf::RingVrfSignature,
     extrinsics::components::tickets::TicketExtrinsicEntry,
@@ -14,7 +15,7 @@ pub(crate) struct SafroleState {
     pub(crate) pending_validator_set: ValidatorSet, // gamma_k
     pub(crate) ring_root: BandersnatchRingRoot,     // gamma_z
     pub(crate) slot_sealers: SlotSealerType,        // gamma_s
-    pub(crate) ticket_accumulator: Vec<Ticket>,     // gamma_a; max length EPOCH_LENGTH
+    pub(crate) ticket_accumulator: SortedLimitedTickets, // gamma_a; max length EPOCH_LENGTH
 }
 
 impl JamEncode for SafroleState {
@@ -45,7 +46,7 @@ impl JamDecode for SafroleState {
         input.read(&mut ring_root)?;
 
         let slot_sealers = SlotSealerType::decode(input)?;
-        let ticket_accumulator = Vec::<Ticket>::decode(input)?;
+        let ticket_accumulator = SortedLimitedTickets::decode(input)?;
 
         Ok(Self {
             pending_validator_set,
