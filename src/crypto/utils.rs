@@ -20,3 +20,8 @@ pub(crate) fn blake2b_256(value: &[u8]) -> Result<Hash32, CryptoError> {
         .try_into()
         .map_err(|_| CryptoError::Blake2bHashError)
 }
+
+pub(crate) fn blake2b_256_first_4bytes(value: &[u8]) -> Result<[u8; 32], CryptoError> {
+    let hash = blake2b_256(value)?;
+    Ok(hash[..4].try_into().unwrap())
+}

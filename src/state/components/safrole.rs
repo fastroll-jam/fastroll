@@ -1,10 +1,14 @@
 use crate::{
-    codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
+    codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput},
     common::{
         sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, BandersnatchRingRoot,
-        Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
+        Hash32, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
     },
-    crypto::{generate_ring_root, vrf::RingVrfSignature},
+    crypto::{
+        generate_ring_root,
+        utils::{blake2b_256_first_4bytes, CryptoError},
+        vrf::RingVrfSignature,
+    },
     extrinsics::{components::tickets::TicketExtrinsicEntry, manager::get_ticket_extrinsics},
     state::{
         components::validators::{ValidatorKey, ValidatorSet},
@@ -13,6 +17,17 @@ use crate::{
     transition::{Transition, TransitionContext, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum FallbackKeyError {
+    #[error("Crypto error: {0}")]
+    Crypto(#[from] CryptoError),
+    #[error("Codec error: {0}")]
+    Codec(#[from] JamCodecError),
+    #[error("Array conversion error")]
+    ArrayConversion,
+}
 
 pub(crate) struct SafroleState {
     pub(crate) pending_validator_set: ValidatorSet, // gamma_k
@@ -153,4 +168,28 @@ fn outside_in_vec<T>(mut vec: Vec<T>) -> Vec<T> {
         vec.swap(i + 1, len - (i + 1));
     }
     vec
+}
+
+fn generate_fallback_keys(
+    validator_set: &ValidatorSet,
+    entropy: Hash32,
+) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], FallbackKeyError> {
+    let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] = [[0u8; 32]; EPOCH_LENGTH];
+    let entropy_vec = entropy.to_vec();
+
+    for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
+        let i_encoded = (i as u32)
+            .encode_fixed(4)
+            .map_err(FallbackKeyError::Codec)?;
+
+        let mut entropy_with_index = entropy_vec.clone();
+        entropy_with_index.extend_from_slice(&i_encoded);
+
+        let mut hash: &[u8] = &blake2b_256_first_4bytes(&entropy_with_index)?;
+        let key_index = u32::decode(&mut hash)? % (VALIDATOR_COUNT as u32);
+
+        *key = validator_set[key_index as usize].bandersnatch_key;
+    }
+
+    Ok(bandersnatch_keys)
 }
