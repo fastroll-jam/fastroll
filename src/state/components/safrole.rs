@@ -29,6 +29,7 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
+#[derive(Clone)]
 pub(crate) struct SafroleState {
     pub(crate) pending_validator_set: ValidatorSet, // gamma_k
     pub(crate) ring_root: BandersnatchRingRoot,     // gamma_z
@@ -75,6 +76,7 @@ impl JamDecode for SafroleState {
     }
 }
 
+#[derive(Clone)]
 enum SlotSealerType {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
@@ -193,3 +195,4 @@ fn generate_fallback_keys(
 
     Ok(bandersnatch_keys)
 }
+

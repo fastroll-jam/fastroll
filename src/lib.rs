@@ -4,6 +4,6 @@ mod common;
 pub mod crypto;
 pub mod db;
 pub mod extrinsics;
-mod state;
+pub mod state;
 mod transition;
 pub mod trie;

@@ -16,11 +16,7 @@ use crate::{
     },
     trie::utils::MerklizationError,
 };
-use std::{
-    error::Error,
-    fmt,
-    fmt::{Display, Formatter},
-};
+use std::fmt::Display;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

@@ -3,7 +3,7 @@ use crate::{
     crypto::utils::CryptoError,
 };
 use bit_vec::BitVec;
-use blake2::{digest::consts::U32, Blake2b, Digest};
+use blake2::Digest;
 use std::ops::{Bound, RangeBounds};
 use thiserror::Error;
 

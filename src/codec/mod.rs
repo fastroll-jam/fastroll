@@ -1,8 +1,7 @@
 use bit_vec::BitVec;
 use std::{
     error::Error,
-    fmt,
-    fmt::{Debug, Display, Formatter},
+    fmt::{Debug, Display},
     mem::size_of,
 };
 use thiserror::Error;
