@@ -1,5 +1,5 @@
-pub(crate) mod utils;
-pub(crate) mod vrf;
+pub mod utils;
+pub mod vrf;
 
 use crate::{
     common::BandersnatchRingRoot,
@@ -12,12 +12,13 @@ use ark_ec_vrfs::{
     suites::bandersnatch::{edwards as bandersnatch, edwards::BandersnatchSha512Ell2},
     Public, Suite,
 };
+use std::fmt::Debug;
 
-pub(crate) fn validator_set_to_ring<S: Suite>(
+pub fn validator_set_to_ring<S: Suite + Debug>(
     validator_set: &ValidatorSet,
 ) -> Result<Vec<Public<S>>, SerializationError> {
     let mut public_keys = vec![];
-    let _ = validator_set.iter().map(|validator_key| {
+    validator_set.iter().for_each(|validator_key| {
         let point = point_decode::<S>(&validator_key.bandersnatch_key).unwrap();
         public_keys.push(Public(point));
     });
@@ -25,7 +26,7 @@ pub(crate) fn validator_set_to_ring<S: Suite>(
 }
 
 // Generates Bandersnatch Ring Root from the known validator set (ring)
-pub(crate) fn generate_ring_root_internal(
+pub fn generate_ring_root_internal(
     validator_set: &ValidatorSet,
 ) -> Result<RingCommitment, SerializationError> {
     let ring = validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)?;
@@ -33,7 +34,7 @@ pub(crate) fn generate_ring_root_internal(
     Ok(verifier.commitment)
 }
 
-pub(crate) fn generate_ring_root_hexstring(
+pub fn generate_ring_root_hexstring(
     validator_set: &ValidatorSet,
 ) -> Result<String, SerializationError> {
     let commitment = generate_ring_root_internal(validator_set)?;
@@ -42,7 +43,7 @@ pub(crate) fn generate_ring_root_hexstring(
     Ok(hex::encode(bytes.as_slice()))
 }
 
-pub(crate) fn generate_ring_root(
+pub fn generate_ring_root(
     validator_set: &ValidatorSet,
 ) -> Result<BandersnatchRingRoot, SerializationError> {
     let commitment = generate_ring_root_internal(validator_set)?;

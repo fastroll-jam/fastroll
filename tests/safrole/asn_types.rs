@@ -1,8 +1,7 @@
 use hex;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use serde_arrays;
-use std::fmt;
-use std::fmt::Formatter;
+use std::{fmt, fmt::Formatter};
 
 // Helper deserializer to manage `0x` prefix
 fn deserialize_hex<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
@@ -52,7 +51,7 @@ type U32 = u32;
 
 // Define fixed-length arrays
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct ByteArray32(
+pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
 );
 type OpaqueHash = ByteArray32;
@@ -68,7 +67,7 @@ type TicketsBodies = [TicketBody; EPOCH_LENGTH];
 // Define enumerations
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) enum TicketsOrKeys {
+pub enum TicketsOrKeys {
     tickets(TicketsBodies),
     keys(EpochKeys),
 }
@@ -76,7 +75,7 @@ pub(crate) enum TicketsOrKeys {
 // State transition function execution error.
 // Error codes are not specified in the Graypaper.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) enum CustomErrorCode {
+pub enum CustomErrorCode {
     BadSlot,          // Timeslot value must be strictly monotonic
     UnexpectedTicket, // Received a ticket while in epoch's tail
     BadTicketOrder,   // Tickets must be sorted
@@ -88,13 +87,13 @@ pub(crate) enum CustomErrorCode {
 
 // Define structures
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct TicketBody {
+pub struct TicketBody {
     id: OpaqueHash,
     attempt: U8,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct ValidatorData {
+pub struct ValidatorData {
     bandersnatch: BandersnatchKey,
     ed25519: Ed25519Key,
     bls: BlsKey,
@@ -105,14 +104,14 @@ pub(crate) struct ValidatorData {
 type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct TicketEnvelope {
+pub struct TicketEnvelope {
     attempt: U8,
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
     signature: [U8; 784],
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct EpochMark {
+pub struct EpochMark {
     entropy: OpaqueHash,
     validators: [BandersnatchKey; VALIDATORS_COUNT],
 }
@@ -121,47 +120,47 @@ type TicketsMark = [TicketBody; EPOCH_LENGTH];
 
 // Output markers
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct OutputMarks {
+pub struct OutputMarks {
     epoch_mark: Option<EpochMark>,     // New epoch signal
     tickets_mark: Option<TicketsMark>, // Tickets signal
 }
 
 // State relevant to Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct State {
-    tau: U32,                 // Most recent block's timeslot
-    eta: [OpaqueHash; 4],     // Entropy accumulator and epochal randomness
-    lambda: ValidatorsData,   // Validator keys and metadata which were active in the prior epoch
-    kappa: ValidatorsData,    // Validator keys and metadata currently active
-    gamma_k: ValidatorsData,  // Validator keys for the following epoch
-    iota: ValidatorsData,     // Validator keys and metadata to be drawn from next
-    gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
-    gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
+pub struct State {
+    pub tau: U32,                 // Most recent block's timeslot
+    pub eta: [OpaqueHash; 4],     // Entropy accumulator and epochal randomness
+    pub lambda: ValidatorsData, // Validator keys and metadata which were active in the prior epoch
+    pub kappa: ValidatorsData,  // Validator keys and metadata currently active
+    pub gamma_k: ValidatorsData, // Validator keys for the following epoch
+    pub iota: ValidatorsData,   // Validator keys and metadata to be drawn from next
+    pub gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
+    pub gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
-    gamma_z: [U8; 144], // Bandersnatch ring commitment
+    pub gamma_z: [U8; 144], // Bandersnatch ring commitment
 }
 
 // Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct Input {
-    slot: U32,                      // Current slot
-    entropy: OpaqueHash,            // Per block entropy (originated from block entropy source VRF)
-    extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
+pub struct Input {
+    pub slot: U32,                      // Current slot
+    pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
+    pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
 }
 
 // Output from Safrole protocol
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) enum Output {
+pub enum Output {
     ok(OutputMarks),      // Markers
     err(CustomErrorCode), // Error code (not specified in the Graypaper)
 }
 
 // Safrole state transition function execution dump
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct Testcase {
-    input: Input,      // Input
-    pre_state: State,  // Pre-execution state
-    output: Output,    // Output
-    post_state: State, // Post-execution state
+pub struct Testcase {
+    pub input: Input,      // Input
+    pub pre_state: State,  // Pre-execution state
+    pub output: Output,    // Output
+    pub post_state: State, // Post-execution state
 }

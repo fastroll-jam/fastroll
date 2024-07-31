@@ -8,4 +8,4 @@ pub(crate) mod safrole;
 pub(crate) mod services;
 pub(crate) mod statistics;
 pub(crate) mod timeslot;
-pub(crate) mod validators;
+pub mod validators;

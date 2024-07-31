@@ -196,3 +196,46 @@ fn generate_fallback_keys(
     Ok(bandersnatch_keys)
 }
 
+impl Transition for SafroleState {
+    fn next(mut self, ctx: &TransitionContext) -> Result<Self, TransitionError>
+    where
+        Self: Sized,
+    {
+        let retriever = StateRetriever::new();
+
+        // -- New epoch
+
+        let is_fallback = false;
+
+        // Update Safrole pending set into Global state staging set
+        let staging_validator_set = retriever.get_staging_validator_set()?; // FIXME: this should be provided as `TransitionContext` rather than being retrieved directly from the DB.
+        self.pending_validator_set = staging_validator_set.0;
+
+        // Update the ring root with the updated pending set ring
+        self.ring_root = generate_ring_root(&self.pending_validator_set)?;
+
+        // Construct "new tickets" from Tickets Extrinsics
+        let ticket_extrinsics: Vec<TicketExtrinsicEntry> = get_ticket_extrinsics(ctx.timeslot);
+        let new_tickets = ticket_extrinsics_to_new_tickets(ticket_extrinsics);
+
+        // Update slot sealer sequence
+        if is_fallback {
+            let active_validator_set = retriever.get_active_validator_set()?.0; // kappa
+            let entropy = retriever.get_entropy_accumulator()?.0[2];
+
+            self.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
+                generate_fallback_keys(&active_validator_set, entropy)?,
+            ))
+        } else {
+            let ticket_accumulator_cloned = self.ticket_accumulator.clone().into_vec();
+            let ticket_accumulator_outside_in_vec = outside_in_vec(ticket_accumulator_cloned);
+            let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
+                ticket_accumulator_outside_in_vec.try_into().unwrap();
+            self.slot_sealers = SlotSealerType::Tickets(Box::new(ticket_accumulator_outside_in));
+        }
+        // Accumulate new tickets
+        self.ticket_accumulator.add_multiple(new_tickets);
+
+        Ok(self)
+    }
+}

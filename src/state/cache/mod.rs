@@ -50,7 +50,10 @@ impl StateCache {
         Ok(())
     }
 
-    pub fn get_safrole_state(&self, hash: &Hash32) -> Result<Option<SafroleState>, StateCacheError> {
+    pub fn get_safrole_state(
+        &self,
+        hash: &Hash32,
+    ) -> Result<Option<SafroleState>, StateCacheError> {
         let safrole_state = self
             .safrole_state
             .read()
@@ -58,8 +61,14 @@ impl StateCache {
         Ok(safrole_state.get(hash).cloned())
     }
 
-    pub fn remove_safrole_state(&self, hash: &Hash32) -> Result<Option<SafroleState>, StateCacheError> {
-        let mut safrole_state = self.safrole_state.write().map_err(|e| StateCacheError::WriteLockError(e.to_string()))?;
+    pub fn remove_safrole_state(
+        &self,
+        hash: &Hash32,
+    ) -> Result<Option<SafroleState>, StateCacheError> {
+        let mut safrole_state = self
+            .safrole_state
+            .write()
+            .map_err(|e| StateCacheError::WriteLockError(e.to_string()))?;
         Ok(safrole_state.remove(hash))
     }
 }

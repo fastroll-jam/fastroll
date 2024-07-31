@@ -5,24 +5,24 @@ use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bande
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bandersnatch::{IetfProof, Input, Output, Public, RingContext, RingProof, Secret};
 
-// pub(crate) const RING_SIZE: usize = 1023;
-pub(crate) const RING_SIZE: usize = 6;
+// pub const RING_SIZE: usize = 1023;
+pub const RING_SIZE: usize = 6;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct IetfVrfSignature {
+pub struct IetfVrfSignature {
     output: Output,
     proof: IetfProof,
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct RingVrfSignature {
+pub struct RingVrfSignature {
     output: Output,
     proof: RingProof,
 }
 
 // Additional impl (the `Y` hashing function)
 impl RingVrfSignature {
-    pub(crate) fn output_hash(&self) -> Hash32 {
+    pub fn output_hash(&self) -> Hash32 {
         self.output.hash()[..32].try_into().unwrap()
     }
 }
@@ -55,7 +55,7 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     Input::from(point)
 }
 
-pub(crate) struct Prover {
+pub struct Prover {
     pub prover_idx: usize,
     pub secret: Secret,
     pub ring: Vec<Public>,
@@ -106,7 +106,7 @@ impl Prover {
 pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
 
 // Ring and its commitment
-pub(crate) struct Verifier {
+pub struct Verifier {
     pub commitment: RingCommitment,
     pub ring: Vec<Public>,
 }

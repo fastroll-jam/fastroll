@@ -4,7 +4,7 @@ use crate::{
     impl_jam_codec_for_newtype,
 };
 
-pub(crate) type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
+pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
 
 #[derive(Copy, Clone)]
 pub struct ValidatorKey {
