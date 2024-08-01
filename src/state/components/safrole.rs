@@ -30,11 +30,11 @@ pub enum FallbackKeyError {
 }
 
 #[derive(Clone)]
-pub(crate) struct SafroleState {
-    pub(crate) pending_validator_set: ValidatorSet, // gamma_k
-    pub(crate) ring_root: BandersnatchRingRoot,     // gamma_z
-    pub(crate) slot_sealers: SlotSealerType,        // gamma_s
-    pub(crate) ticket_accumulator: SortedLimitedTickets, // gamma_a; max length EPOCH_LENGTH
+pub struct SafroleState {
+    pub pending_validator_set: ValidatorSet,      // gamma_k
+    pub ring_root: BandersnatchRingRoot,          // gamma_z
+    pub slot_sealers: SlotSealerType,             // gamma_s
+    pub ticket_accumulator: SortedLimitedTickets, // gamma_a; max length EPOCH_LENGTH
 }
 
 impl JamEncode for SafroleState {
@@ -77,7 +77,7 @@ impl JamDecode for SafroleState {
 }
 
 #[derive(Clone)]
-enum SlotSealerType {
+pub enum SlotSealerType {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
 }

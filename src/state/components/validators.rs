@@ -69,11 +69,11 @@ impl JamDecode for ValidatorKey {
     }
 }
 
-pub(crate) struct StagingValidatorSet(pub(crate) ValidatorSet);
+pub struct StagingValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
-pub(crate) struct ActiveValidatorSet(pub(crate) ValidatorSet);
+pub struct ActiveValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
-pub(crate) struct PastValidatorSet(pub(crate) ValidatorSet);
+pub struct PastValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);

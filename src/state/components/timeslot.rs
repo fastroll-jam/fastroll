@@ -4,5 +4,5 @@ use crate::{
 };
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
-pub(crate) struct Timeslot(pub(crate) u32);
+pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);

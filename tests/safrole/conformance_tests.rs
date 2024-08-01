@@ -1,12 +1,12 @@
-// TODO: conversion between ASN types representation and types in the actual implementation
 #[cfg(test)]
 mod tests {
     use crate::safrole::asn_types::Testcase;
     use rjam::crypto::generate_ring_root;
     use std::fs;
+    // Safrole state transition conformance tests
 
     #[test]
-    fn test_safrole_conformance() {
+    fn test_enact_epoch_change_with_no_tickets_4() {
         let json_str = fs::read_to_string(
             "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
         )
