@@ -8,7 +8,6 @@ pub type BandersnatchRingVrfProof = [u8; 784];
 pub type Ed25519PubKey = Hash32;
 pub type Ed25519Signature = [u8; 64];
 pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
-pub type Ticket = (Hash32, u8); // N_N; u8 range [0, 2)
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;
 pub const HASH32_DEFAULT: Hash32 = [0u8; 32];

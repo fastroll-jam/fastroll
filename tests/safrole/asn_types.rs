@@ -1,6 +1,6 @@
-use crate::safrole::utils::{deserialize_hex, serialize_hex};
+use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
 use hex;
-use rjam::state::components::validators::ValidatorKey;
+use rjam::state::components::{safrole::SlotSealerType, validators::ValidatorKey};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 // Define constants
@@ -32,6 +32,46 @@ pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];
 pub enum TicketsOrKeys {
     tickets(TicketsBodies),
     keys(EpochKeys),
+}
+
+impl TryFrom<SlotSealerType> for TicketsOrKeys {
+    type Error = AsnTypeError;
+
+    fn try_from(value: SlotSealerType) -> Result<Self, Self::Error> {
+        match value {
+            SlotSealerType::Tickets(tickets) => {
+                let ticket_bodies: TicketsBodies = tickets
+                    .iter()
+                    .map(|ticket| TicketBody {
+                        id: ByteArray32(ticket.id),
+                        attempt: ticket.attempt,
+                    })
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert tickets to TicketsBodies".to_string(),
+                        )
+                    })?;
+
+                Ok(TicketsOrKeys::tickets(ticket_bodies))
+            }
+            SlotSealerType::BandersnatchPubKeys(keys) => {
+                let epoch_keys: EpochKeys = keys
+                    .iter()
+                    .map(|key| ByteArray32(*key))
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert BandersnatchPubKeys to EpochKeys".to_string(),
+                        )
+                    })?;
+
+                Ok(TicketsOrKeys::keys(epoch_keys))
+            }
+        }
+    }
 }
 
 // State transition function execution error.

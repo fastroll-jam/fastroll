@@ -15,7 +15,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum AsnTypeError {
     #[error("Safrole state conversion error: {0}")]
-    AsnTypeError(String),
+    ConversionError(String),
     #[error("Missing field for type conversion: {0}")]
     MissingField(&'static str),
     #[error("Type conversion infallible error")]
@@ -93,13 +93,13 @@ impl StateBuilder {
                 .clone()
                 .into_vec()
                 .into_iter()
-                .map(|(id, attempt)| TicketBody {
-                    id: ByteArray32(id),
-                    attempt,
+                .map(|ticket| TicketBody {
+                    id: ByteArray32(ticket.id),
+                    attempt: ticket.attempt,
                 })
                 .collect(),
         );
-        // self.gamma_s = Some(safrole.slot_sealers.clone().try_into()?);
+        self.gamma_s = Some(safrole.slot_sealers.clone().try_into()?);
         self.gamma_z = Some(safrole.ring_root.into());
         Ok(self)
     }
@@ -116,32 +116,32 @@ impl StateBuilder {
         Ok(self)
     }
 
-    // pub fn from_entropy_accumulator(
-    //     mut self,
-    //     entropy_accumulator: &EntropyAccumulator,
-    // ) -> Result<Self, AsnTypeError> {
-    //     self.eta = Some(entropy_accumulator.clone().try_into()?);
-    //     Ok(self)
-    // }
-    //
-    // pub fn from_timeslot(mut self, timeslot: &Timeslot) -> Result<Self, AsnTypeError> {
-    //     self.tau = Some(timeslot.clone().try_into()?);
-    //     Ok(self)
-    // }
-    //
-    // pub fn build(self) -> Result<State, AsnTypeError> {
-    //     Ok(State {
-    //         tau: self.tau.ok_or(AsnTypeError::MissingField("tau"))?,
-    //         eta: self.eta.ok_or(AsnTypeError::MissingField("eta"))?,
-    //         lambda: self.lambda.ok_or(AsnTypeError::MissingField("lambda"))?,
-    //         kappa: self.kappa.ok_or(AsnTypeError::MissingField("kappa"))?,
-    //         gamma_k: self.gamma_k.ok_or(AsnTypeError::MissingField("gamma_k"))?,
-    //         iota: self.iota.ok_or(AsnTypeError::MissingField("iota"))?,
-    //         gamma_a: self.gamma_a.ok_or(AsnTypeError::MissingField("gamma_a"))?,
-    //         gamma_s: self.gamma_s.ok_or(AsnTypeError::MissingField("gamma_s"))?,
-    //         gamma_z: self.gamma_z.ok_or(AsnTypeError::MissingField("gamma_z"))?,
-    //     })
-    // }
+    pub fn from_entropy_accumulator(
+        mut self,
+        entropy_accumulator: &EntropyAccumulator,
+    ) -> Result<Self, AsnTypeError> {
+        self.eta = Some(entropy_accumulator.0.map(|hash| ByteArray32(hash)));
+        Ok(self)
+    }
+
+    pub fn from_timeslot(mut self, timeslot: &Timeslot) -> Result<Self, AsnTypeError> {
+        self.tau = Some(timeslot.0.clone().try_into()?);
+        Ok(self)
+    }
+
+    pub fn build(self) -> Result<State, AsnTypeError> {
+        Ok(State {
+            tau: self.tau.ok_or(AsnTypeError::MissingField("tau"))?,
+            eta: self.eta.ok_or(AsnTypeError::MissingField("eta"))?,
+            lambda: self.lambda.ok_or(AsnTypeError::MissingField("lambda"))?,
+            kappa: self.kappa.ok_or(AsnTypeError::MissingField("kappa"))?,
+            gamma_k: self.gamma_k.ok_or(AsnTypeError::MissingField("gamma_k"))?,
+            iota: self.iota.ok_or(AsnTypeError::MissingField("iota"))?,
+            gamma_a: self.gamma_a.ok_or(AsnTypeError::MissingField("gamma_a"))?,
+            gamma_s: self.gamma_s.ok_or(AsnTypeError::MissingField("gamma_s"))?,
+            gamma_z: self.gamma_z.ok_or(AsnTypeError::MissingField("gamma_z"))?,
+        })
+    }
 }
 
 // impl State {

@@ -5,8 +5,51 @@ use crate::{
         HASH32_DEFAULT,
     },
 };
+use std::cmp::Ordering;
 
 // Structs
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Ticket {
+    pub id: Hash32,  // ticket identifier; `Y` hash of the RingVRF proof
+    pub attempt: u8, // `N_N`; 0 or 1
+}
+
+impl PartialOrd for Ticket {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ticket {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl JamEncode for Ticket {
+    fn size_hint(&self) -> usize {
+        self.id.size_hint() + self.attempt.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.id.encode_to(dest)?;
+        self.attempt.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for Ticket {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            id: Hash32::decode(input)?,
+            attempt: u8::decode(input)?,
+        })
+    }
+}
+
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct WorkReport {
     authorizer_hash: Hash32,               // a

@@ -150,7 +150,10 @@ fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: Vec<TicketExtrinsicEntry>
                 RingVrfSignature::deserialize_compressed(&ticket.ticket_proof[..])
                     .unwrap()
                     .output_hash();
-            (vrf_output_hash, ticket.entry_index)
+            Ticket {
+                id: vrf_output_hash,
+                attempt: ticket.entry_index as u8, // Assuming entry_index is compatible with u8
+            }
         })
         .collect()
 }

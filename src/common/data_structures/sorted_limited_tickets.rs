@@ -91,7 +91,10 @@ mod tests {
         let mut hash = HASH32_DEFAULT;
         hash[0] = (i >> 8) as u8;
         hash[1] = i as u8;
-        (hash, (i % 2) as u8)
+        Ticket {
+            id: hash,
+            attempt: (i % 2) as u8,
+        }
     }
 
     #[test]
@@ -115,17 +118,23 @@ mod tests {
             // Constructing tickets with unique hash values, with first two bytes
             hash[0] = (i >> 8) as u8;
             hash[1] = (i & 0xFF) as u8;
-            tickets.add((hash, (i % 2) as u8));
+            tickets.add(Ticket {
+                id: hash,
+                attempt: (i % 2) as u8,
+            });
         }
 
         assert_eq!(tickets.heap.len(), EPOCH_LENGTH); // The MaxHeap contains exactly EPOCH_LENGTH tickets only
 
-        let expected: Vec<_> = (0..EPOCH_LENGTH as u16)
+        let expected: Vec<Ticket> = (0..EPOCH_LENGTH as u16)
             .map(|i| {
                 let mut hash = [0u8; 32];
                 hash[0] = (i >> 8) as u8;
                 hash[1] = (i & 0xFF) as u8;
-                (hash, (i % 2) as u8)
+                Ticket {
+                    id: hash, // hash is already [u8; 32], which is Hash32
+                    attempt: (i % 2) as u8,
+                }
             })
             .collect();
 
@@ -136,7 +145,10 @@ mod tests {
             let mut hash = [0u8; 32];
             hash[0] = (EPOCH_LENGTH as u16 >> 8) as u8;
             hash[1] = (EPOCH_LENGTH as u16 & 0xFF) as u8;
-            (hash, (EPOCH_LENGTH as u16 % 2) as u8)
+            Ticket {
+                id: hash,
+                attempt: (EPOCH_LENGTH as u16 % 2) as u8,
+            }
         };
         assert!(!tickets.as_vec().contains(&large_ticket));
     }

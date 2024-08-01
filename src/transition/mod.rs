@@ -3,7 +3,6 @@ use crate::state::{
     global_state::GlobalStateError,
 };
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
-use std::fmt::Display;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
