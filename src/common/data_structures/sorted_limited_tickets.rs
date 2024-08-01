@@ -52,6 +52,12 @@ impl SortedLimitedTickets {
         tickets.sort_unstable(); // Return in a sorted form
         tickets
     }
+
+    pub fn from_vec(tickets: Vec<Ticket>) -> Self {
+        let mut sorted_limited = Self::new();
+        sorted_limited.add_multiple(tickets);
+        sorted_limited
+    }
 }
 
 impl JamEncode for SortedLimitedTickets {

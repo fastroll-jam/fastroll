@@ -1,7 +1,6 @@
 use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
-use hex;
 use rjam::state::components::{safrole::SlotSealerType, validators::ValidatorKey};
-use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 // Define constants
 pub const VALIDATORS_COUNT: usize = 6;
@@ -96,11 +95,11 @@ pub struct TicketBody {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidatorData {
-    bandersnatch: BandersnatchKey,
-    ed25519: Ed25519Key,
-    bls: BlsKey,
+    pub bandersnatch: BandersnatchKey,
+    pub ed25519: Ed25519Key,
+    pub bls: BlsKey,
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
-    metadata: [U8; 128],
+    pub metadata: [U8; 128],
 }
 
 impl From<ValidatorKey> for ValidatorData {
