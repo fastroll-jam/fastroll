@@ -10,14 +10,14 @@ pub const RING_SIZE: usize = 6;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct IetfVrfSignature {
-    output: Output,
-    proof: IetfProof,
+    pub output: Output,
+    pub proof: IetfProof,
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct RingVrfSignature {
-    output: Output,
-    proof: RingProof,
+    pub output: Output,
+    pub proof: RingProof,
 }
 
 // Additional impl (the `Y` hashing function)

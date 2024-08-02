@@ -1,8 +1,10 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::Hash32,
+    common::{BandersnatchSignature, Hash32, HASH32_DEFAULT},
+    crypto::utils::{blake2b_256, entropy_hash_ietf_vrf},
     impl_jam_codec_for_newtype,
-    transition::{Transition, TransitionContext, TransitionError},
+    state::components::timeslot::Timeslot,
+    transition::{SlotType, Transition, TransitionError},
 };
 use std::fmt::{Display, Formatter};
 
@@ -20,11 +22,25 @@ impl Display for EntropyAccumulator {
     }
 }
 
+pub struct EntropyAccumulatorContext {
+    timeslot: Timeslot,
+    slot_type: SlotType,
+    header_vrf_signature: BandersnatchSignature, // H_v
+}
+
 impl Transition for EntropyAccumulator {
-    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    type Context = EntropyAccumulatorContext;
+
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
-        todo!()
+        let current_accumulator_hash = self.0[0].clone();
+        let header_vrf_entropy_hash = entropy_hash_ietf_vrf(&ctx.header_vrf_signature);
+        let mut hash_combined = [0u8; 64];
+        hash_combined[..32].copy_from_slice(&current_accumulator_hash);
+        hash_combined[32..].copy_from_slice(&header_vrf_entropy_hash);
+        self.0[0] = blake2b_256(&hash_combined[..])?;
+        Ok(())
     }
 }

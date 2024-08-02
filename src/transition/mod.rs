@@ -1,6 +1,9 @@
-use crate::state::{
-    components::{safrole::FallbackKeyError, timeslot::Timeslot},
-    global_state::GlobalStateError,
+use crate::{
+    crypto::utils::CryptoError,
+    state::{
+        components::{safrole::FallbackKeyError, timeslot::Timeslot},
+        global_state::GlobalStateError,
+    },
 };
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use thiserror::Error;
@@ -13,6 +16,8 @@ pub enum TransitionError {
     GlobalStateError(#[from] GlobalStateError),
     #[error("Fallback key error: {0}")]
     FallbackKeyError(#[from] FallbackKeyError),
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
 }
 
 pub enum SlotType {
@@ -21,13 +26,10 @@ pub enum SlotType {
 }
 
 // TODO: add Extrinsics and other relevant input data for the state transition
-pub struct TransitionContext {
-    pub timeslot: Timeslot,
-    pub slot_type: SlotType,
-}
 
 pub trait Transition {
-    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    type Context; // State-specific transition context
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized;
 }

@@ -11,10 +11,13 @@ use crate::{
     },
     extrinsics::{components::tickets::TicketExtrinsicEntry, manager::get_ticket_extrinsics},
     state::{
-        components::validators::{ValidatorKey, ValidatorSet},
+        components::{
+            timeslot::Timeslot,
+            validators::{ValidatorKey, ValidatorSet},
+        },
         state_retriever::StateRetriever,
     },
-    transition::{Transition, TransitionContext, TransitionError},
+    transition::{SlotType, Transition, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use std::fmt::{Display, Formatter};
@@ -232,8 +235,15 @@ fn generate_fallback_keys(
     Ok(bandersnatch_keys)
 }
 
+pub struct SafroleStateContext {
+    timeslot: Timeslot,
+    slot_type: SlotType,
+}
+
 impl Transition for SafroleState {
-    fn next(mut self, ctx: &TransitionContext) -> Result<Self, TransitionError>
+    type Context = SafroleStateContext;
+
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
@@ -272,6 +282,6 @@ impl Transition for SafroleState {
         // Accumulate new tickets
         self.ticket_accumulator.add_multiple(new_tickets);
 
-        Ok(self)
+        Ok(())
     }
 }

@@ -2,7 +2,8 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::VALIDATOR_COUNT,
     impl_jam_codec_for_newtype,
-    transition::{Transition, TransitionContext, TransitionError},
+    state::components::timeslot::Timeslot,
+    transition::{SlotType, Transition, TransitionError},
 };
 use std::fmt::{Display, Formatter};
 
@@ -117,9 +118,15 @@ impl Display for StagingValidatorSet {
     }
 }
 
+pub struct StagingValidatorSetContext {
+    timeslot: Timeslot,
+    slot_type: SlotType,
+}
 
 impl Transition for StagingValidatorSet {
-    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    type Context = StagingValidatorSetContext;
+
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
@@ -148,8 +155,14 @@ impl Display for ActiveValidatorSet {
     }
 }
 
+pub struct ActiveValidatorSetContext {
+    timeslot: Timeslot,
+    slot_type: SlotType,
+}
+
 impl Transition for ActiveValidatorSet {
-    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    type Context = ActiveValidatorSetContext;
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
@@ -178,8 +191,14 @@ impl Display for PastValidatorSet {
     }
 }
 
+pub struct PastValidatorSetContext {
+    timeslot: Timeslot,
+    slot_type: SlotType,
+}
+
 impl Transition for PastValidatorSet {
-    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    type Context = PastValidatorSetContext;
+    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
