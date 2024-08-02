@@ -2,16 +2,31 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::VALIDATOR_COUNT,
     impl_jam_codec_for_newtype,
+    transition::{Transition, TransitionContext, TransitionError},
 };
+use std::fmt::{Display, Formatter};
 
 pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ValidatorKey {
     pub bandersnatch_key: [u8; 32],
     pub ed25519_key: [u8; 32],
     pub bls_key: [u8; 144],
     pub metadata: [u8; 128],
+}
+
+impl Display for ValidatorKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Bandersnatch key: {}",
+            hex::encode(self.bandersnatch_key)
+        )?;
+        writeln!(f, "Ed25519 key: {}", hex::encode(self.ed25519_key))?;
+        writeln!(f, "BLS key: {}", hex::encode(self.bls_key))?;
+        write!(f, "Metadata: {}", hex::encode(self.metadata))
+    }
 }
 
 impl ValidatorKey {
@@ -24,6 +39,18 @@ impl ValidatorKey {
         result[208..336].copy_from_slice(&self.metadata);
 
         result
+    }
+
+    fn to_json_like(&self, indent: usize) -> String {
+        let spaces = " ".repeat(indent);
+        format!(
+            "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",
+            hex::encode(self.bandersnatch_key),
+            hex::encode(self.ed25519_key),
+            hex::encode(self.bls_key),
+            hex::encode(self.metadata),
+            s = spaces
+        )
     }
 }
 
@@ -72,8 +99,90 @@ impl JamDecode for ValidatorKey {
 pub struct StagingValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
+impl Display for StagingValidatorSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "  \"StagingValidatorSet\": {{")?;
+        for (i, validator) in self.0.iter().enumerate() {
+            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            write!(f, "{}", validator.to_json_like(6))?;
+            if i < self.0.len() - 1 {
+                writeln!(f, "    }},")?;
+            } else {
+                writeln!(f, "    }}")?;
+            }
+        }
+        writeln!(f, "  }}")?;
+        write!(f, "}}")
+    }
+}
+
+
+impl Transition for StagingValidatorSet {
+    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}
+
 pub struct ActiveValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
+impl Display for ActiveValidatorSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "  \"ActiveValidatorSet\": {{")?;
+        for (i, validator) in self.0.iter().enumerate() {
+            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            write!(f, "{}", validator.to_json_like(6))?;
+            if i < self.0.len() - 1 {
+                writeln!(f, "    }},")?;
+            } else {
+                writeln!(f, "    }}")?;
+            }
+        }
+        writeln!(f, "  }}")?;
+        write!(f, "}}")
+    }
+}
+
+impl Transition for ActiveValidatorSet {
+    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}
+
 pub struct PastValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
+
+impl Display for PastValidatorSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        writeln!(f, "  \"PastValidatorSet\": {{")?;
+        for (i, validator) in self.0.iter().enumerate() {
+            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            write!(f, "{}", validator.to_json_like(6))?;
+            if i < self.0.len() - 1 {
+                writeln!(f, "    }},")?;
+            } else {
+                writeln!(f, "    }}")?;
+            }
+        }
+        writeln!(f, "  }}")?;
+        write!(f, "}}")
+    }
+}
+
+impl Transition for PastValidatorSet {
+    fn next(self, context: &TransitionContext) -> Result<Self, TransitionError>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+}

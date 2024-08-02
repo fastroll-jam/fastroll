@@ -5,13 +5,36 @@ use crate::{
         HASH32_DEFAULT,
     },
 };
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+};
 
 // Structs
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ticket {
     pub id: Hash32,  // ticket identifier; `Y` hash of the RingVRF proof
     pub attempt: u8, // `N_N`; 0 or 1
+}
+
+impl Default for Ticket {
+    fn default() -> Self {
+        Self {
+            id: HASH32_DEFAULT,
+            attempt: 0,
+        }
+    }
+}
+
+impl Display for Ticket {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Ticket {{ id: {}, attempt: {} }}",
+            hex::encode(&self.id),
+            self.attempt
+        )
+    }
 }
 
 impl PartialOrd for Ticket {

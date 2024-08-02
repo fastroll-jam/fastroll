@@ -11,13 +11,13 @@ pub type U8 = u8;
 pub type U32 = u32;
 
 // Define fixed-length arrays
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
 );
 pub type OpaqueHash = ByteArray32;
 pub type Ed25519Key = ByteArray32;
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlsKey(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 144],
 );
@@ -27,7 +27,7 @@ pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];
 
 // Define enumerations
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TicketsOrKeys {
     tickets(TicketsBodies),
     keys(EpochKeys),
@@ -87,13 +87,13 @@ pub enum CustomErrorCode {
 }
 
 // Define structures
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
     pub attempt: U8,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ValidatorData {
     pub bandersnatch: BandersnatchKey,
     pub ed25519: Ed25519Key,
@@ -138,7 +138,7 @@ pub struct OutputMarks {
 }
 
 // State relevant to Safrole protocol
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     pub tau: U32,                 // Most recent block's timeslot
     pub eta: [OpaqueHash; 4],     // Entropy accumulator and epochal randomness

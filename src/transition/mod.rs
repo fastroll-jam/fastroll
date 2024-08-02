@@ -15,14 +15,15 @@ pub enum TransitionError {
     FallbackKeyError(#[from] FallbackKeyError),
 }
 
-pub(crate) enum SlotType {
+pub enum SlotType {
     NewBlock,
     NewEpoch, // The timeslot opens a new epoch
 }
 
-pub(crate) struct TransitionContext {
-    pub(crate) timeslot: Timeslot,
-    pub(crate) slot_type: SlotType,
+// TODO: add Extrinsics and other relevant input data for the state transition
+pub struct TransitionContext {
+    pub timeslot: Timeslot,
+    pub slot_type: SlotType,
 }
 
 pub trait Transition {

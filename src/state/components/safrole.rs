@@ -17,6 +17,7 @@ use crate::{
     transition::{Transition, TransitionContext, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -29,12 +30,44 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SafroleState {
     pub pending_validator_set: ValidatorSet,      // gamma_k
     pub ring_root: BandersnatchRingRoot,          // gamma_z
     pub slot_sealers: SlotSealerType,             // gamma_s
     pub ticket_accumulator: SortedLimitedTickets, // gamma_a; max length EPOCH_LENGTH
+}
+
+impl Display for SafroleState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "SafroleState {{")?;
+
+        writeln!(f, "  Pending Validator Set: [")?;
+        for (i, validator) in self.pending_validator_set.iter().enumerate() {
+            writeln!(f, "    Validator {}: {}", i, validator)?;
+        }
+        writeln!(f, "  ]")?;
+
+        writeln!(f, "  Ring Root: {}", hex::encode(&self.ring_root))?;
+
+        writeln!(f, "  Slot Sealers:")?;
+        match &self.slot_sealers {
+            SlotSealerType::Tickets(tickets) => {
+                for (i, ticket) in tickets.iter().enumerate() {
+                    writeln!(f, "    Slot {}: {}", i, ticket)?;
+                }
+            }
+            SlotSealerType::BandersnatchPubKeys(keys) => {
+                for (i, key) in keys.iter().enumerate() {
+                    writeln!(f, "    Slot {}: {}", i, hex::encode(key))?;
+                }
+            }
+        }
+
+        writeln!(f, "  Ticket Accumulator: {}", self.ticket_accumulator)?;
+
+        write!(f, "}}")
+    }
 }
 
 impl JamEncode for SafroleState {
@@ -76,7 +109,7 @@ impl JamDecode for SafroleState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SlotSealerType {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),

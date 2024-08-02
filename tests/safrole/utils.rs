@@ -185,7 +185,6 @@ impl State {
                             "Failed to convert TicketsBodies to Tickets".to_string(),
                         )
                     })?;
-
                 Ok(SlotSealerType::Tickets(tickets))
             }
             TicketsOrKeys::keys(epoch_keys) => {

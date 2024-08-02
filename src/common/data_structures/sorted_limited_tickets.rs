@@ -2,11 +2,25 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{Ticket, EPOCH_LENGTH},
 };
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
+    fmt::{Display, Formatter},
+};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SortedLimitedTickets {
     heap: BinaryHeap<Reverse<Ticket>>,
+}
+
+impl Display for SortedLimitedTickets {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "SortedLimitedTickets {{")?;
+        for (i, ticket) in self.heap.iter().enumerate() {
+            writeln!(f, "  {}: {}", i, ticket.0)?;
+        }
+        write!(f, "}}")
+    }
 }
 
 impl SortedLimitedTickets {
@@ -106,13 +120,14 @@ mod tests {
     #[test]
     fn test_add() {
         let mut tickets = SortedLimitedTickets::new();
-        for i in 0..200 {
+        let epoch_length_u16 = EPOCH_LENGTH as u16;
+        for i in 0..epoch_length_u16 {
             tickets.add(create_ticket(i));
         }
-        assert_eq!(tickets.heap.len(), 200);
+        assert_eq!(tickets.heap.len(), epoch_length_u16.into());
         assert_eq!(
             tickets.as_vec(),
-            (0..200).map(create_ticket).collect::<Vec<_>>()
+            (0..epoch_length_u16).map(create_ticket).collect::<Vec<_>>()
         );
     }
 
