@@ -239,6 +239,7 @@ fn generate_fallback_keys(
 
 pub struct SafroleStateContext {
     pub timeslot: Timeslot,
+    pub is_new_epoch: bool,
     pub tickets: Vec<TicketExtrinsicEntry>,
     pub current_staging_set: StagingValidatorSet,
     pub post_active_set: ActiveValidatorSet,
@@ -256,7 +257,7 @@ impl Transition for SafroleState {
         // Per-epoch operations
         //
 
-        if ctx.timeslot.is_new_epoch() {
+        if ctx.is_new_epoch {
             // The fallback mode triggers when the slot phase hasn't reached the ticket submission
             // deadline or the ticket accumulator is not yet full.
             // TODO: check how the "slot_phase" is derived (calculated from timeslot or from a separate index)

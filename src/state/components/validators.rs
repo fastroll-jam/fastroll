@@ -136,6 +136,7 @@ impl Display for StagingValidatorSet {
 
 pub struct StagingValidatorSetContext {
     pub timeslot: Timeslot,
+    pub is_new_epoch: bool,
 }
 
 impl Transition for StagingValidatorSet {
@@ -179,6 +180,7 @@ impl Display for ActiveValidatorSet {
 
 pub struct ActiveValidatorSetContext {
     pub timeslot: Timeslot,
+    pub is_new_epoch: bool,
     pub current_pending_validator_set: ValidatorSet, // from the Safrole state
 }
 
@@ -188,7 +190,7 @@ impl Transition for ActiveValidatorSet {
     where
         Self: Sized,
     {
-        if ctx.timeslot.is_new_epoch() {
+        if ctx.is_new_epoch {
             self.0 = ctx.current_pending_validator_set
         }
         Ok(())
@@ -221,6 +223,7 @@ impl Display for PastValidatorSet {
 
 pub struct PastValidatorSetContext {
     pub timeslot: Timeslot,
+    pub is_new_epoch: bool,
     pub current_active_set: ActiveValidatorSet,
 }
 
@@ -230,7 +233,7 @@ impl Transition for PastValidatorSet {
     where
         Self: Sized,
     {
-        if ctx.timeslot.is_new_epoch() {
+        if ctx.is_new_epoch {
             self.0 = ctx.current_active_set.0;
         }
         Ok(())

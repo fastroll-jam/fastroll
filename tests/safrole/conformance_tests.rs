@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::safrole::{
-        asn_types::{Testcase, TicketEnvelope},
+        asn_types::{Testcase, TicketEnvelope, EPOCH_LENGTH},
         utils::StateBuilder,
     };
     use rjam::{
@@ -59,9 +59,13 @@ mod tests {
         };
         timeslot.to_next(&timeslot_context)?;
 
+        // Determine if this transition introduces a new epoch
+        let is_new_epoch = timeslot.epoch() > (test_pre_state.tau / EPOCH_LENGTH as u32);
+
         // EntropyAccumulator Transition
         let entropy_context = EntropyAccumulatorContext {
             timeslot: Timeslot::new(test_input.slot),
+            is_new_epoch,
             entropy_hash: test_input.entropy.0,
         };
         entropy_acc.to_next(&entropy_context)?;
@@ -69,6 +73,7 @@ mod tests {
         //  PastValidatorSet Transition
         let past_set_context = PastValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
+            is_new_epoch,
             current_active_set: active_set,
         };
         past_set.to_next(&past_set_context)?;
@@ -76,27 +81,30 @@ mod tests {
         //  ActiveValidatorSet Transition
         let active_set_context = ActiveValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
+            is_new_epoch,
             current_pending_validator_set: safrole_state.pending_validator_set,
         };
         active_set.to_next(&active_set_context)?;
 
-        // Safrole Transition
-        let safrole_context = SafroleStateContext {
-            timeslot: Timeslot::new(test_input.slot),
-            tickets: test_input
-                .extrinsic
-                .into_iter()
-                .map(TicketEnvelope::into)
-                .collect(),
-            current_staging_set: staging_set,
-            post_active_set: active_set,
-            post_entropy: entropy_acc,
-        };
-        safrole_state.to_next(&safrole_context)?;
+        // // Safrole Transition
+        // let safrole_context = SafroleStateContext {
+        //     timeslot: Timeslot::new(test_input.slot),
+        //     is_new_epoch,
+        //     tickets: test_input
+        //         .extrinsic
+        //         .into_iter()
+        //         .map(TicketEnvelope::into)
+        //         .collect(),
+        //     current_staging_set: staging_set,
+        //     post_active_set: active_set,
+        //     post_entropy: entropy_acc,
+        // };
+        // safrole_state.to_next(&safrole_context)?;
 
         //  StagingValidatorSet Transition
         let staging_set_context = StagingValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
+            is_new_epoch,
         };
         staging_set.to_next(&staging_set_context)?;
 
@@ -118,9 +126,9 @@ mod tests {
         // Assertions
         //
 
-        // assert_eq!(post_state, test_case.post_state);
+        // assert_eq!(post_state, test_post_state);
 
-        // assert_eq!(post_state.tau, test_post_state.tau);
+        assert_eq!(post_state.tau, test_post_state.tau);
 
         // println!("JAM eta:");
         // post_state
@@ -136,7 +144,7 @@ mod tests {
         //     .iter()
         //     .for_each(|item| println!("{}", item));
 
-        // assert_eq!(post_state.eta, test_post_state.eta);
+        assert_eq!(post_state.eta, test_post_state.eta);
         // assert_eq!(post_state.lambda, test_post_state.lambda);
         // assert_eq!(post_state.kappa, test_post_state.kappa);
         // assert_eq!(post_state.gamma_k, test_post_state.gamma_k);

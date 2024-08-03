@@ -1,7 +1,7 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::{BandersnatchSignature, Hash32, HASH32_DEFAULT},
-    crypto::utils::{blake2b_256, entropy_hash_ietf_vrf},
+    common::{Hash32, HASH32_DEFAULT},
+    crypto::utils::blake2b_256,
     impl_jam_codec_for_newtype,
     state::components::timeslot::Timeslot,
     transition::{Transition, TransitionError},
@@ -54,6 +54,7 @@ impl EntropyAccumulator {
 #[derive(Clone, Debug)]
 pub struct EntropyAccumulatorContext {
     pub timeslot: Timeslot,
+    pub is_new_epoch: bool,
     pub entropy_hash: Hash32, // `Y` hash of H_v; new incoming entropy hash from the header
 }
 
@@ -64,9 +65,7 @@ impl Transition for EntropyAccumulator {
     where
         Self: Sized,
     {
-        println!(">>> timeslot: {}", ctx.timeslot.slot());
-        println!(">>> is_new_epoch: {}", ctx.timeslot.is_new_epoch());
-        if ctx.timeslot.is_new_epoch() {
+        if ctx.is_new_epoch {
             // Rotate entropy histories at the beginning of a new epoch
             // [e0, e1, e2, e3] => [_, e0, e1, e2]; the new e0 will be calculated and inserted below
             self.0.copy_within(0..3, 1);
