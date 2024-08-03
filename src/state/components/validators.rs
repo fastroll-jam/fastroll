@@ -2,13 +2,22 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::VALIDATOR_COUNT,
     impl_jam_codec_for_newtype,
-    state::components::timeslot::Timeslot,
+    state::components::{safrole::SafroleState, timeslot::Timeslot},
     transition::{Transition, TransitionError},
 };
 use std::fmt::{Display, Formatter};
 
 pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
-
+/// Represents a validator key, composed of 4 distinct components:
+/// - Bandersnatch public key (32 bytes)
+/// - Ed25519 public key (32 bytes)
+/// - BLS public key (144 bytes)
+/// - Metadata (128 bytes)
+///
+/// The total size of a ValidatorKey is 336 bytes, with each component
+/// stored as a fixed-size byte array.
+///
+/// The final ValidatorKey type is a simple concatenation of each component.
 #[derive(Copy, Clone, Debug)]
 pub struct ValidatorKey {
     pub bandersnatch_key: [u8; 32],
@@ -97,6 +106,12 @@ impl JamDecode for ValidatorKey {
     }
 }
 
+/// Represents a ValidatorSet that will become active in a future epoch.
+///
+/// At the beginning of each epoch, this set is loaded into the Safrole state `gamma_k`
+/// as the pending validator set. It will become the active set in the subsequent epoch.
+///
+/// This is denoted by the Greek letter `iota` in the Graypaper.
 pub struct StagingValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
@@ -129,10 +144,16 @@ impl Transition for StagingValidatorSet {
     where
         Self: Sized,
     {
-        todo!()
+        // TODO: implement
+        // This state is transitioned by the rule specified in a privileged service
+        Ok(())
     }
 }
 
+/// Represents a ValidatorSet that is active in the current epoch and determines the authorized
+/// block authors of the current epoch.
+///
+/// This is denoted by the Greek letter `kappa` in the Graypaper.
 pub struct ActiveValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
@@ -156,6 +177,7 @@ impl Display for ActiveValidatorSet {
 
 pub struct ActiveValidatorSetContext {
     timeslot: Timeslot,
+    current_safrole_state: SafroleState,
 }
 
 impl Transition for ActiveValidatorSet {
@@ -164,10 +186,15 @@ impl Transition for ActiveValidatorSet {
     where
         Self: Sized,
     {
-        todo!()
+        if ctx.timeslot.is_new_epoch() {
+            self.0 = ctx.current_safrole_state.pending_validator_set
+        }
+        Ok(())
     }
 }
 
+/// Represents the ValidatorSet that was active in the previous epoch.
+/// This is denoted by the Greek letter `lambda` in the Graypaper.
 pub struct PastValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
 
@@ -191,6 +218,7 @@ impl Display for PastValidatorSet {
 
 pub struct PastValidatorSetContext {
     timeslot: Timeslot,
+    current_active_set: ActiveValidatorSet,
 }
 
 impl Transition for PastValidatorSet {
@@ -199,6 +227,9 @@ impl Transition for PastValidatorSet {
     where
         Self: Sized,
     {
-        todo!()
+        if ctx.timeslot.is_new_epoch() {
+            self.0 = ctx.current_active_set.0;
+        }
+        Ok(())
     }
 }
