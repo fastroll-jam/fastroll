@@ -1,13 +1,17 @@
 // Constants
+
+pub const COMMON_ERA_TIMESTAMP: u64 = 1704110400; // 1200 UTC on January 1, 2024
+pub const SLOT_DURATION: u64 = 6; // 6 seconds per timeslot
+
 #[cfg(not(feature = "testing"))]
 pub const VALIDATOR_COUNT: usize = 1023; // 1023 validators
 #[cfg(feature = "testing")]
 pub const VALIDATOR_COUNT: usize = 6; // 6 validators (for tiny test vectors)
-pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
 #[cfg(not(feature = "testing"))]
 pub const EPOCH_LENGTH: usize = 600; // 600 timeslots per epoch
 #[cfg(feature = "testing")]
 pub const EPOCH_LENGTH: usize = 12; // 12 timeslots per epoch (for tiny test vectors)
+pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
 pub const CORE_COUNT: usize = 341; // (1023 / 3 = 341) cores
 
 // Signing Contexts or Domain Specifiers

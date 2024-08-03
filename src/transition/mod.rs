@@ -1,15 +1,16 @@
 use crate::{
     crypto::utils::CryptoError,
-    state::{
-        components::{safrole::FallbackKeyError, timeslot::Timeslot},
-        global_state::GlobalStateError,
-    },
+    state::{components::safrole::FallbackKeyError, global_state::GlobalStateError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum TransitionError {
+    #[error("Timeslot value {new_slot} must be greater than the parent block {current_slot}")]
+    InvalidTimeslot { new_slot: u32, current_slot: u32 },
+    #[error("Timeslot value {0} is in the future")]
+    FutureTimeslot(u32),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
     #[error("Global state error: {0}")]
@@ -19,8 +20,6 @@ pub enum TransitionError {
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
 }
-
-// TODO: add Extrinsics and other relevant input data for the state transition
 
 pub trait Transition {
     type Context; // State-specific transition context

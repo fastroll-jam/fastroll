@@ -1,9 +1,10 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::EPOCH_LENGTH,
+    common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION},
     impl_jam_codec_for_newtype,
     transition::{Transition, TransitionError},
 };
+use time::OffsetDateTime;
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, PartialEq, Eq)]
 // #[repr(transparent)]
@@ -30,14 +31,56 @@ impl Timeslot {
     pub fn is_new_epoch(&self) -> bool {
         self.0 % EPOCH_LENGTH as u32 == 0
     }
+
+    pub fn to_unix_timestamp(&self) -> u64 {
+        let slot_duration_secs = self.0 as u64 * SLOT_DURATION;
+        COMMON_ERA_TIMESTAMP + slot_duration_secs
+    }
+
+    pub fn from_unix_timestamp(timestamp: u64) -> Option<Self> {
+        if timestamp < COMMON_ERA_TIMESTAMP {
+            return None;
+        }
+        let slot = (timestamp - COMMON_ERA_TIMESTAMP) / SLOT_DURATION;
+        Some(Self(slot as u32))
+    }
+
+    /// Checks if the timeslot value is in the future compared to the current UTC time
+    pub fn is_in_future(&self) -> bool {
+        let current_utc_time = OffsetDateTime::now_utc().unix_timestamp() as u64;
+        let slot_unix_time = self.to_unix_timestamp();
+
+        slot_unix_time > current_utc_time
+    }
+}
+
+pub struct TimeslotContext {
+    pub header_timestamp: Timeslot,
 }
 
 impl Transition for Timeslot {
-    type Context = ();
+    type Context = TimeslotContext;
     fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
-        todo!()
+        let new_slot = ctx.header_timestamp.slot();
+        let current_slot = self.slot();
+
+        // Timeslot value must be greater than the parent block
+        if new_slot <= current_slot {
+            return Err(TransitionError::InvalidTimeslot {
+                new_slot,
+                current_slot,
+            });
+        }
+
+        // Timeslot value must not be in the future
+        if ctx.header_timestamp.is_in_future() {
+            return Err(TransitionError::FutureTimeslot(new_slot));
+        }
+
+        self.0 = new_slot;
+        Ok(())
     }
 }
