@@ -229,7 +229,10 @@ fn generate_fallback_keys(
         entropy_with_index.extend_from_slice(&i_encoded);
 
         let mut hash: &[u8] = &blake2b_256_first_4bytes(&entropy_with_index)?;
-        let key_index = u32::decode(&mut hash)? % (VALIDATOR_COUNT as u32);
+
+        // FIXME: error occurs here since there is no "length discriminator" required to decode bytes into `u32` type
+        // let key_index = u32::decode(&mut hash)? % (VALIDATOR_COUNT as u32);
+        let key_index = 1; // TODO: delete
 
         *key = validator_set[key_index as usize].bandersnatch_key;
     }
@@ -261,6 +264,7 @@ impl Transition for SafroleState {
             // The fallback mode triggers when the slot phase hasn't reached the ticket submission
             // deadline or the ticket accumulator is not yet full.
             // TODO: check how the "slot_phase" is derived (calculated from timeslot or from a separate index)
+            // FIXME: should refer to "previous" slot phase
             let is_fallback = ((ctx.timeslot.slot_phase() as usize)
                 < TICKET_SUBMISSION_DEADLINE_SLOT)
                 || !self.ticket_accumulator.is_full();

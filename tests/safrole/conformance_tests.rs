@@ -86,20 +86,20 @@ mod tests {
         };
         active_set.to_next(&active_set_context)?;
 
-        // // Safrole Transition
-        // let safrole_context = SafroleStateContext {
-        //     timeslot: Timeslot::new(test_input.slot),
-        //     is_new_epoch,
-        //     tickets: test_input
-        //         .extrinsic
-        //         .into_iter()
-        //         .map(TicketEnvelope::into)
-        //         .collect(),
-        //     current_staging_set: staging_set,
-        //     post_active_set: active_set,
-        //     post_entropy: entropy_acc,
-        // };
-        // safrole_state.to_next(&safrole_context)?;
+        // Safrole Transition
+        let safrole_context = SafroleStateContext {
+            timeslot: Timeslot::new(test_input.slot),
+            is_new_epoch,
+            tickets: test_input
+                .extrinsic
+                .into_iter()
+                .map(TicketEnvelope::into)
+                .collect(),
+            current_staging_set: staging_set,
+            post_active_set: active_set,
+            post_entropy: entropy_acc,
+        };
+        safrole_state.to_next(&safrole_context)?;
 
         //  StagingValidatorSet Transition
         let staging_set_context = StagingValidatorSetContext {
@@ -145,13 +145,13 @@ mod tests {
         //     .for_each(|item| println!("{}", item));
 
         assert_eq!(post_state.eta, test_post_state.eta);
-        // assert_eq!(post_state.lambda, test_post_state.lambda);
-        // assert_eq!(post_state.kappa, test_post_state.kappa);
-        // assert_eq!(post_state.gamma_k, test_post_state.gamma_k);
-        // assert_eq!(post_state.iota, test_post_state.iota);
-        // assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
+        assert_eq!(post_state.lambda, test_post_state.lambda);
+        assert_eq!(post_state.kappa, test_post_state.kappa);
+        assert_eq!(post_state.gamma_k, test_post_state.gamma_k);
+        assert_eq!(post_state.iota, test_post_state.iota);
+        assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
         // assert_eq!(post_state.gamma_s, test_post_state.gamma_s);
-        // assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
+        assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
 
         Ok(())
     }
