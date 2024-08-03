@@ -7,7 +7,7 @@ use crate::{
     },
 };
 
-pub(crate) mod components;
+pub mod components;
 pub mod extrinsics_pool;
 pub(crate) mod manager;
 pub(crate) mod submission;

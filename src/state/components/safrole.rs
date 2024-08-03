@@ -238,12 +238,11 @@ fn generate_fallback_keys(
 }
 
 pub struct SafroleStateContext {
-    timeslot: Timeslot,
-    tickets: Vec<TicketExtrinsicEntry>,
-    current_staging_set: StagingValidatorSet,
-    post_active_set: ActiveValidatorSet,
-    post_entropy: EntropyAccumulator,
-    slot_sealer_type: SlotSealerType,
+    pub timeslot: Timeslot,
+    pub tickets: Vec<TicketExtrinsicEntry>,
+    pub current_staging_set: StagingValidatorSet,
+    pub post_active_set: ActiveValidatorSet,
+    pub post_entropy: EntropyAccumulator,
 }
 
 impl Transition for SafroleState {

@@ -1,6 +1,10 @@
 use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
-use rjam::state::components::{safrole::SlotSealerType, validators::ValidatorKey};
+use rjam::{
+    extrinsics::components::tickets::TicketExtrinsicEntry,
+    state::components::{safrole::SlotSealerType, validators::ValidatorKey},
+};
 use serde::{Deserialize, Serialize};
+use std::{fmt, fmt::Display};
 
 // Define constants
 pub const VALIDATORS_COUNT: usize = 6;
@@ -11,11 +15,19 @@ pub type U8 = u8;
 pub type U32 = u32;
 
 // Define fixed-length arrays
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
 );
+
+impl Display for ByteArray32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
 pub type OpaqueHash = ByteArray32;
+
 pub type Ed25519Key = ByteArray32;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlsKey(
@@ -87,7 +99,7 @@ pub enum CustomErrorCode {
 }
 
 // Define structures
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
     pub attempt: U8,
@@ -115,11 +127,20 @@ impl From<ValidatorKey> for ValidatorData {
 
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct TicketEnvelope {
     attempt: U8,
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
     signature: [U8; 784],
+}
+
+impl Into<TicketExtrinsicEntry> for TicketEnvelope {
+    fn into(self) -> TicketExtrinsicEntry {
+        TicketExtrinsicEntry {
+            entry_index: self.attempt,
+            ticket_proof: self.signature,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

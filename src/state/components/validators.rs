@@ -112,6 +112,7 @@ impl JamDecode for ValidatorKey {
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// This is denoted by the Greek letter `iota` in the Graypaper.
+#[derive(Copy, Clone)]
 pub struct StagingValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
@@ -134,7 +135,7 @@ impl Display for StagingValidatorSet {
 }
 
 pub struct StagingValidatorSetContext {
-    timeslot: Timeslot,
+    pub timeslot: Timeslot,
 }
 
 impl Transition for StagingValidatorSet {
@@ -154,6 +155,7 @@ impl Transition for StagingValidatorSet {
 /// block authors of the current epoch.
 ///
 /// This is denoted by the Greek letter `kappa` in the Graypaper.
+#[derive(Copy, Clone)]
 pub struct ActiveValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
@@ -176,8 +178,8 @@ impl Display for ActiveValidatorSet {
 }
 
 pub struct ActiveValidatorSetContext {
-    timeslot: Timeslot,
-    current_safrole_state: SafroleState,
+    pub timeslot: Timeslot,
+    pub current_pending_validator_set: ValidatorSet, // from the Safrole state
 }
 
 impl Transition for ActiveValidatorSet {
@@ -187,7 +189,7 @@ impl Transition for ActiveValidatorSet {
         Self: Sized,
     {
         if ctx.timeslot.is_new_epoch() {
-            self.0 = ctx.current_safrole_state.pending_validator_set
+            self.0 = ctx.current_pending_validator_set
         }
         Ok(())
     }
@@ -195,6 +197,7 @@ impl Transition for ActiveValidatorSet {
 
 /// Represents the ValidatorSet that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
+#[derive(Copy, Clone)]
 pub struct PastValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
 
@@ -217,8 +220,8 @@ impl Display for PastValidatorSet {
 }
 
 pub struct PastValidatorSetContext {
-    timeslot: Timeslot,
-    current_active_set: ActiveValidatorSet,
+    pub timeslot: Timeslot,
+    pub current_active_set: ActiveValidatorSet,
 }
 
 impl Transition for PastValidatorSet {

@@ -28,9 +28,12 @@ impl Timeslot {
         self.0 % EPOCH_LENGTH as u32 // FIXME: separate this logic with the epoch index and track this value in another field?
     }
 
+    // pub fn is_new_epoch(&self) -> bool {
+    //     self.0 % EPOCH_LENGTH as u32 == 0
+    // } // FIXME: this also should be compared to the prior epoch number
     pub fn is_new_epoch(&self) -> bool {
-        self.0 % EPOCH_LENGTH as u32 == 0
-    }
+        true
+    } // FIXME: delete this (temporary code)
 
     pub fn to_unix_timestamp(&self) -> u64 {
         let slot_duration_secs = self.0 as u64 * SLOT_DURATION;
@@ -55,7 +58,7 @@ impl Timeslot {
 }
 
 pub struct TimeslotContext {
-    pub header_timestamp: Timeslot,
+    pub header_timeslot: Timeslot,
 }
 
 impl Transition for Timeslot {
@@ -64,7 +67,7 @@ impl Transition for Timeslot {
     where
         Self: Sized,
     {
-        let new_slot = ctx.header_timestamp.slot();
+        let new_slot = ctx.header_timeslot.slot();
         let current_slot = self.slot();
 
         // Timeslot value must be greater than the parent block
@@ -76,7 +79,7 @@ impl Transition for Timeslot {
         }
 
         // Timeslot value must not be in the future
-        if ctx.header_timestamp.is_in_future() {
+        if ctx.header_timeslot.is_in_future() {
             return Err(TransitionError::FutureTimeslot(new_slot));
         }
 

@@ -4,9 +4,9 @@ use crate::{
 };
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
-pub(crate) struct TicketExtrinsicEntry {
-    pub(crate) entry_index: u8,                        // r; N_N
-    pub(crate) ticket_proof: BandersnatchRingVrfProof, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
+pub struct TicketExtrinsicEntry {
+    pub entry_index: u8,                        // r; N_N
+    pub ticket_proof: BandersnatchRingVrfProof, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
 }
 
 impl JamEncode for TicketExtrinsicEntry {

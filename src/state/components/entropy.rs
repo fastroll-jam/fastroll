@@ -8,6 +8,7 @@ use crate::{
 };
 use std::fmt::{Display, Formatter};
 
+#[derive(Copy, Clone)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
 
@@ -52,8 +53,8 @@ impl EntropyAccumulator {
 
 #[derive(Clone, Debug)]
 pub struct EntropyAccumulatorContext {
-    timeslot: Timeslot,
-    header_vrf_signature: BandersnatchSignature, // H_v
+    pub timeslot: Timeslot,
+    pub entropy_hash: Hash32, // `Y` hash of H_v; new incoming entropy hash from the header
 }
 
 impl Transition for EntropyAccumulator {
@@ -63,6 +64,8 @@ impl Transition for EntropyAccumulator {
     where
         Self: Sized,
     {
+        println!(">>> timeslot: {}", ctx.timeslot.slot());
+        println!(">>> is_new_epoch: {}", ctx.timeslot.is_new_epoch());
         if ctx.timeslot.is_new_epoch() {
             // Rotate entropy histories at the beginning of a new epoch
             // [e0, e1, e2, e3] => [_, e0, e1, e2]; the new e0 will be calculated and inserted below
@@ -71,10 +74,9 @@ impl Transition for EntropyAccumulator {
 
         // Accumulate the entropy for the current epoch
         let current_accumulator_hash = self.0[0].clone();
-        let header_vrf_entropy_hash = entropy_hash_ietf_vrf(&ctx.header_vrf_signature);
         let mut hash_combined = [0u8; 64];
-        hash_combined[..32].copy_from_slice(&current_accumulator_hash);
-        hash_combined[32..].copy_from_slice(&header_vrf_entropy_hash);
+        hash_combined[..32].copy_from_slice(&current_accumulator_hash[..]);
+        hash_combined[32..].copy_from_slice(&ctx.entropy_hash[..]);
         self.0[0] = blake2b_256(&hash_combined[..])?;
 
         Ok(())
