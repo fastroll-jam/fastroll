@@ -1,6 +1,6 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::{BandersnatchSignature, Hash32},
+    common::{BandersnatchSignature, Hash32, HASH32_DEFAULT},
     crypto::utils::{blake2b_256, entropy_hash_ietf_vrf},
     impl_jam_codec_for_newtype,
     state::components::timeslot::Timeslot,
@@ -19,6 +19,34 @@ impl Display for EntropyAccumulator {
         }
 
         write!(f, "}}")
+    }
+}
+
+impl Default for EntropyAccumulator {
+    fn default() -> Self {
+        Self([HASH32_DEFAULT; 4])
+    }
+}
+
+impl EntropyAccumulator {
+    /// Entropy value of the current epoch, accumulated with VRF signatures from each block header
+    pub fn current(&self) -> Hash32 {
+        self.0[0]
+    }
+
+    /// The first historical epoch entropy
+    pub fn first_history(&self) -> Hash32 {
+        self.0[1]
+    }
+
+    /// The second historical epoch entropy
+    pub fn second_history(&self) -> Hash32 {
+        self.0[2]
+    }
+
+    /// The third historical epoch entropy
+    pub fn third_history(&self) -> Hash32 {
+        self.0[3]
     }
 }
 
