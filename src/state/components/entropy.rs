@@ -1,10 +1,10 @@
 use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
-    common::{BandersnatchSignature, Hash32, HASH32_DEFAULT},
+    common::{BandersnatchSignature, Hash32},
     crypto::utils::{blake2b_256, entropy_hash_ietf_vrf},
     impl_jam_codec_for_newtype,
     state::components::timeslot::Timeslot,
-    transition::{SlotType, Transition, TransitionError},
+    transition::{Transition, TransitionError},
 };
 use std::fmt::{Display, Formatter};
 
@@ -22,9 +22,9 @@ impl Display for EntropyAccumulator {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct EntropyAccumulatorContext {
     timeslot: Timeslot,
-    slot_type: SlotType,
     header_vrf_signature: BandersnatchSignature, // H_v
 }
 
@@ -35,12 +35,20 @@ impl Transition for EntropyAccumulator {
     where
         Self: Sized,
     {
+        if ctx.timeslot.is_new_epoch() {
+            // Rotate entropy histories at the beginning of a new epoch
+            // [e0, e1, e2, e3] => [_, e0, e1, e2]; the new e0 will be calculated and inserted below
+            self.0.copy_within(0..3, 1);
+        }
+
+        // Accumulate the entropy for the current epoch
         let current_accumulator_hash = self.0[0].clone();
         let header_vrf_entropy_hash = entropy_hash_ietf_vrf(&ctx.header_vrf_signature);
         let mut hash_combined = [0u8; 64];
         hash_combined[..32].copy_from_slice(&current_accumulator_hash);
         hash_combined[32..].copy_from_slice(&header_vrf_entropy_hash);
         self.0[0] = blake2b_256(&hash_combined[..])?;
+
         Ok(())
     }
 }

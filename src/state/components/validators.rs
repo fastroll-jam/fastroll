@@ -3,7 +3,7 @@ use crate::{
     common::VALIDATOR_COUNT,
     impl_jam_codec_for_newtype,
     state::components::timeslot::Timeslot,
-    transition::{SlotType, Transition, TransitionError},
+    transition::{Transition, TransitionError},
 };
 use std::fmt::{Display, Formatter};
 
@@ -120,7 +120,6 @@ impl Display for StagingValidatorSet {
 
 pub struct StagingValidatorSetContext {
     timeslot: Timeslot,
-    slot_type: SlotType,
 }
 
 impl Transition for StagingValidatorSet {
@@ -157,7 +156,6 @@ impl Display for ActiveValidatorSet {
 
 pub struct ActiveValidatorSetContext {
     timeslot: Timeslot,
-    slot_type: SlotType,
 }
 
 impl Transition for ActiveValidatorSet {
@@ -193,7 +191,6 @@ impl Display for PastValidatorSet {
 
 pub struct PastValidatorSetContext {
     timeslot: Timeslot,
-    slot_type: SlotType,
 }
 
 impl Transition for PastValidatorSet {

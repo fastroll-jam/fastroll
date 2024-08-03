@@ -132,7 +132,7 @@ impl StateBuilder {
     }
 
     pub fn from_timeslot(mut self, timeslot: &Timeslot) -> Result<Self, AsnTypeError> {
-        self.tau = Some(timeslot.0.clone().try_into()?);
+        self.tau = Some(timeslot.slot().clone().try_into()?);
         Ok(self)
     }
 

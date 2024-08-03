@@ -17,7 +17,7 @@ use crate::{
         },
         state_retriever::StateRetriever,
     },
-    transition::{SlotType, Transition, TransitionError},
+    transition::{Transition, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use std::fmt::{Display, Formatter};
@@ -237,7 +237,6 @@ fn generate_fallback_keys(
 
 pub struct SafroleStateContext {
     timeslot: Timeslot,
-    slot_type: SlotType,
 }
 
 impl Transition for SafroleState {

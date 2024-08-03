@@ -20,11 +20,6 @@ pub enum TransitionError {
     CryptoError(#[from] CryptoError),
 }
 
-pub enum SlotType {
-    NewBlock,
-    NewEpoch, // The timeslot opens a new epoch
-}
-
 // TODO: add Extrinsics and other relevant input data for the state transition
 
 pub trait Transition {
