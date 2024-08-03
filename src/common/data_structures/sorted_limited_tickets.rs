@@ -30,6 +30,18 @@ impl SortedLimitedTickets {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.heap.len() == EPOCH_LENGTH
+    }
+
     pub fn add(&mut self, ticket: Ticket) {
         if self.heap.len() < EPOCH_LENGTH {
             self.heap.push(Reverse(ticket));
@@ -124,7 +136,7 @@ mod tests {
         for i in 0..epoch_length_u16 {
             tickets.add(create_ticket(i));
         }
-        assert_eq!(tickets.heap.len(), epoch_length_u16.into());
+        assert_eq!(tickets.len(), epoch_length_u16.into());
         assert_eq!(
             tickets.as_vec(),
             (0..epoch_length_u16).map(create_ticket).collect::<Vec<_>>()
@@ -145,7 +157,7 @@ mod tests {
             });
         }
 
-        assert_eq!(tickets.heap.len(), EPOCH_LENGTH); // The MaxHeap contains exactly EPOCH_LENGTH tickets only
+        assert_eq!(tickets.len(), EPOCH_LENGTH); // The MaxHeap contains exactly EPOCH_LENGTH tickets only
 
         let expected: Vec<Ticket> = (0..EPOCH_LENGTH as u16)
             .map(|i| {
@@ -179,7 +191,7 @@ mod tests {
         let mut tickets = SortedLimitedTickets::new();
         let new_tickets: Vec<Ticket> = (0..1000).map(create_ticket).collect();
         tickets.add_multiple(new_tickets);
-        assert_eq!(tickets.heap.len(), EPOCH_LENGTH);
+        assert_eq!(tickets.len(), EPOCH_LENGTH);
         assert_eq!(
             tickets.as_vec(),
             (0..EPOCH_LENGTH as u16)

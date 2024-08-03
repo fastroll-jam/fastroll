@@ -2,18 +2,20 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput},
     common::{
         sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, BandersnatchRingRoot,
-        Hash32, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
+        Hash32, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
+        TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT,
     },
     crypto::{
         generate_ring_root,
         utils::{blake2b_256_first_4bytes, CryptoError},
         vrf::RingVrfSignature,
     },
-    extrinsics::{components::tickets::TicketExtrinsicEntry, manager::get_ticket_extrinsics},
+    extrinsics::components::tickets::TicketExtrinsicEntry,
     state::{
         components::{
+            entropy::EntropyAccumulator,
             timeslot::Timeslot,
-            validators::{ValidatorKey, ValidatorSet},
+            validators::{ActiveValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet},
         },
         state_retriever::StateRetriever,
     },
@@ -178,7 +180,7 @@ impl JamDecode for SlotSealerType {
     }
 }
 
-fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: Vec<TicketExtrinsicEntry>) -> Vec<Ticket> {
+fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &Vec<TicketExtrinsicEntry>) -> Vec<Ticket> {
     ticket_extrinsics
         .iter()
         .map(|ticket| {
@@ -237,6 +239,11 @@ fn generate_fallback_keys(
 
 pub struct SafroleStateContext {
     timeslot: Timeslot,
+    tickets: Vec<TicketExtrinsicEntry>,
+    current_staging_set: StagingValidatorSet,
+    post_active_set: ActiveValidatorSet,
+    post_entropy: EntropyAccumulator,
+    slot_sealer_type: SlotSealerType,
 }
 
 impl Transition for SafroleState {
@@ -246,38 +253,55 @@ impl Transition for SafroleState {
     where
         Self: Sized,
     {
-        let retriever = StateRetriever::new();
+        //
+        // Per-epoch operations
+        //
 
-        // -- New epoch
+        if ctx.timeslot.is_new_epoch() {
+            // The fallback mode triggers when the slot phase hasn't reached the ticket submission
+            // deadline or the ticket accumulator is not yet full.
+            // TODO: check how the "slot_phase" is derived (calculated from timeslot or from a separate index)
+            let is_fallback = ((ctx.timeslot.slot_phase() as usize)
+                < TICKET_SUBMISSION_DEADLINE_SLOT)
+                || !self.ticket_accumulator.is_full();
 
-        let is_fallback = false;
+            // Update Safrole pending set into Global state staging set
+            self.pending_validator_set = ctx.current_staging_set.0;
 
-        // Update Safrole pending set into Global state staging set
-        let staging_validator_set = retriever.get_staging_validator_set()?; // FIXME: this should be provided as `TransitionContext` rather than being retrieved directly from the DB.
-        self.pending_validator_set = staging_validator_set.0;
+            // Update the ring root with the updated pending set ring
+            self.ring_root = generate_ring_root(&self.pending_validator_set)?;
 
-        // Update the ring root with the updated pending set ring
-        self.ring_root = generate_ring_root(&self.pending_validator_set)?;
+            // Update slot sealer sequence
+            if is_fallback {
+                let active_validator_set = ctx.post_active_set.0; // kappa
+                let entropy = ctx.post_entropy.second_history(); // eta_2
+
+                self.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
+                    generate_fallback_keys(&active_validator_set, entropy)?,
+                ))
+            } else {
+                let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
+                    outside_in_vec(self.ticket_accumulator.clone().into_vec())
+                        .try_into()
+                        .unwrap();
+
+                self.slot_sealers =
+                    SlotSealerType::Tickets(Box::new(ticket_accumulator_outside_in));
+            }
+
+            // Reset the ticket accumulator
+            self.ticket_accumulator = SortedLimitedTickets::new();
+        }
+
+        //
+        // Per-slot operations
+        //
 
         // Construct "new tickets" from Tickets Extrinsics
-        let ticket_extrinsics: Vec<TicketExtrinsicEntry> = get_ticket_extrinsics(ctx.timeslot);
+        // let ticket_extrinsics: Vec<TicketExtrinsicEntry> = get_ticket_extrinsics(ctx.timeslot);
+        let ticket_extrinsics = &ctx.tickets;
         let new_tickets = ticket_extrinsics_to_new_tickets(ticket_extrinsics);
 
-        // Update slot sealer sequence
-        if is_fallback {
-            let active_validator_set = retriever.get_active_validator_set()?.0; // kappa
-            let entropy = retriever.get_entropy_accumulator()?.0[2];
-
-            self.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
-                generate_fallback_keys(&active_validator_set, entropy)?,
-            ))
-        } else {
-            let ticket_accumulator_cloned = self.ticket_accumulator.clone().into_vec();
-            let ticket_accumulator_outside_in_vec = outside_in_vec(ticket_accumulator_cloned);
-            let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
-                ticket_accumulator_outside_in_vec.try_into().unwrap();
-            self.slot_sealers = SlotSealerType::Tickets(Box::new(ticket_accumulator_outside_in));
-        }
         // Accumulate new tickets
         self.ticket_accumulator.add_multiple(new_tickets);
 

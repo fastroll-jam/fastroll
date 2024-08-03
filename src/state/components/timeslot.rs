@@ -25,7 +25,7 @@ impl Timeslot {
     }
 
     pub fn slot_phase(&self) -> u32 {
-        self.0 % EPOCH_LENGTH as u32
+        self.0 % EPOCH_LENGTH as u32 // FIXME: separate this logic with the epoch index and track this value in another field?
     }
 
     pub fn is_new_epoch(&self) -> bool {
