@@ -141,7 +141,7 @@ pub struct StagingValidatorSetContext {
 impl Transition for StagingValidatorSet {
     type Context = StagingValidatorSetContext;
 
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
@@ -184,7 +184,7 @@ pub struct ActiveValidatorSetContext {
 
 impl Transition for ActiveValidatorSet {
     type Context = ActiveValidatorSetContext;
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
@@ -226,7 +226,7 @@ pub struct PastValidatorSetContext {
 
 impl Transition for PastValidatorSet {
     type Context = PastValidatorSetContext;
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {

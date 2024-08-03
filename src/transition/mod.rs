@@ -23,7 +23,7 @@ pub enum TransitionError {
 
 pub trait Transition {
     type Context; // State-specific transition context
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized;
 }

@@ -5,7 +5,6 @@ mod tests {
         utils::StateBuilder,
     };
     use rjam::{
-        extrinsics::components::tickets::TicketExtrinsicEntry,
         state::components::{
             entropy::EntropyAccumulatorContext,
             safrole::SafroleStateContext,
@@ -58,28 +57,28 @@ mod tests {
         let timeslot_context = TimeslotContext {
             header_timeslot: Timeslot::new(test_input.slot),
         };
-        timeslot.next(&timeslot_context)?;
+        timeslot.to_next(&timeslot_context)?;
 
         // EntropyAccumulator Transition
         let entropy_context = EntropyAccumulatorContext {
             timeslot: Timeslot::new(test_input.slot),
             entropy_hash: test_input.entropy.0,
         };
-        entropy_acc.next(&entropy_context)?;
+        entropy_acc.to_next(&entropy_context)?;
 
         //  PastValidatorSet Transition
         let past_set_context = PastValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
             current_active_set: active_set,
         };
-        past_set.next(&past_set_context)?;
+        past_set.to_next(&past_set_context)?;
 
         //  ActiveValidatorSet Transition
         let active_set_context = ActiveValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
             current_pending_validator_set: safrole_state.pending_validator_set,
         };
-        active_set.next(&active_set_context)?;
+        active_set.to_next(&active_set_context)?;
 
         // Safrole Transition
         let safrole_context = SafroleStateContext {
@@ -93,13 +92,13 @@ mod tests {
             post_active_set: active_set,
             post_entropy: entropy_acc,
         };
-        safrole_state.next(&safrole_context)?;
+        safrole_state.to_next(&safrole_context)?;
 
         //  StagingValidatorSet Transition
         let staging_set_context = StagingValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
         };
-        staging_set.next(&staging_set_context)?;
+        staging_set.to_next(&staging_set_context)?;
 
         //
         // Conversion: Jam post-state => Test vector post-state

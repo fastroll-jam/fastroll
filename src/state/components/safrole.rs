@@ -248,7 +248,7 @@ pub struct SafroleStateContext {
 impl Transition for SafroleState {
     type Context = SafroleStateContext;
 
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {

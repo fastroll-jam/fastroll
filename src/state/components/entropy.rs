@@ -60,7 +60,7 @@ pub struct EntropyAccumulatorContext {
 impl Transition for EntropyAccumulator {
     type Context = EntropyAccumulatorContext;
 
-    fn next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
+    fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
     {
