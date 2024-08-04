@@ -252,8 +252,11 @@ fn convert_validator_data(data: &ValidatorsData) -> Result<ValidatorSet, AsnType
 //
 
 pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode {
-    if let Some(_) = error.downcast_ref::<TransitionError::InvalidTimeslot>() {
-        CustomErrorCode::bad_slot
+    if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
+        match transition_error {
+            TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
+            _ => CustomErrorCode::reserved,
+        }
     } else {
         CustomErrorCode::reserved
     }

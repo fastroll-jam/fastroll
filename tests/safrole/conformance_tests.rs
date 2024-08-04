@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::safrole::{
-        asn_types::{Testcase, TicketEnvelope, EPOCH_LENGTH},
+        asn_types::{Input, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
         utils::StateBuilder,
     };
     use rjam::{
@@ -16,22 +16,27 @@ mod tests {
         transition::Transition,
     };
     use std::{error::Error, fmt::Debug, fs};
-    // Safrole state transition conformance tests
 
+    //
+    // Safrole state transition conformance tests
+    //
+
+    // Load a test case from the test vector path
     fn load_test_case(path: &'static str) -> Result<Testcase, ()> {
         let json_str = fs::read_to_string(&path).expect("Failed to read test vector file");
         let test_case = serde_json::from_str(&json_str).expect("Failed to parse JSON");
         Ok(test_case)
     }
 
-    fn run_test_case(path: &'static str) -> Result<(), Box<dyn Error>> {
-        let test_case = load_test_case(path).expect("Failed to load test vector");
-
+    // Returns the actual post state, to be compared with the test post state.
+    fn run_state_transition(
+        test_input: Input,
+        test_pre_state: State,
+    ) -> Result<State, Box<dyn Error>> {
         //
         // Conversion: Test vector pre-state => Jam pre-state
         //
 
-        let test_pre_state = test_case.pre_state;
         let mut safrole_state = test_pre_state.into_safrole_state()?;
         let (mut staging_set, mut active_set, mut past_set) =
             test_pre_state.into_validator_sets()?;
@@ -41,8 +46,6 @@ mod tests {
         //
         // State Transitions
         //
-
-        let test_input = test_case.input;
 
         // Timeslot Transition
         let timeslot_context = TimeslotContext {
@@ -102,6 +105,7 @@ mod tests {
         //
         // Conversion: Jam post-state => Test vector post-state
         //
+
         let builder = StateBuilder::new();
         let post_state = builder
             .from_safrole_state(&safrole_state)?
@@ -109,13 +113,16 @@ mod tests {
             .from_entropy_accumulator(&entropy_acc)?
             .from_timeslot(&timeslot)?
             .build()?;
-        let output = ();
 
-        let test_post_state = test_case.post_state;
+        Ok(post_state)
+    }
 
-        //
-        // Assertions
-        //
+    fn run_test_case(path: &'static str) -> Result<(), Box<dyn Error>> {
+        let test_case = load_test_case(path).expect("Failed to load test vector");
+        let test_post_state = test_case.post_state; // The expected post state
+
+        let post_state = run_state_transition(test_case.input, test_case.pre_state)?;
+        let _output = ();
 
         // assert_eq!(post_state, test_post_state);
 
