@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::safrole::{
-        asn_types::{Input, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
-        utils::StateBuilder,
+        asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
+        utils::{map_error_to_custom_code, StateBuilder},
     };
     use rjam::{
         state::components::{
@@ -16,7 +16,6 @@ mod tests {
         transition::Transition,
     };
     use std::{error::Error, fmt::Debug, fs};
-
     //
     // Safrole state transition conformance tests
     //
@@ -117,15 +116,25 @@ mod tests {
         Ok(post_state)
     }
 
+    fn run_state_transition_with_output(
+        test_input: Input,
+        test_pre_state: State,
+    ) -> Result<(State, Output), Box<dyn Error>> {
+        match run_state_transition(test_input, test_pre_state.clone()) {
+            Ok(state) => Ok((state, Output::ok(OutputMarks::default()))),
+            Err(e) => Ok((test_pre_state, Output::err(map_error_to_custom_code(e)))), // represents rollback mechanism for state transition failures
+        }
+    }
+
     fn run_test_case(path: &'static str) -> Result<(), Box<dyn Error>> {
         let test_case = load_test_case(path).expect("Failed to load test vector");
         let test_post_state = test_case.post_state; // The expected post state
 
-        let post_state = run_state_transition(test_case.input, test_case.pre_state)?;
-        let _output = ();
+        let (post_state, _output) =
+            run_state_transition_with_output(test_case.input, test_case.pre_state)?;
 
+        // Assertion on the post state
         // assert_eq!(post_state, test_post_state);
-
         assert_eq!(post_state.tau, test_post_state.tau);
         assert_eq!(post_state.eta, test_post_state.eta);
         assert_eq!(post_state.lambda, test_post_state.lambda);
@@ -135,6 +144,9 @@ mod tests {
         assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
         assert_eq!(post_state.gamma_s, test_post_state.gamma_s);
         assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
+
+        // Assertion on the state transition output
+        // assert_eq!(_output, test_case.output);
 
         Ok(())
     }
@@ -155,10 +167,9 @@ mod tests {
         // Randomness accumulator is updated.
         test_enact_epoch_change_with_no_tickets_1: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-1.json",
 
-        // FIXME
         // Progress from slot X to slot X.
         // Fail: Timeslot must be strictly monotonic.
-        // test_enact_epoch_change_with_no_tickets_2: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
+        test_enact_epoch_change_with_no_tickets_2: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
 
         // Progress from a slot at the begin of the epoch to a slot in the epoch's tail.
         // Tickets mark is not generated (no enough tickets).

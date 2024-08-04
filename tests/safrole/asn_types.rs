@@ -88,7 +88,7 @@ impl TryFrom<SlotSealerType> for TicketsOrKeys {
 // State transition function execution error.
 // Error codes are not specified in the Graypaper.
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum CustomErrorCode {
     bad_slot,           // Timeslot value must be strictly monotonic
     unexpected_ticket,  // Received a ticket while in epoch's tail
@@ -144,7 +144,7 @@ impl Into<TicketExtrinsicEntry> for TicketEnvelope {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct EpochMark {
     entropy: OpaqueHash,
     validators: [BandersnatchKey; VALIDATORS_COUNT],
@@ -153,10 +153,19 @@ pub struct EpochMark {
 pub type TicketsMark = [TicketBody; EPOCH_LENGTH];
 
 // Output markers
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct OutputMarks {
     epoch_mark: Option<EpochMark>,     // New epoch signal
     tickets_mark: Option<TicketsMark>, // Tickets signal
+}
+
+impl Default for OutputMarks {
+    fn default() -> Self {
+        Self {
+            epoch_mark: None,
+            tickets_mark: None,
+        }
+    }
 }
 
 // State relevant to Safrole protocol
@@ -184,7 +193,7 @@ pub struct Input {
 
 // Output from Safrole protocol
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Output {
     ok(OutputMarks),      // Markers
     err(CustomErrorCode), // Error code (not specified in the Graypaper)
