@@ -24,12 +24,8 @@ mod tests {
         Ok(test_case)
     }
 
-    #[test]
-    fn test_enact_epoch_change_with_no_tickets_4() -> Result<(), Box<dyn Error>> {
-        let test_case = load_test_case(
-            "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
-        )
-        .expect("Failed to load test case");
+    fn run_test_case(path: &'static str) -> Result<(), Box<dyn Error>> {
+        let test_case = load_test_case(path).expect("Failed to load test vector");
 
         //
         // Conversion: Test vector pre-state => Jam pre-state
@@ -134,5 +130,32 @@ mod tests {
         // assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
 
         Ok(())
+    }
+
+    macro_rules! generate_tests {
+        ($($name:ident: $path:expr,)*) => {
+            $(
+                #[test]
+                fn $name() -> Result<(), Box<dyn Error>> {
+                    run_test_case($path)
+                }
+            )*
+        }
+    }
+
+    generate_tests! {
+        test_enact_epoch_change_with_no_tickets_1: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-1.json",
+        test_enact_epoch_change_with_no_tickets_2: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
+        test_enact_epoch_change_with_no_tickets_3: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-3.json",
+        test_enact_epoch_change_with_no_tickets_4: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
+        publish_tickets_no_mark_1: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-1.json",
+        publish_tickets_no_mark_2: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-2.json",
+        publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
+        publish_tickets_no_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-4.json",
+        publish_tickets_no_mark_5: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-5.json",
+        publish_tickets_no_mark_6: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-6.json",
+        publish_tickets_no_mark_7: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-7.json",
+        publish_tickets_no_mark_8: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-8.json",
+        publish_tickets_no_mark_9: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-9.json",
     }
 }
