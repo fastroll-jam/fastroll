@@ -1,5 +1,7 @@
 use crate::{
-    codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput},
+    codec::{
+        JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+    },
     common::{
         sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, BandersnatchRingRoot,
         Hash32, Ticket, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
@@ -53,7 +55,7 @@ impl Display for SafroleState {
         }
         writeln!(f, "  ]")?;
 
-        writeln!(f, "  Ring Root: {}", hex::encode(&self.ring_root))?;
+        writeln!(f, "  Ring Root: {}", hex::encode(self.ring_root))?;
 
         writeln!(f, "  Slot Sealers:")?;
         match &self.slot_sealers {
@@ -180,7 +182,7 @@ impl JamDecode for SlotSealerType {
     }
 }
 
-fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &Vec<TicketExtrinsicEntry>) -> Vec<Ticket> {
+fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &[TicketExtrinsicEntry]) -> Vec<Ticket> {
     ticket_extrinsics
         .iter()
         .map(|ticket| {
@@ -190,7 +192,7 @@ fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &Vec<TicketExtrinsicEntry
                     .output_hash();
             Ticket {
                 id: vrf_output_hash,
-                attempt: ticket.entry_index as u8, // Assuming entry_index is compatible with u8
+                attempt: ticket.entry_index, // Assuming entry_index is compatible with u8
             }
         })
         .collect()
@@ -229,10 +231,7 @@ fn generate_fallback_keys(
         entropy_with_index.extend_from_slice(&i_encoded);
 
         let mut hash: &[u8] = &blake2b_256_first_4bytes(&entropy_with_index)?;
-
-        // FIXME: error occurs here since there is no "length discriminator" required to decode bytes into `u32` type
-        // let key_index = u32::decode(&mut hash)? % (VALIDATOR_COUNT as u32);
-        let key_index = 1; // TODO: delete
+        let key_index: u32 = u32::decode_fixed(&mut hash, 4)? % (VALIDATOR_COUNT as u32);
 
         *key = validator_set[key_index as usize].bandersnatch_key;
     }

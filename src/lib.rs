@@ -1,5 +1,5 @@
 mod block;
-mod codec;
+pub mod codec;
 pub mod common;
 pub mod crypto;
 pub mod db;

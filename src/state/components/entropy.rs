@@ -72,7 +72,7 @@ impl Transition for EntropyAccumulator {
         }
 
         // Accumulate the entropy for the current epoch
-        let current_accumulator_hash = self.0[0].clone();
+        let current_accumulator_hash = self.0[0];
         let mut hash_combined = [0u8; 64];
         hash_combined[..32].copy_from_slice(&current_accumulator_hash[..]);
         hash_combined[32..].copy_from_slice(&ctx.entropy_hash[..]);

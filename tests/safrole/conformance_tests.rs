@@ -34,6 +34,7 @@ mod tests {
         //
         // Conversion: Test vector pre-state => Jam pre-state
         //
+
         let test_pre_state = test_case.pre_state;
         let mut safrole_state = test_pre_state.into_safrole_state()?;
         let (mut staging_set, mut active_set, mut past_set) =
@@ -41,16 +42,10 @@ mod tests {
         let mut entropy_acc = test_pre_state.into_entropy_accumulator()?;
         let mut timeslot = test_pre_state.into_timeslot()?;
 
-        // println!(">>> Pre State <<<");
-        // println!(">>> Safrole: {}", &pre_safrole);
-        // println!(">>> Staging Set: {}", &pre_staging_set);
-        // println!(">>> Active Set: {}", &pre_active_set);
-        // println!(">>> Past Set: {}", &pre_past_set);
-        // println!(">>> Entropy Acc: {}", &pre_entropy_acc);
-
         //
         // State Transitions
         //
+
         let test_input = test_case.input;
 
         // Timeslot Transition
@@ -126,32 +121,17 @@ mod tests {
         // Assertions
         //
 
-        // assert_eq!(post_state, test_post_state);
+        assert_eq!(post_state, test_post_state);
 
-        assert_eq!(post_state.tau, test_post_state.tau);
-
-        // println!("JAM eta:");
-        // post_state
-        //     .eta
-        //     .to_vec()
-        //     .iter()
-        //     .for_each(|item| println!("{}", item));
-        //
-        // println!("Expected eta:");
-        // test_post_state
-        //     .eta
-        //     .to_vec()
-        //     .iter()
-        //     .for_each(|item| println!("{}", item));
-
-        assert_eq!(post_state.eta, test_post_state.eta);
-        assert_eq!(post_state.lambda, test_post_state.lambda);
-        assert_eq!(post_state.kappa, test_post_state.kappa);
-        assert_eq!(post_state.gamma_k, test_post_state.gamma_k);
-        assert_eq!(post_state.iota, test_post_state.iota);
-        assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
+        // assert_eq!(post_state.tau, test_post_state.tau);
+        // assert_eq!(post_state.eta, test_post_state.eta);
+        // assert_eq!(post_state.lambda, test_post_state.lambda);
+        // assert_eq!(post_state.kappa, test_post_state.kappa);
+        // assert_eq!(post_state.gamma_k, test_post_state.gamma_k);
+        // assert_eq!(post_state.iota, test_post_state.iota);
+        // assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
         // assert_eq!(post_state.gamma_s, test_post_state.gamma_s);
-        assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
+        // assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
 
         Ok(())
     }

@@ -31,7 +31,7 @@ impl Display for Ticket {
         write!(
             f,
             "Ticket {{ id: {}, attempt: {} }}",
-            hex::encode(&self.id),
+            hex::encode(self.id),
             self.attempt
         )
     }

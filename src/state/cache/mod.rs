@@ -27,6 +27,12 @@ pub struct StateCache {
     // TODO: add other state components
 }
 
+impl Default for StateCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // TODO: commit mechanism for finalized state write-set & rollback mechanism for invalid write-set
 impl StateCache {
     // State component identifiers

@@ -23,6 +23,12 @@ impl Display for SortedLimitedTickets {
     }
 }
 
+impl Default for SortedLimitedTickets {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SortedLimitedTickets {
     pub fn new() -> Self {
         Self {

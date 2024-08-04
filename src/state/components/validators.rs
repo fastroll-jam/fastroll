@@ -40,7 +40,7 @@ impl Display for ValidatorKey {
 }
 
 impl ValidatorKey {
-    pub fn to_bytes(&self) -> [u8; 336] {
+    pub fn to_bytes(self) -> [u8; 336] {
         let mut result = [0u8; 336];
 
         result[0..32].copy_from_slice(&self.bandersnatch_key);
@@ -51,7 +51,7 @@ impl ValidatorKey {
         result
     }
 
-    fn to_json_like(&self, indent: usize) -> String {
+    fn to_json_like(self, indent: usize) -> String {
         let spaces = " ".repeat(indent);
         format!(
             "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",

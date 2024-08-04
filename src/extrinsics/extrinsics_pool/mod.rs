@@ -77,7 +77,7 @@ impl ExtrinsicsPool {
         // Add to the type-timeslot lookup index
         type_timeslot_index
             .entry((entry.extrinsic_type.clone(), entry.timeslot))
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(entry.hash);
 
         Ok(())
@@ -100,7 +100,7 @@ impl ExtrinsicsPool {
                     .filter_map(|hash| extrinsics.get(hash).cloned())
                     .collect()
             })
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_default()
     }
 
     // Delete extrinsic entry from the pools
