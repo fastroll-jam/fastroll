@@ -1,6 +1,6 @@
 use crate::safrole::asn_types::{
-    ByteArray32, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData, ValidatorsData, U32,
-    U8,
+    ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
+    ValidatorsData, U32, U8,
 };
 use rjam::{
     common::{
@@ -14,9 +14,10 @@ use rjam::{
             ActiveValidatorSet, PastValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet,
         },
     },
+    transition::TransitionError,
 };
 use serde::{de, de::Visitor, Deserializer, Serializer};
-use std::fmt;
+use std::{error::Error, fmt};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -28,6 +29,10 @@ pub enum AsnTypeError {
     #[error("Type conversion infallible error")]
     InfallibleError(#[from] std::convert::Infallible),
 }
+
+//
+// Helper Serde
+//
 
 // Helper deserializer to manage `0x` prefix
 pub fn deserialize_hex<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
@@ -67,7 +72,10 @@ where
     serializer.serialize_str(&hex_string)
 }
 
-// Conversion between ASN type representations and JAM implementation types
+//
+// State Builder to facilitate conversion between ASN type representations and JAM implementation types
+//
+
 #[derive(Default)]
 pub struct StateBuilder {
     tau: Option<U32>,
@@ -237,4 +245,16 @@ fn convert_validator_data(data: &ValidatorsData) -> Result<ValidatorSet, AsnType
         .collect::<Result<Vec<_>, _>>()?
         .try_into()
         .map_err(|_| AsnTypeError::ConversionError("Failed to convert ValidatorsData".to_string()))
+}
+
+//
+// Conversion from JAM implementation Errors into test vectors' error code output
+//
+
+pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode {
+    if let Some(_) = error.downcast_ref::<TransitionError::InvalidTimeslot>() {
+        CustomErrorCode::bad_slot
+    } else {
+        CustomErrorCode::reserved
+    }
 }
