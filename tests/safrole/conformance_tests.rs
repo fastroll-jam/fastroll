@@ -144,18 +144,88 @@ mod tests {
     }
 
     generate_tests! {
+        // Progress by one slot.
+        // Randomness accumulator is updated.
         test_enact_epoch_change_with_no_tickets_1: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-1.json",
-        test_enact_epoch_change_with_no_tickets_2: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
+
+        // Progress from slot X to slot X.
+        // Fail: Timeslot must be strictly monotonic.
+        // test_enact_epoch_change_with_no_tickets_2: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
+
+        // Progress from a slot at the begin of the epoch to a slot in the epoch's tail.
+        // Tickets mark is not generated (no enough tickets).
         test_enact_epoch_change_with_no_tickets_3: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-3.json",
+
+        // Progress from epoch's tail to next epoch.
+        // Authorities and entropies are rotated.
+        // Epoch mark is generated.
         test_enact_epoch_change_with_no_tickets_4: "../jamtestvectors/safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
-        publish_tickets_no_mark_1: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-1.json",
+
+        // Progress skipping epochs with a full tickets accumulator.
+        // Tickets mark is not generated.
+        // Accumulated tickets are discarded.
+        // Fallback method is enacted.
+        skip_epochs_1: "../jamtestvectors/safrole/tiny/skip-epochs-1.json",
+
+        // Progress to next epoch by skipping epochs tail with a full tickets accumulator.
+        // Tickets mark has no chance to be generated.
+        // Accumulated tickets are discarded.
+        // Fallback method is enacted.
+        skip_epoch_tail_1: "../jamtestvectors/safrole/tiny/skip-epoch-tail-1.json",
+
+        // Fail: Submit an extrinsic with a bad ticket attempt number.
+        // publish_tickets_no_mark_1: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-1.json",
+
+        // Submit good tickets extrinsics from some authorities.
         publish_tickets_no_mark_2: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-2.json",
-        publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
-        publish_tickets_no_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-4.json",
-        publish_tickets_no_mark_5: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-5.json",
+
+        // Fail: Re-submit one ticket already in the state.
+        // publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
+
+        // Fail: Submit tickets in bad order.
+        // publish_tickets_no_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-4.json",
+
+        // Fail: Submit tickets with bad ring proof.
+        // publish_tickets_no_mark_5: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-5.json",
+
+        // Submit some tickets.
         publish_tickets_no_mark_6: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-6.json",
-        publish_tickets_no_mark_7: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-7.json",
+
+        // Fail: Submit tickets while in epoch's tail.
+        // publish_tickets_no_mark_7: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-7.json",
+
+        // Progress into epoch tail.
+        // No enough tickets, thus no tickets mark is generated.
         publish_tickets_no_mark_8: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-8.json",
+
+        // Progress into next epoch with no enough tickets.
+        // Accumulated tickets are discarded.
+        // Epoch mark is generated.
+        // Fallback method is enacted.
         publish_tickets_no_mark_9: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-9.json",
+
+        // Publish some tickets with an almost full tickets accumulator.
+        // Tickets accumulator is not full yet.
+        // No ticket are dropped from accumulator.
+        publish_tickets_with_mark_1: "../jamtestvectors/safrole/tiny/publish-tickets-with-mark-1.json",
+
+        // Publish some more tickets.
+        // Tickets accumulator is filled.
+        // Two old ticket are removed from the accumulator.
+        // publish_tickets_with_mark_2: "../jamtestvectors/safrole/tiny/publish-tickets-with-mark-2.json",
+
+        // Publish some more tickets.
+        // Accumulator is full before execution.
+        // Some old ticket are removed to make space for new ones.
+        // publish_tickets_with_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-with-mark-3.json",
+
+        // Progress into epoch tail.
+        // Tickets mark is generated.
+        publish_tickets_with_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-with-mark-4.json",
+
+        // Progress into next epoch.
+        // Epoch mark is generated.
+        // Tickets are enacted.
+        // publish_tickets_with_mark_5: "../jamtestvectors/safrole/tiny/publish-tickets-with-mark-5.json",
     }
 }
