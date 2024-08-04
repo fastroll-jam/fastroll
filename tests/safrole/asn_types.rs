@@ -87,15 +87,16 @@ impl TryFrom<SlotSealerType> for TicketsOrKeys {
 
 // State transition function execution error.
 // Error codes are not specified in the Graypaper.
+#[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CustomErrorCode {
-    BadSlot,          // Timeslot value must be strictly monotonic
-    UnexpectedTicket, // Received a ticket while in epoch's tail
-    BadTicketOrder,   // Tickets must be sorted
-    BadTicketProof,   // Invalid ticket ring proof
-    BadTicketAttempt, // Invalid ticket attempt value
-    Reserved,         // Reserved
-    DuplicateTicket,  // Found a ticket duplicate
+    bad_slot,           // Timeslot value must be strictly monotonic
+    unexpected_ticket,  // Received a ticket while in epoch's tail
+    bad_ticket_order,   // Tickets must be sorted
+    bad_ticket_proof,   // Invalid ticket ring proof
+    bad_ticket_attempt, // Invalid ticket attempt value
+    reserved,           // Reserved
+    duplicate_ticket,   // Found a ticket duplicate
 }
 
 // Define structures
