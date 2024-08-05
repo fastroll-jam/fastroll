@@ -38,4 +38,6 @@ pub(crate) fn submit_ticket_extrinsic(retriever: &StateRetriever) {
 
     // TODO: propagate the extrinsic via JAMSNP protocol
     // TODO: add submitted extrinsic to the ExtrinsicsPool
+
+    // TODO: tickets should be always ordered by the hash value of the ticket proof (ticket id)
 }

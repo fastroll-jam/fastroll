@@ -15,7 +15,7 @@ mod tests {
         },
         transition::Transition,
     };
-    use std::{error::Error, fmt::Debug, fs};
+    use std::{error::Error, fs};
     //
     // Safrole state transition conformance tests
     //
@@ -202,9 +202,8 @@ mod tests {
         // Fail: Re-submit one ticket already in the state.
         publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
 
-        // FIXME
         // Fail: Submit tickets in bad order.
-        // publish_tickets_no_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-4.json",
+        publish_tickets_no_mark_4: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-4.json",
 
         // FIXME
         // Fail: Submit tickets with bad ring proof.

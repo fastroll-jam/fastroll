@@ -13,13 +13,10 @@ use crate::{
         vrf::RingVrfSignature,
     },
     extrinsics::components::tickets::TicketExtrinsicEntry,
-    state::{
-        components::{
-            entropy::EntropyAccumulator,
-            timeslot::Timeslot,
-            validators::{ActiveValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet},
-        },
-        state_retriever::StateRetriever,
+    state::components::{
+        entropy::EntropyAccumulator,
+        timeslot::Timeslot,
+        validators::{ActiveValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet},
     },
     transition::{Transition, TransitionError},
 };
@@ -300,9 +297,19 @@ impl Transition for SafroleState {
         // Per-slot operations
         //
 
-        // Construct "new tickets" from Tickets Extrinsics
         // let ticket_extrinsics: Vec<TicketExtrinsicEntry> = get_ticket_extrinsics(ctx.timeslot);
         let ticket_extrinsics = &ctx.tickets;
+
+        // Check if the ticket extrinsics are ordered by ticket id
+        for window in ticket_extrinsics.windows(2) {
+            if let [prev, curr] = window {
+                if prev > curr {
+                    return Err(TransitionError::TicketsNotOrdered);
+                }
+            }
+        }
+
+        // Construct "new tickets" from Tickets Extrinsics
         let new_tickets = ticket_extrinsics_to_new_tickets(ticket_extrinsics);
 
         // Check if the ticket accumulator contains the new ticket entry

@@ -256,6 +256,7 @@ pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode
         match transition_error {
             TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
             TransitionError::DuplicateTicket => CustomErrorCode::duplicate_ticket,
+            TransitionError::TicketsNotOrdered => CustomErrorCode::bad_ticket_order,
             _ => CustomErrorCode::reserved,
         }
     } else {

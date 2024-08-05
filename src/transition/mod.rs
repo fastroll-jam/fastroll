@@ -21,6 +21,8 @@ pub enum TransitionError {
     CryptoError(#[from] CryptoError),
     #[error("Submitted ticket already exists in the state")]
     DuplicateTicket,
+    #[error("Submitted tickets must be ordered by the ticket proof hash")]
+    TicketsNotOrdered,
 }
 
 pub trait Transition {
