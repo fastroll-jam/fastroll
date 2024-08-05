@@ -255,6 +255,7 @@ pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode
     if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
         match transition_error {
             TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
+            TransitionError::DuplicateTicket => CustomErrorCode::duplicate_ticket,
             _ => CustomErrorCode::reserved,
         }
     } else {

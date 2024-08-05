@@ -199,9 +199,8 @@ mod tests {
         // Submit good tickets extrinsics from some authorities.
         publish_tickets_no_mark_2: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-2.json",
 
-        // FIXME
         // Fail: Re-submit one ticket already in the state.
-        // publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
+        publish_tickets_no_mark_3: "../jamtestvectors/safrole/tiny/publish-tickets-no-mark-3.json",
 
         // FIXME
         // Fail: Submit tickets in bad order.

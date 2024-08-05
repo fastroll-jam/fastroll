@@ -305,8 +305,14 @@ impl Transition for SafroleState {
         let ticket_extrinsics = &ctx.tickets;
         let new_tickets = ticket_extrinsics_to_new_tickets(ticket_extrinsics);
 
-        // Accumulate new tickets
-        self.ticket_accumulator.add_multiple(new_tickets);
+        // Check if the ticket accumulator contains the new ticket entry
+        // If not, accumulate the new ticket entry into the accumulator
+        for ticket in new_tickets {
+            if self.ticket_accumulator.contains(&ticket) {
+                return Err(TransitionError::DuplicateTicket);
+            }
+            self.ticket_accumulator.add(ticket);
+        }
 
         Ok(())
     }

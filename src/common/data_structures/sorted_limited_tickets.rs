@@ -65,6 +65,10 @@ impl SortedLimitedTickets {
         }
     }
 
+    pub fn contains(&self, ticket: &Ticket) -> bool {
+        self.heap.iter().any(|Reverse(t)| *t == *ticket)
+    }
+
     pub fn into_vec(self) -> Vec<Ticket> {
         let mut tickets: Vec<_> = self
             .heap

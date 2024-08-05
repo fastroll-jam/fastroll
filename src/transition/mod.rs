@@ -19,6 +19,8 @@ pub enum TransitionError {
     FallbackKeyError(#[from] FallbackKeyError),
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("Submitted ticket already exists in the state")]
+    DuplicateTicket,
 }
 
 pub trait Transition {
