@@ -252,6 +252,8 @@ impl Transition for SafroleState {
     where
         Self: Sized,
     {
+        let entropy = ctx.post_entropy.second_history(); // eta_2
+
         //
         // Per-epoch operations
         //
@@ -274,7 +276,6 @@ impl Transition for SafroleState {
             // Update slot sealer sequence
             if is_fallback {
                 let active_validator_set = ctx.post_active_set.0; // kappa
-                let entropy = ctx.post_entropy.second_history(); // eta_2
 
                 self.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
                     generate_fallback_keys(&active_validator_set, entropy)?,
@@ -308,6 +309,8 @@ impl Transition for SafroleState {
                 }
             }
         }
+
+        // TODO: Verify the ring VRF proof of each ticket extrinsic
 
         // Construct "new tickets" from Tickets Extrinsics
         let new_tickets = ticket_extrinsics_to_new_tickets(ticket_extrinsics);

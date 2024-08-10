@@ -23,6 +23,8 @@ pub enum TransitionError {
     DuplicateTicket,
     #[error("Submitted tickets must be ordered by the ticket proof hash")]
     TicketsNotOrdered,
+    #[error("Submitted tickets must have valid ring VRF proofs")]
+    BadTicketProof,
 }
 
 pub trait Transition {

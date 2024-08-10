@@ -146,6 +146,7 @@ mod tests {
         assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
 
         // Assertion on the state transition output
+        // println!(">>> output: {:?}", &test_case.output);
         // assert_eq!(_output, test_case.output);
 
         Ok(())
