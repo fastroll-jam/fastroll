@@ -2,7 +2,7 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION},
     impl_jam_codec_for_newtype,
-    transition::{Transition, TransitionError},
+    state::transition::{Transition, TransitionError},
 };
 use time::OffsetDateTime;
 

@@ -13,12 +13,14 @@ use crate::{
         vrf::RingVrfSignature,
     },
     extrinsics::components::tickets::TicketExtrinsicEntry,
-    state::components::{
-        entropy::EntropyAccumulator,
-        timeslot::Timeslot,
-        validators::{ActiveValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet},
+    state::{
+        components::{
+            entropy::EntropyAccumulator,
+            timeslot::Timeslot,
+            validators::{ActiveValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet},
+        },
+        transition::{Transition, TransitionError},
     },
-    transition::{Transition, TransitionError},
 };
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use std::fmt::{Display, Formatter};

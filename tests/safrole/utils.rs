@@ -6,15 +6,18 @@ use rjam::{
     common::{
         sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, EPOCH_LENGTH,
     },
-    state::components::{
-        entropy::EntropyAccumulator,
-        safrole::{SafroleState, SlotSealerType},
-        timeslot::Timeslot,
-        validators::{
-            ActiveValidatorSet, PastValidatorSet, StagingValidatorSet, ValidatorKey, ValidatorSet,
+    state::{
+        components::{
+            entropy::EntropyAccumulator,
+            safrole::{SafroleState, SlotSealerType},
+            timeslot::Timeslot,
+            validators::{
+                ActiveValidatorSet, PastValidatorSet, StagingValidatorSet, ValidatorKey,
+                ValidatorSet,
+            },
         },
+        transition::TransitionError,
     },
-    transition::TransitionError,
 };
 use serde::{de, de::Visitor, Deserializer, Serializer};
 use std::{error::Error, fmt};

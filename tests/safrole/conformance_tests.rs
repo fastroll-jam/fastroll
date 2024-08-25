@@ -4,8 +4,8 @@ mod tests {
         asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
         utils::{map_error_to_custom_code, StateBuilder},
     };
-    use rjam::{
-        state::components::{
+    use rjam::state::{
+        components::{
             entropy::EntropyAccumulatorContext,
             safrole::SafroleStateContext,
             timeslot::{Timeslot, TimeslotContext},

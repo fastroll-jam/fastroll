@@ -3,8 +3,10 @@ use crate::{
     common::{Hash32, HASH32_DEFAULT},
     crypto::utils::blake2b_256,
     impl_jam_codec_for_newtype,
-    state::components::timeslot::Timeslot,
-    transition::{Transition, TransitionError},
+    state::{
+        components::timeslot::Timeslot,
+        transition::{Transition, TransitionError},
+    },
 };
 use std::fmt::{Display, Formatter};
 

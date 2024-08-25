@@ -2,8 +2,10 @@ use crate::{
     codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput},
     common::VALIDATOR_COUNT,
     impl_jam_codec_for_newtype,
-    state::components::{safrole::SafroleState, timeslot::Timeslot},
-    transition::{Transition, TransitionError},
+    state::{
+        components::{safrole::SafroleState, timeslot::Timeslot},
+        transition::{Transition, TransitionError},
+    },
 };
 use std::fmt::{Display, Formatter};
 
