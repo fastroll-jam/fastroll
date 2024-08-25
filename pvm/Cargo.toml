@@ -1,0 +1,8 @@
+[package]
+name = "pvm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-common = { workspace = true }
+thiserror = { workspace = true }
