@@ -1,0 +1,12 @@
+[package]
+name = "jam-db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-common = { workspace = true }
+jam-crypto = { workspace = true }
+dotenv = { workspace = true }
+lazy_static = { workspace = true }
+rocksdb = { workspace = true }
+thiserror = { workspace = true }

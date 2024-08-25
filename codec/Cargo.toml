@@ -1,0 +1,8 @@
+[package]
+name = "jam-codec"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bit-vec = { workspace = true }
+thiserror = { workspace = true }

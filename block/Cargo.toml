@@ -1,0 +1,17 @@
+[package]
+name = "jam-block"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-db = { workspace = true }
+jam-codec = { workspace = true }
+jam-common = { workspace = true }
+jam-crypto = { workspace = true }
+ark-ec-vrfs = { workspace = true }
+blake2 = { workspace = true }
+bit-vec = { workspace = true }
+hex = { workspace = true }
+lazy_static = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }

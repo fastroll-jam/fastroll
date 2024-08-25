@@ -1,0 +1,11 @@
+[package]
+name = "jam-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-codec = { workspace = true }
+hex = { workspace = true }
+
+[features]
+testing = []

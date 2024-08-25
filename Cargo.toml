@@ -1,23 +1,47 @@
+[workspace]
+members = [
+    ".",
+    "block",
+    "codec",
+    "common",
+    "crypto",
+    "db",
+    "tests",
+]
+
 [package]
 name = "rjam"
 description = "JAM Rust implementation"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
+[workspace.dependencies]
+# Internal dependencies
+jam-block = { path = "block" }
+jam-codec = { path = "codec" }
+jam-common = { path = "common" }
+jam-crypto = { path = "crypto" }
+jam-db = { path = "db" }
+# External dependencies
+ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "6b07f6f", features = ["bandersnatch", "ring", "parallel", "test-vectors"] }
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
 dotenv = "0.15.0"
 thiserror = "1.0.63"
 rocksdb = "0.22.0"
 lazy_static = "1.5.0"
-ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "6b07f6f", features = ["bandersnatch", "ring", "parallel", "test-vectors"] }
 hex = "0.4.3"
+serde = { version = "1.0.204", features = ["derive"] }
 time = "0.3.36"
 
+[dependencies]
+jam-block = { workspace = true }
+jam-common = { workspace = true }
+jam-db = { workspace = true }
+lazy_static = { workspace = true }
+
 [dev-dependencies]
-serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.121"
 
 [features]
-testing = []
+testing = ["jam-common/testing"]
