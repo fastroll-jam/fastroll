@@ -56,7 +56,7 @@ impl KVDBManager {
     // Store data that leaf nodes point to
     pub fn store_data(&self, data: &[u8]) -> Result<Hash32, KVDBError> {
         let db = self.get_db();
-        let data_hash = blake2b_256(data).map_err(|e| KVDBError::CryptoError(e))?;
+        let data_hash = blake2b_256(data).map_err(KVDBError::CryptoError)?;
         db.put(&data_hash, data)
             .map_err(|_| KVDBError::StoreNodeError)?;
         Ok(data_hash)

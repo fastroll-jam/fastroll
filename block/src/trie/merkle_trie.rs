@@ -67,10 +67,10 @@ fn merklize_map(
         let (_bits_key, (k, v)) = d.into_iter().next().unwrap();
         let leaf = encode_leaf(db_manager, k, &v)?; // this involves storing data the leaf node points to the KVDB.
         let leaf_bytes = lsb_bits_to_bytes(leaf.clone());
-        let leaf_hash = blake2b_256(&leaf_bytes).map_err(|e| GlobalStateError::CryptoError(e))?;
+        let leaf_hash = blake2b_256(&leaf_bytes).map_err(GlobalStateError::CryptoError)?;
         db_manager
             .store_node(&leaf_hash, &leaf_bytes)
-            .map_err(|e| GlobalStateError::KVDBError(e))?; // key: Hash(value), value: bits^-1(L(k, v))
+            .map_err(GlobalStateError::KVDBError)?; // key: Hash(value), value: bits^-1(L(k, v))
         return Ok(leaf_hash);
     }
 
@@ -167,5 +167,5 @@ fn get_data_from_leaf_hash(
     let data_hash = bitvec_to_hash(slice_bitvec(&node_bits, 256..))?;
     db_manager
         .get_node(&data_hash)
-        .map_err(|e| MerklizationError::KVDBError(e))
+        .map_err(MerklizationError::KVDBError)
 }
