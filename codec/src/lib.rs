@@ -598,6 +598,19 @@ impl JamEncodeFixed for BitVec {
     }
 }
 
+impl JamDecodeFixed for Vec<u8> {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut buffer = vec![0u8; size];
+        input.read(&mut buffer)?;
+        Ok(buffer)
+    }
+}
+
 impl JamDecodeFixed for BitVec {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 
