@@ -249,12 +249,18 @@ impl PVM {
     pub(crate) fn common_invocation(
         standard_program: Octets,
         args: Octets,
+        pc: u32,
+        gas: UnsignedGas,
+        host_function: u32, // TODO: type
+        context: InvocationContext,
     ) -> Result<CommonInvocationResult, VMError> {
         let pvm = Self::new_from_standard_program(standard_program, args)?;
 
-        // TODO: host-call extended PVM invocation
+        // host-call extended PVM invocation
         todo!()
     }
+
+
 }
 
 impl Memory {
