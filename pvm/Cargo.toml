@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 jam-codec = { workspace = true }
 jam-common = { workspace = true }
+bit-vec = { workspace = true }
 thiserror = { workspace = true }

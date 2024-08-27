@@ -1,11 +1,14 @@
 use crate::constants::{
     INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
 };
-use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use bit_vec::BitVec;
+use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncodeFixed, JamInput};
 use jam_common::{Octets, UnsignedGas};
 use thiserror::Error;
 
-// PVM Error Codes
+type MemAddress = u32;
+
+/// PVM Error Codes
 #[derive(Debug, Error)]
 pub(crate) enum VMError {
     #[error("Out of gas")]
@@ -13,9 +16,9 @@ pub(crate) enum VMError {
     #[error("Invalid program counter value")]
     InvalidProgramCounter,
     #[error("Memory access violation: {0}")]
-    MemoryAccessViolation(u32),
+    MemoryAccessViolation(MemAddress),
     #[error("Memory cell unavailable: {0}")]
-    MemoryUnavailable(u32),
+    MemoryUnavailable(MemAddress),
     #[error("Panic")]
     Panic,
     #[error("Invalid program")]
@@ -135,7 +138,10 @@ impl Opcode {
     }
 }
 
+//
 // Enums
+//
+
 #[derive(Clone, Copy, Default)]
 enum AccessType {
     #[default]
@@ -217,18 +223,31 @@ enum InvocationContext {
     X_T, // On-Transfer
 }
 
+//
 // Structs
+//
 
 /// Main stateful PVM struct
 struct PVM {
+    state: VMState,
+    program: Program,
+}
+
+/// Mutable VM state
+#[derive(Clone)]
+struct VMState {
     registers: [Register; REGISTERS_COUNT], // omega
     memory: Memory,                         // mu
-    pc: u32,                                // iota
+    pc: MemAddress,                         // iota
     gas_counter: UnsignedGas,               // xi
-    program_code: Octets,                   // p (`c` of the Initialization Decoder Function `Y`)
-    instructions: Octets,                   // c
-    jump_table: Vec<u32>,                   // j
-    opcode_bitmask: Octets,                 // k TODO: type check
+}
+
+/// Immutable program components
+struct Program {
+    program_code: Octets, // p (`c` of the Initialization Decoder Function `Y`)
+    instructions: Octets, // c; serialized
+    jump_table: Vec<MemAddress>, // j
+    opcode_bitmask: BitVec, // k
 }
 
 #[derive(Clone, Copy)]
@@ -236,6 +255,7 @@ struct Register {
     value: u32,
 }
 
+#[derive(Clone)]
 struct Memory {
     cells: Vec<MemoryCell>,
     page_size: usize,
@@ -254,7 +274,8 @@ struct Instruction {
     r1: Option<u8>,      // first source register
     r2: Option<u8>,      // second source register
     rd: Option<u8>,      // destination register
-    imm: Option<u32>,    // immediate value argument
+    imm1: Option<u32>,   // first immediate value argument
+    imm2: Option<u32>,   // second immediate value argument
     offset: Option<i32>, // offset argument
 }
 
@@ -269,7 +290,18 @@ struct FormattedProgram {
     code: Octets,            // c
 }
 
+struct StateChange {
+    register_changes: Vec<(usize, u32)>,
+    memory_changes: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    pc_change: Option<MemAddress>,
+    gas_change: UnsignedGas,
+    exit_reason: ExitReason,
+}
+
+//
 // Helper functions for the standard program initialization
+//
+
 fn p(x: usize) -> usize {
     // P(x) = Z_P * ceil(x / Z_P)
     PAGE_SIZE * ((x + PAGE_SIZE - 1) / PAGE_SIZE)
@@ -283,29 +315,33 @@ fn q(x: usize) -> usize {
 impl Default for PVM {
     fn default() -> Self {
         Self {
-            registers: [Register { value: 0 }; REGISTERS_COUNT],
-            memory: Memory::new(0, 0),
-            pc: 0,
-            gas_counter: 0,
-            program_code: vec![],
-            instructions: vec![],
-            jump_table: vec![],
-            opcode_bitmask: vec![],
+            state: VMState {
+                registers: [Register { value: 0 }; REGISTERS_COUNT],
+                memory: Memory::new(0, 0),
+                pc: 0,
+                gas_counter: 0,
+            },
+            program: Program {
+                program_code: vec![],
+                instructions: vec![],
+                jump_table: vec![],
+                opcode_bitmask: BitVec::new(),
+            },
         }
     }
 }
 
 impl PVM {
     fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), VMError> {
-        if self.gas_counter < amount {
+        if self.state.gas_counter < amount {
             Err(VMError::OutOfGas)
         } else {
-            self.gas_counter -= amount;
+            self.state.gas_counter -= amount;
             Ok(())
         }
     }
 
-    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &Octets) -> Result<(), VMError> {
+    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), VMError> {
         let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
 
         // Program-specific read-only data area (o)
@@ -346,40 +382,40 @@ impl PVM {
         memory.set_access_range(heap_end, stack_start, AccessType::Inaccessible);
         memory.set_access_range(stack_end, args_start, AccessType::Inaccessible);
 
-        self.memory = memory;
+        self.state.memory = memory;
         Ok(())
     }
 
     fn initialize_registers(&mut self, args_len: usize) {
-        self.registers[1].value = u32::MAX - (1 << 16) + 1;
-        self.registers[2].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.registers[10].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.registers[11].value = args_len as u32;
+        self.state.registers[1].value = u32::MAX - (1 << 16) + 1;
+        self.state.registers[2].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[10].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[11].value = args_len as u32;
     }
 
-    // Decode program blob into formatted program
-    fn decode_standard_program(program: Octets) -> Result<FormattedProgram, VMError> {
-        FormattedProgram::decode(&mut program.as_slice()).map_err(VMError::JamCodecError)
+    /// Decode program blob into formatted program
+    fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, VMError> {
+        let mut input = program;
+        FormattedProgram::decode(&mut input).map_err(VMError::JamCodecError)
     }
 
-    // Decode program code into instruction sequence, dynamic jump table, and opcode bitmask
-    fn decode_program_code(code: Octets) -> Result<(Octets, Octets, Vec<u16>), VMError> {
-        let mut input = code.as_slice();
+    /// Decode program code into instruction sequence, opcode bitmask and dynamic jump table
+    fn decode_program_code(code: &[u8]) -> Result<(Octets, BitVec, Vec<MemAddress>), VMError> {
+        let mut input = code;
 
-        // TODO: type check
-        // Decode |j| (length of the jump table)
+        // Decode the length of the jump table (|j|)
         let jump_table_len = usize::decode(&mut input)?;
 
-        // Decode z (jump table entry length in octets)
+        // Decode the jump table entry length in octets (z)
         let z = u8::decode_fixed(&mut input, 1)?;
 
-        // Decode |c| (length of the instruction sequence)
+        // Decode the length of the instruction sequence (|c|)
         let instructions_len = usize::decode(&mut input)?;
 
         // Decode the dynamic jump table (j)
         let mut jump_table = Vec::with_capacity(jump_table_len);
         for _ in 0..jump_table_len {
-            jump_table.push(u16::decode_fixed(&mut input, z as usize)?);
+            jump_table.push(MemAddress::decode_fixed(&mut input, z as usize)?);
         }
 
         // Decode the instruction sequence (c)
@@ -387,7 +423,7 @@ impl PVM {
 
         // Decode the opcode bitmask (k)
         // The length of `k` must be equivalent to the length of `c`, |k| = |c|
-        let opcode_bitmask = Octets::decode_fixed(&mut input, instructions_len)?;
+        let opcode_bitmask = BitVec::decode_fixed(&mut input, instructions_len)?;
 
         if !input.is_empty() {
             return Err(VMError::InvalidProgram);
@@ -399,7 +435,7 @@ impl PVM {
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
     /// Represented as `Y` in the GP
-    fn new_from_standard_program(standard_program: Octets, args: Octets) -> Result<Self, VMError> {
+    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
         let mut pvm = PVM::default();
 
         // decode program and check validity
@@ -410,7 +446,7 @@ impl PVM {
 
         pvm.setup_memory_layout(&formatted_program, &args)?;
         pvm.initialize_registers(args.len());
-        pvm.program_code = formatted_program.code;
+        pvm.program.program_code = formatted_program.code;
 
         Ok(pvm)
     }
@@ -420,9 +456,9 @@ impl PVM {
     ///
     /// Represented as `Psi_M` in the GP
     pub(crate) fn common_invocation(
-        standard_program: Octets,
-        args: Octets,
-        pc: u32,
+        standard_program: &[u8],
+        args: &[u8],
+        pc: MemAddress,
         gas: UnsignedGas,
         host_function: u32, // TODO: type
         context: InvocationContext,
@@ -433,41 +469,117 @@ impl PVM {
         todo!()
     }
 
+    /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
+    /// common invocation function
+    ///
+    /// Represented as `Psi_H` in the GP
+    fn extended_invocation(program_code: &[u8]) -> Result<ExitReason, VMError> {
+        todo!()
+    }
+
+    /// Recursively call single-step invocation functions following the instruction sequence
+    ///
+    /// Represented as `Psi` in the GP
+    fn general_invocation() {}
+
+    /// Single-step invocation to return PVM state mutations by each instruction rules
+    ///
+    /// Represented as `Psi_1` in the GP
+    fn single_step_invocation() {}
+
     //
     // PVM Instruction functions
     //
 
     //
-    // Instructions without Arguments
+    // Group 1: Instructions without Arguments
     //
 
-    /// Halt program with `panic` exit reason
-    fn trap() -> Result<ExitReason, VMError> {
-        Ok(ExitReason::Panic)
+    /// `panic` with no mutation to the VM state
+    ///
+    /// Opcode: 0
+    fn trap() -> Result<StateChange, VMError> {
+        Ok(StateChange {
+            exit_reason: ExitReason::Panic,
+            ..Default::default()
+        })
     }
 
     /// Continue program with no mutation to the VM state
-    fn fallthrough() -> Result<ExitReason, VMError> {
-        Ok(ExitReason::Continue)
+    ///
+    /// Opcode: 17
+    fn fallthrough() -> Result<StateChange, VMError> {
+        Ok(StateChange::default())
     }
 
     //
-    // Instructions with Arguments of One Immediate
+    // Group 2: Instructions with Arguments of One Immediate
     //
-    fn ecalli(imm: u32) -> Result<ExitReason, VMError> {
-        if imm > u8::MAX as u32 {
-            return Err(VMError::InvalidImmediateValue);
-        }
-        HostCallType::from_u8(imm as u8)
-            .map(ExitReason::HostCall)
+
+    /// Invoke host function call
+    ///
+    /// Opcode: 78
+    fn ecalli(ins: &Instruction) -> Result<StateChange, VMError> {
+        let imm_host_call_type =
+            u8::try_from(ins.imm1.unwrap()).map_err(|_| VMError::InvalidImmediateValue)?;
+
+        let exit_reason = HostCallType::from_u8(imm_host_call_type)
             .ok_or(VMError::InvalidHostCallType)
+            .map(ExitReason::HostCall)?;
+
+        Ok(StateChange {
+            exit_reason,
+            ..Default::default()
+        })
     }
 
     //
-    // Instructions with Arguments of Two Immediates
+    // Group 3: Instructions with Arguments of Two Immediates
     //
-    fn store_imm_u8() -> Result<ExitReason, VMError> {
-        todo!()
+
+    /// Store immediate argument value to the memory as `u8` integer type
+    ///
+    /// Opcode: 62
+    fn store_imm_u8(ins: &Instruction) -> Result<StateChange, VMError> {
+        let imm_address = ins.imm1.unwrap() as MemAddress;
+        let imm_value = ins.imm2.unwrap();
+
+        let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
+
+        Ok(StateChange {
+            memory_changes: (imm_address, value, 1),
+            ..Default::default()
+        })
+    }
+
+    /// Store immediate argument value to the memory as `u16` integer type
+    ///
+    /// Opcode: 79
+    fn store_imm_u16(ins: &Instruction) -> Result<StateChange, VMError> {
+        let imm_address = ins.imm1.unwrap() as MemAddress;
+        let imm_value = ins.imm2.unwrap();
+
+        let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
+
+        Ok(StateChange {
+            memory_changes: (imm_address, value, 2),
+            ..Default::default()
+        })
+    }
+
+    /// Store immediate argument value to the memory as `u32` integer type
+    ///
+    /// Opcode: 38
+    fn store_imm_u32(ins: &Instruction) -> Result<StateChange, VMError> {
+        let imm_address = ins.imm1.unwrap() as MemAddress;
+        let imm_value = ins.imm2.unwrap();
+
+        let value = imm_value.encode_fixed(4)?;
+
+        Ok(StateChange {
+            memory_changes: (imm_address, value, 4),
+            ..Default::default()
+        })
     }
 }
 
@@ -504,7 +616,7 @@ impl Memory {
     }
 
     /// Read a byte from memory
-    fn read_u8(&self, address: u32) -> Result<u8, VMError> {
+    fn read_u8(&self, address: MemAddress) -> Result<u8, VMError> {
         let cell = self
             .cells
             .get(address as usize)
@@ -517,7 +629,7 @@ impl Memory {
     }
 
     /// Write an u8 value to memory
-    fn write_u8(&mut self, address: u32, value: u8) -> Result<(), VMError> {
+    fn write_u8(&mut self, address: MemAddress, value: u8) -> Result<(), VMError> {
         let cell = self
             .cells
             .get_mut(address as usize)
@@ -535,14 +647,14 @@ impl Memory {
     }
 
     /// Read two consecutive bytes from memory
-    pub fn read_u16(&self, address: u32) -> Result<u16, VMError> {
+    pub fn read_u16(&self, address: MemAddress) -> Result<u16, VMError> {
         let b0 = self.read_u8(address)?;
         let b1 = self.read_u8(address.wrapping_add(1))?;
         Ok(u16::from_le_bytes([b0, b1]))
     }
 
     /// Write an u16 value as two consecutive bytes to memory
-    pub fn write_u16(&mut self, address: u32, value: u16) -> Result<(), VMError> {
+    pub fn write_u16(&mut self, address: MemAddress, value: u16) -> Result<(), VMError> {
         let [b0, b1] = value.to_le_bytes();
         self.write_u8(address, b0)?;
         self.write_u8(address.wrapping_add(1), b1)?;
@@ -550,7 +662,7 @@ impl Memory {
     }
 
     /// Read four consecutive bytes from memory
-    pub fn read_u32(&self, address: u32) -> Result<u32, VMError> {
+    pub fn read_u32(&self, address: MemAddress) -> Result<u32, VMError> {
         let b0 = self.read_u8(address)?;
         let b1 = self.read_u8(address.wrapping_add(1))?;
         let b2 = self.read_u8(address.wrapping_add(2))?;
@@ -559,7 +671,7 @@ impl Memory {
     }
 
     /// Write an u32 value as four consecutive bytes to memory
-    pub fn write_u32(&mut self, address: u32, value: u32) -> Result<(), VMError> {
+    pub fn write_u32(&mut self, address: MemAddress, value: u32) -> Result<(), VMError> {
         let [b0, b1, b2, b3] = value.to_le_bytes();
         self.write_u8(address, b0)?;
         self.write_u8(address.wrapping_add(1), b1)?;
@@ -569,16 +681,16 @@ impl Memory {
     }
 
     /// Read a specified number of bytes from memory starting at the given address
-    pub fn read_bytes(&self, address: usize, length: usize) -> Result<Vec<u8>, VMError> {
+    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, VMError> {
         (0..length)
-            .map(|i| self.read_u8((address + i) as u32))
+            .map(|i| self.read_u8(address + i as MemAddress))
             .collect()
     }
 
     /// Write a slice of bytes to memory starting at the given address
-    pub fn write_bytes(&mut self, address: usize, bytes: &[u8]) -> Result<(), VMError> {
+    pub fn write_bytes(&mut self, address: MemAddress, bytes: &[u8]) -> Result<(), VMError> {
         for (i, &byte) in bytes.iter().enumerate() {
-            self.write_u8((address + i) as u32, byte)?;
+            self.write_u8(address + i as MemAddress, byte)?;
         }
         Ok(())
     }
@@ -617,7 +729,8 @@ impl Instruction {
         r1: Option<u8>,
         r2: Option<u8>,
         rd: Option<u8>,
-        imm: Option<u32>,
+        imm1: Option<u32>,
+        imm2: Option<u32>,
         offset: Option<i32>,
     ) -> Result<Self, VMError> {
         // Validate register indices
@@ -632,7 +745,8 @@ impl Instruction {
             r1,
             r2,
             rd,
-            imm,
+            imm1,
+            imm2,
             offset,
         })
     }
@@ -646,5 +760,17 @@ impl FormattedProgram {
             + q(self.stack_size as usize)
             + INPUT_SIZE;
         condition_value <= STANDARD_PROGRAM_SIZE_LIMIT
+    }
+}
+
+impl Default for StateChange {
+    fn default() -> Self {
+        Self {
+            register_changes: vec![],
+            memory_changes: (0, vec![], 0),
+            pc_change: None,
+            gas_change: 0,
+            exit_reason: ExitReason::Continue,
+        }
     }
 }
