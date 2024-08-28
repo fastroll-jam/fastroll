@@ -25,6 +25,8 @@ pub(crate) enum VMError {
     InvalidProgram,
     #[error("Invalid instruction format")]
     InvalidInstructionFormat,
+    #[error("Invalid opcode")]
+    InvalidOpcode,
     #[error("Invalid immediate value")]
     InvalidImmediateValue,
     #[error("Invalid host call type")]
@@ -163,7 +165,12 @@ enum ExitReason {
     RegularHalt,
     Panic,
     OutOfGas,
-    PageFault,
+    PageFault(MemAddress),
+    HostCall(HostCallType),
+}
+
+enum ExecutionResult {
+    Complete(ExitReason),
     HostCall(HostCallType),
 }
 
@@ -208,6 +215,29 @@ impl HostCallType {
     }
 }
 
+#[repr(u32)]
+enum HostCallResult {
+    NONE = u32::MAX,
+    OOB = u32::MAX - 1,
+    WHO = u32::MAX - 2,
+    FULL = u32::MAX - 3,
+    CORE = u32::MAX - 4,
+    CASH = u32::MAX - 5,
+    LOW = u32::MAX - 6,
+    HIGH = u32::MAX - 7,
+    WHAT = u32::MAX - 8,
+    HUH = u32::MAX - 9,
+    OK = 0,
+}
+
+#[repr(u32)]
+enum InnerPVMInvocationResult {
+    HALT = 0,
+    PANIC = u32::MAX - 11,
+    FAULT = u32::MAX - 12,
+    HOST = u32::MAX - 13,
+}
+
 enum CommonInvocationResult {
     OutOfGas(ExitReason, InvocationContext), // (exit_reason, context)
     Result(UnsignedGas, Octets),             // (posterior_gas, return_value)
@@ -215,8 +245,11 @@ enum CommonInvocationResult {
     Failure(ExitReason, InvocationContext),  // (panic, context)
 }
 
+// TODO: add service accounts context
+#[derive(Clone, Copy)]
 #[allow(non_camel_case_types)]
 enum InvocationContext {
+    X_G, // General Functions
     X_I, // Is-Authorized
     X_R, // Refine
     X_A, // Accumulate
@@ -268,12 +301,14 @@ struct MemoryCell {
     status: CellStatus,
 }
 
+// TODO: check if this is useful as the PVM counts instructions in Octets, not Instruction units
+// TODO: decode for the single-step invocation only?
 #[derive(Debug)]
 struct Instruction {
     op: Opcode,          // opcode
-    r1: Option<u8>,      // first source register
-    r2: Option<u8>,      // second source register
-    rd: Option<u8>,      // destination register
+    r1: Option<u32>,     // first source register
+    r2: Option<u32>,     // second source register
+    rd: Option<u32>,     // destination register
     imm1: Option<u32>,   // first immediate value argument
     imm2: Option<u32>,   // second immediate value argument
     offset: Option<i32>, // offset argument
@@ -292,10 +327,22 @@ struct FormattedProgram {
 
 struct StateChange {
     register_changes: Vec<(usize, u32)>,
-    memory_changes: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
     pc_change: Option<MemAddress>,
     gas_change: UnsignedGas,
-    exit_reason: ExitReason,
+    exit_reason: ExitReason, // TODO: check if necessary
+}
+
+// TODO: impl with interface to the global state
+struct ServiceAccountChange {}
+
+struct HostCallStateChange {
+    gas_change: UnsignedGas,
+    r0_change: Option<u32>,
+    r1_change: Option<u32>,
+    memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    service_accounts_changes: Vec<(u32, ServiceAccountChange)>, // u32 for service account index; TODO: better data handling
+    exit_reason: ExitReason,                                    // TODO: check if necessary
 }
 
 //
@@ -432,9 +479,58 @@ impl PVM {
         Ok((instructions, opcode_bitmask, jump_table))
     }
 
+    /// Decodes a single instruction blob into an `Instruction` type.
+    ///
+    /// This function takes a byte slice representing an instruction and converts it
+    /// into a more easily consumable `Instruction` type, which can be used by
+    /// single-step PVM state-transition functions.
+    ///
+    /// The instruction blob should not exceed 16 bytes in length.
+    /// The opcode is represented by the first byte of the instruction blob.
+    fn decode_instruction(
+        instruction_blob: &[u8],
+        skip_distance: usize,
+    ) -> Result<Instruction, VMError> {
+        let op = Opcode::from_u8(instruction_blob[0]).ok_or(VMError::InvalidOpcode)?;
+
+        match op {
+            // Group 1
+            Opcode::TRAP | Opcode::FALLTHROUGH => {
+                Ok(Instruction::new(op, None, None, None, None, None, None)?)
+            }
+            // Group 2
+            Opcode::ECALLI => {
+                let l_1 = skip_distance.min(4);
+                Ok(Instruction::new(op, None, None, None, None, None, None)?)
+            } // FIXME
+            _ => Err(VMError::InvalidOpcode),
+        }
+    }
+
+    /// Skip function that calculates skip distance to the next instruction from the instruction
+    /// sequence and the opcode bitmask
+    fn skip(pc: MemAddress, instructions: &[u8], bitmask: &BitVec) -> usize {
+        let mut skip_distance = 0;
+        let max_skip = 24;
+
+        // TODO: assertion for instructions.len() == bitmask.len() needed?
+
+        for i in 1..=max_skip {
+            let next_opcode_index = pc as usize + i;
+            if next_opcode_index >= instructions.len() {
+                break;
+            }
+            if bitmask[next_opcode_index] {
+                skip_distance = i;
+                break;
+            }
+        }
+        skip_distance.min(max_skip)
+    }
+
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
-    /// Represented as `Y` in the GP
+    /// Represents `Y` in the GP
     fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
         let mut pvm = PVM::default();
 
@@ -451,44 +547,218 @@ impl PVM {
         Ok(pvm)
     }
 
+    /// Mutate the VM states from the change set produced by single-step instruction execution functions
+    fn apply_state_change(&mut self, change: StateChange) -> ExitReason {
+        // Apply register changes
+        for (reg_index, new_value) in change.register_changes {
+            if reg_index < REGISTERS_COUNT {
+                self.state.registers[reg_index] = Register { value: new_value };
+            } else {
+                eprintln!(
+                    "Warning: Attempted to change invalid register index: {}",
+                    reg_index
+                );
+            }
+        }
+
+        // Apply memory change
+        let (start_address, data, data_len) = change.memory_change;
+        if data_len as usize <= data.len() {
+            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
+                if let Err(e) = self
+                    .state
+                    .memory
+                    .write_u8(start_address.wrapping_add(offset as u32), byte)
+                {
+                    eprintln!(
+                        "Warning: Failed to write to memory at address {:X}: {:?}",
+                        start_address.wrapping_add(offset as u32),
+                        e
+                    );
+                }
+            }
+        } else {
+            eprintln!("Warning: Data length mismatch in memory changes");
+        }
+
+        // Apply PC change
+        if let Some(new_pc) = change.pc_change {
+            self.state.pc = new_pc;
+        }
+
+        // Apply gas change
+        if self.state.gas_counter >= change.gas_change {
+            self.state.gas_counter -= change.gas_change;
+        } else {
+            return ExitReason::OutOfGas;
+        }
+
+        change.exit_reason
+    }
+
+    fn apply_host_call_state_change(&mut self, change: HostCallStateChange) -> ExitReason {
+        // Apply register changes (register index 0 & 1)
+        if let Some(r0) = change.r0_change {
+            self.state.registers[0].value = r0;
+        }
+        if let Some(r1) = change.r1_change {
+            self.state.registers[1].value = r1;
+        }
+
+        // Apply memory change
+        let (start_address, data, data_len) = change.memory_change;
+        if data_len as usize <= data.len() {
+            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
+                if let Err(e) = self
+                    .state
+                    .memory
+                    .write_u8(start_address.wrapping_add(offset as u32), byte)
+                {
+                    eprintln!(
+                        "Warning: Failed to write to memory at address {:X}: {:?}",
+                        start_address.wrapping_add(offset as u32),
+                        e
+                    );
+                }
+            }
+        } else {
+            eprintln!("Warning: Data length mismatch in memory changes");
+        }
+
+        // Apply gas change
+        if self.state.gas_counter >= change.gas_change {
+            self.state.gas_counter -= change.gas_change;
+        } else {
+            return ExitReason::OutOfGas;
+        }
+
+        change.exit_reason
+    }
+
     /// Invoke the PVM with program and arguments
     /// This works as a common interface for 4 different PVM invocations
     ///
-    /// Represented as `Psi_M` in the GP
+    /// Represents `Psi_M` in the GP
     pub(crate) fn common_invocation(
         standard_program: &[u8],
-        args: &[u8],
         pc: MemAddress,
         gas: UnsignedGas,
-        host_function: u32, // TODO: type
+        args: &[u8],
         context: InvocationContext,
     ) -> Result<CommonInvocationResult, VMError> {
-        let pvm = Self::new_from_standard_program(standard_program, args)?;
+        let mut pvm = Self::new_from_standard_program(standard_program, args)?; // TODO: error handling
+        pvm.state.pc = pc;
+        pvm.state.gas_counter = gas;
 
-        // host-call extended PVM invocation
-        todo!()
+        // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
+        // and store to the immutable PVM state
+        let (instructions, bitmask, jump_table) =
+            Self::decode_program_code(&pvm.program.program_code)?;
+        pvm.program.instructions = instructions;
+        pvm.program.opcode_bitmask = bitmask;
+        pvm.program.jump_table = jump_table;
+
+        match pvm.extended_invocation(context)? {
+            ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(
+                ExitReason::OutOfGas,
+                context,
+            )),
+            ExitReason::RegularHalt => {
+                let result = pvm.state.memory.read_bytes(
+                    pvm.state.registers[10].value,
+                    pvm.state.registers[11].value as usize,
+                );
+                Ok(match result {
+                    Ok(bytes) => CommonInvocationResult::Result(pvm.state.gas_counter, bytes),
+                    Err(_) => CommonInvocationResult::ResultUnavailable(pvm.state.gas_counter),
+                })
+            }
+            _ => Ok(CommonInvocationResult::Failure(ExitReason::Panic, context)),
+        }
     }
 
     /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
     /// common invocation function
     ///
-    /// Represented as `Psi_H` in the GP
-    fn extended_invocation(program_code: &[u8]) -> Result<ExitReason, VMError> {
-        todo!()
+    /// Represents `Psi_H` in the GP
+    fn extended_invocation(&mut self, context: InvocationContext) -> Result<ExitReason, VMError> {
+        loop {
+            let exit_reason = self.general_invocation()?;
+
+            let state_change = match exit_reason {
+                ExitReason::HostCall(h) => match h {
+                    HostCallType::GAS => {
+                        host_gas(self.state.gas_counter, &self.state.registers, context)?
+                    } // TODO: better gas handling
+                    // TODO: add other host function cases
+                    _ => return Err(VMError::InvalidHostCallType),
+                },
+                _ => return Ok(exit_reason),
+            };
+            let host_call_exit_reason = self.apply_host_call_state_change(state_change);
+            match host_call_exit_reason {
+                ExitReason::PageFault(_address) => return Ok(host_call_exit_reason),
+                _ => continue,
+            }
+        }
     }
 
     /// Recursively call single-step invocation functions following the instruction sequence
+    /// Mutating the VM states
     ///
-    /// Represented as `Psi` in the GP
-    fn general_invocation() {}
+    /// Represents `Psi` in the GP
+    fn general_invocation(&mut self) -> Result<ExitReason, VMError> {
+        loop {
+            let skip_distance = Self::skip(
+                self.state.pc,
+                &self.program.instructions,
+                &self.program.opcode_bitmask,
+            );
 
-    /// Single-step invocation to return PVM state mutations by each instruction rules
+            let instruction_index = self.state.pc as usize;
+            let next_instruction_index = instruction_index + 1 + skip_distance;
+
+            // Instruction blob length is not greater than 16,
+            let instruction_blob = {
+                let full_slice =
+                    &self.program.instructions[instruction_index..next_instruction_index];
+                if full_slice.len() > 16 {
+                    &full_slice[..16]
+                } else {
+                    full_slice
+                }
+            };
+            let ins = Self::decode_instruction(instruction_blob, skip_distance)?;
+
+            let state_change = self.single_step_invocation(&ins)?;
+            let exit_reason = self.apply_state_change(state_change);
+            match exit_reason {
+                ExitReason::Continue => continue,
+                ExitReason::OutOfGas => return Ok(exit_reason),
+                _ => return Ok(exit_reason),
+            }
+        }
+    }
+
+    /// Single-step PVM state transition function
+    /// Refers to the VM states e.g. `pc`, `memory`, `instructions` from the `&self` state
+    /// and returns the VM state change as an output
     ///
-    /// Represented as `Psi_1` in the GP
-    fn single_step_invocation() {}
+    /// Represents `Psi_1` in the GP
+    fn single_step_invocation(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+        match ins.op {
+            Opcode::TRAP => self.trap(),
+            Opcode::FALLTHROUGH => self.fallthrough(),
+            Opcode::ECALLI => self.ecalli(&ins),
+            Opcode::STORE_IMM_U8 => self.store_imm_u8(&ins),
+            Opcode::STORE_IMM_U16 => self.store_imm_u16(&ins),
+            Opcode::STORE_IMM_U32 => self.store_imm_u32(&ins),
+            _ => Err(VMError::InvalidInstructionFormat),
+        }
+    }
 
     //
-    // PVM Instruction functions
+    // PVM instruction execution functions
     //
 
     //
@@ -498,9 +768,16 @@ impl PVM {
     /// `panic` with no mutation to the VM state
     ///
     /// Opcode: 0
-    fn trap() -> Result<StateChange, VMError> {
+    fn trap(&self) -> Result<StateChange, VMError> {
         Ok(StateChange {
             exit_reason: ExitReason::Panic,
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
             ..Default::default()
         })
     }
@@ -508,8 +785,17 @@ impl PVM {
     /// Continue program with no mutation to the VM state
     ///
     /// Opcode: 17
-    fn fallthrough() -> Result<StateChange, VMError> {
-        Ok(StateChange::default())
+    fn fallthrough(&self) -> Result<StateChange, VMError> {
+        Ok(StateChange {
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
+            ..Default::default()
+        })
     }
 
     //
@@ -519,7 +805,7 @@ impl PVM {
     /// Invoke host function call
     ///
     /// Opcode: 78
-    fn ecalli(ins: &Instruction) -> Result<StateChange, VMError> {
+    fn ecalli(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_host_call_type =
             u8::try_from(ins.imm1.unwrap()).map_err(|_| VMError::InvalidImmediateValue)?;
 
@@ -529,6 +815,13 @@ impl PVM {
 
         Ok(StateChange {
             exit_reason,
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
             ..Default::default()
         })
     }
@@ -540,14 +833,21 @@ impl PVM {
     /// Store immediate argument value to the memory as `u8` integer type
     ///
     /// Opcode: 62
-    fn store_imm_u8(ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
 
         Ok(StateChange {
-            memory_changes: (imm_address, value, 1),
+            memory_change: (imm_address, value, 1),
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
             ..Default::default()
         })
     }
@@ -555,14 +855,21 @@ impl PVM {
     /// Store immediate argument value to the memory as `u16` integer type
     ///
     /// Opcode: 79
-    fn store_imm_u16(ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
 
         Ok(StateChange {
-            memory_changes: (imm_address, value, 2),
+            memory_change: (imm_address, value, 2),
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
             ..Default::default()
         })
     }
@@ -570,14 +877,56 @@ impl PVM {
     /// Store immediate argument value to the memory as `u32` integer type
     ///
     /// Opcode: 38
-    fn store_imm_u32(ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = imm_value.encode_fixed(4)?;
 
         Ok(StateChange {
-            memory_changes: (imm_address, value, 4),
+            memory_change: (imm_address, value, 4),
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
+            ..Default::default()
+        })
+    }
+
+    //
+    // Group 4: Instructions with Arguments of One Offset
+    //
+
+    /// Jump to the target address with no condition checks
+    ///
+    /// Opcode: 5
+    fn jump(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+        todo!()
+    }
+
+    //
+    // Group 5: Instructions with Arguments of One Register & One Immediate
+    //
+
+    /// Store register value to the memory as `u8` integer type
+    ///
+    /// Opcode: 71
+    fn store_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+        let imm_address = ins.imm1.unwrap() as MemAddress;
+        let r1_value = vec![(ins.r1.unwrap() & 0xFF) as u8];
+
+        Ok(StateChange {
+            memory_change: (imm_address, r1_value, 1),
+            pc_change: Some(
+                1 + Self::skip(
+                    self.state.pc,
+                    &self.program.instructions,
+                    &self.program.opcode_bitmask,
+                ) as MemAddress,
+            ),
             ..Default::default()
         })
     }
@@ -726,16 +1075,16 @@ impl JamDecode for FormattedProgram {
 impl Instruction {
     fn new(
         op: Opcode,
-        r1: Option<u8>,
-        r2: Option<u8>,
-        rd: Option<u8>,
+        r1: Option<u32>,
+        r2: Option<u32>,
+        rd: Option<u32>,
         imm1: Option<u32>,
         imm2: Option<u32>,
         offset: Option<i32>,
     ) -> Result<Self, VMError> {
         // Validate register indices
         for &reg in [rd, r1, r2].iter().flatten() {
-            if reg > (REGISTERS_COUNT - 1) as u8 {
+            if reg > (REGISTERS_COUNT - 1) as u32 {
                 return Err(VMError::InvalidInstructionFormat);
             }
         }
@@ -767,10 +1116,50 @@ impl Default for StateChange {
     fn default() -> Self {
         Self {
             register_changes: vec![],
-            memory_changes: (0, vec![], 0),
+            memory_change: (0, vec![], 0),
             pc_change: None,
             gas_change: 0,
             exit_reason: ExitReason::Continue,
         }
     }
+}
+
+impl Default for HostCallStateChange {
+    fn default() -> Self {
+        Self {
+            gas_change: 0,
+            r0_change: None,
+            r1_change: None,
+            memory_change: (0, vec![], 0),
+            service_accounts_changes: vec![],
+            exit_reason: ExitReason::Continue,
+        }
+    }
+}
+
+//
+// Host functions
+//
+
+fn host_gas(
+    gas: UnsignedGas,
+    _registers: &[Register; REGISTERS_COUNT],
+    _context: InvocationContext,
+) -> Result<HostCallStateChange, VMError> {
+    let gas_remaining = gas.wrapping_sub(10);
+    Ok(HostCallStateChange {
+        r0_change: Some((gas_remaining & 0xFFFFFFFF) as u32),
+        r1_change: Some((gas_remaining >> 32) as u32),
+        ..Default::default()
+    })
+}
+
+fn host_lookup(
+    gas: UnsignedGas,
+    registers: &[Register; REGISTERS_COUNT],
+    memory: &Memory,
+    context: InvocationContext,
+    service_index: u32,
+) -> Result<HostCallStateChange, VMError> {
+    todo!()
 }
