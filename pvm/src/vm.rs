@@ -281,6 +281,7 @@ struct Program {
     instructions: Octets, // c; serialized
     jump_table: Vec<MemAddress>, // j
     opcode_bitmask: BitVec, // k
+    basic_block_bitmask: BitVec, // bitmask to detect opcode addresses that begin basic blocks
 }
 
 #[derive(Clone, Copy)]
@@ -373,6 +374,7 @@ impl Default for PVM {
                 instructions: vec![],
                 jump_table: vec![],
                 opcode_bitmask: BitVec::new(),
+                basic_block_bitmask: BitVec::new(),
             },
         }
     }
@@ -509,23 +511,80 @@ impl PVM {
 
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
-    fn skip(pc: MemAddress, instructions: &[u8], bitmask: &BitVec) -> usize {
+    fn skip(pc: MemAddress, instructions: &[u8], opcode_bitmask: &BitVec) -> usize {
         let mut skip_distance = 0;
         let max_skip = 24;
 
         // TODO: assertion for instructions.len() == bitmask.len() needed?
 
         for i in 1..=max_skip {
-            let next_opcode_index = pc as usize + i;
-            if next_opcode_index >= instructions.len() {
+            let next_opcode_address = pc as usize + i;
+            if next_opcode_address >= instructions.len() {
                 break;
             }
-            if bitmask[next_opcode_index] {
+            if opcode_bitmask[next_opcode_address] {
                 skip_distance = i;
                 break;
             }
         }
         skip_distance.min(max_skip)
+    }
+
+    /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
+    fn set_basic_block_bitmask(&mut self) -> Result<(), VMError> {
+        let bitmask_len = self.program.opcode_bitmask.len();
+        let mut basic_block_bitmask = BitVec::from_elem(bitmask_len, false);
+
+        // MemAddress 0 always starts a basic block
+        basic_block_bitmask.set(0, true);
+
+        for n in 0..bitmask_len {
+            if self.program.opcode_bitmask.get(n).unwrap() {
+                if let Some(op) = Opcode::from_u8(n as u8) {
+                    if Self::is_termination_opcode(op) {
+                        let basic_block_start_address = n
+                            + 1
+                            + Self::skip(
+                                n as MemAddress,
+                                &self.program.instructions,
+                                &self.program.opcode_bitmask,
+                            );
+                        basic_block_bitmask.set(basic_block_start_address, true);
+                    }
+                }
+            }
+        }
+
+        self.program.basic_block_bitmask = basic_block_bitmask;
+        Ok(())
+    }
+
+    fn is_termination_opcode(op: Opcode) -> bool {
+        use Opcode::*;
+        matches!(
+            op,
+            TRAP | FALLTHROUGH
+                | JUMP
+                | JUMP_IND
+                | LOAD_IMM_JUMP
+                | LOAD_IMM_JUMP_IND
+                | BRANCH_EQ
+                | BRANCH_NE
+                | BRANCH_GE_U
+                | BRANCH_GE_S
+                | BRANCH_LT_U
+                | BRANCH_LT_S
+                | BRANCH_EQ_IMM
+                | BRANCH_NE_IMM
+                | BRANCH_LT_U_IMM
+                | BRANCH_LT_S_IMM
+                | BRANCH_LE_U_IMM
+                | BRANCH_LE_S_IMM
+                | BRANCH_GE_U_IMM
+                | BRANCH_GE_S_IMM
+                | BRANCH_GT_U_IMM
+                | BRANCH_GT_S_IMM
+        )
     }
 
     /// Initialize memory and registers of PVM with provided program and arguments
@@ -646,17 +705,20 @@ impl PVM {
         args: &[u8],
         context: InvocationContext,
     ) -> Result<CommonInvocationResult, VMError> {
-        let mut pvm = Self::new_from_standard_program(standard_program, args)?; // TODO: error handling
+        // Initialize mutable PVM states: memory, registers, pc and gas_counter
+        let mut pvm = Self::new_from_standard_program(standard_program, args)?;
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
-        // and store to the immutable PVM state
-        let (instructions, bitmask, jump_table) =
+        let (instructions, opcode_bitmask, jump_table) =
             Self::decode_program_code(&pvm.program.program_code)?;
+
+        // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
         pvm.program.instructions = instructions;
-        pvm.program.opcode_bitmask = bitmask;
+        pvm.program.opcode_bitmask = opcode_bitmask;
         pvm.program.jump_table = jump_table;
+        pvm.set_basic_block_bitmask()?;
 
         match pvm.extended_invocation(context)? {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(
@@ -715,13 +777,12 @@ impl PVM {
                 &self.program.opcode_bitmask,
             );
 
-            let instruction_index = self.state.pc as usize;
-            let next_instruction_index = instruction_index + 1 + skip_distance;
+            let address = self.state.pc as usize;
+            let next_address = address + 1 + skip_distance;
 
-            // Instruction blob length is not greater than 16,
+            // Instruction blob length is not greater than 16
             let instruction_blob = {
-                let full_slice =
-                    &self.program.instructions[instruction_index..next_instruction_index];
+                let full_slice = &self.program.instructions[address..next_address];
                 if full_slice.len() > 16 {
                     &full_slice[..16]
                 } else {
