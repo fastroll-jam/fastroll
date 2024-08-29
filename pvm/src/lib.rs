@@ -1,2 +1,3 @@
-mod vm;
 mod constants;
+mod opcode;
+mod vm;

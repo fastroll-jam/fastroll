@@ -1,5 +1,9 @@
-use crate::constants::{
-    INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
+use crate::{
+    constants::{
+        INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE,
+        STANDARD_PROGRAM_SIZE_LIMIT,
+    },
+    opcode::Opcode,
 };
 use bit_vec::BitVec;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncodeFixed, JamInput};
@@ -33,111 +37,6 @@ pub(crate) enum VMError {
     InvalidHostCallType,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
-}
-
-/// PVM Opcodes
-#[repr(u8)]
-#[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
-enum Opcode {
-    TRAP = 0,
-    LOAD_IND_U32 = 1,
-    ADD_IMM = 2,
-    STORE_IND_U32 = 3,
-    LOAD_IMM = 4,
-    JUMP = 5,
-    LOAD_IMM_JUMP = 6,
-    BRANCH_EQ_IMM = 7,
-    ADD = 8,
-    SHLO_L_IMM = 9,
-    LOAD_U32 = 10,
-    LOAD_IND_U8 = 11,
-    OR = 12,
-    STORE_IMM_IND_U32 = 13,
-    SHLO_R_IMM = 14,
-    BRANCH_NE_IMM = 15,
-    STORE_IND_U8 = 16,
-    FALLTHROUGH = 17,
-    AND_IMM = 18,
-    JUMP_IND = 19,
-    SUB = 20,
-    LOAD_IND_I8 = 21,
-    STORE_U32 = 22,
-    AND = 23,
-    BRANCH_EQ = 24,
-    SHAR_R_IMM = 25,
-    STORE_IMM_IND_U8 = 26,
-    SET_LT_U_IMM = 27,
-    XOR = 28,
-    STORE_IND_U16 = 29,
-    BRANCH_NE = 30,
-    XOR_IMM = 31,
-    BRANCH_LT_S_IMM = 32,
-    LOAD_IND_I16 = 33,
-    MUL = 34,
-    MUL_IMM = 35,
-    SET_LT_U = 36,
-    LOAD_IND_U16 = 37,
-    STORE_IMM_U32 = 38,
-    SET_GT_U_IMM = 39,
-    NEG_ADD_IMM = 40,
-    BRANCH_GE_U = 41,
-    LOAD_IMM_JUMP_IND = 42,
-    BRANCH_GE_S = 43,
-    BRANCH_LT_U_IMM = 44,
-    BRANCH_GE_S_IMM = 45,
-    BRANCH_LE_S_IMM = 46,
-    BRANCH_LT_U = 47,
-    BRANCH_LT_S = 48,
-    OR_IMM = 49,
-    BRANCH_GT_U_IMM = 50,
-    SHLO_R = 51,
-    BRANCH_GE_U_IMM = 52,
-    BRANCH_GT_S_IMM = 53,
-    STORE_IMM_IND_U16 = 54,
-    SHLO_L = 55,
-    SET_LT_S_IMM = 56,
-    MUL_UPPER_UU = 57,
-    SET_LT_S = 58,
-    BRANCH_LE_U_IMM = 59,
-    LOAD_U8 = 60,
-    SET_GT_S_IMM = 61,
-    STORE_IMM_U8 = 62,
-    MUL_UPPER_UU_IMM = 63,
-    DIV_S = 64,
-    MUL_UPPER_SS_IMM = 65,
-    LOAD_I16 = 66,
-    MUL_UPPER_SS = 67,
-    DIV_U = 68,
-    STORE_U16 = 69,
-    REM_S = 70,
-    STORE_U8 = 71,
-    SHLO_R_IMM_ALT = 72,
-    REM_U = 73,
-    LOAD_I8 = 74,
-    SHLO_L_IMM_ALT = 75,
-    LOAD_U16 = 76,
-    SHAR_R = 77,
-    ECALLI = 78,
-    STORE_IMM_U16 = 79,
-    SHAR_R_IMM_ALT = 80,
-    MUL_UPPER_SU = 81,
-    MOVE_REG = 82,
-    CMOV_IZ = 83,
-    CMOV_NZ = 84,
-    CMOV_IZ_IMM = 85,
-    CMOV_NZ_IMM = 86,
-    SBRK = 87,
-}
-
-impl Opcode {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        if value <= 87 {
-            Some(unsafe { std::mem::transmute(value) })
-        } else {
-            None
-        }
-    }
 }
 
 //
@@ -260,6 +159,8 @@ enum InvocationContext {
 // Structs
 //
 
+struct ProgramDecoder;
+
 /// Main stateful PVM struct
 struct PVM {
     state: VMState,
@@ -346,101 +247,12 @@ struct HostCallStateChange {
     exit_reason: ExitReason,                                    // TODO: check if necessary
 }
 
-//
-// Helper functions for the standard program initialization
-//
+struct VMUtils;
 
-fn p(x: usize) -> usize {
-    // P(x) = Z_P * ceil(x / Z_P)
-    PAGE_SIZE * ((x + PAGE_SIZE - 1) / PAGE_SIZE)
-}
-
-fn q(x: usize) -> usize {
-    // Q(x) = Z_Q * ceil(x / Z_Q)
-    SEGMENT_SIZE * ((x + SEGMENT_SIZE - 1) / SEGMENT_SIZE)
-}
-
-impl Default for PVM {
-    fn default() -> Self {
-        Self {
-            state: VMState {
-                registers: [Register { value: 0 }; REGISTERS_COUNT],
-                memory: Memory::new(0, 0),
-                pc: 0,
-                gas_counter: 0,
-            },
-            program: Program {
-                program_code: vec![],
-                instructions: vec![],
-                jump_table: vec![],
-                opcode_bitmask: BitVec::new(),
-                basic_block_bitmask: BitVec::new(),
-            },
-        }
-    }
-}
-
-impl PVM {
-    fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), VMError> {
-        if self.state.gas_counter < amount {
-            Err(VMError::OutOfGas)
-        } else {
-            self.state.gas_counter -= amount;
-            Ok(())
-        }
-    }
-
-    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), VMError> {
-        let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
-
-        // Program-specific read-only data area (o)
-        let o_start = SEGMENT_SIZE; // Z_Q
-        let o_end = o_start + fp.read_only_len as usize;
-        memory.set_range(o_start, &fp.read_only_data[..], AccessType::ReadOnly);
-        memory.set_access_range(
-            o_end,
-            SEGMENT_SIZE + p(fp.read_only_len as usize),
-            AccessType::ReadOnly,
-        );
-
-        // Read-write (heap) data (w)
-        let w_start = 2 * SEGMENT_SIZE + q(fp.read_only_len as usize);
-        let w_end = w_start + fp.read_write_len as usize;
-        memory.set_range(w_start, &fp.read_write_data[..], AccessType::ReadWrite);
-        let heap_end = w_end + p(fp.read_write_len as usize) - fp.read_write_len as usize
-            + fp.extra_heap_pages as usize * PAGE_SIZE;
-        memory.set_access_range(w_end, heap_end, AccessType::ReadWrite);
-
-        // Stack (s)
-        let stack_start = (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE - p(fp.stack_size as usize);
-        let stack_end = (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE;
-        memory.set_access_range(stack_start, stack_end, AccessType::ReadWrite);
-
-        // Arguments
-        let args_start = (1 << 32) - SEGMENT_SIZE - INPUT_SIZE;
-        let args_end = args_start + args.len();
-        memory.set_range(args_start, &args[..], AccessType::ReadOnly);
-        memory.set_access_range(
-            args_end,
-            (1 << 32) - SEGMENT_SIZE - INPUT_SIZE + p(args.len()),
-            AccessType::ReadOnly,
-        );
-
-        // Other addresses are inaccessible
-        memory.set_access_range(0, SEGMENT_SIZE, AccessType::Inaccessible);
-        memory.set_access_range(heap_end, stack_start, AccessType::Inaccessible);
-        memory.set_access_range(stack_end, args_start, AccessType::Inaccessible);
-
-        self.state.memory = memory;
-        Ok(())
-    }
-
-    fn initialize_registers(&mut self, args_len: usize) {
-        self.state.registers[1].value = u32::MAX - (1 << 16) + 1;
-        self.state.registers[2].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[10].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[11].value = args_len as u32;
-    }
+impl ProgramDecoder {
+    //
+    // Program decoding functions
+    //
 
     /// Decode program blob into formatted program
     fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, VMError> {
@@ -508,6 +320,137 @@ impl PVM {
             _ => Err(VMError::InvalidOpcode),
         }
     }
+}
+
+impl Default for PVM {
+    fn default() -> Self {
+        Self {
+            state: VMState {
+                registers: [Register { value: 0 }; REGISTERS_COUNT],
+                memory: Memory::new(0, 0),
+                pc: 0,
+                gas_counter: 0,
+            },
+            program: Program {
+                program_code: vec![],
+                instructions: vec![],
+                jump_table: vec![],
+                opcode_bitmask: BitVec::new(),
+                basic_block_bitmask: BitVec::new(),
+            },
+        }
+    }
+}
+
+impl PVM {
+    //
+    // VM states initialization
+    //
+
+    /// Initialize memory and registers of PVM with provided program and arguments
+    ///
+    /// Represents `Y` in the GP
+    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
+        let mut pvm = PVM::default();
+
+        // decode program and check validity
+        let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
+        if !formatted_program.check_size_limit() {
+            return Err(VMError::InvalidProgram);
+        }
+
+        pvm.setup_memory_layout(&formatted_program, &args)?;
+        pvm.initialize_registers(args.len());
+        pvm.program.program_code = formatted_program.code;
+
+        Ok(pvm)
+    }
+
+    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), VMError> {
+        let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
+
+        // Program-specific read-only data area (o)
+        let o_start = SEGMENT_SIZE; // Z_Q
+        let o_end = o_start + fp.read_only_len as usize;
+        memory.set_range(o_start, &fp.read_only_data[..], AccessType::ReadOnly);
+        memory.set_access_range(
+            o_end,
+            SEGMENT_SIZE + VMUtils::p(fp.read_only_len as usize),
+            AccessType::ReadOnly,
+        );
+
+        // Read-write (heap) data (w)
+        let w_start = 2 * SEGMENT_SIZE + VMUtils::q(fp.read_only_len as usize);
+        let w_end = w_start + fp.read_write_len as usize;
+        memory.set_range(w_start, &fp.read_write_data[..], AccessType::ReadWrite);
+        let heap_end = w_end + VMUtils::p(fp.read_write_len as usize) - fp.read_write_len as usize
+            + fp.extra_heap_pages as usize * PAGE_SIZE;
+        memory.set_access_range(w_end, heap_end, AccessType::ReadWrite);
+
+        // Stack (s)
+        let stack_start =
+            (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE - VMUtils::p(fp.stack_size as usize);
+        let stack_end = (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE;
+        memory.set_access_range(stack_start, stack_end, AccessType::ReadWrite);
+
+        // Arguments
+        let args_start = (1 << 32) - SEGMENT_SIZE - INPUT_SIZE;
+        let args_end = args_start + args.len();
+        memory.set_range(args_start, &args[..], AccessType::ReadOnly);
+        memory.set_access_range(
+            args_end,
+            (1 << 32) - SEGMENT_SIZE - INPUT_SIZE + VMUtils::p(args.len()),
+            AccessType::ReadOnly,
+        );
+
+        // Other addresses are inaccessible
+        memory.set_access_range(0, SEGMENT_SIZE, AccessType::Inaccessible);
+        memory.set_access_range(heap_end, stack_start, AccessType::Inaccessible);
+        memory.set_access_range(stack_end, args_start, AccessType::Inaccessible);
+
+        self.state.memory = memory;
+        Ok(())
+    }
+
+    fn initialize_registers(&mut self, args_len: usize) {
+        self.state.registers[1].value = u32::MAX - (1 << 16) + 1;
+        self.state.registers[2].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[10].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[11].value = args_len as u32;
+    }
+
+    /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
+    fn set_basic_block_bitmask(&mut self) -> Result<(), VMError> {
+        let bitmask_len = self.program.opcode_bitmask.len();
+        let mut basic_block_bitmask = BitVec::from_elem(bitmask_len, false);
+
+        // MemAddress 0 always starts a basic block
+        basic_block_bitmask.set(0, true);
+
+        for n in 0..bitmask_len {
+            if self.program.opcode_bitmask.get(n).unwrap() {
+                if let Some(op) = Opcode::from_u8(n as u8) {
+                    if op.is_termination_opcode() {
+                        let basic_block_start_address = n
+                            + 1
+                            + Self::skip(
+                                n as MemAddress,
+                                &self.program.instructions,
+                                &self.program.opcode_bitmask,
+                            );
+                        basic_block_bitmask.set(basic_block_start_address, true);
+                    }
+                }
+            }
+        }
+
+        self.program.basic_block_bitmask = basic_block_bitmask;
+        Ok(())
+    }
+
+    //
+    // PVM helper functions
+    //
 
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
@@ -530,81 +473,9 @@ impl PVM {
         skip_distance.min(max_skip)
     }
 
-    /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
-    fn set_basic_block_bitmask(&mut self) -> Result<(), VMError> {
-        let bitmask_len = self.program.opcode_bitmask.len();
-        let mut basic_block_bitmask = BitVec::from_elem(bitmask_len, false);
-
-        // MemAddress 0 always starts a basic block
-        basic_block_bitmask.set(0, true);
-
-        for n in 0..bitmask_len {
-            if self.program.opcode_bitmask.get(n).unwrap() {
-                if let Some(op) = Opcode::from_u8(n as u8) {
-                    if Self::is_termination_opcode(op) {
-                        let basic_block_start_address = n
-                            + 1
-                            + Self::skip(
-                                n as MemAddress,
-                                &self.program.instructions,
-                                &self.program.opcode_bitmask,
-                            );
-                        basic_block_bitmask.set(basic_block_start_address, true);
-                    }
-                }
-            }
-        }
-
-        self.program.basic_block_bitmask = basic_block_bitmask;
-        Ok(())
-    }
-
-    fn is_termination_opcode(op: Opcode) -> bool {
-        use Opcode::*;
-        matches!(
-            op,
-            TRAP | FALLTHROUGH
-                | JUMP
-                | JUMP_IND
-                | LOAD_IMM_JUMP
-                | LOAD_IMM_JUMP_IND
-                | BRANCH_EQ
-                | BRANCH_NE
-                | BRANCH_GE_U
-                | BRANCH_GE_S
-                | BRANCH_LT_U
-                | BRANCH_LT_S
-                | BRANCH_EQ_IMM
-                | BRANCH_NE_IMM
-                | BRANCH_LT_U_IMM
-                | BRANCH_LT_S_IMM
-                | BRANCH_LE_U_IMM
-                | BRANCH_LE_S_IMM
-                | BRANCH_GE_U_IMM
-                | BRANCH_GE_S_IMM
-                | BRANCH_GT_U_IMM
-                | BRANCH_GT_S_IMM
-        )
-    }
-
-    /// Initialize memory and registers of PVM with provided program and arguments
-    ///
-    /// Represents `Y` in the GP
-    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
-        let mut pvm = PVM::default();
-
-        // decode program and check validity
-        let formatted_program = Self::decode_standard_program(standard_program)?;
-        if !formatted_program.check_size_limit() {
-            return Err(VMError::InvalidProgram);
-        }
-
-        pvm.setup_memory_layout(&formatted_program, &args)?;
-        pvm.initialize_registers(args.len());
-        pvm.program.program_code = formatted_program.code;
-
-        Ok(pvm)
-    }
+    //
+    // VM state mutation functions
+    //
 
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
     fn apply_state_change(&mut self, change: StateChange) -> ExitReason {
@@ -694,6 +565,23 @@ impl PVM {
         change.exit_reason
     }
 
+    //
+    // Gas operations
+    //
+
+    fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), VMError> {
+        if self.state.gas_counter < amount {
+            Err(VMError::OutOfGas)
+        } else {
+            self.state.gas_counter -= amount;
+            Ok(())
+        }
+    }
+
+    //
+    // PVM invocation functions
+    //
+
     /// Invoke the PVM with program and arguments
     /// This works as a common interface for 4 different PVM invocations
     ///
@@ -712,7 +600,7 @@ impl PVM {
 
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
         let (instructions, opcode_bitmask, jump_table) =
-            Self::decode_program_code(&pvm.program.program_code)?;
+            ProgramDecoder::decode_program_code(&pvm.program.program_code)?;
 
         // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
         pvm.program.instructions = instructions;
@@ -789,7 +677,7 @@ impl PVM {
                     full_slice
                 }
             };
-            let ins = Self::decode_instruction(instruction_blob, skip_distance)?;
+            let ins = ProgramDecoder::decode_instruction(instruction_blob, skip_distance)?;
 
             let state_change = self.single_step_invocation(&ins)?;
             let exit_reason = self.apply_state_change(state_change);
@@ -821,6 +709,53 @@ impl PVM {
     //
     // PVM instruction execution functions
     //
+
+    //
+    // Group 0: Helper functions
+    //
+
+    /// Determines the next execution step based on a branch condition.
+    ///
+    /// If the condition is true, attempts to jump to the target address.
+    /// The target address must be the beginning of a basic block.
+    fn branch(
+        &self,
+        target: MemAddress,
+        condition: bool,
+    ) -> Result<(ExitReason, MemAddress), VMError> {
+        match (
+            condition,
+            self.program.basic_block_bitmask.get(target as usize),
+        ) {
+            (false, _) => Ok((ExitReason::Continue, self.state.pc)),
+            (true, Some(true)) => Ok((ExitReason::Continue, target)),
+            (true, _) => Ok((ExitReason::Panic, self.state.pc)),
+        }
+    }
+
+    /// Performs a dynamic jump operation.
+    ///
+    /// This function handles jumps where the next instruction is dynamically computed.
+    /// The jump address is derived from the jump table, with special handling for alignment
+    /// and validity checks.
+    fn djump(&self, a: usize) -> Result<(ExitReason, MemAddress), VMError> {
+        const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
+
+        if a == SPECIAL_HALT_VALUE {
+            return Ok((ExitReason::RegularHalt, self.state.pc));
+        }
+
+        let jump_table_len = self.program.jump_table.len();
+
+        // Check if 'a' is valid and compute the target
+        match (a != 0 && a <= jump_table_len * JUMP_ALIGNMENT && a % JUMP_ALIGNMENT == 0)
+            .then(|| self.program.jump_table[(a / JUMP_ALIGNMENT) - 1])
+            .filter(|&target| self.program.basic_block_bitmask[target as usize])
+        {
+            Some(target) => Ok((ExitReason::Continue, target)),
+            None => Ok((ExitReason::Panic, self.state.pc)),
+        }
+    }
 
     //
     // Group 1: Instructions without Arguments
@@ -1165,9 +1100,11 @@ impl Instruction {
 impl FormattedProgram {
     fn check_size_limit(&self) -> bool {
         let condition_value = 5 * SEGMENT_SIZE
-            + q(self.read_only_len as usize)
-            + q(self.read_write_len as usize + (self.extra_heap_pages as usize) * PAGE_SIZE)
-            + q(self.stack_size as usize)
+            + VMUtils::q(self.read_only_len as usize)
+            + VMUtils::q(
+                self.read_write_len as usize + (self.extra_heap_pages as usize) * PAGE_SIZE,
+            )
+            + VMUtils::q(self.stack_size as usize)
             + INPUT_SIZE;
         condition_value <= STANDARD_PROGRAM_SIZE_LIMIT
     }
@@ -1194,6 +1131,142 @@ impl Default for HostCallStateChange {
             memory_change: (0, vec![], 0),
             service_accounts_changes: vec![],
             exit_reason: ExitReason::Continue,
+        }
+    }
+}
+
+impl VMUtils {
+    //
+    // Program initialization util functions
+    //
+
+    fn p(x: usize) -> usize {
+        // P(x) = Z_P * ceil(x / Z_P)
+        PAGE_SIZE * ((x + PAGE_SIZE - 1) / PAGE_SIZE)
+    }
+
+    fn q(x: usize) -> usize {
+        // Q(x) = Z_Q * ceil(x / Z_Q)
+        SEGMENT_SIZE * ((x + SEGMENT_SIZE - 1) / SEGMENT_SIZE)
+    }
+
+    //
+    // Instruction arguments processing functions
+    //
+
+    /// Converts an unsigned integer to a signed integer of the same bit width.
+    /// Represents `Z_n` in the GP
+    /// # Arguments
+    ///
+    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `a`: The unsigned integer to convert.
+    ///
+    /// # Returns
+    ///
+    /// The signed equivalent of the input, or None if `n` is 0 or greater than 4.
+    pub fn unsigned_to_signed(n: u32, a: u32) -> Option<i32> {
+        match n {
+            1..=4 => {
+                let max_positive = 1u32 << (8 * n - 1);
+                if a < max_positive {
+                    Some(a as i32)
+                } else {
+                    Some((a as i32) - (1i32 << (8 * n)))
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Converts a signed integer to an unsigned integer of the same bit width.
+    /// Represents `{Z_n}^-1` in the GP
+    ///
+    /// # Arguments
+    ///
+    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `a`: The signed integer to convert.
+    ///
+    /// # Returns
+    ///
+    /// The unsigned equivalent of the input, or None if `n` is 0 or greater than 4.
+    pub fn signed_to_unsigned(n: u32, a: i32) -> Option<u32> {
+        match n {
+            1..=4 => {
+                let modulus = 1u32 << (8 * n);
+                Some(((modulus as i64 + a as i64) % modulus as i64) as u32)
+            }
+            _ => None,
+        }
+    }
+
+    /// Converts an unsigned integer to its binary representation.
+    /// Represents `B_n` in the GP
+    ///
+    /// # Arguments
+    ///
+    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `x`: The unsigned integer to convert.
+    ///
+    /// # Returns
+    ///
+    /// A vector of booleans representing the binary form of the input,
+    /// or None if `n` is 0 or greater than 4.
+    pub fn int_to_bitvec(n: u32, x: u32) -> Option<BitVec> {
+        match n {
+            1..=4 => {
+                let mut result = BitVec::from_elem((8 * n) as usize, false);
+                for i in 0..(8 * n) {
+                    result.set(i as usize, (x >> i) & 1 == 1);
+                }
+                Some(result)
+            }
+            _ => None,
+        }
+    }
+
+    /// Converts a binary representation back to an unsigned integer.
+    /// Represents `{B_n}^-1` in the GP
+    ///
+    /// # Arguments
+    ///
+    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `x`: A vector of booleans representing the binary form.
+    ///
+    /// # Returns
+    ///
+    /// The unsigned integer represented by the input binary form,
+    /// or None if `n` is 0 or greater than 4, or if the input vector's length doesn't match 8*n.
+    pub fn bitvec_to_int(n: u32, x: &BitVec) -> Option<u32> {
+        if n == 0 || n > 4 || x.len() != (8 * n) as usize {
+            return None;
+        }
+
+        Some(
+            x.iter()
+                .enumerate()
+                .fold(0, |acc, (i, bit)| acc | ((bit as u32) << i)),
+        )
+    }
+
+    /// Performs signed extension on an unsigned integer.
+    /// Represents `X_n` in the GP
+    ///
+    /// # Arguments
+    ///
+    /// * `n`: The number of octets (8-bit units) in the input integer.
+    /// * `x`: The unsigned integer to extend.
+    ///
+    /// # Returns
+    ///
+    /// The sign-extended 32-bit unsigned integer, or None if `n` is 0 or greater than 4.
+    pub fn signed_extend(n: u32, x: u32) -> Option<u32> {
+        match n {
+            1..=4 => {
+                let msb = x >> (8 * n - 1);
+                let extension = msb * (u32::MAX - (1 << (8 * n)) + 1);
+                Some(x + extension)
+            }
+            _ => None,
         }
     }
 }
