@@ -8,6 +8,7 @@ use crate::{
 use bit_vec::BitVec;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncodeFixed, JamInput};
 use jam_common::{Octets, UnsignedGas};
+use std::cmp::{max, min};
 use thiserror::Error;
 
 type MemAddress = u32;
@@ -203,14 +204,12 @@ struct MemoryCell {
     status: CellStatus,
 }
 
-// TODO: check if this is useful as the PVM counts instructions in Octets, not Instruction units
-// TODO: decode for the single-step invocation only?
 #[derive(Debug)]
 struct Instruction {
     op: Opcode,          // opcode
-    r1: Option<u32>,     // first source register
-    r2: Option<u32>,     // second source register
-    rd: Option<u32>,     // destination register
+    r1: Option<usize>,   // first source register index
+    r2: Option<usize>,   // second source register index
+    rd: Option<usize>,   // destination register index
     imm1: Option<u32>,   // first immediate value argument
     imm2: Option<u32>,   // second immediate value argument
     offset: Option<i32>, // offset argument
@@ -293,6 +292,45 @@ impl ProgramDecoder {
         Ok((instructions, opcode_bitmask, jump_table))
     }
 
+    /// Extracts and processes an immediate value from the instruction blob.
+    fn extract_imm_value(
+        inst_blob: &[u8],
+        l_x: usize,
+        start_index: usize,
+        end_index: usize,
+    ) -> Result<u32, VMError> {
+        if l_x > 0 {
+            let mut buffer = [0u8; 4];
+            buffer[..l_x].copy_from_slice(&inst_blob[start_index..end_index]);
+            Ok(
+                VMUtils::signed_extend(l_x as u32, u32::decode_fixed(&mut &buffer[..l_x], l_x)?)
+                    .unwrap(),
+            )
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Extracts and processes an immediate address (pc increment) value from the instruction blob.
+    fn extract_imm_address(
+        pc: MemAddress,
+        inst_blob: &[u8],
+        l_y: usize,
+        start_index: usize,
+        end_index: usize,
+    ) -> Result<i32, VMError> {
+        let pc_increment = if l_y > 0 {
+            let mut buffer = [0u8; 4];
+            buffer[..l_y].copy_from_slice(&inst_blob[start_index..end_index]);
+            VMUtils::unsigned_to_signed(l_y as u32, u32::decode_fixed(&mut &buffer[..l_y], l_y)?)
+                .unwrap()
+        } else {
+            0
+        };
+
+        Ok(pc as i32 + pc_increment)
+    }
+
     /// Decodes a single instruction blob into an `Instruction` type.
     ///
     /// This function takes a byte slice representing an instruction and converts it
@@ -302,22 +340,241 @@ impl ProgramDecoder {
     /// The instruction blob should not exceed 16 bytes in length.
     /// The opcode is represented by the first byte of the instruction blob.
     fn decode_instruction(
-        instruction_blob: &[u8],
+        mut inst_blob: &[u8],
+        current_pc: MemAddress,
         skip_distance: usize,
     ) -> Result<Instruction, VMError> {
-        let op = Opcode::from_u8(instruction_blob[0]).ok_or(VMError::InvalidOpcode)?;
+        use Opcode::*;
+        let op = Opcode::from_u8(inst_blob[0]).ok_or(VMError::InvalidOpcode)?;
 
         match op {
-            // Group 1
-            Opcode::TRAP | Opcode::FALLTHROUGH => {
-                Ok(Instruction::new(op, None, None, None, None, None, None)?)
+            // Group 1: no arguments
+            TRAP | FALLTHROUGH => Ok(Instruction::new(op, None, None, None, None, None, None)?),
+
+            // Group 2: one immediate
+            ECALLI => {
+                let l_x = min(4, skip_distance);
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 1, 1 + l_x)?;
+
+                Ok(Instruction::new(
+                    op,
+                    None,
+                    None,
+                    None,
+                    Some(imm_x),
+                    None,
+                    None,
+                )?)
             }
-            // Group 2
-            Opcode::ECALLI => {
-                let l_1 = skip_distance.min(4);
-                Ok(Instruction::new(op, None, None, None, None, None, None)?)
-            } // FIXME
-            _ => Err(VMError::InvalidOpcode),
+
+            // Group 3: two immediates
+            STORE_IMM_U8 | STORE_IMM_U16 | STORE_IMM_U32 => {
+                let l_x = min(4, inst_blob[1] % 8) as usize;
+                let l_y = min(4, max(0, skip_distance - l_x - 1));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 2, 2 + l_x)?;
+                let imm_y = Self::extract_imm_value(inst_blob, l_y, 2 + l_x, 2 + l_x + l_y)?;
+
+                Ok(Instruction::new(
+                    op,
+                    None,
+                    None,
+                    None,
+                    Some(imm_x),
+                    Some(imm_y),
+                    None,
+                )?)
+            }
+
+            // Group 4: one offset
+            JUMP => {
+                let l_x = min(4, skip_distance);
+                let imm_x = Self::extract_imm_address(current_pc, inst_blob, l_x, 1, 1 + l_x)?;
+
+                Ok(Instruction::new(
+                    op,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(imm_x),
+                )?)
+            }
+
+            // Group 5: one register & one immediate
+            JUMP_IND | LOAD_IMM | LOAD_U8 | LOAD_I8 | LOAD_U16 | LOAD_I16 | LOAD_U32 | STORE_U8
+            | STORE_U16 | STORE_U32 => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let l_x = min(4, max(0, skip_distance - 1));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 2, 2 + l_x)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    None,
+                    None,
+                    Some(imm_x),
+                    None,
+                    None,
+                )?)
+            }
+
+            // Group 6: one register & two immediates
+            STORE_IMM_IND_U8 | STORE_IMM_IND_U16 | STORE_IMM_IND_U32 => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let l_x = min(
+                    4,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8 % 8,
+                ) as usize;
+                let l_y = min(4, max(0, skip_distance - l_x - 1));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 2, 2 + l_x)?;
+                let imm_y = Self::extract_imm_value(inst_blob, l_y, 2 + l_x, 2 + l_x + l_y)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    None,
+                    None,
+                    Some(imm_x),
+                    Some(imm_y),
+                    None,
+                )?)
+            }
+
+            // Group 7: one register, one immediate and one offset
+            LOAD_IMM_JUMP | BRANCH_EQ_IMM | BRANCH_NE_IMM | BRANCH_LT_U_IMM | BRANCH_LE_U_IMM
+            | BRANCH_GE_U_IMM | BRANCH_GT_U_IMM | BRANCH_LT_S_IMM | BRANCH_LE_S_IMM
+            | BRANCH_GE_S_IMM | BRANCH_GT_S_IMM => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let l_x = min(
+                    4,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8 % 8,
+                ) as usize;
+                let l_y = min(4, max(0, skip_distance - l_x - 1));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 2, 2 + l_x)?;
+                let imm_y =
+                    Self::extract_imm_address(current_pc, inst_blob, l_y, 2 + l_x, 2 + l_x + l_y)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    None,
+                    None,
+                    Some(imm_x),
+                    None,
+                    Some(imm_y),
+                )?)
+            }
+
+            // Group 8: two registers
+            MOVE_REG | SBRK => {
+                let r_d = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let r_a = min(
+                    12,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8,
+                ) as usize;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    None,
+                    Some(r_d),
+                    None,
+                    None,
+                    None,
+                )?)
+            }
+
+            // Group 9: two register & one immediate
+            STORE_IND_U8 | STORE_IND_U16 | STORE_IND_U32 | LOAD_IND_U8 | LOAD_IND_I8
+            | LOAD_IND_U16 | LOAD_IND_I16 | LOAD_IND_U32 | ADD_IMM | AND_IMM | XOR_IMM | OR_IMM
+            | MUL_IMM | MUL_UPPER_SS_IMM | MUL_UPPER_UU_IMM | SET_LT_U_IMM | SET_LT_S_IMM
+            | SHLO_L_IMM | SHLO_R_IMM | SHAR_R_IMM | NEG_ADD_IMM | SET_GT_U_IMM | SET_GT_S_IMM
+            | SHLO_L_IMM_ALT | SHLO_R_IMM_ALT | SHAR_R_IMM_ALT | CMOV_IZ_IMM | CMOV_NZ_IMM => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let r_b = min(
+                    12,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8,
+                ) as usize;
+                let l_x = min(4, max(0, skip_distance - 1));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 2, 2 + l_x)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    Some(r_b),
+                    None,
+                    Some(imm_x),
+                    None,
+                    None,
+                )?)
+            }
+
+            // Group 10: two registers & one offset
+            BRANCH_EQ | BRANCH_NE | BRANCH_LT_U | BRANCH_LT_S | BRANCH_GE_U | BRANCH_GE_S => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let r_b = min(
+                    12,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8,
+                ) as usize;
+                let l_x = min(4, max(0, skip_distance - 1));
+                let imm_x = Self::extract_imm_address(current_pc, inst_blob, l_x, 2, 2 + l_x)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    Some(r_b),
+                    None,
+                    None,
+                    None,
+                    Some(imm_x),
+                )?)
+            }
+
+            // Group 11: two registers & two immediates
+            LOAD_IMM_JUMP_IND => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let r_b = min(
+                    12,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8,
+                ) as usize;
+                let l_x = min(4, inst_blob[current_pc as usize + 2] % 8) as usize;
+                let l_y = min(4, max(0, skip_distance - l_x - 2));
+                let imm_x = Self::extract_imm_value(inst_blob, l_x, 3, 3 + l_x)?;
+                let imm_y = Self::extract_imm_value(inst_blob, l_y, 3 + l_x, 3 + l_x + l_y)?;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    Some(r_b),
+                    None,
+                    Some(imm_x),
+                    Some(imm_y),
+                    None,
+                )?)
+            }
+
+            // Group 12: three registers
+            ADD | SUB | AND | XOR | OR | MUL | MUL_UPPER_SS | MUL_UPPER_UU | MUL_UPPER_SU
+            | DIV_U | DIV_S | REM_U | REM_S | SET_LT_U | SET_LT_S | SHLO_L | SHLO_R | SHAR_R
+            | CMOV_IZ | CMOV_NZ => {
+                let r_a = min(12, inst_blob[current_pc as usize + 1] % 16) as usize;
+                let r_b = min(
+                    12,
+                    (inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8,
+                ) as usize;
+                let r_d = min(12, inst_blob[current_pc as usize + 2]) as usize;
+
+                Ok(Instruction::new(
+                    op,
+                    Some(r_a),
+                    Some(r_b),
+                    Some(r_d),
+                    None,
+                    None,
+                    None,
+                )?)
+            }
         }
     }
 }
@@ -470,7 +727,8 @@ impl PVM {
                 break;
             }
         }
-        skip_distance.min(max_skip)
+
+        min(skip_distance, max_skip)
     }
 
     //
@@ -665,7 +923,8 @@ impl PVM {
                 &self.program.opcode_bitmask,
             );
 
-            let address = self.state.pc as usize;
+            let current_pc = self.state.pc;
+            let address = current_pc as usize;
             let next_address = address + 1 + skip_distance;
 
             // Instruction blob length is not greater than 16
@@ -677,7 +936,10 @@ impl PVM {
                     full_slice
                 }
             };
-            let ins = ProgramDecoder::decode_instruction(instruction_blob, skip_distance)?;
+
+            // TODO: define instruction_blob with endless zeroes padding
+            let ins =
+                ProgramDecoder::decode_instruction(&instruction_blob, current_pc, skip_distance)?;
 
             let state_change = self.single_step_invocation(&ins)?;
             let exit_reason = self.apply_state_change(state_change);
@@ -1071,16 +1333,16 @@ impl JamDecode for FormattedProgram {
 impl Instruction {
     fn new(
         op: Opcode,
-        r1: Option<u32>,
-        r2: Option<u32>,
-        rd: Option<u32>,
+        r1: Option<usize>,
+        r2: Option<usize>,
+        rd: Option<usize>,
         imm1: Option<u32>,
         imm2: Option<u32>,
         offset: Option<i32>,
     ) -> Result<Self, VMError> {
         // Validate register indices
         for &reg in [rd, r1, r2].iter().flatten() {
-            if reg > (REGISTERS_COUNT - 1) as u32 {
+            if reg > (REGISTERS_COUNT - 1) {
                 return Err(VMError::InvalidInstructionFormat);
             }
         }
