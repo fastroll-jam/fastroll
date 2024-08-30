@@ -1295,7 +1295,7 @@ impl PVM {
     /// Opcode: 60
     fn load_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
-        let val = self.state.memory.read_u8(imm1)?;
+        let val = self.state.memory.read_byte(imm1)?;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), val as u32)],
@@ -1308,7 +1308,7 @@ impl PVM {
     /// Opcode: 74
     fn load_i8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
-        let val = self.state.memory.read_u8(imm1)?;
+        let val = self.state.memory.read_byte(imm1)?;
         let signed_val = VMUtils::unsigned_to_signed(1, val as u32).unwrap();
         let unsigned_val = VMUtils::signed_to_unsigned(4, signed_val).unwrap();
 
@@ -1725,7 +1725,7 @@ impl PVM {
         let address = self.state.registers[ins.r2.unwrap()]
             .value
             .wrapping_add(ins.imm1.unwrap());
-        let value = self.state.memory.read_u8(address)?;
+        let value = self.state.memory.read_byte(address)?;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), value as u32)],
@@ -1740,7 +1740,7 @@ impl PVM {
         let address = self.state.registers[ins.r2.unwrap()]
             .value
             .wrapping_add(ins.imm1.unwrap());
-        let value = self.state.memory.read_u8(address)?;
+        let value = self.state.memory.read_byte(address)?;
         let signed_value = VMUtils::unsigned_to_signed(1, value as u32).unwrap();
         let unsigned_value = VMUtils::signed_to_unsigned(4, signed_value).unwrap();
 
@@ -2561,7 +2561,7 @@ impl Memory {
     }
 
     /// Read a byte from memory
-    fn read_u8(&self, address: MemAddress) -> Result<u8, VMError> {
+    fn read_byte(&self, address: MemAddress) -> Result<u8, VMError> {
         let cell = self
             .cells
             .get(address as usize)
@@ -2591,44 +2591,10 @@ impl Memory {
         }
     }
 
-    /// Read two consecutive bytes from memory
-    pub fn read_u16(&self, address: MemAddress) -> Result<u16, VMError> {
-        let b0 = self.read_u8(address)?;
-        let b1 = self.read_u8(address.wrapping_add(1))?;
-        Ok(u16::from_le_bytes([b0, b1]))
-    }
-
-    /// Write an u16 value as two consecutive bytes to memory
-    pub fn write_u16(&mut self, address: MemAddress, value: u16) -> Result<(), VMError> {
-        let [b0, b1] = value.to_le_bytes();
-        self.write_u8(address, b0)?;
-        self.write_u8(address.wrapping_add(1), b1)?;
-        Ok(())
-    }
-
-    /// Read four consecutive bytes from memory
-    pub fn read_u32(&self, address: MemAddress) -> Result<u32, VMError> {
-        let b0 = self.read_u8(address)?;
-        let b1 = self.read_u8(address.wrapping_add(1))?;
-        let b2 = self.read_u8(address.wrapping_add(2))?;
-        let b3 = self.read_u8(address.wrapping_add(3))?;
-        Ok(u32::from_le_bytes([b0, b1, b2, b3]))
-    }
-
-    /// Write an u32 value as four consecutive bytes to memory
-    pub fn write_u32(&mut self, address: MemAddress, value: u32) -> Result<(), VMError> {
-        let [b0, b1, b2, b3] = value.to_le_bytes();
-        self.write_u8(address, b0)?;
-        self.write_u8(address.wrapping_add(1), b1)?;
-        self.write_u8(address.wrapping_add(2), b2)?;
-        self.write_u8(address.wrapping_add(3), b3)?;
-        Ok(())
-    }
-
     /// Read a specified number of bytes from memory starting at the given address
     pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, VMError> {
         (0..length)
-            .map(|i| self.read_u8(address + i as MemAddress))
+            .map(|i| self.read_byte(address + i as MemAddress))
             .collect()
     }
 
