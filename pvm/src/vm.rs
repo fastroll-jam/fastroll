@@ -735,6 +735,35 @@ impl PVM {
         min(skip_distance, max_skip)
     }
 
+    /// Get the next pc value from the current VM state and the skip function
+    /// for normal instruction execution completion
+    fn next_pc(&self) -> MemAddress {
+        1 + Self::skip(
+            self.state.pc,
+            &self.program.instructions,
+            &self.program.opcode_bitmask,
+        ) as MemAddress
+    }
+
+    //
+    // VM state read functions
+    //
+
+    /// Read a byte from memory
+    fn read_memory_byte(&self, address: MemAddress) -> Result<u8, VMError> {
+        self.state.memory.read_byte(address)
+    }
+
+    /// Read a specified number of bytes from memory starting at the given address
+    fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, VMError> {
+        self.state.memory.read_bytes(address, length)
+    }
+
+    /// Read a `u32` value stored in a register of the given index
+    fn read_reg(&self, index: usize) -> Result<u32, VMError> {
+        Ok(self.state.registers[index].value)
+    }
+
     //
     // VM state mutation functions
     //
@@ -1116,13 +1145,7 @@ impl PVM {
     fn trap(&self) -> Result<StateChange, VMError> {
         Ok(StateChange {
             exit_reason: ExitReason::Panic,
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1132,13 +1155,7 @@ impl PVM {
     /// Opcode: 17
     fn fallthrough(&self) -> Result<StateChange, VMError> {
         Ok(StateChange {
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1160,13 +1177,7 @@ impl PVM {
 
         Ok(StateChange {
             exit_reason,
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1186,13 +1197,7 @@ impl PVM {
 
         Ok(StateChange {
             memory_change: (imm_address, value, 1),
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1208,13 +1213,7 @@ impl PVM {
 
         Ok(StateChange {
             memory_change: (imm_address, value, 2),
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1230,13 +1229,7 @@ impl PVM {
 
         Ok(StateChange {
             memory_change: (imm_address, value, 4),
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1269,7 +1262,7 @@ impl PVM {
     ///
     /// Opcode: 19
     fn jump_ind(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let r1_val = self.state.registers[ins.r1.unwrap()].value;
+        let r1_val = self.read_reg(ins.r1.unwrap())?;
         let (exit_reason, target) =
             self.djump(((r1_val as u64 + ins.imm1.unwrap() as u64) % (1 << 32)) as usize)?;
 
@@ -1286,6 +1279,7 @@ impl PVM {
     fn load_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1299,6 +1293,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), val as u32)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1314,6 +1309,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1327,6 +1323,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), u32::decode_fixed(&mut &val[..], 2)?)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1343,6 +1340,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1359,6 +1357,7 @@ impl PVM {
                 ins.r1.unwrap(),
                 u32::decode_fixed(&mut &val[..], 4).unwrap(),
             )],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1372,13 +1371,7 @@ impl PVM {
 
         Ok(StateChange {
             memory_change: (imm_address, r1_value, 1),
-            pc_change: Some(
-                1 + Self::skip(
-                    self.state.pc,
-                    &self.program.instructions,
-                    &self.program.opcode_bitmask,
-                ) as MemAddress,
-            ),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1388,10 +1381,11 @@ impl PVM {
     /// Opcode: 69
     fn store_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
-        let r1_value = (self.state.registers[ins.r1.unwrap()].value & 0xFFFF) as u16;
+        let r1_value = (self.read_reg(ins.r1.unwrap())? & 0xFFFF) as u16;
 
         Ok(StateChange {
             memory_change: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1401,10 +1395,11 @@ impl PVM {
     /// Opcode: 22
     fn store_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
-        let r1_value = self.state.registers[ins.r1.unwrap()].value;
+        let r1_value = self.read_reg(ins.r1.unwrap())?;
 
         Ok(StateChange {
             memory_change: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1418,13 +1413,14 @@ impl PVM {
     ///
     /// Opcode: 26
     fn store_imm_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r1.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = vec![(ins.imm2.unwrap() & 0xFF) as u8];
 
         Ok(StateChange {
             memory_change: (address, value, 1),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1433,13 +1429,14 @@ impl PVM {
     ///
     /// Opcode: 54
     fn store_imm_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r1.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = ((ins.imm2.unwrap() & 0xFFFF) as u16).encode_fixed(2)?;
 
         Ok(StateChange {
             memory_change: (address, value, 2),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1448,13 +1445,14 @@ impl PVM {
     ///
     /// Opcode: 13
     fn store_imm_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r1.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = ins.imm2.unwrap().encode_fixed(4)?;
 
         Ok(StateChange {
             memory_change: (address, value, 4),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1481,7 +1479,7 @@ impl PVM {
     ///
     /// Opcode: 7
     fn branch_eq_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value == ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? == ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1495,7 +1493,7 @@ impl PVM {
     ///
     /// Opcode: 15
     fn branch_ne_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value != ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? != ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1509,7 +1507,7 @@ impl PVM {
     ///
     /// Opcode: 44
     fn branch_lt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value < ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? < ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1523,7 +1521,7 @@ impl PVM {
     ///
     /// Opcode: 59
     fn branch_le_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value <= ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? <= ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1537,7 +1535,7 @@ impl PVM {
     ///
     /// Opcode: 52
     fn branch_ge_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value >= ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? >= ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1551,7 +1549,7 @@ impl PVM {
     ///
     /// Opcode: 50
     fn branch_gt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let condition = self.state.registers[ins.r1.unwrap()].value > ins.imm1.unwrap();
+        let condition = self.read_reg(ins.r1.unwrap())? > ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
         Ok(StateChange {
@@ -1565,8 +1563,7 @@ impl PVM {
     ///
     /// Opcode: 32
     fn branch_lt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let r1_val =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
+        let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val < imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
@@ -1582,8 +1579,7 @@ impl PVM {
     ///
     /// Opcode: 46
     fn branch_le_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let r1_val =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
+        let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val <= imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
@@ -1599,8 +1595,7 @@ impl PVM {
     ///
     /// Opcode: 45
     fn branch_ge_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let r1_val =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
+        let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val >= imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
@@ -1616,8 +1611,7 @@ impl PVM {
     ///
     /// Opcode: 53
     fn branch_gt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let r1_val =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
+        let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val > imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
@@ -1637,10 +1631,11 @@ impl PVM {
     ///
     /// Opcode: 82
     fn move_reg(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let value = self.state.registers[ins.r1.unwrap()].value;
+        let value = self.read_reg(ins.r1.unwrap())?;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), value)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1651,7 +1646,7 @@ impl PVM {
     ///
     /// Opcode: 87
     fn sbrk(&mut self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let requested_size = self.state.registers[ins.r1.unwrap()].value as usize;
+        let requested_size = self.read_reg(ins.r1.unwrap())? as usize;
 
         // find the first sequence of unavailable memory cells that can satisfy the request
         let alloc_start = self.state.memory.get_break(requested_size)?;
@@ -1662,6 +1657,7 @@ impl PVM {
         // returns the start of the newly allocated heap memory
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), alloc_start)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1674,13 +1670,14 @@ impl PVM {
     ///
     /// Opcode: 16
     fn store_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
-        let value = vec![(self.state.registers[ins.r1.unwrap()].value & 0xFF) as u8];
+        let value = vec![(self.read_reg(ins.r1.unwrap())? & 0xFF) as u8];
 
         Ok(StateChange {
             memory_change: (address, value, 1),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1689,14 +1686,14 @@ impl PVM {
     ///
     /// Opcode: 29
     fn store_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
-        let value =
-            ((self.state.registers[ins.r1.unwrap()].value & 0xFFFF) as u16).encode_fixed(2)?;
+        let value = ((self.read_reg(ins.r1.unwrap())? & 0xFFFF) as u16).encode_fixed(2)?;
 
         Ok(StateChange {
             memory_change: (address, value, 2),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1705,15 +1702,14 @@ impl PVM {
     ///
     /// Opcode: 3
     fn store_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
-        let value = self.state.registers[ins.r1.unwrap()]
-            .value
-            .encode_fixed(4)?;
+        let value = self.read_reg(ins.r1.unwrap())?.encode_fixed(4)?;
 
         Ok(StateChange {
             memory_change: (address, value, 4),
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1722,13 +1718,14 @@ impl PVM {
     ///
     /// Opcode: 11
     fn load_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_byte(address)?;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), value as u32)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1737,8 +1734,8 @@ impl PVM {
     ///
     /// Opcode: 21
     fn load_ind_i8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_byte(address)?;
         let signed_value = VMUtils::unsigned_to_signed(1, value as u32).unwrap();
@@ -1746,6 +1743,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1754,14 +1752,15 @@ impl PVM {
     ///
     /// Opcode: 37
     fn load_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_bytes(address, 2)?;
         let r_val = u16::decode_fixed(&mut &value[..], 2)?;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), r_val as u32)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1770,8 +1769,8 @@ impl PVM {
     ///
     /// Opcode: 33
     fn load_ind_i16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
@@ -1780,6 +1779,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1788,14 +1788,15 @@ impl PVM {
     ///
     /// Opcode: 1
     fn load_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), value_decoded)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1804,12 +1805,13 @@ impl PVM {
     ///
     /// Opcode: 2
     fn add_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r2.unwrap()]
-            .value
+        let result = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1818,10 +1820,11 @@ impl PVM {
     ///
     /// Opcode: 18
     fn and_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r2.unwrap()].value & ins.imm1.unwrap();
+        let result = self.read_reg(ins.r2.unwrap())? & ins.imm1.unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1830,10 +1833,11 @@ impl PVM {
     ///
     /// Opcode: 31
     fn xor_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r2.unwrap()].value ^ ins.imm1.unwrap();
+        let result = self.read_reg(ins.r2.unwrap())? ^ ins.imm1.unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1842,10 +1846,11 @@ impl PVM {
     ///
     /// Opcode: 49
     fn or_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r2.unwrap()].value | ins.imm1.unwrap();
+        let result = self.read_reg(ins.r2.unwrap())? | ins.imm1.unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1854,12 +1859,13 @@ impl PVM {
     ///
     /// Opcode: 35
     fn mul_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r2.unwrap()]
-            .value
+        let result = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_mul(ins.imm1.unwrap());
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1868,14 +1874,14 @@ impl PVM {
     ///
     /// Opcode: 65
     fn mul_upper_s_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap()
-            as i64;
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap() as i64;
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap() as i64;
         let result = ((a * b) >> 32) as i32; // implicitly conducts floor operation
         let unsigned_result = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1884,12 +1890,13 @@ impl PVM {
     ///
     /// Opcode: 63
     fn mul_upper_u_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r2.unwrap()].value as u64;
+        let a = self.read_reg(ins.r2.unwrap())? as u64;
         let b = ins.imm1.unwrap() as u64;
         let result = ((a * b) >> 32) as u32; // implicitly conducts floor operation
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1898,12 +1905,13 @@ impl PVM {
     ///
     /// Opcode: 27
     fn set_lt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a < b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1912,13 +1920,13 @@ impl PVM {
     ///
     /// Opcode: 56
     fn set_lt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = if a < b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1928,10 +1936,11 @@ impl PVM {
     /// Opcode: 9
     fn shlo_l_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
-        let result = self.state.registers[ins.r2.unwrap()].value << shift;
+        let result = self.read_reg(ins.r2.unwrap())? << shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1941,10 +1950,11 @@ impl PVM {
     /// Opcode: 14
     fn shlo_r_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
-        let result = self.state.registers[ins.r2.unwrap()].value >> shift;
+        let result = self.read_reg(ins.r2.unwrap())? >> shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1954,13 +1964,13 @@ impl PVM {
     /// Opcode: 25
     fn shar_r_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
-        let value =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let value = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = value >> shift;
         let unsigned_result = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1972,10 +1982,11 @@ impl PVM {
         let result = ins
             .imm1
             .unwrap()
-            .wrapping_sub(self.state.registers[ins.r2.unwrap()].value);
+            .wrapping_sub(self.read_reg(ins.r2.unwrap())?);
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1984,12 +1995,13 @@ impl PVM {
     ///
     /// Opcode: 39
     fn set_gt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a > b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -1998,13 +2010,13 @@ impl PVM {
     ///
     /// Opcode: 61
     fn set_gt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = if a > b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2013,11 +2025,12 @@ impl PVM {
     ///
     /// Opcode: 75
     fn shlo_l_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() << shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2026,11 +2039,12 @@ impl PVM {
     ///
     /// Opcode: 72
     fn shlo_r_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() >> shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2039,13 +2053,14 @@ impl PVM {
     ///
     /// Opcode: 80
     fn shar_r_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let value = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = value >> shift;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result_unsigned)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2054,14 +2069,15 @@ impl PVM {
     ///
     /// Opcode: 85
     fn cmov_iz_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = if self.state.registers[ins.r2.unwrap()].value == 0 {
+        let result = if self.read_reg(ins.r2.unwrap())? == 0 {
             ins.imm1.unwrap()
         } else {
-            self.state.registers[ins.r1.unwrap()].value
+            self.read_reg(ins.r1.unwrap())?
         };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2070,14 +2086,15 @@ impl PVM {
     ///
     /// Opcode: 86
     fn cmov_nz_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = if self.state.registers[ins.r2.unwrap()].value != 0 {
+        let result = if self.read_reg(ins.r2.unwrap())? != 0 {
             ins.imm1.unwrap()
         } else {
-            self.state.registers[ins.r1.unwrap()].value
+            self.read_reg(ins.r1.unwrap())?
         };
 
         Ok(StateChange {
             register_changes: vec![(ins.r1.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2090,8 +2107,8 @@ impl PVM {
     ///
     /// Opcode: 24
     fn branch_eq(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value;
-        let b = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r1.unwrap())?;
+        let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a == b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2106,8 +2123,8 @@ impl PVM {
     ///
     /// Opcode: 30
     fn branch_ne(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value;
-        let b = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r1.unwrap())?;
+        let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a != b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2122,8 +2139,8 @@ impl PVM {
     ///
     /// Opcode: 47
     fn branch_lt_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value;
-        let b = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r1.unwrap())?;
+        let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a < b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2138,10 +2155,8 @@ impl PVM {
     ///
     /// Opcode: 48
     fn branch_lt_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
-        let b =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
+        let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let condition = a < b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2156,8 +2171,8 @@ impl PVM {
     ///
     /// Opcode: 41
     fn branch_ge_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value;
-        let b = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r1.unwrap())?;
+        let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a >= b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2172,10 +2187,8 @@ impl PVM {
     ///
     /// Opcode: 43
     fn branch_ge_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
-        let b =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
+        let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let condition = a >= b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
@@ -2194,8 +2207,8 @@ impl PVM {
     ///
     /// Opcode: 42
     fn load_imm_jump_ind(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let jump_address = self.state.registers[ins.r2.unwrap()]
-            .value
+        let jump_address = self
+            .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm2.unwrap());
         let (exit_reason, target) = self.djump(jump_address as usize)?;
 
@@ -2215,12 +2228,13 @@ impl PVM {
     ///
     /// Opcode: 8
     fn add(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()]
-            .value
-            .wrapping_add(self.state.registers[ins.r2.unwrap()].value);
+        let result = self
+            .read_reg(ins.r1.unwrap())?
+            .wrapping_add(self.read_reg(ins.r2.unwrap())?);
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2229,12 +2243,13 @@ impl PVM {
     ///
     /// Opcode: 20
     fn sub(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()]
-            .value
-            .wrapping_sub(self.state.registers[ins.r2.unwrap()].value);
+        let result = self
+            .read_reg(ins.r1.unwrap())?
+            .wrapping_sub(self.read_reg(ins.r2.unwrap())?);
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2243,11 +2258,11 @@ impl PVM {
     ///
     /// Opcode: 23
     fn and(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()].value
-            & self.state.registers[ins.r2.unwrap()].value;
+        let result = self.read_reg(ins.r1.unwrap())? & self.read_reg(ins.r2.unwrap())?;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2256,11 +2271,11 @@ impl PVM {
     ///
     /// Opcode: 28
     fn xor(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()].value
-            ^ self.state.registers[ins.r2.unwrap()].value;
+        let result = self.read_reg(ins.r1.unwrap())? ^ self.read_reg(ins.r2.unwrap())?;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2269,11 +2284,11 @@ impl PVM {
     ///
     /// Opcode: 12
     fn or(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()].value
-            | self.state.registers[ins.r2.unwrap()].value;
+        let result = self.read_reg(ins.r1.unwrap())? | self.read_reg(ins.r2.unwrap())?;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2282,12 +2297,13 @@ impl PVM {
     ///
     /// Opcode: 34
     fn mul(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = self.state.registers[ins.r1.unwrap()]
-            .value
-            .wrapping_mul(self.state.registers[ins.r2.unwrap()].value);
+        let result = self
+            .read_reg(ins.r1.unwrap())?
+            .wrapping_mul(self.read_reg(ins.r2.unwrap())?);
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2296,15 +2312,14 @@ impl PVM {
     ///
     /// Opcode: 67
     fn mul_upper_s_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap()
-            as i64;
-        let b = VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap()
-            as i64;
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap() as i64;
+        let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap() as i64;
         let result = ((a * b) >> 32) as i32;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2313,12 +2328,13 @@ impl PVM {
     ///
     /// Opcode: 57
     fn mul_upper_u_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value as u64;
-        let b = self.state.registers[ins.r2.unwrap()].value as u64;
+        let a = self.read_reg(ins.r1.unwrap())? as u64;
+        let b = self.read_reg(ins.r2.unwrap())? as u64;
         let result = ((a * b) >> 32) as u32;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2327,14 +2343,14 @@ impl PVM {
     ///
     /// Opcode: 81
     fn mul_upper_s_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap()
-            as i64;
-        let b = self.state.registers[ins.r2.unwrap()].value as u64;
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap() as i64;
+        let b = self.read_reg(ins.r2.unwrap())? as u64;
         let result = ((a * b as i64) >> 32) as i32;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2343,8 +2359,8 @@ impl PVM {
     ///
     /// Opcode: 68
     fn div_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let dividend = self.state.registers[ins.r1.unwrap()].value;
-        let divisor = self.state.registers[ins.r2.unwrap()].value;
+        let dividend = self.read_reg(ins.r1.unwrap())?;
+        let divisor = self.read_reg(ins.r2.unwrap())?;
         let result = if divisor == 0 {
             u32::MAX
         } else {
@@ -2353,6 +2369,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2361,20 +2378,19 @@ impl PVM {
     ///
     /// Opcode: 64
     fn div_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let dividend =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
-        let divisor =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let dividend = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
+        let divisor = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if divisor == 0 {
             u32::MAX
         } else if dividend == i32::MIN && divisor == -1 {
-            self.state.registers[ins.r1.unwrap()].value
+            self.read_reg(ins.r1.unwrap())?
         } else {
             VMUtils::signed_to_unsigned(4, dividend.wrapping_div(divisor)).unwrap()
         };
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2383,8 +2399,8 @@ impl PVM {
     ///
     /// Opcode: 73
     fn rem_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let dividend = self.state.registers[ins.r1.unwrap()].value;
-        let divisor = self.state.registers[ins.r2.unwrap()].value;
+        let dividend = self.read_reg(ins.r1.unwrap())?;
+        let divisor = self.read_reg(ins.r2.unwrap())?;
         let result = if divisor == 0 {
             dividend
         } else {
@@ -2393,6 +2409,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2401,12 +2418,10 @@ impl PVM {
     ///
     /// Opcode: 70
     fn rem_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let dividend =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
-        let divisor =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let dividend = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
+        let divisor = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if divisor == 0 {
-            self.state.registers[ins.r1.unwrap()].value
+            self.read_reg(ins.r1.unwrap())?
         } else if dividend == i32::MIN && divisor == -1 {
             0
         } else {
@@ -2415,6 +2430,7 @@ impl PVM {
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2423,12 +2439,13 @@ impl PVM {
     ///
     /// Opcode: 36
     fn set_lt_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a = self.state.registers[ins.r1.unwrap()].value;
-        let b = self.state.registers[ins.r2.unwrap()].value;
+        let a = self.read_reg(ins.r1.unwrap())?;
+        let b = self.read_reg(ins.r2.unwrap())?;
         let result = if a < b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2437,14 +2454,13 @@ impl PVM {
     ///
     /// Opcode: 58
     fn set_lt_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let a =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
-        let b =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r2.unwrap()].value).unwrap();
+        let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
+        let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if a < b { 1 } else { 0 };
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2453,11 +2469,12 @@ impl PVM {
     ///
     /// Opcode: 55
     fn shlo_l(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
-        let result = self.state.registers[ins.r1.unwrap()].value << shift;
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
+        let result = self.read_reg(ins.r1.unwrap())? << shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2466,11 +2483,12 @@ impl PVM {
     ///
     /// Opcode: 51
     fn shlo_r(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
-        let result = self.state.registers[ins.r1.unwrap()].value >> shift;
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
+        let result = self.read_reg(ins.r1.unwrap())? >> shift;
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2479,14 +2497,14 @@ impl PVM {
     ///
     /// Opcode: 77
     fn shar_r(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let shift = self.state.registers[ins.r2.unwrap()].value & 0x1F; // shift range within [0, 32)
-        let value =
-            VMUtils::unsigned_to_signed(4, self.state.registers[ins.r1.unwrap()].value).unwrap();
+        let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
+        let value = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let result = value >> shift;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2495,14 +2513,15 @@ impl PVM {
     ///
     /// Opcode: 83
     fn cmov_iz(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = if self.state.registers[ins.r2.unwrap()].value == 0 {
-            self.state.registers[ins.r1.unwrap()].value
+        let result = if self.read_reg(ins.r2.unwrap())? == 0 {
+            self.read_reg(ins.r1.unwrap())?
         } else {
-            self.state.registers[ins.rd.unwrap()].value
+            self.read_reg(ins.rd.unwrap())?
         };
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2511,14 +2530,15 @@ impl PVM {
     ///
     /// Opcode: 84
     fn cmov_nz(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        let result = if self.state.registers[ins.r2.unwrap()].value != 0 {
-            self.state.registers[ins.r1.unwrap()].value
+        let result = if self.read_reg(ins.r2.unwrap())? != 0 {
+            self.read_reg(ins.r1.unwrap())?
         } else {
-            self.state.registers[ins.rd.unwrap()].value
+            self.read_reg(ins.rd.unwrap())?
         };
 
         Ok(StateChange {
             register_changes: vec![(ins.rd.unwrap(), result)],
+            pc_change: Some(self.next_pc()),
             ..Default::default()
         })
     }
@@ -2592,7 +2612,7 @@ impl Memory {
     }
 
     /// Read a specified number of bytes from memory starting at the given address
-    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, VMError> {
+    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, VMError> {
         (0..length)
             .map(|i| self.read_byte(address + i as MemAddress))
             .collect()
