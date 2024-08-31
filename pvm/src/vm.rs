@@ -3,6 +3,7 @@ use crate::{
         INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE,
         STANDARD_PROGRAM_SIZE_LIMIT,
     },
+    host::{HostCallStateChange, HostCallType, HostFunction, InvocationContext},
     opcode::Opcode,
 };
 use bit_vec::BitVec;
@@ -11,7 +12,7 @@ use jam_common::{Octets, UnsignedGas};
 use std::cmp::{max, min};
 use thiserror::Error;
 
-type MemAddress = u32;
+pub(crate) type MemAddress = u32;
 
 /// PVM Error Codes
 #[derive(Debug, Error)]
@@ -46,6 +47,7 @@ pub(crate) enum VMError {
 // Enums
 //
 
+/// Memory Cell Access Types
 #[derive(Clone, Copy, Default)]
 enum AccessType {
     #[default]
@@ -54,6 +56,7 @@ enum AccessType {
     Inaccessible,
 }
 
+/// Memory Cell Statuses
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum CellStatus {
     #[default]
@@ -62,7 +65,8 @@ enum CellStatus {
     Unavailable,
 }
 
-enum ExitReason {
+/// PVM Invocation Exit Reasons
+pub(crate) enum ExitReason {
     Continue,
     RegularHalt,
     Panic,
@@ -76,37 +80,6 @@ enum ExecutionResult {
     HostCall(HostCallType),
 }
 
-#[repr(u8)]
-#[allow(non_camel_case_types)]
-enum HostCallType {
-    // General Functions
-    GAS = 0,
-    LOOKUP = 1,
-    READ = 2,
-    WRITE = 3,
-    INFO = 4,
-    // Accumulate Functions
-    EMPOWER = 5,
-    ASSIGN = 21, // TODO: check value
-    DESIGNATE = 6,
-    CHECKPOINT = 7,
-    NEW = 22, // TODO: check value
-    UPGRADE = 8,
-    TRANSFER = 9,
-    QUIT = 10,
-    SOLICIT = 11,
-    FORGET = 12,
-    // Refine Functions
-    HISTORICAL_LOOKUP = 13,
-    IMPORT = 14,
-    EXPORT = 15,
-    MACHINE = 16,
-    PEEK = 17,
-    POKE = 18,
-    INVOKE = 19,
-    EXPUNGE = 20,
-}
-
 impl HostCallType {
     pub fn from_u8(value: u8) -> Option<Self> {
         if value <= 22 {
@@ -117,45 +90,11 @@ impl HostCallType {
     }
 }
 
-#[repr(u32)]
-enum HostCallResult {
-    NONE = u32::MAX,
-    OOB = u32::MAX - 1,
-    WHO = u32::MAX - 2,
-    FULL = u32::MAX - 3,
-    CORE = u32::MAX - 4,
-    CASH = u32::MAX - 5,
-    LOW = u32::MAX - 6,
-    HIGH = u32::MAX - 7,
-    WHAT = u32::MAX - 8,
-    HUH = u32::MAX - 9,
-    OK = 0,
-}
-
-#[repr(u32)]
-enum InnerPVMInvocationResult {
-    HALT = 0,
-    PANIC = u32::MAX - 11,
-    FAULT = u32::MAX - 12,
-    HOST = u32::MAX - 13,
-}
-
 enum CommonInvocationResult {
     OutOfGas(ExitReason, InvocationContext), // (exit_reason, context)
     Result(UnsignedGas, Octets),             // (posterior_gas, return_value)
     ResultUnavailable(UnsignedGas),          // (posterior_gas, [])
     Failure(ExitReason, InvocationContext),  // (panic, context)
-}
-
-// TODO: add service accounts context
-#[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
-enum InvocationContext {
-    X_G, // General Functions
-    X_I, // Is-Authorized
-    X_R, // Refine
-    X_A, // Accumulate
-    X_T, // On-Transfer
 }
 
 //
@@ -172,7 +111,7 @@ struct PVM {
 
 /// Mutable VM state
 #[derive(Clone)]
-struct VMState {
+pub(crate) struct VMState {
     registers: [Register; REGISTERS_COUNT], // omega
     memory: Memory,                         // mu
     pc: MemAddress,                         // iota
@@ -189,7 +128,7 @@ struct Program {
 }
 
 #[derive(Clone, Copy)]
-struct Register {
+pub(crate) struct Register {
     value: u32,
 }
 
@@ -235,18 +174,6 @@ struct StateChange {
     pc_change: Option<MemAddress>,
     gas_change: UnsignedGas,
     exit_reason: ExitReason, // TODO: check if necessary
-}
-
-// TODO: impl with interface to the global state
-struct ServiceAccountChange {}
-
-struct HostCallStateChange {
-    gas_change: UnsignedGas,
-    r0_change: Option<u32>,
-    r1_change: Option<u32>,
-    memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
-    service_accounts_changes: Vec<(u32, ServiceAccountChange)>, // u32 for service account index; TODO: better data handling
-    exit_reason: ExitReason,                                    // TODO: check if necessary
 }
 
 struct VMUtils;
@@ -905,10 +832,8 @@ impl PVM {
                 context,
             )),
             ExitReason::RegularHalt => {
-                let result = pvm.state.memory.read_bytes(
-                    pvm.state.registers[10].value,
-                    pvm.state.registers[11].value as usize,
-                );
+                let result = pvm.read_memory_bytes(pvm.read_reg(10)?, pvm.read_reg(11)? as usize);
+
                 Ok(match result {
                     Ok(bytes) => CommonInvocationResult::Result(pvm.state.gas_counter, bytes),
                     Err(_) => CommonInvocationResult::ResultUnavailable(pvm.state.gas_counter),
@@ -928,9 +853,11 @@ impl PVM {
 
             let state_change = match exit_reason {
                 ExitReason::HostCall(h) => match h {
-                    HostCallType::GAS => {
-                        host_gas(self.state.gas_counter, &self.state.registers, context)?
-                    } // TODO: better gas handling
+                    HostCallType::GAS => HostFunction::host_gas(
+                        self.state.gas_counter,
+                        &self.state.registers,
+                        context,
+                    )?, // TODO: better gas handling
                     // TODO: add other host function cases
                     _ => return Err(VMError::InvalidHostCallType),
                 },
@@ -2748,19 +2675,6 @@ impl Default for StateChange {
     }
 }
 
-impl Default for HostCallStateChange {
-    fn default() -> Self {
-        Self {
-            gas_change: 0,
-            r0_change: None,
-            r1_change: None,
-            memory_change: (0, vec![], 0),
-            service_accounts_changes: vec![],
-            exit_reason: ExitReason::Continue,
-        }
-    }
-}
-
 impl VMUtils {
     //
     // Program initialization util functions
@@ -2895,31 +2809,4 @@ impl VMUtils {
             _ => None,
         }
     }
-}
-
-//
-// Host functions
-//
-
-fn host_gas(
-    gas: UnsignedGas,
-    _registers: &[Register; REGISTERS_COUNT],
-    _context: InvocationContext,
-) -> Result<HostCallStateChange, VMError> {
-    let gas_remaining = gas.wrapping_sub(10);
-    Ok(HostCallStateChange {
-        r0_change: Some((gas_remaining & 0xFFFFFFFF) as u32),
-        r1_change: Some((gas_remaining >> 32) as u32),
-        ..Default::default()
-    })
-}
-
-fn host_lookup(
-    gas: UnsignedGas,
-    registers: &[Register; REGISTERS_COUNT],
-    memory: &Memory,
-    context: InvocationContext,
-    service_index: u32,
-) -> Result<HostCallStateChange, VMError> {
-    todo!()
 }
