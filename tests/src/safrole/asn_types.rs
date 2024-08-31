@@ -1,9 +1,6 @@
 use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
-use jam_block::{
-    extrinsics::components::tickets::TicketExtrinsicEntry,
-    state::components::safrole::SlotSealerType,
-};
 use jam_common::ValidatorKey;
+use jam_types::{extrinsics::tickets::TicketExtrinsicEntry, state::safrole::SlotSealerType};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Display};
 

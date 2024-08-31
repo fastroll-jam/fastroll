@@ -1,11 +1,8 @@
-pub mod extrinsics;
 pub mod header;
-pub mod state;
-pub mod trie;
 
-use crate::extrinsics::Extrinsics;
 use header::BlockHeader;
 use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use jam_extrinsics::Extrinsics;
 
 pub struct Block {
     header: BlockHeader,

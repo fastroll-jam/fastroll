@@ -1,0 +1,12 @@
+[package]
+name = "jam-extrinsics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-codec = { workspace = true }
+jam-common = { workspace = true }
+jam-crypto = { workspace = true }
+jam-state = { workspace = true }
+jam-types = { workspace = true }
+lazy_static = { workspace = true }

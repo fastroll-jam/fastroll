@@ -3,7 +3,6 @@ use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use jam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32};
-use std::array::TryFromSliceError;
 use thiserror::Error;
 
 type Blake2b256 = Blake2b<U32>;

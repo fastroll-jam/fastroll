@@ -490,17 +490,9 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 name = "jam-block"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
- "bit-vec",
- "blake2",
- "hex",
  "jam-codec",
  "jam-common",
- "jam-crypto",
- "jam-db",
- "lazy_static",
- "thiserror",
- "time",
+ "jam-extrinsics",
 ]
 
 [[package]]
@@ -543,15 +535,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "jam-extrinsics"
+version = "0.1.0"
+dependencies = [
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "jam-state",
+ "jam-types",
+ "lazy_static",
+]
+
+[[package]]
+name = "jam-state"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "blake2",
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "jam-db",
+ "jam-types",
+ "lazy_static",
+ "thiserror",
+]
+
+[[package]]
 name = "jam-tests"
 version = "0.1.0"
 dependencies = [
  "hex",
- "jam-block",
  "jam-common",
+ "jam-transition",
+ "jam-types",
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "jam-transition"
+version = "0.1.0"
+dependencies = [
+ "ark-ec-vrfs",
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "jam-state",
+ "jam-types",
+ "thiserror",
+ "time",
+]
+
+[[package]]
+name = "jam-types"
+version = "0.1.0"
+dependencies = [
+ "ark-ec-vrfs",
+ "bit-vec",
+ "hex",
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "thiserror",
+ "time",
 ]
 
 [[package]]
@@ -867,9 +915,10 @@ dependencies = [
 name = "rjam"
 version = "0.1.0"
 dependencies = [
- "jam-block",
  "jam-common",
  "jam-db",
+ "jam-extrinsics",
+ "jam-state",
  "lazy_static",
  "serde_json",
 ]

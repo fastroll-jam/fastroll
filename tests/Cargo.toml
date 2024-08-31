@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-block = { workspace = true }
 jam-common = { workspace = true, features = ["testing"] }
+jam-transition = { workspace = true }
+jam-types = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "jam-state"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-codec = { workspace = true }
+jam-common = { workspace = true }
+jam-crypto = { workspace = true }
+jam-db = { workspace = true }
+jam-types = { workspace = true }
+blake2 = { workspace = true }
+bit-vec = { workspace = true }
+lazy_static = { workspace = true }
+thiserror = { workspace = true }

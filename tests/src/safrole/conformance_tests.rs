@@ -4,18 +4,20 @@ mod tests {
         asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
         utils::{map_error_to_custom_code, StateBuilder},
     };
-    use jam_block::state::{
+    use jam_transition::{
         components::{
             entropy::EntropyAccumulatorContext,
             safrole::SafroleStateContext,
-            timeslot::{Timeslot, TimeslotContext},
+            timeslot::TimeslotContext,
             validators::{
                 ActiveValidatorSetContext, PastValidatorSetContext, StagingValidatorSetContext,
             },
         },
-        transition::Transition,
+        Transition,
     };
+    use jam_types::state::timeslot::Timeslot;
     use std::{error::Error, fs};
+
     //
     // Safrole state transition conformance tests
     //
