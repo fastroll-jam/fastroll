@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// This is denoted by the Greek letter `iota` in the Graypaper.
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy)]
 pub struct StagingValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
 
@@ -36,7 +36,7 @@ impl Display for StagingValidatorSet {
 /// block authors of the current epoch.
 ///
 /// This is denoted by the Greek letter `kappa` in the Graypaper.
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy)]
 pub struct ActiveValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
 
@@ -60,7 +60,7 @@ impl Display for ActiveValidatorSet {
 
 /// Represents the ValidatorSet that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy)]
 pub struct PastValidatorSet(pub ValidatorSet);
 impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
 

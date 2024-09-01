@@ -1,0 +1,9 @@
+[package]
+name = "jam-pvm-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-codec = { workspace = true }
+jam-common = { workspace = true }
+thiserror = { workspace = true }

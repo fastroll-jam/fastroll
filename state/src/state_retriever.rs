@@ -29,10 +29,11 @@ fn get_current_root_hash() -> Hash32 {
     todo!() // move to `block/header.rs`
 }
 
+#[derive(Default)]
 pub struct StateRetriever;
 
 impl StateRetriever {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         StateRetriever
     }
 

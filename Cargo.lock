@@ -547,6 +547,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "jam-host-interface"
+version = "0.1.0"
+dependencies = [
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "jam-pvm-types",
+ "jam-types",
+ "thiserror",
+]
+
+[[package]]
+name = "jam-pvm-types"
+version = "0.1.0"
+dependencies = [
+ "jam-codec",
+ "jam-common",
+ "thiserror",
+]
+
+[[package]]
 name = "jam-state"
 version = "0.1.0"
 dependencies = [
@@ -802,6 +823,11 @@ dependencies = [
  "bit-vec",
  "jam-codec",
  "jam-common",
+ "jam-crypto",
+ "jam-host-interface",
+ "jam-pvm-types",
+ "jam-state",
+ "jam-types",
  "thiserror",
 ]
 

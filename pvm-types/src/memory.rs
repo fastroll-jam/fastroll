@@ -1,0 +1,169 @@
+use jam_common::Octets;
+use thiserror::Error;
+
+pub type MemAddress = u32;
+
+#[derive(Debug, Error)]
+pub enum MemoryError {
+    #[error("Out of memory")]
+    OutOfMemory,
+    #[error("Memory access violation: {0}")]
+    AccessViolation(MemAddress),
+    #[error("Memory cell unavailable: {0}")]
+    CellUnavailable(MemAddress),
+}
+
+/// Memory Cell Access Types
+#[derive(Clone, Copy, Default)]
+pub enum AccessType {
+    #[default]
+    ReadOnly,
+    ReadWrite,
+    Inaccessible,
+}
+
+/// Memory Cell Statuses
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum CellStatus {
+    #[default]
+    Readable,
+    Writable,
+    Unavailable,
+}
+
+#[derive(Clone)]
+pub struct Memory {
+    cells: Vec<MemoryCell>,
+    page_size: usize,
+    pub heap_start: MemAddress,
+}
+
+#[derive(Clone, Copy, Default)]
+struct MemoryCell {
+    value: u8,
+    access: AccessType,
+    status: CellStatus,
+}
+
+impl Memory {
+    pub fn new(size: usize, page_size: usize) -> Self {
+        let cells = vec![MemoryCell::default(); size];
+        Memory {
+            cells,
+            page_size,
+            heap_start: 0,
+        }
+    }
+
+    /// Set memory cells of provided range with data and access type
+    pub fn set_range(&mut self, start: usize, data: &[u8], access: AccessType) {
+        for (i, &byte) in data.iter().enumerate() {
+            if let Some(cell) = self.cells.get_mut(start + i) {
+                cell.value = byte;
+                cell.access = access;
+                cell.status = match access {
+                    AccessType::ReadOnly => CellStatus::Readable,
+                    AccessType::ReadWrite => CellStatus::Writable,
+                    AccessType::Inaccessible => CellStatus::Unavailable,
+                };
+            }
+        }
+    }
+
+    /// Set memory cells of provided range with access type
+    pub fn set_access_range(&mut self, start: usize, end: usize, access: AccessType) {
+        for cell in &mut self.cells[start..end] {
+            cell.status = match access {
+                AccessType::ReadOnly => CellStatus::Readable,
+                AccessType::ReadWrite => CellStatus::Writable,
+                AccessType::Inaccessible => CellStatus::Unavailable,
+            };
+        }
+    }
+
+    /// Read a byte from memory
+    pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
+        let cell = self
+            .cells
+            .get(address as usize)
+            .ok_or(MemoryError::AccessViolation(address))?;
+
+        match cell.status {
+            CellStatus::Readable | CellStatus::Writable => Ok(cell.value),
+            CellStatus::Unavailable => Err(MemoryError::CellUnavailable(address)),
+        }
+    }
+
+    /// Write an u8 value to memory
+    pub fn write_byte(&mut self, address: MemAddress, value: u8) -> Result<(), MemoryError> {
+        let cell = self
+            .cells
+            .get_mut(address as usize)
+            .ok_or(MemoryError::AccessViolation(address))?;
+
+        match cell.status {
+            CellStatus::Writable => {
+                cell.value = value;
+                Ok(())
+            }
+            CellStatus::Readable | CellStatus::Unavailable => {
+                Err(MemoryError::CellUnavailable(address))
+            }
+        }
+    }
+
+    /// Read a specified number of bytes from memory starting at the given address
+    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, MemoryError> {
+        (0..length)
+            .map(|i| self.read_byte(address + i as MemAddress))
+            .collect()
+    }
+
+    /// Write a slice of bytes to memory starting at the given address
+    pub fn write_bytes(&mut self, address: MemAddress, bytes: &[u8]) -> Result<(), MemoryError> {
+        for (i, &byte) in bytes.iter().enumerate() {
+            self.write_byte(address + i as MemAddress, byte)?;
+        }
+        Ok(())
+    }
+
+    /// Get the break address (end of the heap) of current memory layout
+    pub fn get_break(&self, requested_size: usize) -> Result<MemAddress, MemoryError> {
+        let heap_start = self.heap_start;
+
+        let mut current_start = heap_start;
+        let mut consecutive_unavailable = 0;
+
+        for (i, cell) in self.cells[heap_start as usize..].iter().enumerate() {
+            if cell.status == CellStatus::Unavailable {
+                consecutive_unavailable += 1;
+                if consecutive_unavailable == requested_size {
+                    return Ok(current_start);
+                }
+            } else {
+                current_start = heap_start + i as MemAddress + 1;
+                consecutive_unavailable = 0;
+            }
+        }
+        Err(MemoryError::OutOfMemory)
+    }
+
+    /// Expand the heap (read-write) area for the `sbrk` instruction
+    pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
+        let end = start
+            .checked_add(size as MemAddress)
+            .ok_or(MemoryError::OutOfMemory)?;
+
+        if end as usize > self.cells.len() {
+            return Err(MemoryError::OutOfMemory);
+        }
+
+        // mark the new cells (expanding heap area) as writable
+        for cell in &mut self.cells[start as usize..end as usize] {
+            cell.status = CellStatus::Writable;
+            cell.access = AccessType::ReadWrite;
+        }
+
+        Ok(())
+    }
+}

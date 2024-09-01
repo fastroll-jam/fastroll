@@ -66,7 +66,7 @@ impl JamDecode for Verdict {
     }
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Clone, Copy, Ord, PartialOrd, PartialEq, Eq)]
 struct Vote {
     is_report_valid: bool,
     voter_index: u16, // N_V

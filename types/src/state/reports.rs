@@ -7,6 +7,7 @@ use jam_common::{WorkReport, CORE_COUNT};
 pub struct PendingReports(pub [Option<PendingReport>; CORE_COUNT]);
 impl_jam_codec_for_newtype!(PendingReports, [Option<PendingReport>; CORE_COUNT]);
 
+#[derive(Clone)]
 pub struct PendingReport {
     work_report: WorkReport,
     timeslot: Timeslot,

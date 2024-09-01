@@ -4,7 +4,7 @@ use jam_codec::{
 use jam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 use time::OffsetDateTime;
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
 // #[repr(transparent)]
 pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);

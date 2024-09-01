@@ -3,6 +3,8 @@ use crate::{ValidatorKey, VALIDATOR_COUNT};
 // Types
 pub type Hash32 = [u8; 32]; // FIXME: should be subset of `[u8; 32]`
 pub type Octets = Vec<u8>;
+pub type AccountAddress = u32; // service account address (index)
+pub type TokenBalance = u64;
 pub type BandersnatchPubKey = Hash32;
 pub type BandersnatchSignature = [u8; 96]; // `F` signature type
 pub type BandersnatchRingRoot = [u8; 144];

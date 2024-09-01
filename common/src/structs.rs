@@ -20,7 +20,7 @@ use std::{
 /// stored as a fixed-size byte array.
 ///
 /// The final ValidatorKey type is a simple concatenation of each component.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct ValidatorKey {
     pub bandersnatch_key: [u8; 32],
     pub ed25519_key: [u8; 32],
@@ -313,7 +313,7 @@ impl JamDecode for AvailabilitySpecifications {
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-struct WorkItemResult {
+pub struct WorkItemResult {
     service_index: u32,                    // s; N_S
     service_code_hash: Hash32,             // c
     payload_hash: Hash32,                  // l
@@ -359,7 +359,7 @@ impl JamDecode for WorkItemResult {
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-enum RefinementOutput {
+pub enum RefinementOutput {
     Output(Octets),
     Error(RefinementErrors),
 }

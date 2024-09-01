@@ -13,7 +13,7 @@ pub type U8 = u8;
 pub type U32 = u32;
 
 // Define fixed-length arrays
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
 );
@@ -98,7 +98,7 @@ pub enum CustomErrorCode {
 }
 
 // Define structures
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
     pub attempt: U8,
@@ -126,7 +126,7 @@ impl From<ValidatorKey> for ValidatorData {
 
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct TicketEnvelope {
     attempt: U8,
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]

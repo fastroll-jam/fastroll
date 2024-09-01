@@ -7,7 +7,9 @@ members = [
     "crypto",
     "db",
     "extrinsics",
+    "host-interface",
     "pvm",
+    "pvm-types",
     "state",
     "tests",
     "transition",
@@ -28,6 +30,8 @@ jam-common = { path = "common" }
 jam-crypto = { path = "crypto" }
 jam-db = { path = "db" }
 jam-extrinsics = { path = "extrinsics" }
+jam-host-interface = { path = "host-interface" }
+jam-pvm-types = { path = "pvm-types" }
 jam-state = { path = "state" }
 jam-transition = { path = "transition" }
 jam-types = { path = "types" }

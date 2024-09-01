@@ -1,32 +1,37 @@
-use crate::{
+use crate::opcode::Opcode;
+use bit_vec::BitVec;
+use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput};
+use jam_common::{AccountAddress, Octets, UnsignedGas};
+use jam_host_interface::{
+    AccumulationContext, AccumulationResult, HostCallError, HostCallStateChange, HostFunction,
+    InvocationContext,
+};
+use jam_pvm_types::{
+    accumulation::AccumulationOperand,
     constants::{
         INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE,
         STANDARD_PROGRAM_SIZE_LIMIT,
     },
-    host::{HostCallStateChange, HostCallType, HostFunction, InvocationContext},
-    opcode::Opcode,
+    hostcall::HostCallType,
+    memory::{AccessType, MemAddress, Memory, MemoryError},
+    register::Register,
+    types::ExitReason,
 };
-use bit_vec::BitVec;
-use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncodeFixed, JamInput};
-use jam_common::{Octets, UnsignedGas};
-use std::cmp::{max, min};
+use jam_state::state_retriever::StateRetriever;
+use jam_types::state::services::ServiceAccounts;
+use std::{
+    cmp::{max, min},
+    fmt::Display,
+};
 use thiserror::Error;
-
-pub(crate) type MemAddress = u32;
 
 /// PVM Error Codes
 #[derive(Debug, Error)]
 pub(crate) enum VMError {
     #[error("Out of gas")]
     OutOfGas,
-    #[error("Out of memory")]
-    OutOfMemory,
     #[error("Invalid program counter value")]
     InvalidProgramCounter,
-    #[error("Memory access violation: {0}")]
-    MemoryAccessViolation(MemAddress),
-    #[error("Memory cell unavailable: {0}")]
-    MemoryUnavailable(MemAddress),
     #[error("Panic")]
     Panic,
     #[error("Invalid program")]
@@ -39,60 +44,26 @@ pub(crate) enum VMError {
     InvalidImmediateValue,
     #[error("Invalid host call type")]
     InvalidHostCallType,
+    #[error("MemoryError: {0}")]
+    MemoryError(#[from] MemoryError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("HostCallError: {0}")]
+    HostCallError(#[from] HostCallError),
 }
 
 //
 // Enums
 //
 
-/// Memory Cell Access Types
-#[derive(Clone, Copy, Default)]
-enum AccessType {
-    #[default]
-    ReadOnly,
-    ReadWrite,
-    Inaccessible,
-}
-
-/// Memory Cell Statuses
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-enum CellStatus {
-    #[default]
-    Readable,
-    Writable,
-    Unavailable,
-}
-
-/// PVM Invocation Exit Reasons
-pub(crate) enum ExitReason {
-    Continue,
-    RegularHalt,
-    Panic,
-    OutOfGas,
-    PageFault(MemAddress),
-    HostCall(HostCallType),
-}
-
 enum ExecutionResult {
     Complete(ExitReason),
     HostCall(HostCallType),
 }
 
-impl HostCallType {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        if value <= 22 {
-            Some(unsafe { std::mem::transmute(value) })
-        } else {
-            None
-        }
-    }
-}
-
 enum CommonInvocationResult {
     OutOfGas(ExitReason, InvocationContext), // (exit_reason, context)
-    Result(UnsignedGas, Octets),             // (posterior_gas, return_value)
+    Result(UnsignedGas, Octets),             // (posterior_gas, return_value);
     ResultUnavailable(UnsignedGas),          // (posterior_gas, [])
     Failure(ExitReason, InvocationContext),  // (panic, context)
 }
@@ -127,25 +98,6 @@ struct Program {
     basic_block_bitmask: BitVec, // bitmask to detect opcode addresses that begin basic blocks
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct Register {
-    value: u32,
-}
-
-#[derive(Clone)]
-struct Memory {
-    cells: Vec<MemoryCell>,
-    page_size: usize,
-    heap_start: MemAddress,
-}
-
-#[derive(Clone, Copy, Default)]
-struct MemoryCell {
-    value: u8,
-    access: AccessType,
-    status: CellStatus,
-}
-
 #[derive(Debug)]
 struct Instruction {
     op: Opcode,          // opcode
@@ -176,8 +128,6 @@ struct StateChange {
     exit_reason: ExitReason, // TODO: check if necessary
 }
 
-struct VMUtils;
-
 impl ProgramDecoder {
     //
     // Program decoding functions
@@ -186,7 +136,7 @@ impl ProgramDecoder {
     /// Decode program blob into formatted program
     fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, VMError> {
         let mut input = program;
-        FormattedProgram::decode(&mut input).map_err(VMError::JamCodecError)
+        Ok(FormattedProgram::decode(&mut input)?)
     }
 
     /// Decode program code into instruction sequence, opcode bitmask and dynamic jump table
@@ -678,12 +628,12 @@ impl PVM {
 
     /// Read a byte from memory
     fn read_memory_byte(&self, address: MemAddress) -> Result<u8, VMError> {
-        self.state.memory.read_byte(address)
+        Ok(self.state.memory.read_byte(address)?)
     }
 
     /// Read a specified number of bytes from memory starting at the given address
     fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, VMError> {
-        self.state.memory.read_bytes(address, length)
+        Ok(self.state.memory.read_bytes(address, length)?)
     }
 
     /// Read a `u32` value stored in a register of the given index
@@ -716,7 +666,7 @@ impl PVM {
                 if let Err(e) = self
                     .state
                     .memory
-                    .write_u8(start_address.wrapping_add(offset as u32), byte)
+                    .write_byte(start_address.wrapping_add(offset as u32), byte)
                 {
                     eprintln!(
                         "Warning: Failed to write to memory at address {:X}: {:?}",
@@ -760,7 +710,7 @@ impl PVM {
                 if let Err(e) = self
                     .state
                     .memory
-                    .write_u8(start_address.wrapping_add(offset as u32), byte)
+                    .write_byte(start_address.wrapping_add(offset as u32), byte)
                 {
                     eprintln!(
                         "Warning: Failed to write to memory at address {:X}: {:?}",
@@ -800,6 +750,65 @@ impl PVM {
     // PVM invocation functions
     //
 
+    /// Accumulate invocation function
+    ///
+    /// argument `service_accounts` is post-preimage integration, pre-accumulation state of global service accounts
+    /// Represents `Psi_A` in the GP
+    // pub(crate) fn accumulate(
+    //     service_accounts: &ServiceAccounts,
+    //     service_account_address: AccountAddress,
+    //     gas_limit: UnsignedGas,
+    //     operands: Vec<AccumulationOperand>,
+    // ) -> Result<AccumulationResult, VMError> {
+    //     // TODO: interface for fetching on-chain account from address
+    //     let invoker_account = service_accounts
+    //         .0
+    //         .get(&service_account_address)
+    //         .unwrap()
+    //         .clone();
+    //
+    //     let code = invoker_account.get_code();
+    //
+    //     if operands.is_empty() || code.is_none() {
+    //         return Ok(AccumulationResult::Unchanged(invoker_account));
+    //     }
+    //
+    //     // Get current global state components
+    //     let state_retriever = StateRetriever::new(); // FIXME: move to `jam-host-interface` crate
+    //     let privileged_services = state_retriever.get_privileged_services()?;
+    //     let authorizer_queue = state_retriever.get_authorizer_queue()?;
+    //     let staging_validator_set = state_retriever.get_staging_validator_set()?;
+    //     let entropy_0 = state_retriever.get_entropy_accumulator()?.current();
+    //     let timeslot = state_retriever.get_recent_timeslot()?;
+    //
+    //     // TODO: check
+    //     // `x` for a regular dimension and `y` for an exceptional dimension
+    //     let (mut x, mut y) = AccumulationContext::initialize_context_pair(
+    //         service_accounts,
+    //         invoker_account.clone(),
+    //         service_account_address,
+    //         privileged_services,
+    //         authorizer_queue,
+    //         staging_validator_set,
+    //         entropy_0,
+    //         timeslot,
+    //     );
+    //
+    //     let common_invocation_result = Self::common_invocation(
+    //         &code.unwrap()[..],
+    //         2,
+    //         gas_limit,
+    //         &operands.encode()?,
+    //         InvocationContext::X_A((x.clone(), y.clone())),
+    //     )
+    //     .expect("Common Invocation Error");
+    //
+    //     // FIXME: return value handling
+    //     // TODO: use callbacks for host function calls
+    //
+    //     Ok((AccumulationResult::Result(x, None)))
+    // }
+
     /// Invoke the PVM with program and arguments
     /// This works as a common interface for 4 different PVM invocations
     ///
@@ -826,7 +835,7 @@ impl PVM {
         pvm.program.jump_table = jump_table;
         pvm.set_basic_block_bitmask()?;
 
-        match pvm.extended_invocation(context)? {
+        match pvm.extended_invocation(context.clone())? {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(
                 ExitReason::OutOfGas,
                 context,
@@ -856,7 +865,7 @@ impl PVM {
                     HostCallType::GAS => HostFunction::host_gas(
                         self.state.gas_counter,
                         &self.state.registers,
-                        context,
+                        &context,
                     )?, // TODO: better gas handling
                     // TODO: add other host function cases
                     _ => return Err(VMError::InvalidHostCallType),
@@ -2471,129 +2480,6 @@ impl PVM {
     }
 }
 
-impl Memory {
-    fn new(size: usize, page_size: usize) -> Self {
-        let cells = vec![MemoryCell::default(); size];
-        Memory {
-            cells,
-            page_size,
-            heap_start: 0,
-        }
-    }
-
-    /// Set memory cells of provided range with data and access type
-    fn set_range(&mut self, start: usize, data: &[u8], access: AccessType) {
-        for (i, &byte) in data.iter().enumerate() {
-            if let Some(cell) = self.cells.get_mut(start + i) {
-                cell.value = byte;
-                cell.access = access;
-                cell.status = match access {
-                    AccessType::ReadOnly => CellStatus::Readable,
-                    AccessType::ReadWrite => CellStatus::Writable,
-                    AccessType::Inaccessible => CellStatus::Unavailable,
-                };
-            }
-        }
-    }
-
-    /// Set memory cells of provided range with access type
-    fn set_access_range(&mut self, start: usize, end: usize, access: AccessType) {
-        for cell in &mut self.cells[start..end] {
-            cell.status = match access {
-                AccessType::ReadOnly => CellStatus::Readable,
-                AccessType::ReadWrite => CellStatus::Writable,
-                AccessType::Inaccessible => CellStatus::Unavailable,
-            };
-        }
-    }
-
-    /// Read a byte from memory
-    fn read_byte(&self, address: MemAddress) -> Result<u8, VMError> {
-        let cell = self
-            .cells
-            .get(address as usize)
-            .ok_or(VMError::MemoryAccessViolation(address))?;
-
-        match cell.status {
-            CellStatus::Readable | CellStatus::Writable => Ok(cell.value),
-            CellStatus::Unavailable => Err(VMError::MemoryUnavailable(address)),
-        }
-    }
-
-    /// Write an u8 value to memory
-    fn write_u8(&mut self, address: MemAddress, value: u8) -> Result<(), VMError> {
-        let cell = self
-            .cells
-            .get_mut(address as usize)
-            .ok_or(VMError::MemoryAccessViolation(address))?;
-
-        match cell.status {
-            CellStatus::Writable => {
-                cell.value = value;
-                Ok(())
-            }
-            CellStatus::Readable | CellStatus::Unavailable => {
-                Err(VMError::MemoryUnavailable(address))
-            }
-        }
-    }
-
-    /// Read a specified number of bytes from memory starting at the given address
-    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, VMError> {
-        (0..length)
-            .map(|i| self.read_byte(address + i as MemAddress))
-            .collect()
-    }
-
-    /// Write a slice of bytes to memory starting at the given address
-    pub fn write_bytes(&mut self, address: MemAddress, bytes: &[u8]) -> Result<(), VMError> {
-        for (i, &byte) in bytes.iter().enumerate() {
-            self.write_u8(address + i as MemAddress, byte)?;
-        }
-        Ok(())
-    }
-
-    /// Get the break address (end of the heap) of current memory layout
-    fn get_break(&self, requested_size: usize) -> Result<MemAddress, VMError> {
-        let heap_start = self.heap_start;
-
-        let mut current_start = heap_start;
-        let mut consecutive_unavailable = 0;
-
-        for (i, cell) in self.cells[heap_start as usize..].iter().enumerate() {
-            if cell.status == CellStatus::Unavailable {
-                consecutive_unavailable += 1;
-                if consecutive_unavailable == requested_size {
-                    return Ok(current_start);
-                }
-            } else {
-                current_start = heap_start + i as MemAddress + 1;
-                consecutive_unavailable = 0;
-            }
-        }
-        Err(VMError::OutOfMemory)
-    }
-
-    /// Expand the heap (read-write) area for the `sbrk` instruction
-    fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), VMError> {
-        let end = start
-            .checked_add(size as MemAddress)
-            .ok_or(VMError::OutOfMemory)?;
-
-        if end as usize > self.cells.len() {
-            return Err(VMError::OutOfMemory);
-        }
-
-        // mark the new cells (expanding heap area) as writable
-        for cell in &mut self.cells[start as usize..end as usize] {
-            cell.status = CellStatus::Writable;
-            cell.access = AccessType::ReadWrite;
-        }
-
-        Ok(())
-    }
-}
-
 impl JamDecode for FormattedProgram {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
@@ -2674,6 +2560,8 @@ impl Default for StateChange {
         }
     }
 }
+
+struct VMUtils;
 
 impl VMUtils {
     //

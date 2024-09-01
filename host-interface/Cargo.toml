@@ -1,5 +1,5 @@
 [package]
-name = "pvm"
+name = "jam-host-interface"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,6 @@ edition = "2021"
 jam-codec = { workspace = true }
 jam-common = { workspace = true }
 jam-crypto = { workspace = true }
-jam-host-interface = { workspace = true }
-jam-pvm-types = { workspace = true }
-jam-state = { workspace = true }
 jam-types = { workspace = true }
-bit-vec = { workspace = true }
+jam-pvm-types = { workspace = true }
 thiserror = { workspace = true }

@@ -3,6 +3,7 @@ use jam_codec::{
 };
 use jam_common::VALIDATOR_COUNT;
 
+#[derive(Clone, Copy)]
 pub struct ValidatorStatEntry {
     block_production_count: u32, // b; the number of blocks produced by the validator.
     ticket_count: u32,           // t; the number of tickets introduced by the validator.

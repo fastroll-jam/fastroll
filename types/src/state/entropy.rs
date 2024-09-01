@@ -4,7 +4,7 @@ use jam_codec::{
 use jam_common::{Hash32, HASH32_DEFAULT};
 use std::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
 

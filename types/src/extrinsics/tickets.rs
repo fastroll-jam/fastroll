@@ -4,7 +4,7 @@ use jam_common::BandersnatchRingVrfProof;
 use jam_crypto::vrf::RingVrfSignature;
 use std::cmp::Ordering;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TicketExtrinsicEntry {
     pub entry_index: u8,                        // r; N_N
     pub ticket_proof: BandersnatchRingVrfProof, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)

@@ -1,9 +1,11 @@
 use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use jam_common::AccountAddress;
 
+#[derive(Clone, Copy)]
 pub struct PrivilegedServices {
-    empower_service_index: u32,   // m; N_S
-    assign_service_index: u32,    // a; N_S
-    designate_service_index: u32, // v; N_S
+    empower_service_index: AccountAddress,   // m; N_S
+    assign_service_index: AccountAddress,    // a; N_S
+    designate_service_index: AccountAddress, // v; N_S
 }
 
 impl JamEncode for PrivilegedServices {
@@ -27,9 +29,9 @@ impl JamDecode for PrivilegedServices {
         Self: Sized,
     {
         Ok(Self {
-            empower_service_index: u32::decode(input)?,
-            assign_service_index: u32::decode(input)?,
-            designate_service_index: u32::decode(input)?,
+            empower_service_index: AccountAddress::decode(input)?,
+            assign_service_index: AccountAddress::decode(input)?,
+            designate_service_index: AccountAddress::decode(input)?,
         })
     }
 }
