@@ -17,7 +17,6 @@ use jam_pvm_types::{
     register::Register,
     types::ExitReason,
 };
-use jam_state::state_retriever::StateRetriever;
 use jam_types::state::services::ServiceAccounts;
 use std::{
     cmp::{max, min},
@@ -754,60 +753,47 @@ impl PVM {
     ///
     /// argument `service_accounts` is post-preimage integration, pre-accumulation state of global service accounts
     /// Represents `Psi_A` in the GP
-    // pub(crate) fn accumulate(
-    //     service_accounts: &ServiceAccounts,
-    //     service_account_address: AccountAddress,
-    //     gas_limit: UnsignedGas,
-    //     operands: Vec<AccumulationOperand>,
-    // ) -> Result<AccumulationResult, VMError> {
-    //     // TODO: interface for fetching on-chain account from address
-    //     let invoker_account = service_accounts
-    //         .0
-    //         .get(&service_account_address)
-    //         .unwrap()
-    //         .clone();
-    //
-    //     let code = invoker_account.get_code();
-    //
-    //     if operands.is_empty() || code.is_none() {
-    //         return Ok(AccumulationResult::Unchanged(invoker_account));
-    //     }
-    //
-    //     // Get current global state components
-    //     let state_retriever = StateRetriever::new(); // FIXME: move to `jam-host-interface` crate
-    //     let privileged_services = state_retriever.get_privileged_services()?;
-    //     let authorizer_queue = state_retriever.get_authorizer_queue()?;
-    //     let staging_validator_set = state_retriever.get_staging_validator_set()?;
-    //     let entropy_0 = state_retriever.get_entropy_accumulator()?.current();
-    //     let timeslot = state_retriever.get_recent_timeslot()?;
-    //
-    //     // TODO: check
-    //     // `x` for a regular dimension and `y` for an exceptional dimension
-    //     let (mut x, mut y) = AccumulationContext::initialize_context_pair(
-    //         service_accounts,
-    //         invoker_account.clone(),
-    //         service_account_address,
-    //         privileged_services,
-    //         authorizer_queue,
-    //         staging_validator_set,
-    //         entropy_0,
-    //         timeslot,
-    //     );
-    //
-    //     let common_invocation_result = Self::common_invocation(
-    //         &code.unwrap()[..],
-    //         2,
-    //         gas_limit,
-    //         &operands.encode()?,
-    //         InvocationContext::X_A((x.clone(), y.clone())),
-    //     )
-    //     .expect("Common Invocation Error");
-    //
-    //     // FIXME: return value handling
-    //     // TODO: use callbacks for host function calls
-    //
-    //     Ok((AccumulationResult::Result(x, None)))
-    // }
+    pub(crate) fn accumulate(
+        service_accounts: &ServiceAccounts,
+        service_account_address: AccountAddress,
+        gas_limit: UnsignedGas,
+        operands: Vec<AccumulationOperand>,
+    ) -> Result<AccumulationResult, VMError> {
+        // TODO: interface for fetching on-chain account from address
+        let invoker_account = service_accounts
+            .0
+            .get(&service_account_address)
+            .unwrap()
+            .clone();
+
+        let code = invoker_account.get_code();
+
+        if operands.is_empty() || code.is_none() {
+            return Ok(AccumulationResult::Unchanged(invoker_account));
+        }
+
+        // TODO: check using mutable references
+        // `x` for a regular dimension and `y` for an exceptional dimension
+        let (mut x, mut y) = AccumulationContext::initialize_context_pair(
+            service_accounts,
+            invoker_account.clone(),
+            service_account_address,
+        )?;
+
+        let common_invocation_result = Self::common_invocation(
+            &code.unwrap()[..],
+            2,
+            gas_limit,
+            &operands.encode()?,
+            InvocationContext::X_A((x.clone(), y.clone())),
+        )
+        .expect("Common Invocation Error");
+
+        // FIXME: return value handling
+        // TODO: use callbacks for host function calls
+
+        Ok((AccumulationResult::Result(x, None)))
+    }
 
     /// Invoke the PVM with program and arguments
     /// This works as a common interface for 4 different PVM invocations

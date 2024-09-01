@@ -554,6 +554,7 @@ dependencies = [
  "jam-common",
  "jam-crypto",
  "jam-pvm-types",
+ "jam-state",
  "jam-types",
  "thiserror",
 ]
@@ -826,7 +827,6 @@ dependencies = [
  "jam-crypto",
  "jam-host-interface",
  "jam-pvm-types",
- "jam-state",
  "jam-types",
  "thiserror",
 ]

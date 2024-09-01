@@ -5,6 +5,7 @@ use jam_pvm_types::{
     accumulation::DeferredTransfer, constants::REGISTERS_COUNT, memory::MemAddress,
     register::Register, types::ExitReason,
 };
+use jam_state::{global_state::GlobalStateError, state_retriever::StateRetriever};
 use jam_types::state::{
     authorizer::AuthorizerQueue,
     privileged::PrivilegedServices,
@@ -13,14 +14,15 @@ use jam_types::state::{
     validators::StagingValidatorSet,
 };
 use thiserror::Error;
-
 //
 // Enums
 //
 
-// FIXME: move
 #[derive(Debug, Error)]
-pub enum HostCallError {}
+pub enum HostCallError {
+    #[error("GlobalStateError: {0}")]
+    GlobalStateError(#[from] GlobalStateError),
+}
 
 #[repr(u32)]
 pub enum HostCallResult {
@@ -76,19 +78,22 @@ impl AccumulationContext {
         service_accounts: &ServiceAccounts,
         invoker_account: ServiceAccountState,
         invoker_account_address: AccountAddress,
-        privileged_services: PrivilegedServices,
-        authorizer_queue: AuthorizerQueue,
-        staging_validator_set: StagingValidatorSet,
-        entropy: Hash32,
-        timeslot: Timeslot,
-    ) -> (Self, Self) {
+    ) -> Result<(Self, Self), HostCallError> {
+        // Get current global state components
+        let state_retriever = StateRetriever::new();
+        let privileged_services = state_retriever.get_privileged_services()?;
+        let authorizer_queue = state_retriever.get_authorizer_queue()?;
+        let staging_validator_set = state_retriever.get_staging_validator_set()?;
+        let entropy_0 = state_retriever.get_entropy_accumulator()?.current();
+        let timeslot = state_retriever.get_recent_timeslot()?;
+
         let context = Self {
             service_account: Some(invoker_account),
             deferred_transfers: vec![],
             new_service_index: Self::new_account_address(
                 service_accounts,
                 invoker_account_address,
-                entropy,
+                entropy_0,
                 timeslot,
             ),
             privileged_services,
@@ -97,7 +102,7 @@ impl AccumulationContext {
             new_accounts: ServiceAccounts::default(),
         };
 
-        (context.clone(), context)
+        Ok((context.clone(), context))
     }
 
     fn new_account_address(

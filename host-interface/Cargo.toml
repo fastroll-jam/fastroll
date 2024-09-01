@@ -7,6 +7,7 @@ edition = "2021"
 jam-codec = { workspace = true }
 jam-common = { workspace = true }
 jam-crypto = { workspace = true }
+jam-state = { workspace = true }
 jam-types = { workspace = true }
 jam-pvm-types = { workspace = true }
 thiserror = { workspace = true }
