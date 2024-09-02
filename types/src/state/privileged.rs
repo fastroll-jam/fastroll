@@ -3,9 +3,9 @@ use jam_common::AccountAddress;
 
 #[derive(Clone, Copy)]
 pub struct PrivilegedServices {
-    empower_service_index: AccountAddress,   // m; N_S
-    assign_service_index: AccountAddress,    // a; N_S
-    designate_service_index: AccountAddress, // v; N_S
+    pub empower_service_index: AccountAddress,   // m; N_S
+    pub assign_service_index: AccountAddress,    // a; N_S
+    pub designate_service_index: AccountAddress, // v; N_S
 }
 
 impl JamEncode for PrivilegedServices {

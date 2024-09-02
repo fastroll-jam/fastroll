@@ -14,18 +14,30 @@ use jam_types::state::{
     validators::StagingValidatorSet,
 };
 use thiserror::Error;
+
+//
+// Constants
+//
+
+const HOST_CALL_INPUT_REGISTERS_COUNT: usize = 6;
+const HOST_CALL_OUTPUT_REGISTERS_COUNT: usize = 2;
+
 //
 // Enums
 //
 
 #[derive(Debug, Error)]
 pub enum HostCallError {
+    #[error("Invalid host call invocation context")]
+    InvalidContext,
+    #[error("Invalid register indices")]
+    InvalidRegisters,
     #[error("GlobalStateError: {0}")]
     GlobalStateError(#[from] GlobalStateError),
 }
 
 #[repr(u32)]
-pub enum HostCallResult {
+pub enum HostCallResultConstant {
     NONE = u32::MAX,
     OOB = u32::MAX - 1,
     WHO = u32::MAX - 2,
@@ -47,7 +59,6 @@ pub enum InnerPVMInvocationResult {
     HOST = u32::MAX - 13,
 }
 
-// TODO: add service accounts context
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
@@ -56,6 +67,14 @@ pub enum InvocationContext {
     X_R,                                             // Refine
     X_A((AccumulationContext, AccumulationContext)), // Accumulate
     X_T,                                             // On-Transfer
+}
+
+pub enum HostCallResult {
+    General(HostCallStateChange),
+    IsAuthorized,
+    Refinement,
+    Accumulation(AccumulationHostCallResult),
+    OnTransfer,
 }
 
 //
@@ -137,15 +156,12 @@ pub enum AccumulationResult {
     Result(AccumulationContext, Option<Hash32>), // (context, result_hash)
 }
 
-struct ServiceAccountChange; // TODO: impl
-
 pub struct HostCallStateChange {
     pub gas_change: UnsignedGas,
     pub r0_change: Option<u32>,
     pub r1_change: Option<u32>,
     pub memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
-    pub service_accounts_changes: Vec<(u32, ServiceAccountChange)>, // u32 for service account index; TODO: better data handling
-    pub exit_reason: ExitReason,                                    // TODO: check if necessary
+    pub exit_reason: ExitReason,                  // TODO: check if necessary
 }
 
 impl Default for HostCallStateChange {
@@ -155,17 +171,23 @@ impl Default for HostCallStateChange {
             r0_change: None,
             r1_change: None,
             memory_change: (0, vec![], 0),
-            service_accounts_changes: vec![],
             exit_reason: ExitReason::Continue,
         }
     }
 }
 
 //
-// Host functions
+// Host Call Results
 //
 
-// TODO: pass these functions as callback arguments to the invocation functions
+struct AccumulationHostCallResult {
+    vm_state_change: HostCallStateChange,
+    post_context: AccumulationContext,
+}
+
+//
+// Host Functions
+//
 
 pub struct HostFunction;
 
@@ -174,12 +196,38 @@ impl HostFunction {
         gas: UnsignedGas,
         _registers: &[Register; REGISTERS_COUNT],
         _context: &InvocationContext,
-    ) -> Result<HostCallStateChange, HostCallError> {
+    ) -> Result<HostCallResult, HostCallError> {
         let gas_remaining = gas.wrapping_sub(10);
-        Ok(HostCallStateChange {
+
+        Ok(HostCallResult::General(HostCallStateChange {
             r0_change: Some((gas_remaining & 0xFFFFFFFF) as u32),
             r1_change: Some((gas_remaining >> 32) as u32),
             ..Default::default()
-        })
+        }))
+    }
+
+    // Accumulation host functions mutate: gas, registers, contexts
+    pub fn host_empower(
+        gas: UnsignedGas,
+        registers: &[Register; REGISTERS_COUNT],
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        if let InvocationContext::X_A((x, _y)) = context {
+            let mut post_x = x.clone();
+            let [empower, assign, designate] = registers[..3] else {
+                return Err(HostCallError::InvalidRegisters);
+            };
+
+            post_x.privileged_services.empower_service_index = empower.value;
+            post_x.privileged_services.assign_service_index = assign.value;
+            post_x.privileged_services.designate_service_index = designate.value;
+
+            Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+                vm_state_change: HostCallStateChange::default(),
+                post_context: post_x,
+            }))
+        } else {
+            Err(HostCallError::InvalidContext)
+        }
     }
 }
