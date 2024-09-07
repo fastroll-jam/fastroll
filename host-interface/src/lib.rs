@@ -70,6 +70,7 @@ pub enum InvocationContext {
 }
 
 pub enum HostCallResult {
+    PageFault(MemAddress), // TODO: properly apply page fault exit reason for host call results
     General(HostCallStateChange),
     IsAuthorized,
     Refinement,
@@ -157,7 +158,7 @@ pub enum AccumulationResult {
 }
 
 pub struct HostCallStateChange {
-    pub gas_change: UnsignedGas,
+    pub gas_usage: UnsignedGas,
     pub r0_change: Option<u32>,
     pub r1_change: Option<u32>,
     pub memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
@@ -167,7 +168,7 @@ pub struct HostCallStateChange {
 impl Default for HostCallStateChange {
     fn default() -> Self {
         Self {
-            gas_change: 0,
+            gas_usage: 10,
             r0_change: None,
             r1_change: None,
             memory_change: (0, vec![], 0),
@@ -180,9 +181,9 @@ impl Default for HostCallStateChange {
 // Host Call Results
 //
 
-struct AccumulationHostCallResult {
-    vm_state_change: HostCallStateChange,
-    post_context: AccumulationContext,
+pub struct AccumulationHostCallResult {
+    pub vm_state_change: HostCallStateChange,
+    pub post_contexts: (AccumulationContext, AccumulationContext), // context_x, context_y
 }
 
 //
@@ -208,11 +209,11 @@ impl HostFunction {
 
     // Accumulation host functions mutate: gas, registers, contexts
     pub fn host_empower(
-        gas: UnsignedGas,
+        _gas: UnsignedGas,
         registers: &[Register; REGISTERS_COUNT],
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        if let InvocationContext::X_A((x, _y)) = context {
+        if let InvocationContext::X_A((x, y)) = context {
             let mut post_x = x.clone();
             let [empower, assign, designate] = registers[..3] else {
                 return Err(HostCallError::InvalidRegisters);
@@ -224,7 +225,7 @@ impl HostFunction {
 
             Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: HostCallStateChange::default(),
-                post_context: post_x,
+                post_contexts: (post_x, y.clone()),
             }))
         } else {
             Err(HostCallError::InvalidContext)

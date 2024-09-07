@@ -3,8 +3,8 @@ use bit_vec::BitVec;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput};
 use jam_common::{AccountAddress, Octets, UnsignedGas};
 use jam_host_interface::{
-    AccumulationContext, AccumulationResult, HostCallError, HostCallStateChange, HostFunction,
-    InvocationContext,
+    AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallStateChange,
+    HostFunction, InvocationContext,
 };
 use jam_pvm_types::{
     accumulation::AccumulationOperand,
@@ -123,8 +123,18 @@ struct StateChange {
     register_changes: Vec<(usize, u32)>,
     memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
     pc_change: Option<MemAddress>,
-    gas_change: UnsignedGas,
-    exit_reason: ExitReason, // TODO: check if necessary
+    gas_usage: UnsignedGas,
+}
+
+struct SingleInvocationResult {
+    exit_reason: ExitReason,
+    state_change: StateChange,
+}
+
+struct ExtendedInvocationResult {
+    exit_reason: ExitReason,
+    post_context: InvocationContext,
+    // TODO: add other posterior VM states?
 }
 
 impl ProgramDecoder {
@@ -485,7 +495,7 @@ impl PVM {
 
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
-    /// Represents `Y` in the GP
+    /// Represents `Y` of the GP
     fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
         let mut pvm = PVM::default();
 
@@ -645,7 +655,7 @@ impl PVM {
     //
 
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
-    fn apply_state_change(&mut self, change: StateChange) -> ExitReason {
+    fn apply_state_change(&mut self, change: StateChange) -> Result<(), VMError> {
         // Apply register changes
         for (reg_index, new_value) in change.register_changes {
             if reg_index < REGISTERS_COUNT {
@@ -684,16 +694,18 @@ impl PVM {
         }
 
         // Apply gas change
-        if self.state.gas_counter >= change.gas_change {
-            self.state.gas_counter -= change.gas_change;
-        } else {
-            return ExitReason::OutOfGas;
-        }
+        self.state.gas_counter -= change.gas_usage;
+        // TODO: add a separate gas check logic outside this function
+        // if self.state.gas_counter >= change.gas_usage {
+        //     self.state.gas_counter -= change.gas_usage;
+        // } else {
+        //     return ExitReason::OutOfGas;
+        // }
 
-        change.exit_reason
+        Ok(())
     }
 
-    fn apply_host_call_state_change(&mut self, change: HostCallStateChange) -> ExitReason {
+    fn apply_host_call_state_change(&mut self, change: HostCallStateChange) -> Result<(), VMError> {
         // Apply register changes (register index 0 & 1)
         if let Some(r0) = change.r0_change {
             self.state.registers[0].value = r0;
@@ -723,13 +735,16 @@ impl PVM {
         }
 
         // Apply gas change
-        if self.state.gas_counter >= change.gas_change {
-            self.state.gas_counter -= change.gas_change;
-        } else {
-            return ExitReason::OutOfGas;
-        }
+        self.state.gas_counter -= change.gas_usage;
 
-        change.exit_reason
+        // TODO: add a separate gas check logic outside this function
+        // if self.state.gas_counter >= change.gas_usage {
+        //     self.state.gas_counter -= change.gas_usage;
+        // } else {
+        //     return ExitReason::OutOfGas;
+        // }
+
+        Ok(())
     }
 
     //
@@ -752,7 +767,7 @@ impl PVM {
     /// Accumulate invocation function
     ///
     /// argument `service_accounts` is post-preimage integration, pre-accumulation state of global service accounts
-    /// Represents `Psi_A` in the GP
+    /// Represents `Psi_A` of the GP
     pub(crate) fn accumulate(
         service_accounts: &ServiceAccounts,
         service_account_address: AccountAddress,
@@ -792,13 +807,13 @@ impl PVM {
         // FIXME: return value handling
         // TODO: use callbacks for host function calls
 
-        Ok((AccumulationResult::Result(x, None)))
+        Ok(AccumulationResult::Result(x, None))
     }
 
     /// Invoke the PVM with program and arguments
-    /// This works as a common interface for 4 different PVM invocations
+    /// This works as a common interface for the four PVM invocation entry-points
     ///
-    /// Represents `Psi_M` in the GP
+    /// Represents `Psi_M` of the GP
     pub(crate) fn common_invocation(
         standard_program: &[u8],
         pc: MemAddress,
@@ -821,10 +836,12 @@ impl PVM {
         pvm.program.jump_table = jump_table;
         pvm.set_basic_block_bitmask()?;
 
-        match pvm.extended_invocation(context.clone())? {
+        let extended_invocation_result = pvm.extended_invocation(context.clone())?;
+
+        match extended_invocation_result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(
                 ExitReason::OutOfGas,
-                context,
+                extended_invocation_result.post_context,
             )),
             ExitReason::RegularHalt => {
                 let result = pvm.read_memory_bytes(pvm.read_reg(10)?, pvm.read_reg(11)? as usize);
@@ -841,35 +858,75 @@ impl PVM {
     /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
     /// common invocation function
     ///
-    /// Represents `Psi_H` in the GP
-    fn extended_invocation(&mut self, context: InvocationContext) -> Result<ExitReason, VMError> {
-        loop {
-            let exit_reason = self.general_invocation()?;
+    /// # Arguments
+    ///
+    /// * `&mut self` - Mutable reference to the PVM including program code and VM states
+    /// * `context` - The invocation context
+    ///
+    /// Represents `Psi_H` of the GP
+    fn extended_invocation(
+        &mut self,
+        context: InvocationContext,
+    ) -> Result<ExtendedInvocationResult, VMError> {
+        let mut context = context.clone();
 
-            let state_change = match exit_reason {
-                ExitReason::HostCall(h) => match h {
-                    HostCallType::GAS => HostFunction::host_gas(
-                        self.state.gas_counter,
-                        &self.state.registers,
-                        &context,
-                    )?, // TODO: better gas handling
-                    // TODO: add other host function cases
-                    _ => return Err(VMError::InvalidHostCallType),
-                },
-                _ => return Ok(exit_reason),
+        loop {
+            let mut exit_reason = self.general_invocation()?;
+
+            let host_call_result = match exit_reason {
+                ExitReason::HostCall(h) => self.execute_host_function(&context, &h)?,
+                _ => {
+                    return Ok(ExtendedInvocationResult {
+                        exit_reason,
+                        post_context: context,
+                    })
+                }
             };
-            let host_call_exit_reason = self.apply_host_call_state_change(state_change);
-            match host_call_exit_reason {
-                ExitReason::PageFault(_address) => return Ok(host_call_exit_reason),
-                _ => continue,
-            }
+
+            let (vm_state_change, post_context) = match host_call_result {
+                HostCallResult::PageFault(m) => {
+                    exit_reason = ExitReason::PageFault(m);
+                    return Ok(ExtendedInvocationResult {
+                        exit_reason: ExitReason::PageFault(m),
+                        post_context: context,
+                    });
+                }
+                HostCallResult::Accumulation(result) => (
+                    result.vm_state_change,
+                    InvocationContext::X_A(result.post_contexts),
+                ),
+                _ => unimplemented!("not yet implemented"),
+            };
+
+            self.apply_host_call_state_change(vm_state_change)?; // update the vm states
+            context = post_context; // update the invocation context for the next call
+            self.state.pc = self.next_pc(); // increment the pc on host call success
         }
+    }
+
+    fn execute_host_function(
+        &mut self,
+        context: &InvocationContext,
+        h: &HostCallType,
+    ) -> Result<HostCallResult, VMError> {
+        // TODO: add other host function cases
+        let result = match h {
+            HostCallType::GAS => {
+                HostFunction::host_gas(self.state.gas_counter, &self.state.registers, &context)?
+            } // TODO: better gas handling
+            HostCallType::EMPOWER => {
+                HostFunction::host_empower(self.state.gas_counter, &self.state.registers, &context)?
+            }
+            _ => return Err(VMError::InvalidHostCallType),
+        };
+
+        Ok(result)
     }
 
     /// Recursively call single-step invocation functions following the instruction sequence
     /// Mutating the VM states
     ///
-    /// Represents `Psi` in the GP
+    /// Represents `Psi` of the GP
     fn general_invocation(&mut self) -> Result<ExitReason, VMError> {
         loop {
             let skip_distance = Self::skip(
@@ -896,12 +953,12 @@ impl PVM {
             let ins =
                 ProgramDecoder::decode_instruction(&instruction_blob, current_pc, skip_distance)?;
 
-            let state_change = self.single_step_invocation(&ins)?;
-            let exit_reason = self.apply_state_change(state_change);
-            match exit_reason {
+            let single_invocation_result = self.single_step_invocation(&ins)?;
+            self.apply_state_change(single_invocation_result.state_change)?;
+            match single_invocation_result.exit_reason {
                 ExitReason::Continue => continue,
-                ExitReason::OutOfGas => return Ok(exit_reason),
-                _ => return Ok(exit_reason),
+                ExitReason::OutOfGas => return Ok(ExitReason::OutOfGas),
+                other => return Ok(other),
             }
         }
     }
@@ -912,8 +969,11 @@ impl PVM {
     ///
     /// Instruction `SBRK` is the only instruction that directly mutates the VM state, for new heap allocation
     ///
-    /// Represents `Psi_1` in the GP
-    fn single_step_invocation(&mut self, ins: &Instruction) -> Result<StateChange, VMError> {
+    /// Represents `Psi_1` of the GP
+    fn single_step_invocation(
+        &mut self,
+        ins: &Instruction,
+    ) -> Result<SingleInvocationResult, VMError> {
         match ins.op {
             Opcode::TRAP => self.trap(),
             Opcode::FALLTHROUGH => self.fallthrough(),
@@ -1064,21 +1124,26 @@ impl PVM {
     /// `panic` with no mutation to the VM state
     ///
     /// Opcode: 0
-    fn trap(&self) -> Result<StateChange, VMError> {
-        Ok(StateChange {
+    fn trap(&self) -> Result<SingleInvocationResult, VMError> {
+        Ok(SingleInvocationResult {
             exit_reason: ExitReason::Panic,
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Continue program with no mutation to the VM state
     ///
     /// Opcode: 17
-    fn fallthrough(&self) -> Result<StateChange, VMError> {
-        Ok(StateChange {
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+    fn fallthrough(&self) -> Result<SingleInvocationResult, VMError> {
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1089,7 +1154,7 @@ impl PVM {
     /// Invoke host function call
     ///
     /// Opcode: 78
-    fn ecalli(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn ecalli(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_host_call_type =
             u8::try_from(ins.imm1.unwrap()).map_err(|_| VMError::InvalidImmediateValue)?;
 
@@ -1097,10 +1162,12 @@ impl PVM {
             .ok_or(VMError::InvalidHostCallType)
             .map(ExitReason::HostCall)?;
 
-        Ok(StateChange {
+        Ok(SingleInvocationResult {
             exit_reason,
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1111,48 +1178,57 @@ impl PVM {
     /// Store immediate argument value to the memory as `u8` integer type
     ///
     /// Opcode: 62
-    fn store_imm_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
 
-        Ok(StateChange {
-            memory_change: (imm_address, value, 1),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, value, 1),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store immediate argument value to the memory as `u16` integer type
     ///
     /// Opcode: 79
-    fn store_imm_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
 
-        Ok(StateChange {
-            memory_change: (imm_address, value, 2),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, value, 2),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store immediate argument value to the memory as `u32` integer type
     ///
     /// Opcode: 38
-    fn store_imm_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
         let value = imm_value.encode_fixed(4)?;
 
-        Ok(StateChange {
-            memory_change: (imm_address, value, 4),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, value, 4),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1163,13 +1239,15 @@ impl PVM {
     /// Jump to the target address with no condition checks
     ///
     /// Opcode: 5
-    fn jump(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn jump(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let (exit_reason, target) = self.branch(ins.imm1.unwrap(), true)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
@@ -1183,146 +1261,175 @@ impl PVM {
     /// register to an immediate value, then jumps to the resulting address.
     ///
     /// Opcode: 19
-    fn jump_ind(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn jump_ind(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let r1_val = self.read_reg(ins.r1.unwrap())?;
         let (exit_reason, target) =
             self.djump(((r1_val as u64 + ins.imm1.unwrap() as u64) % (1 << 32)) as usize)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Load an immediate value into a register
     ///
     /// Opcode: 4
-    fn load_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+    fn load_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load an unsigned 8-bit value from memory into a register
     ///
     /// Opcode: 60
-    fn load_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = self.state.memory.read_byte(imm1)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), val as u32)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), val as u32)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load signed 8-bit value from memory into register
     ///
     /// Opcode: 74
-    fn load_i8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_i8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = self.state.memory.read_byte(imm1)?;
         let signed_val = VMUtils::unsigned_to_signed(1, val as u32).unwrap();
         let unsigned_val = VMUtils::signed_to_unsigned(4, signed_val).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load unsigned 16-bit value from memory into register
     ///
     /// Opcode: 76
-    fn load_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = self.state.memory.read_bytes(imm1, 2)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), u32::decode_fixed(&mut &val[..], 2)?)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), u32::decode_fixed(&mut &val[..], 2)?)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load signed 16-bit value from memory into register
     ///
     /// Opcode: 66
-    fn load_i16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_i16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = self.state.memory.read_bytes(imm1, 2)?;
         let signed_val =
             VMUtils::unsigned_to_signed(2, u32::decode_fixed(&mut &val[..], 2).unwrap()).unwrap();
         let unsigned_val = VMUtils::signed_to_unsigned(4, signed_val).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load unsigned 32-bit value from memory into register
     ///
     /// Opcode: 10
-    fn load_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = self.state.memory.read_bytes(imm1, 4)?;
 
-        Ok(StateChange {
-            register_changes: vec![(
-                ins.r1.unwrap(),
-                u32::decode_fixed(&mut &val[..], 4).unwrap(),
-            )],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(
+                    ins.r1.unwrap(),
+                    u32::decode_fixed(&mut &val[..], 4).unwrap(),
+                )],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store register value to the memory as 8-bit unsigned integer
     ///
     /// Opcode: 71
-    fn store_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = vec![(ins.r1.unwrap() & 0xFF) as u8];
 
-        Ok(StateChange {
-            memory_change: (imm_address, r1_value, 1),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, r1_value, 1),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store register value to memory as 16-bit unsigned integer
     ///
     /// Opcode: 69
-    fn store_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = (self.read_reg(ins.r1.unwrap())? & 0xFFFF) as u16;
 
-        Ok(StateChange {
-            memory_change: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store register value to memory as 32-bit unsigned integer
     ///
     /// Opcode: 22
-    fn store_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = self.read_reg(ins.r1.unwrap())?;
 
-        Ok(StateChange {
-            memory_change: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1334,48 +1441,57 @@ impl PVM {
     /// Store immediate 8-bit value to memory indirectly
     ///
     /// Opcode: 26
-    fn store_imm_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_ind_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = vec![(ins.imm2.unwrap() & 0xFF) as u8];
 
-        Ok(StateChange {
-            memory_change: (address, value, 1),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 1),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store immediate 16-bit value to memory indirectly
     ///
     /// Opcode: 54
-    fn store_imm_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_ind_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = ((ins.imm2.unwrap() & 0xFFFF) as u16).encode_fixed(2)?;
 
-        Ok(StateChange {
-            memory_change: (address, value, 2),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 2),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store immediate 32-bit value to memory indirectly
     ///
     /// Opcode: 13
-    fn store_imm_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_imm_ind_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = ins.imm2.unwrap().encode_fixed(4)?;
 
-        Ok(StateChange {
-            memory_change: (address, value, 4),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 4),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1386,162 +1502,184 @@ impl PVM {
     /// Load immediate value and jump
     ///
     /// Opcode: 6
-    fn load_imm_jump(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_imm_jump(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, true)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if equal to immediate
     ///
     /// Opcode: 7
-    fn branch_eq_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_eq_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? == ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if not equal to immediate
     ///
     /// Opcode: 15
-    fn branch_ne_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ne_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? != ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than immediate (unsigned)
     ///
     /// Opcode: 44
-    fn branch_lt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_lt_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? < ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than or equal to immediate (unsigned)
     ///
     /// Opcode: 59
-    fn branch_le_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_le_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? <= ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than or equal to immediate (unsigned)
     ///
     /// Opcode: 52
-    fn branch_ge_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ge_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? >= ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than immediate (unsigned)
     ///
     /// Opcode: 50
-    fn branch_gt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_gt_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let condition = self.read_reg(ins.r1.unwrap())? > ins.imm1.unwrap();
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than immediate (signed)
     ///
     /// Opcode: 32
-    fn branch_lt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_lt_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val < imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than or equal to immediate (signed)
     ///
     /// Opcode: 46
-    fn branch_le_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_le_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val <= imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than or equal to immediate (signed)
     ///
     /// Opcode: 45
-    fn branch_ge_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ge_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val >= imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than immediate (signed)
     ///
     /// Opcode: 53
-    fn branch_gt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_gt_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let r1_val = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let condition = r1_val > imm_val;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
@@ -1552,13 +1690,16 @@ impl PVM {
     /// Move value from one register to another
     ///
     /// Opcode: 82
-    fn move_reg(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn move_reg(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let value = self.read_reg(ins.r1.unwrap())?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), value)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), value)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1567,7 +1708,7 @@ impl PVM {
     /// This instruction directly mutates the VM memory state unlike other instructions
     ///
     /// Opcode: 87
-    fn sbrk(&mut self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn sbrk(&mut self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let requested_size = self.read_reg(ins.r1.unwrap())? as usize;
 
         // find the first sequence of unavailable memory cells that can satisfy the request
@@ -1577,10 +1718,13 @@ impl PVM {
         self.state.memory.expand_heap(alloc_start, requested_size)?;
 
         // returns the start of the newly allocated heap memory
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), alloc_start)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), alloc_start)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -1591,71 +1735,83 @@ impl PVM {
     /// Store 8-bit value to memory indirectly
     ///
     /// Opcode: 16
-    fn store_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_ind_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = vec![(self.read_reg(ins.r1.unwrap())? & 0xFF) as u8];
 
-        Ok(StateChange {
-            memory_change: (address, value, 1),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 1),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store 16-bit value to memory indirectly
     ///
     /// Opcode: 29
-    fn store_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_ind_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = ((self.read_reg(ins.r1.unwrap())? & 0xFFFF) as u16).encode_fixed(2)?;
 
-        Ok(StateChange {
-            memory_change: (address, value, 2),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 2),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Store 32-bit value to memory indirectly
     ///
     /// Opcode: 3
-    fn store_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn store_ind_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.read_reg(ins.r1.unwrap())?.encode_fixed(4)?;
 
-        Ok(StateChange {
-            memory_change: (address, value, 4),
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                memory_change: (address, value, 4),
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load 8-bit unsigned value from memory indirectly
     ///
     /// Opcode: 11
-    fn load_ind_u8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_ind_u8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_byte(address)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), value as u32)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), value as u32)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load 8-bit signed value from memory indirectly
     ///
     /// Opcode: 21
-    fn load_ind_i8(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_ind_i8(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
@@ -1663,34 +1819,40 @@ impl PVM {
         let signed_value = VMUtils::unsigned_to_signed(1, value as u32).unwrap();
         let unsigned_value = VMUtils::signed_to_unsigned(4, signed_value).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load 16-bit unsigned value from memory indirectly
     ///
     /// Opcode: 37
-    fn load_ind_u16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_ind_u16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_bytes(address, 2)?;
         let r_val = u16::decode_fixed(&mut &value[..], 2)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), r_val as u32)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), r_val as u32)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load 16-bit signed value from memory indirectly
     ///
     /// Opcode: 33
-    fn load_ind_i16(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_ind_i16(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
@@ -1699,325 +1861,391 @@ impl PVM {
         let signed_value = VMUtils::unsigned_to_signed(2, value_decoded as u32).unwrap();
         let unsigned_value = VMUtils::signed_to_unsigned(4, signed_value).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Load 32-bit unsigned value from memory indirectly
     ///
     /// Opcode: 1
-    fn load_ind_u32(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_ind_u32(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
         let value = self.state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), value_decoded)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), value_decoded)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Add immediate to register
     ///
     /// Opcode: 2
-    fn add_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn add_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm1.unwrap());
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise AND with immediate
     ///
     /// Opcode: 18
-    fn and_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn and_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r2.unwrap())? & ins.imm1.unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise XOR with immediate
     ///
     /// Opcode: 31
-    fn xor_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn xor_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r2.unwrap())? ^ ins.imm1.unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise OR with immediate
     ///
     /// Opcode: 49
-    fn or_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn or_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r2.unwrap())? | ins.imm1.unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply with immediate
     ///
     /// Opcode: 35
-    fn mul_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_mul(ins.imm1.unwrap());
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply upper (signed * signed) with immediate
     ///
     /// Opcode: 65
-    fn mul_upper_s_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_upper_s_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap() as i64;
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap() as i64;
         let result = ((a * b) >> 32) as i32; // implicitly conducts floor operation
         let unsigned_result = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply upper (unsigned * unsigned) with immediate
     ///
     /// Opcode: 63
-    fn mul_upper_u_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_upper_u_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r2.unwrap())? as u64;
         let b = ins.imm1.unwrap() as u64;
         let result = ((a * b) >> 32) as u32; // implicitly conducts floor operation
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if less than immediate (unsigned)
     ///
     /// Opcode: 27
-    fn set_lt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_lt_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a < b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if less than immediate (signed)
     ///
     /// Opcode: 56
-    fn set_lt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_lt_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = if a < b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift left logical with immediate
     ///
     /// Opcode: 9
-    fn shlo_l_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_l_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let result = self.read_reg(ins.r2.unwrap())? << shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right logical with immediate
     ///
     /// Opcode: 14
-    fn shlo_r_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_r_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let result = self.read_reg(ins.r2.unwrap())? >> shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right arithmetic with immediate
     ///
     /// Opcode: 25
-    fn shar_r_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shar_r_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let value = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = value >> shift;
         let unsigned_result = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Negate and add immediate
     ///
     /// Opcode: 40
-    fn neg_add_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn neg_add_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = ins
             .imm1
             .unwrap()
             .wrapping_sub(self.read_reg(ins.r2.unwrap())?);
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if greater than immediate (unsigned)
     ///
     /// Opcode: 39
-    fn set_gt_u_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_gt_u_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a > b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if greater than immediate (signed)
     ///
     /// Opcode: 61
-    fn set_gt_s_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_gt_s_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = if a > b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift left logical immediate (alternative)
     ///
     /// Opcode: 75
-    fn shlo_l_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_l_imm_alt(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() << shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right logical immediate (alternative)
     ///
     /// Opcode: 72
-    fn shlo_r_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_r_imm_alt(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() >> shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right arithmetic immediate (alternative)
     ///
     /// Opcode: 80
-    fn shar_r_imm_alt(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shar_r_imm_alt(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let value = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = value >> shift;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result_unsigned)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result_unsigned)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Conditional move if zero with immediate
     ///
     /// Opcode: 85
-    fn cmov_iz_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn cmov_iz_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = if self.read_reg(ins.r2.unwrap())? == 0 {
             ins.imm1.unwrap()
         } else {
             self.read_reg(ins.r1.unwrap())?
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Conditional move if not zero with immediate
     ///
     /// Opcode: 86
-    fn cmov_nz_imm(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn cmov_nz_imm(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = if self.read_reg(ins.r2.unwrap())? != 0 {
             ins.imm1.unwrap()
         } else {
             self.read_reg(ins.r1.unwrap())?
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
@@ -2028,96 +2256,108 @@ impl PVM {
     /// Branch if equal
     ///
     /// Opcode: 24
-    fn branch_eq(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_eq(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())?;
         let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a == b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if not equal
     ///
     /// Opcode: 30
-    fn branch_ne(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ne(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())?;
         let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a != b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than (unsigned)
     ///
     /// Opcode: 47
-    fn branch_lt_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_lt_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())?;
         let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a < b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if less than (signed)
     ///
     /// Opcode: 48
-    fn branch_lt_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_lt_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let condition = a < b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
-            exit_reason,
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than or equal (unsigned)
     ///
     /// Opcode: 41
-    fn branch_ge_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ge_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())?;
         let b = self.read_reg(ins.r2.unwrap())?;
         let condition = a >= b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
     /// Branch if greater than or equal (signed)
     ///
     /// Opcode: 43
-    fn branch_ge_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn branch_ge_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let condition = a >= b;
         let (exit_reason, target) = self.branch(ins.offset.unwrap() as u32, condition)?;
 
-        Ok(StateChange {
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
@@ -2128,17 +2368,19 @@ impl PVM {
     /// Load immediate and jump indirect
     ///
     /// Opcode: 42
-    fn load_imm_jump_ind(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn load_imm_jump_ind(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let jump_address = self
             .read_reg(ins.r2.unwrap())?
             .wrapping_add(ins.imm2.unwrap());
         let (exit_reason, target) = self.djump(jump_address as usize)?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-            pc_change: Some(target),
+        Ok(SingleInvocationResult {
             exit_reason,
-            ..Default::default()
+            state_change: StateChange {
+                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                pc_change: Some(target),
+                ..Default::default()
+            },
         })
     }
 
@@ -2149,138 +2391,165 @@ impl PVM {
     /// Add two registers
     ///
     /// Opcode: 8
-    fn add(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn add(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_add(self.read_reg(ins.r2.unwrap())?);
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Subtract two registers
     ///
     /// Opcode: 20
-    fn sub(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn sub(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_sub(self.read_reg(ins.r2.unwrap())?);
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise AND of two registers
     ///
     /// Opcode: 23
-    fn and(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn and(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r1.unwrap())? & self.read_reg(ins.r2.unwrap())?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise XOR of two registers
     ///
     /// Opcode: 28
-    fn xor(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn xor(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r1.unwrap())? ^ self.read_reg(ins.r2.unwrap())?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Bitwise OR of two registers
     ///
     /// Opcode: 12
-    fn or(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn or(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self.read_reg(ins.r1.unwrap())? | self.read_reg(ins.r2.unwrap())?;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply two registers
     ///
     /// Opcode: 34
-    fn mul(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = self
             .read_reg(ins.r1.unwrap())?
             .wrapping_mul(self.read_reg(ins.r2.unwrap())?);
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply upper (signed * signed)
     ///
     /// Opcode: 67
-    fn mul_upper_s_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_upper_s_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap() as i64;
         let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap() as i64;
         let result = ((a * b) >> 32) as i32;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply upper (unsigned * unsigned)
     ///
     /// Opcode: 57
-    fn mul_upper_u_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_upper_u_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())? as u64;
         let b = self.read_reg(ins.r2.unwrap())? as u64;
         let result = ((a * b) >> 32) as u32;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Multiply upper (signed * unsigned)
     ///
     /// Opcode: 81
-    fn mul_upper_s_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn mul_upper_s_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap() as i64;
         let b = self.read_reg(ins.r2.unwrap())? as u64;
         let result = ((a * b as i64) >> 32) as i32;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Divide unsigned
     ///
     /// Opcode: 68
-    fn div_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn div_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let dividend = self.read_reg(ins.r1.unwrap())?;
         let divisor = self.read_reg(ins.r2.unwrap())?;
         let result = if divisor == 0 {
@@ -2289,17 +2558,20 @@ impl PVM {
             dividend.wrapping_div(divisor)
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Divide signed
     ///
     /// Opcode: 64
-    fn div_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn div_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let dividend = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let divisor = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if divisor == 0 {
@@ -2310,17 +2582,20 @@ impl PVM {
             VMUtils::signed_to_unsigned(4, dividend.wrapping_div(divisor)).unwrap()
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Remainder unsigned
     ///
     /// Opcode: 73
-    fn rem_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn rem_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let dividend = self.read_reg(ins.r1.unwrap())?;
         let divisor = self.read_reg(ins.r2.unwrap())?;
         let result = if divisor == 0 {
@@ -2329,17 +2604,20 @@ impl PVM {
             dividend % divisor
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Remainder signed
     ///
     /// Opcode: 70
-    fn rem_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn rem_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let dividend = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let divisor = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if divisor == 0 {
@@ -2350,118 +2628,142 @@ impl PVM {
             VMUtils::signed_to_unsigned(4, dividend % divisor).unwrap()
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if less than (unsigned)
     ///
     /// Opcode: 36
-    fn set_lt_u(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_lt_u(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = self.read_reg(ins.r1.unwrap())?;
         let b = self.read_reg(ins.r2.unwrap())?;
         let result = if a < b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Set if less than (signed)
     ///
     /// Opcode: 58
-    fn set_lt_s(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn set_lt_s(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let a = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r2.unwrap())?).unwrap();
         let result = if a < b { 1 } else { 0 };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift left logical
     ///
     /// Opcode: 55
-    fn shlo_l(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_l(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = self.read_reg(ins.r1.unwrap())? << shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right logical
     ///
     /// Opcode: 51
-    fn shlo_r(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shlo_r(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = self.read_reg(ins.r1.unwrap())? >> shift;
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Shift right arithmetic
     ///
     /// Opcode: 77
-    fn shar_r(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn shar_r(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let shift = self.read_reg(ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let value = VMUtils::unsigned_to_signed(4, self.read_reg(ins.r1.unwrap())?).unwrap();
         let result = value >> shift;
         let result_unsigned = VMUtils::signed_to_unsigned(4, result).unwrap();
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Conditional move if zero
     ///
     /// Opcode: 83
-    fn cmov_iz(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn cmov_iz(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = if self.read_reg(ins.r2.unwrap())? == 0 {
             self.read_reg(ins.r1.unwrap())?
         } else {
             self.read_reg(ins.rd.unwrap())?
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 
     /// Conditional move if not zero
     ///
     /// Opcode: 84
-    fn cmov_nz(&self, ins: &Instruction) -> Result<StateChange, VMError> {
+    fn cmov_nz(&self, ins: &Instruction) -> Result<SingleInvocationResult, VMError> {
         let result = if self.read_reg(ins.r2.unwrap())? != 0 {
             self.read_reg(ins.r1.unwrap())?
         } else {
             self.read_reg(ins.rd.unwrap())?
         };
 
-        Ok(StateChange {
-            register_changes: vec![(ins.rd.unwrap(), result)],
-            pc_change: Some(self.next_pc()),
-            ..Default::default()
+        Ok(SingleInvocationResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_changes: vec![(ins.rd.unwrap(), result)],
+                pc_change: Some(self.next_pc()),
+                ..Default::default()
+            },
         })
     }
 }
@@ -2541,8 +2843,7 @@ impl Default for StateChange {
             register_changes: vec![],
             memory_change: (0, vec![], 0),
             pc_change: None,
-            gas_change: 0,
-            exit_reason: ExitReason::Continue,
+            gas_usage: 0,
         }
     }
 }
@@ -2569,7 +2870,7 @@ impl VMUtils {
     //
 
     /// Converts an unsigned integer to a signed integer of the same bit width.
-    /// Represents `Z_n` in the GP
+    /// Represents `Z_n` of the GP
     /// # Arguments
     ///
     /// * `n`: The number of octets (8-bit units) in the integer.
@@ -2593,7 +2894,7 @@ impl VMUtils {
     }
 
     /// Converts a signed integer to an unsigned integer of the same bit width.
-    /// Represents `{Z_n}^-1` in the GP
+    /// Represents `{Z_n}^-1` of the GP
     ///
     /// # Arguments
     ///
@@ -2614,7 +2915,7 @@ impl VMUtils {
     }
 
     /// Converts an unsigned integer to its binary representation.
-    /// Represents `B_n` in the GP
+    /// Represents `B_n` of the GP
     ///
     /// # Arguments
     ///
@@ -2639,7 +2940,7 @@ impl VMUtils {
     }
 
     /// Converts a binary representation back to an unsigned integer.
-    /// Represents `{B_n}^-1` in the GP
+    /// Represents `{B_n}^-1` of the GP
     ///
     /// # Arguments
     ///
@@ -2663,7 +2964,7 @@ impl VMUtils {
     }
 
     /// Performs signed extension on an unsigned integer.
-    /// Represents `X_n` in the GP
+    /// Represents `X_n` of the GP
     ///
     /// # Arguments
     ///
