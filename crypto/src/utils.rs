@@ -2,7 +2,7 @@ use crate::vrf::{IetfVrfSignature, RingVrfSignature};
 use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use jam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32};
+use jam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32, Octets};
 use thiserror::Error;
 
 type Blake2b256 = Blake2b<U32>;
@@ -33,6 +33,14 @@ pub fn blake2b_256(value: &[u8]) -> Result<Hash32, CryptoError> {
 pub fn blake2b_256_first_4bytes(value: &[u8]) -> Result<[u8; 4], CryptoError> {
     let hash = blake2b_256(value)?;
     Ok(hash[..4].try_into().unwrap())
+}
+
+pub fn octets_to_hash32(value: Octets) -> Option<Hash32> {
+    if value.len() == 32 {
+        value.try_into().ok()
+    } else {
+        None
+    }
 }
 
 // `Y` hash function for a VRF signature

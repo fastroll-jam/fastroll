@@ -2,6 +2,7 @@ use crate::opcode::Opcode;
 use bit_vec::BitVec;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput};
 use jam_common::{AccountAddress, Octets, UnsignedGas};
+use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::{
     AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallStateChange,
     HostFunction, InvocationContext,
@@ -229,7 +230,7 @@ impl ProgramDecoder {
     /// The instruction blob should not exceed 16 bytes in length.
     /// The opcode is represented by the first byte of the instruction blob.
     fn decode_instruction(
-        mut inst_blob: &[u8],
+        inst_blob: &[u8],
         current_pc: MemAddress,
         skip_distance: usize,
     ) -> Result<Instruction, VMError> {
@@ -766,7 +767,13 @@ impl PVM {
 
     /// Accumulate invocation function
     ///
-    /// argument `service_accounts` is post-preimage integration, pre-accumulation state of global service accounts
+    /// # Arguments
+    ///
+    /// * `service_accounts` - The current global state of service accounts, after preimage integration but before accumulation
+    /// * `service_account_address` - The address of the service account invoking the accumulation
+    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation operation
+    /// * `operands` - A vector of `AccumulationOperand`s, which are the outputs from the refinement process to be accumulated
+    ///
     /// Represents `Psi_A` of the GP
     pub(crate) fn accumulate(
         service_accounts: &ServiceAccounts,
@@ -789,7 +796,7 @@ impl PVM {
 
         // TODO: check using mutable references
         // `x` for a regular dimension and `y` for an exceptional dimension
-        let (mut x, mut y) = AccumulationContext::initialize_context_pair(
+        let (x, y) = AccumulationContext::initialize_context_pair(
             service_accounts,
             invoker_account.clone(),
             service_account_address,
@@ -801,13 +808,19 @@ impl PVM {
             gas_limit,
             &operands.encode()?,
             InvocationContext::X_A((x.clone(), y.clone())),
-        )
-        .expect("Common Invocation Error");
+        )?;
 
-        // FIXME: return value handling
-        // TODO: use callbacks for host function calls
-
-        Ok(AccumulationResult::Result(x, None))
+        return match common_invocation_result {
+            CommonInvocationResult::Result(_gas, output) => {
+                Ok(AccumulationResult::Result(x, octets_to_hash32(output)))
+            }
+            CommonInvocationResult::ResultUnavailable(_gas) => {
+                Ok(AccumulationResult::Result(x, None))
+            }
+            CommonInvocationResult::OutOfGas(_, _) | CommonInvocationResult::Failure(_, _) => {
+                Ok(AccumulationResult::Result(y, None))
+            }
+        };
     }
 
     /// Invoke the PVM with program and arguments
