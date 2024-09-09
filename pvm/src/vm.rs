@@ -4,8 +4,8 @@ use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFi
 use jam_common::{AccountAddress, Octets, UnsignedGas};
 use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::{
-    AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallStateChange,
-    HostFunction, InvocationContext,
+    AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallVMStateChange,
+    HostFunction, InvocationContext, HOST_CALL_INPUT_REGISTERS_COUNT,
 };
 use jam_pvm_types::{
     accumulation::AccumulationOperand,
@@ -121,9 +121,9 @@ struct FormattedProgram {
 }
 
 struct StateChange {
-    register_changes: Vec<(usize, u32)>,
-    memory_change: (MemAddress, Octets, u32), // (start_address, data, data_len)
-    pc_change: Option<MemAddress>,
+    register_writes: Vec<(usize, u32)>,
+    memory_write: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    new_pc: Option<MemAddress>,
     gas_usage: UnsignedGas,
 }
 
@@ -632,6 +632,13 @@ impl PVM {
         ) as MemAddress
     }
 
+    /// Get a reference to the first 6 registers for host call functions
+    pub fn get_host_call_registers(&self) -> &[Register; HOST_CALL_INPUT_REGISTERS_COUNT] {
+        self.state.registers[..HOST_CALL_INPUT_REGISTERS_COUNT]
+            .try_into()
+            .unwrap()
+    }
+
     //
     // VM state read functions
     //
@@ -658,7 +665,7 @@ impl PVM {
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
     fn apply_state_change(&mut self, change: StateChange) -> Result<(), VMError> {
         // Apply register changes
-        for (reg_index, new_value) in change.register_changes {
+        for (reg_index, new_value) in change.register_writes {
             if reg_index < REGISTERS_COUNT {
                 self.state.registers[reg_index] = Register { value: new_value };
             } else {
@@ -670,7 +677,7 @@ impl PVM {
         }
 
         // Apply memory change
-        let (start_address, data, data_len) = change.memory_change;
+        let (start_address, data, data_len) = change.memory_write;
         if data_len as usize <= data.len() {
             for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
                 if let Err(e) = self
@@ -690,7 +697,7 @@ impl PVM {
         }
 
         // Apply PC change
-        if let Some(new_pc) = change.pc_change {
+        if let Some(new_pc) = change.new_pc {
             self.state.pc = new_pc;
         }
 
@@ -706,17 +713,20 @@ impl PVM {
         Ok(())
     }
 
-    fn apply_host_call_state_change(&mut self, change: HostCallStateChange) -> Result<(), VMError> {
+    fn apply_host_call_state_change(
+        &mut self,
+        change: HostCallVMStateChange,
+    ) -> Result<(), VMError> {
         // Apply register changes (register index 0 & 1)
-        if let Some(r0) = change.r0_change {
+        if let Some(r0) = change.r0_write {
             self.state.registers[0].value = r0;
         }
-        if let Some(r1) = change.r1_change {
+        if let Some(r1) = change.r1_write {
             self.state.registers[1].value = r1;
         }
 
         // Apply memory change
-        let (start_address, data, data_len) = change.memory_change;
+        let (start_address, data, data_len) = change.memory_write;
         if data_len as usize <= data.len() {
             for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
                 if let Err(e) = self
@@ -924,12 +934,17 @@ impl PVM {
     ) -> Result<HostCallResult, VMError> {
         // TODO: add other host function cases
         let result = match h {
-            HostCallType::GAS => {
-                HostFunction::host_gas(self.state.gas_counter, &self.state.registers, &context)?
-            } // TODO: better gas handling
-            HostCallType::EMPOWER => {
-                HostFunction::host_empower(self.state.gas_counter, &self.state.registers, &context)?
-            }
+            // TODO: better gas handling
+            HostCallType::GAS => HostFunction::host_gas(
+                self.state.gas_counter,
+                self.get_host_call_registers(),
+                &context,
+            )?,
+            HostCallType::EMPOWER => HostFunction::host_empower(
+                self.state.gas_counter,
+                self.get_host_call_registers(),
+                &context,
+            )?,
             _ => return Err(VMError::InvalidHostCallType),
         };
 
@@ -1141,7 +1156,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
-                pc_change: Some(self.next_pc()),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1154,7 +1169,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                pc_change: Some(self.next_pc()),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1178,7 +1193,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(self.next_pc()),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1200,8 +1215,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, value, 1),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, value, 1),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1219,8 +1234,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, value, 2),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, value, 2),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1238,8 +1253,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, value, 4),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, value, 4),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1258,7 +1273,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1282,7 +1297,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1295,8 +1310,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1312,8 +1327,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), val as u32)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), val as u32)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1331,8 +1346,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_val)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1348,8 +1363,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), u32::decode_fixed(&mut &val[..], 2)?)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), u32::decode_fixed(&mut &val[..], 2)?)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1368,8 +1383,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_val)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_val)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1385,11 +1400,11 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(
+                register_writes: vec![(
                     ins.r1.unwrap(),
                     u32::decode_fixed(&mut &val[..], 4).unwrap(),
                 )],
-                pc_change: Some(self.next_pc()),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1405,8 +1420,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, r1_value, 1),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, r1_value, 1),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1422,8 +1437,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1439,8 +1454,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
-                pc_change: Some(self.next_pc()),
+                memory_write: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1463,8 +1478,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 1),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 1),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1482,8 +1497,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 2),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 2),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1501,8 +1516,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 4),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 4),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1521,8 +1536,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-                pc_change: Some(target),
+                register_writes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1538,7 +1553,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1554,7 +1569,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1570,7 +1585,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1586,7 +1601,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1602,7 +1617,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1618,7 +1633,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1636,7 +1651,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1654,7 +1669,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1672,7 +1687,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1690,7 +1705,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -1709,8 +1724,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), value)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), value)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1734,8 +1749,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), alloc_start)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), alloc_start)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1757,8 +1772,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 1),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 1),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1776,8 +1791,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 2),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 2),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1795,8 +1810,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_change: (address, value, 4),
-                pc_change: Some(self.next_pc()),
+                memory_write: (address, value, 4),
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1814,8 +1829,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), value as u32)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), value as u32)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1835,8 +1850,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_value)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1855,8 +1870,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), r_val as u32)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), r_val as u32)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1877,8 +1892,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_value)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_value)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1897,8 +1912,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), value_decoded)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), value_decoded)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1915,8 +1930,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1931,8 +1946,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1947,8 +1962,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1963,8 +1978,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -1981,8 +1996,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2000,8 +2015,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2018,8 +2033,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2036,8 +2051,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2054,8 +2069,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2071,8 +2086,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2088,8 +2103,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2107,8 +2122,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), unsigned_result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), unsigned_result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2126,8 +2141,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2144,8 +2159,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2162,8 +2177,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2179,8 +2194,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2196,8 +2211,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2215,8 +2230,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result_unsigned)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result_unsigned)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2235,8 +2250,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2255,8 +2270,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.r1.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2278,7 +2293,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2296,7 +2311,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2314,7 +2329,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2332,7 +2347,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2350,7 +2365,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2368,7 +2383,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                pc_change: Some(target),
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2390,8 +2405,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                register_changes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
-                pc_change: Some(target),
+                register_writes: vec![(ins.r1.unwrap(), ins.imm1.unwrap())],
+                new_pc: Some(target),
                 ..Default::default()
             },
         })
@@ -2412,8 +2427,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2430,8 +2445,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2446,8 +2461,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2462,8 +2477,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2478,8 +2493,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2496,8 +2511,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2515,8 +2530,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result_unsigned)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2533,8 +2548,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2552,8 +2567,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result_unsigned)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2574,8 +2589,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2598,8 +2613,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2620,8 +2635,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2644,8 +2659,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2662,8 +2677,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2680,8 +2695,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2697,8 +2712,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2714,8 +2729,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2733,8 +2748,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result_unsigned)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result_unsigned)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2753,8 +2768,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2773,8 +2788,8 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_changes: vec![(ins.rd.unwrap(), result)],
-                pc_change: Some(self.next_pc()),
+                register_writes: vec![(ins.rd.unwrap(), result)],
+                new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
         })
@@ -2853,9 +2868,9 @@ impl FormattedProgram {
 impl Default for StateChange {
     fn default() -> Self {
         Self {
-            register_changes: vec![],
-            memory_change: (0, vec![], 0),
-            pc_change: None,
+            register_writes: vec![],
+            memory_write: (0, vec![], 0),
+            new_pc: None,
             gas_usage: 0,
         }
     }

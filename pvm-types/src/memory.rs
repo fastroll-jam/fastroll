@@ -81,6 +81,60 @@ impl Memory {
         }
     }
 
+    /// Check if a memory cell at the given address is readable
+    pub fn is_cell_readable(&self, address: MemAddress) -> bool {
+        self.read_byte(address).is_ok()
+    }
+
+    /// Check if a range of memory cells is readable
+    pub fn is_range_readable(&self, start: MemAddress, length: usize) -> Result<bool, MemoryError> {
+        if length == 0 {
+            return Ok(true);
+        }
+
+        let end = start
+            .checked_add(length as u32)
+            .ok_or(MemoryError::AccessViolation(start))?;
+
+        for address in start..end {
+            if !self.is_cell_readable(address) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Check if a memory cell at the given address is writable
+    pub fn is_cell_writable(&self, address: MemAddress) -> bool {
+        match self.read_byte(address) {
+            Ok(_) => {
+                // If we can read, we need to check if it's also writable
+                matches!(
+                    self.cells.get(address as usize),
+                    Some(cell) if matches!(cell.status, CellStatus::Writable)
+                )
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Check if a range of memory cells is writable
+    pub fn is_range_writable(&self, start: MemAddress, length: usize) -> Result<bool, MemoryError> {
+        if length == 0 {
+            return Ok(true);
+        }
+
+        let end = start
+            .checked_add(length as u32)
+            .ok_or(MemoryError::AccessViolation(start))?;
+
+        for address in start..end {
+            if !self.is_cell_writable(address) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     /// Read a byte from memory
     pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
         let cell = self
