@@ -943,6 +943,7 @@ impl PVM {
             HostCallType::EMPOWER => HostFunction::host_empower(
                 self.state.gas_counter,
                 self.get_host_call_registers(),
+                &self.state.memory,
                 &context,
             )?,
             _ => return Err(VMError::InvalidHostCallType),

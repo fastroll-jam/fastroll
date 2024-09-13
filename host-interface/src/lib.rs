@@ -1,11 +1,14 @@
 use jam_codec::{JamCodecError, JamDecodeFixed, JamEncode, JamEncodeFixed};
-use jam_common::{AccountAddress, Hash32, Octets, UnsignedGas};
+use jam_common::{
+    AccountAddress, Hash32, Octets, UnsignedGas, CORE_COUNT, HASH32_DEFAULT, HASH_SIZE,
+    MAX_AUTH_QUEUE_SIZE,
+};
 use jam_crypto::utils::{blake2b_256, CryptoError};
 use jam_pvm_types::{
     accumulation::DeferredTransfer,
     memory::{MemAddress, Memory, MemoryError},
     register::Register,
-    types::{ExitReason, ExitReason::HostCall},
+    types::ExitReason,
 };
 use jam_state::{global_state::GlobalStateError, state_retriever::StateRetriever};
 use jam_types::state::{
@@ -72,7 +75,7 @@ pub enum InnerPVMInvocationResult {
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_G,                                             // General Functions
+    X_G(GeneralContext),                             // General Functions
     X_I,                                             // Is-Authorized
     X_R,                                             // Refine
     X_A((AccumulationContext, AccumulationContext)), // Accumulate
@@ -93,14 +96,21 @@ pub enum HostCallResult {
 //
 
 #[derive(Clone)]
+pub struct GeneralContext {
+    invoker_account: ServiceAccountState, // s; current service account
+    invoker_account_address: AccountAddress, // s (light font)
+    service_accounts: Option<ServiceAccounts>, // d
+}
+
+#[derive(Clone)]
 pub struct AccumulationContext {
-    service_account: Option<ServiceAccountState>, // current service account
-    authorizer_queue: AuthorizerQueue,
-    staging_validator_set: StagingValidatorSet,
-    new_service_index: AccountAddress,
-    deferred_transfers: Vec<DeferredTransfer>,
-    new_accounts: ServiceAccounts,
-    privileged_services: PrivilegedServices,
+    service_account: Option<ServiceAccountState>, // s; current service account
+    authorizer_queue: AuthorizerQueue,            // c
+    staging_validator_set: StagingValidatorSet,   // v
+    new_service_index: AccountAddress,            // i
+    deferred_transfers: Vec<DeferredTransfer>,    // t
+    new_accounts: ServiceAccounts,                // n
+    privileged_services: PrivilegedServices,      // p
 }
 
 impl AccumulationContext {
@@ -226,6 +236,7 @@ define_host_call_state_change_function!(low_change, LOW);
 define_host_call_state_change_function!(high_change, HIGH);
 define_host_call_state_change_function!(what_change, WHAT);
 define_host_call_state_change_function!(huh_change, HUH);
+define_host_call_state_change_function!(ok_change, OK);
 
 //
 // Host Functions
@@ -256,20 +267,26 @@ impl HostFunction {
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        invoker_account: &ServiceAccountState,
-        invoker_account_address: AccountAddress,
-        service_accounts: &ServiceAccounts,
+        context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_G(x) => x.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
         let account_address = registers[0].value as AccountAddress;
         let [hash_offset, buffer_offset] = [registers[1].value, registers[2].value];
         let buffer_size = registers[3].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == invoker_account_address {
-            invoker_account
+        let account = if account_address == u32::MAX || account_address == x.invoker_account_address
+        {
+            x.invoker_account
         } else {
-            service_accounts
+            x.service_accounts
+                .unwrap()
                 .0
                 .get(&account_address)
+                .cloned()
                 .ok_or(HostCallError::AccountNotFound)?
         };
 
@@ -307,19 +324,23 @@ impl HostFunction {
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        invoker_account: &ServiceAccountState,
-        invoker_account_address: AccountAddress,
-        service_accounts: &ServiceAccounts,
+        context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_G(x) => x.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
         let account_address = registers[0].value as AccountAddress;
         let [key_offset, key_size, buffer_offset] =
             [registers[1].value, registers[2].value, registers[3].value];
         let buffer_size = registers[4].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == invoker_account_address {
-            invoker_account
+        let account = if account_address == u32::MAX || account_address == x.invoker_account_address
+        {
+            x.invoker_account
         } else {
-            match service_accounts.0.get(&account_address) {
+            match x.service_accounts.unwrap().0.get(&account_address).cloned() {
                 Some(account) => account,
                 None => return Ok(HostCallResult::General(none_change())),
             }
@@ -330,7 +351,7 @@ impl HostFunction {
         }
 
         let mut key = vec![];
-        key.extend(invoker_account_address.encode_fixed(4)?);
+        key.extend(x.invoker_account_address.encode_fixed(4)?);
         key.extend(memory.read_bytes(key_offset, key_size as usize)?);
         let storage_key = blake2b_256(&key)?;
 
@@ -363,9 +384,14 @@ impl HostFunction {
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        invoker_account: &mut ServiceAccountState,
-        invoker_account_address: AccountAddress, // TODO: check this param - not specified in the GP definition.
+        context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        // TODO: check if `invoker_account_address` is provided as an arg - not specified in the GP
+        let mut x = match context {
+            InvocationContext::X_G(x) => x.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
         let [key_offset, value_offset] = [registers[0].value, registers[2].value];
         let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
 
@@ -376,12 +402,12 @@ impl HostFunction {
         }
 
         let mut key = vec![];
-        key.extend(invoker_account_address.encode_fixed(4)?);
+        key.extend(x.invoker_account_address.encode_fixed(4)?);
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = blake2b_256(&key)?;
 
         // create a local copy of the invoker service account and mutate the account storage
-        let mut account = invoker_account.clone();
+        let mut account = x.invoker_account.clone();
 
         let previous_size = if let Some(value) = account.storage.get(&storage_key) {
             value.len()
@@ -406,7 +432,7 @@ impl HostFunction {
             }))
         };
 
-        *invoker_account = account; // update the service account state with the mutated local copy
+        x.invoker_account = account; // update the service account state with the mutated local copy
 
         result
     }
@@ -415,19 +441,23 @@ impl HostFunction {
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        invoker_account: &ServiceAccountState,
-        invoker_account_address: AccountAddress,
-        service_accounts: &ServiceAccounts,
+        context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_G(x) => x.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
         let account_address = registers[0].value as AccountAddress;
         let buffer_offset = registers[1].value;
 
-        let account = if account_address == u32::MAX || account_address == invoker_account_address {
-            invoker_account
+        let account = if account_address == u32::MAX || account_address == x.invoker_account_address
+        {
+            x.invoker_account
         } else {
             // TODO: find the account from the service accounts dictionary "and" the new accounts
             // TODO: of provided invocation context, which is currently not specified in the GP
-            match service_accounts.0.get(&account_address) {
+            match x.service_accounts.unwrap().0.get(&account_address).cloned() {
                 Some(account) => account,
                 None => return Ok(HostCallResult::General(none_change())),
             }
@@ -463,33 +493,69 @@ impl HostFunction {
     pub fn host_empower(
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        _memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        if let InvocationContext::X_A((x, y)) = context {
-            let mut post_x = x.clone();
-            let [empower, assign, designate] = registers[..3] else {
-                return Err(HostCallError::InvalidRegisters);
-            };
+        let (mut x, y) = match context {
+            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+        let [empower, assign, designate] = registers[..3] else {
+            return Err(HostCallError::InvalidRegisters);
+        };
 
-            post_x.privileged_services.empower_service_index = empower.value;
-            post_x.privileged_services.assign_service_index = assign.value;
-            post_x.privileged_services.designate_service_index = designate.value;
+        x.privileged_services.empower_service_index = empower.value;
+        x.privileged_services.assign_service_index = assign.value;
+        x.privileged_services.designate_service_index = designate.value;
 
-            Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
-                vm_state_change: HostCallVMStateChange::default(),
-                post_contexts: (post_x, y.clone()),
-            }))
-        } else {
-            Err(HostCallError::InvalidContext)
-        }
+        Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+            vm_state_change: HostCallVMStateChange::default(),
+            post_contexts: (x, y),
+        }))
     }
 
     pub fn host_assign(
         _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        todo!()
+        let (mut x, y) = match context {
+            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let core_index = registers[0].value as usize;
+        let offset = registers[1].value as MemAddress;
+
+        if !memory.is_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
+            return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+                vm_state_change: oob_change(),
+                post_contexts: (x, y),
+            }));
+        }
+
+        if core_index >= CORE_COUNT {
+            return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+                vm_state_change: core_change(),
+                post_contexts: (x, y),
+            }));
+        }
+
+        let mut queue_assignment = [HASH32_DEFAULT; MAX_AUTH_QUEUE_SIZE];
+        for i in 0..MAX_AUTH_QUEUE_SIZE {
+            if let Ok(slice) = memory.read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
+            {
+                queue_assignment[i].copy_from_slice(&slice);
+            }
+        }
+
+        x.authorizer_queue.0[core_index] = queue_assignment;
+
+        Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+            vm_state_change: ok_change(),
+            post_contexts: (x, y),
+        }))
     }
 
     //
