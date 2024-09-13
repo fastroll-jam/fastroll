@@ -1,7 +1,7 @@
-use jam_codec::{JamCodecError, JamDecodeFixed, JamEncode, JamEncodeFixed};
+use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
-    AccountAddress, Hash32, Octets, UnsignedGas, CORE_COUNT, HASH32_DEFAULT, HASH_SIZE,
-    MAX_AUTH_QUEUE_SIZE,
+    AccountAddress, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_DEFAULT,
+    HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
 };
 use jam_crypto::utils::{blake2b_256, CryptoError};
 use jam_pvm_types::{
@@ -159,7 +159,7 @@ impl AccumulationContext {
         entropy.encode_to(&mut buf).unwrap();
         timeslot.0.encode_to(&mut buf).unwrap();
 
-        let mut source_hash = blake2b_256(&buf[..]).unwrap();
+        let source_hash = blake2b_256(&buf[..]).unwrap();
         let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4).unwrap() as u64
             & ((1 << 32) - (1 << 9)) + (1 << 8))
             as AccountAddress;
@@ -269,7 +269,7 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        let mut x = match context {
+        let x = match context {
             InvocationContext::X_G(x) => x.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
@@ -326,7 +326,7 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        let mut x = match context {
+        let x = match context {
             InvocationContext::X_G(x) => x.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
@@ -443,7 +443,7 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        let mut x = match context {
+        let x = match context {
             InvocationContext::X_G(x) => x.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
@@ -488,6 +488,8 @@ impl HostFunction {
     //
     // Accumulate Functions
     //
+
+    // TODO: delete unnecessary clones of `x` and `y`
 
     // Accumulation host functions mutate: gas, registers, contexts
     pub fn host_empower(
@@ -555,6 +557,71 @@ impl HostFunction {
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: ok_change(),
             post_contexts: (x, y),
+        }))
+    }
+
+    pub fn host_designate(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let (mut x, y) = match context {
+            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let offset = registers[0].value as MemAddress;
+
+        // FIXME: check the public key blob length - the PVM spec describes as 176 but public key blob is 336 bytes in general
+        const PUBLIC_KEY_SIZE: usize = 336;
+        if !memory.is_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
+            return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+                vm_state_change: oob_change(),
+                post_contexts: (x, y),
+            }));
+        }
+
+        let mut new_staging_set = StagingValidatorSet::default();
+        for i in 0..VALIDATOR_COUNT {
+            if let Ok(slice) = memory.read_bytes(
+                offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
+                PUBLIC_KEY_SIZE,
+            ) {
+                let validator_key = ValidatorKey::decode(&mut &slice[..])?;
+                new_staging_set.0[i] = validator_key;
+            }
+        }
+
+        x.staging_validator_set = new_staging_set;
+
+        Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+            vm_state_change: ok_change(),
+            post_contexts: (x, y),
+        }))
+    }
+
+    pub fn host_checkpoint(
+        gas: UnsignedGas,
+        _registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        _memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let post_gas = gas.saturating_sub(BASE_GAS_USAGE); // TODO: gas management
+
+        Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(post_gas as u32),
+                r1_write: Some((post_gas >> 32) as u32),
+                ..Default::default()
+            },
+            post_contexts: (x.clone(), x),
         }))
     }
 

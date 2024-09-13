@@ -1,7 +1,7 @@
 use jam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::ValidatorSet;
+use jam_common::{ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use std::fmt::{Display, Formatter};
 
 /// Represents a ValidatorSet that will become active in a future epoch.
@@ -29,6 +29,12 @@ impl Display for StagingValidatorSet {
         }
         writeln!(f, "  }}")?;
         write!(f, "}}")
+    }
+}
+
+impl Default for StagingValidatorSet {
+    fn default() -> Self {
+        Self([ValidatorKey::default(); VALIDATOR_COUNT])
     }
 }
 
