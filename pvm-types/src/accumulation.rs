@@ -1,7 +1,7 @@
 use jam_codec::{JamCodecError, JamEncode, JamOutput};
 use jam_common::{AccountAddress, Hash32, Octets, RefinementOutput, TokenBalance, UnsignedGas};
 
-const TRANSFER_MEMO_SIZE: usize = 128;
+pub const TRANSFER_MEMO_SIZE: usize = 128;
 
 pub struct AccumulationOperand {
     work_output: RefinementOutput,
@@ -29,9 +29,9 @@ impl JamEncode for AccumulationOperand {
 
 #[derive(Clone, Copy)]
 pub struct DeferredTransfer {
-    from: AccountAddress,           // s
-    to: AccountAddress,             // d
-    amount: TokenBalance,           // a
-    memo: [u8; TRANSFER_MEMO_SIZE], // m
-    gas_limit: UnsignedGas,         // g
+    pub from: AccountAddress,           // s
+    pub to: AccountAddress,             // d
+    pub amount: TokenBalance,           // a
+    pub memo: [u8; TRANSFER_MEMO_SIZE], // m
+    pub gas_limit: UnsignedGas,         // g
 }

@@ -918,7 +918,7 @@ impl PVM {
                     result.vm_state_change,
                     InvocationContext::X_A(result.post_contexts),
                 ),
-                _ => unimplemented!("not yet implemented"),
+                _ => unimplemented!("not yet implemented"), // TODO: add other cases
             };
 
             self.apply_host_call_state_change(vm_state_change)?; // update the vm states

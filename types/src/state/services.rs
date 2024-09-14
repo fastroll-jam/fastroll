@@ -2,6 +2,10 @@ use crate::state::timeslot::Timeslot;
 use jam_common::{AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas};
 use std::collections::BTreeMap;
 
+pub const B_S: TokenBalance = 100; // The basic minimum balance which all services require
+pub const B_I: TokenBalance = 10; // The additional minimum balance required per item of elective service state
+pub const B_L: TokenBalance = 1; // The additional minimum balance required per octet of elective service state
+
 #[derive(Default, Clone)]
 pub struct ServiceAccounts(pub BTreeMap<AccountAddress, ServiceAccountState>);
 
@@ -50,10 +54,6 @@ impl ServiceAccountState {
 
     // Get the account threshold balance (t)
     pub fn get_threshold_balance(&self) -> TokenBalance {
-        const B_S: TokenBalance = 100; // The basic minimum balance which all services require
-        const B_I: TokenBalance = 10; // The additional minimum balance required per item of elective service state
-        const B_L: TokenBalance = 1; // The additional minimum balance required per octet of elective service state
-
         let i = self.get_item_counts_footprint() as TokenBalance;
         let l = self.get_total_octets_footprint() as TokenBalance;
 
