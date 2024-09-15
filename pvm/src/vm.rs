@@ -122,7 +122,7 @@ struct FormattedProgram {
 
 struct StateChange {
     register_writes: Vec<(usize, u32)>,
-    memory_write: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    memory_write: (MemAddress, u32, Octets), // (start_address, data_len, data)
     new_pc: Option<MemAddress>,
     gas_usage: UnsignedGas,
 }
@@ -677,7 +677,7 @@ impl PVM {
         }
 
         // Apply memory change
-        let (start_address, data, data_len) = change.memory_write;
+        let (start_address, data_len, data) = change.memory_write;
         if data_len as usize <= data.len() {
             for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
                 if let Err(e) = self
@@ -726,7 +726,7 @@ impl PVM {
         }
 
         // Apply memory change
-        let (start_address, data, data_len) = change.memory_write;
+        let (start_address, data_len, data) = change.memory_write;
         if data_len as usize <= data.len() {
             for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
                 if let Err(e) = self
@@ -1216,7 +1216,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, value, 1),
+                memory_write: (imm_address, 1, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1235,7 +1235,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, value, 2),
+                memory_write: (imm_address, 2, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1254,7 +1254,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, value, 4),
+                memory_write: (imm_address, 4, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1421,7 +1421,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, r1_value, 1),
+                memory_write: (imm_address, 1, r1_value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1438,7 +1438,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, r1_value.encode_fixed(2).unwrap(), 2),
+                memory_write: (imm_address, 2, r1_value.encode_fixed(2).unwrap()),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1455,7 +1455,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (imm_address, r1_value.encode_fixed(4).unwrap(), 4),
+                memory_write: (imm_address, 4, r1_value.encode_fixed(4).unwrap()),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1479,7 +1479,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 1),
+                memory_write: (address, 1, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1498,7 +1498,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 2),
+                memory_write: (address, 2, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1517,7 +1517,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 4),
+                memory_write: (address, 4, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1773,7 +1773,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 1),
+                memory_write: (address, 1, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1792,7 +1792,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 2),
+                memory_write: (address, 2, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -1811,7 +1811,7 @@ impl PVM {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: (address, value, 4),
+                memory_write: (address, 4, value),
                 new_pc: Some(self.next_pc()),
                 ..Default::default()
             },
@@ -2870,7 +2870,7 @@ impl Default for StateChange {
     fn default() -> Self {
         Self {
             register_writes: vec![],
-            memory_write: (0, vec![], 0),
+            memory_write: (0, 0, vec![]),
             new_pc: None,
             gas_usage: 0,
         }

@@ -1,3 +1,6 @@
+mod utils;
+
+use crate::utils::zero_pad;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
     AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey, CORE_COUNT,
@@ -10,7 +13,7 @@ use jam_pvm_types::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD,
     },
-    memory::{MemAddress, Memory, MemoryError},
+    memory::{AccessType, MemAddress, Memory, MemoryError},
     register::Register,
     types::{ExitReason, ExportDataSegment},
 };
@@ -169,15 +172,26 @@ impl AccumulationContext {
 // TODO: move
 #[derive(Clone)]
 struct InnerPVM {
-    program_code: Octets,
-    memory: Memory,
-    pc: MemAddress,
+    program_code: Octets, // p
+    memory: Memory,       // u
+    pc: MemAddress,       // i
+}
+
+impl InnerPVM {
+    fn new(program_code: Octets, pc: MemAddress) -> Self {
+        Self {
+            program_code,
+            memory: Memory::default(),
+            pc,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct RefinementContext {
     pvm_instances: HashMap<usize, InnerPVM>,
     exported_segments: Vec<Octets>,
+    next_instance_id: usize, // PVM instance ID to be assigned for the next instance
 }
 
 impl Default for RefinementContext {
@@ -185,7 +199,22 @@ impl Default for RefinementContext {
         Self {
             pvm_instances: HashMap::new(),
             exported_segments: Vec::new(),
+            next_instance_id: 0,
         }
+    }
+}
+
+impl RefinementContext {
+    fn add_pvm_instance(&mut self, pvm: InnerPVM) -> usize {
+        let id = self.next_instance_id;
+        self.pvm_instances.insert(id, pvm);
+        self.next_instance_id += 1;
+        id
+    }
+
+    // TODO: finer-grained instance id management if necessary
+    fn remove_pvm_instance(&mut self, id: usize) {
+        self.pvm_instances.remove(&id);
     }
 }
 
@@ -202,7 +231,7 @@ pub struct HostCallVMStateChange {
     pub gas_usage: UnsignedGas,
     pub r0_write: Option<u32>,
     pub r1_write: Option<u32>,
-    pub memory_write: (MemAddress, Octets, u32), // (start_address, data, data_len)
+    pub memory_write: (MemAddress, u32, Octets), // (start_address, data_len, data)
     pub exit_reason: ExitReason,                 // TODO: check if necessary
 }
 
@@ -212,7 +241,7 @@ impl Default for HostCallVMStateChange {
             gas_usage: BASE_GAS_USAGE,
             r0_write: None,
             r1_write: None,
-            memory_write: (0, vec![], 0),
+            memory_write: (0, 0, vec![]),
             exit_reason: ExitReason::Continue,
         }
     }
@@ -338,8 +367,8 @@ impl HostFunction {
                     r0_write: Some(data.len() as u32),
                     memory_write: (
                         buffer_offset,
-                        data[..write_data_size].to_vec(),
                         write_data_size as u32,
+                        data[..write_data_size].to_vec(),
                     ),
                     ..Default::default()
                 }))
@@ -394,8 +423,8 @@ impl HostFunction {
                 r0_write: Some(data.len() as u32),
                 memory_write: (
                     buffer_offset,
-                    data[..write_data_size].to_vec(),
                     write_data_size as u32,
+                    data[..write_data_size].to_vec(),
                 ),
                 ..Default::default()
             }))
@@ -503,7 +532,7 @@ impl HostFunction {
         Ok(HostCallResult::General(HostCallVMStateChange {
             gas_usage: BASE_GAS_USAGE,
             r0_write: Some(HostCallResultConstant::OK as u32),
-            memory_write: (buffer_offset, info.clone(), info.len() as u32),
+            memory_write: (buffer_offset, info.len() as u32, info.clone()),
             ..Default::default()
         }))
     }
@@ -1075,8 +1104,8 @@ impl HostFunction {
         service_accounts: &ServiceAccounts,
         timeslot: Timeslot,
     ) -> Result<HostCallResult, HostCallError> {
-        let mut x = match context {
-            InvocationContext::X_R((m)) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(m) => m.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
 
@@ -1124,8 +1153,8 @@ impl HostFunction {
                     r0_write: Some(preimage.len() as u32),
                     memory_write: (
                         buffer_offset,
-                        preimage[..write_data_size].to_vec(),
                         write_data_size as u32,
+                        preimage[..write_data_size].to_vec(),
                     ),
                     ..Default::default()
                 },
@@ -1147,8 +1176,8 @@ impl HostFunction {
         import_segments: Vec<ExportDataSegment>,
     ) -> Result<HostCallResult, HostCallError> {
         // TODO: the context is not used, there's room for optimization.
-        let mut x = match context {
-            InvocationContext::X_R((m)) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(m) => m.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
 
@@ -1175,7 +1204,223 @@ impl HostFunction {
             vm_state_change: HostCallVMStateChange {
                 gas_usage: BASE_GAS_USAGE,
                 r0_write: Some(HostCallResultConstant::OK as u32),
-                memory_write: (offset, import_segment.to_vec(), segment_len),
+                memory_write: (offset, segment_len, import_segment.to_vec()),
+                ..Default::default()
+            },
+            post_context: x,
+        }))
+    }
+
+    pub fn host_export(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+        export_segment_offset: usize,
+    ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [offset, size, ..] = registers.map(|r| r.value);
+
+        let size = size.min(DATA_SEGMENTS_SIZE as u32);
+
+        if !memory.is_range_readable(offset as MemAddress, size as usize)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let data = zero_pad(
+            memory.read_bytes(offset as MemAddress, size as usize)?,
+            DATA_SEGMENTS_SIZE,
+        );
+
+        let export_segment_limit = export_segment_offset + data.len();
+        // TODO: check the size limit - definition of the constant `W_X` in the GP isn't clear
+        if export_segment_limit >= DATA_SEGMENTS_SIZE {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: full_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        x.exported_segments.extend(vec![data]);
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some((export_segment_limit) as u32),
+                ..Default::default()
+            },
+            post_context: x,
+        }))
+    }
+
+    pub fn host_machine(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [program_offset, program_size, initial_pc, ..] = registers.map(|r| r.value);
+
+        if !memory.is_range_readable(program_offset as MemAddress, program_size as usize)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let program = memory.read_bytes(program_offset as MemAddress, program_size as usize)?;
+        let inner_vm = InnerPVM::new(program, initial_pc as MemAddress);
+        let inner_vm_id = x.add_pvm_instance(inner_vm);
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(inner_vm_id as u32),
+                ..Default::default()
+            },
+            post_context: x,
+        }))
+    }
+
+    pub fn host_peek(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        _memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [inner_vm_id, memory_offset, inner_memory_offset, data_len, ..] =
+            registers.map(|r| r.value);
+
+        if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: who_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+        let inner_memory = &x.pvm_instances.get(&(inner_vm_id as usize)).unwrap().memory;
+
+        if !inner_memory.is_range_readable(inner_memory_offset as MemAddress, data_len as usize)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+        let data = inner_memory.read_bytes(inner_memory_offset as MemAddress, data_len as usize)?;
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(HostCallResultConstant::OK as u32),
+                memory_write: (memory_offset, data_len, data),
+                ..Default::default()
+            },
+            post_context: x,
+        }))
+    }
+
+    pub fn host_poke(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [inner_vm_id, memory_offset, inner_memory_offset, data_len, ..] =
+            registers.map(|r| r.value);
+
+        if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: who_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+        let inner_memory = &mut x
+            .pvm_instances
+            .get_mut(&(inner_vm_id as usize))
+            .unwrap()
+            .memory;
+
+        if !memory.is_range_readable(memory_offset as MemAddress, data_len as usize)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+        let data = memory.read_bytes(memory_offset as MemAddress, data_len as usize)?;
+
+        inner_memory.set_range(inner_memory_offset as usize, &data, AccessType::ReadWrite);
+        // TODO: set `CellStatus` for the range
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: ok_change(BASE_GAS_USAGE),
+            post_context: x,
+        }))
+    }
+
+    pub fn host_invoke(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [inner_vm_id, memory_offset, ..] = registers.map(|r| r.value);
+
+        todo!()
+    }
+
+    pub fn host_expunge(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        _memory: &Memory,
+        context: &InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_R(m) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [inner_vm_id, ..] = registers.map(|r| r.value);
+
+        if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: who_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let final_pc = x.pvm_instances.get(&(inner_vm_id as usize)).unwrap().pc;
+        x.remove_pvm_instance(inner_vm_id as usize);
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(final_pc as u32),
                 ..Default::default()
             },
             post_context: x,

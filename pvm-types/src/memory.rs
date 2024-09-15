@@ -1,3 +1,4 @@
+use crate::constants::PAGE_SIZE;
 use jam_common::Octets;
 use thiserror::Error;
 
@@ -17,18 +18,19 @@ pub enum MemoryError {
 #[derive(Clone, Copy, Default)]
 pub enum AccessType {
     #[default]
+    Inaccessible,
     ReadOnly,
     ReadWrite,
-    Inaccessible,
 }
 
+// TODO: consider removing
 /// Memory Cell Statuses
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum CellStatus {
     #[default]
+    Unavailable,
     Readable,
     Writable,
-    Unavailable,
 }
 
 #[derive(Clone)]
@@ -45,6 +47,16 @@ struct MemoryCell {
     status: CellStatus,
 }
 
+impl Default for Memory {
+    fn default() -> Self {
+        Self {
+            cells: vec![],
+            page_size: PAGE_SIZE,
+            heap_start: 0,
+        }
+    }
+}
+
 impl Memory {
     pub fn new(size: usize, page_size: usize) -> Self {
         let cells = vec![MemoryCell::default(); size];
@@ -55,6 +67,7 @@ impl Memory {
         }
     }
 
+    // FIXME: accept `MemAddress` type for start address
     /// Set memory cells of provided range with data and access type
     pub fn set_range(&mut self, start: usize, data: &[u8], access: AccessType) {
         for (i, &byte) in data.iter().enumerate() {
