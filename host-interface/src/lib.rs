@@ -6,9 +6,13 @@ use jam_common::{
 use jam_crypto::utils::{blake2b_256, CryptoError};
 use jam_pvm_types::{
     accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
+    constants::{
+        BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
+        PREIMAGE_EXPIRATION_PERIOD,
+    },
     memory::{MemAddress, Memory, MemoryError},
     register::Register,
-    types::ExitReason,
+    types::{ExitReason, ExportDataSegment},
 };
 use jam_state::{global_state::GlobalStateError, state_retriever::StateRetriever};
 use jam_types::state::{
@@ -18,17 +22,8 @@ use jam_types::state::{
     timeslot::Timeslot,
     validators::StagingValidatorSet,
 };
-use std::collections::{btree_map::Entry, BTreeMap};
+use std::collections::{btree_map::Entry, BTreeMap, HashMap};
 use thiserror::Error;
-//
-// Constants
-//
-
-pub const HOST_CALL_INPUT_REGISTERS_COUNT: usize = 6;
-pub const HOST_CALL_OUTPUT_REGISTERS_COUNT: usize = 2;
-const BASE_GAS_USAGE: UnsignedGas = 10;
-const PREIMAGE_EXPIRATION_PERIOD: u32 = 28_800;
-
 //
 // Enums
 //
@@ -79,7 +74,7 @@ pub enum InnerPVMInvocationResult {
 pub enum InvocationContext {
     X_G(GeneralContext),                             // General Functions
     X_I,                                             // Is-Authorized
-    X_R,                                             // Refine
+    X_R(RefinementContext),                          // Refine
     X_A((AccumulationContext, AccumulationContext)), // Accumulate
     X_T,                                             // On-Transfer
 }
@@ -89,7 +84,7 @@ pub enum HostCallResult {
     PageFault(MemAddress), // TODO: properly apply page fault exit reason for host call results
     General(HostCallVMStateChange),
     IsAuthorized,
-    Refinement,
+    Refinement(RefinementHostCallResult),
     Accumulation(AccumulationHostCallResult),
     OnTransfer,
 }
@@ -171,6 +166,29 @@ impl AccumulationContext {
     }
 }
 
+// TODO: move
+#[derive(Clone)]
+struct InnerPVM {
+    program_code: Octets,
+    memory: Memory,
+    pc: MemAddress,
+}
+
+#[derive(Clone)]
+pub struct RefinementContext {
+    pvm_instances: HashMap<usize, InnerPVM>,
+    exported_segments: Vec<Octets>,
+}
+
+impl Default for RefinementContext {
+    fn default() -> Self {
+        Self {
+            pvm_instances: HashMap::new(),
+            exported_segments: Vec::new(),
+        }
+    }
+}
+
 //
 // Invocation Results
 //
@@ -207,6 +225,11 @@ impl Default for HostCallVMStateChange {
 pub struct AccumulationHostCallResult {
     pub vm_state_change: HostCallVMStateChange,
     pub post_contexts: (AccumulationContext, AccumulationContext), // context_x, context_y
+}
+
+pub struct RefinementHostCallResult {
+    pub vm_state_change: HostCallVMStateChange,
+    pub post_context: RefinementContext,
 }
 
 //
@@ -359,28 +382,25 @@ impl HostFunction {
         key.extend(memory.read_bytes(key_offset, key_size as usize)?);
         let storage_key = blake2b_256(&key)?;
 
-        let value = account.storage.get(&storage_key).cloned();
+        if let Some(data) = account.storage.get(&storage_key).cloned() {
+            let write_data_size = buffer_size.min(data.len());
 
-        match value {
-            Some(data) => {
-                let write_data_size = buffer_size.min(data.len());
-
-                if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                    return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
-                }
-
-                Ok(HostCallResult::General(HostCallVMStateChange {
-                    gas_usage: BASE_GAS_USAGE,
-                    r0_write: Some(data.len() as u32),
-                    memory_write: (
-                        buffer_offset,
-                        data[..write_data_size].to_vec(),
-                        write_data_size as u32,
-                    ),
-                    ..Default::default()
-                }))
+            if !memory.is_range_writable(buffer_offset, buffer_size)? {
+                return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
             }
-            None => Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
+
+            Ok(HostCallResult::General(HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(data.len() as u32),
+                memory_write: (
+                    buffer_offset,
+                    data[..write_data_size].to_vec(),
+                    write_data_size as u32,
+                ),
+                ..Default::default()
+            }))
+        } else {
+            Ok(HostCallResult::General(none_change(BASE_GAS_USAGE)))
         }
     }
 
@@ -1045,4 +1065,120 @@ impl HostFunction {
     //
     // Refine Functions
     //
+
+    pub fn host_historical_lookup(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+        invoker_address: AccountAddress,
+        service_accounts: &ServiceAccounts,
+        timeslot: Timeslot,
+    ) -> Result<HostCallResult, HostCallError> {
+        let mut x = match context {
+            InvocationContext::X_R((m)) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [account_address, lookup_hash_offset, buffer_offset, buffer_size, ..] =
+            registers.map(|r| r.value);
+
+        let account =
+            if account_address == u32::MAX || service_accounts.0.contains_key(&invoker_address) {
+                service_accounts.0.get(&invoker_address).unwrap()
+            } else if service_accounts.0.contains_key(&account_address) {
+                service_accounts.0.get(&account_address).unwrap()
+            } else {
+                return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                    vm_state_change: none_change(BASE_GAS_USAGE),
+                    post_context: x,
+                }));
+            };
+
+        if !memory.is_range_readable(lookup_hash_offset as MemAddress, HASH_SIZE)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let lookup_hash = Hash32::decode(
+            &mut memory
+                .read_bytes(lookup_hash_offset as MemAddress, HASH_SIZE)?
+                .as_slice(),
+        )?;
+
+        if let Some(preimage) = account.lookup_history(timeslot, lookup_hash) {
+            let write_data_size = (buffer_size as usize).min(preimage.len());
+
+            if !memory.is_range_writable(buffer_offset, buffer_size as usize)? {
+                return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                    vm_state_change: oob_change(BASE_GAS_USAGE),
+                    post_context: x,
+                }));
+            }
+
+            Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: HostCallVMStateChange {
+                    gas_usage: BASE_GAS_USAGE,
+                    r0_write: Some(preimage.len() as u32),
+                    memory_write: (
+                        buffer_offset,
+                        preimage[..write_data_size].to_vec(),
+                        write_data_size as u32,
+                    ),
+                    ..Default::default()
+                },
+                post_context: x,
+            }))
+        } else {
+            Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: none_change(BASE_GAS_USAGE),
+                post_context: x,
+            }))
+        }
+    }
+
+    pub fn host_import(
+        _gas: UnsignedGas,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        context: &InvocationContext,
+        import_segments: Vec<ExportDataSegment>,
+    ) -> Result<HostCallResult, HostCallError> {
+        // TODO: the context is not used, there's room for optimization.
+        let mut x = match context {
+            InvocationContext::X_R((m)) => m.clone(),
+            _ => return Err(HostCallError::InvalidContext),
+        };
+
+        let [segment_index, offset, segments_len, ..] = registers.map(|r| r.value);
+
+        if segments_len as usize >= DATA_SEGMENTS_SIZE {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: none_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let import_segment = import_segments[segment_index as usize];
+        let segment_len = segments_len.min(DATA_SEGMENTS_SIZE as u32);
+
+        if !memory.is_range_writable(offset as MemAddress, segment_len as usize)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        Ok(HostCallResult::Refinement(RefinementHostCallResult {
+            vm_state_change: HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(HostCallResultConstant::OK as u32),
+                memory_write: (offset, import_segment.to_vec(), segment_len),
+                ..Default::default()
+            },
+            post_context: x,
+        }))
+    }
 }

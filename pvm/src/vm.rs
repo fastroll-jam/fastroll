@@ -5,13 +5,13 @@ use jam_common::{AccountAddress, Octets, UnsignedGas};
 use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::{
     AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallVMStateChange,
-    HostFunction, InvocationContext, HOST_CALL_INPUT_REGISTERS_COUNT,
+    HostFunction, InvocationContext,
 };
 use jam_pvm_types::{
     accumulation::AccumulationOperand,
     constants::{
-        INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE,
-        STANDARD_PROGRAM_SIZE_LIMIT,
+        HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE,
+        REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
     },
     hostcall::HostCallType,
     memory::{AccessType, MemAddress, Memory, MemoryError},

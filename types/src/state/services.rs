@@ -39,6 +39,31 @@ impl ServiceAccounts {
 }
 
 impl ServiceAccountState {
+    // Historical lookup function for checking availability of the lookup hash at a given timeslot.
+    // Returns preimage blob if available.
+
+    pub fn lookup_history(&self, timeslot: Timeslot, lookup_hash: Hash32) -> Option<Octets> {
+        let preimage = self.preimages.get(&lookup_hash)?;
+        let key = (lookup_hash, preimage.len() as u32);
+        let timeslots = self.lookups.get(&key)?;
+
+        let valid = match timeslots.as_slice() {
+            [] => false,
+            [first] => *first <= timeslot,
+            [first, second] => *first <= timeslot && timeslot < *second,
+            [first, second, third] => {
+                (*first <= timeslot && timeslot < *second) || *third <= timeslot
+            }
+            _ => false,
+        };
+
+        if valid {
+            Some(preimage.clone())
+        } else {
+            None
+        }
+    }
+
     // Get the number of items in the storage (i)
     pub fn get_item_counts_footprint(&self) -> u32 {
         (2 * self.lookups.len() + self.storage.len()) as u32
