@@ -11,7 +11,7 @@ use jam_pvm_types::{
     accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
-        PREIMAGE_EXPIRATION_PERIOD,
+        PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
     memory::{AccessType, MemAddress, Memory, MemoryError},
     register::Register,
@@ -1384,13 +1384,47 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        let x = match context {
+        let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
             _ => return Err(HostCallError::InvalidContext),
         };
 
         let [inner_vm_id, memory_offset, ..] = registers.map(|r| r.value);
 
+        if !memory.is_range_writable(memory_offset, 60)? {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: oob_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
+            return Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: who_change(BASE_GAS_USAGE),
+                post_context: x,
+            }));
+        }
+
+        let gas = UnsignedGas::decode_fixed(
+            &mut &memory.read_bytes(memory_offset as MemAddress, 8)?[..],
+            8,
+        )?;
+
+        let mut registers = [Register::default(); REGISTERS_COUNT];
+        for (i, register) in registers.iter_mut().enumerate() {
+            register.value = u32::decode_fixed(
+                &mut &memory.read_bytes(
+                    (memory_offset as MemAddress)
+                        .wrapping_add(8)
+                        .wrapping_add(4 * i as MemAddress),
+                    4,
+                )?[..],
+                4,
+            )?;
+        }
+
+        let inner_vm = x.pvm_instances.get_mut(&(inner_vm_id as usize)).unwrap();
+        let program_code = &inner_vm.program_code[..];
         todo!()
     }
 

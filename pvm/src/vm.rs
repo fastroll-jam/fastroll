@@ -72,7 +72,7 @@ enum CommonInvocationResult {
 // Structs
 //
 
-struct ProgramDecoder;
+pub struct ProgramDecoder;
 
 /// Main stateful PVM struct
 struct PVM {
