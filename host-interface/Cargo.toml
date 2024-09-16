@@ -9,5 +9,5 @@ jam-common = { workspace = true }
 jam-crypto = { workspace = true }
 jam-state = { workspace = true }
 jam-types = { workspace = true }
-jam-pvm-types = { workspace = true }
+jam-pvm-core = { workspace = true }
 thiserror = { workspace = true }

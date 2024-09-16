@@ -7,7 +7,7 @@ use jam_common::{
     HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
 };
 use jam_crypto::utils::{blake2b_256, CryptoError};
-use jam_pvm_types::{
+use jam_pvm_core::{
     accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,

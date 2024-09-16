@@ -7,7 +7,7 @@ use jam_host_interface::{
     AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallVMStateChange,
     HostFunction, InvocationContext,
 };
-use jam_pvm_types::{
+use jam_pvm_core::{
     accumulation::AccumulationOperand,
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, JUMP_ALIGNMENT, MEMORY_SIZE, PAGE_SIZE,

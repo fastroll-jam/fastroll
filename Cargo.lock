@@ -553,14 +553,14 @@ dependencies = [
  "jam-codec",
  "jam-common",
  "jam-crypto",
- "jam-pvm-types",
+ "jam-pvm-core",
  "jam-state",
  "jam-types",
  "thiserror",
 ]
 
 [[package]]
-name = "jam-pvm-types"
+name = "jam-pvm-core"
 version = "0.1.0"
 dependencies = [
  "jam-codec",
@@ -826,7 +826,7 @@ dependencies = [
  "jam-common",
  "jam-crypto",
  "jam-host-interface",
- "jam-pvm-types",
+ "jam-pvm-core",
  "jam-types",
  "thiserror",
 ]
