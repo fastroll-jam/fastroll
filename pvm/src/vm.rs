@@ -851,16 +851,6 @@ impl PVM {
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
-        // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
-        let (instructions, opcode_bitmask, jump_table) =
-            ProgramDecoder::decode_program_code(&pvm.program.program_code)?;
-
-        // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
-        pvm.program.instructions = instructions;
-        pvm.program.opcode_bitmask = opcode_bitmask;
-        pvm.program.jump_table = jump_table;
-        pvm.set_basic_block_bitmask()?;
-
         let extended_invocation_result = pvm.extended_invocation(context.clone())?;
 
         match extended_invocation_result.exit_reason {
@@ -959,6 +949,16 @@ impl PVM {
     ///
     /// Represents `Psi` of the GP
     fn general_invocation(&mut self) -> Result<ExitReason, VMError> {
+        // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
+        let (instructions, opcode_bitmask, jump_table) =
+            ProgramDecoder::decode_program_code(&self.program.program_code)?;
+
+        // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
+        self.program.instructions = instructions;
+        self.program.opcode_bitmask = opcode_bitmask;
+        self.program.jump_table = jump_table;
+        self.set_basic_block_bitmask()?;
+
         loop {
             let skip_distance = Self::skip(
                 self.state.pc,
