@@ -563,8 +563,11 @@ dependencies = [
 name = "jam-pvm-core"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "jam-codec",
  "jam-common",
+ "jam-crypto",
+ "jam-state",
  "thiserror",
 ]
 

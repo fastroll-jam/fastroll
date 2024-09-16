@@ -1,56 +1,35 @@
 use crate::{
     contexts::{AccumulationContext, InvocationContext, RefinementContext},
+    host_functions::InnerPVMResultConstant::{FAULT, HALT, HOST, PANIC},
     inner_vm::InnerPVM,
-    utils::{
-        cash_change, core_change, full_change, high_change, huh_change, low_change, none_change,
-        ok_change, oob_change, who_change, zero_pad,
-    },
+    utils::*,
 };
-use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
+use jam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
     AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey, CORE_COUNT,
     HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
 };
-use jam_crypto::utils::{blake2b_256, CryptoError};
+use jam_crypto::utils::blake2b_256;
 use jam_pvm_core::{
     accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
-    memory::{AccessType, MemAddress, Memory, MemoryError},
+    memory::{AccessType, MemAddress, Memory},
     register::Register,
-    types::{ExitReason, ExportDataSegment},
+    types::{ExitReason, ExportDataSegment, HostCallError},
+    vm_core::{PVMCore, Program, VMState},
 };
-use jam_state::global_state::GlobalStateError;
 use jam_types::state::{
     services::{ServiceAccountState, ServiceAccounts, B_S},
     timeslot::Timeslot,
     validators::StagingValidatorSet,
 };
 use std::collections::{btree_map::Entry, BTreeMap};
-use thiserror::Error;
 //
 // Enums
 //
-
-#[derive(Debug, Error)]
-pub enum HostCallError {
-    #[error("Invalid host call invocation context")]
-    InvalidContext,
-    #[error("Invalid register indices")]
-    InvalidRegisters,
-    #[error("Account not found from the global account state")]
-    AccountNotFound,
-    #[error("GlobalStateError: {0}")]
-    GlobalStateError(#[from] GlobalStateError),
-    #[error("MemoryError: {0}")]
-    MemoryError(#[from] MemoryError),
-    #[error("CryptoError: {0}")]
-    CryptoError(#[from] CryptoError),
-    #[error("JamCodecError: {0}")]
-    JamCodecError(#[from] JamCodecError),
-}
 
 #[repr(u32)]
 pub enum HostCallResultConstant {
@@ -65,6 +44,14 @@ pub enum HostCallResultConstant {
     WHAT = u32::MAX - 8,
     HUH = u32::MAX - 9,
     OK = 0,
+}
+
+#[repr(u32)]
+pub enum InnerPVMResultConstant {
+    HALT = 0,
+    PANIC = 1,
+    FAULT = 2,
+    HOST = 3,
 }
 
 pub enum HostCallResult {
@@ -1248,8 +1235,78 @@ impl HostFunction {
         }
 
         let inner_vm = x.pvm_instances.get_mut(&(inner_vm_id as usize)).unwrap();
-        let program_code = &inner_vm.program_code[..];
-        todo!()
+
+        // Construct a new `VMState` and `Program` for the general invocation function.
+        let mut inner_vm_state = VMState {
+            registers,
+            memory: inner_vm.memory.clone(), // FIXME: remove `clone`
+            pc: inner_vm.pc,
+            gas_counter: gas,
+        };
+        let mut inner_vm_program = Program {
+            program_code: inner_vm.program_code.clone(), // FIXME: remove `clone`
+            ..Default::default()
+        };
+
+        let exit_reason = PVMCore::general_invocation(&mut inner_vm_state, &mut inner_vm_program)?;
+
+        // TODO: update the InnerVM pc
+
+        let mut buf = vec![];
+        inner_vm_state.gas_counter.encode_to_fixed(&mut buf, 8)?;
+        for reg in inner_vm_state.registers {
+            reg.value.encode_to_fixed(&mut buf, 4)?;
+        }
+
+        match exit_reason {
+            ExitReason::HostCall(host_call_type) => {
+                inner_vm_state.pc += 1;
+
+                Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                    vm_state_change: HostCallVMStateChange {
+                        gas_usage: BASE_GAS_USAGE,
+                        r0_write: Some(HOST as u32),
+                        r1_write: Some(host_call_type.clone() as u32),
+                        memory_write: (memory_offset as MemAddress, 60, buf),
+                        exit_reason: ExitReason::HostCall(host_call_type), // TODO: check if necessary
+                    },
+                    post_context: x,
+                }))
+            }
+            ExitReason::PageFault(address) => {
+                Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                    vm_state_change: HostCallVMStateChange {
+                        gas_usage: BASE_GAS_USAGE,
+                        r0_write: Some(FAULT as u32),
+                        r1_write: Some(address as u32),
+                        memory_write: (memory_offset as MemAddress, 60, buf),
+                        exit_reason: ExitReason::PageFault(address),
+                    },
+                    post_context: x,
+                }))
+            }
+            ExitReason::Panic => Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: HostCallVMStateChange {
+                    gas_usage: BASE_GAS_USAGE,
+                    r0_write: Some(PANIC as u32),
+                    r1_write: None,
+                    memory_write: (memory_offset as MemAddress, 60, buf),
+                    exit_reason: ExitReason::Panic,
+                },
+                post_context: x,
+            })),
+            ExitReason::RegularHalt => Ok(HostCallResult::Refinement(RefinementHostCallResult {
+                vm_state_change: HostCallVMStateChange {
+                    gas_usage: BASE_GAS_USAGE,
+                    r0_write: Some(HALT as u32),
+                    r1_write: None,
+                    memory_write: (memory_offset as MemAddress, 60, buf),
+                    exit_reason: ExitReason::RegularHalt,
+                },
+                post_context: x,
+            })),
+            _ => Err(HostCallError::InvalidExitReason),
+        }
     }
 
     pub fn host_expunge(

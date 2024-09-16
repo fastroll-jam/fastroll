@@ -1,14 +1,6 @@
 use jam_common::Octets;
 use jam_pvm_core::memory::{MemAddress, Memory};
 
-#[repr(u32)]
-pub enum InnerPVMInvocationResult {
-    HALT = 0,
-    PANIC = u32::MAX - 11,
-    FAULT = u32::MAX - 12,
-    HOST = u32::MAX - 13,
-}
-
 #[derive(Clone)]
 pub(crate) struct InnerPVM {
     pub(crate) program_code: Octets, // p

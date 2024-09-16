@@ -28,6 +28,7 @@ macro_rules! define_host_call_state_change_function {
     };
 }
 
+// Functions that return VM state changes corresponding to host call result codes
 define_host_call_state_change_function!(none_change, NONE);
 define_host_call_state_change_function!(oob_change, OOB);
 define_host_call_state_change_function!(who_change, WHO);

@@ -2,7 +2,7 @@
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 #[allow(non_camel_case_types)]
-pub(crate) enum Opcode {
+pub enum Opcode {
     TRAP = 0,
     LOAD_IND_U32 = 1,
     ADD_IMM = 2,
@@ -94,7 +94,7 @@ pub(crate) enum Opcode {
 }
 
 impl Opcode {
-    pub(crate) fn from_u8(value: u8) -> Option<Self> {
+    pub fn from_u8(value: u8) -> Option<Self> {
         if value <= 87 {
             Some(unsafe { std::mem::transmute(value) })
         } else {
@@ -102,7 +102,7 @@ impl Opcode {
         }
     }
 
-    pub(crate) fn is_termination_opcode(&self) -> bool {
+    pub fn is_termination_opcode(&self) -> bool {
         use Opcode::*;
         matches!(
             self,
