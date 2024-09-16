@@ -4,8 +4,10 @@ use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFi
 use jam_common::{AccountAddress, Octets, UnsignedGas};
 use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::{
-    AccumulationContext, AccumulationResult, HostCallError, HostCallResult, HostCallVMStateChange,
-    HostFunction, InvocationContext,
+    contexts::{AccumulationContext, InvocationContext},
+    host_functions::{
+        AccumulationResult, HostCallError, HostCallResult, HostCallVMStateChange, HostFunction,
+    },
 };
 use jam_pvm_core::{
     accumulation::AccumulationOperand,
