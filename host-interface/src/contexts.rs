@@ -13,21 +13,15 @@ use jam_types::state::{
 };
 use std::collections::HashMap;
 
+/// Host context for different invocation types
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_G(GeneralContext),                             // General Functions
+    X_G,                                             // General Functions
     X_I,                                             // Is-Authorized
     X_R(RefinementContext),                          // Refine
     X_A((AccumulationContext, AccumulationContext)), // Accumulate
     X_T,                                             // On-Transfer
-}
-
-#[derive(Clone)]
-pub struct GeneralContext {
-    pub(crate) invoker_account: ServiceAccountState, // s; current service account
-    pub(crate) invoker_address: AccountAddress,      // s (light font)
-    pub(crate) service_accounts: Option<ServiceAccounts>, // d
 }
 
 #[derive(Clone)]
@@ -44,8 +38,8 @@ pub struct AccumulationContext {
 impl AccumulationContext {
     pub fn initialize_context_pair(
         service_accounts: &ServiceAccounts,
-        invoker_account: ServiceAccountState,
-        invoker_address: AccountAddress,
+        target_account: ServiceAccountState,
+        target_address: AccountAddress,
     ) -> Result<(Self, Self), PVMError> {
         // Get current global state components
         let state_retriever = StateRetriever::new();
@@ -56,11 +50,11 @@ impl AccumulationContext {
         let timeslot = state_retriever.get_recent_timeslot()?;
 
         let context = Self {
-            service_account: Some(invoker_account),
+            service_account: Some(target_account),
             deferred_transfers: vec![],
             new_service_index: Self::new_account_address(
                 service_accounts,
-                invoker_address,
+                target_address,
                 entropy_0,
                 timeslot,
             ),
@@ -75,7 +69,7 @@ impl AccumulationContext {
 
     fn new_account_address(
         service_accounts_state: &ServiceAccounts,
-        invoker_address: AccountAddress,
+        target_address: AccountAddress,
         entropy: Hash32,
         timeslot: Timeslot,
     ) -> AccountAddress {
@@ -83,7 +77,7 @@ impl AccumulationContext {
         // TODO: confirm how to deal with hash of a tuple; H(address, entropy, timestamp)
         // TODO: check GP appendix B.4.
         let mut buf = vec![];
-        invoker_address.encode_to(&mut buf).unwrap();
+        target_address.encode_to(&mut buf).unwrap();
         entropy.encode_to(&mut buf).unwrap();
         timeslot.0.encode_to(&mut buf).unwrap();
 
@@ -100,7 +94,7 @@ impl AccumulationContext {
 pub struct RefinementContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     pub(crate) exported_segments: Vec<Octets>,
-    pub(crate) next_instance_id: usize, // PVM instance ID to be assigned for the next instance
+    next_instance_id: usize, // PVM instance ID to be assigned for the next instance
 }
 
 impl Default for RefinementContext {

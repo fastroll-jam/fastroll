@@ -1,5 +1,5 @@
 use crate::{
-    contexts::{AccumulationContext, InvocationContext, RefinementContext},
+    contexts::InvocationContext,
     host_functions::InnerPVMResultConstant::{FAULT, HALT, HOST, PANIC},
     inner_vm::InnerPVM,
     utils::*,
@@ -24,15 +24,15 @@ use jam_pvm_core::{
         common::{ExitReason, ExportDataSegment},
         error::{
             HostCallError,
-            HostCallError::{InvalidContext, InvalidExitReason, InvalidRegisters},
+            HostCallError::{AccountNotFound, InvalidContext, InvalidExitReason},
             PVMError,
         },
     },
     vm_core::{PVMCore, Program, VMState},
 };
+use jam_state::cache::STATE_CACHE;
 use jam_types::state::{
-    services::{ServiceAccountState, ServiceAccounts, B_S},
-    timeslot::Timeslot,
+    services::{ServiceAccountState, B_S},
     validators::StagingValidatorSet,
 };
 use std::collections::{btree_map::Entry, BTreeMap};
@@ -71,11 +71,9 @@ pub enum HostCallResult {
 }
 
 pub enum AccumulationResult {
-    Unchanged(ServiceAccountState),
-    Result(AccumulationContext, Option<Hash32>), // (context, result_hash)
+    Unchanged,
+    Result(Option<Hash32>), // optional result hash
 }
-
-// TODO: add Result enum for other invocation entry-points
 
 pub struct HostCallVMStateChange {
     pub gas_usage: UnsignedGas,
@@ -101,14 +99,13 @@ impl Default for HostCallVMStateChange {
 // Host Call Results
 //
 
+// FIXME: replace with `HostCallVMStateChange`
 pub struct AccumulationHostCallResult {
     pub vm_state_change: HostCallVMStateChange,
-    pub post_contexts: (AccumulationContext, AccumulationContext), // context_x, context_y
 }
 
 pub struct RefinementHostCallResult {
     pub vm_state_change: HostCallVMStateChange,
-    pub post_context: RefinementContext,
 }
 
 //
@@ -122,14 +119,11 @@ impl HostFunction {
     // General Functions
     //
 
-    pub fn host_gas(
-        gas: UnsignedGas,
-        _registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        _context: &InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    pub fn host_gas(gas: UnsignedGas) -> Result<HostCallResult, PVMError> {
         let gas_remaining = gas.wrapping_sub(10);
 
         Ok(HostCallResult::General(HostCallVMStateChange {
+            gas_usage: BASE_GAS_USAGE,
             r0_write: Some((gas_remaining & 0xFFFFFFFF) as u32),
             r1_write: Some((gas_remaining >> 32) as u32),
             ..Default::default()
@@ -137,29 +131,27 @@ impl HostFunction {
     }
 
     pub fn host_lookup(
-        _gas: UnsignedGas,
+        target_address: AccountAddress,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = match context {
-            InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        let target_account = service_accounts
+            .get_account(&target_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))
+            .cloned()?;
 
         let account_address = registers[0].value as AccountAddress;
         let [hash_offset, buffer_offset] = [registers[1].value, registers[2].value];
         let buffer_size = registers[3].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == x.invoker_address {
-            x.invoker_account
+        let account = if account_address == u32::MAX || account_address == target_address {
+            target_account
         } else {
-            x.service_accounts
-                .unwrap()
-                .0
-                .get(&account_address)
-                .cloned()
-                .ok_or(HostCallError::AccountNotFound)?
+            match service_accounts.get_account(&account_address).cloned() {
+                Some(account) => account,
+                None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
+            }
         };
 
         if !memory.is_range_readable(hash_offset, 32).unwrap() {
@@ -193,25 +185,26 @@ impl HostFunction {
     }
 
     pub fn host_read(
-        _gas: UnsignedGas,
+        target_address: AccountAddress,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = match context {
-            InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        let target_account = service_accounts
+            .get_account(&target_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))
+            .cloned()?;
 
         let account_address = registers[0].value as AccountAddress;
         let [key_offset, key_size, buffer_offset] =
             [registers[1].value, registers[2].value, registers[3].value];
         let buffer_size = registers[4].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == x.invoker_address {
-            x.invoker_account
+        let account = if account_address == u32::MAX || account_address == target_address {
+            target_account
         } else {
-            match x.service_accounts.unwrap().0.get(&account_address).cloned() {
+            match service_accounts.get_account(&account_address).cloned() {
                 Some(account) => account,
                 None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
             }
@@ -222,7 +215,7 @@ impl HostFunction {
         }
 
         let mut key = vec![];
-        key.extend(x.invoker_address.encode_fixed(4)?);
+        key.extend(target_address.encode_fixed(4)?);
         key.extend(memory.read_bytes(key_offset, key_size as usize)?);
         let storage_key = blake2b_256(&key)?;
 
@@ -248,83 +241,86 @@ impl HostFunction {
         }
     }
 
-    pub fn host_write(
-        _gas: UnsignedGas,
-        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        memory: &Memory,
-        context: &InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
-        // TODO: check if `invoker_address` is provided as an arg - not specified in the GP
-        let mut x = match context {
-            InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-
-        let [key_offset, value_offset] = [registers[0].value, registers[2].value];
-        let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
-
-        if !memory.is_range_readable(key_offset, key_size)?
-            || !memory.is_range_readable(value_offset, value_size)?
-        {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
-        }
-
-        let mut key = vec![];
-        key.extend(x.invoker_address.encode_fixed(4)?);
-        key.extend(memory.read_bytes(key_offset, key_size)?);
-        let storage_key = blake2b_256(&key)?;
-
-        // create a local copy of the invoker service account and mutate the account storage
-        let mut account = x.invoker_account.clone();
-
-        let previous_size = if let Some(value) = account.storage.get(&storage_key) {
-            value.len()
-        } else {
-            HostCallResultConstant::NONE as usize
-        };
-
-        if value_size == 0 {
-            account.storage.remove(&storage_key);
-        } else {
-            let data = memory.read_bytes(value_offset, value_size)?;
-            account.storage.insert(storage_key, data);
-        }
-
-        let result = if account.get_threshold_balance() > account.balance {
-            Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
-        } else {
-            Ok(HostCallResult::General(HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
-                r0_write: Some(previous_size as u32),
-                ..Default::default()
-            }))
-        };
-
-        x.invoker_account = account; // update the service account state with the mutated local copy
-
-        result
-    }
+    // FIXME: handle account storage write logic
+    // TODO: check if `target_address` is provided as an arg - not specified in the GP
+    // pub fn host_write(
+    //     target_address: AccountAddress,
+    //     registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+    //     memory: &Memory,
+    //     _context: &mut InvocationContext,
+    // ) -> Result<HostCallResult, PVMError> {
+    //     let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+    //     let target_account = service_accounts
+    //         .get_account(&target_address)
+    //         .ok_or(PVMError::HostCallError(AccountNotFound))
+    //         .cloned()?;
+    //
+    //     let [key_offset, value_offset] = [registers[0].value, registers[2].value];
+    //     let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
+    //
+    //     if !memory.is_range_readable(key_offset, key_size)?
+    //         || !memory.is_range_readable(value_offset, value_size)?
+    //     {
+    //         return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+    //     }
+    //
+    //     let mut key = vec![];
+    //     key.extend(target_address.encode_fixed(4)?);
+    //     key.extend(memory.read_bytes(key_offset, key_size)?);
+    //     let storage_key = blake2b_256(&key)?;
+    //
+    //     // create a local copy of the invoker service account and mutate the account storage
+    //     let mut account = target_account.clone();
+    //
+    //     let previous_size = if let Some(value) = account.storage.get(&storage_key) {
+    //         value.len()
+    //     } else {
+    //         HostCallResultConstant::NONE as usize
+    //     };
+    //
+    //     if value_size == 0 {
+    //         account.storage.remove(&storage_key);
+    //     } else {
+    //         let data = memory.read_bytes(value_offset, value_size)?;
+    //         account.storage.insert(storage_key, data);
+    //     }
+    //
+    //     let result = if account.get_threshold_balance() > account.balance {
+    //         Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
+    //     } else {
+    //         Ok(HostCallResult::General(HostCallVMStateChange {
+    //             gas_usage: BASE_GAS_USAGE,
+    //             r0_write: Some(previous_size as u32),
+    //             ..Default::default()
+    //         }))
+    //     };
+    //
+    //     target_account = account; // update the service account state with the mutated local copy
+    //
+    //     result
+    // }
 
     pub fn host_info(
-        _gas: UnsignedGas,
+        target_address: AccountAddress,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = match context {
-            InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        let target_account = service_accounts
+            .get_account(&target_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))
+            .cloned()?;
 
         let account_address = registers[0].value as AccountAddress;
         let buffer_offset = registers[1].value;
 
-        let account = if account_address == u32::MAX || account_address == x.invoker_address {
-            x.invoker_account
+        let account = if account_address == u32::MAX || account_address == target_address {
+            target_account
         } else {
             // TODO: find the account from the service accounts dictionary "and" the new accounts
             // TODO: of provided invocation context, which is currently not specified in the GP
-            match x.service_accounts.unwrap().0.get(&account_address).cloned() {
+            match service_accounts.get_account(&account_address).cloned() {
                 Some(account) => account,
                 None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
             }
@@ -356,41 +352,34 @@ impl HostFunction {
     // Accumulate Functions
     //
 
-    // TODO: delete unnecessary clones of `x` and `y`
-
     // Accumulation host functions mutate: gas, registers, contexts
     pub fn host_empower(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        _memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
-        let [empower, assign, designate] = registers[..3] else {
-            return Err(PVMError::HostCallError(InvalidRegisters));
-        };
 
-        x.privileged_services.empower_service_index = empower.value;
-        x.privileged_services.assign_service_index = assign.value;
-        x.privileged_services.designate_service_index = designate.value;
+        let [empower, assign, designate, ..] = registers.map(|r| r.value as AccountAddress);
+
+        x.privileged_services.empower_service_index = empower;
+        x.privileged_services.assign_service_index = assign;
+        x.privileged_services.designate_service_index = designate;
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: HostCallVMStateChange::default(),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_assign(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -400,14 +389,12 @@ impl HostFunction {
         if !memory.is_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
         if core_index >= CORE_COUNT {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: core_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -423,18 +410,16 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_designate(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -445,7 +430,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -464,20 +448,19 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_checkpoint(
         gas: UnsignedGas,
-        _registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        _memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = match context {
-            InvocationContext::X_A((x, _)) => x.clone(),
+        let (x, y) = match context {
+            InvocationContext::X_A((x, y)) => (x, y),
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
+
+        *y = x.clone();
 
         let post_gas = gas.saturating_sub(BASE_GAS_USAGE); // TODO: gas management
 
@@ -488,18 +471,16 @@ impl HostFunction {
                 r1_write: Some((post_gas >> 32) as u32),
                 ..Default::default()
             },
-            post_contexts: (x.clone(), x),
         }))
     }
 
     pub fn host_new(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -509,7 +490,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset as MemAddress, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -541,9 +521,9 @@ impl HostFunction {
             .saturating_sub(new_threshold_balance);
 
         if context_account_balance < x.service_account.as_ref().unwrap().get_threshold_balance() {
+            // TODO: check - should return context `x_T`
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: cash_change(BASE_GAS_USAGE),
-                post_contexts: (x, y), // TODO: check - should return x_T
             }));
         }
 
@@ -554,7 +534,7 @@ impl HostFunction {
                 as AccountAddress
         };
 
-        // FIXME: this operation needs global service account state for `check`
+        // FIXME: this operation needs `&ServiceAccounts` for the `check` operation
         x.new_service_index = bump(new_service_index); // bump new service index for the next account generation
         x.new_accounts.0.insert(new_service_index, new_account);
         x.service_account
@@ -568,19 +548,16 @@ impl HostFunction {
                 r0_write: Some(new_service_index),
                 ..Default::default()
             },
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_upgrade(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        _invoker_address: AccountAddress,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -590,7 +567,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -612,24 +588,24 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_transfer(
+        target_address: AccountAddress,
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        invoker_address: AccountAddress,
-        service_accounts: &ServiceAccounts,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
-        let [destination, amount_low, amount_high, gas_limit_low, gas_limit_high, offset] =
+        let [dest, amount_low, amount_high, gas_limit_low, gas_limit_high, offset] =
             registers.map(|r| r.value);
 
         let amount = ((amount_high as u64) << 32 | amount_low as u64) as TokenBalance;
@@ -638,7 +614,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -646,8 +621,8 @@ impl HostFunction {
             JamDecode::decode(&mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..])?;
 
         let transfer = DeferredTransfer {
-            from: invoker_address,
-            to: destination as AccountAddress,
+            from: target_address,
+            to: dest as AccountAddress,
             amount,
             memo: transfer_memo,
             gas_limit,
@@ -655,40 +630,33 @@ impl HostFunction {
 
         let post_balance = x.service_account.as_ref().unwrap().balance - amount;
 
-        if !service_accounts.0.contains_key(&destination)
-            && !x.new_accounts.0.contains_key(&destination)
-        {
+        if !service_accounts.0.contains_key(&dest) && !x.new_accounts.0.contains_key(&dest) {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
-        let destination_gas_limit_m = service_accounts
-            .0
-            .get(&destination)
-            .or_else(|| x.new_accounts.0.get(&destination))
+        let dest_gas_limit_m = service_accounts
+            .get_account(&dest)
+            .or_else(|| x.new_accounts.get_account(&dest))
             .unwrap()
             .gas_limit_on_transfer;
 
-        if gas_limit < destination_gas_limit_m {
+        if gas_limit < dest_gas_limit_m {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: low_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
         if gas < gas_limit {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: high_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
         if post_balance < x.service_account.as_ref().unwrap().get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: cash_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
@@ -701,24 +669,24 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: oob_change(BASE_GAS_USAGE + amount),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_quit(
+        target_address: AccountAddress,
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        invoker_address: AccountAddress,
-        service_accounts: &ServiceAccounts, // TODO: check - not included in the GP
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap(); // TODO: check - not included in the GP
+
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
-        let [destination, offset, ..] = registers.map(|r| r.value);
+        let [dest, offset, ..] = registers.map(|r| r.value);
 
         let context_account = x.service_account.as_ref().unwrap();
         let amount = context_account
@@ -726,14 +694,13 @@ impl HostFunction {
             .wrapping_sub(context_account.get_threshold_balance())
             + B_S;
 
-        if destination == u32::MAX || destination == invoker_address {
+        if dest == u32::MAX || dest == target_address {
             return Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_USAGE))); // TODO: check gas usage from the GP
         }
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -741,33 +708,28 @@ impl HostFunction {
             JamDecode::decode(&mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..])?;
 
         let transfer = DeferredTransfer {
-            from: invoker_address,
-            to: destination as AccountAddress,
+            from: target_address,
+            to: dest as AccountAddress,
             amount,
             memo: transfer_memo,
             gas_limit: gas,
         };
 
-        if !service_accounts.0.contains_key(&destination)
-            && !x.new_accounts.0.contains_key(&destination)
-        {
+        if !service_accounts.0.contains_key(&dest) && !x.new_accounts.0.contains_key(&dest) {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
-        let destination_gas_limit_m = service_accounts
-            .0
-            .get(&destination)
-            .or_else(|| x.new_accounts.0.get(&destination))
+        let dest_gas_limit_m = service_accounts
+            .get_account(&dest)
+            .or_else(|| x.new_accounts.get_account(&dest))
             .unwrap()
             .gas_limit_on_transfer;
 
-        if gas < destination_gas_limit_m {
+        if gas < dest_gas_limit_m {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: low_change(BASE_GAS_USAGE + amount),
-                post_contexts: (x, y),
             }));
         }
 
@@ -776,14 +738,14 @@ impl HostFunction {
     }
 
     pub fn host_solicit(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        timeslot: Timeslot, // TODO: check - not included in the GP
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap(); // TODO: check - not included in the GP
+
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -792,7 +754,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -809,7 +770,6 @@ impl HostFunction {
         if account.balance < account.get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: full_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -827,7 +787,6 @@ impl HostFunction {
                 } else {
                     return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                         vm_state_change: huh_change(BASE_GAS_USAGE),
-                        post_contexts: (x, y),
                     }));
                 }
             }
@@ -835,19 +794,18 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
-            post_contexts: (x, y),
         }))
     }
 
     pub fn host_forget(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        timeslot: Timeslot,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let (mut x, y) = match context {
-            InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
+        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
+
+        let x = match context {
+            InvocationContext::X_A((x, _)) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -856,7 +814,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_contexts: (x, y),
             }));
         }
 
@@ -902,7 +859,6 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulationHostCallResult {
             vm_state_change,
-            post_contexts: (x, y),
         }))
     }
 
@@ -911,38 +867,31 @@ impl HostFunction {
     //
 
     pub fn host_historical_lookup(
-        _gas: UnsignedGas,
+        target_address: AccountAddress,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
-        invoker_address: AccountAddress,
-        service_accounts: &ServiceAccounts,
-        timeslot: Timeslot,
+        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = match context {
-            InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
 
         let [account_address, lookup_hash_offset, buffer_offset, buffer_size, ..] =
             registers.map(|r| r.value);
 
         let account =
-            if account_address == u32::MAX || service_accounts.0.contains_key(&invoker_address) {
-                service_accounts.0.get(&invoker_address).unwrap()
+            if account_address == u32::MAX || service_accounts.0.contains_key(&target_address) {
+                service_accounts.get_account(&target_address).unwrap()
             } else if service_accounts.0.contains_key(&account_address) {
-                service_accounts.0.get(&account_address).unwrap()
+                service_accounts.get_account(&account_address).unwrap()
             } else {
                 return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                     vm_state_change: none_change(BASE_GAS_USAGE),
-                    post_context: x,
                 }));
             };
 
         if !memory.is_range_readable(lookup_hash_offset as MemAddress, HASH_SIZE)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -952,13 +901,12 @@ impl HostFunction {
                 .as_slice(),
         )?;
 
-        if let Some(preimage) = account.lookup_history(timeslot, lookup_hash) {
+        if let Some(preimage) = account.lookup_history(&timeslot, lookup_hash) {
             let write_data_size = (buffer_size as usize).min(preimage.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size as usize)? {
                 return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                     vm_state_change: oob_change(BASE_GAS_USAGE),
-                    post_context: x,
                 }));
             }
 
@@ -973,35 +921,25 @@ impl HostFunction {
                     ),
                     ..Default::default()
                 },
-                post_context: x,
             }))
         } else {
             Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: none_change(BASE_GAS_USAGE),
-                post_context: x,
             }))
         }
     }
 
     pub fn host_import(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        _context: &mut InvocationContext,
         import_segments: Vec<ExportDataSegment>,
     ) -> Result<HostCallResult, PVMError> {
-        // TODO: the context is not used, there's room for optimization.
-        let x = match context {
-            InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-
         let [segment_index, offset, segments_len, ..] = registers.map(|r| r.value);
 
         if segments_len as usize >= DATA_SEGMENTS_SIZE {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: none_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1011,7 +949,6 @@ impl HostFunction {
         if !memory.is_range_writable(offset as MemAddress, segment_len as usize)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1022,19 +959,17 @@ impl HostFunction {
                 memory_write: (offset, segment_len, import_segment.to_vec()),
                 ..Default::default()
             },
-            post_context: x,
         }))
     }
 
     pub fn host_export(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
         export_segment_offset: usize,
     ) -> Result<HostCallResult, PVMError> {
-        let mut x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1045,7 +980,6 @@ impl HostFunction {
         if !memory.is_range_readable(offset as MemAddress, size as usize)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1059,7 +993,6 @@ impl HostFunction {
         if export_segment_limit >= DATA_SEGMENTS_SIZE {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: full_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1071,18 +1004,16 @@ impl HostFunction {
                 r0_write: Some((export_segment_limit) as u32),
                 ..Default::default()
             },
-            post_context: x,
         }))
     }
 
     pub fn host_machine(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let mut x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1091,7 +1022,6 @@ impl HostFunction {
         if !memory.is_range_readable(program_offset as MemAddress, program_size as usize)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1105,18 +1035,15 @@ impl HostFunction {
                 r0_write: Some(inner_vm_id as u32),
                 ..Default::default()
             },
-            post_context: x,
         }))
     }
 
     pub fn host_peek(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        _memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1126,7 +1053,6 @@ impl HostFunction {
         if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
         let inner_memory = &x.pvm_instances.get(&(inner_vm_id as usize)).unwrap().memory;
@@ -1134,7 +1060,6 @@ impl HostFunction {
         if !inner_memory.is_range_readable(inner_memory_offset as MemAddress, data_len as usize)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
         let data = inner_memory.read_bytes(inner_memory_offset as MemAddress, data_len as usize)?;
@@ -1146,18 +1071,16 @@ impl HostFunction {
                 memory_write: (memory_offset, data_len, data),
                 ..Default::default()
             },
-            post_context: x,
         }))
     }
 
     pub fn host_poke(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let mut x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1167,7 +1090,6 @@ impl HostFunction {
         if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
         let inner_memory = &mut x
@@ -1179,7 +1101,6 @@ impl HostFunction {
         if !memory.is_range_readable(memory_offset as MemAddress, data_len as usize)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
         let data = memory.read_bytes(memory_offset as MemAddress, data_len as usize)?;
@@ -1189,18 +1110,16 @@ impl HostFunction {
 
         Ok(HostCallResult::Refinement(RefinementHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
-            post_context: x,
         }))
     }
 
     pub fn host_invoke(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let mut x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1209,14 +1128,12 @@ impl HostFunction {
         if !memory.is_range_writable(memory_offset, 60)? {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: oob_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
         if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1274,7 +1191,6 @@ impl HostFunction {
                         memory_write: (memory_offset as MemAddress, 60, buf),
                         exit_reason: ExitReason::HostCall(host_call_type), // TODO: check if necessary
                     },
-                    post_context: x,
                 }))
             }
             ExitReason::PageFault(address) => {
@@ -1286,7 +1202,6 @@ impl HostFunction {
                         memory_write: (memory_offset as MemAddress, 60, buf),
                         exit_reason: ExitReason::PageFault(address),
                     },
-                    post_context: x,
                 }))
             }
             ExitReason::Panic => Ok(HostCallResult::Refinement(RefinementHostCallResult {
@@ -1297,7 +1212,6 @@ impl HostFunction {
                     memory_write: (memory_offset as MemAddress, 60, buf),
                     exit_reason: ExitReason::Panic,
                 },
-                post_context: x,
             })),
             ExitReason::RegularHalt => Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: HostCallVMStateChange {
@@ -1307,20 +1221,17 @@ impl HostFunction {
                     memory_write: (memory_offset as MemAddress, 60, buf),
                     exit_reason: ExitReason::RegularHalt,
                 },
-                post_context: x,
             })),
             _ => Err(PVMError::HostCallError(InvalidExitReason)),
         }
     }
 
     pub fn host_expunge(
-        _gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        _memory: &Memory,
-        context: &InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let mut x = match context {
-            InvocationContext::X_R(m) => m.clone(),
+        let x = match context {
+            InvocationContext::X_R(x) => x,
             _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
@@ -1329,7 +1240,6 @@ impl HostFunction {
         if !x.pvm_instances.contains_key(&(inner_vm_id as usize)) {
             return Ok(HostCallResult::Refinement(RefinementHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE),
-                post_context: x,
             }));
         }
 
@@ -1342,7 +1252,6 @@ impl HostFunction {
                 r0_write: Some(final_pc as u32),
                 ..Default::default()
             },
-            post_context: x,
         }))
     }
 }

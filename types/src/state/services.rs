@@ -36,24 +36,26 @@ impl ServiceAccounts {
                 + (1 << 8)) as AccountAddress;
         }
     }
+
+    pub fn get_account(&self, address: &AccountAddress) -> Option<&ServiceAccountState> {
+        self.0.get(address)
+    }
 }
 
 impl ServiceAccountState {
     // Historical lookup function for checking availability of the lookup hash at a given timeslot.
     // Returns preimage blob if available.
 
-    pub fn lookup_history(&self, timeslot: Timeslot, lookup_hash: Hash32) -> Option<Octets> {
+    pub fn lookup_history(&self, timeslot: &Timeslot, lookup_hash: Hash32) -> Option<Octets> {
         let preimage = self.preimages.get(&lookup_hash)?;
         let key = (lookup_hash, preimage.len() as u32);
         let timeslots = self.lookups.get(&key)?;
 
         let valid = match timeslots.as_slice() {
             [] => false,
-            [first] => *first <= timeslot,
-            [first, second] => *first <= timeslot && timeslot < *second,
-            [first, second, third] => {
-                (*first <= timeslot && timeslot < *second) || *third <= timeslot
-            }
+            [first] => first <= timeslot,
+            [first, second] => first <= timeslot && timeslot < second,
+            [first, second, third] => (first <= timeslot && timeslot < second) || third <= timeslot,
             _ => false,
         };
 

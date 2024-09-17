@@ -18,7 +18,8 @@ use jam_pvm_core::{
         accumulation::AccumulationOperand,
         common::ExitReason,
         error::{
-            PVMError, VMCoreError,
+            HostCallError::AccountNotFound,
+            PVMError,
             VMCoreError::{InvalidHostCallType, InvalidProgram, OutOfGas},
         },
         hostcall::HostCallType,
@@ -33,17 +34,17 @@ enum ExecutionResult {
     HostCall(HostCallType),
 }
 
+// TODO: check the GP - `InvocationContext` elided for `Result` and `ResultUnavailable`
 enum CommonInvocationResult {
-    OutOfGas(ExitReason, InvocationContext), // (exit_reason, context)
-    Result(UnsignedGas, Octets),             // (posterior_gas, return_value);
-    ResultUnavailable(UnsignedGas),          // (posterior_gas, [])
-    Failure(ExitReason, InvocationContext),  // (panic, context)
+    OutOfGas(ExitReason),
+    Result((UnsignedGas, Octets)), // (posterior_gas, return_value)
+    ResultUnavailable((UnsignedGas, Octets)), // (posterior_gas, [])
+    Failure(ExitReason),           // panic
 }
 
 // TODO: add other posterior VM states?
 struct ExtendedInvocationResult {
     exit_reason: ExitReason,
-    post_context: InvocationContext, // mutated context after the host function execution
 }
 
 /// Main stateful PVM struct
@@ -234,50 +235,47 @@ impl PVM {
     /// Represents `Psi_A` of the GP
     pub(crate) fn accumulate(
         service_accounts: &ServiceAccounts,
-        service_account_address: AccountAddress,
+        target_address: AccountAddress,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulationOperand>,
     ) -> Result<AccumulationResult, PVMError> {
-        // TODO: interface for fetching on-chain account from address
-        let invoker_account = service_accounts
-            .0
-            .get(&service_account_address)
-            .unwrap()
+        let target_account = service_accounts
+            .get_account(&target_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))?
             .clone();
 
-        let code = invoker_account.get_code();
+        let code = target_account.get_code().cloned();
 
         if operands.is_empty() || code.is_none() {
-            return Ok(AccumulationResult::Unchanged(invoker_account));
+            return Ok(AccumulationResult::Unchanged);
         }
 
-        // TODO: check using mutable references
         // `x` for a regular dimension and `y` for an exceptional dimension
         let (x, y) = AccumulationContext::initialize_context_pair(
             service_accounts,
-            invoker_account.clone(),
-            service_account_address,
+            target_account,
+            target_address,
         )?;
 
         let common_invocation_result = Self::common_invocation(
+            target_address,
             &code.unwrap()[..],
             2,
             gas_limit,
             &operands.encode()?,
-            InvocationContext::X_A((x.clone(), y.clone())),
+            &mut InvocationContext::X_A((x, y)),
         )?;
 
-        return match common_invocation_result {
-            CommonInvocationResult::Result(_gas, output) => {
-                Ok(AccumulationResult::Result(x, octets_to_hash32(output)))
+        match common_invocation_result {
+            CommonInvocationResult::Result((_gas, output))
+            | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
+                Ok(AccumulationResult::Result(octets_to_hash32(output)))
             }
-            CommonInvocationResult::ResultUnavailable(_gas) => {
-                Ok(AccumulationResult::Result(x, None))
+
+            CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Failure(_) => {
+                Ok(AccumulationResult::Result(None))
             }
-            CommonInvocationResult::OutOfGas(_, _) | CommonInvocationResult::Failure(_, _) => {
-                Ok(AccumulationResult::Result(y, None))
-            }
-        };
+        }
     }
 
     //
@@ -289,24 +287,22 @@ impl PVM {
     ///
     /// Represents `Psi_M` of the GP
     pub(crate) fn common_invocation(
+        target_address: AccountAddress,
         standard_program: &[u8],
         pc: MemAddress,
         gas: UnsignedGas,
         args: &[u8],
-        context: InvocationContext,
+        context: &mut InvocationContext,
     ) -> Result<CommonInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let mut pvm = Self::new_from_standard_program(standard_program, args)?;
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
-        let extended_invocation_result = pvm.extended_invocation(context.clone())?;
+        let extended_invocation_result = pvm.extended_invocation(target_address, context)?;
 
         match extended_invocation_result.exit_reason {
-            ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(
-                ExitReason::OutOfGas,
-                extended_invocation_result.post_context,
-            )),
+            ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
             ExitReason::RegularHalt => {
                 let result = pvm.read_memory_bytes(
                     PVMCore::read_reg(&pvm.state, 10)?,
@@ -314,11 +310,13 @@ impl PVM {
                 );
 
                 Ok(match result {
-                    Ok(bytes) => CommonInvocationResult::Result(pvm.state.gas_counter, bytes),
-                    Err(_) => CommonInvocationResult::ResultUnavailable(pvm.state.gas_counter),
+                    Ok(bytes) => CommonInvocationResult::Result((pvm.state.gas_counter, bytes)),
+                    Err(_) => {
+                        CommonInvocationResult::ResultUnavailable((pvm.state.gas_counter, vec![]))
+                    }
                 })
             }
-            _ => Ok(CommonInvocationResult::Failure(ExitReason::Panic, context)),
+            _ => Ok(CommonInvocationResult::Failure(ExitReason::Panic)),
         }
     }
 
@@ -333,64 +331,161 @@ impl PVM {
     /// Represents `Psi_H` of the GP
     fn extended_invocation(
         &mut self,
-        context: InvocationContext,
+        target_address: AccountAddress,
+        context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
-        let mut context = context.clone();
-
         loop {
-            // let mut exit_reason = self.general_invocation()?;
             let mut exit_reason = PVMCore::general_invocation(&mut self.state, &mut self.program)?;
 
             let host_call_result = match exit_reason {
-                ExitReason::HostCall(h) => self.execute_host_function(&context, &h)?,
-                _ => {
-                    return Ok(ExtendedInvocationResult {
-                        exit_reason,
-                        post_context: context,
-                    })
+                ExitReason::HostCall(h) => {
+                    self.execute_host_function(target_address, context, &h)?
                 }
+                _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            let (vm_state_change, post_context) = match host_call_result {
+            let vm_state_change = match host_call_result {
                 HostCallResult::PageFault(m) => {
                     exit_reason = ExitReason::PageFault(m);
                     return Ok(ExtendedInvocationResult {
                         exit_reason: ExitReason::PageFault(m),
-                        post_context: context,
                     });
                 }
-                HostCallResult::Accumulation(result) => (
-                    result.vm_state_change,
-                    InvocationContext::X_A(result.post_contexts),
-                ),
+                HostCallResult::Accumulation(result) => result.vm_state_change,
                 _ => unimplemented!("not yet implemented"), // TODO: add other cases
             };
 
             self.apply_host_call_state_change(vm_state_change)?; // update the vm states
-            context = post_context; // update the invocation context for the next call
             self.state.pc = PVMCore::next_pc(&self.state, &self.program); // increment the pc on host call success
         }
     }
 
     fn execute_host_function(
         &mut self,
-        context: &InvocationContext,
+        target_address: AccountAddress,
+        context: &mut InvocationContext,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
-        // TODO: add other host function cases
         let result = match h {
+            //
+            // General Functions
+            //
             // TODO: better gas handling
-            HostCallType::GAS => HostFunction::host_gas(
-                self.state.gas_counter,
+            HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
+            HostCallType::LOOKUP => HostFunction::host_lookup(
+                target_address,
                 self.get_host_call_registers(),
-                &context,
+                &self.state.memory,
             )?,
-            HostCallType::EMPOWER => HostFunction::host_empower(
+            HostCallType::READ => HostFunction::host_read(
+                target_address,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            // HostCallType::WRITE => HostFunction::host_write(
+            //     target_address,
+            //     self.get_host_call_registers(),
+            //     &self.state.memory,
+            //     context,
+            // )?,
+            HostCallType::INFO => HostFunction::host_info(
+                target_address,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+
+            //
+            // Accumulate Functions
+            //
+            HostCallType::EMPOWER => {
+                HostFunction::host_empower(self.get_host_call_registers(), context)?
+            }
+            HostCallType::ASSIGN => HostFunction::host_assign(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::DESIGNATE => HostFunction::host_designate(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::CHECKPOINT => {
+                HostFunction::host_checkpoint(self.state.gas_counter, context)?
+            }
+            HostCallType::NEW => {
+                HostFunction::host_new(self.get_host_call_registers(), &self.state.memory, context)?
+            }
+            HostCallType::UPGRADE => HostFunction::host_upgrade(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::TRANSFER => HostFunction::host_transfer(
+                target_address,
                 self.state.gas_counter,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                &context,
+                context,
             )?,
+            HostCallType::QUIT => HostFunction::host_quit(
+                target_address,
+                self.state.gas_counter,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::SOLICIT => HostFunction::host_solicit(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::FORGET => HostFunction::host_forget(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+
+            //
+            // Refine Functions
+            //
+            HostCallType::HISTORICAL_LOOKUP => HostFunction::host_historical_lookup(
+                target_address,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            // HostCallType::IMPORT => HostFunction::host_import(
+            //     self.get_host_call_registers(),
+            //     &self.state.memory,
+            //     context, // TODO
+            // )?,
+            // HostCallType::EXPORT => HostFunction::host_export(
+            //     self.get_host_call_registers(),
+            //     &self.state.memory,
+            //     context, // TODO
+            // )?,
+            HostCallType::MACHINE => HostFunction::host_machine(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::PEEK => HostFunction::host_peek(self.get_host_call_registers(), context)?,
+            HostCallType::POKE => HostFunction::host_poke(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::INVOKE => HostFunction::host_invoke(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::EXPORT => {
+                HostFunction::host_expunge(self.get_host_call_registers(), context)?
+            }
             _ => return Err(PVMError::VMCoreError(InvalidHostCallType)),
         };
 
