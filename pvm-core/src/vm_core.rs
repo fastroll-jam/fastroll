@@ -10,8 +10,13 @@ use crate::{
 use bit_vec::BitVec;
 use jam_common::{Octets, UnsignedGas};
 
+pub struct SingleInvocationResult {
+    pub exit_reason: ExitReason,
+    pub state_change: StateChange,
+}
+
 /// Mutable VM state
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct VMState {
     pub registers: [Register; REGISTERS_COUNT], // omega
     pub memory: Memory,                         // mu
@@ -19,7 +24,7 @@ pub struct VMState {
     pub gas_counter: UnsignedGas,               // xi
 }
 
-/// Immutable program components
+/// Immutable VM state (program components)
 #[derive(Default)]
 pub struct Program {
     pub program_code: Octets, // p (`c` of the Initialization Decoder Function `Y`)
@@ -29,6 +34,8 @@ pub struct Program {
     pub basic_block_bitmask: BitVec, // bitmask to detect opcode addresses that begin basic blocks
 }
 
+/// VM mutable state change set
+#[derive(Default)]
 pub struct StateChange {
     pub register_writes: Vec<(usize, u32)>,
     pub memory_write: (MemAddress, u32, Octets), // (start_address, data_len, data)
@@ -36,27 +43,11 @@ pub struct StateChange {
     pub gas_usage: UnsignedGas,
 }
 
-impl Default for StateChange {
-    fn default() -> Self {
-        Self {
-            register_writes: vec![],
-            memory_write: (0, 0, vec![]),
-            new_pc: None,
-            gas_usage: 0,
-        }
-    }
-}
-
-pub struct SingleInvocationResult {
-    pub exit_reason: ExitReason,
-    pub state_change: StateChange,
-}
-
 pub struct PVMCore;
 
 impl PVMCore {
     //
-    // PVM helper functions
+    // PVM util functions
     //
 
     /// Read a `u32` value stored in a register of the given index
@@ -170,6 +161,10 @@ impl PVMCore {
 
         Ok(())
     }
+
+    //
+    // Common PVM invocation functions
+    //
 
     /// Recursively call single-step invocation functions following the instruction sequence
     /// Mutating the VM states

@@ -1,4 +1,3 @@
-use bit_vec::BitVec;
 use jam_codec::{JamEncode, JamInput};
 use jam_common::{AccountAddress, Octets, UnsignedGas};
 use jam_crypto::utils::octets_to_hash32;
@@ -9,8 +8,7 @@ use jam_host_interface::{
 use jam_pvm_core::{
     accumulation::AccumulationOperand,
     constants::{
-        HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT,
-        SEGMENT_SIZE,
+        HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
     },
     hostcall::HostCallType,
     memory::{AccessType, MemAddress, Memory},
@@ -21,9 +19,6 @@ use jam_pvm_core::{
     vm_utils::VMUtils,
 };
 use jam_types::state::services::ServiceAccounts;
-//
-// Enums
-//
 
 enum ExecutionResult {
     Complete(ExitReason),
@@ -37,40 +32,17 @@ enum CommonInvocationResult {
     Failure(ExitReason, InvocationContext),  // (panic, context)
 }
 
-//
-// Structs
-//
+// TODO: add other posterior VM states?
+struct ExtendedInvocationResult {
+    exit_reason: ExitReason,
+    post_context: InvocationContext, // mutated context after the host function execution
+}
 
 /// Main stateful PVM struct
+#[derive(Default)]
 struct PVM {
     state: VMState,
     program: Program,
-}
-
-struct ExtendedInvocationResult {
-    exit_reason: ExitReason,
-    post_context: InvocationContext,
-    // TODO: add other posterior VM states?
-}
-
-impl Default for PVM {
-    fn default() -> Self {
-        Self {
-            state: VMState {
-                registers: [Register { value: 0 }; REGISTERS_COUNT],
-                memory: Memory::new(0, 0),
-                pc: 0,
-                gas_counter: 0,
-            },
-            program: Program {
-                program_code: vec![],
-                instructions: vec![],
-                jump_table: vec![],
-                opcode_bitmask: BitVec::new(),
-                basic_block_bitmask: BitVec::new(),
-            },
-        }
-    }
 }
 
 impl PVM {
@@ -155,7 +127,7 @@ impl PVM {
     // PVM helper function
     //
 
-    /// Get a reference to the first 6 registers for host call functions
+    /// Get a reference to the first 6 registers for host call function arguments
     pub fn get_host_call_registers(&self) -> &[Register; HOST_CALL_INPUT_REGISTERS_COUNT] {
         self.state.registers[..HOST_CALL_INPUT_REGISTERS_COUNT]
             .try_into()
@@ -239,7 +211,7 @@ impl PVM {
     }
 
     //
-    // PVM invocation functions
+    // PVM invocation entry-points
     //
 
     /// Accumulate invocation function
@@ -299,6 +271,10 @@ impl PVM {
             }
         };
     }
+
+    //
+    // Common PVM invocation functions
+    //
 
     /// Invoke the PVM with program and arguments
     /// This works as a common interface for the four PVM invocation entry-points

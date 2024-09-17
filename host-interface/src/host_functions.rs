@@ -27,9 +27,6 @@ use jam_types::state::{
     validators::StagingValidatorSet,
 };
 use std::collections::{btree_map::Entry, BTreeMap};
-//
-// Enums
-//
 
 #[repr(u32)]
 pub enum HostCallResultConstant {
@@ -64,14 +61,12 @@ pub enum HostCallResult {
     OnTransfer,
 }
 
-//
-// Invocation Results
-//
-
 pub enum AccumulationResult {
     Unchanged(ServiceAccountState),
     Result(AccumulationContext, Option<Hash32>), // (context, result_hash)
 }
+
+// TODO: add Result enum for other invocation entry-points
 
 pub struct HostCallVMStateChange {
     pub gas_usage: UnsignedGas,
