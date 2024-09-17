@@ -241,64 +241,61 @@ impl HostFunction {
         }
     }
 
-    // FIXME: handle account storage write logic
     // TODO: check if `target_address` is provided as an arg - not specified in the GP
-    // pub fn host_write(
-    //     target_address: AccountAddress,
-    //     registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-    //     memory: &Memory,
-    //     _context: &mut InvocationContext,
-    // ) -> Result<HostCallResult, PVMError> {
-    //     let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-    //     let target_account = service_accounts
-    //         .get_account(&target_address)
-    //         .ok_or(PVMError::HostCallError(AccountNotFound))
-    //         .cloned()?;
-    //
-    //     let [key_offset, value_offset] = [registers[0].value, registers[2].value];
-    //     let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
-    //
-    //     if !memory.is_range_readable(key_offset, key_size)?
-    //         || !memory.is_range_readable(value_offset, value_size)?
-    //     {
-    //         return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
-    //     }
-    //
-    //     let mut key = vec![];
-    //     key.extend(target_address.encode_fixed(4)?);
-    //     key.extend(memory.read_bytes(key_offset, key_size)?);
-    //     let storage_key = blake2b_256(&key)?;
-    //
-    //     // create a local copy of the invoker service account and mutate the account storage
-    //     let mut account = target_account.clone();
-    //
-    //     let previous_size = if let Some(value) = account.storage.get(&storage_key) {
-    //         value.len()
-    //     } else {
-    //         HostCallResultConstant::NONE as usize
-    //     };
-    //
-    //     if value_size == 0 {
-    //         account.storage.remove(&storage_key);
-    //     } else {
-    //         let data = memory.read_bytes(value_offset, value_size)?;
-    //         account.storage.insert(storage_key, data);
-    //     }
-    //
-    //     let result = if account.get_threshold_balance() > account.balance {
-    //         Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
-    //     } else {
-    //         Ok(HostCallResult::General(HostCallVMStateChange {
-    //             gas_usage: BASE_GAS_USAGE,
-    //             r0_write: Some(previous_size as u32),
-    //             ..Default::default()
-    //         }))
-    //     };
-    //
-    //     target_account = account; // update the service account state with the mutated local copy
-    //
-    //     result
-    // }
+    pub fn host_write(
+        target_address: AccountAddress,
+        registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        memory: &Memory,
+        _context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        let mut target_account = service_accounts
+            .get_account(&target_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))
+            .cloned()?;
+
+        let [key_offset, value_offset] = [registers[0].value, registers[2].value];
+        let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
+
+        if !memory.is_range_readable(key_offset, key_size)?
+            || !memory.is_range_readable(value_offset, value_size)?
+        {
+            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+        }
+
+        let mut key = vec![];
+        key.extend(target_address.encode_fixed(4)?);
+        key.extend(memory.read_bytes(key_offset, key_size)?);
+        let storage_key = blake2b_256(&key)?;
+
+        let previous_size = if let Some(value) = target_account.storage.get(&storage_key) {
+            value.len()
+        } else {
+            HostCallResultConstant::NONE as usize
+        };
+
+        if value_size == 0 {
+            target_account.storage.remove(&storage_key);
+        } else {
+            let data = memory.read_bytes(value_offset, value_size)?;
+            target_account.storage.insert(storage_key, data);
+        }
+
+        let result = if target_account.get_threshold_balance() > target_account.balance {
+            Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
+        } else {
+            Ok(HostCallResult::General(HostCallVMStateChange {
+                gas_usage: BASE_GAS_USAGE,
+                r0_write: Some(previous_size as u32),
+                ..Default::default()
+            }))
+        };
+
+        // update the service account state with the mutated local copy
+        STATE_CACHE.update_service_account_cache(target_address, target_account)?;
+
+        result
+    }
 
     pub fn host_info(
         target_address: AccountAddress,

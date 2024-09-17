@@ -1,5 +1,9 @@
-use jam_common::Hash32;
-use jam_types::state::{safrole::SafroleState, services::ServiceAccounts, timeslot::Timeslot};
+use jam_common::{AccountAddress, Hash32};
+use jam_types::state::{
+    safrole::SafroleState,
+    services::{ServiceAccountState, ServiceAccounts},
+    timeslot::Timeslot,
+};
 use lazy_static::lazy_static;
 use std::{
     collections::HashMap,
@@ -124,6 +128,61 @@ impl StateCache {
             .write()
             .map_err(|e| StateCacheError::WriteLockError(e.to_string()))?;
         Ok(service_accounts.remove(&hash))
+    }
+
+    pub fn get_service_account_cache(
+        &self,
+        address: &AccountAddress,
+    ) -> Result<Option<ServiceAccountState>, StateCacheError> {
+        let hash = self.get_current_hash();
+
+        let service_accounts = self
+            .service_accounts
+            .read()
+            .map_err(|e| StateCacheError::ReadLockError(e.to_string()))?;
+
+        Ok(service_accounts
+            .get(&hash)
+            .and_then(|accounts| accounts.0.get(address).cloned()))
+    }
+
+    pub fn update_service_account_cache(
+        &self,
+        address: AccountAddress,
+        account_state: ServiceAccountState,
+    ) -> Result<(), StateCacheError> {
+        let hash = self.get_current_hash();
+
+        let mut service_accounts = self
+            .service_accounts
+            .write()
+            .map_err(|e| StateCacheError::WriteLockError(e.to_string()))?;
+
+        if let Some(accounts) = service_accounts.get_mut(&hash) {
+            accounts.0.insert(address, account_state);
+        } else {
+            let mut new_accounts = ServiceAccounts::default();
+            new_accounts.0.insert(address, account_state);
+            service_accounts.insert(hash, new_accounts);
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_service_account_cache(
+        &self,
+        address: &AccountAddress,
+    ) -> Result<Option<ServiceAccountState>, StateCacheError> {
+        let hash = self.get_current_hash();
+
+        let mut service_accounts = self
+            .service_accounts
+            .write()
+            .map_err(|e| StateCacheError::WriteLockError(e.to_string()))?;
+
+        Ok(service_accounts
+            .get_mut(&hash)
+            .and_then(|accounts| accounts.0.remove(address)))
     }
 
     // Timeslot methods

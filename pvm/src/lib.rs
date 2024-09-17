@@ -383,12 +383,12 @@ impl PVM {
                 &self.state.memory,
                 context,
             )?,
-            // HostCallType::WRITE => HostFunction::host_write(
-            //     target_address,
-            //     self.get_host_call_registers(),
-            //     &self.state.memory,
-            //     context,
-            // )?,
+            HostCallType::WRITE => HostFunction::host_write(
+                target_address,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
             HostCallType::INFO => HostFunction::host_info(
                 target_address,
                 self.get_host_call_registers(),
