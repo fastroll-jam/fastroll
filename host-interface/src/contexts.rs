@@ -2,7 +2,7 @@ use crate::inner_vm::InnerPVM;
 use jam_codec::{JamDecodeFixed, JamEncode};
 use jam_common::{AccountAddress, Hash32, Octets};
 use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::{accumulation::DeferredTransfer, types::HostCallError};
+use jam_pvm_core::types::{accumulation::DeferredTransfer, error::HostCallError};
 use jam_state::state_retriever::StateRetriever;
 use jam_types::state::{
     authorizer::AuthorizerQueue,

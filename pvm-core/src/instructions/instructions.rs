@@ -1,11 +1,10 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
-    hostcall::HostCallType,
-    memory::MemAddress,
-    program_decoder::Instruction,
-    types::{ExitReason, VMError},
+    instructions::program_decoder::Instruction,
+    state::memory::MemAddress,
+    types::{common::ExitReason, error::VMError, hostcall::HostCallType},
+    utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
-    vm_utils::VMUtils,
 };
 use jam_codec::{JamDecodeFixed, JamEncodeFixed};
 

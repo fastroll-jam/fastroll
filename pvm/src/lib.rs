@@ -6,17 +6,20 @@ use jam_host_interface::{
     host_functions::{AccumulationResult, HostCallResult, HostCallVMStateChange, HostFunction},
 };
 use jam_pvm_core::{
-    accumulation::AccumulationOperand,
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
     },
-    hostcall::HostCallType,
-    memory::{AccessType, MemAddress, Memory},
-    program_decoder::{FormattedProgram, ProgramDecoder},
-    register::Register,
-    types::{ExitReason, VMError},
+    instructions::program_decoder::{FormattedProgram, ProgramDecoder},
+    state::{
+        memory::{AccessType, MemAddress, Memory},
+        register::Register,
+    },
+    types::{
+        accumulation::AccumulationOperand, common::ExitReason, error::VMError,
+        hostcall::HostCallType,
+    },
+    utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, VMState},
-    vm_utils::VMUtils,
 };
 use jam_types::state::services::ServiceAccounts;
 

@@ -1,8 +1,4 @@
-use crate::{
-    constants::DATA_SEGMENTS_SIZE,
-    hostcall::HostCallType,
-    memory::{MemAddress, MemoryError},
-};
+use crate::state::memory::MemoryError;
 use jam_codec::JamCodecError;
 use jam_crypto::utils::CryptoError;
 use jam_state::global_state::GlobalStateError;
@@ -35,6 +31,7 @@ pub enum VMError {
     HostCallError(#[from] Box<HostCallError>),
 }
 
+/// PVM Host Call Error Codes
 #[derive(Debug, Error)]
 pub enum HostCallError {
     #[error("Invalid host call invocation context")]
@@ -69,15 +66,3 @@ impl From<VMError> for HostCallError {
         HostCallError::VMError(Box::new(err))
     }
 }
-
-/// PVM Invocation Exit Reasons
-pub enum ExitReason {
-    Continue,
-    RegularHalt,
-    Panic,
-    OutOfGas,
-    PageFault(MemAddress),
-    HostCall(HostCallType),
-}
-
-pub type ExportDataSegment = [u8; DATA_SEGMENTS_SIZE];

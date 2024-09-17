@@ -2,10 +2,10 @@ use crate::{
     constants::{
         INPUT_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
     },
-    memory::MemAddress,
-    opcode::*,
-    types::VMError,
-    vm_utils::VMUtils,
+    instructions::opcode::*,
+    state::memory::MemAddress,
+    types::error::VMError,
+    utils::vm_utils::VMUtils,
 };
 use bit_vec::BitVec;
 use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
@@ -201,7 +201,7 @@ impl ProgramDecoder {
         current_pc: MemAddress,
         skip_distance: usize,
     ) -> Result<Instruction, VMError> {
-        use crate::opcode::Opcode::*;
+        use crate::instructions::opcode::Opcode::*;
         let op = Opcode::from_u8(inst_blob[0]).ok_or(VMError::InvalidOpcode)?;
 
         match op {

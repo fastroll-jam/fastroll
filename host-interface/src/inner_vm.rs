@@ -1,5 +1,5 @@
 use jam_common::Octets;
-use jam_pvm_core::memory::{MemAddress, Memory};
+use jam_pvm_core::state::memory::{MemAddress, Memory};
 
 #[derive(Clone)]
 pub(crate) struct InnerPVM {

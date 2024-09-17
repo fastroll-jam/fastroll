@@ -1,11 +1,6 @@
-pub mod accumulation;
 pub mod constants;
-pub mod hostcall;
 pub mod instructions;
-pub mod memory;
-pub mod opcode;
-pub mod program_decoder;
-pub mod register;
+pub mod state;
 pub mod types;
+pub mod utils;
 pub mod vm_core;
-pub mod vm_utils;

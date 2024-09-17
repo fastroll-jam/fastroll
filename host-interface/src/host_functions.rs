@@ -6,27 +6,30 @@ use crate::{
 };
 use jam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
-    AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey, CORE_COUNT,
-    HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
+    AccountAddress, CORE_COUNT, Hash32, HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, Octets,
+    TokenBalance, UnsignedGas, VALIDATOR_COUNT, ValidatorKey,
 };
 use jam_crypto::utils::blake2b_256;
 use jam_pvm_core::{
-    accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
-    memory::{AccessType, MemAddress, Memory},
-    register::Register,
-    types::{ExitReason, ExportDataSegment, HostCallError},
-    vm_core::{PVMCore, Program, VMState},
+    types::{
+        accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
+        common::{ExitReason, ExportDataSegment},
+        error::HostCallError,
+    },
+    vm_core::{Program, PVMCore, VMState},
 };
 use jam_types::state::{
-    services::{ServiceAccountState, ServiceAccounts, B_S},
+    services::{B_S, ServiceAccounts, ServiceAccountState},
     timeslot::Timeslot,
     validators::StagingValidatorSet,
 };
 use std::collections::{btree_map::Entry, BTreeMap};
+use jam_pvm_core::state::memory::{AccessType, MemAddress, Memory};
+use jam_pvm_core::state::register::Register;
 
 #[repr(u32)]
 pub enum HostCallResultConstant {

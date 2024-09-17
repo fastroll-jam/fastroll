@@ -1,14 +1,16 @@
 use crate::{
     constants::REGISTERS_COUNT,
-    instructions::InstructionSet as IS,
-    memory::{MemAddress, Memory},
-    opcode::Opcode,
-    program_decoder::{Instruction, ProgramDecoder},
-    register::Register,
-    types::{ExitReason, VMError},
+    instructions::{
+        instructions::InstructionSet as IS,
+        opcode::Opcode,
+        program_decoder::{Instruction, ProgramDecoder},
+    },
+    types::{common::ExitReason, error::VMError},
 };
 use bit_vec::BitVec;
 use jam_common::{Octets, UnsignedGas};
+use crate::state::memory::{MemAddress, Memory};
+use crate::state::register::Register;
 
 pub struct SingleInvocationResult {
     pub exit_reason: ExitReason,
