@@ -15,7 +15,12 @@ use jam_pvm_core::{
         register::Register,
     },
     types::{
-        accumulation::AccumulationOperand, common::ExitReason, error::VMError,
+        accumulation::AccumulationOperand,
+        common::ExitReason,
+        error::{
+            PVMError, VMCoreError,
+            VMCoreError::{InvalidHostCallType, InvalidProgram, OutOfGas},
+        },
         hostcall::HostCallType,
     },
     utils::vm_utils::VMUtils,
@@ -56,13 +61,13 @@ impl PVM {
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
     /// Represents `Y` of the GP
-    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, VMError> {
+    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
         let mut pvm = PVM::default();
 
         // decode program and check validity
         let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
         if !formatted_program.check_size_limit() {
-            return Err(VMError::InvalidProgram);
+            return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
         pvm.setup_memory_layout(&formatted_program, &args)?;
@@ -72,7 +77,7 @@ impl PVM {
         Ok(pvm)
     }
 
-    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), VMError> {
+    fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), PVMError> {
         let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
 
         // Program-specific read-only data area (o)
@@ -142,12 +147,12 @@ impl PVM {
     //
 
     /// Read a byte from memory
-    fn read_memory_byte(&self, address: MemAddress) -> Result<u8, VMError> {
+    fn read_memory_byte(&self, address: MemAddress) -> Result<u8, PVMError> {
         Ok(self.state.memory.read_byte(address)?)
     }
 
     /// Read a specified number of bytes from memory starting at the given address
-    fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, VMError> {
+    fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, PVMError> {
         Ok(self.state.memory.read_bytes(address, length)?)
     }
 
@@ -158,7 +163,7 @@ impl PVM {
     fn apply_host_call_state_change(
         &mut self,
         change: HostCallVMStateChange,
-    ) -> Result<(), VMError> {
+    ) -> Result<(), PVMError> {
         // Apply register changes (register index 0 & 1)
         if let Some(r0) = change.r0_write {
             self.state.registers[0].value = r0;
@@ -204,9 +209,9 @@ impl PVM {
     // Gas operations
     //
 
-    fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), VMError> {
+    fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), PVMError> {
         if self.state.gas_counter < amount {
-            Err(VMError::OutOfGas)
+            Err(PVMError::VMCoreError(OutOfGas))
         } else {
             self.state.gas_counter -= amount;
             Ok(())
@@ -232,7 +237,7 @@ impl PVM {
         service_account_address: AccountAddress,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulationOperand>,
-    ) -> Result<AccumulationResult, VMError> {
+    ) -> Result<AccumulationResult, PVMError> {
         // TODO: interface for fetching on-chain account from address
         let invoker_account = service_accounts
             .0
@@ -289,7 +294,7 @@ impl PVM {
         gas: UnsignedGas,
         args: &[u8],
         context: InvocationContext,
-    ) -> Result<CommonInvocationResult, VMError> {
+    ) -> Result<CommonInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let mut pvm = Self::new_from_standard_program(standard_program, args)?;
         pvm.state.pc = pc;
@@ -329,7 +334,7 @@ impl PVM {
     fn extended_invocation(
         &mut self,
         context: InvocationContext,
-    ) -> Result<ExtendedInvocationResult, VMError> {
+    ) -> Result<ExtendedInvocationResult, PVMError> {
         let mut context = context.clone();
 
         loop {
@@ -371,7 +376,7 @@ impl PVM {
         &mut self,
         context: &InvocationContext,
         h: &HostCallType,
-    ) -> Result<HostCallResult, VMError> {
+    ) -> Result<HostCallResult, PVMError> {
         // TODO: add other host function cases
         let result = match h {
             // TODO: better gas handling
@@ -386,7 +391,7 @@ impl PVM {
                 &self.state.memory,
                 &context,
             )?,
-            _ => return Err(VMError::InvalidHostCallType),
+            _ => return Err(PVMError::VMCoreError(InvalidHostCallType)),
         };
 
         Ok(result)

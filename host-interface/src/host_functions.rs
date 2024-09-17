@@ -6,8 +6,8 @@ use crate::{
 };
 use jam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
-    AccountAddress, CORE_COUNT, Hash32, HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, Octets,
-    TokenBalance, UnsignedGas, VALIDATOR_COUNT, ValidatorKey,
+    AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey, CORE_COUNT,
+    HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
 };
 use jam_crypto::utils::blake2b_256;
 use jam_pvm_core::{
@@ -15,21 +15,27 @@ use jam_pvm_core::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
+    state::{
+        memory::{AccessType, MemAddress, Memory},
+        register::Register,
+    },
     types::{
         accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
         common::{ExitReason, ExportDataSegment},
-        error::HostCallError,
+        error::{
+            HostCallError,
+            HostCallError::{InvalidContext, InvalidExitReason, InvalidRegisters},
+            PVMError,
+        },
     },
-    vm_core::{Program, PVMCore, VMState},
+    vm_core::{PVMCore, Program, VMState},
 };
 use jam_types::state::{
-    services::{B_S, ServiceAccounts, ServiceAccountState},
+    services::{ServiceAccountState, ServiceAccounts, B_S},
     timeslot::Timeslot,
     validators::StagingValidatorSet,
 };
 use std::collections::{btree_map::Entry, BTreeMap};
-use jam_pvm_core::state::memory::{AccessType, MemAddress, Memory};
-use jam_pvm_core::state::register::Register;
 
 #[repr(u32)]
 pub enum HostCallResultConstant {
@@ -120,7 +126,7 @@ impl HostFunction {
         gas: UnsignedGas,
         _registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         _context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let gas_remaining = gas.wrapping_sub(10);
 
         Ok(HostCallResult::General(HostCallVMStateChange {
@@ -135,10 +141,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let account_address = registers[0].value as AccountAddress;
@@ -191,10 +197,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let account_address = registers[0].value as AccountAddress;
@@ -247,11 +253,11 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         // TODO: check if `invoker_address` is provided as an arg - not specified in the GP
         let mut x = match context {
             InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [key_offset, value_offset] = [registers[0].value, registers[2].value];
@@ -304,10 +310,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_G(x) => x.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let account_address = registers[0].value as AccountAddress;
@@ -358,13 +364,13 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         _memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
         let [empower, assign, designate] = registers[..3] else {
-            return Err(HostCallError::InvalidRegisters);
+            return Err(PVMError::HostCallError(InvalidRegisters));
         };
 
         x.privileged_services.empower_service_index = empower.value;
@@ -382,10 +388,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let core_index = registers[0].value as usize;
@@ -426,10 +432,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let offset = registers[0].value as MemAddress;
@@ -467,10 +473,10 @@ impl HostFunction {
         _registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         _memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_A((x, _)) => x.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let post_gas = gas.saturating_sub(BASE_GAS_USAGE); // TODO: gas management
@@ -491,10 +497,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [offset, lookup_len, gas_limit_g_low, gas_limit_g_high, gas_limit_m_low, gas_limit_m_high] =
@@ -572,10 +578,10 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
         _invoker_address: AccountAddress,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [offset, gas_limit_g_low, gas_limit_g_high, gas_limit_m_low, gas_limit_m_high, ..] =
@@ -617,10 +623,10 @@ impl HostFunction {
         context: &InvocationContext,
         invoker_address: AccountAddress,
         service_accounts: &ServiceAccounts,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [destination, amount_low, amount_high, gas_limit_low, gas_limit_high, offset] =
@@ -706,10 +712,10 @@ impl HostFunction {
         context: &InvocationContext,
         invoker_address: AccountAddress,
         service_accounts: &ServiceAccounts, // TODO: check - not included in the GP
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [destination, offset, ..] = registers.map(|r| r.value);
@@ -775,10 +781,10 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
         timeslot: Timeslot, // TODO: check - not included in the GP
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [offset, lookup_len, ..] = registers.map(|r| r.value);
@@ -839,10 +845,10 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
         timeslot: Timeslot,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let (mut x, y) = match context {
             InvocationContext::X_A((x, y)) => (x.clone(), y.clone()),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [offset, lookup_len, ..] = registers.map(|r| r.value);
@@ -912,10 +918,10 @@ impl HostFunction {
         invoker_address: AccountAddress,
         service_accounts: &ServiceAccounts,
         timeslot: Timeslot,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [account_address, lookup_hash_offset, buffer_offset, buffer_size, ..] =
@@ -983,11 +989,11 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
         import_segments: Vec<ExportDataSegment>,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         // TODO: the context is not used, there's room for optimization.
         let x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [segment_index, offset, segments_len, ..] = registers.map(|r| r.value);
@@ -1026,10 +1032,10 @@ impl HostFunction {
         memory: &Memory,
         context: &InvocationContext,
         export_segment_offset: usize,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [offset, size, ..] = registers.map(|r| r.value);
@@ -1074,10 +1080,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [program_offset, program_size, initial_pc, ..] = registers.map(|r| r.value);
@@ -1108,10 +1114,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         _memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [inner_vm_id, memory_offset, inner_memory_offset, data_len, ..] =
@@ -1149,10 +1155,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [inner_vm_id, memory_offset, inner_memory_offset, data_len, ..] =
@@ -1192,10 +1198,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [inner_vm_id, memory_offset, ..] = registers.map(|r| r.value);
@@ -1303,7 +1309,7 @@ impl HostFunction {
                 },
                 post_context: x,
             })),
-            _ => Err(HostCallError::InvalidExitReason),
+            _ => Err(PVMError::HostCallError(InvalidExitReason)),
         }
     }
 
@@ -1312,10 +1318,10 @@ impl HostFunction {
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         _memory: &Memory,
         context: &InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
+    ) -> Result<HostCallResult, PVMError> {
         let mut x = match context {
             InvocationContext::X_R(m) => m.clone(),
-            _ => return Err(HostCallError::InvalidContext),
+            _ => return Err(PVMError::HostCallError(InvalidContext)),
         };
 
         let [inner_vm_id, ..] = registers.map(|r| r.value);

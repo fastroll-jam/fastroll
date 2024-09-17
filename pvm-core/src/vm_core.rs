@@ -5,12 +5,14 @@ use crate::{
         opcode::Opcode,
         program_decoder::{Instruction, ProgramDecoder},
     },
-    types::{common::ExitReason, error::VMError},
+    state::{
+        memory::{MemAddress, Memory},
+        register::Register,
+    },
+    types::{common::ExitReason, error::PVMError},
 };
 use bit_vec::BitVec;
 use jam_common::{Octets, UnsignedGas};
-use crate::state::memory::{MemAddress, Memory};
-use crate::state::register::Register;
 
 pub struct SingleInvocationResult {
     pub exit_reason: ExitReason,
@@ -53,7 +55,7 @@ impl PVMCore {
     //
 
     /// Read a `u32` value stored in a register of the given index
-    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<u32, VMError> {
+    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<u32, PVMError> {
         Ok(vm_state.registers[index].value)
     }
 
@@ -86,7 +88,7 @@ impl PVMCore {
     }
 
     /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
-    fn set_basic_block_bitmask(program: &mut Program) -> Result<(), VMError> {
+    fn set_basic_block_bitmask(program: &mut Program) -> Result<(), PVMError> {
         let bitmask_len = program.opcode_bitmask.len();
         let mut basic_block_bitmask = BitVec::from_elem(bitmask_len, false);
 
@@ -115,7 +117,7 @@ impl PVMCore {
     }
 
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
-    fn apply_state_change(vm_state: &mut VMState, change: StateChange) -> Result<(), VMError> {
+    fn apply_state_change(vm_state: &mut VMState, change: StateChange) -> Result<(), PVMError> {
         // Apply register changes
         for (reg_index, new_value) in change.register_writes {
             if reg_index < REGISTERS_COUNT {
@@ -175,7 +177,7 @@ impl PVMCore {
     pub fn general_invocation(
         vm_state: &mut VMState,
         program: &mut Program,
-    ) -> Result<ExitReason, VMError> {
+    ) -> Result<ExitReason, PVMError> {
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
         let (instructions, opcode_bitmask, jump_table) =
             ProgramDecoder::decode_program_code(&program.program_code)?;
@@ -230,7 +232,7 @@ impl PVMCore {
         vm_state: &mut VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         match ins.op {
             Opcode::TRAP => IS::trap(vm_state, program),
             Opcode::FALLTHROUGH => IS::fallthrough(vm_state, program),

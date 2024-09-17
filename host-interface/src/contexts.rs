@@ -2,7 +2,7 @@ use crate::inner_vm::InnerPVM;
 use jam_codec::{JamDecodeFixed, JamEncode};
 use jam_common::{AccountAddress, Hash32, Octets};
 use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::types::{accumulation::DeferredTransfer, error::HostCallError};
+use jam_pvm_core::types::{accumulation::DeferredTransfer, error::PVMError};
 use jam_state::state_retriever::StateRetriever;
 use jam_types::state::{
     authorizer::AuthorizerQueue,
@@ -46,7 +46,7 @@ impl AccumulationContext {
         service_accounts: &ServiceAccounts,
         invoker_account: ServiceAccountState,
         invoker_address: AccountAddress,
-    ) -> Result<(Self, Self), HostCallError> {
+    ) -> Result<(Self, Self), PVMError> {
         // Get current global state components
         let state_retriever = StateRetriever::new();
         let privileged_services = state_retriever.get_privileged_services()?;

@@ -4,7 +4,10 @@ use crate::{
     },
     instructions::opcode::*,
     state::memory::MemAddress,
-    types::error::VMError,
+    types::error::{
+        PVMError, VMCoreError,
+        VMCoreError::{InvalidInstructionFormat, InvalidProgram},
+    },
     utils::vm_utils::VMUtils,
 };
 use bit_vec::BitVec;
@@ -83,11 +86,11 @@ impl Instruction {
         imm1: Option<u32>,
         imm2: Option<u32>,
         offset: Option<i32>,
-    ) -> Result<Self, VMError> {
+    ) -> Result<Self, PVMError> {
         // Validate register indices
         for &reg in [rd, r1, r2].iter().flatten() {
             if reg > (REGISTERS_COUNT - 1) {
-                return Err(VMError::InvalidInstructionFormat);
+                return Err(PVMError::VMCoreError(InvalidInstructionFormat));
             }
         }
 
@@ -111,13 +114,13 @@ impl ProgramDecoder {
     //
 
     /// Decode program blob into formatted program
-    pub fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, VMError> {
+    pub fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, PVMError> {
         let mut input = program;
         Ok(FormattedProgram::decode(&mut input)?)
     }
 
     /// Decode program code into instruction sequence, opcode bitmask and dynamic jump table
-    pub fn decode_program_code(code: &[u8]) -> Result<(Octets, BitVec, Vec<MemAddress>), VMError> {
+    pub fn decode_program_code(code: &[u8]) -> Result<(Octets, BitVec, Vec<MemAddress>), PVMError> {
         let mut input = code;
 
         // Decode the length of the jump table (|j|)
@@ -143,7 +146,7 @@ impl ProgramDecoder {
         let opcode_bitmask = BitVec::decode_fixed(&mut input, instructions_len)?;
 
         if !input.is_empty() {
-            return Err(VMError::InvalidProgram);
+            return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
         Ok((instructions, opcode_bitmask, jump_table))
@@ -155,7 +158,7 @@ impl ProgramDecoder {
         l_x: usize,
         start_index: usize,
         end_index: usize,
-    ) -> Result<u32, VMError> {
+    ) -> Result<u32, PVMError> {
         if l_x > 0 {
             let mut buffer = [0u8; 4];
             buffer[..l_x].copy_from_slice(&inst_blob[start_index..end_index]);
@@ -175,7 +178,7 @@ impl ProgramDecoder {
         l_y: usize,
         start_index: usize,
         end_index: usize,
-    ) -> Result<i32, VMError> {
+    ) -> Result<i32, PVMError> {
         let pc_increment = if l_y > 0 {
             let mut buffer = [0u8; 4];
             buffer[..l_y].copy_from_slice(&inst_blob[start_index..end_index]);
@@ -200,9 +203,9 @@ impl ProgramDecoder {
         inst_blob: &[u8],
         current_pc: MemAddress,
         skip_distance: usize,
-    ) -> Result<Instruction, VMError> {
+    ) -> Result<Instruction, PVMError> {
         use crate::instructions::opcode::Opcode::*;
-        let op = Opcode::from_u8(inst_blob[0]).ok_or(VMError::InvalidOpcode)?;
+        let op = Opcode::from_u8(inst_blob[0]).ok_or(VMCoreError::InvalidOpcode)?;
 
         match op {
             // Group 1: no arguments

@@ -2,7 +2,11 @@ use crate::{
     constants::JUMP_ALIGNMENT,
     instructions::program_decoder::Instruction,
     state::memory::MemAddress,
-    types::{common::ExitReason, error::VMError, hostcall::HostCallType},
+    types::{
+        common::ExitReason,
+        error::{PVMError, VMCoreError},
+        hostcall::HostCallType,
+    },
     utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
 };
@@ -28,7 +32,7 @@ impl InstructionSet {
         program: &Program,
         target: MemAddress,
         condition: bool,
-    ) -> Result<(ExitReason, MemAddress), VMError> {
+    ) -> Result<(ExitReason, MemAddress), PVMError> {
         match (condition, program.basic_block_bitmask.get(target as usize)) {
             (false, _) => Ok((ExitReason::Continue, vm_state.pc)),
             (true, Some(true)) => Ok((ExitReason::Continue, target)),
@@ -45,7 +49,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         a: usize,
-    ) -> Result<(ExitReason, MemAddress), VMError> {
+    ) -> Result<(ExitReason, MemAddress), PVMError> {
         const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
 
         if a == SPECIAL_HALT_VALUE {
@@ -71,7 +75,7 @@ impl InstructionSet {
     /// `panic` with no mutation to the VM state
     ///
     /// Opcode: 0
-    pub fn trap(vm_state: &VMState, program: &Program) -> Result<SingleInvocationResult, VMError> {
+    pub fn trap(vm_state: &VMState, program: &Program) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
@@ -87,7 +91,7 @@ impl InstructionSet {
     pub fn fallthrough(
         vm_state: &VMState,
         program: &Program,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
@@ -108,12 +112,12 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_host_call_type =
-            u8::try_from(ins.imm1.unwrap()).map_err(|_| VMError::InvalidImmediateValue)?;
+            u8::try_from(ins.imm1.unwrap()).map_err(|_| VMCoreError::InvalidImmediateValue)?;
 
         let exit_reason = HostCallType::from_u8(imm_host_call_type)
-            .ok_or(VMError::InvalidHostCallType)
+            .ok_or(VMCoreError::InvalidHostCallType)
             .map(ExitReason::HostCall)?;
 
         Ok(SingleInvocationResult {
@@ -136,7 +140,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
@@ -159,7 +163,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
@@ -182,7 +186,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let imm_value = ins.imm2.unwrap();
 
@@ -209,7 +213,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let (exit_reason, target) = Self::branch(vm_state, program, ins.imm1.unwrap(), true)?;
 
         Ok(SingleInvocationResult {
@@ -235,7 +239,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let (exit_reason, target) = Self::djump(
             vm_state,
@@ -259,7 +263,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
@@ -277,7 +281,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = vm_state.memory.read_byte(imm1)?;
 
@@ -298,7 +302,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = vm_state.memory.read_byte(imm1)?;
         let signed_val = VMUtils::unsigned_to_signed(1, val as u32).unwrap();
@@ -321,7 +325,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = vm_state.memory.read_bytes(imm1, 2)?;
 
@@ -342,7 +346,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = vm_state.memory.read_bytes(imm1, 2)?;
         let signed_val =
@@ -366,7 +370,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.unwrap() as MemAddress;
         let val = vm_state.memory.read_bytes(imm1, 4)?;
 
@@ -390,7 +394,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = vec![(ins.r1.unwrap() & 0xFF) as u8];
 
@@ -411,7 +415,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = (PVMCore::read_reg(vm_state, ins.r1.unwrap())? & 0xFFFF) as u16;
 
@@ -432,7 +436,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = ins.imm1.unwrap() as MemAddress;
         let r1_value = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
 
@@ -458,7 +462,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r1.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vec![(ins.imm2.unwrap() & 0xFF) as u8];
 
@@ -479,7 +483,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r1.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = ((ins.imm2.unwrap() & 0xFFFF) as u16).encode_fixed(2)?;
 
@@ -500,7 +504,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r1.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = ins.imm2.unwrap().encode_fixed(4)?;
 
@@ -525,7 +529,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, true)?;
 
@@ -546,7 +550,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? == ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -567,7 +571,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? != ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -588,7 +592,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? < ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -609,7 +613,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? <= ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -630,7 +634,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? >= ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -651,7 +655,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.unwrap())? > ins.imm1.unwrap();
         let (exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
@@ -672,7 +676,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -696,7 +700,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -720,7 +724,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -744,7 +748,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -772,7 +776,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let value = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
 
         Ok(SingleInvocationResult {
@@ -794,7 +798,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let requested_size = PVMCore::read_reg(vm_state, ins.r1.unwrap())? as usize;
 
         // find the first sequence of unavailable memory cells that can satisfy the request
@@ -825,7 +829,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vec![(PVMCore::read_reg(vm_state, ins.r1.unwrap())? & 0xFF) as u8];
 
@@ -846,7 +850,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value =
             ((PVMCore::read_reg(vm_state, ins.r1.unwrap())? & 0xFFFF) as u16).encode_fixed(2)?;
@@ -868,7 +872,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = PVMCore::read_reg(vm_state, ins.r1.unwrap())?.encode_fixed(4)?;
 
@@ -889,7 +893,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vm_state.memory.read_byte(address)?;
 
@@ -910,7 +914,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vm_state.memory.read_byte(address)?;
         let signed_value = VMUtils::unsigned_to_signed(1, value as u32).unwrap();
@@ -933,7 +937,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vm_state.memory.read_bytes(address, 2)?;
         let r_val = u16::decode_fixed(&mut &value[..], 2)?;
@@ -955,7 +959,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
@@ -979,7 +983,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let address = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
@@ -1001,7 +1005,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm1.unwrap());
 
         Ok(SingleInvocationResult {
@@ -1021,7 +1025,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & ins.imm1.unwrap();
 
         Ok(SingleInvocationResult {
@@ -1041,7 +1045,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())? ^ ins.imm1.unwrap();
 
         Ok(SingleInvocationResult {
@@ -1061,7 +1065,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())? | ins.imm1.unwrap();
 
         Ok(SingleInvocationResult {
@@ -1081,7 +1085,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_mul(ins.imm1.unwrap());
 
         Ok(SingleInvocationResult {
@@ -1101,7 +1105,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?)
             .unwrap() as i64;
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap() as i64;
@@ -1125,7 +1129,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.unwrap())? as u64;
         let b = ins.imm1.unwrap() as u64;
         let result = ((a * b) >> 32) as u32; // implicitly conducts floor operation
@@ -1147,7 +1151,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a < b { 1 } else { 0 };
@@ -1169,7 +1173,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -1192,7 +1196,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())? << shift;
 
@@ -1213,7 +1217,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let result = PVMCore::read_reg(vm_state, ins.r2.unwrap())? >> shift;
 
@@ -1234,7 +1238,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.unwrap() & 0x1F; // shift range within [0, 32)
         let value =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?).unwrap();
@@ -1258,7 +1262,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = ins
             .imm1
             .unwrap()
@@ -1281,7 +1285,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let b = ins.imm1.unwrap();
         let result = if a > b { 1 } else { 0 };
@@ -1303,7 +1307,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?).unwrap();
         let b = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
@@ -1326,7 +1330,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() << shift;
 
@@ -1347,7 +1351,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = ins.imm1.unwrap() >> shift;
 
@@ -1368,7 +1372,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let value = VMUtils::unsigned_to_signed(4, ins.imm1.unwrap()).unwrap();
         let result = value >> shift;
@@ -1391,7 +1395,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.unwrap())? == 0 {
             ins.imm1.unwrap()
         } else {
@@ -1415,7 +1419,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.unwrap())? != 0 {
             ins.imm1.unwrap()
         } else {
@@ -1443,7 +1447,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a == b;
@@ -1466,7 +1470,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a != b;
@@ -1489,7 +1493,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a < b;
@@ -1512,7 +1516,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let b =
@@ -1537,7 +1541,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a >= b;
@@ -1560,7 +1564,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let b =
@@ -1589,7 +1593,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let jump_address =
             PVMCore::read_reg(vm_state, ins.r2.unwrap())?.wrapping_add(ins.imm2.unwrap());
         let (exit_reason, target) = Self::djump(vm_state, program, jump_address as usize)?;
@@ -1615,7 +1619,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             .wrapping_add(PVMCore::read_reg(vm_state, ins.r2.unwrap())?);
 
@@ -1636,7 +1640,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.unwrap())?);
 
@@ -1657,7 +1661,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             & PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
 
@@ -1678,7 +1682,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             ^ PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
 
@@ -1699,7 +1703,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             | PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
 
@@ -1720,7 +1724,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())?
             .wrapping_mul(PVMCore::read_reg(vm_state, ins.r2.unwrap())?);
 
@@ -1741,7 +1745,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?)
             .unwrap() as i64;
         let b = VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?)
@@ -1766,7 +1770,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())? as u64;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())? as u64;
         let result = ((a * b) >> 32) as u32;
@@ -1788,7 +1792,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?)
             .unwrap() as i64;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())? as u64;
@@ -1812,7 +1816,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let divisor = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let result = if divisor == 0 {
@@ -1838,7 +1842,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let dividend =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let divisor =
@@ -1868,7 +1872,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let divisor = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let result = if divisor == 0 {
@@ -1894,7 +1898,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let dividend =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let divisor =
@@ -1924,7 +1928,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let result = if a < b { 1 } else { 0 };
@@ -1946,7 +1950,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let a =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
         let b =
@@ -1970,7 +1974,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())? << shift;
 
@@ -1991,7 +1995,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let result = PVMCore::read_reg(vm_state, ins.r1.unwrap())? >> shift;
 
@@ -2012,7 +2016,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.unwrap())? & 0x1F; // shift range within [0, 32)
         let value =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r1.unwrap())?).unwrap();
@@ -2036,7 +2040,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.unwrap())? == 0 {
             PVMCore::read_reg(vm_state, ins.r1.unwrap())?
         } else {
@@ -2060,7 +2064,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program: &Program,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, VMError> {
+    ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.unwrap())? != 0 {
             PVMCore::read_reg(vm_state, ins.r1.unwrap())?
         } else {
