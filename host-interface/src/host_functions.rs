@@ -70,11 +70,6 @@ pub enum HostCallResult {
     OnTransfer,
 }
 
-pub enum AccumulationResult {
-    Unchanged,
-    Result(Option<Hash32>), // optional result hash
-}
-
 pub struct HostCallVMStateChange {
     pub gas_usage: UnsignedGas,
     pub r0_write: Option<u32>,
@@ -291,6 +286,7 @@ impl HostFunction {
             }))
         };
 
+        // FIXME: Accumulation write: service account changes should be applied to the accumulation context first. For OnTransfer, it can be directly mutate the global state
         // update the service account state with the mutated local copy
         STATE_CACHE.update_service_account_cache(target_address, target_account)?;
 
@@ -739,6 +735,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        // TODO: timeslot from the header
         let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap(); // TODO: check - not included in the GP
 
         let x = match context {
@@ -799,6 +796,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        // TODO: timeslot from the header
         let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
 
         let x = match context {
@@ -870,6 +868,7 @@ impl HostFunction {
         _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+        // TODO: timeslot from the refinement context
         let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
 
         let [account_address, lookup_hash_offset, buffer_offset, buffer_size, ..] =

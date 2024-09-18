@@ -560,6 +560,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "jam-pvm"
+version = "0.1.0"
+dependencies = [
+ "jam-common",
+ "jam-crypto",
+ "jam-host-interface",
+ "jam-pvm-core",
+ "jam-types",
+ "thiserror",
+]
+
+[[package]]
 name = "jam-pvm-core"
 version = "0.1.0"
 dependencies = [
@@ -569,6 +581,19 @@ dependencies = [
  "jam-crypto",
  "jam-state",
  "thiserror",
+]
+
+[[package]]
+name = "jam-pvm-invocation"
+version = "0.1.0"
+dependencies = [
+ "jam-codec",
+ "jam-common",
+ "jam-crypto",
+ "jam-host-interface",
+ "jam-pvm",
+ "jam-pvm-core",
+ "jam-types",
 ]
 
 [[package]]
@@ -818,19 +843,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e719e8df665df0d1c8fbfd238015744736151d4445ec0836b8e628aae103b77"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "pvm"
-version = "0.1.0"
-dependencies = [
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-host-interface",
- "jam-pvm-core",
- "jam-types",
- "thiserror",
 ]
 
 [[package]]

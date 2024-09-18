@@ -1,9 +1,7 @@
-use jam_codec::{JamEncode, JamInput};
 use jam_common::{AccountAddress, Octets, UnsignedGas};
-use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::{
-    contexts::{AccumulationContext, InvocationContext},
-    host_functions::{AccumulationResult, HostCallResult, HostCallVMStateChange, HostFunction},
+    contexts::InvocationContext,
+    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
 };
 use jam_pvm_core::{
     constants::{
@@ -15,10 +13,8 @@ use jam_pvm_core::{
         register::Register,
     },
     types::{
-        accumulation::AccumulationOperand,
         common::ExitReason,
         error::{
-            HostCallError::AccountNotFound,
             PVMError,
             VMCoreError::{InvalidHostCallType, InvalidProgram, OutOfGas},
         },
@@ -27,7 +23,6 @@ use jam_pvm_core::{
     utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, VMState},
 };
-use jam_types::state::services::ServiceAccounts;
 
 enum ExecutionResult {
     Complete(ExitReason),
@@ -35,7 +30,7 @@ enum ExecutionResult {
 }
 
 // TODO: check the GP - `InvocationContext` elided for `Result` and `ResultUnavailable`
-enum CommonInvocationResult {
+pub enum CommonInvocationResult {
     OutOfGas(ExitReason),
     Result((UnsignedGas, Octets)), // (posterior_gas, return_value)
     ResultUnavailable((UnsignedGas, Octets)), // (posterior_gas, [])
@@ -49,7 +44,7 @@ struct ExtendedInvocationResult {
 
 /// Main stateful PVM struct
 #[derive(Default)]
-struct PVM {
+pub struct PVM {
     state: VMState,
     program: Program,
 }
@@ -220,65 +215,6 @@ impl PVM {
     }
 
     //
-    // PVM invocation entry-points
-    //
-
-    /// Accumulate invocation function
-    ///
-    /// # Arguments
-    ///
-    /// * `service_accounts` - The current global state of service accounts, after preimage integration but before accumulation
-    /// * `service_account_address` - The address of the service account invoking the accumulation
-    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation operation
-    /// * `operands` - A vector of `AccumulationOperand`s, which are the outputs from the refinement process to be accumulated
-    ///
-    /// Represents `Psi_A` of the GP
-    pub(crate) fn accumulate(
-        service_accounts: &ServiceAccounts,
-        target_address: AccountAddress,
-        gas_limit: UnsignedGas,
-        operands: Vec<AccumulationOperand>,
-    ) -> Result<AccumulationResult, PVMError> {
-        let target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))?
-            .clone();
-
-        let code = target_account.get_code().cloned();
-
-        if operands.is_empty() || code.is_none() {
-            return Ok(AccumulationResult::Unchanged);
-        }
-
-        // `x` for a regular dimension and `y` for an exceptional dimension
-        let (x, y) = AccumulationContext::initialize_context_pair(
-            service_accounts,
-            target_account,
-            target_address,
-        )?;
-
-        let common_invocation_result = Self::common_invocation(
-            target_address,
-            &code.unwrap()[..],
-            2,
-            gas_limit,
-            &operands.encode()?,
-            &mut InvocationContext::X_A((x, y)),
-        )?;
-
-        match common_invocation_result {
-            CommonInvocationResult::Result((_gas, output))
-            | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
-                Ok(AccumulationResult::Result(octets_to_hash32(output)))
-            }
-
-            CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Failure(_) => {
-                Ok(AccumulationResult::Result(None))
-            }
-        }
-    }
-
-    //
     // Common PVM invocation functions
     //
 
@@ -286,7 +222,7 @@ impl PVM {
     /// This works as a common interface for the four PVM invocation entry-points
     ///
     /// Represents `Psi_M` of the GP
-    pub(crate) fn common_invocation(
+    pub fn common_invocation(
         target_address: AccountAddress,
         standard_program: &[u8],
         pc: MemAddress,
