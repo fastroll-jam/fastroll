@@ -14,18 +14,58 @@ use jam_types::state::{
 use std::collections::HashMap;
 
 /// Host context for different invocation types
-#[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_G,                                             // General Functions
-    X_I,                                             // Is-Authorized
-    X_R(RefinementContext),                          // Refine
-    X_A((AccumulationContext, AccumulationContext)), // Accumulate
-    X_T,                                             // On-Transfer
+    X_G,                        // General Functions
+    X_I,                        // Is-Authorized
+    X_R(RefineContext),         // Refine
+    X_A(AccumulateContextPair), // Accumulate
+    X_T,                        // On-Transfer
+}
+
+impl InvocationContext {
+    pub fn as_refine_context_mut(&mut self) -> Option<&mut RefineContext> {
+        if let InvocationContext::X_R(ref mut ctx) = self {
+            Some(ctx)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateContextPair> {
+        if let InvocationContext::X_A(ref mut pair) = self {
+            Some(pair)
+        } else {
+            None
+        }
+    }
+}
+
+pub struct AccumulateContextPair {
+    pub x: AccumulateContext,
+    pub y: AccumulateContext,
+}
+
+impl AccumulateContextPair {
+    pub fn get_x(&self) -> &AccumulateContext {
+        &self.x
+    }
+
+    pub fn get_mut_x(&mut self) -> &mut AccumulateContext {
+        &mut self.x
+    }
+
+    pub fn get_y(&self) -> &AccumulateContext {
+        &self.y
+    }
+
+    pub fn get_mut_y(&mut self) -> &mut AccumulateContext {
+        &mut self.y
+    }
 }
 
 #[derive(Clone)]
-pub struct AccumulationContext {
+pub struct AccumulateContext {
     pub(crate) service_account: Option<ServiceAccountState>, // s; current service account
     pub(crate) authorizer_queue: AuthorizerQueue,            // c
     pub(crate) staging_validator_set: StagingValidatorSet,   // v
@@ -35,12 +75,12 @@ pub struct AccumulationContext {
     pub(crate) privileged_services: PrivilegedServices,      // p
 }
 
-impl AccumulationContext {
-    pub fn initialize_context_pair(
+impl AccumulateContext {
+    pub fn initialize_context(
         service_accounts: &ServiceAccounts,
-        target_account: ServiceAccountState,
+        target_account: &ServiceAccountState,
         target_address: AccountAddress,
-    ) -> Result<(Self, Self), PVMError> {
+    ) -> Result<Self, PVMError> {
         // Get current global state components
         let state_retriever = StateRetriever::new();
         let privileged_services = state_retriever.get_privileged_services()?;
@@ -50,7 +90,7 @@ impl AccumulationContext {
         let timeslot = state_retriever.get_recent_timeslot()?;
 
         let context = Self {
-            service_account: Some(target_account),
+            service_account: Some(target_account.clone()),
             deferred_transfers: vec![],
             new_service_index: Self::new_account_address(
                 service_accounts,
@@ -64,7 +104,7 @@ impl AccumulationContext {
             new_accounts: ServiceAccounts::default(),
         };
 
-        Ok((context.clone(), context))
+        Ok(context)
     }
 
     fn new_account_address(
@@ -91,13 +131,13 @@ impl AccumulationContext {
 }
 
 #[derive(Clone)]
-pub struct RefinementContext {
+pub struct RefineContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     pub(crate) exported_segments: Vec<Octets>,
     next_instance_id: usize, // PVM instance ID to be assigned for the next instance
 }
 
-impl Default for RefinementContext {
+impl Default for RefineContext {
     fn default() -> Self {
         Self {
             pvm_instances: HashMap::new(),
@@ -107,7 +147,7 @@ impl Default for RefinementContext {
     }
 }
 
-impl RefinementContext {
+impl RefineContext {
     pub(crate) fn add_pvm_instance(&mut self, pvm: InnerPVM) -> usize {
         let id = self.next_instance_id;
         self.pvm_instances.insert(id, pvm);

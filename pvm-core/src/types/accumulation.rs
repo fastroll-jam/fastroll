@@ -3,14 +3,14 @@ use jam_common::{AccountAddress, Hash32, Octets, RefinementOutput, TokenBalance,
 
 pub const TRANSFER_MEMO_SIZE: usize = 128;
 
-pub struct AccumulationOperand {
+pub struct AccumulateOperand {
     work_output: RefinementOutput,
     work_output_payload_hash: Hash32,
     work_package_hash: Hash32,
     authorization_output: Octets,
 }
 
-impl JamEncode for AccumulationOperand {
+impl JamEncode for AccumulateOperand {
     fn size_hint(&self) -> usize {
         self.work_output.size_hint()
             + self.work_output_payload_hash.size_hint()

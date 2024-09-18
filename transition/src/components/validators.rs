@@ -12,6 +12,7 @@ pub struct StagingValidatorSetContext {
 }
 
 impl Transition for StagingValidatorSet {
+
     type Context = StagingValidatorSetContext;
 
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
@@ -31,6 +32,7 @@ pub struct ActiveValidatorSetContext {
 }
 
 impl Transition for ActiveValidatorSet {
+
     type Context = ActiveValidatorSetContext;
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
@@ -50,6 +52,7 @@ pub struct PastValidatorSetContext {
 }
 
 impl Transition for PastValidatorSet {
+
     type Context = PastValidatorSetContext;
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where

@@ -7,6 +7,7 @@ pub struct TimeslotContext {
 
 impl Transition for Timeslot {
     type Context = TimeslotContext;
+
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,

@@ -1,0 +1,13 @@
+[package]
+name = "jam-pvm-invocation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jam-codec = { workspace = true }
+jam-common = { workspace = true }
+jam-crypto = { workspace = true }
+jam-host-interface = { workspace = true }
+jam-pvm = { workspace = true }
+jam-pvm-core = { workspace = true }
+jam-types = { workspace = true }
