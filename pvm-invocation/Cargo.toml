@@ -10,4 +10,5 @@ jam-crypto = { workspace = true }
 jam-host-interface = { workspace = true }
 jam-pvm = { workspace = true }
 jam-pvm-core = { workspace = true }
+jam-state = { workspace = true }
 jam-types = { workspace = true }

@@ -1,9 +1,9 @@
 use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::Octets;
+use jam_common::{AccountAddress, Octets};
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct PreimageLookupExtrinsicEntry {
-    service_index: u32, // N_S
+    service_index: AccountAddress, // N_S
     preimage_data: Octets,
 }
 
@@ -22,7 +22,7 @@ impl JamEncode for PreimageLookupExtrinsicEntry {
 impl JamDecode for PreimageLookupExtrinsicEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            service_index: u32::decode(input)?,
+            service_index: AccountAddress::decode(input)?,
             preimage_data: Octets::decode(input)?,
         })
     }

@@ -1,6 +1,6 @@
-use crate::constants::DATA_SEGMENTS_SIZE;
-use crate::state::memory::MemAddress;
-use crate::types::hostcall::HostCallType;
+use crate::{
+    constants::DATA_SEGMENTS_SIZE, state::memory::MemAddress, types::hostcall::HostCallType,
+};
 
 /// PVM Invocation Exit Reasons
 pub enum ExitReason {

@@ -1,6 +1,6 @@
 use crate::{
     types::{Hash32, Octets, UnsignedGas},
-    HASH32_DEFAULT,
+    AccountAddress, HASH32_DEFAULT,
 };
 use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
@@ -174,7 +174,7 @@ impl JamDecode for Ticket {
 pub struct WorkReport {
     authorizer_hash: Hash32,               // a
     core_index: u32,                       // c; N_C
-    authorizer_output: Octets,             // o
+    authorization_output: Octets,          // o
     refinement_context: RefinementContext, // x
     specs: AvailabilitySpecifications,     // s
     results: Vec<WorkItemResult>,          // r; length range [1, 4]
@@ -184,7 +184,7 @@ impl JamEncode for WorkReport {
     fn size_hint(&self) -> usize {
         self.authorizer_hash.size_hint()
             + self.core_index.size_hint()
-            + self.authorizer_output.size_hint()
+            + self.authorization_output.size_hint()
             + self.refinement_context.size_hint()
             + self.specs.size_hint()
             + self.results.size_hint()
@@ -193,7 +193,7 @@ impl JamEncode for WorkReport {
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.authorizer_hash.encode_to(dest)?;
         self.core_index.encode_to(dest)?;
-        self.authorizer_output.encode_to(dest)?;
+        self.authorization_output.encode_to(dest)?;
         self.refinement_context.encode_to(dest)?;
         self.specs.encode_to(dest)?;
         self.results.encode_to(dest)?;
@@ -205,7 +205,7 @@ impl JamDecode for WorkReport {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let authorizer_hash = Hash32::decode(input)?;
         let core_index = u32::decode(input)?;
-        let authorizer_output = Vec::decode(input)?;
+        let authorization_output = Vec::decode(input)?;
         let refinement_context = RefinementContext::decode(input)?;
         let specs = AvailabilitySpecifications::decode(input)?;
         let results = Vec::decode(input)?;
@@ -213,7 +213,7 @@ impl JamDecode for WorkReport {
         Ok(WorkReport {
             authorizer_hash,
             core_index,
-            authorizer_output,
+            authorization_output,
             refinement_context,
             specs,
             results,
@@ -222,13 +222,13 @@ impl JamDecode for WorkReport {
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-struct RefinementContext {
-    anchor_header_hash: Hash32,                // a
-    anchor_state_root: Hash32,                 // s; posterior state root of the anchor block
-    beefy_root: Hash32,                        // b
-    lookup_anchor_header_hash: Hash32,         // l
-    lookup_anchor_timeslot: u32,               // t
-    prerequisite_work_package: Option<Hash32>, // p
+pub struct RefinementContext {
+    pub anchor_header_hash: Hash32,                // a
+    pub anchor_state_root: Hash32,                 // s; posterior state root of the anchor block
+    pub beefy_root: Hash32,                        // b
+    pub lookup_anchor_header_hash: Hash32,         // l
+    pub lookup_anchor_timeslot: u32,               // t
+    pub prerequisite_work_package: Option<Hash32>, // p
 }
 
 impl JamEncode for RefinementContext {
@@ -314,7 +314,7 @@ impl JamDecode for AvailabilitySpecifications {
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct WorkItemResult {
-    service_index: u32,                    // s; N_S
+    service_index: AccountAddress,         // s; N_S
     service_code_hash: Hash32,             // c
     payload_hash: Hash32,                  // l
     gas_prioritization_ratio: UnsignedGas, // g
@@ -342,7 +342,7 @@ impl JamEncode for WorkItemResult {
 
 impl JamDecode for WorkItemResult {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let service_index = u32::decode(input)?;
+        let service_index = AccountAddress::decode(input)?;
         let service_code_hash = Hash32::decode(input)?;
         let payload_hash = Hash32::decode(input)?;
         let gas_prioritization_ratio = UnsignedGas::decode(input)?;
@@ -365,11 +365,11 @@ pub enum RefinementOutput {
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-enum RefinementErrors {
+pub enum RefinementErrors {
     OutOfGas,
     UnexpectedTermination,
     ServiceCodeLookupError, // BAD
-    CodeSizeExceeded,       // BIG; max size: 4_000_000 octets
+    CodeSizeExceeded,       // BIG; exceeds MAX_SERVICE_CODE_SIZE
 }
 
 impl JamEncode for RefinementOutput {

@@ -24,7 +24,9 @@ use jam_pvm_core::{
         common::{ExitReason, ExportDataSegment},
         error::{
             HostCallError,
-            HostCallError::{AccountNotFound, InvalidContext, InvalidExitReason},
+            HostCallError::{
+                AccountNotFound, DataSegmentLengthMismatch, InvalidContext, InvalidExitReason,
+            },
             PVMError,
         },
     },
@@ -912,7 +914,7 @@ impl HostFunction {
                 .as_slice(),
         )?;
 
-        if let Some(preimage) = account.lookup_history(&timeslot, lookup_hash) {
+        if let Some(preimage) = account.lookup_preimage(&timeslot, lookup_hash) {
             let write_data_size = (buffer_size as usize).min(preimage.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size as usize)? {
@@ -994,10 +996,17 @@ impl HostFunction {
             }));
         }
 
-        let data = zero_pad(
+        let data: ExportDataSegment = zero_pad(
             memory.read_bytes(offset as MemAddress, size as usize)?,
             DATA_SEGMENTS_SIZE,
-        );
+        )
+        .try_into()
+        .map_err(|v: Octets| {
+            PVMError::HostCallError(DataSegmentLengthMismatch {
+                expected: DATA_SEGMENTS_SIZE,
+                actual: v.len(),
+            })
+        })?;
 
         let export_segment_limit = export_segment_offset + data.len();
         // TODO: check the size limit - definition of the constant `W_X` in the GP isn't clear
@@ -1007,7 +1016,7 @@ impl HostFunction {
             }));
         }
 
-        x.exported_segments.extend(vec![data]);
+        x.export_segments.extend(vec![data]);
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {

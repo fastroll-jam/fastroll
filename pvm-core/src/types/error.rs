@@ -43,6 +43,8 @@ pub enum VMCoreError {
 /// PVM Host Call Error Codes
 #[derive(Debug, Error)]
 pub enum HostCallError {
+    #[error("Export data segment length mismatch: expected length {expected} but it was {actual}")]
+    DataSegmentLengthMismatch { expected: usize, actual: usize },
     #[error("Invalid host call invocation context")]
     InvalidContext,
     #[error("Invalid register indices")]

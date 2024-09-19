@@ -2,7 +2,9 @@ use crate::inner_vm::InnerPVM;
 use jam_codec::{JamDecodeFixed, JamEncode};
 use jam_common::{AccountAddress, Hash32, Octets};
 use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::types::{accumulation::DeferredTransfer, error::PVMError};
+use jam_pvm_core::types::{
+    accumulation::DeferredTransfer, common::ExportDataSegment, error::PVMError,
+};
 use jam_state::state_retriever::StateRetriever;
 use jam_types::state::{
     authorizer::AuthorizerQueue,
@@ -133,7 +135,7 @@ impl AccumulateContext {
 #[derive(Clone)]
 pub struct RefineContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
-    pub(crate) exported_segments: Vec<Octets>,
+    pub export_segments: Vec<ExportDataSegment>,
     next_instance_id: usize, // PVM instance ID to be assigned for the next instance
 }
 
@@ -141,7 +143,7 @@ impl Default for RefineContext {
     fn default() -> Self {
         Self {
             pvm_instances: HashMap::new(),
-            exported_segments: Vec::new(),
+            export_segments: Vec::new(),
             next_instance_id: 0,
         }
     }

@@ -593,6 +593,7 @@ dependencies = [
  "jam-host-interface",
  "jam-pvm",
  "jam-pvm-core",
+ "jam-state",
  "jam-types",
 ]
 
