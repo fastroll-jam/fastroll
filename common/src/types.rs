@@ -16,5 +16,5 @@ pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
 
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;
-pub const HASH32_DEFAULT: Hash32 = [0u8; 32];
+pub const HASH32_EMPTY: Hash32 = [0u8; 32];
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = [0u8; 144];

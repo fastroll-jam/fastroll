@@ -125,10 +125,10 @@ impl JamDecode for SortedLimitedTickets {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Ticket, HASH32_DEFAULT};
+    use crate::{Ticket, HASH32_EMPTY};
 
     fn create_ticket(i: u16) -> Ticket {
-        let mut hash = HASH32_DEFAULT;
+        let mut hash = HASH32_EMPTY;
         hash[0] = (i >> 8) as u8;
         hash[1] = i as u8;
         Ticket {
@@ -155,7 +155,7 @@ mod tests {
     fn test_add_over_capacity() {
         let mut tickets = SortedLimitedTickets::new();
         for i in 0..EPOCH_LENGTH as u16 + 1 {
-            let mut hash = HASH32_DEFAULT;
+            let mut hash = HASH32_EMPTY;
             // Constructing tickets with unique hash values, with first two bytes
             hash[0] = (i >> 8) as u8;
             hash[1] = (i & 0xFF) as u8;

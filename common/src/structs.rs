@@ -1,14 +1,12 @@
 use crate::{
     types::{Hash32, Octets, UnsignedGas},
-    AccountAddress, HASH32_DEFAULT,
+    AccountAddress, TokenBalance, HASH32_EMPTY, TRANSFER_MEMO_SIZE,
 };
 use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
-
-// Structs
 
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
@@ -117,7 +115,7 @@ pub struct Ticket {
 impl Default for Ticket {
     fn default() -> Self {
         Self {
-            id: HASH32_DEFAULT,
+            id: HASH32_EMPTY,
             attempt: 0,
         }
     }
@@ -167,6 +165,69 @@ impl JamDecode for Ticket {
             id: Hash32::decode(input)?,
             attempt: u8::decode(input)?,
         })
+    }
+}
+
+pub struct WorkPackage {
+    pub auth_token: Octets,                 // j
+    pub authorizer_address: AccountAddress, // h; service which hosts the authorization code
+    pub auth_code_hash: Hash32,             // c
+    pub param_blob: Octets,                 // p
+    pub context: RefinementContext,         // x
+    pub work_items: Vec<WorkItem>,          // w; length range [1, 4]
+}
+
+impl JamEncode for WorkPackage {
+    fn size_hint(&self) -> usize {
+        self.auth_token.size_hint()
+            + self.authorizer_address.size_hint()
+            + self.auth_code_hash.size_hint()
+            + self.param_blob.size_hint()
+            + self.context.size_hint()
+            + self.work_items.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.auth_token.encode_to(dest)?;
+        self.authorizer_address.encode_to(dest)?;
+        self.auth_code_hash.encode_to(dest)?;
+        self.param_blob.encode_to(dest)?;
+        self.context.encode_to(dest)?;
+        self.work_items.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+pub struct WorkItem {
+    service_index: AccountAddress,             // s
+    service_code_hash: Hash32,                 // c
+    payload_blob: Octets,                      // y
+    gas_limit: UnsignedGas,                    // g
+    import_segment_ids: Vec<(Hash32, usize)>, // i; [(segments_tree_root, item_index)], up to 2^11 entries
+    extrinsic_data_info: Vec<(Hash32, usize)>, // x; [(blob_hash, blob_length)]
+    export_segment_count: usize,              // e; max 2^11
+}
+
+impl JamEncode for WorkItem {
+    fn size_hint(&self) -> usize {
+        self.service_index.size_hint()
+            + self.service_code_hash.size_hint()
+            + self.payload_blob.size_hint()
+            + self.gas_limit.size_hint()
+            + self.import_segment_ids.size_hint()
+            + self.extrinsic_data_info.size_hint()
+            + self.export_segment_count.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_index.encode_to(dest)?;
+        self.service_code_hash.encode_to(dest)?;
+        self.payload_blob.encode_to(dest)?;
+        self.gas_limit.encode_to(dest)?;
+        self.import_segment_ids.encode_to(dest)?;
+        self.extrinsic_data_info.encode_to(dest)?;
+        self.export_segment_count.encode_to(dest)?;
+        Ok(())
     }
 }
 
@@ -301,7 +362,7 @@ impl JamDecode for AvailabilitySpecifications {
         let work_package_hash = Hash32::decode(input)?;
         let work_package_length = u32::decode(input)?;
         let erasure_root = Hash32::decode(input)?;
-        let segment_root = HASH32_DEFAULT; // Default value since it is not part of the encoding
+        let segment_root = HASH32_EMPTY; // Default value since it is not part of the encoding
 
         Ok(AvailabilitySpecifications {
             work_package_hash,
@@ -314,11 +375,11 @@ impl JamDecode for AvailabilitySpecifications {
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct WorkItemResult {
-    service_index: AccountAddress,         // s; N_S
-    service_code_hash: Hash32,             // c
-    payload_hash: Hash32,                  // l
-    gas_prioritization_ratio: UnsignedGas, // g
-    refinement_output: RefinementOutput,   // o
+    service_index: AccountAddress,          // s; N_S
+    service_code_hash: Hash32,              // c
+    payload_hash: Hash32,                   // l
+    gas_prioritization_ratio: UnsignedGas,  // g
+    refinement_output: WorkExecutionOutput, // o
 }
 
 impl JamEncode for WorkItemResult {
@@ -346,7 +407,7 @@ impl JamDecode for WorkItemResult {
         let service_code_hash = Hash32::decode(input)?;
         let payload_hash = Hash32::decode(input)?;
         let gas_prioritization_ratio = UnsignedGas::decode(input)?;
-        let refinement_output = RefinementOutput::decode(input)?;
+        let refinement_output = WorkExecutionOutput::decode(input)?;
 
         Ok(WorkItemResult {
             service_index,
@@ -359,78 +420,108 @@ impl JamDecode for WorkItemResult {
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-pub enum RefinementOutput {
-    Output(Octets),
-    Error(RefinementErrors),
+pub enum WorkExecutionOutput {
+    Output(Octets),            // Y
+    Error(WorkExecutionError), // J
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-pub enum RefinementErrors {
+pub enum WorkExecutionError {
     OutOfGas,
     UnexpectedTermination,
     ServiceCodeLookupError, // BAD
     CodeSizeExceeded,       // BIG; exceeds MAX_SERVICE_CODE_SIZE
 }
 
-impl JamEncode for RefinementOutput {
+impl JamEncode for WorkExecutionOutput {
     fn size_hint(&self) -> usize {
         match self {
-            RefinementOutput::Output(data) => {
+            WorkExecutionOutput::Output(data) => {
                 1 + data.size_hint() // with 1 byte prefix // TODO: check using 1-bit prefix instead
             }
-            RefinementOutput::Error(_) => 1, // 1 byte succinct encoding
+            WorkExecutionOutput::Error(_) => 1, // 1 byte succinct encoding
         }
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         match self {
-            RefinementOutput::Output(data) => {
+            WorkExecutionOutput::Output(data) => {
                 0u8.encode_to(dest)?; // prefix (0) for Output
                 data.encode_to(dest)?;
                 Ok(())
             }
-            RefinementOutput::Error(error) => match error {
-                RefinementErrors::OutOfGas => 1u8.encode_to(dest),
-                RefinementErrors::UnexpectedTermination => 2u8.encode_to(dest),
-                RefinementErrors::ServiceCodeLookupError => 3u8.encode_to(dest),
-                RefinementErrors::CodeSizeExceeded => 4u8.encode_to(dest),
+            WorkExecutionOutput::Error(error) => match error {
+                WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
+                WorkExecutionError::UnexpectedTermination => 2u8.encode_to(dest),
+                WorkExecutionError::ServiceCodeLookupError => 3u8.encode_to(dest),
+                WorkExecutionError::CodeSizeExceeded => 4u8.encode_to(dest),
             },
         }
     }
 }
 
-impl JamDecode for RefinementOutput {
+impl JamDecode for WorkExecutionOutput {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         match u8::decode(input)? {
             0 => {
                 let data = Octets::decode(input)?;
-                Ok(RefinementOutput::Output(data))
+                Ok(WorkExecutionOutput::Output(data))
             }
-            1 => Ok(RefinementOutput::Error(RefinementErrors::OutOfGas)),
-            2 => Ok(RefinementOutput::Error(
-                RefinementErrors::UnexpectedTermination,
+            1 => Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas)),
+            2 => Ok(WorkExecutionOutput::Error(
+                WorkExecutionError::UnexpectedTermination,
             )),
-            3 => Ok(RefinementOutput::Error(
-                RefinementErrors::ServiceCodeLookupError,
+            3 => Ok(WorkExecutionOutput::Error(
+                WorkExecutionError::ServiceCodeLookupError,
             )),
-            4 => Ok(RefinementOutput::Error(RefinementErrors::CodeSizeExceeded)),
+            4 => Ok(WorkExecutionOutput::Error(
+                WorkExecutionError::CodeSizeExceeded,
+            )),
             _ => Err(JamCodecError::InputError(
-                "Invalid RefinementOutput prefix".into(),
+                "Invalid WorkExecutionOutput prefix".into(),
             )),
         }
     }
 }
 
-impl JamDecode for RefinementErrors {
+impl JamDecode for WorkExecutionError {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         match u8::decode(input)? {
-            1 => Ok(RefinementErrors::OutOfGas),
-            2 => Ok(RefinementErrors::UnexpectedTermination),
-            3 => Ok(RefinementErrors::ServiceCodeLookupError),
-            4 => Ok(RefinementErrors::CodeSizeExceeded),
+            1 => Ok(WorkExecutionError::OutOfGas),
+            2 => Ok(WorkExecutionError::UnexpectedTermination),
+            3 => Ok(WorkExecutionError::ServiceCodeLookupError),
+            4 => Ok(WorkExecutionError::CodeSizeExceeded),
             _ => Err(JamCodecError::InputError(
-                "Invalid RefinementErrors prefix".into(),
+                "Invalid WorkExecutionError prefix".into(),
             )),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct DeferredTransfer {
+    pub from: AccountAddress,           // s
+    pub to: AccountAddress,             // d
+    pub amount: TokenBalance,           // a
+    pub memo: [u8; TRANSFER_MEMO_SIZE], // m
+    pub gas_limit: UnsignedGas,         // g
+}
+
+impl JamEncode for DeferredTransfer {
+    fn size_hint(&self) -> usize {
+        self.from.size_hint()
+            + self.to.size_hint()
+            + self.amount.size_hint()
+            + self.memo.size_hint()
+            + self.gas_limit.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.from.encode_to(dest)?;
+        self.to.encode_to(dest)?;
+        self.amount.encode_to(dest)?;
+        self.memo.encode_to(dest)?;
+        self.gas_limit.encode_to(dest)?;
+        Ok(())
     }
 }

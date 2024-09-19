@@ -20,6 +20,7 @@ pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 500;
 pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 10;
 pub const MAX_AUTH_QUEUE_SIZE: usize = 80;
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+pub const TRANSFER_MEMO_SIZE: usize = 128;
 
 // Signing Contexts or Domain Specifiers
 

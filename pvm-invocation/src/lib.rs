@@ -1,7 +1,7 @@
 use jam_codec::JamEncode;
 use jam_common::{
-    AccountAddress, Hash32, Octets, RefinementContext, RefinementErrors, RefinementOutput,
-    UnsignedGas, MAX_SERVICE_CODE_SIZE,
+    AccountAddress, DeferredTransfer, Hash32, Octets, RefinementContext, TokenBalance, UnsignedGas,
+    WorkExecutionError, WorkExecutionOutput, WorkPackage, MAX_SERVICE_CODE_SIZE,
 };
 use jam_crypto::utils::octets_to_hash32;
 use jam_host_interface::contexts::{
@@ -20,21 +20,24 @@ use jam_pvm_core::{
     },
 };
 use jam_state::cache::STATE_CACHE;
-use jam_types::state::{services::ServiceAccounts, timeslot::Timeslot};
+use jam_types::state::{
+    services::{ServiceAccountState, ServiceAccounts},
+    timeslot::Timeslot,
+};
 
 const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;
 const REFINE_INITIAL_PC: MemAddress = 5;
 const ACCUMULATE_INITIAL_PC: MemAddress = 10;
 const ON_TRANSFER_INITIAL_PC: MemAddress = 15;
 
+pub struct RefineResult {
+    output: WorkExecutionOutput,
+    export_segments: Vec<ExportDataSegment>,
+}
+
 pub enum AccumulateResult {
     Unchanged,
     Result(AccumulateContext, Option<Hash32>), // (mutated context, optional result hash)
-}
-
-pub struct RefineResult {
-    output: RefinementOutput,
-    export_segments: Vec<ExportDataSegment>,
 }
 
 struct PVMInvocation;
@@ -43,6 +46,145 @@ impl PVMInvocation {
     //
     // PVM invocation entry-points
     //
+
+    pub fn is_authorized(
+        work_package: WorkPackage,
+        core_index: u32,
+    ) -> Result<WorkExecutionOutput, PVMError> {
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+
+        // retrieve the service account code via the historical lookup function
+        let code = match service_accounts
+            .get_account(&work_package.authorizer_address)
+            .and_then(|account| {
+                account.lookup_preimage(
+                    &Timeslot(work_package.context.lookup_anchor_timeslot),
+                    work_package.auth_code_hash,
+                )
+            }) {
+            Some(code) => code,
+            None => {
+                // TODO: check return type for this case
+                return Ok(WorkExecutionOutput::Error(
+                    WorkExecutionError::ServiceCodeLookupError,
+                ));
+            }
+        };
+
+        let is_authorized_gas_limit = 0; // FIXME: not specified in the GP
+
+        let mut args = vec![];
+        work_package.encode_to(&mut args)?;
+        core_index.encode_to(&mut args)?;
+
+        let common_invocation_result = PVM::common_invocation(
+            work_package.authorizer_address,
+            &code,
+            IS_AUTHORIZED_INITIAL_PC,
+            is_authorized_gas_limit,
+            &args,
+            &mut InvocationContext::X_I, // TODO: better handling
+        )?;
+
+        match common_invocation_result {
+            CommonInvocationResult::OutOfGas(_) => {
+                Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas))
+            }
+            CommonInvocationResult::Failure(_) => Ok(WorkExecutionOutput::Error(
+                WorkExecutionError::UnexpectedTermination,
+            )),
+            CommonInvocationResult::Result((_gas, output))
+            | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
+                Ok(WorkExecutionOutput::Output(output))
+            }
+        }
+    }
+
+    pub fn refine(
+        code_hash: Hash32,
+        gas_limit: UnsignedGas,
+        service_index: AccountAddress,
+        work_package_hash: Hash32,
+        work_payload: Octets,
+        refinement_context: RefinementContext,
+        authorizer_hash: Hash32,
+        authorization_output: Octets,
+        import_segments: Vec<ExportDataSegment>,
+        extrinsic_data_blobs: Vec<Octets>,
+        export_segment_offset: usize,
+    ) -> Result<RefineResult, PVMError> {
+        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+
+        // retrieve the service account code via the historical lookup function
+        let code = match service_accounts
+            .get_account(&service_index)
+            .and_then(|account| {
+                account.lookup_preimage(
+                    &Timeslot(refinement_context.lookup_anchor_timeslot),
+                    code_hash,
+                )
+            }) {
+            Some(code) => code,
+            None => {
+                return Ok(RefineResult {
+                    output: WorkExecutionOutput::Error(WorkExecutionError::ServiceCodeLookupError),
+                    export_segments: vec![],
+                })
+            }
+        };
+
+        if code.len() > MAX_SERVICE_CODE_SIZE {
+            return Ok(RefineResult {
+                output: WorkExecutionOutput::Error(WorkExecutionError::CodeSizeExceeded),
+                export_segments: vec![],
+            });
+        }
+
+        // encode arguments for the refinement process
+        let mut args = vec![];
+        service_index.encode_to(&mut args)?;
+        work_payload.encode_to(&mut args)?;
+        work_package_hash.encode_to(&mut args)?;
+        refinement_context.encode_to(&mut args)?;
+        authorizer_hash.encode_to(&mut args)?;
+        authorization_output.encode_to(&mut args)?;
+        extrinsic_data_blobs.encode_to(&mut args)?;
+
+        let mut context = InvocationContext::X_R(RefineContext::default());
+
+        let common_invocation_result = PVM::common_invocation(
+            service_index,
+            &code,
+            REFINE_INITIAL_PC,
+            gas_limit,
+            &args,
+            &mut context,
+        )?;
+
+        let RefineContext {
+            export_segments, ..
+        } = if let InvocationContext::X_R(context) = context {
+            context
+        } else {
+            return Err(PVMError::HostCallError(InvalidContext));
+        };
+
+        match common_invocation_result {
+            CommonInvocationResult::Result((_gas, output))
+            | CommonInvocationResult::ResultUnavailable((_gas, output)) => Ok(RefineResult {
+                output: WorkExecutionOutput::Output(output),
+                export_segments,
+            }),
+            CommonInvocationResult::OutOfGas(_) => Ok(RefineResult {
+                output: WorkExecutionOutput::Error(WorkExecutionError::OutOfGas),
+                export_segments: vec![],
+            }),
+            CommonInvocationResult::Failure(_) => Ok(RefineResult {
+                output: WorkExecutionOutput::Error(WorkExecutionError::UnexpectedTermination),
+                export_segments: vec![],
+            }),
+        }
+    }
 
     /// Accumulate invocation function
     ///
@@ -70,6 +212,7 @@ impl PVMInvocation {
         if operands.is_empty() || code.is_none() {
             return Ok(AccumulateResult::Unchanged);
         }
+        let code = code.unwrap();
 
         // `x` for a regular dimension and `y` for an exceptional dimension
         let context_pair = AccumulateContextPair {
@@ -89,7 +232,7 @@ impl PVMInvocation {
 
         let common_invocation_result = PVM::common_invocation(
             target_address,
-            &code.unwrap()[..],
+            &code,
             ACCUMULATE_INITIAL_PC,
             gas_limit,
             &operands.encode()?,
@@ -114,88 +257,43 @@ impl PVMInvocation {
         }
     }
 
-    pub fn refine(
-        code_hash: Hash32,
-        gas_limit: UnsignedGas,
-        service_index: AccountAddress,
-        work_package_hash: Hash32,
-        work_payload: Octets,
-        refinement_context: RefinementContext,
-        authorizer_hash: Hash32,
-        authorization_output: Octets,
-        import_segments: Vec<ExportDataSegment>,
-        extrinsic_data_blobs: Vec<Octets>,
-        export_segment_offset: usize,
-    ) -> Result<RefineResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
+    pub fn on_transfer(
+        service_accounts: &ServiceAccounts,
+        destination_address: AccountAddress,
+        transfers: Vec<DeferredTransfer>,
+    ) -> Result<ServiceAccountState, PVMError> {
+        let mut destination_account = service_accounts
+            .get_account(&destination_address)
+            .ok_or(PVMError::HostCallError(AccountNotFound))?
+            .clone();
 
-        let refine_code = match service_accounts
-            .get_account(&service_index)
-            .and_then(|account| {
-                account.lookup_preimage(
-                    &Timeslot(refinement_context.lookup_anchor_timeslot),
-                    code_hash,
-                )
-            }) {
-            Some(code) => code,
-            None => {
-                return Ok(RefineResult {
-                    output: RefinementOutput::Error(RefinementErrors::ServiceCodeLookupError),
-                    export_segments: vec![],
-                })
-            }
-        };
+        let total_amount: TokenBalance = transfers.iter().map(|t| t.amount).sum();
+        destination_account.balance += total_amount;
 
-        if refine_code.len() > MAX_SERVICE_CODE_SIZE {
-            return Ok(RefineResult {
-                output: RefinementOutput::Error(RefinementErrors::CodeSizeExceeded),
-                export_segments: vec![],
-            });
+        let code = destination_account.get_code().cloned();
+
+        if code.is_none() || transfers.is_empty() {
+            return Ok(destination_account);
         }
+        let code = code.unwrap();
 
-        // encode arguments for the refinement process
-        let mut refine_args = vec![];
-        service_index.encode_to(&mut refine_args)?;
-        work_payload.encode_to(&mut refine_args)?;
-        work_package_hash.encode_to(&mut refine_args)?;
-        refinement_context.encode_to(&mut refine_args)?;
-        authorizer_hash.encode_to(&mut refine_args)?;
-        authorization_output.encode_to(&mut refine_args)?;
-        extrinsic_data_blobs.encode_to(&mut refine_args)?;
+        let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
 
-        let mut context = InvocationContext::X_R(RefineContext::default());
+        let mut context = InvocationContext::X_T(destination_account);
 
-        let common_invocation_result = PVM::common_invocation(
-            service_index,
-            &refine_code[..],
-            REFINE_INITIAL_PC,
-            gas_limit,
-            &refine_args[..],
+        // TODO: check the return type
+        PVM::common_invocation(
+            destination_address,
+            &code,
+            ON_TRANSFER_INITIAL_PC,
+            total_gas_limit,
+            &transfers.encode()?,
             &mut context,
         )?;
 
-        let RefineContext {
-            export_segments, ..
-        } = if let InvocationContext::X_R(context) = context {
-            context
-        } else {
-            return Err(PVMError::HostCallError(InvalidContext));
-        };
-
-        match common_invocation_result {
-            CommonInvocationResult::Result((_gas, output))
-            | CommonInvocationResult::ResultUnavailable((_gas, output)) => Ok(RefineResult {
-                output: RefinementOutput::Output(output),
-                export_segments,
-            }),
-            CommonInvocationResult::OutOfGas(_) => Ok(RefineResult {
-                output: RefinementOutput::Error(RefinementErrors::OutOfGas),
-                export_segments: vec![],
-            }),
-            CommonInvocationResult::Failure(_) => Ok(RefineResult {
-                output: RefinementOutput::Error(RefinementErrors::UnexpectedTermination),
-                export_segments: vec![],
-            }),
+        match context {
+            InvocationContext::X_T(account) => Ok(account),
+            _ => Err(PVMError::HostCallError(InvalidContext)),
         }
     }
 }

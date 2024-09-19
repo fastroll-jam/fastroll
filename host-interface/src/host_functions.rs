@@ -6,8 +6,8 @@ use crate::{
 };
 use jam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use jam_common::{
-    AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey, CORE_COUNT,
-    HASH32_DEFAULT, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
+    AccountAddress, DeferredTransfer, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey,
+    CORE_COUNT, HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use jam_crypto::utils::blake2b_256;
 use jam_pvm_core::{
@@ -20,7 +20,6 @@ use jam_pvm_core::{
         register::Register,
     },
     types::{
-        accumulation::{DeferredTransfer, TRANSFER_MEMO_SIZE},
         common::{ExitReason, ExportDataSegment},
         error::{
             HostCallError,
@@ -400,7 +399,7 @@ impl HostFunction {
             }));
         }
 
-        let mut queue_assignment = [HASH32_DEFAULT; MAX_AUTH_QUEUE_SIZE];
+        let mut queue_assignment = [HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE];
         for i in 0..MAX_AUTH_QUEUE_SIZE {
             if let Ok(slice) = memory.read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
             {

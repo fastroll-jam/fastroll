@@ -1,10 +1,8 @@
 use crate::inner_vm::InnerPVM;
 use jam_codec::{JamDecodeFixed, JamEncode};
-use jam_common::{AccountAddress, Hash32, Octets};
+use jam_common::{AccountAddress, DeferredTransfer, Hash32};
 use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::types::{
-    accumulation::DeferredTransfer, common::ExportDataSegment, error::PVMError,
-};
+use jam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use jam_state::state_retriever::StateRetriever;
 use jam_types::state::{
     authorizer::AuthorizerQueue,
@@ -18,11 +16,10 @@ use std::collections::HashMap;
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_G,                        // General Functions
-    X_I,                        // Is-Authorized
+    X_I,                        // IsAuthorized
     X_R(RefineContext),         // Refine
     X_A(AccumulateContextPair), // Accumulate
-    X_T,                        // On-Transfer
+    X_T(ServiceAccountState),   // OnTransfer
 }
 
 impl InvocationContext {

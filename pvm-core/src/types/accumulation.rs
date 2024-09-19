@@ -1,10 +1,8 @@
 use jam_codec::{JamCodecError, JamEncode, JamOutput};
-use jam_common::{AccountAddress, Hash32, Octets, RefinementOutput, TokenBalance, UnsignedGas};
-
-pub const TRANSFER_MEMO_SIZE: usize = 128;
+use jam_common::{Hash32, Octets, WorkExecutionOutput};
 
 pub struct AccumulateOperand {
-    work_output: RefinementOutput,
+    work_output: WorkExecutionOutput,
     work_output_payload_hash: Hash32,
     work_package_hash: Hash32,
     authorization_output: Octets,
@@ -25,13 +23,4 @@ impl JamEncode for AccumulateOperand {
         self.authorization_output.encode_to(dest)?;
         Ok(())
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct DeferredTransfer {
-    pub from: AccountAddress,           // s
-    pub to: AccountAddress,             // d
-    pub amount: TokenBalance,           // a
-    pub memo: [u8; TRANSFER_MEMO_SIZE], // m
-    pub gas_limit: UnsignedGas,         // g
 }

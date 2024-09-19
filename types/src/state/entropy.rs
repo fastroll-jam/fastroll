@@ -1,7 +1,7 @@
 use jam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::{Hash32, HASH32_DEFAULT};
+use jam_common::{Hash32, HASH32_EMPTY};
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy)]
@@ -21,7 +21,7 @@ impl Display for EntropyAccumulator {
 
 impl Default for EntropyAccumulator {
     fn default() -> Self {
-        Self([HASH32_DEFAULT; 4])
+        Self([HASH32_EMPTY; 4])
     }
 }
 
