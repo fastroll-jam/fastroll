@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::{
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Hash32, Ticket, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 

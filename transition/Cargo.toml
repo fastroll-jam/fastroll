@@ -1,14 +1,14 @@
 [package]
-name = "jam-transition"
+name = "rjam-transition"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-crypto = { workspace = true }
-jam-types = { workspace = true }
-jam-state = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-types = { workspace = true }
+rjam-state = { workspace = true }
 ark-ec-vrfs = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }

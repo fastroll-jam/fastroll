@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::{Hash32, HASH32_EMPTY};
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy)]

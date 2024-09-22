@@ -1,14 +1,14 @@
 [package]
-name = "jam-state"
+name = "rjam-state"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-crypto = { workspace = true }
-jam-db = { workspace = true }
-jam-types = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-db = { workspace = true }
+rjam-types = { workspace = true }
 blake2 = { workspace = true }
 bit-vec = { workspace = true }
 lazy_static = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::host_functions::{HostCallResultConstant, HostCallVMStateChange};
-use jam_common::{Octets, UnsignedGas};
+use rjam_common::{Octets, UnsignedGas};
 
 // Zero-padding function for octet sequences
 pub fn zero_pad(mut input: Octets, block_size: usize) -> Octets {

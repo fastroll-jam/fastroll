@@ -1,10 +1,10 @@
 [package]
-name = "jam-common"
+name = "rjam-common"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
+rjam-codec = { workspace = true }
 hex = { workspace = true }
 
 [features]

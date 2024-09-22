@@ -1,7 +1,7 @@
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::BandersnatchRingVrfProof;
-use jam_crypto::vrf::RingVrfSignature;
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::BandersnatchRingVrfProof;
+use rjam_crypto::vrf::RingVrfSignature;
 use std::cmp::Ordering;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

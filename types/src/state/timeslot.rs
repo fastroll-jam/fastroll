@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
+use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 use time::OffsetDateTime;
 
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]

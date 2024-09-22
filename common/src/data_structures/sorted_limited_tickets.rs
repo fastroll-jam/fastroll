@@ -1,5 +1,5 @@
 use crate::{Ticket, EPOCH_LENGTH};
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,

@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::{AccountAddress, Octets};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{AccountAddress, Octets};
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct PreimageLookupExtrinsicEntry {

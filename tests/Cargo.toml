@@ -1,12 +1,12 @@
 [package]
-name = "jam-tests"
+name = "rjam-tests"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-common = { workspace = true, features = ["testing"] }
-jam-transition = { workspace = true }
-jam-types = { workspace = true }
+rjam-common = { workspace = true, features = ["testing"] }
+rjam-transition = { workspace = true }
+rjam-types = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

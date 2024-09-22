@@ -1,11 +1,11 @@
 use crate::{Transition, TransitionError};
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
-use jam_common::{
+use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, Ticket, EPOCH_LENGTH,
     TICKET_SUBMISSION_DEADLINE_SLOT,
 };
-use jam_crypto::{generate_ring_root, vrf::RingVrfSignature};
-use jam_types::{
+use rjam_crypto::{generate_ring_root, vrf::RingVrfSignature};
+use rjam_types::{
     extrinsics::tickets::TicketExtrinsicEntry,
     state::{
         entropy::EntropyAccumulator,

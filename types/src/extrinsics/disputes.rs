@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::{
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{
     Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
 

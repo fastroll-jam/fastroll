@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::VALIDATOR_COUNT;
+use rjam_common::VALIDATOR_COUNT;
 
 #[derive(Clone, Copy)]
 pub struct ValidatorStatEntry {

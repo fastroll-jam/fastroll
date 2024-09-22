@@ -1,5 +1,5 @@
 use crate::{Transition, TransitionError};
-use jam_types::state::timeslot::Timeslot;
+use rjam_types::state::timeslot::Timeslot;
 
 pub struct TimeslotContext {
     pub header_timeslot: Timeslot,

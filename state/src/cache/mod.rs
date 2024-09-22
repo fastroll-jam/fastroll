@@ -1,10 +1,10 @@
-use jam_common::{AccountAddress, Hash32};
-use jam_types::state::{
+use lazy_static::lazy_static;
+use rjam_common::{AccountAddress, Hash32};
+use rjam_types::state::{
     safrole::SafroleState,
     services::{ServiceAccountState, ServiceAccounts},
     timeslot::Timeslot,
 };
-use lazy_static::lazy_static;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},

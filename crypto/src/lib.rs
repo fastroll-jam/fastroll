@@ -8,7 +8,7 @@ use ark_ec_vrfs::{
     suites::bandersnatch::{edwards as bandersnatch, edwards::BandersnatchSha512Ell2},
     Public, Suite,
 };
-use jam_common::{BandersnatchRingRoot, ValidatorSet};
+use rjam_common::{BandersnatchRingRoot, ValidatorSet};
 use std::fmt::Debug;
 
 pub fn validator_set_to_ring<S: Suite + Debug>(

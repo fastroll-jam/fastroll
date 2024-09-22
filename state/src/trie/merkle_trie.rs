@@ -9,9 +9,9 @@ use crate::{
     },
 };
 use bit_vec::BitVec;
-use jam_common::{Hash32, Octets};
-use jam_crypto::utils::blake2b_256;
-use jam_db::manager::{KVDBError::NodeNotFound, KVDBManager};
+use rjam_common::{Hash32, Octets};
+use rjam_crypto::utils::blake2b_256;
+use rjam_db::manager::{KVDBError::NodeNotFound, KVDBManager};
 use std::collections::HashMap;
 // Merkle Trie representation and helper functions
 

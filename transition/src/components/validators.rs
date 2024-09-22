@@ -1,6 +1,6 @@
 use crate::{Transition, TransitionError};
-use jam_common::ValidatorSet;
-use jam_types::state::{
+use rjam_common::ValidatorSet;
+use rjam_types::state::{
     timeslot::Timeslot,
     validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
 };

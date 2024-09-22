@@ -4,13 +4,13 @@ use crate::{
     inner_vm::InnerPVM,
     utils::*,
 };
-use jam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
-use jam_common::{
+use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
+use rjam_common::{
     AccountAddress, DeferredTransfer, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey,
     CORE_COUNT, HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::{
+use rjam_crypto::utils::blake2b_256;
+use rjam_pvm_core::{
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
@@ -31,8 +31,8 @@ use jam_pvm_core::{
     },
     vm_core::{PVMCore, Program, VMState},
 };
-use jam_state::cache::STATE_CACHE;
-use jam_types::state::{
+use rjam_state::cache::STATE_CACHE;
+use rjam_types::state::{
     services::{ServiceAccountState, B_S},
     validators::StagingValidatorSet,
 };

@@ -487,173 +487,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
-name = "jam-block"
-version = "0.1.0"
-dependencies = [
- "jam-codec",
- "jam-common",
- "jam-extrinsics",
-]
-
-[[package]]
-name = "jam-codec"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "thiserror",
-]
-
-[[package]]
-name = "jam-common"
-version = "0.1.0"
-dependencies = [
- "hex",
- "jam-codec",
-]
-
-[[package]]
-name = "jam-crypto"
-version = "0.1.0"
-dependencies = [
- "ark-ec-vrfs",
- "blake2",
- "hex",
- "jam-common",
- "thiserror",
-]
-
-[[package]]
-name = "jam-db"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "jam-common",
- "jam-crypto",
- "lazy_static",
- "rocksdb",
- "thiserror",
-]
-
-[[package]]
-name = "jam-extrinsics"
-version = "0.1.0"
-dependencies = [
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-state",
- "jam-types",
- "lazy_static",
-]
-
-[[package]]
-name = "jam-host-interface"
-version = "0.1.0"
-dependencies = [
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-pvm-core",
- "jam-state",
- "jam-types",
- "thiserror",
-]
-
-[[package]]
-name = "jam-pvm"
-version = "0.1.0"
-dependencies = [
- "jam-common",
- "jam-crypto",
- "jam-host-interface",
- "jam-pvm-core",
- "jam-types",
- "thiserror",
-]
-
-[[package]]
-name = "jam-pvm-core"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-state",
- "thiserror",
-]
-
-[[package]]
-name = "jam-pvm-invocation"
-version = "0.1.0"
-dependencies = [
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-host-interface",
- "jam-pvm",
- "jam-pvm-core",
- "jam-state",
- "jam-types",
-]
-
-[[package]]
-name = "jam-state"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "blake2",
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-db",
- "jam-types",
- "lazy_static",
- "thiserror",
-]
-
-[[package]]
-name = "jam-tests"
-version = "0.1.0"
-dependencies = [
- "hex",
- "jam-common",
- "jam-transition",
- "jam-types",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "jam-transition"
-version = "0.1.0"
-dependencies = [
- "ark-ec-vrfs",
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "jam-state",
- "jam-types",
- "thiserror",
- "time",
-]
-
-[[package]]
-name = "jam-types"
-version = "0.1.0"
-dependencies = [
- "ark-ec-vrfs",
- "bit-vec",
- "hex",
- "jam-codec",
- "jam-common",
- "jam-crypto",
- "thiserror",
- "time",
-]
-
-[[package]]
 name = "jobserver"
 version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,12 +789,179 @@ dependencies = [
 name = "rjam"
 version = "0.1.0"
 dependencies = [
- "jam-common",
- "jam-db",
- "jam-extrinsics",
- "jam-state",
  "lazy_static",
+ "rjam-common",
+ "rjam-db",
+ "rjam-extrinsics",
+ "rjam-state",
  "serde_json",
+]
+
+[[package]]
+name = "rjam-block"
+version = "0.1.0"
+dependencies = [
+ "rjam-codec",
+ "rjam-common",
+ "rjam-extrinsics",
+]
+
+[[package]]
+name = "rjam-codec"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-common"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rjam-codec",
+]
+
+[[package]]
+name = "rjam-crypto"
+version = "0.1.0"
+dependencies = [
+ "ark-ec-vrfs",
+ "blake2",
+ "hex",
+ "rjam-common",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-db"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "lazy_static",
+ "rjam-common",
+ "rjam-crypto",
+ "rocksdb",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-extrinsics"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-state",
+ "rjam-types",
+]
+
+[[package]]
+name = "rjam-host-interface"
+version = "0.1.0"
+dependencies = [
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-pvm-core",
+ "rjam-state",
+ "rjam-types",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-pvm"
+version = "0.1.0"
+dependencies = [
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-host-interface",
+ "rjam-pvm-core",
+ "rjam-types",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-pvm-core"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-state",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-pvm-invocation"
+version = "0.1.0"
+dependencies = [
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-host-interface",
+ "rjam-pvm",
+ "rjam-pvm-core",
+ "rjam-state",
+ "rjam-types",
+]
+
+[[package]]
+name = "rjam-state"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "blake2",
+ "lazy_static",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-db",
+ "rjam-types",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-tests"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rjam-common",
+ "rjam-transition",
+ "rjam-types",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-transition"
+version = "0.1.0"
+dependencies = [
+ "ark-ec-vrfs",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-state",
+ "rjam-types",
+ "thiserror",
+ "time",
+]
+
+[[package]]
+name = "rjam-types"
+version = "0.1.0"
+dependencies = [
+ "ark-ec-vrfs",
+ "bit-vec",
+ "hex",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "thiserror",
+ "time",
 ]
 
 [[package]]

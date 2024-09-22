@@ -2,8 +2,8 @@ pub mod extrinsics_pool;
 pub mod manager;
 pub mod submission;
 
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_types::extrinsics::{
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_types::extrinsics::{
     assurances::AssuranceExtrinsicEntry, disputes::DisputesExtrinsic,
     guarantees::GuaranteeExtrinsicEntry, preimages::PreimageLookupExtrinsicEntry,
     tickets::TicketExtrinsicEntry,

@@ -1,14 +1,14 @@
-use jam_codec::JamEncode;
-use jam_common::{
+use rjam_codec::JamEncode;
+use rjam_common::{
     AccountAddress, DeferredTransfer, Hash32, Octets, RefinementContext, TokenBalance, UnsignedGas,
     WorkExecutionError, WorkExecutionOutput, WorkPackage, MAX_SERVICE_CODE_SIZE,
 };
-use jam_crypto::utils::octets_to_hash32;
-use jam_host_interface::contexts::{
+use rjam_crypto::utils::octets_to_hash32;
+use rjam_host_interface::contexts::{
     AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
 };
-use jam_pvm::{CommonInvocationResult, PVM};
-use jam_pvm_core::{
+use rjam_pvm::{CommonInvocationResult, PVM};
+use rjam_pvm_core::{
     state::memory::MemAddress,
     types::{
         accumulation::AccumulateOperand,
@@ -19,8 +19,8 @@ use jam_pvm_core::{
         },
     },
 };
-use jam_state::cache::STATE_CACHE;
-use jam_types::state::{
+use rjam_state::cache::STATE_CACHE;
+use rjam_types::state::{
     services::{ServiceAccountState, ServiceAccounts},
     timeslot::Timeslot,
 };

@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamEncode, JamOutput};
-use jam_common::{Hash32, Octets, WorkExecutionOutput};
+use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_common::{Hash32, Octets, WorkExecutionOutput};
 
 pub struct AccumulateOperand {
     work_output: WorkExecutionOutput,

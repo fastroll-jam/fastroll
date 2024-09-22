@@ -1,8 +1,8 @@
 use bit_vec::BitVec;
-use jam_codec::{
+use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use jam_common::{Ed25519Signature, Hash32, CORE_COUNT};
+use rjam_common::{Ed25519Signature, Hash32, CORE_COUNT};
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct AssuranceExtrinsicEntry {

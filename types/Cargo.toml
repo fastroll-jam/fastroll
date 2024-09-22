@@ -1,12 +1,12 @@
 [package]
-name = "jam-types"
+name = "rjam-types"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-crypto = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
 ark-ec-vrfs = { workspace = true }
 bit-vec = { workspace = true }
 hex = { workspace = true }

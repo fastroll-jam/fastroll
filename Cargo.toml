@@ -25,18 +25,18 @@ edition = "2021"
 
 [workspace.dependencies]
 # Internal dependencies
-jam-block = { path = "block" }
-jam-codec = { path = "codec" }
-jam-common = { path = "common" }
-jam-crypto = { path = "crypto" }
-jam-db = { path = "db" }
-jam-extrinsics = { path = "extrinsics" }
-jam-host-interface = { path = "host-interface" }
-jam-pvm = { path = "pvm" }
-jam-pvm-core = { path = "pvm-core" }
-jam-state = { path = "state" }
-jam-transition = { path = "transition" }
-jam-types = { path = "types" }
+rjam-block = { path = "block" }
+rjam-codec = { path = "codec" }
+rjam-common = { path = "common" }
+rjam-crypto = { path = "crypto" }
+rjam-db = { path = "db" }
+rjam-extrinsics = { path = "extrinsics" }
+rjam-host-interface = { path = "host-interface" }
+rjam-pvm = { path = "pvm" }
+rjam-pvm-core = { path = "pvm-core" }
+rjam-state = { path = "state" }
+rjam-transition = { path = "transition" }
+rjam-types = { path = "types" }
 # External dependencies
 ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "6b07f6f", features = ["bandersnatch", "ring", "parallel", "test-vectors"] }
 blake2 = "0.10.6"
@@ -50,14 +50,14 @@ serde = { version = "1.0.204", features = ["derive"] }
 time = "0.3.36"
 
 [dependencies]
-jam-common = { workspace = true }
-jam-db = { workspace = true }
-jam-extrinsics = { workspace = true }
-jam-state = { workspace = true }
+rjam-common = { workspace = true }
+rjam-db = { workspace = true }
+rjam-extrinsics = { workspace = true }
+rjam-state = { workspace = true }
 lazy_static = { workspace = true }
 
 [dev-dependencies]
 serde_json = "1.0.121"
 
 [features]
-testing = ["jam-common/testing"]
+testing = ["rjam-common/testing"]

@@ -1,5 +1,5 @@
 use crate::state::timeslot::Timeslot;
-use jam_common::{AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas};
+use rjam_common::{AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas};
 use std::collections::BTreeMap;
 
 pub const B_S: TokenBalance = 100; // The basic minimum balance which all services require

@@ -2,7 +2,7 @@ use crate::vrf::{IetfVrfSignature, RingVrfSignature};
 use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use jam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32, Octets};
+use rjam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32, Octets};
 use thiserror::Error;
 
 type Blake2b256 = Blake2b<U32>;

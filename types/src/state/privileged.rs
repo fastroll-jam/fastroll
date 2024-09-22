@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::AccountAddress;
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::AccountAddress;
 
 #[derive(Clone, Copy)]
 pub struct PrivilegedServices {

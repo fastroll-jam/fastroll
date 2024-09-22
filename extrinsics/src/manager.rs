@@ -1,7 +1,7 @@
 // Convert Vec<ExtrinsicEntry> to Vec<SomeExtrinsicType>
 use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
-use jam_codec::JamDecode;
-use jam_types::{
+use rjam_codec::JamDecode;
+use rjam_types::{
     extrinsics::{
         assurances::AssuranceExtrinsicEntry, guarantees::GuaranteeExtrinsicEntry,
         preimages::PreimageLookupExtrinsicEntry, tickets::TicketExtrinsicEntry,

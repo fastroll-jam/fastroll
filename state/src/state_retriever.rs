@@ -9,10 +9,10 @@ use crate::{
         utils::{bytes_to_lsb_bits, MerklizationError},
     },
 };
-use jam_codec::{JamDecode, JamEncode};
-use jam_common::{Hash32, Octets};
-use jam_db::manager::GLOBAL_KVDB_MANAGER;
-use jam_types::state::{
+use rjam_codec::{JamDecode, JamEncode};
+use rjam_common::{Hash32, Octets};
+use rjam_db::manager::GLOBAL_KVDB_MANAGER;
+use rjam_types::state::{
     authorizer::{AuthorizerPool, AuthorizerQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,

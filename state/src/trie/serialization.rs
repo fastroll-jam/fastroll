@@ -1,6 +1,6 @@
 use crate::global_state::{GlobalState, GlobalStateError};
-use jam_codec::JamEncode;
-use jam_common::{Hash32, Octets};
+use rjam_codec::JamEncode;
+use rjam_common::{Hash32, Octets};
 use std::collections::HashMap;
 // State Serialization
 

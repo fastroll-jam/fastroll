@@ -1,8 +1,8 @@
 pub mod header;
 
 use header::BlockHeader;
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_extrinsics::Extrinsics;
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_extrinsics::Extrinsics;
 
 pub struct Block {
     header: BlockHeader,

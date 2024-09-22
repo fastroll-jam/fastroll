@@ -1,12 +1,12 @@
-use jam_codec::{
+use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use jam_common::{
+use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, BandersnatchRingRoot, Hash32,
     Ticket, ValidatorKey, ValidatorSet, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
     VALIDATOR_COUNT,
 };
-use jam_crypto::utils::{blake2b_256_first_4bytes, CryptoError};
+use rjam_crypto::utils::{blake2b_256_first_4bytes, CryptoError};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 

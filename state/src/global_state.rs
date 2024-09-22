@@ -1,8 +1,8 @@
 use crate::trie::utils::MerklizationError;
-use jam_codec::JamCodecError;
-use jam_crypto::utils::CryptoError;
-use jam_db::manager::KVDBError;
-use jam_types::state::{
+use rjam_codec::JamCodecError;
+use rjam_crypto::utils::CryptoError;
+use rjam_db::manager::KVDBError;
+use rjam_types::state::{
     authorizer::{AuthorizerPool, AuthorizerQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,

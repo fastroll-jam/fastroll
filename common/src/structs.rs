@@ -2,7 +2,7 @@ use crate::{
     types::{Hash32, Octets, UnsignedGas},
     AccountAddress, TokenBalance, HASH32_EMPTY, TRANSFER_MEMO_SIZE,
 };
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},

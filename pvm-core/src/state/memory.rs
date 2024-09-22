@@ -1,5 +1,5 @@
 use crate::constants::PAGE_SIZE;
-use jam_common::Octets;
+use rjam_common::Octets;
 use thiserror::Error;
 
 pub type MemAddress = u32;

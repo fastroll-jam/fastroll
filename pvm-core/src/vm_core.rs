@@ -12,7 +12,7 @@ use crate::{
     types::{common::ExitReason, error::PVMError},
 };
 use bit_vec::BitVec;
-use jam_common::{Octets, UnsignedGas};
+use rjam_common::{Octets, UnsignedGas};
 
 pub struct SingleInvocationResult {
     pub exit_reason: ExitReason,

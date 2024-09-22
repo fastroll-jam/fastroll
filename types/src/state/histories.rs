@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::Hash32;
+use rjam_common::Hash32;
 
 pub struct BlockHistories(pub Vec<BlockHistoryEntry>);
 impl_jam_codec_for_newtype!(BlockHistories, Vec<BlockHistoryEntry>);

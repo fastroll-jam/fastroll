@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::{ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use std::fmt::{Display, Formatter};
 
 /// Represents a ValidatorSet that will become active in a future epoch.

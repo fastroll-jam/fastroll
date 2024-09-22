@@ -1,9 +1,9 @@
-use jam_common::{Hash32, Octets};
-use jam_types::{
+use lazy_static::lazy_static;
+use rjam_common::{Hash32, Octets};
+use rjam_types::{
     extrinsics::disputes::{Culprit, Fault, Verdict},
     state::timeslot::Timeslot,
 };
-use lazy_static::lazy_static;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},

@@ -1,13 +1,13 @@
 [package]
-name = "jam-host-interface"
+name = "rjam-host-interface"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-crypto = { workspace = true }
-jam-state = { workspace = true }
-jam-types = { workspace = true }
-jam-pvm-core = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-state = { workspace = true }
+rjam-types = { workspace = true }
+rjam-pvm-core = { workspace = true }
 thiserror = { workspace = true }

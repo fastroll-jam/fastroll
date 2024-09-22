@@ -1,10 +1,10 @@
 [package]
-name = "jam-crypto"
+name = "rjam-crypto"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-common = { workspace = true }
+rjam-common = { workspace = true }
 ark-ec-vrfs = { workspace = true }
 blake2 = { workspace = true }
 hex = { workspace = true }

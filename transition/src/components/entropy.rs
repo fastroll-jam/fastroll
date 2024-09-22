@@ -1,7 +1,7 @@
 use crate::{Transition, TransitionError};
-use jam_common::Hash32;
-use jam_crypto::utils::blake2b_256;
-use jam_types::state::{entropy::EntropyAccumulator, timeslot::Timeslot};
+use rjam_common::Hash32;
+use rjam_crypto::utils::blake2b_256;
+use rjam_types::state::{entropy::EntropyAccumulator, timeslot::Timeslot};
 use std::fmt::Display;
 
 #[derive(Clone, Debug)]

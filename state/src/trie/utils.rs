@@ -1,8 +1,8 @@
 use bit_vec::BitVec;
 use blake2::Digest;
-use jam_common::{Hash32, Octets};
-use jam_crypto::utils::CryptoError;
-use jam_db::manager::KVDBError;
+use rjam_common::{Hash32, Octets};
+use rjam_crypto::utils::CryptoError;
+use rjam_db::manager::KVDBError;
 use std::ops::{Bound, RangeBounds};
 use thiserror::Error;
 

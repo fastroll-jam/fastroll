@@ -1,4 +1,4 @@
-use jam_common::UnsignedGas;
+use rjam_common::UnsignedGas;
 
 pub const BASE_GAS_USAGE: UnsignedGas = 10;
 pub const REGISTERS_COUNT: usize = 13;

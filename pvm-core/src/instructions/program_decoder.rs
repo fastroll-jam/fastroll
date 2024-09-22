@@ -11,8 +11,8 @@ use crate::{
     utils::vm_utils::VMUtils,
 };
 use bit_vec::BitVec;
-use jam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
-use jam_common::Octets;
+use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use rjam_common::Octets;
 
 pub struct FormattedProgram {
     pub read_only_len: u32,      // |o|

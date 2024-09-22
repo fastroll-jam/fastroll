@@ -1,9 +1,9 @@
 [package]
-name = "jam-block"
+name = "rjam-block"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-extrinsics = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-extrinsics = { workspace = true }

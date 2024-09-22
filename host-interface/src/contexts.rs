@@ -1,10 +1,10 @@
 use crate::inner_vm::InnerPVM;
-use jam_codec::{JamDecodeFixed, JamEncode};
-use jam_common::{AccountAddress, DeferredTransfer, Hash32};
-use jam_crypto::utils::blake2b_256;
-use jam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
-use jam_state::state_retriever::StateRetriever;
-use jam_types::state::{
+use rjam_codec::{JamDecodeFixed, JamEncode};
+use rjam_common::{AccountAddress, DeferredTransfer, Hash32};
+use rjam_crypto::utils::blake2b_256;
+use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
+use rjam_state::state_retriever::StateRetriever;
+use rjam_types::state::{
     authorizer::AuthorizerQueue,
     privileged::PrivilegedServices,
     services::{ServiceAccountState, ServiceAccounts},

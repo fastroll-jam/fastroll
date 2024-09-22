@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::{Ed25519PubKey, Hash32};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{Ed25519PubKey, Hash32};
 
 // TODO: these sets should always be sorted
 pub struct DisputesState {

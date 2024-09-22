@@ -1,9 +1,9 @@
 pub mod components;
 
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
-use jam_crypto::utils::CryptoError;
-use jam_state::global_state::GlobalStateError;
-use jam_types::state::safrole::FallbackKeyError;
+use rjam_crypto::utils::CryptoError;
+use rjam_state::global_state::GlobalStateError;
+use rjam_types::state::safrole::FallbackKeyError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

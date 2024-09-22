@@ -4,7 +4,7 @@ mod tests {
         asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope, EPOCH_LENGTH},
         utils::{map_error_to_custom_code, StateBuilder},
     };
-    use jam_transition::{
+    use rjam_transition::{
         components::{
             entropy::EntropyAccumulatorContext,
             safrole::SafroleStateContext,
@@ -15,7 +15,7 @@ mod tests {
         },
         Transition,
     };
-    use jam_types::state::timeslot::Timeslot;
+    use rjam_types::state::timeslot::Timeslot;
     use std::{error::Error, fs};
 
     //

@@ -1,7 +1,7 @@
-use jam_codec::{
+use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use jam_common::{Hash32, CORE_COUNT, MAX_AUTH_QUEUE_SIZE};
+use rjam_common::{Hash32, CORE_COUNT, MAX_AUTH_QUEUE_SIZE};
 
 pub struct AuthorizerPool(pub [Vec<Hash32>; CORE_COUNT]); // Vec<Hash32> length up to `O = 8`
 impl_jam_codec_for_newtype!(AuthorizerPool, [Vec<Hash32>; CORE_COUNT]);

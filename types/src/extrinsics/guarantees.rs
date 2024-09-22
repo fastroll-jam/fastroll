@@ -1,5 +1,5 @@
-use jam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use jam_common::{Ed25519Signature, WorkReport};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{Ed25519Signature, WorkReport};
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct GuaranteeExtrinsicEntry {

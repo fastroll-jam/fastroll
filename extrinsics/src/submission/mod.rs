@@ -1,10 +1,10 @@
 // TODO: add networking layer to communicate with peer JAM validators via `JAMSNP` protocol
 // TODO: add trait for generic representation of extrinsic submission behaviours (e.g. construct, submit)
 
-use jam_common::{BandersnatchRingVrfProof, X_T};
-use jam_crypto::{validator_set_to_ring, vrf::Prover};
-use jam_state::state_retriever::StateRetriever;
-use jam_types::extrinsics::tickets::TicketExtrinsicEntry;
+use rjam_common::{BandersnatchRingVrfProof, X_T};
+use rjam_crypto::{validator_set_to_ring, vrf::Prover};
+use rjam_state::state_retriever::StateRetriever;
+use rjam_types::extrinsics::tickets::TicketExtrinsicEntry;
 
 pub(crate) fn submit_ticket_extrinsic(retriever: &StateRetriever) {
     let prover_idx: usize = 0; // FIXME: proper indexing required for validator identity

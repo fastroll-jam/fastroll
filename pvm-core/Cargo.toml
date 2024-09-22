@@ -1,12 +1,12 @@
 [package]
-name = "jam-pvm-core"
+name = "rjam-pvm-core"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jam-codec = { workspace = true }
-jam-common = { workspace = true }
-jam-crypto = { workspace = true }
-jam-state = { workspace = true }
+rjam-codec = { workspace = true }
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-state = { workspace = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }

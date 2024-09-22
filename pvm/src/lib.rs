@@ -1,9 +1,9 @@
-use jam_common::{AccountAddress, Octets, UnsignedGas};
-use jam_host_interface::{
+use rjam_common::{AccountAddress, Octets, UnsignedGas};
+use rjam_host_interface::{
     contexts::InvocationContext,
     host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
 };
-use jam_pvm_core::{
+use rjam_pvm_core::{
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
     },

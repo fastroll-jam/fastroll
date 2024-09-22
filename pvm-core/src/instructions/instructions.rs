@@ -10,7 +10,7 @@ use crate::{
     utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
 };
-use jam_codec::{JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
 
 pub struct InstructionSet;
 
