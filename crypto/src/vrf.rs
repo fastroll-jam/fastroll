@@ -1,8 +1,8 @@
+/// The following code originates from the `bandersnatch-vrfs-spec` repository.
+/// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bandersnatch};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bandersnatch::{IetfProof, Input, Output, Public, RingContext, RingProof, Secret};
-/// The following code originates from the `bandersnatch-vrfs-spec` repository.
-/// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
 use rjam_common::Hash32;
 
 // pub const RING_SIZE: usize = 1023;
