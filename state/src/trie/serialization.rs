@@ -1,3 +1,4 @@
+// FIXME: this module will be replaced by `merkle_db`
 use crate::global_state::{GlobalState, GlobalStateError};
 use rjam_codec::JamEncode;
 use rjam_common::{Hash32, Octets};
