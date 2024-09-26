@@ -8,6 +8,7 @@ members = [
     "db",
     "extrinsics",
     "host-interface",
+    "merkle-trie",
     "pvm",
     "pvm-core",
     "pvm-invocation",

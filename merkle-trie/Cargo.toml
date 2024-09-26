@@ -1,12 +1,13 @@
 [package]
-name = "rjam-db"
+name = "rjam-merkle-trie"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
-dotenv = { workspace = true }
-lazy_static = { workspace = true }
+bit-vec = { workspace = true }
+lru = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }
