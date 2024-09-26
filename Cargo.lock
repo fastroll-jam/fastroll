@@ -862,11 +862,8 @@ dependencies = [
 name = "rjam-db"
 version = "0.1.0"
 dependencies = [
- "bit-vec",
  "dotenv",
  "lazy_static",
- "lru",
- "rjam-codec",
  "rjam-common",
  "rjam-crypto",
  "rocksdb",
@@ -895,6 +892,19 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-state",
  "rjam-types",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-merkle-trie"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "lru",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rocksdb",
  "thiserror",
 ]
 
