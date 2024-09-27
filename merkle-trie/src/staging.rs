@@ -8,13 +8,19 @@ use std::{
 };
 
 /// Staging node struct to be added to `WriteBatch` of the `MerkleDB`.
-pub(crate) struct StagingNode {
+pub struct StagingNode {
     /// Blake2b-256 hash of the `node_data` field.
     /// Used as a key to a new entry to be added in the `MerkleDB`.
     hash: Hash32,
     /// Encoded node data after state transition.
     /// Data of the new entry to be added in the `MerkleDB`.
     node_data: Octets,
+}
+
+impl StagingNode {
+    pub fn new(hash: Hash32, node_data: Octets) -> Self {
+        Self { hash, node_data }
+    }
 }
 
 /// Generates a collection of `StagingNode`s from `AffectedNode`s.
@@ -44,7 +50,7 @@ pub(crate) struct StagingNode {
 /// - The `HashMap` allows efficient lookup of updated child hashes for branch nodes in each iteration.
 /// - For leaf additions, two new nodes are created: a leaf and a branch.
 /// - For leaf removals, only the parent node is updated to point to the sibling.
-fn generate_staging_set(
+pub fn generate_staging_set(
     affected_nodes_by_depth: BTreeMap<u8, HashSet<AffectedNode>>,
 ) -> Result<HashMap<Hash32, StagingNode>, MerkleError> {
     let mut staging_set: HashMap<Hash32, StagingNode> = HashMap::new();
@@ -157,7 +163,7 @@ fn generate_staging_set(
 }
 
 /// Generates `WriteBatch` from `staging_set`, simply converting `StagingNode`s into `MerkleDB` entries.
-fn generate_write_batch(
+pub fn generate_write_batch(
     staging_set: HashMap<Hash32, StagingNode>,
 ) -> Result<WriteBatch, MerkleError> {
     let mut batch = WriteBatch::default();

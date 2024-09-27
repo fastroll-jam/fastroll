@@ -49,7 +49,7 @@ pub(crate) enum NodeType {
 }
 
 /// Leaf node type.
-pub(crate) enum LeafType {
+pub enum LeafType {
     /// Used for leaf nodes where the encoded state data is larger than 32 bytes.
     Embedded,
     /// Used for leaf nodes where the encoded state data length exceeds 32 bytes.
@@ -78,7 +78,7 @@ impl ChildType {
 
 /// Leaf node write operations.
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) enum WriteOp {
+pub enum WriteOp {
     Update(Hash32, Octets),
     Add(Hash32, Octets),
     Remove(Hash32),
@@ -86,7 +86,7 @@ pub(crate) enum WriteOp {
 
 /// Snapshot of the current state of the nodes to be affected by the state transition.
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) enum AffectedNode {
+pub enum AffectedNode {
     Branch(AffectedBranch),
     Leaf(AffectedLeaf),
 }

@@ -16,7 +16,7 @@ use std::{
 
 /// Merkle trie node representation.
 #[derive(Clone, Debug)]
-struct Node {
+pub struct Node {
     /// Identity of the node, which is Blake2b-256 hash of the `data` field. Used as key to node entry of the MerkleDB.
     hash: Hash32,
     /// 512-bit encoded node data.
@@ -46,7 +46,7 @@ impl Node {
 }
 
 /// Database and cache for storing and managing Merkle trie nodes.
-struct MerkleDB {
+pub struct MerkleDB {
     /// RocksDB instance.
     db: Arc<DB>,
     /// LRU cache for storing Merkle trie nodes.
@@ -115,7 +115,7 @@ impl MerkleDB {
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
-    fn commit_nodes_write_batch(&mut self, write_batch: WriteBatch) -> Result<(), MerkleError> {
+    pub fn commit_nodes_write_batch(&mut self, write_batch: WriteBatch) -> Result<(), MerkleError> {
         let write_options = WriteOptions::default();
         self.db.write_opt(write_batch, &write_options)?;
         Ok(())
@@ -151,7 +151,7 @@ impl MerkleDB {
     /// # Note
     /// For `Regular` leaf nodes, additional steps may be required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
-    fn retrieve(&mut self, state_key: &[u8]) -> Result<(LeafType, Octets), MerkleError> {
+    pub fn retrieve(&mut self, state_key: &[u8]) -> Result<(LeafType, Octets), MerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
         let mut current_node = self.get_node(&root_hash)?; // initialize with the root node
@@ -285,7 +285,7 @@ impl MerkleDB {
     /// # Note
     /// This function should be called iteratively for all leaf nodes affected by a state transition,
     /// typically corresponding to all `StateCache` entries marked as `Dirty`.
-    fn extract_path_nodes_to_leaf(
+    pub fn extract_path_nodes_to_leaf(
         &mut self,
         state_key: &[u8],
         write_op: WriteOp,
