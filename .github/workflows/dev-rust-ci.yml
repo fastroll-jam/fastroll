@@ -20,6 +20,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          submodules: true
       - name: Install nextest
         run: cargo install cargo-nextest --locked
       - name: Run tests
