@@ -1,11 +1,11 @@
 use crate::inner_vm::InnerPVM;
 use rjam_codec::{JamDecodeFixed, JamEncode};
-use rjam_common::{AccountAddress, DeferredTransfer, Hash32};
+use rjam_common::{Address, DeferredTransfer, Hash32};
 use rjam_crypto::utils::blake2b_256;
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::state_retriever::StateRetriever;
 use rjam_types::state::{
-    authorizer::AuthorizerQueue,
+    authorizer::AuthQueue,
     privileged::PrivilegedServices,
     services::{ServiceAccountState, ServiceAccounts},
     timeslot::Timeslot,
@@ -66,9 +66,9 @@ impl AccumulateContextPair {
 #[derive(Clone)]
 pub struct AccumulateContext {
     pub(crate) service_account: Option<ServiceAccountState>, // s; current service account
-    pub(crate) authorizer_queue: AuthorizerQueue,            // c
+    pub(crate) auth_queue: AuthQueue,                        // c
     pub(crate) staging_validator_set: StagingValidatorSet,   // v
-    pub(crate) new_service_index: AccountAddress,            // i
+    pub(crate) new_service_index: Address,                   // i
     pub(crate) deferred_transfers: Vec<DeferredTransfer>,    // t
     pub(crate) new_accounts: ServiceAccounts,                // n
     pub(crate) privileged_services: PrivilegedServices,      // p
@@ -78,12 +78,12 @@ impl AccumulateContext {
     pub fn initialize_context(
         service_accounts: &ServiceAccounts,
         target_account: &ServiceAccountState,
-        target_address: AccountAddress,
+        target_address: Address,
     ) -> Result<Self, PVMError> {
         // Get current global state components
         let state_retriever = StateRetriever::new();
         let privileged_services = state_retriever.get_privileged_services()?;
-        let authorizer_queue = state_retriever.get_authorizer_queue()?;
+        let auth_queue = state_retriever.get_auth_queue()?;
         let staging_validator_set = state_retriever.get_staging_validator_set()?;
         let entropy_0 = state_retriever.get_entropy_accumulator()?.current();
         let timeslot = state_retriever.get_recent_timeslot()?;
@@ -98,7 +98,7 @@ impl AccumulateContext {
                 timeslot,
             ),
             privileged_services,
-            authorizer_queue,
+            auth_queue,
             staging_validator_set,
             new_accounts: ServiceAccounts::default(),
         };
@@ -108,10 +108,10 @@ impl AccumulateContext {
 
     fn new_account_address(
         service_accounts_state: &ServiceAccounts,
-        target_address: AccountAddress,
+        target_address: Address,
         entropy: Hash32,
         timeslot: Timeslot,
-    ) -> AccountAddress {
+    ) -> Address {
         // TODO: check return type
         // TODO: confirm how to deal with hash of a tuple; H(address, entropy, timestamp)
         // TODO: check GP appendix B.4.
@@ -122,8 +122,7 @@ impl AccumulateContext {
 
         let source_hash = blake2b_256(&buf[..]).unwrap();
         let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4).unwrap() as u64
-            & ((1 << 32) - (1 << 9)) + (1 << 8))
-            as AccountAddress;
+            & ((1 << 32) - (1 << 9)) + (1 << 8)) as Address;
 
         service_accounts_state.check(initial_check_address)
     }

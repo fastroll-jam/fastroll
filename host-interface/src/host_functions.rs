@@ -6,8 +6,8 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    AccountAddress, DeferredTransfer, Hash32, Octets, TokenBalance, UnsignedGas, ValidatorKey,
-    CORE_COUNT, HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    Address, Balance, DeferredTransfer, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT,
+    HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::utils::blake2b_256;
 use rjam_pvm_core::{
@@ -132,7 +132,7 @@ impl HostFunction {
     }
 
     pub fn host_lookup(
-        target_address: AccountAddress,
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
     ) -> Result<HostCallResult, PVMError> {
@@ -142,7 +142,7 @@ impl HostFunction {
             .ok_or(PVMError::HostCallError(AccountNotFound))
             .cloned()?;
 
-        let account_address = registers[0].value as AccountAddress;
+        let account_address = registers[0].value as Address;
         let [hash_offset, buffer_offset] = [registers[1].value, registers[2].value];
         let buffer_size = registers[3].value as usize;
 
@@ -186,7 +186,7 @@ impl HostFunction {
     }
 
     pub fn host_read(
-        target_address: AccountAddress,
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         _context: &mut InvocationContext,
@@ -197,7 +197,7 @@ impl HostFunction {
             .ok_or(PVMError::HostCallError(AccountNotFound))
             .cloned()?;
 
-        let account_address = registers[0].value as AccountAddress;
+        let account_address = registers[0].value as Address;
         let [key_offset, key_size, buffer_offset] =
             [registers[1].value, registers[2].value, registers[3].value];
         let buffer_size = registers[4].value as usize;
@@ -244,7 +244,7 @@ impl HostFunction {
 
     // TODO: check if `target_address` is provided as an arg - not specified in the GP
     pub fn host_write(
-        target_address: AccountAddress,
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         _context: &mut InvocationContext,
@@ -300,7 +300,7 @@ impl HostFunction {
     }
 
     pub fn host_info(
-        target_address: AccountAddress,
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         _context: &mut InvocationContext,
@@ -311,7 +311,7 @@ impl HostFunction {
             .ok_or(PVMError::HostCallError(AccountNotFound))
             .cloned()?;
 
-        let account_address = registers[0].value as AccountAddress;
+        let account_address = registers[0].value as Address;
         let buffer_offset = registers[1].value;
 
         let account = if account_address == u32::MAX || account_address == target_address {
@@ -362,7 +362,7 @@ impl HostFunction {
         };
         let x = acc_pair.get_mut_x();
 
-        let [empower, assign, designate, ..] = registers.map(|r| r.value as AccountAddress);
+        let [empower, assign, designate, ..] = registers.map(|r| r.value as Address);
 
         x.privileged_services.empower_service_index = empower;
         x.privileged_services.assign_service_index = assign;
@@ -407,7 +407,7 @@ impl HostFunction {
             }
         }
 
-        x.authorizer_queue.0[core_index] = queue_assignment;
+        x.auth_queue.0[core_index] = queue_assignment;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
@@ -533,9 +533,8 @@ impl HostFunction {
 
         let new_service_index = x.new_service_index;
 
-        let bump = |a: AccountAddress| -> AccountAddress {
-            ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8))
-                as AccountAddress
+        let bump = |a: Address| -> Address {
+            ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8)) as Address
         };
 
         // FIXME: this operation needs `&ServiceAccounts` for the `check` operation
@@ -597,7 +596,7 @@ impl HostFunction {
     }
 
     pub fn host_transfer(
-        target_address: AccountAddress,
+        target_address: Address,
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
@@ -614,7 +613,7 @@ impl HostFunction {
         let [dest, amount_low, amount_high, gas_limit_low, gas_limit_high, offset] =
             registers.map(|r| r.value);
 
-        let amount = ((amount_high as u64) << 32 | amount_low as u64) as TokenBalance;
+        let amount = ((amount_high as u64) << 32 | amount_low as u64) as Balance;
         let gas_limit = ((gas_limit_high as u64) << 32 | gas_limit_low as u64) as UnsignedGas;
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
@@ -628,7 +627,7 @@ impl HostFunction {
 
         let transfer = DeferredTransfer {
             from: target_address,
-            to: dest as AccountAddress,
+            to: dest as Address,
             amount,
             memo: transfer_memo,
             gas_limit,
@@ -679,7 +678,7 @@ impl HostFunction {
     }
 
     pub fn host_quit(
-        target_address: AccountAddress,
+        target_address: Address,
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
@@ -716,7 +715,7 @@ impl HostFunction {
 
         let transfer = DeferredTransfer {
             from: target_address,
-            to: dest as AccountAddress,
+            to: dest as Address,
             amount,
             memo: transfer_memo,
             gas_limit: gas,
@@ -878,7 +877,7 @@ impl HostFunction {
     //
 
     pub fn host_historical_lookup(
-        target_address: AccountAddress,
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
         _context: &mut InvocationContext,

@@ -80,8 +80,8 @@ pub(crate) fn serialize_state(
 ) -> Result<HashMap<Hash32, Octets>, GlobalStateError> {
     let mut map = HashMap::new();
 
-    map.insert(construct_key(M::Alpha), state.authorizer_pool.encode()?); // alpha
-    map.insert(construct_key(M::Phi), state.authorizer_queue.encode()?); // phi
+    map.insert(construct_key(M::Alpha), state.auth_pool.encode()?); // alpha
+    map.insert(construct_key(M::Phi), state.auth_queue.encode()?); // phi
     map.insert(construct_key(M::Beta), state.block_histories.encode()?); // beta
     map.insert(construct_key(M::Gamma), state.safrole_state.encode()?); // gamma
     map.insert(construct_key(M::Psi), state.disputes.encode()?); // psi

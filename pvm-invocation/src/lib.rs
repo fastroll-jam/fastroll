@@ -1,6 +1,6 @@
 use rjam_codec::JamEncode;
 use rjam_common::{
-    AccountAddress, DeferredTransfer, Hash32, Octets, RefinementContext, TokenBalance, UnsignedGas,
+    Address, Balance, DeferredTransfer, Hash32, Octets, RefinementContext, UnsignedGas,
     WorkExecutionError, WorkExecutionOutput, WorkPackage, MAX_SERVICE_CODE_SIZE,
 };
 use rjam_crypto::utils::octets_to_hash32;
@@ -103,7 +103,7 @@ impl PVMInvocation {
     pub fn refine(
         code_hash: Hash32,
         gas_limit: UnsignedGas,
-        service_index: AccountAddress,
+        service_index: Address,
         work_package_hash: Hash32,
         work_payload: Octets,
         refinement_context: RefinementContext,
@@ -198,7 +198,7 @@ impl PVMInvocation {
     /// Represents `Psi_A` of the GP
     pub fn accumulate(
         service_accounts: &ServiceAccounts,
-        target_address: AccountAddress,
+        target_address: Address,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulateOperand>,
     ) -> Result<AccumulateResult, PVMError> {
@@ -259,7 +259,7 @@ impl PVMInvocation {
 
     pub fn on_transfer(
         service_accounts: &ServiceAccounts,
-        destination_address: AccountAddress,
+        destination_address: Address,
         transfers: Vec<DeferredTransfer>,
     ) -> Result<ServiceAccountState, PVMError> {
         let mut destination_account = service_accounts
@@ -267,7 +267,7 @@ impl PVMInvocation {
             .ok_or(PVMError::HostCallError(AccountNotFound))?
             .clone();
 
-        let total_amount: TokenBalance = transfers.iter().map(|t| t.amount).sum();
+        let total_amount: Balance = transfers.iter().map(|t| t.amount).sum();
         destination_account.balance += total_amount;
 
         let code = destination_account.get_code().cloned();

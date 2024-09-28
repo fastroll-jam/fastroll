@@ -1,13 +1,13 @@
 use crate::state::timeslot::Timeslot;
-use rjam_common::{AccountAddress, Hash32, Octets, TokenBalance, UnsignedGas};
+use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
 use std::collections::BTreeMap;
 
-pub const B_S: TokenBalance = 100; // The basic minimum balance which all services require
-pub const B_I: TokenBalance = 10; // The additional minimum balance required per item of elective service state
-pub const B_L: TokenBalance = 1; // The additional minimum balance required per octet of elective service state
+pub const B_S: Balance = 100; // The basic minimum balance which all services require
+pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
+pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
 #[derive(Default, Clone)]
-pub struct ServiceAccounts(pub BTreeMap<AccountAddress, ServiceAccountState>);
+pub struct ServiceAccounts(pub BTreeMap<Address, ServiceAccountState>);
 
 #[derive(Clone)]
 pub struct ServiceAccountState {
@@ -15,17 +15,17 @@ pub struct ServiceAccountState {
     pub preimages: BTreeMap<Hash32, Octets>,             // p
     pub lookups: BTreeMap<(Hash32, u32), Vec<Timeslot>>, // l; Vec<u32> length up to 3
     pub code_hash: Hash32,                               // c
-    pub balance: TokenBalance,                           // b
+    pub balance: Balance,                                // b
     pub gas_limit_accumulate: UnsignedGas,               // g
     pub gas_limit_on_transfer: UnsignedGas,              // m
 }
 
 impl ServiceAccounts {
-    fn contains_key(&self, address: &AccountAddress) -> bool {
+    fn contains_key(&self, address: &Address) -> bool {
         self.0.contains_key(address)
     }
 
-    pub fn check(&self, address: AccountAddress) -> AccountAddress {
+    pub fn check(&self, address: Address) -> Address {
         let mut check_address = address;
         loop {
             if !self.contains_key(&check_address) {
@@ -33,11 +33,11 @@ impl ServiceAccounts {
             }
 
             check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
-                + (1 << 8)) as AccountAddress;
+                + (1 << 8)) as Address;
         }
     }
 
-    pub fn get_account(&self, address: &AccountAddress) -> Option<&ServiceAccountState> {
+    pub fn get_account(&self, address: &Address) -> Option<&ServiceAccountState> {
         self.0.get(address)
     }
 }
@@ -80,9 +80,9 @@ impl ServiceAccountState {
     }
 
     // Get the account threshold balance (t)
-    pub fn get_threshold_balance(&self) -> TokenBalance {
-        let i = self.get_item_counts_footprint() as TokenBalance;
-        let l = self.get_total_octets_footprint() as TokenBalance;
+    pub fn get_threshold_balance(&self) -> Balance {
+        let i = self.get_item_counts_footprint() as Balance;
+        let l = self.get_total_octets_footprint() as Balance;
 
         B_S + B_I * i + B_L * l
     }

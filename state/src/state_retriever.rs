@@ -13,7 +13,7 @@ use rjam_codec::{JamDecode, JamEncode};
 use rjam_common::{Hash32, Octets};
 use rjam_db::manager::GLOBAL_KVDB_MANAGER;
 use rjam_types::state::{
-    authorizer::{AuthorizerPool, AuthorizerQueue},
+    authorizer::{AuthPool, AuthQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,
     histories::BlockHistories,
@@ -45,14 +45,14 @@ impl StateRetriever {
         retrieve(&db_manager, root_hash, merkle_path)
     }
 
-    pub fn get_authorizer_pool(&self) -> Result<AuthorizerPool, GlobalStateError> {
+    pub fn get_auth_pool(&self) -> Result<AuthPool, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Alpha))?;
-        Ok(AuthorizerPool::decode(&mut serialized.as_slice())?)
+        Ok(AuthPool::decode(&mut serialized.as_slice())?)
     }
 
-    pub fn get_authorizer_queue(&self) -> Result<AuthorizerQueue, GlobalStateError> {
+    pub fn get_auth_queue(&self) -> Result<AuthQueue, GlobalStateError> {
         let serialized = self.retrieve_state(construct_key(M::Phi))?;
-        Ok(AuthorizerQueue::decode(&mut serialized.as_slice())?)
+        Ok(AuthQueue::decode(&mut serialized.as_slice())?)
     }
 
     pub fn get_block_histories(&self) -> Result<BlockHistories, GlobalStateError> {

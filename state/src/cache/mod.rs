@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use rjam_common::{AccountAddress, Hash32};
+use rjam_common::{Address, Hash32};
 use rjam_types::state::{
     safrole::SafroleState,
     services::{ServiceAccountState, ServiceAccounts},
@@ -132,7 +132,7 @@ impl StateCache {
 
     pub fn get_service_account_cache(
         &self,
-        address: &AccountAddress,
+        address: &Address,
     ) -> Result<Option<ServiceAccountState>, StateCacheError> {
         let hash = self.get_current_hash();
 
@@ -148,7 +148,7 @@ impl StateCache {
 
     pub fn update_service_account_cache(
         &self,
-        address: AccountAddress,
+        address: Address,
         account_state: ServiceAccountState,
     ) -> Result<(), StateCacheError> {
         let hash = self.get_current_hash();
@@ -171,7 +171,7 @@ impl StateCache {
 
     pub fn remove_service_account_cache(
         &self,
-        address: &AccountAddress,
+        address: &Address,
     ) -> Result<Option<ServiceAccountState>, StateCacheError> {
         let hash = self.get_current_hash();
 

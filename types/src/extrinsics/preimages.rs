@@ -1,8 +1,8 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{AccountAddress, Octets};
+use rjam_common::{Address, Octets};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PreimageLookupExtrinsicEntry {
-    service_index: AccountAddress, // N_S
+    service_index: Address, // N_S
     preimage_data: Octets,
 }

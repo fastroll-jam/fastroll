@@ -1,6 +1,6 @@
 use crate::{
     types::{Hash32, Octets, UnsignedGas},
-    AccountAddress, TokenBalance, HASH32_EMPTY, TRANSFER_MEMO_SIZE,
+    Address, Balance, HASH32_EMPTY, TRANSFER_MEMO_SIZE,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
@@ -115,17 +115,17 @@ impl Ord for Ticket {
 
 #[derive(JamEncode)]
 pub struct WorkPackage {
-    pub auth_token: Octets,                 // j
-    pub authorizer_address: AccountAddress, // h; service which hosts the authorization code
-    pub auth_code_hash: Hash32,             // c
-    pub param_blob: Octets,                 // p
-    pub context: RefinementContext,         // x
-    pub work_items: Vec<WorkItem>,          // w; length range [1, 4]
+    pub auth_token: Octets,          // j
+    pub authorizer_address: Address, // h; service which hosts the authorization code
+    pub auth_code_hash: Hash32,      // c
+    pub param_blob: Octets,          // p
+    pub context: RefinementContext,  // x
+    pub work_items: Vec<WorkItem>,   // w; length range [1, 4]
 }
 
 #[derive(JamEncode)]
 pub struct WorkItem {
-    service_index: AccountAddress,             // s
+    service_index: Address,                    // s
     service_code_hash: Hash32,                 // c
     payload_blob: Octets,                      // y
     gas_limit: UnsignedGas,                    // g
@@ -196,7 +196,7 @@ impl JamDecode for AvailabilitySpecs {
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkItemResult {
-    service_index: AccountAddress,          // s; N_S
+    service_index: Address,                 // s; N_S
     service_code_hash: Hash32,              // c
     payload_hash: Hash32,                   // l
     gas_prioritization_ratio: UnsignedGas,  // g
@@ -284,9 +284,9 @@ impl JamDecode for WorkExecutionError {
 
 #[derive(Clone, Copy, JamEncode)]
 pub struct DeferredTransfer {
-    pub from: AccountAddress,           // s
-    pub to: AccountAddress,             // d
-    pub amount: TokenBalance,           // a
+    pub from: Address,                  // s
+    pub to: Address,                    // d
+    pub amount: Balance,                // a
     pub memo: [u8; TRANSFER_MEMO_SIZE], // m
     pub gas_limit: UnsignedGas,         // g
 }

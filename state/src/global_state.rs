@@ -3,7 +3,7 @@ use rjam_codec::JamCodecError;
 use rjam_crypto::utils::CryptoError;
 use rjam_db::manager::KVDBError;
 use rjam_types::state::{
-    authorizer::{AuthorizerPool, AuthorizerQueue},
+    authorizer::{AuthPool, AuthQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,
     histories::BlockHistories,
@@ -40,8 +40,8 @@ pub struct GlobalState {
     pub service_accounts: ServiceAccounts,          // sigma
     pub privileged_services: PrivilegedServices,    // chi
     pub pending_reports: PendingReports,            // rho
-    pub authorizer_pool: AuthorizerPool,            // alpha
-    pub authorizer_queue: AuthorizerQueue,          // phi
+    pub auth_pool: AuthPool,                        // alpha
+    pub auth_queue: AuthQueue,                      // phi
     pub block_histories: BlockHistories, // beta; Vec<BlockHistoryEntry> length up to `H = 8`.
     pub disputes: DisputesState,         // psi
     pub validator_statistics: ValidatorStats, // pi

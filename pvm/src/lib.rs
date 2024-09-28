@@ -1,4 +1,4 @@
-use rjam_common::{AccountAddress, Octets, UnsignedGas};
+use rjam_common::{Address, Octets, UnsignedGas};
 use rjam_host_interface::{
     contexts::InvocationContext,
     host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
@@ -223,7 +223,7 @@ impl PVM {
     ///
     /// Represents `Psi_M` of the GP
     pub fn common_invocation(
-        target_address: AccountAddress,
+        target_address: Address,
         standard_program: &[u8],
         pc: MemAddress,
         gas: UnsignedGas,
@@ -267,7 +267,7 @@ impl PVM {
     /// Represents `Psi_H` of the GP
     fn extended_invocation(
         &mut self,
-        target_address: AccountAddress,
+        target_address: Address,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
@@ -298,7 +298,7 @@ impl PVM {
 
     fn execute_host_function(
         &mut self,
-        target_address: AccountAddress,
+        target_address: Address,
         context: &mut InvocationContext,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
