@@ -3,6 +3,10 @@ name = "rjam-codec"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+derive = ["rjam-codec-derive"]
+
 [dependencies]
+rjam-codec-derive = { workspace = true, optional = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }

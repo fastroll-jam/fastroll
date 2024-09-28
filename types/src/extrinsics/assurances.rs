@@ -4,7 +4,7 @@ use rjam_codec::{
 };
 use rjam_common::{Ed25519Signature, Hash32, CORE_COUNT};
 
-#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub struct AssuranceExtrinsicEntry {
     anchor_parent_hash: Hash32,    // a
     assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator

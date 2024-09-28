@@ -3,7 +3,7 @@ use rjam_codec::{
 };
 use rjam_common::VALIDATOR_COUNT;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, JamEncode, JamDecode)]
 pub struct ValidatorStatEntry {
     block_production_count: u32, // b; the number of blocks produced by the validator.
     ticket_count: u32,           // t; the number of tickets introduced by the validator.
@@ -15,40 +15,3 @@ pub struct ValidatorStatEntry {
 
 pub struct ValidatorStats(pub [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
-
-impl JamEncode for ValidatorStatEntry {
-    fn size_hint(&self) -> usize {
-        self.block_production_count.size_hint()
-            + self.ticket_count.size_hint()
-            + self.preimage_count.size_hint()
-            + self.preimage_data_octet_count.size_hint()
-            + self.guarantee_count.size_hint()
-            + self.assurance_count.size_hint()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.block_production_count.encode_to(dest)?;
-        self.ticket_count.encode_to(dest)?;
-        self.preimage_count.encode_to(dest)?;
-        self.preimage_data_octet_count.encode_to(dest)?;
-        self.guarantee_count.encode_to(dest)?;
-        self.assurance_count.encode_to(dest)?;
-        Ok(())
-    }
-}
-
-impl JamDecode for ValidatorStatEntry {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            block_production_count: u32::decode(input)?,
-            ticket_count: u32::decode(input)?,
-            preimage_count: u32::decode(input)?,
-            preimage_data_octet_count: u32::decode(input)?,
-            guarantee_count: u32::decode(input)?,
-            assurance_count: u32::decode(input)?,
-        })
-    }
-}

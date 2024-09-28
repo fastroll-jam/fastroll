@@ -2,7 +2,8 @@
 members = [
     ".",
     "block",
-    "codec",
+    "codec/rjam-codec",
+    "codec/rjam-codec-derive",
     "common",
     "crypto",
     "db",
@@ -27,7 +28,8 @@ edition = "2021"
 [workspace.dependencies]
 # Internal dependencies
 rjam-block = { path = "block" }
-rjam-codec = { path = "codec" }
+rjam-codec = { path = "codec/rjam-codec" }
+rjam-codec-derive = { path = "codec/rjam-codec-derive" }
 rjam-common = { path = "common" }
 rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
@@ -43,12 +45,15 @@ ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "6b07f6f", f
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
 dotenv = "0.15.0"
-lru = "0.12.4"
-thiserror = "1.0.63"
-rocksdb = "0.22.0"
-lazy_static = "1.5.0"
 hex = "0.4.3"
+lazy_static = "1.5.0"
+lru = "0.12.4"
+proc-macro2 = "1.0.86"
+quote = "1.0.37"
+rocksdb = "0.22.0"
 serde = { version = "1.0.204", features = ["derive"] }
+syn = { version = "2.0.79", features = ["full", "extra-traits"] }
+thiserror = "1.0.63"
 time = "0.3.36"
 
 [dependencies]

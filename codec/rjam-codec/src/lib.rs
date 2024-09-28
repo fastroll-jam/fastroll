@@ -1,4 +1,6 @@
 use bit_vec::BitVec;
+#[cfg(feature = "derive")]
+pub use rjam_codec_derive::*;
 use std::{
     fmt::{Debug, Display},
     mem::size_of,

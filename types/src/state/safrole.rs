@@ -20,7 +20,7 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, JamEncode)]
 pub struct SafroleState {
     pub pending_validator_set: ValidatorSet,      // gamma_k
     pub ring_root: BandersnatchRingRoot,          // gamma_z
@@ -57,23 +57,6 @@ impl Display for SafroleState {
         writeln!(f, "  Ticket Accumulator: {}", self.ticket_accumulator)?;
 
         write!(f, "}}")
-    }
-}
-
-impl JamEncode for SafroleState {
-    fn size_hint(&self) -> usize {
-        self.pending_validator_set.size_hint()
-            + self.ring_root.size_hint()
-            + self.slot_sealers.size_hint()
-            + self.ticket_accumulator.size_hint()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.pending_validator_set.encode_to(dest)?;
-        self.ring_root.encode_to(dest)?;
-        self.slot_sealers.encode_to(dest)?;
-        self.ticket_accumulator.encode_to(dest)?;
-        Ok(())
     }
 }
 
