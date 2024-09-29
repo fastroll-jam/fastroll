@@ -1,7 +1,8 @@
-use rjam_codec::{JamCodecError, JamEncode, JamEncodeFixed, JamOutput};
+use crate::state::timeslot::Timeslot;
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput};
 use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
 
-#[derive(Clone, JamEncode)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountInfo {
     pub code_hash: Hash32,                  // c
     pub balance: Balance,                   // b
@@ -9,26 +10,18 @@ pub struct AccountInfo {
     pub gas_limit_on_transfer: UnsignedGas, // m
 }
 
-#[derive(Clone)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountMetadata {
     pub account_info: AccountInfo,
-    storage_entry_count: usize,
-    lookups_entry_count: usize,
-    storage_octets_count: usize,
-    lookups_octets_count: usize,
+    /// The number of total octets used in the service storages (l)
+    /// (lookups octets count) + (storage octets count)
+    pub total_octets_footprint: u64,
+    /// The number of items in the service storages (i)
+    /// 2 * (lookups entry count) + (storage entry count)
+    pub item_counts_footprint: u32,
 }
 
 impl AccountMetadata {
-    /// Returns the number of items in the service storages (i)
-    pub fn get_item_counts_footprint(&self) -> usize {
-        2 * self.lookups_entry_count + self.storage_entry_count
-    }
-
-    /// Returns the number of total octets used in the service storages (l)
-    pub fn get_total_octets_footprint(&self) -> usize {
-        self.lookups_octets_count + self.storage_octets_count
-    }
-
     pub fn update_storage_footprint() {
         unimplemented!()
     }
@@ -38,20 +31,22 @@ impl AccountMetadata {
     }
 }
 
+// FIXME
 #[derive(Clone)]
 pub struct AccountStorageEntry {
-    key: Hash32, // constructed with the account address and the storage key
-    value: Octets,
+    // pub key: Hash32, // constructed with the account address and the storage key
+    pub value: Octets,
 }
 
 #[derive(Clone)]
 pub struct AccountPreimagesEntry {
-    key: Hash32, // constructed with the account address and the preimages dictionary key
-    value: Octets,
+    // pub key: Hash32, // constructed with the account address and the preimages dictionary key
+    pub value: Octets,
 }
 
-#[derive(Clone)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountLookupsEntry {
-    key: Hash32,   // constructed with the account address and the lookup dictionary key
-    value: Octets, // serialized timeslot list
+    // pub key: Hash32, // constructed with the account address and the lookup dictionary key (h)
+    // pub preimage_length: u32, // serialized preimage length (l)
+    pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }
