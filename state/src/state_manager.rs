@@ -16,7 +16,9 @@ use rjam_types::state::{
     privileged::PrivilegedServices,
     reports::PendingReports,
     safrole::SafroleState,
-    services_wip::AccountMetadata,
+    services_wip::{
+        AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
+    },
     statistics::ValidatorStats,
     timeslot::Timeslot,
     validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
@@ -205,35 +207,285 @@ impl StateManager {
         Ok(auth_pool)
     }
 
-    pub fn get_auth_queue_state() {}
+    pub fn get_auth_queue_state(&self) -> Result<AuthQueue, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::AuthQueue);
 
-    pub fn get_block_histories_state() {}
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::AuthQueue(auth_queue) = entry_ref.value.clone() {
+                return Ok(auth_queue);
+            }
+        }
 
-    pub fn get_safrole_state() {}
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let auth_queue = AuthQueue::decode(&mut state_data.as_slice())?;
 
-    pub fn get_disputes_state() {}
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::AuthQueue(auth_queue.clone()));
+        self.cache.insert(state_key, cache_entry);
 
-    pub fn get_entropy_accumulator_state() {}
+        Ok(auth_queue)
+    }
 
-    pub fn get_staging_validator_set_state() {}
+    pub fn get_block_histories_state(&self) -> Result<BlockHistories, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::BlockHistories);
 
-    pub fn get_active_validator_set_state() {}
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::BlockHistories(block_histories) = entry_ref.value.clone() {
+                return Ok(block_histories);
+            }
+        }
 
-    pub fn get_past_validator_set_state() {}
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let block_histories = BlockHistories::decode(&mut state_data.as_slice())?;
 
-    pub fn get_pending_reports_state() {}
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::BlockHistories(block_histories.clone()));
+        self.cache.insert(state_key, cache_entry);
 
-    pub fn get_timeslot_state() {}
+        Ok(block_histories)
+    }
 
-    pub fn get_privileged_services_state() {}
+    pub fn get_safrole_state(&self) -> Result<SafroleState, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::SafroleState);
 
-    pub fn get_validator_stats_state() {}
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::SafroleState(safrole) = entry_ref.value.clone() {
+                return Ok(safrole);
+            }
+        }
 
-    pub fn get_account_metadata() {}
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let safrole = SafroleState::decode(&mut state_data.as_slice())?;
 
-    pub fn get_account_storage_entry() {}
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::SafroleState(safrole.clone()));
+        self.cache.insert(state_key, cache_entry);
 
-    pub fn get_account_preimages_entry() {}
+        Ok(safrole)
+    }
 
-    pub fn get_account_lookups_entry() {}
+    pub fn get_disputes_state(&self) -> Result<DisputesState, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::DisputesState);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::DisputesState(dispute_state) = entry_ref.value.clone() {
+                return Ok(dispute_state);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let dispute_state = DisputesState::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::DisputesState(dispute_state.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(dispute_state)
+    }
+
+    pub fn get_entropy_accumulator_state(&self) -> Result<EntropyAccumulator, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::EntropyAccumulator);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::EntropyAccumulator(entropy_acc) = entry_ref.value.clone() {
+                return Ok(entropy_acc);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let entropy_acc = EntropyAccumulator::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::EntropyAccumulator(entropy_acc.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(entropy_acc)
+    }
+
+    pub fn get_staging_validator_set_state(
+        &self,
+    ) -> Result<StagingValidatorSet, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::StagingValidatorSet);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::StagingValidatorSet(staging_set) = entry_ref.value.clone() {
+                return Ok(staging_set);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let staging_set = StagingValidatorSet::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::StagingValidatorSet(staging_set.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(staging_set)
+    }
+
+    pub fn get_active_validator_set_state(&self) -> Result<ActiveValidatorSet, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::ActiveValidatorSet);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::ActiveValidatorSet(active_set) = entry_ref.value.clone() {
+                return Ok(active_set);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let active_set = ActiveValidatorSet::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::ActiveValidatorSet(active_set.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(active_set)
+    }
+
+    pub fn get_past_validator_set_state(&self) -> Result<PastValidatorSet, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::PastValidatorSet);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::PastValidatorSet(past_set) = entry_ref.value.clone() {
+                return Ok(past_set);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let past_set = PastValidatorSet::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::PastValidatorSet(past_set.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(past_set)
+    }
+
+    pub fn get_pending_reports_state(&self) -> Result<PendingReports, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::PendingReports);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::PendingReports(pending_reports) = entry_ref.value.clone() {
+                return Ok(pending_reports);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let pending_reports = PendingReports::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::PendingReports(pending_reports.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(pending_reports)
+    }
+
+    pub fn get_timeslot_state(&self) -> Result<Timeslot, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::Timeslot);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::Timeslot(timeslot) = entry_ref.value.clone() {
+                return Ok(timeslot);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let timeslot = Timeslot::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::Timeslot(timeslot.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(timeslot)
+    }
+
+    pub fn get_privileged_services_state(&self) -> Result<PrivilegedServices, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::PrivilegedServices);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::PrivilegedServices(privileged_services) = entry_ref.value.clone() {
+                return Ok(privileged_services);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let privileged_services = PrivilegedServices::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry =
+            CacheEntry::new(StateType::PrivilegedServices(privileged_services.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(privileged_services)
+    }
+
+    pub fn get_validator_stats_state(&self) -> Result<ValidatorStats, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::ValidatorStats);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::ValidatorStats(validator_stats) = entry_ref.value.clone() {
+                return Ok(validator_stats);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let validator_stats = ValidatorStats::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::ValidatorStats(validator_stats.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(validator_stats)
+    }
+
+    // pub fn get_account_metadata(&self) -> Result<AccountMetadata, StateManagerError> {
+    //     let state_key = construct_key(StateKeyConstant::AccountMetadata);
+    //
+    //     // Check the cache
+    //     if let Some(entry_ref) = self.cache.get(&state_key) {
+    //         if let StateType::AccountMetadata(account_metadata) = entry_ref.value.clone() {
+    //             return Ok(account_metadata);
+    //         }
+    //     }
+    //
+    //     // Retrieve the state from the DB
+    //     let state_data = self.retrieve_state_encoded(&state_key)?;
+    //     let account_metadata = AccountMetadata::decode(&mut state_data.as_slice())?;
+    //
+    //     // Insert into the cache
+    //     let cache_entry = CacheEntry::new(StateType::AccountMetadata(account_metadata.clone()));
+    //     self.cache.insert(state_key, cache_entry);
+    //
+    //     Ok(account_metadata)
+    // }
+
+    // pub fn get_account_storage_entry(&self) -> Result<AccountStorageEntry, StateManagerError> {}
+    //
+    // pub fn get_account_preimages_entry(&self) -> Result<AccountPreimagesEntry, StateManagerError> {}
+    //
+    // pub fn get_account_lookups_entry(&self) -> Result<AccountLookupsEntry, StateManagerError> {}
 }

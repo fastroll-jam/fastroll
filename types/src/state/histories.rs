@@ -25,7 +25,7 @@ impl JamEncode for BlockHistoryEntry {
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.header_hash.encode_to(dest)?;
-        self.accumulation_result_root.encode_to(dest)?; // E_M; MMR encoding
+        self.accumulation_result_root.encode_to(dest)?; // FIXME: E_M; MMR encoding
         self.state_root.encode_to(dest)?;
         self.work_report_hashes.encode_to(dest)?;
         Ok(())

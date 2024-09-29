@@ -1,6 +1,7 @@
+use rjam_codec::{JamCodecError, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
 
-#[derive(Clone)]
+#[derive(Clone, JamEncode)]
 pub struct AccountInfo {
     pub code_hash: Hash32,                  // c
     pub balance: Balance,                   // b
