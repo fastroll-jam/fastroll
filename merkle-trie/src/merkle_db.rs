@@ -4,13 +4,12 @@ use crate::{
     utils::{bitvec_to_hash32, bytes_to_lsb_bits, slice_bitvec},
 };
 use bit_vec::BitVec;
-use lru::LruCache;
+use dashmap::DashMap;
 use rjam_common::{Hash32, Octets, HASH32_EMPTY};
 use rocksdb::{WriteBatch, WriteOptions, DB};
 use std::{
     collections::{BTreeMap, HashSet},
     hash::Hash,
-    num::NonZeroUsize,
     sync::Arc,
 };
 
@@ -49,26 +48,24 @@ impl Node {
 pub struct MerkleDB {
     /// RocksDB instance.
     db: Arc<DB>,
-    /// LRU cache for storing Merkle trie nodes.
-    cache: LruCache<Hash32, Node>,
+    /// Cache for storing Merkle trie nodes.
+    cache: Arc<DashMap<Hash32, Node>>,
     /// Root hash of the Merkle trie.
     root: Hash32,
 }
 
 impl MerkleDB {
     pub fn new(db: Arc<DB>, cache_size: usize) -> Result<Self, MerkleError> {
-        let cache_size = NonZeroUsize::new(cache_size).ok_or(MerkleError::CacheSizeNonPositive)?;
-
         Ok(Self {
             db,
-            cache: LruCache::new(cache_size),
+            cache: Arc::new(DashMap::with_capacity(cache_size)),
             root: HASH32_EMPTY,
         })
     }
 
     /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
     /// For 511-bit input, try both 0 and 1 as the first bit.
-    fn get_node_from_hash_bits(&mut self, bits: &BitVec) -> Result<Node, MerkleError> {
+    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Node, MerkleError> {
         match bits.len() {
             512 => {
                 // for 512-bit input, construct Hash32 type and get the node
@@ -96,7 +93,7 @@ impl MerkleDB {
     }
 
     /// Get a node entry from the MerkleDB.
-    fn get_node(&mut self, hash: &Hash32) -> Result<Node, MerkleError> {
+    fn get_node(&self, hash: &Hash32) -> Result<Node, MerkleError> {
         // lookup the cache
         if let Some(node) = self.cache.get(hash) {
             return Ok(node.clone());
@@ -106,7 +103,7 @@ impl MerkleDB {
         match self.db.get(hash) {
             Ok(Some(data)) => {
                 let node = Node { hash: *hash, data };
-                self.cache.put(*hash, node.clone());
+                self.cache.insert(*hash, node.clone());
                 Ok(node)
             }
             Ok(None) => Err(MerkleError::NodeNotFound),
@@ -151,7 +148,7 @@ impl MerkleDB {
     /// # Note
     /// For `Regular` leaf nodes, additional steps may be required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
-    pub fn retrieve(&mut self, state_key: &[u8]) -> Result<(LeafType, Octets), MerkleError> {
+    pub fn retrieve(&self, state_key: &[u8]) -> Result<(LeafType, Octets), MerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
         let mut current_node = self.get_node(&root_hash)?; // initialize with the root node
@@ -286,7 +283,7 @@ impl MerkleDB {
     /// This function should be called iteratively for all leaf nodes affected by a state transition,
     /// typically corresponding to all `StateCache` entries marked as `Dirty`.
     pub fn extract_path_nodes_to_leaf(
-        &mut self,
+        &self,
         state_key: &[u8],
         write_op: WriteOp,
         affected_nodes_by_depth: &mut BTreeMap<u8, HashSet<AffectedNode>>, // u8 for depth of the node in the trie

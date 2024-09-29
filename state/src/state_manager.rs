@@ -1,4 +1,5 @@
 use crate::trie::utils::bytes_to_lsb_bits;
+use dashmap::DashMap;
 use rjam_common::{Hash32, Octets};
 use rjam_db::rjam_db::StateDB;
 use rjam_merkle_trie::{
@@ -18,10 +19,7 @@ use rjam_types::state::{
     timeslot::Timeslot,
     validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, PoisonError, RwLock, RwLockReadGuard},
-};
+use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -132,16 +130,24 @@ impl CacheEntry {
     fn is_dirty(&self) -> bool {
         matches!(self.status, CacheEntryStatus::Dirty)
     }
+
+    fn mark_dirty(&mut self) {
+        self.status = CacheEntryStatus::Dirty;
+    }
+
+    fn mark_clean(&mut self) {
+        self.status = CacheEntryStatus::Clean;
+    }
 }
 
 struct StateCache {
-    cache: HashMap<Hash32, CacheEntry>,
+    cache: Arc<DashMap<Hash32, CacheEntry>>,
 }
 
 impl StateCache {
     pub fn new() -> Self {
         Self {
-            cache: HashMap::new(),
+            cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -149,7 +155,7 @@ impl StateCache {
 pub struct StateManager {
     state_db: Arc<StateDB>,
     merkle_db: Arc<MerkleDB>,
-    cache: Arc<RwLock<StateCache>>,
+    cache: Arc<StateCache>,
 }
 
 impl StateManager {
@@ -157,11 +163,11 @@ impl StateManager {
         Self {
             state_db,
             merkle_db,
-            cache: Arc::new(RwLock::new(StateCache::new())),
+            cache: Arc::new(StateCache::new()),
         }
     }
 
-    // fn retrieve_state_encoded(&mut self, state_key: &Hash32) -> Result<Octets, StateManagerError> {
+    // fn retrieve_state_encoded(&self, state_key: &Hash32) -> Result<Octets, StateManagerError> {
     //     // Traverse the trie
     //     let (leaf_type, state_data) = self.merkle_db.retrieve(state_key)?;
     //

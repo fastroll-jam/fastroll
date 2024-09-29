@@ -12,5 +12,6 @@ rjam-merkle-trie = { workspace = true }
 rjam-types = { workspace = true }
 blake2 = { workspace = true }
 bit-vec = { workspace = true }
+dashmap = { workspace = true }
 lazy_static = { workspace = true }
 thiserror = { workspace = true }

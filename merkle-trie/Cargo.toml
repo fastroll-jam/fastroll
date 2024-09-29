@@ -8,6 +8,6 @@ rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 bit-vec = { workspace = true }
-lru = { workspace = true }
+dashmap = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }

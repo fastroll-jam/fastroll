@@ -45,10 +45,10 @@ rjam-types = { path = "types" }
 ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "6b07f6f", features = ["bandersnatch", "ring", "parallel", "test-vectors"] }
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
+dashmap = "6.1.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 lazy_static = "1.5.0"
-lru = "0.12.4"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"
 rocksdb = "0.22.0"
