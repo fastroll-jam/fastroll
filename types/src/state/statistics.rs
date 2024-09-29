@@ -13,5 +13,6 @@ pub struct ValidatorStatEntry {
     assurance_count: u32, // a; the number of availability assurances made by the validator.
 }
 
+#[derive(Clone)]
 pub struct ValidatorStats(pub [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);

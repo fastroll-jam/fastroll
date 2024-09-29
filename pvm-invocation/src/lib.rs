@@ -248,7 +248,7 @@ impl PVMInvocation {
         match common_invocation_result {
             CommonInvocationResult::Result((_gas, output))
             | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
-                Ok(AccumulateResult::Result(x, octets_to_hash32(output)))
+                Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
             }
 
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Failure(_) => {

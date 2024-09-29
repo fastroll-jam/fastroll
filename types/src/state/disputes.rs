@@ -2,7 +2,7 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
 
 // TODO: these sets should always be sorted
-#[derive(JamEncode, JamDecode)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct DisputesState {
     good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
     bad_set: Vec<Hash32>,           // psi_b; recording hash of incorrect work-reports

@@ -35,12 +35,8 @@ pub fn blake2b_256_first_4bytes(value: &[u8]) -> Result<[u8; 4], CryptoError> {
     Ok(hash[..4].try_into().unwrap())
 }
 
-pub fn octets_to_hash32(value: Octets) -> Option<Hash32> {
-    if value.len() == 32 {
-        value.try_into().ok()
-    } else {
-        None
-    }
+pub fn octets_to_hash32(value: &Octets) -> Option<Hash32> {
+    value.as_slice().try_into().ok()
 }
 
 // `Y` hash function for a VRF signature

@@ -70,7 +70,7 @@ mod tests {
         let past_set_context = PastValidatorSetContext {
             timeslot: Timeslot::new(test_input.slot),
             is_new_epoch,
-            current_active_set: active_set,
+            current_active_set: active_set.clone(),
         };
         past_set.to_next(&past_set_context)?;
 
@@ -91,9 +91,9 @@ mod tests {
                 .into_iter()
                 .map(TicketEnvelope::into)
                 .collect(),
-            current_staging_set: staging_set,
-            post_active_set: active_set,
-            post_entropy: entropy_acc,
+            current_staging_set: staging_set.clone(),
+            post_active_set: active_set.clone(),
+            post_entropy: entropy_acc.clone(),
         };
         safrole_state.to_next(&safrole_context)?;
 

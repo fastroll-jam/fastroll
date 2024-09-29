@@ -3,10 +3,11 @@ use rjam_codec::{
 };
 use rjam_common::Hash32;
 
+#[derive(Clone)]
 pub struct BlockHistories(pub Vec<BlockHistoryEntry>);
 impl_jam_codec_for_newtype!(BlockHistories, Vec<BlockHistoryEntry>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHistoryEntry {
     header_hash: Hash32,
     accumulation_result_root: Vec<Option<Hash32>>, // MMR

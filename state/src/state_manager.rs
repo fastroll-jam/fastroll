@@ -1,7 +1,9 @@
 use crate::trie::utils::bytes_to_lsb_bits;
 use dashmap::DashMap;
+use rjam_codec::{JamCodecError, JamDecode};
 use rjam_common::{Hash32, Octets};
-use rjam_db::rjam_db::StateDB;
+use rjam_crypto::utils::octets_to_hash32;
+use rjam_db::rjam_db::{StateDB, StateDBError};
 use rjam_merkle_trie::{
     merkle_db::MerkleDB,
     types::{LeafType, MerkleError},
@@ -26,8 +28,13 @@ use thiserror::Error;
 pub enum StateManagerError {
     #[error("Merkle error: {0}")]
     MerkleError(#[from] MerkleError),
+    #[error("StateDB error: {0}")]
+    StateDBError(#[from] StateDBError),
+    #[error("JamCodec error: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
+#[derive(Clone)]
 pub enum StateType {
     AuthPool(AuthPool),                       // alpha
     AuthQueue(AuthQueue),                     // phi
@@ -127,6 +134,13 @@ struct CacheEntry {
 }
 
 impl CacheEntry {
+    fn new(value: StateType) -> Self {
+        Self {
+            value,
+            status: CacheEntryStatus::Clean,
+        }
+    }
+
     fn is_dirty(&self) -> bool {
         matches!(self.status, CacheEntryStatus::Dirty)
     }
@@ -140,22 +154,10 @@ impl CacheEntry {
     }
 }
 
-struct StateCache {
-    cache: Arc<DashMap<Hash32, CacheEntry>>,
-}
-
-impl StateCache {
-    pub fn new() -> Self {
-        Self {
-            cache: Arc::new(DashMap::new()),
-        }
-    }
-}
-
 pub struct StateManager {
     state_db: Arc<StateDB>,
     merkle_db: Arc<MerkleDB>,
-    cache: Arc<StateCache>,
+    cache: Arc<DashMap<Hash32, CacheEntry>>,
 }
 
 impl StateManager {
@@ -163,32 +165,45 @@ impl StateManager {
         Self {
             state_db,
             merkle_db,
-            cache: Arc::new(StateCache::new()),
+            cache: Arc::new(DashMap::new()),
         }
     }
 
-    // fn retrieve_state_encoded(&self, state_key: &Hash32) -> Result<Octets, StateManagerError> {
-    //     // Traverse the trie
-    //     let (leaf_type, state_data) = self.merkle_db.retrieve(state_key)?;
-    //
-    //
-    //
-    //     let state_data = match leaf_type {
-    //         LeafType::Embedded => state_data,
-    //         LeafType::Regular => state_data,
-    //     };
-    //
-    //
-    //
-    //     Ok(state_data)
-    // }
-    //
-    // pub fn get_auth_pool_state(&self) -> Result<AuthPool, StateManagerError> {
-    //     // Check the cache
-    //     if let Some(entry) = self.cache.read()?.get(state_key) {
-    //         return Ok(entry.clone());
-    //     }
-    // }
+    fn retrieve_state_encoded(&self, state_key: &Hash32) -> Result<Octets, StateManagerError> {
+        // Traverse the trie
+        let (leaf_type, state_data) = self.merkle_db.retrieve(state_key)?;
+
+        let state_data = match leaf_type {
+            LeafType::Embedded => state_data,
+            LeafType::Regular => {
+                // state_data is hash of state data
+                self.state_db.get_entry(&state_data)?.unwrap()
+            }
+        };
+
+        Ok(state_data)
+    }
+
+    pub fn get_auth_pool_state(&self) -> Result<AuthPool, StateManagerError> {
+        let state_key = construct_key(StateKeyConstant::AuthPool);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateType::AuthPool(auth_pool) = entry_ref.value.clone() {
+                return Ok(auth_pool);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let auth_pool = AuthPool::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateType::AuthPool(auth_pool.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(auth_pool)
+    }
 
     pub fn get_auth_queue_state() {}
 

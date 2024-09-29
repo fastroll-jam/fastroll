@@ -56,7 +56,7 @@ impl StateDB {
         Arc::clone(&self.db)
     }
 
-    fn get_entry(&self, key: &[u8]) -> Result<Option<Octets>, StateDBError> {
+    pub fn get_entry(&self, key: &[u8]) -> Result<Option<Octets>, StateDBError> {
         let db = self.get_db();
         db.get(key)
             .map_err(|e| StateDBError::RocksDBError(e.to_string()))
