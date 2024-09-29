@@ -967,6 +967,7 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-db",
+ "rjam-merkle-trie",
  "rjam-types",
  "thiserror",
 ]

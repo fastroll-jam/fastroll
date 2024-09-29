@@ -131,13 +131,13 @@ impl MerkleNodeCodec {
         Self::compare_state_keys(&bv, state_key)?;
 
         match leaf_type {
-            LeafType::Embedded => Ok(slice_bitvec(&bv, 256..)?.to_bytes()),
-            LeafType::Regular => {
+            LeafType::Embedded => {
                 let value_len = slice_bitvec(&bv, 2..8)?.to_bytes();
                 let value_len_in_bits = usize::decode_fixed(&mut &value_len[..], 1)? * 8;
 
                 Ok(slice_bitvec(&bv, 256..value_len_in_bits)?.to_bytes())
             }
+            LeafType::Regular => Ok(slice_bitvec(&bv, 256..)?.to_bytes()),
         }
     }
 

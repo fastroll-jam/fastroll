@@ -8,7 +8,7 @@ pub(crate) const NODE_SIZE_BYTES: usize = NODE_SIZE_BITS / 8;
 pub(crate) const EMPTY_HASH: Hash32 = [0u8; 32];
 
 #[derive(Debug, Error)]
-pub(crate) enum MerkleError {
+pub enum MerkleError {
     #[error("Cache size must be larger than zero")]
     CacheSizeNonPositive,
     #[error("Invalid node type with hash")]

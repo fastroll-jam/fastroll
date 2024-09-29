@@ -35,6 +35,7 @@ rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-host-interface = { path = "host-interface" }
+rjam-merkle-trie = { path = "merkle-trie" }
 rjam-pvm = { path = "pvm" }
 rjam-pvm-core = { path = "pvm-core" }
 rjam-state = { path = "state" }
