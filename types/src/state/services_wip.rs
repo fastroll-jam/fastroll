@@ -2,6 +2,10 @@ use crate::state::timeslot::Timeslot;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput};
 use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
 
+pub const B_S: Balance = 100; // The basic minimum balance which all services require
+pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
+pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
+
 #[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountInfo {
     pub code_hash: Hash32,                  // c
@@ -28,6 +32,14 @@ impl AccountMetadata {
 
     pub fn update_lookups_footprint() {
         unimplemented!()
+    }
+
+    /// Get the account threshold balance (t)
+    pub fn get_threshold_balance(&self) -> Balance {
+        let i = self.item_counts_footprint as Balance;
+        let l = self.total_octets_footprint as Balance;
+
+        B_S + B_I * i + B_L * l
     }
 }
 
