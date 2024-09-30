@@ -26,6 +26,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StateManagerError {
+    #[error("State key not initialized")]
+    StateKeyNotInitialized,
     #[error("Cache entry not found")]
     CacheEntryNotFound,
     #[error("Unexpected entry type")]
@@ -177,9 +179,15 @@ impl StateManager {
         }
     }
 
-    fn retrieve_state_encoded(&self, state_key: &Hash32) -> Result<Octets, StateManagerError> {
+    fn retrieve_state_encoded(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<Octets>, StateManagerError> {
         // Traverse the trie
-        let (leaf_type, state_data) = self.merkle_db.retrieve(state_key)?;
+        let (leaf_type, state_data) = match self.merkle_db.retrieve(state_key)? {
+            Some((leaf_type, state_data)) => (leaf_type, state_data),
+            None => return Ok(None),
+        };
 
         let state_data = match leaf_type {
             LeafType::Embedded => state_data,
@@ -189,7 +197,7 @@ impl StateManager {
             }
         };
 
-        Ok(state_data)
+        Ok(Some(state_data))
     }
 
     pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
@@ -203,7 +211,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let auth_pool = AuthPool::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -243,7 +253,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let auth_queue = AuthQueue::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -283,7 +295,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let block_histories = BlockHistories::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -323,7 +337,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let safrole = SafroleState::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -363,7 +379,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let dispute_state = DisputesState::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -403,7 +421,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let entropy_acc = EntropyAccumulator::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -447,7 +467,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let staging_set = StagingValidatorSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -493,7 +515,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let active_set = ActiveValidatorSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -538,7 +562,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let past_set = PastValidatorSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -582,7 +608,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let pending_reports = PendingReports::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -622,7 +650,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let timeslot = Timeslot::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -663,7 +693,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let privileged_services = PrivilegedServices::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -709,7 +741,9 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
         let validator_stats = ValidatorStats::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -741,18 +775,21 @@ impl StateManager {
     pub fn get_account_metadata(
         &self,
         address: Address,
-    ) -> Result<AccountMetadata, StateManagerError> {
+    ) -> Result<Option<AccountMetadata>, StateManagerError> {
         let state_key = construct_key_with_service(StateKeyConstant::AccountMetadata, address);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
             if let StateEntryType::AccountMetadata(account_metadata) = entry_ref.value.clone() {
-                return Ok(account_metadata);
+                return Ok(Some(account_metadata));
             }
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = match self.retrieve_state_encoded(&state_key)? {
+            Some(state_data) => state_data,
+            None => return Ok(None),
+        };
         let account_metadata = AccountMetadata::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -760,7 +797,7 @@ impl StateManager {
             CacheEntry::new(StateEntryType::AccountMetadata(account_metadata.clone()));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(account_metadata)
+        Ok(Some(account_metadata))
     }
 
     pub fn with_mut_account_metadata<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
@@ -786,20 +823,23 @@ impl StateManager {
         &self,
         address: Address,
         storage_key: &Hash32,
-    ) -> Result<AccountStorageEntry, StateManagerError> {
+    ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = construct_key_with_service_and_hash(address, storage_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
             if let StateEntryType::AccountStorageEntry(storage_entry) = entry_ref.value.clone() {
-                return Ok(storage_entry);
+                return Ok(Some(storage_entry));
             }
         }
 
         // Retrieve the state from the DB
         let storage_entry = AccountStorageEntry {
             // key: storage_key.clone(),
-            value: self.retrieve_state_encoded(&state_key)?,
+            value: match self.retrieve_state_encoded(&state_key)? {
+                Some(state_data) => state_data,
+                None => return Ok(None),
+            },
         };
 
         // Insert into the cache
@@ -807,7 +847,7 @@ impl StateManager {
             CacheEntry::new(StateEntryType::AccountStorageEntry(storage_entry.clone()));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(storage_entry)
+        Ok(Some(storage_entry))
     }
 
     pub fn with_mut_account_storage_entry<F>(
@@ -839,21 +879,24 @@ impl StateManager {
         &self,
         address: Address,
         preimages_key: &Hash32,
-    ) -> Result<AccountPreimagesEntry, StateManagerError> {
+    ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         let state_key = construct_key_with_service_and_hash(address, preimages_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
             if let StateEntryType::AccountPreimagesEntry(preimages_entry) = entry_ref.value.clone()
             {
-                return Ok(preimages_entry);
+                return Ok(Some(preimages_entry));
             }
         }
 
         // Retrieve the state from the DB
         let preimages_entry = AccountPreimagesEntry {
             // key: preimages_key.clone(),
-            value: self.retrieve_state_encoded(&state_key)?,
+            value: match self.retrieve_state_encoded(&state_key)? {
+                Some(state_data) => state_data,
+                None => return Ok(None),
+            },
         };
 
         // Insert into the cache
@@ -862,7 +905,7 @@ impl StateManager {
         ));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(preimages_entry)
+        Ok(Some(preimages_entry))
     }
 
     pub fn with_mut_account_preimages_entry<F>(
@@ -894,19 +937,22 @@ impl StateManager {
         &self,
         address: Address,
         lookups_key: &Hash32,
-    ) -> Result<AccountLookupsEntry, StateManagerError> {
+    ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         // FIXME: with exact encoding rule for the `h`: utilize preimage length
         let state_key = construct_key_with_service_and_data(address, lookups_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
             if let StateEntryType::AccountLookupsEntry(lookups_entry) = entry_ref.value.clone() {
-                return Ok(lookups_entry);
+                return Ok(Some(lookups_entry));
             }
         }
 
         // Retrieve the state from the DB
-        let state_data = self.retrieve_state_encoded(&state_key)?;
+        let state_data = match self.retrieve_state_encoded(&state_key)? {
+            Some(state_data) => state_data,
+            None => return Ok(None),
+        };
         let lookups_entry = AccountLookupsEntry::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
@@ -914,7 +960,7 @@ impl StateManager {
             CacheEntry::new(StateEntryType::AccountLookupsEntry(lookups_entry.clone()));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(lookups_entry)
+        Ok(Some(lookups_entry))
     }
 
     pub fn with_mut_account_lookups_entry<F>(

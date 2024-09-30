@@ -65,7 +65,7 @@ impl MerkleDB {
 
     /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
     /// For 511-bit input, try both 0 and 1 as the first bit.
-    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Node, MerkleError> {
+    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Option<Node>, MerkleError> {
         match bits.len() {
             512 => {
                 // for 512-bit input, construct Hash32 type and get the node
@@ -93,10 +93,10 @@ impl MerkleDB {
     }
 
     /// Get a node entry from the MerkleDB.
-    fn get_node(&self, hash: &Hash32) -> Result<Node, MerkleError> {
+    fn get_node(&self, hash: &Hash32) -> Result<Option<Node>, MerkleError> {
         // lookup the cache
         if let Some(node) = self.cache.get(hash) {
-            return Ok(node.clone());
+            return Ok(Some(node.clone()));
         }
 
         // fetch node data octets from the db and put into the cache
@@ -104,9 +104,9 @@ impl MerkleDB {
             Ok(Some(data)) => {
                 let node = Node { hash: *hash, data };
                 self.cache.insert(*hash, node.clone());
-                Ok(node)
+                Ok(Some(node))
             }
-            Ok(None) => Err(MerkleError::NodeNotFound),
+            Ok(None) => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
@@ -148,10 +148,14 @@ impl MerkleDB {
     /// # Note
     /// For `Regular` leaf nodes, additional steps may be required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
-    pub fn retrieve(&self, state_key: &[u8]) -> Result<(LeafType, Octets), MerkleError> {
+    pub fn retrieve(&self, state_key: &[u8]) -> Result<Option<(LeafType, Octets)>, MerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
-        let mut current_node = self.get_node(&root_hash)?; // initialize with the root node
+
+        let mut current_node = match self.get_node(&root_hash)? {
+            Some(node) => node,
+            None => return Ok(None),
+        }; // initialize with the root node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for b in &state_key_bv {
@@ -161,19 +165,22 @@ impl MerkleDB {
                     let child_type = if b { ChildType::Right } else { ChildType::Left };
                     let child_hash =
                         NodeCodec::get_child_hash_bits(&current_node.data, &child_type)?;
-                    current_node = self.get_node_from_hash_bits(&child_hash)?;
+                    current_node = match self.get_node_from_hash_bits(&child_hash)? {
+                        Some(node) => node,
+                        None => return Ok(None),
+                    }
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
                     let value =
                         NodeCodec::get_leaf_value(&state_key_bv, &current_node.data, &leaf_type)?;
-                    return Ok((leaf_type, value));
+                    return Ok(Some((leaf_type, value)));
                 }
                 NodeType::Empty => return Err(MerkleError::EmptyState),
             }
         }
 
-        return Err(MerkleError::NodeNotFound);
+        Ok(None)
     }
 
     /// Extracts all affected nodes on a path due to a write operation to be applied to a leaf node.
@@ -291,7 +298,10 @@ impl MerkleDB {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
         let mut parent_hash = self.root;
-        let mut current_node = self.get_node(&root_hash)?; // initialize with the root node
+        let mut current_node = match self.get_node(&root_hash)? {
+            Some(node) => node,
+            None => return Ok(()),
+        }; // initialize with the root node
         let mut depth = 0u8;
         let mut current_child_side = None; // ChildType (Left or Right) of the current node
 
@@ -320,7 +330,11 @@ impl MerkleDB {
 
                     parent_hash = current_node.hash;
 
-                    current_node = self.get_node_from_hash_bits(child_hash)?; // update to the child node on the path
+                    current_node = match self.get_node_from_hash_bits(child_hash)? {
+                        Some(node) => node,
+                        None => return Ok(()),
+                    };
+                    // update to the child node on the path
 
                     affected_nodes_by_depth
                         .entry(depth)
@@ -383,14 +397,21 @@ impl MerkleDB {
                         }
                         WriteOp::Remove(_state_key) => {
                             // extract the sibling hash from the parent node data
-                            let parent_node_data = self.get_node(&parent_hash)?.data;
+                            let parent_node_data = match self.get_node(&parent_hash)? {
+                                Some(node) => node.data,
+                                None => return Ok(()),
+                            };
+
                             let sibling_child_side = current_child_side.unwrap().opposite();
-                            let sibling_hash = self
-                                .get_node_from_hash_bits(&NodeCodec::get_child_hash_bits(
+                            let sibling_hash = match self.get_node_from_hash_bits(
+                                &NodeCodec::get_child_hash_bits(
                                     &parent_node_data,
                                     &sibling_child_side,
-                                )?)?
-                                .hash;
+                                )?,
+                            )? {
+                                Some(node) => node.hash,
+                                None => return Ok(()),
+                            };
 
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
                                 depth,
