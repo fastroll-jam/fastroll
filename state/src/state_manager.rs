@@ -200,6 +200,25 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
+    fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
+        match self.get_account_metadata(address)? {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
+    pub fn check(&self, address: Address) -> Result<Address, StateManagerError> {
+        let mut check_address = address;
+        loop {
+            if !self.account_exists(check_address)? {
+                return Ok(check_address);
+            }
+
+            check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
+                + (1 << 8)) as Address;
+        }
+    }
+
     pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::AuthPool);
 
