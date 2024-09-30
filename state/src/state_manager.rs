@@ -1,6 +1,8 @@
+use crate::trie::utils::EMPTY_HASH;
 use dashmap::DashMap;
-use rjam_codec::{JamCodecError, JamDecode};
+use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
 use rjam_common::{Address, Hash32, Octets};
+use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::rjam_db::{StateDB, StateDBError};
 use rjam_merkle_trie::{
     merkle_db::MerkleDB,
@@ -86,21 +88,21 @@ impl From<StateKeyConstant> for u8 {
     }
 }
 
-pub(crate) fn construct_key<T: Into<u8>>(i: T) -> Hash32 {
-    let mut key = [0u8; 32];
+pub(crate) fn construct_state_key<T: Into<u8>>(i: T) -> Hash32 {
+    let mut key = EMPTY_HASH;
     key[0] = i.into();
     key
 }
 
-pub(crate) fn construct_key_with_service<T: Into<u8>>(i: T, s: Address) -> Hash32 {
-    let mut key = [0u8; 32];
+pub(crate) fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
+    let mut key = EMPTY_HASH;
     key[0] = i.into();
     key[1..5].copy_from_slice(&s.to_be_bytes());
     key
 }
 
-pub(crate) fn construct_key_with_service_and_hash(s: Address, h: &Hash32) -> Hash32 {
-    let mut key = [0u8; 32];
+pub(crate) fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
+    let mut key = EMPTY_HASH;
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
         key[i * 2] = s_bytes[i]; // 0, 2, 4, 6
@@ -111,25 +113,28 @@ pub(crate) fn construct_key_with_service_and_hash(s: Address, h: &Hash32) -> Has
     key
 }
 
-// TODO: review
-pub(crate) fn construct_key_with_service_and_data(s: Address, h: &Hash32) -> Hash32 {
-    let mut key = [0u8; 32];
-
-    let s_bytes = s.to_be_bytes();
-    let h_len = h.len().min(28);
-
-    for i in 0..4 {
-        key[i * 2] = s_bytes[i];
-        if i < h_len {
-            key[i * 2 + 1] = h[i];
-        }
+/// Applies logical NOT operation on a Hash32 type
+fn not_hash_slice(h: &Hash32) -> [u8; 28] {
+    let mut result = [0u8; 28];
+    for (i, &byte) in h[4..].iter().enumerate() {
+        result[i] = !byte;
     }
+    result
+}
 
-    if h_len > 4 {
-        key[8..8 + h_len - 4].copy_from_slice(&h[4..h_len]);
-    }
+pub(crate) fn construct_account_lookups_state_key(
+    s: Address,
+    h: &Hash32,
+    l: u32,
+) -> Result<Hash32, StateManagerError> {
+    let mut lookups_key_encoded = vec![];
+    l.encode_to_fixed(&mut lookups_key_encoded, 4)?;
+    lookups_key_encoded.extend(not_hash_slice(h).to_vec());
 
-    key
+    Ok(construct_account_storage_state_key(
+        s,
+        octets_to_hash32(&lookups_key_encoded).as_ref().unwrap(),
+    ))
 }
 
 #[derive(Clone)]
@@ -179,6 +184,73 @@ impl StateManager {
         }
     }
 
+    fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
+        match self.get_account_metadata(address)? {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
+    pub fn check(&self, address: Address) -> Result<Address, StateManagerError> {
+        let mut check_address = address;
+        loop {
+            if !self.account_exists(check_address)? {
+                return Ok(check_address);
+            }
+
+            check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
+                + (1 << 8)) as Address;
+        }
+    }
+
+    pub fn get_account_code(&self, address: Address) -> Result<Option<Octets>, StateManagerError> {
+        let code_hash = match self.get_account_metadata(address)? {
+            Some(metadata) => metadata.account_info.code_hash,
+            None => return Ok(None),
+        };
+
+        match self.get_account_preimages_entry(address, &code_hash)? {
+            Some(entry) => Ok(Some(entry.value)),
+            None => Ok(None),
+        }
+    }
+
+    /// The historical lookup function
+    pub fn lookup_preimage(
+        &self,
+        address: Address,
+        preimage_hash: &Hash32,
+    ) -> Result<Option<Octets>, StateManagerError> {
+        let preimage = match self.get_account_preimages_entry(address, preimage_hash)? {
+            Some(preimage) => preimage.value,
+            None => return Ok(None),
+        };
+        let preimage_length = preimage.len() as u32;
+        let lookup_timeslots =
+            match self.get_account_lookups_entry(address, (preimage_hash, preimage_length))? {
+                Some(lookup_timeslots) => lookup_timeslots.value,
+                None => return Ok(None),
+            };
+        let current_timeslot = &self.get_timeslot()?;
+
+        let valid = match lookup_timeslots.as_slice() {
+            [] => false,
+            [first] => first <= current_timeslot,
+            [first, second] => first <= current_timeslot && current_timeslot < second,
+            [first, second, third] => {
+                (first <= current_timeslot && current_timeslot < second)
+                    || third <= current_timeslot
+            }
+            _ => false,
+        };
+
+        if valid {
+            Ok(Some(preimage))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn retrieve_state_encoded(
         &self,
         state_key: &Hash32,
@@ -200,27 +272,8 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
-    fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
-        match self.get_account_metadata(address)? {
-            Some(_) => Ok(true),
-            None => Ok(false),
-        }
-    }
-
-    pub fn check(&self, address: Address) -> Result<Address, StateManagerError> {
-        let mut check_address = address;
-        loop {
-            if !self.account_exists(check_address)? {
-                return Ok(check_address);
-            }
-
-            check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
-                + (1 << 8)) as Address;
-        }
-    }
-
     pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::AuthPool);
+        let state_key = construct_state_key(StateKeyConstant::AuthPool);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -242,13 +295,15 @@ impl StateManager {
         Ok(auth_pool)
     }
 
-    pub fn with_mut_auth_pool<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_auth_pool<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AuthPool),
     {
+        let state_key = construct_state_key(StateKeyConstant::AuthPool);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AuthPool(ref mut auth_pool) = cache_entry.value {
@@ -262,7 +317,7 @@ impl StateManager {
     }
 
     pub fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::AuthQueue);
+        let state_key = construct_state_key(StateKeyConstant::AuthQueue);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -284,13 +339,15 @@ impl StateManager {
         Ok(auth_queue)
     }
 
-    pub fn with_mut_auth_queue<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_auth_queue<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AuthQueue),
     {
+        let state_key = construct_state_key(StateKeyConstant::AuthQueue);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AuthQueue(ref mut auth_queue) = cache_entry.value {
@@ -304,7 +361,7 @@ impl StateManager {
     }
 
     pub fn get_block_histories(&self) -> Result<BlockHistories, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::BlockHistories);
+        let state_key = construct_state_key(StateKeyConstant::BlockHistories);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -326,13 +383,15 @@ impl StateManager {
         Ok(block_histories)
     }
 
-    pub fn with_mut_block_histories<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_block_histories<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut BlockHistories),
     {
+        let state_key = construct_state_key(StateKeyConstant::BlockHistories);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::BlockHistories(ref mut block_histories) = cache_entry.value {
@@ -346,7 +405,7 @@ impl StateManager {
     }
 
     pub fn get_safrole(&self) -> Result<SafroleState, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::SafroleState);
+        let state_key = construct_state_key(StateKeyConstant::SafroleState);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -368,13 +427,15 @@ impl StateManager {
         Ok(safrole)
     }
 
-    pub fn with_mut_safrole<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_safrole<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut SafroleState),
     {
+        let state_key = construct_state_key(StateKeyConstant::SafroleState);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::SafroleState(ref mut safrole) = cache_entry.value {
@@ -388,7 +449,7 @@ impl StateManager {
     }
 
     pub fn get_disputes(&self) -> Result<DisputesState, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::DisputesState);
+        let state_key = construct_state_key(StateKeyConstant::DisputesState);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -410,13 +471,15 @@ impl StateManager {
         Ok(dispute_state)
     }
 
-    pub fn with_mut_disputes<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_disputes<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut DisputesState),
     {
+        let state_key = construct_state_key(StateKeyConstant::DisputesState);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::DisputesState(ref mut disputes) = cache_entry.value {
@@ -430,7 +493,7 @@ impl StateManager {
     }
 
     pub fn get_entropy_accumulator(&self) -> Result<EntropyAccumulator, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::EntropyAccumulator);
+        let state_key = construct_state_key(StateKeyConstant::EntropyAccumulator);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -452,17 +515,15 @@ impl StateManager {
         Ok(entropy_acc)
     }
 
-    pub fn with_mut_entropy_accumulator<F>(
-        &self,
-        key: &Hash32,
-        f: F,
-    ) -> Result<(), StateManagerError>
+    pub fn with_mut_entropy_accumulator<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut EntropyAccumulator),
     {
+        let state_key = construct_state_key(StateKeyConstant::EntropyAccumulator);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::EntropyAccumulator(ref mut entropy_accumulator) = cache_entry.value {
@@ -476,7 +537,7 @@ impl StateManager {
     }
 
     pub fn get_staging_validator_set(&self) -> Result<StagingValidatorSet, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::StagingValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::StagingValidatorSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -498,17 +559,15 @@ impl StateManager {
         Ok(staging_set)
     }
 
-    pub fn with_mut_staging_validator_set<F>(
-        &self,
-        key: &Hash32,
-        f: F,
-    ) -> Result<(), StateManagerError>
+    pub fn with_mut_staging_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut StagingValidatorSet),
     {
+        let state_key = construct_state_key(StateKeyConstant::StagingValidatorSet);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::StagingValidatorSet(ref mut staging_validator_set) =
@@ -524,7 +583,7 @@ impl StateManager {
     }
 
     pub fn get_active_validator_set(&self) -> Result<ActiveValidatorSet, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::ActiveValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::ActiveValidatorSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -546,17 +605,15 @@ impl StateManager {
         Ok(active_set)
     }
 
-    pub fn with_mut_active_validator_set<F>(
-        &self,
-        key: &Hash32,
-        f: F,
-    ) -> Result<(), StateManagerError>
+    pub fn with_mut_active_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut ActiveValidatorSet),
     {
+        let state_key = construct_state_key(StateKeyConstant::ActiveValidatorSet);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::ActiveValidatorSet(ref mut active_validator_set) = cache_entry.value
@@ -571,7 +628,7 @@ impl StateManager {
     }
 
     pub fn get_past_validator_set(&self) -> Result<PastValidatorSet, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::PastValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::PastValidatorSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -593,17 +650,15 @@ impl StateManager {
         Ok(past_set)
     }
 
-    pub fn with_mut_past_validator_set<F>(
-        &self,
-        key: &Hash32,
-        f: F,
-    ) -> Result<(), StateManagerError>
+    pub fn with_mut_past_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PastValidatorSet),
     {
+        let state_key = construct_state_key(StateKeyConstant::PastValidatorSet);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::PastValidatorSet(ref mut past_validator_set) = cache_entry.value {
@@ -617,7 +672,7 @@ impl StateManager {
     }
 
     pub fn get_pending_reports(&self) -> Result<PendingReports, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::PendingReports);
+        let state_key = construct_state_key(StateKeyConstant::PendingReports);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -639,13 +694,15 @@ impl StateManager {
         Ok(pending_reports)
     }
 
-    pub fn with_mut_pending_reports<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_pending_reports<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PendingReports),
     {
+        let state_key = construct_state_key(StateKeyConstant::PendingReports);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::PendingReports(ref mut pending_reports) = cache_entry.value {
@@ -659,7 +716,7 @@ impl StateManager {
     }
 
     pub fn get_timeslot(&self) -> Result<Timeslot, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::Timeslot);
+        let state_key = construct_state_key(StateKeyConstant::Timeslot);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -681,13 +738,15 @@ impl StateManager {
         Ok(timeslot)
     }
 
-    pub fn with_mut_timeslot<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_timeslot<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut Timeslot),
     {
+        let state_key = construct_state_key(StateKeyConstant::Timeslot);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::Timeslot(ref mut timeslot) = cache_entry.value {
@@ -701,7 +760,7 @@ impl StateManager {
     }
 
     pub fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::PrivilegedServices);
+        let state_key = construct_state_key(StateKeyConstant::PrivilegedServices);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -726,17 +785,15 @@ impl StateManager {
         Ok(privileged_services)
     }
 
-    pub fn with_mut_privileged_services<F>(
-        &self,
-        key: &Hash32,
-        f: F,
-    ) -> Result<(), StateManagerError>
+    pub fn with_mut_privileged_services<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PrivilegedServices),
     {
+        let state_key = construct_state_key(StateKeyConstant::PrivilegedServices);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::PrivilegedServices(ref mut privileged_services) = cache_entry.value {
@@ -750,7 +807,7 @@ impl StateManager {
     }
 
     pub fn get_validator_stats(&self) -> Result<ValidatorStats, StateManagerError> {
-        let state_key = construct_key(StateKeyConstant::ValidatorStats);
+        let state_key = construct_state_key(StateKeyConstant::ValidatorStats);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -772,13 +829,15 @@ impl StateManager {
         Ok(validator_stats)
     }
 
-    pub fn with_mut_validator_stats<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_validator_stats<F>(&self, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut ValidatorStats),
     {
+        let state_key = construct_state_key(StateKeyConstant::ValidatorStats);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::ValidatorStats(ref mut validator_stats) = cache_entry.value {
@@ -795,7 +854,8 @@ impl StateManager {
         &self,
         address: Address,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
-        let state_key = construct_key_with_service(StateKeyConstant::AccountMetadata, address);
+        let state_key =
+            construct_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -819,13 +879,20 @@ impl StateManager {
         Ok(Some(account_metadata))
     }
 
-    pub fn with_mut_account_metadata<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_account_metadata<F>(
+        &self,
+        address: Address,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountMetadata),
     {
+        let state_key =
+            construct_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AccountMetadata(ref mut account_metadata) = cache_entry.value {
@@ -843,7 +910,7 @@ impl StateManager {
         address: Address,
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
-        let state_key = construct_key_with_service_and_hash(address, storage_key);
+        let state_key = construct_account_storage_state_key(address, storage_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -871,15 +938,18 @@ impl StateManager {
 
     pub fn with_mut_account_storage_entry<F>(
         &self,
-        key: &Hash32,
+        address: Address,
+        storage_key: &Hash32,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountStorageEntry),
     {
+        let state_key = construct_account_storage_state_key(address, storage_key);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AccountStorageEntry(ref mut account_storage_entry) =
@@ -899,7 +969,7 @@ impl StateManager {
         address: Address,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = construct_key_with_service_and_hash(address, preimages_key);
+        let state_key = construct_account_storage_state_key(address, preimages_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -929,15 +999,18 @@ impl StateManager {
 
     pub fn with_mut_account_preimages_entry<F>(
         &self,
-        key: &Hash32,
+        address: Address,
+        preimages_key: &Hash32,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountPreimagesEntry),
     {
+        let state_key = construct_account_storage_state_key(address, preimages_key);
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AccountPreimagesEntry(ref mut account_preimages_entry) =
@@ -955,10 +1028,10 @@ impl StateManager {
     pub fn get_account_lookups_entry(
         &self,
         address: Address,
-        lookups_key: &Hash32,
+        lookups_key: (&Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-        // FIXME: with exact encoding rule for the `h`: utilize preimage length
-        let state_key = construct_key_with_service_and_data(address, lookups_key);
+        let (h, l) = lookups_key;
+        let state_key = construct_account_lookups_state_key(address, h, l)?;
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -984,15 +1057,19 @@ impl StateManager {
 
     pub fn with_mut_account_lookups_entry<F>(
         &self,
-        key: &Hash32,
+        address: Address,
+        lookups_key: (&Hash32, u32),
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountLookupsEntry),
     {
+        let (h, l) = lookups_key;
+        let state_key = construct_account_lookups_state_key(address, h, l)?;
+
         let mut cache_entry = self
             .cache
-            .get_mut(key)
+            .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let StateEntryType::AccountLookupsEntry(ref mut account_lookups_entry) =
