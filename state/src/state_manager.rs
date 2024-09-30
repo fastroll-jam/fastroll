@@ -1,8 +1,6 @@
-use crate::trie::utils::bytes_to_lsb_bits;
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode};
 use rjam_common::{Address, Hash32, Octets};
-use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::rjam_db::{StateDB, StateDBError};
 use rjam_merkle_trie::{
     merkle_db::MerkleDB,
@@ -23,11 +21,15 @@ use rjam_types::state::{
     timeslot::Timeslot,
     validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StateManagerError {
+    #[error("Cache entry not found")]
+    CacheEntryNotFound,
+    #[error("Unexpected entry type")]
+    UnexpectedEntryType,
     #[error("Merkle error: {0}")]
     MerkleError(#[from] MerkleError),
     #[error("StateDB error: {0}")]
@@ -190,7 +192,7 @@ impl StateManager {
         Ok(state_data)
     }
 
-    pub fn get_auth_pool_state(&self) -> Result<AuthPool, StateManagerError> {
+    pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::AuthPool);
 
         // Check the cache
@@ -211,7 +213,26 @@ impl StateManager {
         Ok(auth_pool)
     }
 
-    pub fn get_auth_queue_state(&self) -> Result<AuthQueue, StateManagerError> {
+    pub fn with_mut_auth_pool<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AuthPool),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AuthPool(ref mut auth_pool) = cache_entry.value {
+            f(auth_pool); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::AuthQueue);
 
         // Check the cache
@@ -232,7 +253,26 @@ impl StateManager {
         Ok(auth_queue)
     }
 
-    pub fn get_block_histories_state(&self) -> Result<BlockHistories, StateManagerError> {
+    pub fn with_mut_auth_queue<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AuthQueue),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AuthQueue(ref mut auth_queue) = cache_entry.value {
+            f(auth_queue); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_block_histories(&self) -> Result<BlockHistories, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::BlockHistories);
 
         // Check the cache
@@ -253,7 +293,26 @@ impl StateManager {
         Ok(block_histories)
     }
 
-    pub fn get_safrole_state(&self) -> Result<SafroleState, StateManagerError> {
+    pub fn with_mut_block_histories<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut BlockHistories),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::BlockHistories(ref mut block_histories) = cache_entry.value {
+            f(block_histories); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_safrole(&self) -> Result<SafroleState, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::SafroleState);
 
         // Check the cache
@@ -274,7 +333,26 @@ impl StateManager {
         Ok(safrole)
     }
 
-    pub fn get_disputes_state(&self) -> Result<DisputesState, StateManagerError> {
+    pub fn with_mut_safrole<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut SafroleState),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::SafroleState(ref mut safrole) = cache_entry.value {
+            f(safrole); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_disputes(&self) -> Result<DisputesState, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::DisputesState);
 
         // Check the cache
@@ -295,7 +373,26 @@ impl StateManager {
         Ok(dispute_state)
     }
 
-    pub fn get_entropy_accumulator_state(&self) -> Result<EntropyAccumulator, StateManagerError> {
+    pub fn with_mut_disputes<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut DisputesState),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::DisputesState(ref mut disputes) = cache_entry.value {
+            f(disputes); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_entropy_accumulator(&self) -> Result<EntropyAccumulator, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::EntropyAccumulator);
 
         // Check the cache
@@ -316,9 +413,30 @@ impl StateManager {
         Ok(entropy_acc)
     }
 
-    pub fn get_staging_validator_set_state(
+    pub fn with_mut_entropy_accumulator<F>(
         &self,
-    ) -> Result<StagingValidatorSet, StateManagerError> {
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut EntropyAccumulator),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::EntropyAccumulator(ref mut entropy_accumulator) = cache_entry.value {
+            f(entropy_accumulator); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_staging_validator_set(&self) -> Result<StagingValidatorSet, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::StagingValidatorSet);
 
         // Check the cache
@@ -339,7 +457,32 @@ impl StateManager {
         Ok(staging_set)
     }
 
-    pub fn get_active_validator_set_state(&self) -> Result<ActiveValidatorSet, StateManagerError> {
+    pub fn with_mut_staging_validator_set<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut StagingValidatorSet),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::StagingValidatorSet(ref mut staging_validator_set) =
+            cache_entry.value
+        {
+            f(staging_validator_set); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_active_validator_set(&self) -> Result<ActiveValidatorSet, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::ActiveValidatorSet);
 
         // Check the cache
@@ -360,7 +503,31 @@ impl StateManager {
         Ok(active_set)
     }
 
-    pub fn get_past_validator_set_state(&self) -> Result<PastValidatorSet, StateManagerError> {
+    pub fn with_mut_active_validator_set<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut ActiveValidatorSet),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::ActiveValidatorSet(ref mut active_validator_set) = cache_entry.value
+        {
+            f(active_validator_set); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_past_validator_set(&self) -> Result<PastValidatorSet, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::PastValidatorSet);
 
         // Check the cache
@@ -381,7 +548,30 @@ impl StateManager {
         Ok(past_set)
     }
 
-    pub fn get_pending_reports_state(&self) -> Result<PendingReports, StateManagerError> {
+    pub fn with_mut_past_validator_set<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut PastValidatorSet),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::PastValidatorSet(ref mut past_validator_set) = cache_entry.value {
+            f(past_validator_set); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_pending_reports(&self) -> Result<PendingReports, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::PendingReports);
 
         // Check the cache
@@ -402,7 +592,26 @@ impl StateManager {
         Ok(pending_reports)
     }
 
-    pub fn get_timeslot_state(&self) -> Result<Timeslot, StateManagerError> {
+    pub fn with_mut_pending_reports<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut PendingReports),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::PendingReports(ref mut pending_reports) = cache_entry.value {
+            f(pending_reports); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_timeslot(&self) -> Result<Timeslot, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::Timeslot);
 
         // Check the cache
@@ -423,7 +632,26 @@ impl StateManager {
         Ok(timeslot)
     }
 
-    pub fn get_privileged_services_state(&self) -> Result<PrivilegedServices, StateManagerError> {
+    pub fn with_mut_timeslot<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut Timeslot),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::Timeslot(ref mut timeslot) = cache_entry.value {
+            f(timeslot); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::PrivilegedServices);
 
         // Check the cache
@@ -447,7 +675,30 @@ impl StateManager {
         Ok(privileged_services)
     }
 
-    pub fn get_validator_stats_state(&self) -> Result<ValidatorStats, StateManagerError> {
+    pub fn with_mut_privileged_services<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut PrivilegedServices),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::PrivilegedServices(ref mut privileged_services) = cache_entry.value {
+            f(privileged_services); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_validator_stats(&self) -> Result<ValidatorStats, StateManagerError> {
         let state_key = construct_key(StateKeyConstant::ValidatorStats);
 
         // Check the cache
@@ -466,6 +717,25 @@ impl StateManager {
         self.cache.insert(state_key, cache_entry);
 
         Ok(validator_stats)
+    }
+
+    pub fn with_mut_validator_stats<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut ValidatorStats),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::ValidatorStats(ref mut validator_stats) = cache_entry.value {
+            f(validator_stats); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
     }
 
     pub fn get_account_metadata(
@@ -491,6 +761,25 @@ impl StateManager {
         self.cache.insert(state_key, cache_entry);
 
         Ok(account_metadata)
+    }
+
+    pub fn with_mut_account_metadata<F>(&self, key: &Hash32, f: F) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccountMetadata),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccountMetadata(ref mut account_metadata) = cache_entry.value {
+            f(account_metadata); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
     }
 
     pub fn get_account_storage_entry(
@@ -519,6 +808,31 @@ impl StateManager {
         self.cache.insert(state_key, cache_entry);
 
         Ok(storage_entry)
+    }
+
+    pub fn with_mut_account_storage_entry<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccountStorageEntry),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccountStorageEntry(ref mut account_storage_entry) =
+            cache_entry.value
+        {
+            f(account_storage_entry); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
     }
 
     pub fn get_account_preimages_entry(
@@ -551,6 +865,31 @@ impl StateManager {
         Ok(preimages_entry)
     }
 
+    pub fn with_mut_account_preimages_entry<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccountPreimagesEntry),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccountPreimagesEntry(ref mut account_preimages_entry) =
+            cache_entry.value
+        {
+            f(account_preimages_entry); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
     pub fn get_account_lookups_entry(
         &self,
         address: Address,
@@ -576,5 +915,30 @@ impl StateManager {
         self.cache.insert(state_key, cache_entry);
 
         Ok(lookups_entry)
+    }
+
+    pub fn with_mut_account_lookups_entry<F>(
+        &self,
+        key: &Hash32,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccountLookupsEntry),
+    {
+        let mut cache_entry = self
+            .cache
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccountLookupsEntry(ref mut account_lookups_entry) =
+            cache_entry.value
+        {
+            f(account_lookups_entry); // call the closure to mutate the state
+            cache_entry.mark_dirty();
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
     }
 }
