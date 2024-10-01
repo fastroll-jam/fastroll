@@ -1,5 +1,5 @@
 use crate::state::timeslot::Timeslot;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamInput, JamOutput};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
 
 pub const B_S: Balance = 100; // The basic minimum balance which all services require
@@ -40,6 +40,10 @@ impl AccountMetadata {
         let l = self.total_octets_footprint as Balance;
 
         B_S + B_I * i + B_L * l
+    }
+
+    pub fn get_initial_threshold_balance() -> Balance {
+        B_S
     }
 }
 

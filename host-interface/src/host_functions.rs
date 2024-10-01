@@ -22,7 +22,6 @@ use rjam_pvm_core::{
     types::{
         common::{ExitReason, ExportDataSegment},
         error::{
-            HostCallError,
             HostCallError::{
                 AccountNotFound, DataSegmentLengthMismatch, InvalidContext, InvalidExitReason,
             },
@@ -31,12 +30,13 @@ use rjam_pvm_core::{
     },
     vm_core::{PVMCore, Program, VMState},
 };
-use rjam_state::cache::STATE_CACHE;
-use rjam_types::state::{
-    services::{ServiceAccountState, B_S},
-    validators::StagingValidatorSet,
+use rjam_state::{
+    cache::STATE_CACHE,
+    state_manager::{StateManager, StateWriteOp},
 };
-use std::collections::{btree_map::Entry, BTreeMap};
+use rjam_types::state::{
+    services::B_S, services_wip::AccountMetadata, validators::StagingValidatorSet,
+};
 
 #[repr(u32)]
 pub enum HostCallResultConstant {
@@ -189,7 +189,6 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
         let target_account = service_accounts
@@ -247,7 +246,6 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
         let mut target_account = service_accounts
@@ -303,7 +301,6 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
         let target_account = service_accounts
@@ -354,19 +351,18 @@ impl HostFunction {
     // Accumulation host functions mutate: gas, registers, contexts
     pub fn host_empower(
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let [empower, assign, designate, ..] = registers.map(|r| r.value as Address);
 
-        x.privileged_services.empower_service_index = empower;
-        x.privileged_services.assign_service_index = assign;
-        x.privileged_services.designate_service_index = designate;
+        state_manager.with_mut_privileged_services(
+            StateWriteOp::Update,
+            |privileged_services| {
+                privileged_services.empower_service_index = empower;
+                privileged_services.assign_service_index = assign;
+                privileged_services.designate_service_index = designate;
+            },
+        )?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: HostCallVMStateChange::default(),
@@ -376,14 +372,8 @@ impl HostFunction {
     pub fn host_assign(
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let core_index = registers[0].value as usize;
         let offset = registers[1].value as MemAddress;
 
@@ -407,7 +397,9 @@ impl HostFunction {
             }
         }
 
-        x.auth_queue.0[core_index] = queue_assignment;
+        state_manager.with_mut_auth_queue(StateWriteOp::Update, |auth_queue| {
+            auth_queue.0[core_index] = queue_assignment;
+        })?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
@@ -417,14 +409,8 @@ impl HostFunction {
     pub fn host_designate(
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let offset = registers[0].value as MemAddress;
 
         // FIXME: check the public key blob length - the PVM spec describes as 176 but public key blob is 336 bytes in general
@@ -446,7 +432,9 @@ impl HostFunction {
             }
         }
 
-        x.staging_validator_set = new_staging_set;
+        state_manager.with_mut_staging_validator_set(StateWriteOp::Update, |staging_set| {
+            *staging_set = new_staging_set;
+        })?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
@@ -476,10 +464,11 @@ impl HostFunction {
             },
         }))
     }
-
     pub fn host_new(
+        creator_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let acc_pair = match context.as_accumulate_context_mut() {
@@ -505,66 +494,73 @@ impl HostFunction {
         let gas_limit_g = ((gas_limit_g_high as u64) << 32 | gas_limit_g_low as u64) as UnsignedGas;
         let gas_limit_m = ((gas_limit_m_high as u64) << 32 | gas_limit_m_low as u64) as UnsignedGas;
 
-        let mut new_account = ServiceAccountState {
-            code_hash,
-            storage: Default::default(),
-            preimages: Default::default(),
-            lookups: BTreeMap::from([((code_hash, lookup_len), vec![])]),
-            balance: 0,
-            gas_limit_accumulate: gas_limit_g,
-            gas_limit_on_transfer: gas_limit_m,
-        };
+        let new_threshold_balance = AccountMetadata::get_initial_threshold_balance();
 
-        let new_threshold_balance = new_account.get_threshold_balance();
-        new_account.balance = new_threshold_balance; // set initial account balance
-        let context_account_balance = x
-            .service_account
-            .as_ref()
-            .unwrap()
+        // Check the creator account's balance and subtract by the initial threshold balance
+        // to be transferred to the new account.
+        let creator_account_account_metadata = state_manager
+            .get_account_metadata(creator_address)?
+            .unwrap();
+        let creator_account_threshold_balance =
+            creator_account_account_metadata.get_threshold_balance();
+        let creator_subtracted_balance = creator_account_account_metadata
+            .account_info
             .balance
             .saturating_sub(new_threshold_balance);
 
-        if context_account_balance < x.service_account.as_ref().unwrap().get_threshold_balance() {
-            // TODO: check - should return context `x_T`
+        if creator_subtracted_balance < creator_account_threshold_balance {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                 vm_state_change: cash_change(BASE_GAS_USAGE),
             }));
         }
 
-        let new_service_index = x.new_service_index;
+        state_manager.with_mut_account_metadata(
+            StateWriteOp::Update,
+            creator_address,
+            |account_metadata| account_metadata.account_info.balance = creator_subtracted_balance,
+        )?;
 
-        let bump = |a: Address| -> Address {
-            ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8)) as Address
-        };
+        // Add a new account.
+        // State of new accounts is also maintained in the StateCache, marked as `Dirty(StateWriteOp::Add)`
+        let new_account_address = x.get_next_new_account_address();
+        state_manager.with_mut_account_metadata(
+            StateWriteOp::Add,
+            new_account_address,
+            |account_metadata| {
+                account_metadata.account_info.code_hash = code_hash;
+                account_metadata.account_info.balance = new_threshold_balance;
+                account_metadata.account_info.gas_limit_accumulate = gas_limit_g;
+                account_metadata.account_info.gas_limit_on_transfer = gas_limit_m;
+            },
+        )?;
 
-        // FIXME: this operation needs `&ServiceAccounts` for the `check` operation
-        x.new_service_index = bump(new_service_index); // bump new service index for the next account generation
-        x.new_accounts.0.insert(new_service_index, new_account);
-        x.service_account
-            .as_mut()
-            .ok_or(HostCallError::InvalidContext)?
-            .balance = context_account_balance;
+        // Add an empty lookups storage entry to the new account.
+        state_manager.with_mut_account_lookups_entry(
+            StateWriteOp::Add,
+            new_account_address,
+            (&code_hash, lookup_len),
+            |lookup_entry| {
+                lookup_entry.value = vec![];
+            },
+        )?;
+
+        x.rotate_new_account_address(state_manager)?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: HostCallVMStateChange {
                 gas_usage: BASE_GAS_USAGE,
-                r0_write: Some(new_service_index),
+                r0_write: Some(new_account_address),
                 ..Default::default()
             },
         }))
     }
 
     pub fn host_upgrade(
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let [offset, gas_limit_g_low, gas_limit_g_high, gas_limit_m_low, gas_limit_m_high, ..] =
             registers.map(|r| r.value);
 
@@ -582,13 +578,15 @@ impl HostFunction {
         let gas_limit_g = ((gas_limit_g_high as u64) << 32 | gas_limit_g_low as u64) as UnsignedGas;
         let gas_limit_m = ((gas_limit_m_high as u64) << 32 | gas_limit_m_low as u64) as UnsignedGas;
 
-        let context_account = x
-            .service_account
-            .as_mut()
-            .ok_or(HostCallError::InvalidContext)?;
-        context_account.code_hash = code_hash;
-        context_account.gas_limit_accumulate = gas_limit_g;
-        context_account.gas_limit_on_transfer = gas_limit_m;
+        state_manager.with_mut_account_metadata(
+            StateWriteOp::Update,
+            target_address,
+            |account_metadata| {
+                account_metadata.account_info.code_hash = code_hash;
+                account_metadata.account_info.gas_limit_accumulate = gas_limit_g;
+                account_metadata.account_info.gas_limit_on_transfer = gas_limit_m;
+            },
+        )?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),
@@ -596,14 +594,13 @@ impl HostFunction {
     }
 
     pub fn host_transfer(
-        target_address: Address,
+        sender_address: Address,
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
@@ -626,25 +623,28 @@ impl HostFunction {
             JamDecode::decode(&mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..])?;
 
         let transfer = DeferredTransfer {
-            from: target_address,
+            from: sender_address,
             to: dest as Address,
             amount,
             memo: transfer_memo,
             gas_limit,
         };
 
-        let post_balance = x.service_account.as_ref().unwrap().balance - amount;
+        let sender_account_metadata = state_manager.get_account_metadata(sender_address)?.unwrap();
 
-        if !service_accounts.0.contains_key(&dest) && !x.new_accounts.0.contains_key(&dest) {
+        let sender_post_balance = sender_account_metadata.account_info.balance - amount;
+
+        // State cache lookup also detects new accounts added during accumulation
+        if !state_manager.account_exists(dest)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE + amount),
             }));
         }
 
-        let dest_gas_limit_m = service_accounts
-            .get_account(&dest)
-            .or_else(|| x.new_accounts.get_account(&dest))
+        let dest_gas_limit_m = state_manager
+            .get_account_metadata(dest)?
             .unwrap()
+            .account_info
             .gas_limit_on_transfer;
 
         if gas_limit < dest_gas_limit_m {
@@ -659,18 +659,20 @@ impl HostFunction {
             }));
         }
 
-        if post_balance < x.service_account.as_ref().unwrap().get_threshold_balance() {
+        if sender_post_balance < sender_account_metadata.get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                 vm_state_change: cash_change(BASE_GAS_USAGE + amount),
             }));
         }
 
-        // context states update
-        x.deferred_transfers.push(transfer);
-        x.service_account
-            .as_mut()
-            .ok_or(HostCallError::InvalidContext)?
-            .balance = post_balance;
+        x.add_to_deferred_transfers(transfer);
+        state_manager.with_mut_account_metadata(
+            StateWriteOp::Update,
+            sender_address,
+            |sender_account_metadata| {
+                sender_account_metadata.account_info.balance = sender_post_balance;
+            },
+        )?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: oob_change(BASE_GAS_USAGE + amount),
@@ -682,10 +684,9 @@ impl HostFunction {
         gas: UnsignedGas,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap(); // TODO: check - not included in the GP
-
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
@@ -694,8 +695,10 @@ impl HostFunction {
 
         let [dest, offset, ..] = registers.map(|r| r.value);
 
-        let context_account = x.service_account.as_ref().unwrap();
+        let context_account = state_manager.get_account_metadata(target_address)?.unwrap();
+
         let amount = context_account
+            .account_info
             .balance
             .wrapping_sub(context_account.get_threshold_balance())
             + B_S;
@@ -721,16 +724,17 @@ impl HostFunction {
             gas_limit: gas,
         };
 
-        if !service_accounts.0.contains_key(&dest) && !x.new_accounts.0.contains_key(&dest) {
+        // State cache lookup also detects new accounts added during accumulation
+        if !state_manager.account_exists(dest)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                 vm_state_change: who_change(BASE_GAS_USAGE + amount),
             }));
         }
 
-        let dest_gas_limit_m = service_accounts
-            .get_account(&dest)
-            .or_else(|| x.new_accounts.get_account(&dest))
+        let dest_gas_limit_m = state_manager
+            .get_account_metadata(dest)?
             .unwrap()
+            .account_info
             .gas_limit_on_transfer;
 
         if gas < dest_gas_limit_m {
@@ -738,25 +742,17 @@ impl HostFunction {
                 vm_state_change: low_change(BASE_GAS_USAGE + amount),
             }));
         }
+        x.add_to_deferred_transfers(transfer);
 
-        x.deferred_transfers.push(transfer);
         Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_USAGE)))
     }
 
     pub fn host_solicit(
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        // TODO: timeslot from the header
-        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap(); // TODO: check - not included in the GP
-
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let [offset, lookup_len, ..] = registers.map(|r| r.value);
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
@@ -771,11 +767,8 @@ impl HostFunction {
                 .as_slice(),
         )?;
 
-        let account = x
-            .service_account
-            .as_mut()
-            .ok_or(HostCallError::InvalidContext)?;
-        if account.balance < account.get_threshold_balance() {
+        let account = state_manager.get_account_metadata(target_address)?.unwrap();
+        if account.account_info.balance < account.get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                 vm_state_change: full_change(BASE_GAS_USAGE),
             }));
@@ -784,19 +777,36 @@ impl HostFunction {
         // Insert current timeslot if the entry exists.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
         // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
-        match account.lookups.entry((lookup_hash, lookup_len)) {
-            Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(vec![timeslot]);
-            }
-            Entry::Occupied(mut entry) => {
-                let timeslots = entry.get_mut();
-                if timeslots.len() == 2 {
-                    timeslots.push(timeslot);
+        let current_timeslot = state_manager.get_timeslot()?;
+        let lookups_key = (&lookup_hash, lookup_len);
+        let account_lookups_entry =
+            state_manager.get_account_lookups_entry(target_address, lookups_key)?;
+        match account_lookups_entry {
+            Some(entry) => {
+                // Add current timeslot.
+                if entry.value.len() == 2 {
+                    state_manager.with_mut_account_lookups_entry(
+                        StateWriteOp::Update,
+                        target_address,
+                        lookups_key,
+                        |entry| {
+                            entry.value.push(current_timeslot);
+                        },
+                    )?;
                 } else {
                     return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
                         vm_state_change: huh_change(BASE_GAS_USAGE),
                     }));
                 }
+            }
+            None => {
+                // Add a new entry.
+                state_manager.with_mut_account_lookups_entry(
+                    StateWriteOp::Add,
+                    target_address,
+                    (&lookup_hash, lookup_len),
+                    |entry| entry.value = vec![],
+                )?;
             }
         }
 
@@ -806,19 +816,11 @@ impl HostFunction {
     }
 
     pub fn host_forget(
+        target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        context: &mut InvocationContext,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        // TODO: timeslot from the header
-        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
-
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let x = acc_pair.get_mut_x();
-
         let [offset, lookup_len, ..] = registers.map(|r| r.value);
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
@@ -833,32 +835,77 @@ impl HostFunction {
                 .as_slice(),
         )?;
 
-        let account = x
-            .service_account
-            .as_mut()
-            .ok_or(HostCallError::InvalidContext)?;
+        let current_timeslot = state_manager.get_timeslot()?;
+        let lookups_key = (&lookup_hash, lookup_len);
+        let account_lookups_entry =
+            state_manager.get_account_lookups_entry(target_address, lookups_key)?;
 
-        let vm_state_change = match account.lookups.entry((lookup_hash, lookup_len)) {
-            Entry::Vacant(_) => huh_change(BASE_GAS_USAGE),
-            Entry::Occupied(mut entry) => {
-                let timeslots = entry.get_mut();
-                match timeslots.len() {
+        let vm_state_change = match account_lookups_entry {
+            None => huh_change(BASE_GAS_USAGE),
+            Some(entry) => {
+                let lookups_timeslots = entry.value;
+                // Length of the timeslots vector
+
+                match lookups_timeslots.len() {
                     0 => {
-                        entry.remove(); // remove the entry from the lookup dictionary
-                        account.storage.remove(&lookup_hash); // remove an entry from the storage
+                        // Remove the lookups table entry
+                        state_manager.with_mut_account_lookups_entry(
+                            StateWriteOp::Remove,
+                            target_address,
+                            lookups_key,
+                            |_| {},
+                        )?;
+                        // Remove the preimages table entry
+                        state_manager.with_mut_account_preimages_entry(
+                            StateWriteOp::Remove,
+                            target_address,
+                            &lookup_hash,
+                            |_| {},
+                        )?;
                         ok_change(BASE_GAS_USAGE)
                     }
                     1 => {
-                        timeslots.push(timeslot);
+                        state_manager.with_mut_account_lookups_entry(
+                            StateWriteOp::Update,
+                            target_address,
+                            lookups_key,
+                            |entry_mut| {
+                                entry_mut.value.push(current_timeslot);
+                            },
+                        )?;
                         ok_change(BASE_GAS_USAGE)
                     }
-                    2 | 3 if timeslots[1].0 < timeslot.0 - PREIMAGE_EXPIRATION_PERIOD => {
-                        if timeslots.len() == 2 {
-                            entry.remove(); // remove the entry from the lookup dictionary
-                            account.storage.remove(&lookup_hash); // remove an entry from the storage
+                    2 | 3
+                        if lookups_timeslots[1].0
+                            < current_timeslot.0 - PREIMAGE_EXPIRATION_PERIOD =>
+                    {
+                        if lookups_timeslots.len() == 2 {
+                            // Remove the lookups table entry
+                            state_manager.with_mut_account_lookups_entry(
+                                StateWriteOp::Remove,
+                                target_address,
+                                lookups_key,
+                                |_| {},
+                            )?;
+                            // Remove the preimages table entry
+                            state_manager.with_mut_account_preimages_entry(
+                                StateWriteOp::Remove,
+                                target_address,
+                                &lookup_hash,
+                                |_| {},
+                            )?;
                         } else {
-                            timeslots.clear();
-                            timeslots.extend(vec![timeslots[2], timeslot]);
+                            state_manager.with_mut_account_lookups_entry(
+                                StateWriteOp::Update,
+                                target_address,
+                                lookups_key,
+                                |entry_mut| {
+                                    entry_mut.value.clear();
+                                    entry_mut
+                                        .value
+                                        .extend(vec![lookups_timeslots[2], current_timeslot]);
+                                },
+                            )?
                         }
                         ok_change(BASE_GAS_USAGE)
                     }
@@ -880,7 +927,6 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        _context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
         // TODO: timeslot from the refinement context
@@ -943,7 +989,6 @@ impl HostFunction {
     pub fn host_import(
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
-        _context: &mut InvocationContext,
         import_segments: Vec<ExportDataSegment>,
     ) -> Result<HostCallResult, PVMError> {
         let [segment_index, offset, segments_len, ..] = registers.map(|r| r.value);

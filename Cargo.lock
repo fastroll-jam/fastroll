@@ -953,6 +953,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-host-interface",
  "rjam-pvm-core",
+ "rjam-state",
  "rjam-types",
  "thiserror",
 ]

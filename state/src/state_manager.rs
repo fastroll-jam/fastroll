@@ -138,9 +138,16 @@ pub(crate) fn construct_account_lookups_state_key(
 }
 
 #[derive(Clone)]
+pub enum StateWriteOp {
+    Update,
+    Add,
+    Remove,
+}
+
+#[derive(Clone)]
 enum CacheEntryStatus {
     Clean,
-    Dirty,
+    Dirty(StateWriteOp),
 }
 
 struct CacheEntry {
@@ -157,11 +164,11 @@ impl CacheEntry {
     }
 
     fn is_dirty(&self) -> bool {
-        matches!(self.status, CacheEntryStatus::Dirty)
+        matches!(self.status, CacheEntryStatus::Dirty(_))
     }
 
-    fn mark_dirty(&mut self) {
-        self.status = CacheEntryStatus::Dirty;
+    fn mark_dirty(&mut self, write_op: StateWriteOp) {
+        self.status = CacheEntryStatus::Dirty(write_op);
     }
 
     fn mark_clean(&mut self) {
@@ -184,7 +191,7 @@ impl StateManager {
         }
     }
 
-    fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
+    pub fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
         match self.get_account_metadata(address)? {
             Some(_) => Ok(true),
             None => Ok(false),
@@ -272,6 +279,10 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
+    //
+    // Immutable/mutable references to state components and account storage entries
+    //
+
     pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
         let state_key = construct_state_key(StateKeyConstant::AuthPool);
 
@@ -295,7 +306,11 @@ impl StateManager {
         Ok(auth_pool)
     }
 
-    pub fn with_mut_auth_pool<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_auth_pool<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AuthPool),
     {
@@ -308,7 +323,7 @@ impl StateManager {
 
         if let StateEntryType::AuthPool(ref mut auth_pool) = cache_entry.value {
             f(auth_pool); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -339,7 +354,11 @@ impl StateManager {
         Ok(auth_queue)
     }
 
-    pub fn with_mut_auth_queue<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_auth_queue<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AuthQueue),
     {
@@ -352,7 +371,7 @@ impl StateManager {
 
         if let StateEntryType::AuthQueue(ref mut auth_queue) = cache_entry.value {
             f(auth_queue); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -383,7 +402,11 @@ impl StateManager {
         Ok(block_histories)
     }
 
-    pub fn with_mut_block_histories<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_block_histories<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut BlockHistories),
     {
@@ -396,7 +419,7 @@ impl StateManager {
 
         if let StateEntryType::BlockHistories(ref mut block_histories) = cache_entry.value {
             f(block_histories); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -427,7 +450,7 @@ impl StateManager {
         Ok(safrole)
     }
 
-    pub fn with_mut_safrole<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_safrole<F>(&self, write_op: StateWriteOp, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut SafroleState),
     {
@@ -440,7 +463,7 @@ impl StateManager {
 
         if let StateEntryType::SafroleState(ref mut safrole) = cache_entry.value {
             f(safrole); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -471,7 +494,11 @@ impl StateManager {
         Ok(dispute_state)
     }
 
-    pub fn with_mut_disputes<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_disputes<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut DisputesState),
     {
@@ -484,7 +511,7 @@ impl StateManager {
 
         if let StateEntryType::DisputesState(ref mut disputes) = cache_entry.value {
             f(disputes); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -515,7 +542,11 @@ impl StateManager {
         Ok(entropy_acc)
     }
 
-    pub fn with_mut_entropy_accumulator<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_entropy_accumulator<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut EntropyAccumulator),
     {
@@ -528,7 +559,7 @@ impl StateManager {
 
         if let StateEntryType::EntropyAccumulator(ref mut entropy_accumulator) = cache_entry.value {
             f(entropy_accumulator); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -559,7 +590,11 @@ impl StateManager {
         Ok(staging_set)
     }
 
-    pub fn with_mut_staging_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_staging_validator_set<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut StagingValidatorSet),
     {
@@ -574,7 +609,7 @@ impl StateManager {
             cache_entry.value
         {
             f(staging_validator_set); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -605,7 +640,11 @@ impl StateManager {
         Ok(active_set)
     }
 
-    pub fn with_mut_active_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_active_validator_set<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut ActiveValidatorSet),
     {
@@ -619,7 +658,7 @@ impl StateManager {
         if let StateEntryType::ActiveValidatorSet(ref mut active_validator_set) = cache_entry.value
         {
             f(active_validator_set); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -650,7 +689,11 @@ impl StateManager {
         Ok(past_set)
     }
 
-    pub fn with_mut_past_validator_set<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_past_validator_set<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PastValidatorSet),
     {
@@ -663,7 +706,7 @@ impl StateManager {
 
         if let StateEntryType::PastValidatorSet(ref mut past_validator_set) = cache_entry.value {
             f(past_validator_set); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -694,7 +737,11 @@ impl StateManager {
         Ok(pending_reports)
     }
 
-    pub fn with_mut_pending_reports<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_pending_reports<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PendingReports),
     {
@@ -707,7 +754,7 @@ impl StateManager {
 
         if let StateEntryType::PendingReports(ref mut pending_reports) = cache_entry.value {
             f(pending_reports); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -738,7 +785,11 @@ impl StateManager {
         Ok(timeslot)
     }
 
-    pub fn with_mut_timeslot<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_timeslot<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut Timeslot),
     {
@@ -751,7 +802,7 @@ impl StateManager {
 
         if let StateEntryType::Timeslot(ref mut timeslot) = cache_entry.value {
             f(timeslot); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -785,7 +836,11 @@ impl StateManager {
         Ok(privileged_services)
     }
 
-    pub fn with_mut_privileged_services<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_privileged_services<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut PrivilegedServices),
     {
@@ -798,7 +853,7 @@ impl StateManager {
 
         if let StateEntryType::PrivilegedServices(ref mut privileged_services) = cache_entry.value {
             f(privileged_services); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -829,7 +884,11 @@ impl StateManager {
         Ok(validator_stats)
     }
 
-    pub fn with_mut_validator_stats<F>(&self, f: F) -> Result<(), StateManagerError>
+    pub fn with_mut_validator_stats<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut ValidatorStats),
     {
@@ -842,7 +901,7 @@ impl StateManager {
 
         if let StateEntryType::ValidatorStats(ref mut validator_stats) = cache_entry.value {
             f(validator_stats); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -881,6 +940,7 @@ impl StateManager {
 
     pub fn with_mut_account_metadata<F>(
         &self,
+        write_op: StateWriteOp,
         address: Address,
         f: F,
     ) -> Result<(), StateManagerError>
@@ -897,7 +957,7 @@ impl StateManager {
 
         if let StateEntryType::AccountMetadata(ref mut account_metadata) = cache_entry.value {
             f(account_metadata); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -938,6 +998,7 @@ impl StateManager {
 
     pub fn with_mut_account_storage_entry<F>(
         &self,
+        write_op: StateWriteOp,
         address: Address,
         storage_key: &Hash32,
         f: F,
@@ -956,7 +1017,7 @@ impl StateManager {
             cache_entry.value
         {
             f(account_storage_entry); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -999,6 +1060,7 @@ impl StateManager {
 
     pub fn with_mut_account_preimages_entry<F>(
         &self,
+        write_op: StateWriteOp,
         address: Address,
         preimages_key: &Hash32,
         f: F,
@@ -1017,7 +1079,7 @@ impl StateManager {
             cache_entry.value
         {
             f(account_preimages_entry); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {
@@ -1057,6 +1119,7 @@ impl StateManager {
 
     pub fn with_mut_account_lookups_entry<F>(
         &self,
+        write_op: StateWriteOp,
         address: Address,
         lookups_key: (&Hash32, u32),
         f: F,
@@ -1076,7 +1139,7 @@ impl StateManager {
             cache_entry.value
         {
             f(account_lookups_entry); // call the closure to mutate the state
-            cache_entry.mark_dirty();
+            cache_entry.mark_dirty(write_op);
 
             Ok(())
         } else {

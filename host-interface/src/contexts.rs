@@ -3,14 +3,8 @@ use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, DeferredTransfer, Hash32};
 use rjam_crypto::utils::blake2b_256;
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
-use rjam_state::state_retriever::StateRetriever;
-use rjam_types::state::{
-    authorizer::AuthQueue,
-    privileged::PrivilegedServices,
-    services::{ServiceAccountState, ServiceAccounts},
-    timeslot::Timeslot,
-    validators::StagingValidatorSet,
-};
+use rjam_state::state_manager::StateManager;
+use rjam_types::state::{services::ServiceAccountState, timeslot::Timeslot};
 use std::collections::HashMap;
 
 /// Host context for different invocation types
@@ -63,68 +57,67 @@ impl AccumulateContextPair {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct AccumulateContext {
-    pub(crate) service_account: Option<ServiceAccountState>, // s; current service account
-    pub(crate) auth_queue: AuthQueue,                        // c
-    pub(crate) staging_validator_set: StagingValidatorSet,   // v
-    pub(crate) new_service_index: Address,                   // i
-    pub(crate) deferred_transfers: Vec<DeferredTransfer>,    // t
-    pub(crate) new_accounts: ServiceAccounts,                // n
-    pub(crate) privileged_services: PrivilegedServices,      // p
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    next_new_account_address: Address,
 }
 
 impl AccumulateContext {
-    pub fn initialize_context(
-        service_accounts: &ServiceAccounts,
-        target_account: &ServiceAccountState,
-        target_address: Address,
-    ) -> Result<Self, PVMError> {
-        // Get current global state components
-        let state_retriever = StateRetriever::new();
-        let privileged_services = state_retriever.get_privileged_services()?;
-        let auth_queue = state_retriever.get_auth_queue()?;
-        let staging_validator_set = state_retriever.get_staging_validator_set()?;
-        let entropy_0 = state_retriever.get_entropy_accumulator()?.current();
-        let timeslot = state_retriever.get_recent_timeslot()?;
-
-        let context = Self {
-            service_account: Some(target_account.clone()),
-            deferred_transfers: vec![],
-            new_service_index: Self::new_account_address(
-                service_accounts,
-                target_address,
-                entropy_0,
-                timeslot,
-            ),
-            privileged_services,
-            auth_queue,
-            staging_validator_set,
-            new_accounts: ServiceAccounts::default(),
-        };
-
-        Ok(context)
-    }
-
-    fn new_account_address(
-        service_accounts_state: &ServiceAccounts,
+    pub fn new(
+        state_manager: &StateManager,
         target_address: Address,
         entropy: Hash32,
-        timeslot: Timeslot,
-    ) -> Address {
-        // TODO: check return type
-        // TODO: confirm how to deal with hash of a tuple; H(address, entropy, timestamp)
-        // TODO: check GP appendix B.4.
+        timeslot: &Timeslot,
+    ) -> Result<Self, PVMError> {
+        Ok(Self {
+            next_new_account_address: AccumulateContext::initialize_new_account_address(
+                state_manager,
+                target_address,
+                entropy,
+                timeslot,
+            )?,
+            ..Default::default()
+        })
+    }
+
+    fn initialize_new_account_address(
+        state_manager: &StateManager,
+        target_address: Address,
+        entropy: Hash32,
+        timeslot: &Timeslot,
+    ) -> Result<Address, PVMError> {
+        // TODO: confirm how to deal with hash of a tuple; H(address, entropy, timestamp); check GP appendix B.4.
         let mut buf = vec![];
-        target_address.encode_to(&mut buf).unwrap();
-        entropy.encode_to(&mut buf).unwrap();
-        timeslot.0.encode_to(&mut buf).unwrap();
+        target_address.encode_to(&mut buf)?;
+        entropy.encode_to(&mut buf)?;
+        timeslot.0.encode_to(&mut buf)?;
 
-        let source_hash = blake2b_256(&buf[..]).unwrap();
-        let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4).unwrap() as u64
+        let source_hash = blake2b_256(&buf[..])?;
+        let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4)? as u64
             & ((1 << 32) - (1 << 9)) + (1 << 8)) as Address;
+        let new_account_address = state_manager.check(initial_check_address)?;
 
-        service_accounts_state.check(initial_check_address)
+        Ok(new_account_address)
+    }
+
+    pub fn get_next_new_account_address(&self) -> Address {
+        self.next_new_account_address
+    }
+
+    pub fn rotate_new_account_address(
+        &mut self,
+        state_manager: &StateManager,
+    ) -> Result<(), PVMError> {
+        let bump = |a: Address| -> Address {
+            ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8)) as Address
+        };
+        self.next_new_account_address = bump(state_manager.check(self.next_new_account_address)?);
+        Ok(())
+    }
+
+    pub fn add_to_deferred_transfers(&mut self, transfer: DeferredTransfer) {
+        self.deferred_transfers.push(transfer);
     }
 }
 

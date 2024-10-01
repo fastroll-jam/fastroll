@@ -19,7 +19,7 @@ use rjam_pvm_core::{
         },
     },
 };
-use rjam_state::cache::STATE_CACHE;
+use rjam_state::{cache::STATE_CACHE, state_manager::StateManager};
 use rjam_types::state::{
     services::{ServiceAccountState, ServiceAccounts},
     timeslot::Timeslot,
@@ -48,6 +48,7 @@ impl PVMInvocation {
     //
 
     pub fn is_authorized(
+        state_manager: &StateManager, // FIXME: not needed
         work_package: WorkPackage,
         core_index: u32,
     ) -> Result<WorkExecutionOutput, PVMError> {
@@ -78,6 +79,7 @@ impl PVMInvocation {
         core_index.encode_to(&mut args)?;
 
         let common_invocation_result = PVM::common_invocation(
+            state_manager,
             work_package.authorizer_address,
             &code,
             IS_AUTHORIZED_INITIAL_PC,
@@ -101,6 +103,7 @@ impl PVMInvocation {
     }
 
     pub fn refine(
+        state_manager: &StateManager, // FIXME: not needed
         code_hash: Hash32,
         gas_limit: UnsignedGas,
         service_index: Address,
@@ -153,6 +156,7 @@ impl PVMInvocation {
         let mut context = InvocationContext::X_R(RefineContext::default());
 
         let common_invocation_result = PVM::common_invocation(
+            state_manager,
             service_index,
             &code,
             REFINE_INITIAL_PC,
@@ -197,40 +201,39 @@ impl PVMInvocation {
     ///
     /// Represents `Psi_A` of the GP
     pub fn accumulate(
-        service_accounts: &ServiceAccounts,
+        state_manager: &StateManager,
         target_address: Address,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulateOperand>,
     ) -> Result<AccumulateResult, PVMError> {
-        let target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))?
-            .clone();
-
-        let code = target_account.get_code().cloned();
+        let code = state_manager.get_account_code(target_address)?;
 
         if operands.is_empty() || code.is_none() {
             return Ok(AccumulateResult::Unchanged);
         }
         let code = code.unwrap();
 
-        // `x` for a regular dimension and `y` for an exceptional dimension
+        let current_entropy = state_manager.get_entropy_accumulator()?.current();
+        let current_timeslot = state_manager.get_timeslot()?;
+        let accumulate_context = AccumulateContext::new(
+            state_manager,
+            target_address,
+            current_entropy,
+            &current_timeslot,
+        )?;
+
         let context_pair = AccumulateContextPair {
-            x: AccumulateContext::initialize_context(
-                service_accounts,
-                &target_account,
-                target_address,
-            )?,
-            y: AccumulateContext::initialize_context(
-                service_accounts,
-                &target_account,
-                target_address,
-            )?,
+            x: accumulate_context.clone(),
+            y: accumulate_context,
         };
 
         let mut context = InvocationContext::X_A(context_pair);
 
+        // initialize the new account address in-memory state (part of Accumulate context)
+
         let common_invocation_result = PVM::common_invocation(
+            state_manager,
+            // Some(&mut accumulate_context),
             target_address,
             &code,
             ACCUMULATE_INITIAL_PC,
@@ -258,6 +261,7 @@ impl PVMInvocation {
     }
 
     pub fn on_transfer(
+        state_manager: &StateManager,
         service_accounts: &ServiceAccounts,
         destination_address: Address,
         transfers: Vec<DeferredTransfer>,
@@ -283,6 +287,7 @@ impl PVMInvocation {
 
         // TODO: check the return type
         PVM::common_invocation(
+            state_manager,
             destination_address,
             &code,
             ON_TRANSFER_INITIAL_PC,

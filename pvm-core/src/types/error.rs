@@ -1,12 +1,18 @@
 use crate::state::memory::MemoryError;
 use rjam_codec::JamCodecError;
 use rjam_crypto::utils::CryptoError;
-use rjam_state::{cache::StateCacheError, global_state::GlobalStateError};
+use rjam_state::{
+    cache::StateCacheError, global_state::GlobalStateError, state_manager::StateManagerError,
+};
 use thiserror::Error;
 
 // PVM Error Codes
 #[derive(Debug, Error)]
 pub enum PVMError {
+    #[error("New account address not initialized")]
+    NewAccountAddressNotInitialized,
+    #[error("Account code not found")]
+    AccountCodeNotFound,
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]
@@ -21,6 +27,8 @@ pub enum PVMError {
     CryptoError(#[from] CryptoError),
     #[error("StateCacheError: {0}")]
     StateCacheError(#[from] StateCacheError),
+    #[error("StateManagerError: {0}")]
+    StateManagerError(#[from] StateManagerError),
 }
 
 /// PVM Core Error Codes

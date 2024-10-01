@@ -23,6 +23,7 @@ use rjam_pvm_core::{
     utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, VMState},
 };
+use rjam_state::state_manager::StateManager;
 
 enum ExecutionResult {
     Complete(ExitReason),
@@ -223,6 +224,7 @@ impl PVM {
     ///
     /// Represents `Psi_M` of the GP
     pub fn common_invocation(
+        state_manager: &StateManager,
         target_address: Address,
         standard_program: &[u8],
         pc: MemAddress,
@@ -235,7 +237,8 @@ impl PVM {
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
-        let extended_invocation_result = pvm.extended_invocation(target_address, context)?;
+        let extended_invocation_result =
+            pvm.extended_invocation(state_manager, target_address, context)?;
 
         match extended_invocation_result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
@@ -267,6 +270,7 @@ impl PVM {
     /// Represents `Psi_H` of the GP
     fn extended_invocation(
         &mut self,
+        state_manager: &StateManager,
         target_address: Address,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
@@ -275,7 +279,7 @@ impl PVM {
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
-                    self.execute_host_function(target_address, context, &h)?
+                    self.execute_host_function(state_manager, target_address, context, &h)?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
@@ -298,6 +302,7 @@ impl PVM {
 
     fn execute_host_function(
         &mut self,
+        state_manager: &StateManager,
         target_address: Address,
         context: &mut InvocationContext,
         h: &HostCallType,
@@ -317,53 +322,56 @@ impl PVM {
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
             )?,
             HostCallType::WRITE => HostFunction::host_write(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
             )?,
             HostCallType::INFO => HostFunction::host_info(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
             )?,
 
             //
             // Accumulate Functions
             //
             HostCallType::EMPOWER => {
-                HostFunction::host_empower(self.get_host_call_registers(), context)?
+                HostFunction::host_empower(self.get_host_call_registers(), state_manager)?
             }
             HostCallType::ASSIGN => HostFunction::host_assign(
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
+                state_manager,
             )?,
             HostCallType::DESIGNATE => HostFunction::host_designate(
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
+                state_manager,
             )?,
             HostCallType::CHECKPOINT => {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
             }
-            HostCallType::NEW => {
-                HostFunction::host_new(self.get_host_call_registers(), &self.state.memory, context)?
-            }
-            HostCallType::UPGRADE => HostFunction::host_upgrade(
+            HostCallType::NEW => HostFunction::host_new(
+                target_address, // creator_address
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
                 context,
+            )?,
+            HostCallType::UPGRADE => HostFunction::host_upgrade(
+                target_address,
+                self.get_host_call_registers(),
+                &self.state.memory,
+                state_manager,
             )?,
             HostCallType::TRANSFER => HostFunction::host_transfer(
                 target_address,
                 self.state.gas_counter,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
                 context,
             )?,
             HostCallType::QUIT => HostFunction::host_quit(
@@ -371,17 +379,20 @@ impl PVM {
                 self.state.gas_counter,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
                 context,
             )?,
             HostCallType::SOLICIT => HostFunction::host_solicit(
+                target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
+                state_manager,
             )?,
             HostCallType::FORGET => HostFunction::host_forget(
+                target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
+                state_manager,
             )?,
 
             //
@@ -391,17 +402,15 @@ impl PVM {
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                context,
             )?,
+            // TODO: impl
             // HostCallType::IMPORT => HostFunction::host_import(
             //     self.get_host_call_registers(),
             //     &self.state.memory,
-            //     context, // TODO
             // )?,
             // HostCallType::EXPORT => HostFunction::host_export(
             //     self.get_host_call_registers(),
             //     &self.state.memory,
-            //     context, // TODO
             // )?,
             HostCallType::MACHINE => HostFunction::host_machine(
                 self.get_host_call_registers(),
