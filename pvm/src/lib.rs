@@ -317,21 +317,25 @@ impl PVM {
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
             )?,
             HostCallType::READ => HostFunction::host_read(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
             )?,
             HostCallType::WRITE => HostFunction::host_write(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
             )?,
             HostCallType::INFO => HostFunction::host_info(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
             )?,
 
             //
@@ -402,6 +406,7 @@ impl PVM {
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                state_manager,
             )?,
             // TODO: impl
             // HostCallType::IMPORT => HostFunction::host_import(

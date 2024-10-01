@@ -210,6 +210,9 @@ impl StateManager {
         }
     }
 
+    /// This function assumes that the code preimage is available.
+    /// For on-chain PVM invocations (`Accumulate` and `On-Transfer`) get account code directly from this function
+    /// whereas for off-chain/in-core PVM invocations (`Refine` and `Is-Authorized`) conduct historical lookups.
     pub fn get_account_code(&self, address: Address) -> Result<Option<Octets>, StateManagerError> {
         let code_hash = match self.get_account_metadata(address)? {
             Some(metadata) => metadata.account_info.code_hash,
@@ -226,6 +229,7 @@ impl StateManager {
     pub fn lookup_preimage(
         &self,
         address: Address,
+        reference_timeslot: &Timeslot,
         preimage_hash: &Hash32,
     ) -> Result<Option<Octets>, StateManagerError> {
         let preimage = match self.get_account_preimages_entry(address, preimage_hash)? {
@@ -238,15 +242,14 @@ impl StateManager {
                 Some(lookup_timeslots) => lookup_timeslots.value,
                 None => return Ok(None),
             };
-        let current_timeslot = &self.get_timeslot()?;
 
         let valid = match lookup_timeslots.as_slice() {
             [] => false,
-            [first] => first <= current_timeslot,
-            [first, second] => first <= current_timeslot && current_timeslot < second,
+            [first] => first <= reference_timeslot,
+            [first, second] => first <= reference_timeslot && reference_timeslot < second,
             [first, second, third] => {
-                (first <= current_timeslot && current_timeslot < second)
-                    || third <= current_timeslot
+                (first <= reference_timeslot && reference_timeslot < second)
+                    || third <= reference_timeslot
             }
             _ => false,
         };

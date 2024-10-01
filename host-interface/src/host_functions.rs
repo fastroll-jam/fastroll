@@ -30,10 +30,7 @@ use rjam_pvm_core::{
     },
     vm_core::{PVMCore, Program, VMState},
 };
-use rjam_state::{
-    cache::STATE_CACHE,
-    state_manager::{StateManager, StateWriteOp},
-};
+use rjam_state::state_manager::{StateManager, StateWriteOp};
 use rjam_types::state::{
     services::B_S, services_wip::AccountMetadata, validators::StagingValidatorSet,
 };
@@ -135,36 +132,29 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-        let target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))
-            .cloned()?;
-
-        let account_address = registers[0].value as Address;
+        let account_address_reg = registers[0].value as Address;
         let [hash_offset, buffer_offset] = [registers[1].value, registers[2].value];
         let buffer_size = registers[3].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == target_address {
-            target_account
-        } else {
-            match service_accounts.get_account(&account_address).cloned() {
-                Some(account) => account,
-                None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
-            }
-        };
+        let account_address =
+            if account_address_reg == u32::MAX || account_address_reg == target_address {
+                target_address
+            } else {
+                account_address_reg
+            };
 
         if !memory.is_range_readable(hash_offset, 32).unwrap() {
             return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
         }
 
         let hash = blake2b_256(&memory.read_bytes(hash_offset as MemAddress, 32)?)?;
-        let preimage = account.preimages.get(&hash).cloned();
+        let preimage_entry = state_manager.get_account_preimages_entry(account_address, &hash)?;
 
-        match preimage {
-            Some(data) => {
-                let write_data_size = buffer_size.min(data.len());
+        match preimage_entry {
+            Some(entry) => {
+                let write_data_size = buffer_size.min(entry.value.len());
 
                 if !memory.is_range_writable(buffer_offset, buffer_size)? {
                     return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
@@ -172,11 +162,11 @@ impl HostFunction {
 
                 Ok(HostCallResult::General(HostCallVMStateChange {
                     gas_usage: BASE_GAS_USAGE,
-                    r0_write: Some(data.len() as u32),
+                    r0_write: Some(entry.value.len() as u32),
                     memory_write: (
                         buffer_offset,
                         write_data_size as u32,
-                        data[..write_data_size].to_vec(),
+                        entry.value[..write_data_size].to_vec(),
                     ),
                     ..Default::default()
                 }))
@@ -189,26 +179,19 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-        let target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))
-            .cloned()?;
-
-        let account_address = registers[0].value as Address;
+        let account_address_reg = registers[0].value as Address;
         let [key_offset, key_size, buffer_offset] =
             [registers[1].value, registers[2].value, registers[3].value];
         let buffer_size = registers[4].value as usize;
 
-        let account = if account_address == u32::MAX || account_address == target_address {
-            target_account
-        } else {
-            match service_accounts.get_account(&account_address).cloned() {
-                Some(account) => account,
-                None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
-            }
-        };
+        let account_address =
+            if account_address_reg == u32::MAX || account_address_reg == target_address {
+                target_address
+            } else {
+                account_address_reg
+            };
 
         if !memory.is_range_readable(key_offset, key_size as usize)? {
             return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
@@ -219,8 +202,11 @@ impl HostFunction {
         key.extend(memory.read_bytes(key_offset, key_size as usize)?);
         let storage_key = blake2b_256(&key)?;
 
-        if let Some(data) = account.storage.get(&storage_key).cloned() {
-            let write_data_size = buffer_size.min(data.len());
+        let storage_entry =
+            state_manager.get_account_storage_entry(account_address, &storage_key)?;
+
+        if let Some(entry) = storage_entry {
+            let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
                 return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
@@ -228,11 +214,11 @@ impl HostFunction {
 
             Ok(HostCallResult::General(HostCallVMStateChange {
                 gas_usage: BASE_GAS_USAGE,
-                r0_write: Some(data.len() as u32),
+                r0_write: Some(entry.value.len() as u32),
                 memory_write: (
                     buffer_offset,
                     write_data_size as u32,
-                    data[..write_data_size].to_vec(),
+                    entry.value[..write_data_size].to_vec(),
                 ),
                 ..Default::default()
             }))
@@ -246,13 +232,8 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-        let mut target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))
-            .cloned()?;
-
         let [key_offset, value_offset] = [registers[0].value, registers[2].value];
         let [key_size, value_size] = [registers[1].value as usize, registers[3].value as usize];
 
@@ -267,20 +248,53 @@ impl HostFunction {
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = blake2b_256(&key)?;
 
-        let previous_size = if let Some(value) = target_account.storage.get(&storage_key) {
-            value.len()
+        let storage_entry =
+            state_manager.get_account_storage_entry(target_address, &storage_key)?;
+
+        let previous_size = if let Some(entry) = storage_entry {
+            entry.value.len()
         } else {
             HostCallResultConstant::NONE as usize
         };
 
         if value_size == 0 {
-            target_account.storage.remove(&storage_key);
+            state_manager.with_mut_account_storage_entry(
+                StateWriteOp::Remove,
+                target_address,
+                &storage_key,
+                |_| {},
+            )?;
         } else {
             let data = memory.read_bytes(value_offset, value_size)?;
-            target_account.storage.insert(storage_key, data);
+
+            if previous_size == HostCallResultConstant::NONE as usize {
+                state_manager.with_mut_account_storage_entry(
+                    StateWriteOp::Add,
+                    target_address,
+                    &storage_key,
+                    |entry| {
+                        entry.value = data;
+                    },
+                )?;
+            } else {
+                state_manager.with_mut_account_storage_entry(
+                    StateWriteOp::Update,
+                    target_address,
+                    &storage_key,
+                    |entry| {
+                        entry.value = data;
+                    },
+                )?;
+            }
         }
 
-        let result = if target_account.get_threshold_balance() > target_account.balance {
+        let target_account_metadata = state_manager
+            .get_account_metadata(target_address)?
+            .ok_or(PVMError::HostCallError(AccountNotFound))?;
+
+        let result = if target_account_metadata.get_threshold_balance()
+            > target_account_metadata.account_info.balance
+        {
             Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
         } else {
             Ok(HostCallResult::General(HostCallVMStateChange {
@@ -290,10 +304,6 @@ impl HostFunction {
             }))
         };
 
-        // FIXME: Accumulation write: service account changes should be applied to the accumulation context first. For OnTransfer, it can be directly mutate the global state
-        // update the service account state with the mutated local copy
-        STATE_CACHE.update_service_account_cache(target_address, target_account)?;
-
         result
     }
 
@@ -301,36 +311,38 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-        let target_account = service_accounts
-            .get_account(&target_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))
-            .cloned()?;
-
-        let account_address = registers[0].value as Address;
+        let account_address_reg = registers[0].value as Address;
         let buffer_offset = registers[1].value;
 
-        let account = if account_address == u32::MAX || account_address == target_address {
-            target_account
-        } else {
-            // TODO: find the account from the service accounts dictionary "and" the new accounts
-            // TODO: of provided invocation context, which is currently not specified in the GP
-            match service_accounts.get_account(&account_address).cloned() {
-                Some(account) => account,
-                None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
-            }
+        let account_address =
+            if account_address_reg == u32::MAX || account_address_reg == target_address {
+                target_address
+            } else {
+                account_address_reg
+            };
+
+        let account = match state_manager.get_account_metadata(account_address)? {
+            Some(metadata) => metadata,
+            None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
         };
 
         // Encode account fields with JAM Codec
         let mut info = vec![];
-        account.code_hash.encode_to(&mut info)?; // c
-        account.balance.encode_to(&mut info)?; // b
+        account.account_info.code_hash.encode_to(&mut info)?; // c
+        account.account_info.balance.encode_to(&mut info)?; // b
         account.get_threshold_balance().encode_to(&mut info)?; // t
-        account.gas_limit_accumulate.encode_to(&mut info)?; // g
-        account.gas_limit_on_transfer.encode_to(&mut info)?; // m
-        account.get_total_octets_footprint().encode_to(&mut info)?; // l
-        account.get_item_counts_footprint().encode_to(&mut info)?; // i
+        account
+            .account_info
+            .gas_limit_accumulate
+            .encode_to(&mut info)?; // g
+        account
+            .account_info
+            .gas_limit_on_transfer
+            .encode_to(&mut info)?; // m
+        account.total_octets_footprint.encode_to(&mut info)?; // l
+        account.item_counts_footprint.encode_to(&mut info)?; // i
 
         if !memory.is_range_writable(buffer_offset, info.len())? {
             return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
@@ -927,19 +939,19 @@ impl HostFunction {
         target_address: Address,
         registers: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-        // TODO: timeslot from the refinement context
-        let timeslot = STATE_CACHE.get_timeslot_cache()?.unwrap();
+        // FIXME: timeslot should come from the refinement context, not current timeslot
+        let timeslot = state_manager.get_timeslot()?;
 
-        let [account_address, lookup_hash_offset, buffer_offset, buffer_size, ..] =
+        let [account_address_reg, lookup_hash_offset, buffer_offset, buffer_size, ..] =
             registers.map(|r| r.value);
 
-        let account =
-            if account_address == u32::MAX || service_accounts.0.contains_key(&target_address) {
-                service_accounts.get_account(&target_address).unwrap()
-            } else if service_accounts.0.contains_key(&account_address) {
-                service_accounts.get_account(&account_address).unwrap()
+        let account_address =
+            if account_address_reg == u32::MAX || state_manager.account_exists(target_address)? {
+                target_address
+            } else if state_manager.account_exists(account_address_reg)? {
+                account_address_reg
             } else {
                 return Ok(HostCallResult::Refinement(RefineHostCallResult {
                     vm_state_change: none_change(BASE_GAS_USAGE),
@@ -958,7 +970,9 @@ impl HostFunction {
                 .as_slice(),
         )?;
 
-        if let Some(preimage) = account.lookup_preimage(&timeslot, lookup_hash) {
+        let preimage = state_manager.lookup_preimage(account_address, &timeslot, &lookup_hash)?;
+
+        if let Some(preimage) = preimage {
             let write_data_size = (buffer_size as usize).min(preimage.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size as usize)? {

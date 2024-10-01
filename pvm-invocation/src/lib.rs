@@ -19,7 +19,7 @@ use rjam_pvm_core::{
         },
     },
 };
-use rjam_state::{cache::STATE_CACHE, state_manager::StateManager};
+use rjam_state::state_manager::StateManager;
 use rjam_types::state::{
     services::{ServiceAccountState, ServiceAccounts},
     timeslot::Timeslot,
@@ -52,17 +52,12 @@ impl PVMInvocation {
         work_package: WorkPackage,
         core_index: u32,
     ) -> Result<WorkExecutionOutput, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-
         // retrieve the service account code via the historical lookup function
-        let code = match service_accounts
-            .get_account(&work_package.authorizer_address)
-            .and_then(|account| {
-                account.lookup_preimage(
-                    &Timeslot(work_package.context.lookup_anchor_timeslot),
-                    work_package.auth_code_hash,
-                )
-            }) {
+        let code = match state_manager.lookup_preimage(
+            work_package.authorizer_address,
+            &Timeslot(work_package.context.lookup_anchor_timeslot),
+            &work_package.auth_code_hash,
+        )? {
             Some(code) => code,
             None => {
                 // TODO: check return type for this case
@@ -106,7 +101,7 @@ impl PVMInvocation {
         state_manager: &StateManager, // FIXME: not needed
         code_hash: Hash32,
         gas_limit: UnsignedGas,
-        service_index: Address,
+        account_address: Address,
         work_package_hash: Hash32,
         work_payload: Octets,
         refinement_context: RefinementContext,
@@ -116,23 +111,19 @@ impl PVMInvocation {
         extrinsic_data_blobs: Vec<Octets>,
         export_segment_offset: usize,
     ) -> Result<RefineResult, PVMError> {
-        let service_accounts = STATE_CACHE.get_service_accounts_cache()?.unwrap();
-
         // retrieve the service account code via the historical lookup function
-        let code = match service_accounts
-            .get_account(&service_index)
-            .and_then(|account| {
-                account.lookup_preimage(
-                    &Timeslot(refinement_context.lookup_anchor_timeslot),
-                    code_hash,
-                )
-            }) {
+        let code = match state_manager.lookup_preimage(
+            account_address,
+            &Timeslot(refinement_context.lookup_anchor_timeslot),
+            &code_hash,
+        )? {
             Some(code) => code,
             None => {
+                // TODO: check return type for this case
                 return Ok(RefineResult {
                     output: WorkExecutionOutput::Error(WorkExecutionError::ServiceCodeLookupError),
                     export_segments: vec![],
-                })
+                });
             }
         };
 
@@ -145,7 +136,7 @@ impl PVMInvocation {
 
         // encode arguments for the refinement process
         let mut args = vec![];
-        service_index.encode_to(&mut args)?;
+        account_address.encode_to(&mut args)?;
         work_payload.encode_to(&mut args)?;
         work_package_hash.encode_to(&mut args)?;
         refinement_context.encode_to(&mut args)?;
@@ -157,7 +148,7 @@ impl PVMInvocation {
 
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            service_index,
+            account_address,
             &code,
             REFINE_INITIAL_PC,
             gas_limit,
@@ -233,7 +224,6 @@ impl PVMInvocation {
 
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            // Some(&mut accumulate_context),
             target_address,
             &code,
             ACCUMULATE_INITIAL_PC,
@@ -262,7 +252,7 @@ impl PVMInvocation {
 
     pub fn on_transfer(
         state_manager: &StateManager,
-        service_accounts: &ServiceAccounts,
+        service_accounts: &ServiceAccounts, // FIXME: delete this
         destination_address: Address,
         transfers: Vec<DeferredTransfer>,
     ) -> Result<ServiceAccountState, PVMError> {
