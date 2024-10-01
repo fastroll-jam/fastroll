@@ -6,7 +6,6 @@ pub mod privileged;
 pub mod reports;
 pub mod safrole;
 pub mod services;
-pub mod services_wip;
 pub mod statistics;
 pub mod timeslot;
 pub mod validators;

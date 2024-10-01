@@ -1,93 +1,68 @@
 use crate::state::timeslot::Timeslot;
-use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
-use std::collections::BTreeMap;
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
 
 pub const B_S: Balance = 100; // The basic minimum balance which all services require
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
 pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
-#[derive(Default, Clone)]
-pub struct ServiceAccounts(pub BTreeMap<Address, ServiceAccountState>);
-
-#[derive(Clone)]
-pub struct ServiceAccountState {
-    pub storage: BTreeMap<Hash32, Octets>,               // s
-    pub preimages: BTreeMap<Hash32, Octets>,             // p
-    pub lookups: BTreeMap<(Hash32, u32), Vec<Timeslot>>, // l; Vec<u32> length up to 3
-    pub code_hash: Hash32,                               // c
-    pub balance: Balance,                                // b
-    pub gas_limit_accumulate: UnsignedGas,               // g
-    pub gas_limit_on_transfer: UnsignedGas,              // m
+#[derive(Clone, JamEncode, JamDecode)]
+pub struct AccountInfo {
+    pub code_hash: Hash32,                  // c
+    pub balance: Balance,                   // b
+    pub gas_limit_accumulate: UnsignedGas,  // g
+    pub gas_limit_on_transfer: UnsignedGas, // m
 }
 
-impl ServiceAccounts {
-    fn contains_key(&self, address: &Address) -> bool {
-        self.0.contains_key(address)
-    }
-
-    pub fn check(&self, address: Address) -> Address {
-        let mut check_address = address;
-        loop {
-            if !self.contains_key(&check_address) {
-                return check_address;
-            }
-
-            check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
-                + (1 << 8)) as Address;
-        }
-    }
-
-    pub fn get_account(&self, address: &Address) -> Option<&ServiceAccountState> {
-        self.0.get(address)
-    }
+#[derive(Clone, JamEncode, JamDecode)]
+pub struct AccountMetadata {
+    pub account_info: AccountInfo,
+    /// The number of total octets used in the service storages (l)
+    /// (lookups octets count) + (storage octets count)
+    pub total_octets_footprint: u64,
+    /// The number of items in the service storages (i)
+    /// 2 * (lookups entry count) + (storage entry count)
+    pub item_counts_footprint: u32,
 }
 
-impl ServiceAccountState {
-    // Historical lookup function for checking availability of the lookup hash at a given timeslot.
-    // Returns preimage blob if available.
-
-    pub fn lookup_preimage(&self, timeslot: &Timeslot, lookup_hash: Hash32) -> Option<Octets> {
-        let preimage = self.preimages.get(&lookup_hash)?;
-        let key = (lookup_hash, preimage.len() as u32);
-        let timeslots = self.lookups.get(&key)?;
-
-        let valid = match timeslots.as_slice() {
-            [] => false,
-            [first] => first <= timeslot,
-            [first, second] => first <= timeslot && timeslot < second,
-            [first, second, third] => (first <= timeslot && timeslot < second) || third <= timeslot,
-            _ => false,
-        };
-
-        if valid {
-            Some(preimage.clone())
-        } else {
-            None
-        }
+impl AccountMetadata {
+    pub fn update_storage_footprint() {
+        unimplemented!()
     }
 
-    // Get the number of items in the storage (i)
-    pub fn get_item_counts_footprint(&self) -> u32 {
-        (2 * self.lookups.len() + self.storage.len()) as u32
+    pub fn update_lookups_footprint() {
+        unimplemented!()
     }
 
-    // Get the number of total octets used in the storage (l)
-    pub fn get_total_octets_footprint(&self) -> u64 {
-        let lookup_octets: u64 = self.lookups.iter().map(|((_, z), _)| 81 + *z as u64).sum();
-        let storage_octets: u64 = self.storage.values().map(|x| 32 + x.len() as u64).sum();
-
-        lookup_octets + storage_octets
-    }
-
-    // Get the account threshold balance (t)
+    /// Get the account threshold balance (t)
     pub fn get_threshold_balance(&self) -> Balance {
-        let i = self.get_item_counts_footprint() as Balance;
-        let l = self.get_total_octets_footprint() as Balance;
+        let i = self.item_counts_footprint as Balance;
+        let l = self.total_octets_footprint as Balance;
 
         B_S + B_I * i + B_L * l
     }
 
-    pub fn get_code(&self) -> Option<&Octets> {
-        self.preimages.get(&self.code_hash)
+    pub fn get_initial_threshold_balance() -> Balance {
+        B_S
     }
+}
+
+// FIXME
+#[derive(Clone)]
+pub struct AccountStorageEntry {
+    // pub key: Hash32, // constructed with the account address and the storage key
+    pub value: Octets,
+}
+
+#[derive(Clone)]
+pub struct AccountPreimagesEntry {
+    // pub key: Hash32, // constructed with the account address and the preimages dictionary key
+    pub value: Octets,
+}
+
+#[derive(Clone, JamEncode, JamDecode)]
+pub struct AccountLookupsEntry {
+    // pub key: Hash32, // constructed with the account address and the lookup dictionary key (h)
+    // pub preimage_length: u32, // serialized preimage length (l)
+    pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }

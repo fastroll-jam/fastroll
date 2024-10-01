@@ -3,8 +3,8 @@ use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, DeferredTransfer, Hash32};
 use rjam_crypto::utils::blake2b_256;
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
-use rjam_state::state_manager::StateManager;
-use rjam_types::state::{timeslot::Timeslot};
+use rjam_state::StateManager;
+use rjam_types::state::timeslot::Timeslot;
 use std::collections::HashMap;
 
 /// Host context for different invocation types

@@ -16,7 +16,7 @@ use rjam_pvm_core::{
         error::{HostCallError::InvalidContext, PVMError},
     },
 };
-use rjam_state::state_manager::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::timeslot::Timeslot;
 
 const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;

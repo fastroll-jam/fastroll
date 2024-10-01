@@ -30,9 +30,10 @@ use rjam_pvm_core::{
     },
     vm_core::{PVMCore, Program, VMState},
 };
-use rjam_state::state_manager::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::{
-    services::B_S, services_wip::AccountMetadata, validators::StagingValidatorSet,
+    services::{AccountMetadata, B_S},
+    validators::StagingValidatorSet,
 };
 
 #[repr(u32)]

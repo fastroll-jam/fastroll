@@ -1,9 +1,7 @@
 use crate::state::memory::MemoryError;
 use rjam_codec::JamCodecError;
 use rjam_crypto::utils::CryptoError;
-use rjam_state::{
-    cache::StateCacheError, global_state::GlobalStateError, state_manager::StateManagerError,
-};
+use rjam_state::StateManagerError;
 use thiserror::Error;
 
 // PVM Error Codes
@@ -21,12 +19,8 @@ pub enum PVMError {
     MemoryError(#[from] MemoryError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
-    #[error("GlobalStateError: {0}")]
-    GlobalStateError(#[from] GlobalStateError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
-    #[error("StateCacheError: {0}")]
-    StateCacheError(#[from] StateCacheError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
 }

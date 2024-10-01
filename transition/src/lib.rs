@@ -2,7 +2,6 @@ pub mod components;
 
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::utils::CryptoError;
-use rjam_state::global_state::GlobalStateError;
 use rjam_types::state::safrole::FallbackKeyError;
 use thiserror::Error;
 
@@ -14,8 +13,6 @@ pub enum TransitionError {
     FutureTimeslot(u32),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
-    #[error("Global state error: {0}")]
-    GlobalStateError(#[from] GlobalStateError),
     #[error("Fallback key error: {0}")]
     FallbackKeyError(#[from] FallbackKeyError),
     #[error("Crypto error: {0}")]

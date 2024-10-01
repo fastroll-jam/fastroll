@@ -23,7 +23,7 @@ use rjam_pvm_core::{
     utils::vm_utils::VMUtils,
     vm_core::{PVMCore, Program, VMState},
 };
-use rjam_state::state_manager::StateManager;
+use rjam_state::StateManager;
 
 enum ExecutionResult {
     Complete(ExitReason),
