@@ -13,17 +13,11 @@ use rjam_pvm_core::{
     types::{
         accumulation::AccumulateOperand,
         common::ExportDataSegment,
-        error::{
-            HostCallError::{AccountNotFound, InvalidContext},
-            PVMError,
-        },
+        error::{HostCallError::InvalidContext, PVMError},
     },
 };
-use rjam_state::state_manager::StateManager;
-use rjam_types::state::{
-    services::{ServiceAccountState, ServiceAccounts},
-    timeslot::Timeslot,
-};
+use rjam_state::state_manager::{StateManager, StateWriteOp};
+use rjam_types::state::timeslot::Timeslot;
 
 const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;
 const REFINE_INITIAL_PC: MemAddress = 5;
@@ -80,7 +74,7 @@ impl PVMInvocation {
             IS_AUTHORIZED_INITIAL_PC,
             is_authorized_gas_limit,
             &args,
-            &mut InvocationContext::X_I, // TODO: better handling
+            &mut InvocationContext::X_I, // TODO: better handling (not used)
         )?;
 
         match common_invocation_result {
@@ -252,28 +246,26 @@ impl PVMInvocation {
 
     pub fn on_transfer(
         state_manager: &StateManager,
-        service_accounts: &ServiceAccounts, // FIXME: delete this
         destination_address: Address,
         transfers: Vec<DeferredTransfer>,
-    ) -> Result<ServiceAccountState, PVMError> {
-        let mut destination_account = service_accounts
-            .get_account(&destination_address)
-            .ok_or(PVMError::HostCallError(AccountNotFound))?
-            .clone();
-
+    ) -> Result<(), PVMError> {
         let total_amount: Balance = transfers.iter().map(|t| t.amount).sum();
-        destination_account.balance += total_amount;
 
-        let code = destination_account.get_code().cloned();
+        state_manager.with_mut_account_metadata(
+            StateWriteOp::Update,
+            destination_address,
+            |account| {
+                account.account_info.balance += total_amount;
+            },
+        )?;
 
+        let code = state_manager.get_account_code(destination_address)?;
         if code.is_none() || transfers.is_empty() {
-            return Ok(destination_account);
+            return Ok(());
         }
         let code = code.unwrap();
 
         let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
-
-        let mut context = InvocationContext::X_T(destination_account);
 
         // TODO: check the return type
         PVM::common_invocation(
@@ -283,12 +275,10 @@ impl PVMInvocation {
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
             &transfers.encode()?,
-            &mut context,
+            &mut InvocationContext::X_T, // TODO: better handling (not used)
         )?;
 
-        match context {
-            InvocationContext::X_T(account) => Ok(account),
-            _ => Err(PVMError::HostCallError(InvalidContext)),
-        }
+        // TODO: check return type (service account context)
+        Ok(())
     }
 }

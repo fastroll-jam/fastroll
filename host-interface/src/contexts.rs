@@ -4,7 +4,7 @@ use rjam_common::{Address, DeferredTransfer, Hash32};
 use rjam_crypto::utils::blake2b_256;
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::state_manager::StateManager;
-use rjam_types::state::{services::ServiceAccountState, timeslot::Timeslot};
+use rjam_types::state::{timeslot::Timeslot};
 use std::collections::HashMap;
 
 /// Host context for different invocation types
@@ -13,7 +13,7 @@ pub enum InvocationContext {
     X_I,                        // IsAuthorized
     X_R(RefineContext),         // Refine
     X_A(AccumulateContextPair), // Accumulate
-    X_T(ServiceAccountState),   // OnTransfer
+    X_T,                        // OnTransfer
 }
 
 impl InvocationContext {
