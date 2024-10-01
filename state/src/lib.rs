@@ -18,7 +18,7 @@ use rjam_types::state::{
     services::{AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry},
     statistics::ValidatorStats,
     timeslot::Timeslot,
-    validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
+    validators::{ActiveSet, PastSet, StagingSet},
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -41,20 +41,20 @@ pub enum StateManagerError {
 
 #[derive(Clone)]
 pub enum StateEntryType {
-    AuthPool(AuthPool),                       // alpha
-    AuthQueue(AuthQueue),                     // phi
-    BlockHistories(BlockHistories),           // beta
-    SafroleState(SafroleState),               // gamma
-    DisputesState(DisputesState),             // psi
-    EntropyAccumulator(EntropyAccumulator),   // eta
-    StagingValidatorSet(StagingValidatorSet), // iota
-    ActiveValidatorSet(ActiveValidatorSet),   // kappa
-    PastValidatorSet(PastValidatorSet),       // lambda
-    PendingReports(PendingReports),           // rho
-    Timeslot(Timeslot),                       // tau
-    PrivilegedServices(PrivilegedServices),   // chi
-    ValidatorStats(ValidatorStats),           // pi
-    AccountMetadata(AccountMetadata),         // sigma (partial)
+    AuthPool(AuthPool),                     // alpha
+    AuthQueue(AuthQueue),                   // phi
+    BlockHistories(BlockHistories),         // beta
+    SafroleState(SafroleState),             // gamma
+    DisputesState(DisputesState),           // psi
+    EntropyAccumulator(EntropyAccumulator), // eta
+    StagingSet(StagingSet),                 // iota
+    ActiveSet(ActiveSet),                   // kappa
+    PastSet(PastSet),                       // lambda
+    PendingReports(PendingReports),         // rho
+    Timeslot(Timeslot),                     // tau
+    PrivilegedServices(PrivilegedServices), // chi
+    ValidatorStats(ValidatorStats),         // pi
+    AccountMetadata(AccountMetadata),       // sigma (partial)
     AccountStorageEntry(AccountStorageEntry),
     AccountLookupsEntry(AccountLookupsEntry),
     AccountPreimagesEntry(AccountPreimagesEntry),
@@ -69,9 +69,9 @@ pub(crate) enum StateKeyConstant {
     SafroleState = 4,        // gamma
     DisputesState = 5,       // psi
     EntropyAccumulator = 6,  // eta
-    StagingValidatorSet = 7, // iota
-    ActiveValidatorSet = 8,  // kappa
-    PastValidatorSet = 9,    // lambda
+    StagingSet = 7,          // iota
+    ActiveSet = 8,           // kappa
+    PastSet = 9,             // lambda
     PendingReports = 10,     // rho
     Timeslot = 11,           // tau
     PrivilegedServices = 12, // chi
@@ -567,12 +567,12 @@ impl StateManager {
         }
     }
 
-    pub fn get_staging_validator_set(&self) -> Result<StagingValidatorSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::StagingValidatorSet);
+    pub fn get_staging_set(&self) -> Result<StagingSet, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::StagingSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::StagingValidatorSet(staging_set) = entry_ref.value.clone() {
+            if let StateEntryType::StagingSet(staging_set) = entry_ref.value.clone() {
                 return Ok(staging_set);
             }
         }
@@ -581,34 +581,32 @@ impl StateManager {
         let state_data = self
             .retrieve_state_encoded(&state_key)?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let staging_set = StagingValidatorSet::decode(&mut state_data.as_slice())?;
+        let staging_set = StagingSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::StagingValidatorSet(staging_set.clone()));
+        let cache_entry = CacheEntry::new(StateEntryType::StagingSet(staging_set.clone()));
         self.cache.insert(state_key, cache_entry);
 
         Ok(staging_set)
     }
 
-    pub fn with_mut_staging_validator_set<F>(
+    pub fn with_mut_staging_set<F>(
         &self,
         write_op: StateWriteOp,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut StagingValidatorSet),
+        F: FnOnce(&mut StagingSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::StagingValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::StagingSet);
 
         let mut cache_entry = self
             .cache
             .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let StateEntryType::StagingValidatorSet(ref mut staging_validator_set) =
-            cache_entry.value
-        {
-            f(staging_validator_set); // call the closure to mutate the state
+        if let StateEntryType::StagingSet(ref mut staging_set) = cache_entry.value {
+            f(staging_set); // call the closure to mutate the state
             cache_entry.mark_dirty(write_op);
 
             Ok(())
@@ -617,12 +615,12 @@ impl StateManager {
         }
     }
 
-    pub fn get_active_validator_set(&self) -> Result<ActiveValidatorSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::ActiveValidatorSet);
+    pub fn get_active_set(&self) -> Result<ActiveSet, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::ActiveSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::ActiveValidatorSet(active_set) = entry_ref.value.clone() {
+            if let StateEntryType::ActiveSet(active_set) = entry_ref.value.clone() {
                 return Ok(active_set);
             }
         }
@@ -631,33 +629,32 @@ impl StateManager {
         let state_data = self
             .retrieve_state_encoded(&state_key)?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let active_set = ActiveValidatorSet::decode(&mut state_data.as_slice())?;
+        let active_set = ActiveSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::ActiveValidatorSet(active_set.clone()));
+        let cache_entry = CacheEntry::new(StateEntryType::ActiveSet(active_set.clone()));
         self.cache.insert(state_key, cache_entry);
 
         Ok(active_set)
     }
 
-    pub fn with_mut_active_validator_set<F>(
+    pub fn with_mut_active_set<F>(
         &self,
         write_op: StateWriteOp,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut ActiveValidatorSet),
+        F: FnOnce(&mut ActiveSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::ActiveValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::ActiveSet);
 
         let mut cache_entry = self
             .cache
             .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let StateEntryType::ActiveValidatorSet(ref mut active_validator_set) = cache_entry.value
-        {
-            f(active_validator_set); // call the closure to mutate the state
+        if let StateEntryType::ActiveSet(ref mut active_set) = cache_entry.value {
+            f(active_set); // call the closure to mutate the state
             cache_entry.mark_dirty(write_op);
 
             Ok(())
@@ -666,12 +663,12 @@ impl StateManager {
         }
     }
 
-    pub fn get_past_validator_set(&self) -> Result<PastValidatorSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::PastValidatorSet);
+    pub fn get_past_set(&self) -> Result<PastSet, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::PastSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::PastValidatorSet(past_set) = entry_ref.value.clone() {
+            if let StateEntryType::PastSet(past_set) = entry_ref.value.clone() {
                 return Ok(past_set);
             }
         }
@@ -680,32 +677,32 @@ impl StateManager {
         let state_data = self
             .retrieve_state_encoded(&state_key)?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let past_set = PastValidatorSet::decode(&mut state_data.as_slice())?;
+        let past_set = PastSet::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::PastValidatorSet(past_set.clone()));
+        let cache_entry = CacheEntry::new(StateEntryType::PastSet(past_set.clone()));
         self.cache.insert(state_key, cache_entry);
 
         Ok(past_set)
     }
 
-    pub fn with_mut_past_validator_set<F>(
+    pub fn with_mut_past_set<F>(
         &self,
         write_op: StateWriteOp,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut PastValidatorSet),
+        F: FnOnce(&mut PastSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::PastValidatorSet);
+        let state_key = construct_state_key(StateKeyConstant::PastSet);
 
         let mut cache_entry = self
             .cache
             .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let StateEntryType::PastValidatorSet(ref mut past_validator_set) = cache_entry.value {
-            f(past_validator_set); // call the closure to mutate the state
+        if let StateEntryType::PastSet(ref mut past_set) = cache_entry.value {
+            f(past_set); // call the closure to mutate the state
             cache_entry.mark_dirty(write_op);
 
             Ok(())

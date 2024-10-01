@@ -9,9 +9,7 @@ mod tests {
             entropy::EntropyAccumulatorContext,
             safrole::SafroleStateContext,
             timeslot::TimeslotContext,
-            validators::{
-                ActiveValidatorSetContext, PastValidatorSetContext, StagingValidatorSetContext,
-            },
+            validators::{ActiveSetContext, PastSetContext, StagingSetContext},
         },
         Transition,
     };
@@ -66,16 +64,16 @@ mod tests {
         };
         entropy_acc.to_next(&entropy_context)?;
 
-        //  PastValidatorSet Transition
-        let past_set_context = PastValidatorSetContext {
+        //  PastSet Transition
+        let past_set_context = PastSetContext {
             timeslot: Timeslot::new(test_input.slot),
             is_new_epoch,
             current_active_set: active_set.clone(),
         };
         past_set.to_next(&past_set_context)?;
 
-        //  ActiveValidatorSet Transition
-        let active_set_context = ActiveValidatorSetContext {
+        //  ActiveSet Transition
+        let active_set_context = ActiveSetContext {
             timeslot: Timeslot::new(test_input.slot),
             is_new_epoch,
             current_pending_validator_set: safrole_state.pending_validator_set,
@@ -97,8 +95,8 @@ mod tests {
         };
         safrole_state.to_next(&safrole_context)?;
 
-        //  StagingValidatorSet Transition
-        let staging_set_context = StagingValidatorSetContext {
+        //  StagingSet Transition
+        let staging_set_context = StagingSetContext {
             timeslot: Timeslot::new(test_input.slot),
             is_new_epoch,
         };

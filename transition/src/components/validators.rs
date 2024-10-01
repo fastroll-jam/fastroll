@@ -2,17 +2,17 @@ use crate::{Transition, TransitionError};
 use rjam_common::ValidatorSet;
 use rjam_types::state::{
     timeslot::Timeslot,
-    validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
+    validators::{ActiveSet, PastSet, StagingSet},
 };
 use std::fmt::Display;
 
-pub struct StagingValidatorSetContext {
+pub struct StagingSetContext {
     pub timeslot: Timeslot,
     pub is_new_epoch: bool,
 }
 
-impl Transition for StagingValidatorSet {
-    type Context = StagingValidatorSetContext;
+impl Transition for StagingSet {
+    type Context = StagingSetContext;
 
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
@@ -24,14 +24,14 @@ impl Transition for StagingValidatorSet {
     }
 }
 
-pub struct ActiveValidatorSetContext {
+pub struct ActiveSetContext {
     pub timeslot: Timeslot,
     pub is_new_epoch: bool,
     pub current_pending_validator_set: ValidatorSet, // from the Safrole state
 }
 
-impl Transition for ActiveValidatorSet {
-    type Context = ActiveValidatorSetContext;
+impl Transition for ActiveSet {
+    type Context = ActiveSetContext;
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,
@@ -43,14 +43,14 @@ impl Transition for ActiveValidatorSet {
     }
 }
 
-pub struct PastValidatorSetContext {
+pub struct PastSetContext {
     pub timeslot: Timeslot,
     pub is_new_epoch: bool,
-    pub current_active_set: ActiveValidatorSet,
+    pub current_active_set: ActiveSet,
 }
 
-impl Transition for PastValidatorSet {
-    type Context = PastValidatorSetContext;
+impl Transition for PastSet {
+    type Context = PastSetContext;
     fn to_next(&mut self, ctx: &Self::Context) -> Result<(), TransitionError>
     where
         Self: Sized,

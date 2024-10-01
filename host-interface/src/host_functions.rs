@@ -33,7 +33,7 @@ use rjam_pvm_core::{
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::{
     services::{AccountMetadata, B_S},
-    validators::StagingValidatorSet,
+    validators::StagingSet,
 };
 
 #[repr(u32)]
@@ -434,7 +434,7 @@ impl HostFunction {
             }));
         }
 
-        let mut new_staging_set = StagingValidatorSet::default();
+        let mut new_staging_set = StagingSet::default();
         for i in 0..VALIDATOR_COUNT {
             if let Ok(slice) = memory.read_bytes(
                 offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
@@ -445,7 +445,7 @@ impl HostFunction {
             }
         }
 
-        state_manager.with_mut_staging_validator_set(StateWriteOp::Update, |staging_set| {
+        state_manager.with_mut_staging_set(StateWriteOp::Update, |staging_set| {
             *staging_set = new_staging_set;
         })?;
 

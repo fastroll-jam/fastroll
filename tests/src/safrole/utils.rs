@@ -11,7 +11,7 @@ use rjam_types::state::{
     entropy::EntropyAccumulator,
     safrole::{SafroleState, SlotSealerType},
     timeslot::Timeslot,
-    validators::{ActiveValidatorSet, PastValidatorSet, StagingValidatorSet},
+    validators::{ActiveSet, PastSet, StagingSet},
 };
 use serde::{de, de::Visitor, Deserializer, Serializer};
 use std::{error::Error, fmt};
@@ -118,9 +118,9 @@ impl StateBuilder {
 
     pub fn from_validator_sets(
         mut self,
-        staging_set: &StagingValidatorSet,
-        active_set: &ActiveValidatorSet,
-        past_set: &PastValidatorSet,
+        staging_set: &StagingSet,
+        active_set: &ActiveSet,
+        past_set: &PastSet,
     ) -> Result<Self, AsnTypeError> {
         self.lambda = Some(past_set.0.clone().map(ValidatorData::from));
         self.kappa = Some(active_set.0.clone().map(ValidatorData::from));
@@ -209,12 +209,10 @@ impl State {
         }
     }
 
-    pub fn into_validator_sets(
-        &self,
-    ) -> Result<(StagingValidatorSet, ActiveValidatorSet, PastValidatorSet), AsnTypeError> {
-        let staging_set = StagingValidatorSet(convert_validator_data(&self.iota)?);
-        let active_set = ActiveValidatorSet(convert_validator_data(&self.kappa)?);
-        let past_set = PastValidatorSet(convert_validator_data(&self.lambda)?);
+    pub fn into_validator_sets(&self) -> Result<(StagingSet, ActiveSet, PastSet), AsnTypeError> {
+        let staging_set = StagingSet(convert_validator_data(&self.iota)?);
+        let active_set = ActiveSet(convert_validator_data(&self.kappa)?);
+        let past_set = PastSet(convert_validator_data(&self.lambda)?);
 
         Ok((staging_set, active_set, past_set))
     }

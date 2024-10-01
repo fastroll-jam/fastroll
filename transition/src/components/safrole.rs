@@ -11,7 +11,7 @@ use rjam_types::{
         entropy::EntropyAccumulator,
         safrole::{generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType},
         timeslot::Timeslot,
-        validators::{ActiveValidatorSet, StagingValidatorSet},
+        validators::{ActiveSet, StagingSet},
     },
 };
 use std::fmt::Display;
@@ -36,8 +36,8 @@ pub struct SafroleStateContext {
     pub timeslot: Timeslot,
     pub is_new_epoch: bool,
     pub tickets: Vec<TicketExtrinsicEntry>,
-    pub current_staging_set: StagingValidatorSet,
-    pub post_active_set: ActiveValidatorSet,
+    pub current_staging_set: StagingSet,
+    pub post_active_set: ActiveSet,
     pub post_entropy: EntropyAccumulator,
 }
 
@@ -71,10 +71,10 @@ impl Transition for SafroleState {
 
             // Update slot sealer sequence
             if is_fallback {
-                let active_validator_set = ctx.post_active_set.0; // kappa
+                let active_set = ctx.post_active_set.0; // kappa
 
                 self.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
-                    generate_fallback_keys(&active_validator_set, entropy)?,
+                    generate_fallback_keys(&active_set, entropy)?,
                 ))
             } else {
                 let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =

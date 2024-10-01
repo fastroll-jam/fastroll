@@ -11,13 +11,13 @@ use std::fmt::{Display, Formatter};
 ///
 /// This is denoted by the Greek letter `iota` in the Graypaper.
 #[derive(Clone)]
-pub struct StagingValidatorSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(StagingValidatorSet, ValidatorSet);
+pub struct StagingSet(pub ValidatorSet);
+impl_jam_codec_for_newtype!(StagingSet, ValidatorSet);
 
-impl Display for StagingValidatorSet {
+impl Display for StagingSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"StagingValidatorSet\": {{")?;
+        writeln!(f, "  \"StagingSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
             writeln!(f, "    \"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
@@ -32,7 +32,7 @@ impl Display for StagingValidatorSet {
     }
 }
 
-impl Default for StagingValidatorSet {
+impl Default for StagingSet {
     fn default() -> Self {
         Self([ValidatorKey::default(); VALIDATOR_COUNT])
     }
@@ -43,13 +43,13 @@ impl Default for StagingValidatorSet {
 ///
 /// This is denoted by the Greek letter `kappa` in the Graypaper.
 #[derive(Clone)]
-pub struct ActiveValidatorSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(ActiveValidatorSet, ValidatorSet);
+pub struct ActiveSet(pub ValidatorSet);
+impl_jam_codec_for_newtype!(ActiveSet, ValidatorSet);
 
-impl Display for ActiveValidatorSet {
+impl Display for ActiveSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"ActiveValidatorSet\": {{")?;
+        writeln!(f, "  \"ActiveSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
             writeln!(f, "    \"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
@@ -67,13 +67,13 @@ impl Display for ActiveValidatorSet {
 /// Represents the ValidatorSet that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
 #[derive(Clone)]
-pub struct PastValidatorSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(PastValidatorSet, ValidatorSet);
+pub struct PastSet(pub ValidatorSet);
+impl_jam_codec_for_newtype!(PastSet, ValidatorSet);
 
-impl Display for PastValidatorSet {
+impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"PastValidatorSet\": {{")?;
+        writeln!(f, "  \"PastSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
             writeln!(f, "    \"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
