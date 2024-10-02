@@ -1,7 +1,6 @@
 [workspace]
 members = [
     ".",
-    "block",
     "codec/rjam-codec",
     "codec/rjam-codec-derive",
     "common",
@@ -27,7 +26,6 @@ edition = "2021"
 
 [workspace.dependencies]
 # Internal dependencies
-rjam-block = { path = "block" }
 rjam-codec = { path = "codec/rjam-codec" }
 rjam-codec-derive = { path = "codec/rjam-codec-derive" }
 rjam-common = { path = "common" }

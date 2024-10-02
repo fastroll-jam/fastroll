@@ -850,15 +850,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rjam-block"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-extrinsics",
-]
-
-[[package]]
 name = "rjam-codec"
 version = "0.1.0"
 dependencies = [

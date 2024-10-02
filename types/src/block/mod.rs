@@ -1,8 +1,7 @@
 pub mod header;
 
-use header::BlockHeader;
+use crate::{block::header::BlockHeader, extrinsics::Extrinsics};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_extrinsics::Extrinsics;
 
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct Block {
