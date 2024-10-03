@@ -76,7 +76,7 @@ mod tests {
         let active_set_context = ActiveSetContext {
             timeslot: Timeslot::new(test_input.slot),
             is_new_epoch,
-            current_pending_validator_set: safrole_state.pending_validator_set,
+            current_pending_set: safrole_state.pending_set,
         };
         active_set.to_next(&active_set_context)?;
 

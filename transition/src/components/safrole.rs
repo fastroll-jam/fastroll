@@ -64,10 +64,10 @@ impl Transition for SafroleState {
                 || !self.ticket_accumulator.is_full();
 
             // Update Safrole pending set into Global state staging set
-            self.pending_validator_set = ctx.current_staging_set.0;
+            self.pending_set = ctx.current_staging_set.0;
 
             // Update the ring root with the updated pending set ring
-            self.ring_root = generate_ring_root(&self.pending_validator_set)?;
+            self.ring_root = generate_ring_root(&self.pending_set)?;
 
             // Update slot sealer sequence
             if is_fallback {

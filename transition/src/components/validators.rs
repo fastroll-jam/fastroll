@@ -27,7 +27,7 @@ impl Transition for StagingSet {
 pub struct ActiveSetContext {
     pub timeslot: Timeslot,
     pub is_new_epoch: bool,
-    pub current_pending_validator_set: ValidatorSet, // from the Safrole state
+    pub current_pending_set: ValidatorSet, // from the Safrole state
 }
 
 impl Transition for ActiveSet {
@@ -37,7 +37,7 @@ impl Transition for ActiveSet {
         Self: Sized,
     {
         if ctx.is_new_epoch {
-            self.0 = ctx.current_pending_validator_set
+            self.0 = ctx.current_pending_set
         }
         Ok(())
     }

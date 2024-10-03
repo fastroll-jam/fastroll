@@ -10,9 +10,9 @@
 //     let prover_idx: usize = 0; // FIXME: proper indexing required for validator identity
 //
 //     let safrole_state = retriever.get_safrole_state().unwrap(); // TODO: state caching if needed / Error handling
-//     let pending_validator_set = safrole_state.pending_validator_set;
+//     let pending_set = safrole_state.pending_set;
 //
-//     let ring = validator_set_to_ring(&pending_validator_set).unwrap(); // the ring should be valid validators of the next epoch
+//     let ring = validator_set_to_ring(&pending_set).unwrap(); // the ring should be valid validators of the next epoch
 //     let prover = Prover::new(ring, prover_idx);
 //
 //     let entropy_state = retriever.get_entropy_accumulator().unwrap();

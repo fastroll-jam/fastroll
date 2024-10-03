@@ -93,12 +93,7 @@ impl StateBuilder {
 
     // TODO: check if `clone`s are necessary
     pub fn from_safrole_state(mut self, safrole: &SafroleState) -> Result<Self, AsnTypeError> {
-        self.gamma_k = Some(
-            safrole
-                .pending_validator_set
-                .clone()
-                .map(ValidatorData::from),
-        );
+        self.gamma_k = Some(safrole.pending_set.clone().map(ValidatorData::from));
         self.gamma_a = Some(
             safrole
                 .ticket_accumulator
@@ -159,7 +154,7 @@ impl StateBuilder {
 impl State {
     pub fn into_safrole_state(&self) -> Result<SafroleState, AsnTypeError> {
         Ok(SafroleState {
-            pending_validator_set: convert_validator_data(&self.gamma_k)?,
+            pending_set: convert_validator_data(&self.gamma_k)?,
             ring_root: self.gamma_z.clone().try_into()?,
             slot_sealers: self.convert_slot_sealers()?,
             ticket_accumulator: SortedLimitedTickets::from_vec(

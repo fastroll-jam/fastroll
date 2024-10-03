@@ -22,7 +22,7 @@ pub enum FallbackKeyError {
 
 #[derive(Debug, Clone, JamEncode)]
 pub struct SafroleState {
-    pub pending_validator_set: ValidatorSet,      // gamma_k
+    pub pending_set: ValidatorSet,                // gamma_k
     pub ring_root: BandersnatchRingRoot,          // gamma_z
     pub slot_sealers: SlotSealerType,             // gamma_s
     pub ticket_accumulator: SortedLimitedTickets, // gamma_a; max length EPOCH_LENGTH
@@ -33,7 +33,7 @@ impl Display for SafroleState {
         writeln!(f, "SafroleState {{")?;
 
         writeln!(f, "  Pending Validator Set: [")?;
-        for (i, validator) in self.pending_validator_set.iter().enumerate() {
+        for (i, validator) in self.pending_set.iter().enumerate() {
             writeln!(f, "    Validator {}: {}", i, validator)?;
         }
         writeln!(f, "  ]")?;
@@ -62,8 +62,8 @@ impl Display for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut pending_validator_set = [ValidatorKey::default(); VALIDATOR_COUNT];
-        for validator in pending_validator_set.iter_mut() {
+        let mut pending_set = [ValidatorKey::default(); VALIDATOR_COUNT];
+        for validator in pending_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }
 
@@ -74,7 +74,7 @@ impl JamDecode for SafroleState {
         let ticket_accumulator = SortedLimitedTickets::decode(input)?;
 
         Ok(Self {
-            pending_validator_set,
+            pending_set,
             ring_root,
             slot_sealers,
             ticket_accumulator,
