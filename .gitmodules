@@ -1,3 +1,7 @@
 [submodule "tests/jamtestvectors"]
 	path = tests/jamtestvectors
 	url = https://github.com/w3f/jamtestvectors.git
+[submodule "tests/jamtestvectors-new-safrole"]
+	path = tests/jamtestvectors-new-safrole
+	url = https://github.com/davxy/jam-test-vectors.git
+	branch = safrole-ring-signatures-update
