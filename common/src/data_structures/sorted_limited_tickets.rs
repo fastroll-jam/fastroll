@@ -6,6 +6,12 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+/// A data structure used for ticket accumulator which holds submitted tickets sorted by their id
+/// with a length limit defined by `EPOCH_LENGTH`.
+///
+/// This struct maintains a min-heap of tickets, ensuring that the tickets are kept in ascending
+/// order by their id. When the number of tickets reaches `EPOCH_LENGTH`, any new tickets added
+/// will only replace existing tickets if they have a lower id.
 #[derive(Clone, Debug)]
 pub struct SortedLimitedTickets {
     heap: BinaryHeap<Reverse<Ticket>>,
@@ -46,6 +52,12 @@ impl SortedLimitedTickets {
         self.heap.len() == EPOCH_LENGTH
     }
 
+    /// Adds a single ticket to the accumulator.
+    ///
+    /// If the accumulator is not full, the ticket is always added. If it's full, the ticket is
+    /// only added if its id is lower than the highest id currently in the accumulator.
+    ///
+    /// In this case, the ticket with the highest id is removed to make space.
     pub fn add(&mut self, ticket: Ticket) {
         if self.heap.len() < EPOCH_LENGTH {
             self.heap.push(Reverse(ticket));

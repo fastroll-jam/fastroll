@@ -26,7 +26,7 @@ fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &[TicketExtrinsicEntry]) 
                     .output_hash();
             Ticket {
                 id: vrf_output_hash,
-                attempt: ticket.entry_index, // Assuming entry_index is compatible with u8
+                attempt: ticket.entry_index,
             }
         })
         .collect()
