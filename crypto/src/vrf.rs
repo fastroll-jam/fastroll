@@ -1,8 +1,9 @@
 /// The following code originates from the `bandersnatch-vrfs-spec` repository.
 /// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
-use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bandersnatch};
+use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
+use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use bandersnatch::{IetfProof, Input, Output, Public, RingContext, RingProof, Secret};
+use bandersnatch::{IetfProof, Input, Output, Public, RingProof, Secret};
 use rjam_common::Hash32;
 
 // pub const RING_SIZE: usize = 1023;
@@ -17,6 +18,7 @@ pub struct IetfVrfSignature {
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct RingVrfSignature {
     pub output: Output,
+    // This contains both the Pedersen proof and actual ring proof.
     pub proof: RingProof,
 }
 
@@ -48,12 +50,10 @@ fn ring_context() -> &'static RingContext {
 }
 
 fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
-    let point =
-        <bandersnatch::BandersnatchSha512Ell2 as ark_ec_vrfs::Suite>::data_to_point(vrf_input_data)
-            .unwrap();
-    Input::from(point)
+    Input::new(vrf_input_data).unwrap()
 }
 
+/// Prover actor.
 pub struct Prover {
     pub prover_idx: usize,
     pub secret: Secret,
@@ -69,6 +69,11 @@ impl Prover {
         }
     }
 
+    /// Anonymous VRF signature.
+    ///
+    /// Used for tickets submission.
+    ///
+    /// Returns 784-octet sequence.
     pub fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_ec_vrfs::ring::Prover as _;
 
@@ -77,6 +82,7 @@ impl Prover {
 
         let pts: Vec<_> = self.ring.iter().map(|pk| pk.0).collect();
 
+        // Proof construction
         let ring_ctx = ring_context();
         let prover_key = ring_ctx.prover_key(&pts);
         let prover = ring_ctx.prover(prover_key, self.prover_idx);
@@ -88,6 +94,12 @@ impl Prover {
         buf
     }
 
+    /// Non-Anonymous VRF signature.
+    ///
+    /// Used for ticket claiming during block production.
+    /// Not used with Safrole test vectors.
+    ///
+    /// Returns 96-octet sequence.
     pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_ec_vrfs::ietf::Prover as _;
 
@@ -104,7 +116,7 @@ impl Prover {
 
 pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
 
-// Ring and its commitment
+/// Verifier actor (Ring and its commitment).
 pub struct Verifier {
     pub commitment: RingCommitment,
     pub ring: Vec<Public>,
@@ -118,6 +130,11 @@ impl Verifier {
         Self { ring, commitment }
     }
 
+    /// Anonymous VRF signature verification.
+    ///
+    /// Used for tickets verification.
+    ///
+    /// On success returns the VRF output hash.
     pub fn ring_vrf_verify(
         &self,
         vrf_input_data: &[u8],
@@ -147,6 +164,12 @@ impl Verifier {
         Ok(vrf_output_hash)
     }
 
+    /// Non-Anonymous VRF signature verification.
+    ///
+    /// Used for ticket claim verification during block import.
+    /// Not used with Safrole test vectors.
+    ///
+    /// On success returns the VRF output hash.
     pub fn ietf_vrf_verify(
         &self,
         vrf_input_data: &[u8],
@@ -171,7 +194,9 @@ impl Verifier {
         }
         println!("Ietf signature verified");
 
-        // `Y` hashed value; the actual value used as ticket-id/score
+        // `Y` hashed value; this is the actual value used as ticket-id/score
+        // NOTE: as far as vrf_input_data is the same, this matches the one produced
+        // using the ring-vrf (regardless of aux_data).
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
         println!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)

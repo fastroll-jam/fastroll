@@ -1,13 +1,13 @@
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::BandersnatchRingVrfProof;
+use rjam_common::BandersnatchRingVrfSignature;
 use rjam_crypto::vrf::RingVrfSignature;
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketExtrinsicEntry {
-    pub entry_index: u8,                        // r; N_N
-    pub ticket_proof: BandersnatchRingVrfProof, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
+    pub entry_index: u8,                            // r; N_N
+    pub ticket_proof: BandersnatchRingVrfSignature, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
 }
 
 impl PartialOrd for TicketExtrinsicEntry {

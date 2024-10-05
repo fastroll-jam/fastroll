@@ -5,12 +5,13 @@ use crate::vrf::{RingCommitment, Verifier};
 use ark_ec_vrfs::{
     codec::point_decode,
     prelude::ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError},
-    suites::bandersnatch::{edwards as bandersnatch, edwards::BandersnatchSha512Ell2},
+    suites::bandersnatch::edwards::BandersnatchSha512Ell2,
     Public, Suite,
 };
 use rjam_common::{BandersnatchRingRoot, ValidatorSet};
 use std::fmt::Debug;
 
+/// Converts JAM ValidatorSet type into Vec<Public> type.
 pub fn validator_set_to_ring<S: Suite + Debug>(
     validator_set: &ValidatorSet,
 ) -> Result<Vec<Public<S>>, SerializationError> {
@@ -22,24 +23,7 @@ pub fn validator_set_to_ring<S: Suite + Debug>(
     Ok(public_keys)
 }
 
-// Generates Bandersnatch Ring Root from the known validator set (ring)
-pub fn generate_ring_root_internal(
-    validator_set: &ValidatorSet,
-) -> Result<RingCommitment, SerializationError> {
-    let ring = validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)?;
-    let verifier = Verifier::new(ring);
-    Ok(verifier.commitment)
-}
-
-pub fn generate_ring_root_hexstring(
-    validator_set: &ValidatorSet,
-) -> Result<String, SerializationError> {
-    let commitment = generate_ring_root_internal(validator_set)?;
-    let mut bytes: Vec<u8> = vec![];
-    let _ = commitment.serialize_compressed(&mut bytes);
-    Ok(hex::encode(bytes.as_slice()))
-}
-
+/// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
     validator_set: &ValidatorSet,
 ) -> Result<BandersnatchRingRoot, SerializationError> {
@@ -49,4 +33,12 @@ pub fn generate_ring_root(
     Ok(bytes
         .try_into()
         .unwrap_or_else(|v: Vec<u8>| panic!("Expected a Vec of length 144 but it was {}", v.len())))
+}
+
+fn generate_ring_root_internal(
+    validator_set: &ValidatorSet,
+) -> Result<RingCommitment, SerializationError> {
+    let ring = validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)?;
+    let verifier = Verifier::new(ring);
+    Ok(verifier.commitment)
 }

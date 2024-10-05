@@ -1,7 +1,7 @@
 // // TODO: add networking layer to communicate with peer JAM validators via `JAMSNP` protocol
 // // TODO: add trait for generic representation of extrinsic submission behaviours (e.g. construct, submit)
 //
-// use rjam_common::{BandersnatchRingVrfProof, X_T};
+// use rjam_common::{BandersnatchRingVrfSignature, X_T};
 // use rjam_crypto::{validator_set_to_ring, vrf::Prover};
 // use rjam_state::state_retriever::StateRetriever;
 // use rjam_types::extrinsics::tickets::TicketExtrinsicEntry;
@@ -24,7 +24,7 @@
 //     let context_vec = [X_T.as_bytes(), &entropy_2[..], &[entry_index]].concat();
 //     let context: &[u8] = &context_vec;
 //
-//     let ring_vrf_proof: BandersnatchRingVrfProof = prover
+//     let ring_vrf_proof: BandersnatchRingVrfSignature = prover
 //         .ring_vrf_sign(context, message)
 //         .try_into()
 //         .expect("Proof length mismatch");

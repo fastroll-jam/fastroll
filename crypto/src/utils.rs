@@ -2,7 +2,7 @@ use crate::vrf::{IetfVrfSignature, RingVrfSignature};
 use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use rjam_common::{BandersnatchRingVrfProof, BandersnatchSignature, Hash32, Octets};
+use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32, Octets};
 use thiserror::Error;
 
 type Blake2b256 = Blake2b<U32>;
@@ -51,7 +51,7 @@ fn entropy_hash_ietf_vrf_internal(signature: &IetfVrfSignature) -> Hash32 {
 }
 
 // `Y` hash function for an anonymous RingVRF signature
-pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfProof) -> Hash32 {
+pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSignature) -> Hash32 {
     let signature: RingVrfSignature =
         RingVrfSignature::deserialize_compressed(&signature_bytes[..]).unwrap();
     entropy_hash_ring_vrf_internal(&signature)
