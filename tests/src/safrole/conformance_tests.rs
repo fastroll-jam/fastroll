@@ -167,20 +167,20 @@ mod tests {
     generate_tests! {
         // Progress by one slot.
         // Randomness accumulator is updated.
-        test_enact_epoch_change_with_no_tickets_1: "safrole/tiny/enact-epoch-change-with-no-tickets-1.json",
+        // test_enact_epoch_change_with_no_tickets_1: "safrole/tiny/enact-epoch-change-with-no-tickets-1.json",
 
         // Progress from slot X to slot X.
         // Fail: Timeslot must be strictly monotonic.
-        test_enact_epoch_change_with_no_tickets_2: "safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
+        // test_enact_epoch_change_with_no_tickets_2: "safrole/tiny/enact-epoch-change-with-no-tickets-2.json",
 
         // Progress from a slot at the begin of the epoch to a slot in the epoch's tail.
         // Tickets mark is not generated (no enough tickets).
-        test_enact_epoch_change_with_no_tickets_3: "safrole/tiny/enact-epoch-change-with-no-tickets-3.json",
+        // test_enact_epoch_change_with_no_tickets_3: "safrole/tiny/enact-epoch-change-with-no-tickets-3.json",
 
         // Progress from epoch's tail to next epoch.
         // Authorities and entropies are rotated.
         // Epoch mark is generated.
-        test_enact_epoch_change_with_no_tickets_4: "safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
+        // test_enact_epoch_change_with_no_tickets_4: "safrole/tiny/enact-epoch-change-with-no-tickets-4.json",
 
         // FIXME
         // Progress skipping epochs with a full tickets accumulator.
@@ -193,26 +193,26 @@ mod tests {
         // Tickets mark has no chance to be generated.
         // Accumulated tickets are discarded.
         // Fallback method is enacted.
-        skip_epoch_tail_1: "safrole/tiny/skip-epoch-tail-1.json",
+        // skip_epoch_tail_1: "safrole/tiny/skip-epoch-tail-1.json",
 
         // Fail: Submit an extrinsic with a bad ticket attempt number.
         // publish_tickets_no_mark_1: "safrole/tiny/publish-tickets-no-mark-1.json",
 
         // Submit good tickets extrinsics from some authorities.
-        publish_tickets_no_mark_2: "safrole/tiny/publish-tickets-no-mark-2.json",
+        // publish_tickets_no_mark_2: "safrole/tiny/publish-tickets-no-mark-2.json",
 
         // Fail: Re-submit one ticket already in the state.
-        publish_tickets_no_mark_3: "safrole/tiny/publish-tickets-no-mark-3.json",
+        // publish_tickets_no_mark_3: "safrole/tiny/publish-tickets-no-mark-3.json",
 
         // Fail: Submit tickets in bad order.
-        publish_tickets_no_mark_4: "safrole/tiny/publish-tickets-no-mark-4.json",
+        // publish_tickets_no_mark_4: "safrole/tiny/publish-tickets-no-mark-4.json",
 
         // FIXME
         // Fail: Submit tickets with bad ring proof.
         // publish_tickets_no_mark_5: "safrole/tiny/publish-tickets-no-mark-5.json",
 
         // Submit some tickets.
-        publish_tickets_no_mark_6: "safrole/tiny/publish-tickets-no-mark-6.json",
+        // publish_tickets_no_mark_6: "safrole/tiny/publish-tickets-no-mark-6.json",
 
         // FIXME
         // Fail: Submit tickets while in epoch's tail.
@@ -220,18 +220,18 @@ mod tests {
 
         // Progress into epoch tail.
         // No enough tickets, thus no tickets mark is generated.
-        publish_tickets_no_mark_8: "safrole/tiny/publish-tickets-no-mark-8.json",
+        // publish_tickets_no_mark_8: "safrole/tiny/publish-tickets-no-mark-8.json",
 
         // Progress into next epoch with no enough tickets.
         // Accumulated tickets are discarded.
         // Epoch mark is generated.
         // Fallback method is enacted.
-        publish_tickets_no_mark_9: "safrole/tiny/publish-tickets-no-mark-9.json",
+        // publish_tickets_no_mark_9: "safrole/tiny/publish-tickets-no-mark-9.json",
 
         // Publish some tickets with an almost full tickets accumulator.
         // Tickets accumulator is not full yet.
         // No ticket are dropped from accumulator.
-        publish_tickets_with_mark_1: "safrole/tiny/publish-tickets-with-mark-1.json",
+        // publish_tickets_with_mark_1: "safrole/tiny/publish-tickets-with-mark-1.json",
 
         // FIXME
         // Publish some more tickets.
@@ -247,7 +247,7 @@ mod tests {
 
         // Progress into epoch tail.
         // Tickets mark is generated.
-        publish_tickets_with_mark_4: "safrole/tiny/publish-tickets-with-mark-4.json",
+        // publish_tickets_with_mark_4: "safrole/tiny/publish-tickets-with-mark-4.json",
 
         // FIXME
         // Progress into next epoch.

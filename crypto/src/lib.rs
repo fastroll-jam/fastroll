@@ -11,18 +11,6 @@ use ark_ec_vrfs::{
 use rjam_common::{BandersnatchRingRoot, ValidatorSet};
 use std::fmt::Debug;
 
-/// Converts JAM ValidatorSet type into Vec<Public> type.
-pub fn validator_set_to_ring<S: Suite + Debug>(
-    validator_set: &ValidatorSet,
-) -> Result<Vec<Public<S>>, SerializationError> {
-    let mut public_keys = vec![];
-    validator_set.iter().for_each(|validator_key| {
-        let point = point_decode::<S>(&validator_key.bandersnatch_key).unwrap();
-        public_keys.push(Public(point));
-    });
-    Ok(public_keys)
-}
-
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
     validator_set: &ValidatorSet,
@@ -41,4 +29,16 @@ fn generate_ring_root_internal(
     let ring = validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)?;
     let verifier = Verifier::new(ring);
     Ok(verifier.commitment)
+}
+
+/// Converts JAM ValidatorSet type into Vec<Public> type.
+pub fn validator_set_to_ring<S: Suite + Debug>(
+    validator_set: &ValidatorSet,
+) -> Result<Vec<Public<S>>, SerializationError> {
+    let mut public_keys = vec![];
+    validator_set.iter().for_each(|validator_key| {
+        let point = point_decode::<S>(&validator_key.bandersnatch_key).unwrap();
+        public_keys.push(Public(point));
+    });
+    Ok(public_keys)
 }

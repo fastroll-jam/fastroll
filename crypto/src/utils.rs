@@ -58,5 +58,5 @@ pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSignature) -> 
 }
 
 fn entropy_hash_ring_vrf_internal(signature: &RingVrfSignature) -> Hash32 {
-    signature.output.hash()[..32].try_into().unwrap()
+    signature.output_hash()
 }

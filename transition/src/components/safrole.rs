@@ -1,10 +1,11 @@
-use crate::{Transition, TransitionError};
-use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
+use crate::{
+    components::safrole_new::ticket_extrinsics_to_new_tickets, Transition, TransitionError,
+};
 use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, Ticket, EPOCH_LENGTH,
     TICKET_SUBMISSION_DEADLINE_SLOT,
 };
-use rjam_crypto::{generate_ring_root, vrf::RingVrfSignature};
+use rjam_crypto::generate_ring_root;
 use rjam_types::{
     extrinsics::tickets::TicketExtrinsicEntry,
     state::{
@@ -15,22 +16,6 @@ use rjam_types::{
     },
 };
 use std::fmt::Display;
-
-fn ticket_extrinsics_to_new_tickets(ticket_extrinsics: &[TicketExtrinsicEntry]) -> Vec<Ticket> {
-    ticket_extrinsics
-        .iter()
-        .map(|ticket| {
-            let vrf_output_hash =
-                RingVrfSignature::deserialize_compressed(&ticket.ticket_proof[..])
-                    .unwrap()
-                    .output_hash();
-            Ticket {
-                id: vrf_output_hash,
-                attempt: ticket.entry_index,
-            }
-        })
-        .collect()
-}
 
 pub struct SafroleStateContext {
     pub timeslot: Timeslot,

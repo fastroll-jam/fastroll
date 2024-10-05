@@ -3,6 +3,11 @@ use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::timeslot::Timeslot;
 
 /// State transition function of `Timeslot`.
+///
+/// # Transitions
+///
+/// ## Per-block transitions
+/// * `tau`: Sets the most recent timeslot value to the header timeslot index.
 pub fn transition_timeslot(
     state_manager: &StateManager,
     header_timeslot: &Timeslot,

@@ -148,14 +148,6 @@ impl JamDecode for SlotSealerType {
     }
 }
 
-fn outside_in_array<T, const N: usize>(mut arr: [T; N]) -> [T; N] {
-    let mid = N / 2;
-    for i in 0..mid {
-        arr.swap(i + 1, N - (i + 1));
-    }
-    arr
-}
-
 pub fn outside_in_vec<T>(mut vec: Vec<T>) -> Vec<T> {
     let len = vec.len();
     let mid = len / 2;
