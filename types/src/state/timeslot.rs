@@ -22,8 +22,12 @@ impl Timeslot {
         self.0 / EPOCH_LENGTH as u32
     }
 
+    pub fn is_new_epoch(&self) -> bool {
+        self.slot_phase() == 0
+    }
+
     pub fn slot_phase(&self) -> u32 {
-        self.0 % EPOCH_LENGTH as u32 // FIXME: separate this logic with the epoch index and track this value in another field?
+        self.0 % EPOCH_LENGTH as u32
     }
 
     pub fn to_unix_timestamp(&self) -> u64 {

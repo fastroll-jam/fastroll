@@ -20,7 +20,7 @@ impl Transition for EntropyAccumulator {
     {
         if ctx.is_new_epoch {
             // Rotate entropy histories at the beginning of a new epoch
-            // [e0, e1, e2, e3] => [_, e0, e1, e2]; the new e0 will be calculated and inserted below
+            // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
             self.0.copy_within(0..3, 1);
         }
 

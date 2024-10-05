@@ -1,14 +1,17 @@
+extern crate core;
+
 pub mod components;
 
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::utils::CryptoError;
+use rjam_state::StateManagerError;
 use rjam_types::state::safrole::FallbackKeyError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum TransitionError {
-    #[error("Timeslot value {new_slot} must be greater than the parent block {current_slot}")]
-    InvalidTimeslot { new_slot: u32, current_slot: u32 },
+    #[error("Timeslot value {next_slot} must be greater than the parent block {current_slot}")]
+    InvalidTimeslot { next_slot: u32, current_slot: u32 },
     #[error("Timeslot value {0} is in the future")]
     FutureTimeslot(u32),
     #[error("Serialization error: {0}")]
@@ -23,6 +26,8 @@ pub enum TransitionError {
     TicketsNotOrdered,
     #[error("Submitted tickets must have valid ring VRF proofs")]
     BadTicketProof,
+    #[error("StateManager error: {0}")]
+    StateManagerError(#[from] StateManagerError),
 }
 
 pub trait Transition {
