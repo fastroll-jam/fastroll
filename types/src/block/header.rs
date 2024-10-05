@@ -20,3 +20,13 @@ pub struct BlockHeader {
     vrf_signature: BandersnatchSignature,
     block_seal: BandersnatchSignature,
 }
+
+impl BlockHeader {
+    pub fn get_vrf_signature(&self) -> &BandersnatchSignature {
+        &self.vrf_signature
+    }
+
+    pub fn get_timeslot_index(&self) -> u32 {
+        self.timeslot_index
+    }
+}

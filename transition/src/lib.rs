@@ -1,6 +1,7 @@
 extern crate core;
 
 pub mod components;
+pub mod procedures;
 
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::utils::CryptoError;

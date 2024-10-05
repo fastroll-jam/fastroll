@@ -12,4 +12,4 @@ pub mod statistics;
 pub mod timeslot;
 pub mod timeslot_new;
 pub mod validators;
-mod validators_new;
+pub mod validators_new;
