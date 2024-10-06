@@ -34,11 +34,10 @@ use rjam_types::{
 /// * `gamma_a`: Accumulates new tickets.
 pub fn transition_safrole(
     state_manager: &StateManager,
+    epoch_progressed: bool,
     tickets: &[TicketExtrinsicEntry],
 ) -> Result<(), TransitionError> {
-    let current_timeslot = state_manager.get_timeslot()?;
-
-    if current_timeslot.is_new_epoch() {
+    if epoch_progressed {
         handle_new_epoch_transition(state_manager)?;
     }
 

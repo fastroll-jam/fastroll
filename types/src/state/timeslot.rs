@@ -26,7 +26,7 @@ impl Timeslot {
         self.0 / EPOCH_LENGTH as u32
     }
 
-    pub fn is_new_epoch(&self) -> bool {
+    pub fn is_epoch_start(&self) -> bool {
         self.slot_phase() == 0
     }
 

@@ -14,12 +14,11 @@ use rjam_state::{StateManager, StateWriteOp};
 /// * `eta`: Accumulates the VRF output hash of the current block header to the current entropy state.
 pub fn transition_entropy_accumulator(
     state_manager: &StateManager,
+    epoch_progressed: bool,
     source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {
-    let current_timeslot = state_manager.get_timeslot()?; // TODO: ensure the timeslot transition is already completed
-
     state_manager.with_mut_entropy_accumulator(StateWriteOp::Update, |entropy| {
-        if current_timeslot.is_new_epoch() {
+        if epoch_progressed {
             // Rotate entropy histories.
             // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
             entropy.0.copy_within(0..3, 1);

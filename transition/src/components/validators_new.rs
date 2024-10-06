@@ -10,9 +10,11 @@ use rjam_state::{StateManager, StateWriteOp};
 ///
 /// ## Per-block transitions
 /// * `kappa`: None.
-pub fn transition_active_set(state_manager: &StateManager) -> Result<(), TransitionError> {
-    let current_timeslot = &state_manager.get_timeslot()?;
-    if current_timeslot.is_new_epoch() {
+pub fn transition_active_set(
+    state_manager: &StateManager,
+    epoch_progressed: bool,
+) -> Result<(), TransitionError> {
+    if epoch_progressed {
         let prior_pending_set = state_manager.get_safrole()?.pending_set;
         state_manager.with_mut_active_set(StateWriteOp::Update, |active_set| {
             active_set.0 = prior_pending_set;
@@ -30,9 +32,11 @@ pub fn transition_active_set(state_manager: &StateManager) -> Result<(), Transit
 ///
 /// ## Per-block transitions
 /// * `lambda`: None.
-pub fn transition_past_set(state_manager: &StateManager) -> Result<(), TransitionError> {
-    let current_timeslot = &state_manager.get_timeslot()?;
-    if current_timeslot.is_new_epoch() {
+pub fn transition_past_set(
+    state_manager: &StateManager,
+    epoch_progressed: bool,
+) -> Result<(), TransitionError> {
+    if epoch_progressed {
         let prior_active_set = state_manager.get_active_set()?;
         state_manager.with_mut_past_set(StateWriteOp::Update, |past_set| {
             past_set.0 = prior_active_set.0;

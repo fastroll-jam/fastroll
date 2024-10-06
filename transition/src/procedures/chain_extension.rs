@@ -23,8 +23,8 @@ pub struct SafroleHeaderMarkers {
 
 /// Performs the chain extension procedure by executing a series of state transitions in order.
 ///
-/// 1. Entropy Accumulator: Updates the entropy based on the block header's VRF signature (H_v).
-/// 2. Timeslot: Updates the current timeslot based on the block header's timeslot index.
+/// 1. Timeslot: Updates the current timeslot based on the block header's timeslot index.
+/// 2. Entropy Accumulator: Updates the entropy based on the block header's VRF signature (H_v).
 /// 3. Past Set: Updates the set of past validators.
 /// 4. Active Set: Updates the set of currently active validators.
 /// 5. Safrole: Updates Safrole state components, including ring root calculation and ticket processing.
@@ -33,36 +33,47 @@ pub fn chain_extension_procedure(
     header: &BlockHeader,
     tickets: &[TicketExtrinsicEntry],
 ) -> Result<(SafroleHeaderMarkers), TransitionError> {
-    // EntropyAccumulator transition
-    let header_vrf_signature = header.get_vrf_signature();
-    transition_entropy_accumulator(state_manager, entropy_hash_ietf_vrf(header_vrf_signature))?;
+    let prior_timeslot = state_manager.get_timeslot()?;
 
     // Timeslot transition
     let header_timeslot_index = header.get_timeslot_index();
     transition_timeslot(state_manager, &Timeslot::new(header_timeslot_index))?;
 
+    // Determine if the epoch has progressed
+    let current_timeslot = state_manager.get_timeslot()?;
+    let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
+
+    // EntropyAccumulator transition
+    let header_vrf_signature = header.get_vrf_signature();
+    transition_entropy_accumulator(
+        state_manager,
+        epoch_progressed,
+        entropy_hash_ietf_vrf(header_vrf_signature),
+    )?;
+
     // PastSet transition
-    transition_past_set(state_manager)?;
+    transition_past_set(state_manager, epoch_progressed)?;
 
     // ActiveSet transition
-    transition_active_set(state_manager)?;
+    transition_active_set(state_manager, epoch_progressed)?;
 
     // Safrole transition
-    transition_safrole(state_manager, tickets)?;
+    transition_safrole(state_manager, epoch_progressed, tickets)?;
 
     // Generates SafroleHeaderMarkers as output of the chain extension procedure.
-    let markers = mark_safrole_header_markers(state_manager)?;
+    let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;
 
     Ok(markers)
 }
 
 fn mark_safrole_header_markers(
     state_manager: &StateManager,
+    epoch_progressed: bool,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
     let current_timeslot = state_manager.get_timeslot()?;
     let current_safrole = state_manager.get_safrole()?;
 
-    let epoch_marker = if current_timeslot.is_new_epoch() {
+    let epoch_marker = if epoch_progressed {
         let current_entropy = state_manager.get_entropy_accumulator()?;
         let current_pending_set = current_safrole.pending_set;
         Some((
@@ -73,7 +84,7 @@ fn mark_safrole_header_markers(
         None
     };
 
-    let needs_winning_tickets_marker = !current_timeslot.is_new_epoch()
+    let needs_winning_tickets_marker = !epoch_progressed
         && current_timeslot.slot_phase() == TICKET_SUBMISSION_DEADLINE_SLOT as u32
         && current_safrole.ticket_accumulator.is_full();
 
