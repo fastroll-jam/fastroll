@@ -7,12 +7,19 @@ use crate::{
     },
     TransitionError,
 };
+use rjam_common::{ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT};
 use rjam_crypto::utils::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
 use rjam_types::{
-    block::header::BlockHeader, extrinsics::tickets::TicketExtrinsicEntry,
+    block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},
+    extrinsics::tickets::TicketExtrinsicEntry,
     state::timeslot::Timeslot,
 };
+
+pub struct SafroleHeaderMarkers {
+    epoch_marker: EpochMarker,
+    winning_tickets_marker: WinningTicketsMarker,
+}
 
 /// Performs the chain extension procedure by executing a series of state transitions in order.
 ///
@@ -21,11 +28,11 @@ use rjam_types::{
 /// 3. Past Set: Updates the set of past validators.
 /// 4. Active Set: Updates the set of currently active validators.
 /// 5. Safrole: Updates Safrole state components, including ring root calculation and ticket processing.
-fn chain_extension_procedure(
+pub fn chain_extension_procedure(
     state_manager: &StateManager,
     header: &BlockHeader,
     tickets: &[TicketExtrinsicEntry],
-) -> Result<(), TransitionError> {
+) -> Result<(SafroleHeaderMarkers), TransitionError> {
     // EntropyAccumulator transition
     let header_vrf_signature = header.get_vrf_signature();
     transition_entropy_accumulator(state_manager, entropy_hash_ietf_vrf(header_vrf_signature))?;
@@ -43,5 +50,57 @@ fn chain_extension_procedure(
     // Safrole transition
     transition_safrole(state_manager, tickets)?;
 
-    Ok(())
+    // Generates SafroleHeaderMarkers as output of the chain extension procedure.
+    let markers = mark_safrole_header_markers(state_manager)?;
+
+    Ok(markers)
+}
+
+fn mark_safrole_header_markers(
+    state_manager: &StateManager,
+) -> Result<SafroleHeaderMarkers, TransitionError> {
+    let current_timeslot = state_manager.get_timeslot()?;
+    let current_safrole = state_manager.get_safrole()?;
+
+    let epoch_marker = if current_timeslot.is_new_epoch() {
+        let current_entropy = state_manager.get_entropy_accumulator()?;
+        let current_pending_set = current_safrole.pending_set;
+        Some((
+            current_entropy.first_history(),
+            extract_bandersnatch_keys(&current_pending_set),
+        ))
+    } else {
+        None
+    };
+
+    let needs_winning_tickets_marker = !current_timeslot.is_new_epoch()
+        && current_timeslot.slot_phase() == TICKET_SUBMISSION_DEADLINE_SLOT as u32
+        && current_safrole.ticket_accumulator.is_full();
+
+    let winning_tickets_marker = if needs_winning_tickets_marker {
+        Some(
+            current_safrole
+                .ticket_accumulator
+                .into_vec()
+                .try_into()
+                .unwrap(),
+        )
+    } else {
+        None
+    };
+
+    Ok(SafroleHeaderMarkers {
+        epoch_marker,
+        winning_tickets_marker,
+    })
+}
+
+fn extract_bandersnatch_keys(validator_set: &ValidatorSet) -> [[u8; 32]; VALIDATOR_COUNT] {
+    let mut result = [[0u8; 32]; VALIDATOR_COUNT];
+
+    for (index, validator) in validator_set.iter().enumerate() {
+        result[index] = validator.bandersnatch_key;
+    }
+
+    result
 }
