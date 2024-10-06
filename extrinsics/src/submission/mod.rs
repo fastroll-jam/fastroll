@@ -30,8 +30,8 @@
 //         .expect("Proof length mismatch");
 //
 //     let ticket_extrinsic = TicketExtrinsicEntry {
-//         entry_index,
 //         ticket_proof: ring_vrf_proof,
+//         entry_index,
 //     };
 //
 //     // TODO: propagate the extrinsic via JAMSNP protocol

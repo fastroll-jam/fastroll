@@ -136,8 +136,8 @@ pub struct TicketEnvelope {
 impl Into<TicketExtrinsicEntry> for TicketEnvelope {
     fn into(self) -> TicketExtrinsicEntry {
         TicketExtrinsicEntry {
-            entry_index: self.attempt,
             ticket_proof: self.signature,
+            entry_index: self.attempt,
         }
     }
 }

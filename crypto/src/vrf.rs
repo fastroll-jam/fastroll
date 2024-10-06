@@ -1,3 +1,4 @@
+use crate::utils::CryptoError;
 /// The following code originates from the `bandersnatch-vrfs-spec` repository.
 /// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
 use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
@@ -13,6 +14,13 @@ pub const RING_SIZE: usize = 6;
 pub struct IetfVrfSignature {
     pub output: Output,
     pub proof: IetfProof,
+}
+
+// Additional impl (the `Y` hashing function)
+impl IetfVrfSignature {
+    pub fn output_hash(&self) -> Hash32 {
+        self.output.hash()[..32].try_into().unwrap()
+    }
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -140,7 +148,7 @@ impl Verifier {
         vrf_input_data: &[u8],
         aux_data: &[u8],
         signature: &[u8],
-    ) -> Result<[u8; 32], ()> {
+    ) -> Result<[u8; 32], CryptoError> {
         use ark_ec_vrfs::ring::Verifier as _;
 
         let signature = RingVrfSignature::deserialize_compressed(signature).unwrap();
@@ -154,7 +162,7 @@ impl Verifier {
         let verifier = ring_ctx.verifier(verifier_key);
         if Public::verify(input, output, aux_data, &signature.proof, &verifier).is_err() {
             println!("Ring signature verification failure");
-            return Err(());
+            return Err(CryptoError::VrfVerificationFailed);
         }
         println!("Ring signature verified");
 
@@ -176,7 +184,7 @@ impl Verifier {
         aux_data: &[u8],
         signature: &[u8],
         signer_key_index: usize,
-    ) -> Result<[u8; 32], ()> {
+    ) -> Result<[u8; 32], CryptoError> {
         use ark_ec_vrfs::ietf::Verifier as _;
 
         let signature = IetfVrfSignature::deserialize_compressed(signature).unwrap();
@@ -190,7 +198,7 @@ impl Verifier {
             .is_err()
         {
             println!("Ring signature verification failure");
-            return Err(());
+            return Err(CryptoError::VrfVerificationFailed);
         }
         println!("Ietf signature verified");
 

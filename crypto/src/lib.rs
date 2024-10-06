@@ -26,13 +26,19 @@ pub fn generate_ring_root(
 fn generate_ring_root_internal(
     validator_set: &ValidatorSet,
 ) -> Result<RingCommitment, SerializationError> {
-    let ring = validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)?;
+    let ring = validator_set_to_bandersnatch_ring(validator_set)?;
     let verifier = Verifier::new(ring);
     Ok(verifier.commitment)
 }
 
+pub fn validator_set_to_bandersnatch_ring(
+    validator_set: &ValidatorSet,
+) -> Result<Vec<Public<BandersnatchSha512Ell2>>, SerializationError> {
+    validator_set_to_ring::<BandersnatchSha512Ell2>(validator_set)
+}
+
 /// Converts JAM ValidatorSet type into Vec<Public> type.
-pub fn validator_set_to_ring<S: Suite + Debug>(
+fn validator_set_to_ring<S: Suite + Debug>(
     validator_set: &ValidatorSet,
 ) -> Result<Vec<Public<S>>, SerializationError> {
     let mut public_keys = vec![];

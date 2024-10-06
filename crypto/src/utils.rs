@@ -17,6 +17,8 @@ pub enum CryptoError {
     RingContextResourceError,
     #[error("Serialization Error")]
     SerializationError(SerializationError),
+    #[error("VRF proof verification Error")]
+    VrfVerificationFailed,
 }
 
 // Black2b-256 hash
@@ -47,7 +49,7 @@ pub fn entropy_hash_ietf_vrf(signature_bytes: &BandersnatchSignature) -> Hash32 
 }
 
 fn entropy_hash_ietf_vrf_internal(signature: &IetfVrfSignature) -> Hash32 {
-    signature.output.hash()[..32].try_into().unwrap()
+    signature.output_hash()
 }
 
 // `Y` hash function for an anonymous RingVRF signature
