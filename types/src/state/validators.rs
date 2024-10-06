@@ -1,7 +1,7 @@
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{Ed25519PubKey, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use std::fmt::{Display, Formatter};
 
 /// Represents a ValidatorSet that will become active in a future epoch.
@@ -35,6 +35,16 @@ impl Display for StagingSet {
 impl Default for StagingSet {
     fn default() -> Self {
         Self([ValidatorKey::default(); VALIDATOR_COUNT])
+    }
+}
+
+impl StagingSet {
+    pub fn nullify_punished_validators(&mut self, punish_set: &Vec<Ed25519PubKey>) {
+        for validator in self.0.iter_mut() {
+            if punish_set.contains(&validator.ed25519_key) {
+                *validator = ValidatorKey::default();
+            }
+        }
     }
 }
 

@@ -50,7 +50,11 @@ pub fn transition_safrole(
 
 fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), TransitionError> {
     let prior_timeslot = Timeslot::prior_slot(&state_manager.get_timeslot()?);
-    let prior_staging_set = state_manager.get_staging_set()?; // TODO: nullify punished keys (`Phi` function)
+    let current_punish_set = state_manager.get_disputes()?.get_punish_set();
+    let mut prior_staging_set = state_manager.get_staging_set()?;
+
+    // Remove punished validators from the staging set (iota).
+    prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
     let current_ring_root = generate_ring_root(&prior_staging_set.0)?;

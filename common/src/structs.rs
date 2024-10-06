@@ -1,6 +1,7 @@
 use crate::{
     types::{Hash32, Octets, UnsignedGas},
-    Address, Balance, HASH32_EMPTY, TRANSFER_MEMO_SIZE,
+    Address, Balance, BandersnatchPubKey, BlsPubKey, Ed25519PubKey, HASH32_EMPTY,
+    TRANSFER_MEMO_SIZE,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
@@ -20,9 +21,9 @@ use std::{
 /// The final ValidatorKey type is a simple concatenation of each component.
 #[derive(Debug, Clone, Copy, JamEncode, JamDecode)]
 pub struct ValidatorKey {
-    pub bandersnatch_key: [u8; 32],
-    pub ed25519_key: [u8; 32],
-    pub bls_key: [u8; 144],
+    pub bandersnatch_key: BandersnatchPubKey,
+    pub ed25519_key: Ed25519PubKey,
+    pub bls_key: BlsPubKey,
     pub metadata: [u8; 128],
 }
 

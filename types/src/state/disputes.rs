@@ -9,3 +9,9 @@ pub struct DisputesState {
     wonky_set: Vec<Hash32>,         // psi_w; recording hash of work-reports that cannot be judged
     punish_set: Vec<Ed25519PubKey>, // psi_o; recording Ed25519 public keys of validators which have misjudged.
 }
+
+impl DisputesState {
+    pub fn get_punish_set(self) -> Vec<Ed25519PubKey> {
+        self.punish_set
+    }
+}

@@ -5,12 +5,13 @@ pub type Hash32 = [u8; 32]; // FIXME: should be subset of `[u8; 32]`
 pub type Octets = Vec<u8>;
 pub type Address = u32; // service account address (index)
 pub type Balance = u64;
-pub type BandersnatchPubKey = Hash32;
+pub type BandersnatchPubKey = [u8; 32];
 pub type BandersnatchSignature = [u8; 96]; // `F` signature type
 pub type BandersnatchRingRoot = [u8; 144];
 pub type BandersnatchRingVrfSignature = [u8; 784]; // `F bar` signature type
-pub type Ed25519PubKey = Hash32;
+pub type Ed25519PubKey = [u8; 32];
 pub type Ed25519Signature = [u8; 64];
+pub type BlsPubKey = [u8; 144];
 pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
 pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
 
