@@ -55,6 +55,15 @@ pub struct MerkleDB {
 }
 
 impl MerkleDB {
+    // TODO: add testing feature
+    pub fn new_for_test(path: &str) -> Self {
+        Self {
+            db: Arc::new(DB::open_default(path).unwrap()),
+            cache: Arc::new(DashMap::new()),
+            root: HASH32_EMPTY,
+        }
+    }
+
     pub fn new(db: Arc<DB>, cache_size: usize) -> Result<Self, MerkleError> {
         Ok(Self {
             db,

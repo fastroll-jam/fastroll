@@ -62,7 +62,7 @@ pub enum StateEntryType {
 
 /// Index of each state component used for state-key (Merkle path) construction
 #[repr(u8)]
-pub(crate) enum StateKeyConstant {
+pub enum StateKeyConstant {
     AuthPool = 1,            // alpha
     AuthQueue = 2,           // phi
     BlockHistories = 3,      // beta
@@ -180,6 +180,26 @@ pub struct StateManager {
 }
 
 impl StateManager {
+    // TODO: add testing feature
+    pub fn new_for_test(state_db_path: &str, merkle_db_path: &str) -> Self {
+        Self {
+            state_db: Arc::new(StateDB::new_for_test(state_db_path)),
+            merkle_db: Arc::new(MerkleDB::new_for_test(merkle_db_path)),
+            cache: Arc::new(DashMap::new()),
+        }
+    }
+
+    // TODO: add testing feature
+    pub fn load_state_for_test(
+        &mut self,
+        state_key_constant: StateKeyConstant,
+        state_entry_type: StateEntryType,
+    ) {
+        let state_key = construct_state_key(state_key_constant);
+        self.cache
+            .insert(state_key, CacheEntry::new(state_entry_type));
+    }
+
     pub fn new(state_db: Arc<StateDB>, merkle_db: Arc<MerkleDB>) -> Self {
         Self {
             state_db,

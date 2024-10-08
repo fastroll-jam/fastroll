@@ -17,8 +17,8 @@ use rjam_types::{
 };
 
 pub struct SafroleHeaderMarkers {
-    epoch_marker: EpochMarker,
-    winning_tickets_marker: WinningTicketsMarker,
+    pub epoch_marker: Option<EpochMarker>,
+    pub winning_tickets_marker: Option<WinningTicketsMarker>,
 }
 
 /// Performs the chain extension procedure by executing a series of state transitions in order.
@@ -32,7 +32,7 @@ pub fn chain_extension_procedure(
     state_manager: &StateManager,
     header: &BlockHeader,
     tickets: &[TicketExtrinsicEntry],
-) -> Result<(SafroleHeaderMarkers), TransitionError> {
+) -> Result<SafroleHeaderMarkers, TransitionError> {
     let prior_timeslot = state_manager.get_timeslot()?;
 
     // Timeslot transition
@@ -66,7 +66,7 @@ pub fn chain_extension_procedure(
     Ok(markers)
 }
 
-fn mark_safrole_header_markers(
+pub fn mark_safrole_header_markers(
     state_manager: &StateManager,
     epoch_progressed: bool,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
@@ -76,10 +76,10 @@ fn mark_safrole_header_markers(
     let epoch_marker = if epoch_progressed {
         let current_entropy = state_manager.get_entropy_accumulator()?;
         let current_pending_set = current_safrole.pending_set;
-        Some((
-            current_entropy.first_history(),
-            extract_bandersnatch_keys(&current_pending_set),
-        ))
+        Some(EpochMarker {
+            entropy: current_entropy.first_history(),
+            validators: extract_bandersnatch_keys(&current_pending_set),
+        })
     } else {
         None
     };

@@ -4,9 +4,14 @@ use rjam_common::{
     VALIDATOR_COUNT,
 };
 
-pub type EpochMarker = Option<(Hash32, [BandersnatchPubKey; VALIDATOR_COUNT])>;
-pub type WinningTicketsMarker = Option<[Ticket; EPOCH_LENGTH]>;
+pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 pub type OffendersMarker = Vec<Ed25519PubKey>;
+
+#[derive(Debug, JamEncode, JamDecode)]
+pub struct EpochMarker {
+    pub entropy: Hash32,
+    pub validators: [BandersnatchPubKey; VALIDATOR_COUNT],
+}
 
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct BlockHeader {
@@ -14,8 +19,8 @@ pub struct BlockHeader {
     prior_state_root: Hash32,
     extrinsic_hash: Hash32,
     timeslot_index: u32,
-    epoch_marker: EpochMarker,
-    winning_tickets_marker: WinningTicketsMarker,
+    epoch_marker: Option<EpochMarker>,
+    winning_tickets_marker: Option<WinningTicketsMarker>,
     offenders_marker: OffendersMarker,
     block_author_index: u16, //  N_V
     vrf_signature: BandersnatchSignature,

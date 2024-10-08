@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 rjam-common = { workspace = true, features = ["testing"] }
+rjam-state = { workspace = true }
 rjam-transition = { workspace = true }
 rjam-types = { workspace = true }
 hex = { workspace = true }

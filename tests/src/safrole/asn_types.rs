@@ -1,6 +1,10 @@
 use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
-use rjam_common::ValidatorKey;
-use rjam_types::{extrinsics::tickets::TicketExtrinsicEntry, state::safrole::SlotSealerType};
+use rjam_common::{Ticket, ValidatorKey};
+use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
+use rjam_types::{
+    block::header::EpochMarker, extrinsics::tickets::TicketExtrinsicEntry,
+    state::safrole::SlotSealerType,
+};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Display};
 
@@ -97,11 +101,19 @@ pub enum CustomErrorCode {
     duplicate_ticket,   // Found a ticket duplicate
 }
 
-// Define structures
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
     pub attempt: U8,
+}
+
+impl From<Ticket> for TicketBody {
+    fn from(ticket: Ticket) -> Self {
+        TicketBody {
+            id: ByteArray32(ticket.id),
+            attempt: ticket.attempt,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -148,20 +160,31 @@ pub struct EpochMark {
     validators: [BandersnatchKey; VALIDATORS_COUNT],
 }
 
+impl From<EpochMarker> for EpochMark {
+    fn from(marker: EpochMarker) -> Self {
+        EpochMark {
+            entropy: ByteArray32(marker.entropy),
+            validators: marker.validators.map(ByteArray32),
+        }
+    }
+}
+
 pub type TicketsMark = [TicketBody; EPOCH_LENGTH];
 
 // Output markers
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct OutputMarks {
     epoch_mark: Option<EpochMark>,     // New epoch signal
     tickets_mark: Option<TicketsMark>, // Tickets signal
 }
 
-impl Default for OutputMarks {
-    fn default() -> Self {
+impl From<SafroleHeaderMarkers> for OutputMarks {
+    fn from(value: SafroleHeaderMarkers) -> Self {
         Self {
-            epoch_mark: None,
-            tickets_mark: None,
+            epoch_mark: value.epoch_marker.map(EpochMark::from),
+            tickets_mark: value
+                .winning_tickets_marker
+                .map(|tickets| tickets.map(TicketBody::from)),
         }
     }
 }
@@ -184,9 +207,10 @@ pub struct State {
 // Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub slot: U32,                      // Current slot
+    pub slot: U32,                       // Current slot
     pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
     pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
+    pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
 }
 
 // Output from Safrole protocol

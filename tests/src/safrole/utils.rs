@@ -1,6 +1,6 @@
 use crate::safrole::asn_types::{
-    ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
-    ValidatorsData, U32, U8,
+    ByteArray32, CustomErrorCode, EpochMark, OpaqueHash, State, TicketBody, TicketsOrKeys,
+    ValidatorData, ValidatorsData, U32, U8,
 };
 use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, ValidatorKey,
@@ -70,7 +70,7 @@ where
 }
 
 //
-// State Builder to facilitate conversion between ASN type representations and JAM implementation types
+// State Builder to facilitate conversion between ASN and RJAM types
 //
 
 #[derive(Default)]
@@ -245,9 +245,11 @@ pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode
     if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
         match transition_error {
             TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
-            TransitionError::DuplicateTicket => CustomErrorCode::duplicate_ticket,
+            TransitionError::TicketSubmissionClosed => CustomErrorCode::unexpected_ticket,
             TransitionError::TicketsNotOrdered => CustomErrorCode::bad_ticket_order,
             TransitionError::BadTicketProof => CustomErrorCode::bad_ticket_proof,
+            TransitionError::BadTicketAttemptNumber => CustomErrorCode::bad_ticket_attempt,
+            TransitionError::DuplicateTicket => CustomErrorCode::duplicate_ticket,
             _ => CustomErrorCode::reserved,
         }
     } else {
