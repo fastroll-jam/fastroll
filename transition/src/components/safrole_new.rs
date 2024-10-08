@@ -1,4 +1,4 @@
-use crate::TransitionError;
+use crate::error::TransitionError;
 use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, Hash32, Ticket, ValidatorSet, EPOCH_LENGTH,
     TICKET_SUBMISSION_DEADLINE_SLOT, X_T,

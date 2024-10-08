@@ -1,4 +1,4 @@
-use crate::TransitionError;
+use crate::error::TransitionError;
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::timeslot::Timeslot;
 

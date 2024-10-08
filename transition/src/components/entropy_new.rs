@@ -1,4 +1,4 @@
-use crate::TransitionError;
+use crate::error::TransitionError;
 use rjam_common::Hash32;
 use rjam_crypto::utils::blake2b_256;
 use rjam_state::{StateManager, StateWriteOp};

@@ -1,12 +1,12 @@
 use crate::safrole::asn_types::{
-    ByteArray32, CustomErrorCode, EpochMark, OpaqueHash, State, TicketBody, TicketsOrKeys,
-    ValidatorData, ValidatorsData, U32, U8,
+    ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
+    ValidatorsData, U32, U8,
 };
 use rjam_common::{
     sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, ValidatorKey,
     ValidatorSet, EPOCH_LENGTH,
 };
-use rjam_transition::TransitionError;
+use rjam_transition::error::TransitionError;
 use rjam_types::state::{
     entropy::EntropyAccumulator,
     safrole::{SafroleState, SlotSealerType},

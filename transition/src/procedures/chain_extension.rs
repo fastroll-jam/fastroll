@@ -5,7 +5,7 @@ use crate::{
         timeslot_new::transition_timeslot,
         validators_new::{transition_active_set, transition_past_set},
     },
-    TransitionError,
+    error::TransitionError,
 };
 use rjam_common::{ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT};
 use rjam_crypto::utils::entropy_hash_ietf_vrf;

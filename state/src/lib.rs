@@ -180,7 +180,6 @@ pub struct StateManager {
 }
 
 impl StateManager {
-    // TODO: add testing feature
     pub fn new_for_test() -> Self {
         Self {
             state_db: None,
@@ -189,7 +188,6 @@ impl StateManager {
         }
     }
 
-    // TODO: add testing feature
     pub fn load_state_for_test(
         &mut self,
         state_key_constant: StateKeyConstant,
