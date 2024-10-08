@@ -43,22 +43,18 @@ mod tests {
         test_input: Input,
         test_pre_state: State,
     ) -> Result<(State, Output), Box<dyn Error>> {
-        println!(">>>>> checkpoint 1.");
-
         // Convert ASN pre-state into RJAM types.
         let prior_safrole = test_pre_state.into_safrole_state()?;
         let (prior_staging_set, prior_active_set, prior_past_set) =
             test_pre_state.into_validator_sets()?;
         let prior_entropy = test_pre_state.into_entropy_accumulator()?;
         let prior_timeslot = test_pre_state.into_timeslot()?;
-        println!(">>>>> checkpoint 2.");
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test(
             format!("./statedb/{}", path).as_str(),
             format!("./merkledb/{}", path).as_str(),
         );
-        println!(">>>>> checkpoint 3.");
 
         // Load pre-state into the StateCache.
         // TODO: Update the generic `load_state_for_test` method to be generic.
@@ -86,7 +82,6 @@ mod tests {
             StateKeyConstant::Timeslot,
             StateEntryType::Timeslot(prior_timeslot),
         );
-        println!(">>>>> checkpoint 4.");
 
         // Convert ASN Input into RJAM types.
         let input_timeslot = Timeslot::new(test_input.slot);
@@ -104,7 +99,6 @@ mod tests {
             .into_iter()
             .map(TicketEnvelope::into)
             .collect();
-        println!(">>>>> checkpoint 5.");
 
         // Run the chain extension procedure.
         transition_timeslot(&state_manager, &input_timeslot)?;
@@ -118,7 +112,6 @@ mod tests {
         transition_past_set(&state_manager, epoch_progressed)?;
         transition_active_set(&state_manager, epoch_progressed)?;
         transition_safrole(&state_manager, epoch_progressed, &input_ticket_extrinsics)?;
-        println!(">>>>> checkpoint 6.");
 
         // Convert RJAM output into ASN Output.
         let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
@@ -131,7 +124,6 @@ mod tests {
         let current_past_set = state_manager.get_past_set()?;
         let current_entropy = state_manager.get_entropy_accumulator()?;
         let current_timeslot = state_manager.get_timeslot()?;
-        println!(">>>>> checkpoint 7.");
 
         // Convert RJAM types post-state into ASN post-state
         let builder = StateBuilder::new();
@@ -141,7 +133,6 @@ mod tests {
             .from_entropy_accumulator(&current_entropy)?
             .from_timeslot(&current_timeslot)?
             .build()?;
-        println!(">>>>> checkpoint 8.");
 
         Ok((post_state, Output::ok(output_marks)))
     }
@@ -151,39 +142,33 @@ mod tests {
         test_input: Input,
         test_pre_state: State,
     ) -> Result<(State, Output), Box<dyn Error>> {
-        println!(">>>>> checkpoint 0.");
-
         match run_state_transition(path, test_input, test_pre_state.clone()) {
-            Ok(result) => {
-                println!(">>>>> checkpoint 0.1");
-
-                Ok(result)
-            }
-            Err(e) => {
-                println!(">>>>> checkpoint0.2");
-                Ok((test_pre_state, Output::err(map_error_to_custom_code(e))))
-            } // represents rollback mechanism for state transition failures
+            Ok(result) => Ok(result),
+            Err(e) => Ok((test_pre_state, Output::err(map_error_to_custom_code(e)))), // represents rollback mechanism for state transition failures
         }
     }
 
     fn run_test_case(path: &str) -> Result<(), Box<dyn Error>> {
         let test_case = load_test_case(path).expect("Failed to load test vector.");
-        let test_post_state = test_case.post_state; // The expected post state.
+        let expected_post_state = test_case.post_state; // The expected post state.
 
-        let (post_state, output) =
-            run_state_transition_with_error_mapping(path, test_case.input, test_case.pre_state)?;
+        let (post_state, output) = run_state_transition_with_error_mapping(
+            path.strip_suffix(".json").unwrap(),
+            test_case.input,
+            test_case.pre_state,
+        )?;
 
         // Assertion on the post state
-        // assert_eq!(post_state, test_post_state);
-        assert_eq!(post_state.tau, test_post_state.tau);
-        assert_eq!(post_state.eta, test_post_state.eta);
-        assert_eq!(post_state.lambda, test_post_state.lambda);
-        assert_eq!(post_state.kappa, test_post_state.kappa);
-        assert_eq!(post_state.gamma_k, test_post_state.gamma_k);
-        assert_eq!(post_state.iota, test_post_state.iota);
-        assert_eq!(post_state.gamma_a, test_post_state.gamma_a);
-        assert_eq!(post_state.gamma_s, test_post_state.gamma_s);
-        assert_eq!(post_state.gamma_z, test_post_state.gamma_z);
+        // assert_eq!(post_state, expected_post_state);
+        assert_eq!(post_state.tau, expected_post_state.tau);
+        assert_eq!(post_state.eta, expected_post_state.eta);
+        assert_eq!(post_state.lambda, expected_post_state.lambda);
+        assert_eq!(post_state.kappa, expected_post_state.kappa);
+        assert_eq!(post_state.gamma_k, expected_post_state.gamma_k);
+        assert_eq!(post_state.iota, expected_post_state.iota);
+        assert_eq!(post_state.gamma_a, expected_post_state.gamma_a);
+        assert_eq!(post_state.gamma_s, expected_post_state.gamma_s);
+        assert_eq!(post_state.gamma_z, expected_post_state.gamma_z);
 
         // Assertion on the state transition output
         // println!(">>> output: {:?}", &test_case.output);
@@ -228,7 +213,7 @@ mod tests {
         // Success
         // Progress from a slot at the begin of the epoch to a slot in the epoch's tail.
         // Tickets mark is not generated (no enough tickets).
-        // test_enact_epoch_change_with_no_tickets_3: "safrole/tiny/enact-epoch-change-with-no-tickets-3.json", // FIXME
+        test_enact_epoch_change_with_no_tickets_3: "safrole/tiny/enact-epoch-change-with-no-tickets-3.json",
 
         // Success
         // Progress from epoch's tail to next epoch.

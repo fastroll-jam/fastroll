@@ -114,6 +114,10 @@ fn handle_ticket_accumulation(
     state_manager: &StateManager,
     tickets: &[TicketExtrinsicEntry],
 ) -> Result<(), TransitionError> {
+    if tickets.is_empty() {
+        return Ok(());
+    }
+
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot()?.slot_phase();
     if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
