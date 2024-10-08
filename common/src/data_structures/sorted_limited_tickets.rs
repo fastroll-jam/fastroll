@@ -1,7 +1,6 @@
 use crate::{Ticket, EPOCH_LENGTH};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
-    cmp::Reverse,
     collections::BinaryHeap,
     fmt::{Display, Formatter},
 };
@@ -9,19 +8,19 @@ use std::{
 /// A data structure used for ticket accumulator which holds submitted tickets sorted by their id
 /// with a length limit defined by `EPOCH_LENGTH`.
 ///
-/// This struct maintains a min-heap of tickets, ensuring that the tickets are kept in ascending
+/// This struct maintains a max-heap of tickets, ensuring that the tickets are kept in ascending
 /// order by their id. When the number of tickets reaches `EPOCH_LENGTH`, any new tickets added
 /// will only replace existing tickets if they have a lower id.
 #[derive(Clone, Debug)]
 pub struct SortedLimitedTickets {
-    heap: BinaryHeap<Reverse<Ticket>>,
+    heap: BinaryHeap<Ticket>,
 }
 
 impl Display for SortedLimitedTickets {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "SortedLimitedTickets {{")?;
         for (i, ticket) in self.heap.iter().enumerate() {
-            writeln!(f, "  {}: {}", i, ticket.0)?;
+            writeln!(f, "  {}: {}", i, ticket)?;
         }
         write!(f, "}}")
     }
@@ -60,15 +59,15 @@ impl SortedLimitedTickets {
     /// In this case, the ticket with the highest id is removed to make space.
     pub fn add(&mut self, ticket: Ticket) {
         if self.heap.len() < EPOCH_LENGTH {
-            self.heap.push(Reverse(ticket));
-        } else if ticket < self.heap.peek().unwrap().0 {
-            // To keep EPOCH_LENGTH of tickets in ascending orders, compare with the Max heap peak
-            // before pushing a new Ticket entry
-            self.heap.pop();
-            self.heap.push(Reverse(ticket));
+            self.heap.push(ticket);
+        } else if let Some(max_ticket) = self.heap.peek() {
+            // Peek gives the largest element (max-heap)
+            if &ticket < max_ticket {
+                self.heap.pop(); // Remove the peek
+                self.heap.push(ticket); // Insert the new smaller ticket
+            }
         }
     }
-
     pub fn add_multiple(&mut self, tickets: Vec<Ticket>) {
         for ticket in tickets {
             self.add(ticket);
@@ -76,25 +75,17 @@ impl SortedLimitedTickets {
     }
 
     pub fn contains(&self, ticket: &Ticket) -> bool {
-        self.heap.iter().any(|Reverse(t)| *t == *ticket)
+        self.heap.iter().any(|t| *t == *ticket)
     }
 
     pub fn into_vec(self) -> Vec<Ticket> {
-        let mut tickets: Vec<_> = self
-            .heap
-            .into_iter()
-            .map(|Reverse(ticket)| ticket)
-            .collect();
+        let mut tickets: Vec<_> = self.heap.into_iter().collect();
         tickets.sort_unstable(); // Return in a sorted form
         tickets
     }
 
     pub fn as_vec(&self) -> Vec<Ticket> {
-        let mut tickets: Vec<_> = self
-            .heap
-            .iter()
-            .map(|Reverse(ticket)| ticket.clone())
-            .collect();
+        let mut tickets: Vec<_> = self.heap.iter().cloned().collect();
         tickets.sort_unstable(); // Return in a sorted form
         tickets
     }

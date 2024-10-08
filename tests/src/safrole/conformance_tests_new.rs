@@ -262,12 +262,12 @@ mod tests {
         // Success
         // Publish some tickets filling the accumulator.
         // Two old tickets are removed from the accumulator.
-        // publish_tickets_with_mark_2: "safrole/tiny/publish-tickets-with-mark-2.json", // FIXME
+        publish_tickets_with_mark_2: "safrole/tiny/publish-tickets-with-mark-2.json",
 
         // Success
         // Publish some tickets with a full accumulator.
         // Some old ticket are removed to make space for new ones.
-        // publish_tickets_with_mark_3: "safrole/tiny/publish-tickets-with-mark-3.json", // FIXME
+        publish_tickets_with_mark_3: "safrole/tiny/publish-tickets-with-mark-3.json",
 
         // Success
         // With a full accumulator, conclude the lottery.
