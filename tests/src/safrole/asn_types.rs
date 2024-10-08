@@ -6,7 +6,10 @@ use rjam_types::{
     state::safrole::SlotSealerType,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt, fmt::Display};
+use std::{
+    fmt,
+    fmt::{Debug, Display},
+};
 
 // Define constants
 pub const VALIDATORS_COUNT: usize = 6;
@@ -17,10 +20,16 @@ pub type U8 = u8;
 pub type U32 = u32;
 
 // Define fixed-length arrays
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
 );
+
+impl Debug for ByteArray32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
 
 impl Display for ByteArray32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

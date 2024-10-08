@@ -58,7 +58,7 @@ pub fn chain_extension_procedure(
     transition_active_set(state_manager, epoch_progressed)?;
 
     // Safrole transition
-    transition_safrole(state_manager, epoch_progressed, tickets)?;
+    transition_safrole(state_manager, &prior_timeslot, epoch_progressed, tickets)?;
 
     // Generates SafroleHeaderMarkers as output of the chain extension procedure.
     let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;

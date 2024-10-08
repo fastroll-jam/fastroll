@@ -37,11 +37,12 @@ use rjam_types::{
 /// * `gamma_a`: Accumulates new tickets.
 pub fn transition_safrole(
     state_manager: &StateManager,
+    prior_timeslot: &Timeslot,
     epoch_progressed: bool,
     tickets: &[TicketExtrinsicEntry],
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        handle_new_epoch_transition(state_manager)?;
+        handle_new_epoch_transition(state_manager, prior_timeslot)?;
     }
 
     // Ticket accumulator transition
@@ -50,8 +51,10 @@ pub fn transition_safrole(
     Ok(())
 }
 
-fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), TransitionError> {
-    let prior_timeslot = Timeslot::prior_slot(&state_manager.get_timeslot()?);
+fn handle_new_epoch_transition(
+    state_manager: &StateManager,
+    prior_timeslot: &Timeslot,
+) -> Result<(), TransitionError> {
     let current_punish_set = state_manager.get_disputes()?.get_punish_set();
     let mut prior_staging_set = state_manager.get_staging_set()?;
 
@@ -191,8 +194,9 @@ fn validate_tickets_proofs(
         expected_vrf_input.push(ticket.entry_index);
 
         let aux_data = vec![]; // no aux data for ticket vrf signature
-        let _ =
-            verifier.ring_vrf_verify(&expected_vrf_input, &aux_data, &ticket.ticket_proof[..])?;
+        let _ = verifier
+            .ring_vrf_verify(&expected_vrf_input, &aux_data, &ticket.ticket_proof[..])
+            .map_err(|_e| TransitionError::BadTicketProof)?;
     }
     Ok(())
 }

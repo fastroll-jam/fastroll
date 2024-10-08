@@ -14,10 +14,6 @@ impl Timeslot {
         Self(slot)
     }
 
-    pub fn prior_slot(current: &Timeslot) -> Self {
-        Self::new(current.0.saturating_sub(1))
-    }
-
     pub fn slot(&self) -> u32 {
         self.0
     }

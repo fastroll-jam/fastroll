@@ -107,7 +107,12 @@ mod tests {
         )?;
         transition_past_set(&state_manager, epoch_progressed)?;
         transition_active_set(&state_manager, epoch_progressed)?;
-        transition_safrole(&state_manager, epoch_progressed, &input_ticket_extrinsics)?;
+        transition_safrole(
+            &state_manager,
+            &prior_timeslot,
+            epoch_progressed,
+            &input_ticket_extrinsics,
+        )?;
 
         // Convert RJAM output into ASN Output.
         let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
@@ -179,7 +184,6 @@ mod tests {
         }
     }
 
-    // FIXME: Introduce test setup / cleanup.
     generate_tests! {
         // Success
         // Progress by one slot.
@@ -204,12 +208,13 @@ mod tests {
         // Success
         // Progress skipping epochs with a full tickets accumulator.
         // Tickets mark is not generated. Accumulated tickets discarded. Fallback method enacted.
-        // skip_epochs_1: "safrole/tiny/skip-epochs-1.json", // FIXME
+        // TODO - check `TICKET_SUBMISSION_DEADLINE_SLOT` value (it seems this case should not run in fallback mode)
+        // skip_epochs_1: "safrole/tiny/skip-epochs-1.json",
 
         // Success
         // Progress to next epoch by skipping epochs tail with a full tickets accumulator.
         // Tickets mark has no chance to be generated. Accumulated tickets discarded. Fallback method enacted.
-        // skip_epoch_tail_1: "safrole/tiny/skip-epoch-tail-1.json", // FIXME
+        skip_epoch_tail_1: "safrole/tiny/skip-epoch-tail-1.json",
 
         // Fail
         // Submit an extrinsic with a bad ticket attempt number.
@@ -229,7 +234,7 @@ mod tests {
 
         // Fail
         // Submit tickets with bad ring proof.
-        // publish_tickets_no_mark_5: "safrole/tiny/publish-tickets-no-mark-5.json", // FIXME
+        publish_tickets_no_mark_5: "safrole/tiny/publish-tickets-no-mark-5.json",
 
         // Success
         // Submit some tickets.
@@ -242,7 +247,7 @@ mod tests {
         // Success
         // Progress into epoch tail, closing the epoch's lottery.
         // No enough tickets, thus no tickets mark is generated.
-        // publish_tickets_no_mark_8: "safrole/tiny/publish-tickets-no-mark-8.json", // FIXME
+        publish_tickets_no_mark_8: "safrole/tiny/publish-tickets-no-mark-8.json",
 
         // Success
         // Progress into next epoch with no enough tickets.
