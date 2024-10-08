@@ -35,8 +35,8 @@ mod tests {
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(
-        test_input: Input,
-        test_pre_state: State,
+        test_input: &Input,
+        test_pre_state: &State,
     ) -> Result<(State, Output), Box<dyn Error>> {
         // Convert ASN pre-state into RJAM types.
         let prior_safrole = test_pre_state.into_safrole_state()?;
@@ -88,6 +88,7 @@ mod tests {
         })?;
         let input_ticket_extrinsics: Vec<TicketExtrinsicEntry> = test_input
             .extrinsic
+            .clone()
             .into_iter()
             .map(TicketEnvelope::into)
             .collect();
@@ -135,12 +136,15 @@ mod tests {
     }
 
     fn run_state_transition_with_error_mapping(
-        test_input: Input,
-        test_pre_state: State,
+        test_input: &Input,
+        test_pre_state: &State,
     ) -> Result<(State, Output), Box<dyn Error>> {
-        match run_state_transition(test_input, test_pre_state.clone()) {
+        match run_state_transition(test_input, test_pre_state) {
             Ok(result) => Ok(result),
-            Err(e) => Ok((test_pre_state, Output::err(map_error_to_custom_code(e)))), // represents rollback mechanism for state transition failures
+            Err(e) => Ok((
+                test_pre_state.clone(),
+                Output::err(map_error_to_custom_code(e)),
+            )), // represents rollback mechanism for state transition failures
         }
     }
 
@@ -149,7 +153,7 @@ mod tests {
         let expected_post_state = test_case.post_state; // The expected post state.
 
         let (post_state, output) =
-            run_state_transition_with_error_mapping(test_case.input, test_case.pre_state)?;
+            run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
 
         // Assertion on the post state
         // assert_eq!(post_state, expected_post_state);
