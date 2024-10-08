@@ -1,9 +1,9 @@
 use crate::{
     components::{
-        entropy_new::transition_entropy_accumulator,
-        safrole_new::transition_safrole,
-        timeslot_new::transition_timeslot,
-        validators_new::{transition_active_set, transition_past_set},
+        entropy::transition_entropy_accumulator,
+        safrole::transition_safrole,
+        timeslot::transition_timeslot,
+        validators::{transition_active_set, transition_past_set},
     },
     error::TransitionError,
 };

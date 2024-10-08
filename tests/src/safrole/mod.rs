@@ -1,3 +1,3 @@
 pub mod asn_types;
-pub mod conformance_tests_new;
+pub mod conformance_tests;
 mod utils;

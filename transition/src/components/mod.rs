@@ -1,11 +1,11 @@
 pub mod authorizer;
 pub mod disputes;
-pub mod entropy_new;
+pub mod entropy;
 pub mod histories;
 pub mod privileged;
 pub mod reports;
-pub mod safrole_new;
+pub mod safrole;
 pub mod services;
 pub mod statistics;
-pub mod timeslot_new;
-pub mod validators_new;
+pub mod timeslot;
+pub mod validators;

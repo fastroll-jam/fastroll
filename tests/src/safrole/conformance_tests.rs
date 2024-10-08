@@ -1,10 +1,6 @@
+//! Safrole state transition conformance tests
 #[cfg(test)]
 mod tests {
-
-    //
-    // Safrole state transition conformance tests
-    //
-
     use crate::safrole::{
         asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope},
         utils::{map_error_to_custom_code, StateBuilder},
@@ -12,10 +8,10 @@ mod tests {
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
     use rjam_transition::{
         components::{
-            entropy_new::transition_entropy_accumulator,
-            safrole_new::transition_safrole,
-            timeslot_new::transition_timeslot,
-            validators_new::{transition_active_set, transition_past_set},
+            entropy::transition_entropy_accumulator,
+            safrole::transition_safrole,
+            timeslot::transition_timeslot,
+            validators::{transition_active_set, transition_past_set},
         },
         procedures::chain_extension::mark_safrole_header_markers,
     };
