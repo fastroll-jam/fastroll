@@ -4,7 +4,6 @@ use rjam_crypto::utils::CryptoError;
 use thiserror::Error;
 
 pub(crate) const NODE_SIZE_BITS: usize = 512;
-pub(crate) const NODE_SIZE_BYTES: usize = NODE_SIZE_BITS / 8;
 pub const EMPTY_HASH: Hash32 = [0u8; 32];
 
 #[derive(Debug, Error)]
@@ -92,23 +91,23 @@ pub enum AffectedNode {
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) struct AffectedBranch {
+pub struct AffectedBranch {
     /// Hash identifier of the current node.
-    pub(crate) hash: Hash32,
+    pub hash: Hash32,
     /// Depth of the current node in the trie.
-    pub(crate) depth: u8,
+    pub depth: u8,
     /// Hash of the left child. Used as a lookup key in the collection of `StagingNode`s.
-    pub(crate) left: Hash32,
+    pub left: Hash32,
     /// Hash of the right child. Used as a lookup key in the collection of `StagingNode`s.
-    pub(crate) right: Hash32,
+    pub right: Hash32,
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) struct AffectedLeaf {
+pub struct AffectedLeaf {
     /// Depth of the current node in the trie.
-    pub(crate) depth: u8,
+    pub depth: u8,
     /// Context of the write operation.
-    pub(crate) leaf_write_op_context: LeafWriteOpContext,
+    pub leaf_write_op_context: LeafWriteOpContext,
 }
 
 #[derive(Eq, Hash, PartialEq)]

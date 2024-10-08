@@ -9,7 +9,6 @@ use rjam_common::{Hash32, Octets, HASH32_EMPTY};
 use rocksdb::{WriteBatch, WriteOptions, DB};
 use std::{
     collections::{BTreeMap, HashSet},
-    hash::Hash,
     sync::Arc,
 };
 

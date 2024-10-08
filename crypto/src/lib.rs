@@ -4,13 +4,12 @@ pub mod vrf;
 use crate::vrf::{ring_context, RingCommitment, Verifier};
 use ark_ec_vrfs::{
     codec::point_decode,
-    prelude::ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError},
+    prelude::ark_serialize::{CanonicalSerialize, SerializationError},
     suites::bandersnatch::edwards::BandersnatchSha512Ell2,
-    Public, Suite,
+    Public,
 };
 
 use rjam_common::{BandersnatchRingRoot, ValidatorSet};
-use std::fmt::Debug;
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(

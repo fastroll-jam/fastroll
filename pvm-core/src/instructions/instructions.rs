@@ -1522,7 +1522,7 @@ impl InstructionSet {
         let b =
             VMUtils::unsigned_to_signed(4, PVMCore::read_reg(vm_state, ins.r2.unwrap())?).unwrap();
         let condition = a < b;
-        let (exit_reason, target) =
+        let (_exit_reason, target) =
             Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
 
         Ok(SingleInvocationResult {
