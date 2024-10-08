@@ -13,7 +13,7 @@ use rjam_state::StateManager;
 use rjam_types::{
     block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},
     extrinsics::tickets::TicketExtrinsicEntry,
-    state::timeslot::Timeslot,
+    state::{safrole::outside_in_vec, timeslot::Timeslot},
 };
 
 pub struct SafroleHeaderMarkers {
@@ -85,17 +85,12 @@ pub fn mark_safrole_header_markers(
     };
 
     let needs_winning_tickets_marker = !epoch_progressed
-        && current_timeslot.slot_phase() == TICKET_SUBMISSION_DEADLINE_SLOT as u32
+        && current_timeslot.slot_phase() >= TICKET_SUBMISSION_DEADLINE_SLOT as u32
         && current_safrole.ticket_accumulator.is_full();
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
-        Some(
-            current_safrole
-                .ticket_accumulator
-                .into_vec()
-                .try_into()
-                .unwrap(),
-        )
+        let marker_vec_outside_in = outside_in_vec(current_safrole.ticket_accumulator.into_vec());
+        Some(marker_vec_outside_in.try_into().unwrap())
     } else {
         None
     };

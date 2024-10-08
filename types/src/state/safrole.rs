@@ -148,13 +148,27 @@ impl JamDecode for SlotSealerType {
     }
 }
 
-pub fn outside_in_vec<T>(mut vec: Vec<T>) -> Vec<T> {
+pub fn outside_in_vec<T: Clone>(vec: Vec<T>) -> Vec<T> {
     let len = vec.len();
-    let mid = len / 2;
-    for i in 0..mid {
-        vec.swap(i + 1, len - (i + 1));
+    let mut result = Vec::with_capacity(len);
+    let mut left = 0;
+    let mut right = len - 1;
+
+    while left <= right {
+        if let Some(left_elem) = vec.get(left) {
+            result.push(left_elem.clone());
+        }
+        if left != right {
+            if let Some(right_elem) = vec.get(right) {
+                result.push(right_elem.clone());
+            }
+        }
+        left += 1;
+        if right > 0 {
+            right -= 1;
+        }
     }
-    vec
+    result
 }
 
 pub fn generate_fallback_keys(

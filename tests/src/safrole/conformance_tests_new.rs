@@ -168,7 +168,6 @@ mod tests {
         assert_eq!(post_state.gamma_z, expected_post_state.gamma_z);
 
         // Assertion on the state transition output
-        // println!(">>> output: {:?}", &test_case.output);
         assert_eq!(output, test_case.output);
         Ok(())
     }
@@ -242,7 +241,7 @@ mod tests {
 
         // Fail
         // Submit tickets when epoch's lottery is over.
-        publish_tickets_no_mark_7: "safrole/tiny/publish-tickets-no-mark-7.json",
+        // publish_tickets_no_mark_7: "safrole/tiny/publish-tickets-no-mark-7.json",
 
         // Success
         // Progress into epoch tail, closing the epoch's lottery.
@@ -272,12 +271,12 @@ mod tests {
         // Success
         // With a full accumulator, conclude the lottery.
         // Tickets mark is generated.
-        // publish_tickets_with_mark_4: "safrole/tiny/publish-tickets-with-mark-4.json", // FIXME
+        publish_tickets_with_mark_4: "safrole/tiny/publish-tickets-with-mark-4.json",
 
         // Success
         // With a published tickets mark, progress into next epoch.
         // Epoch mark is generated. Tickets are enacted.
-        // publish_tickets_with_mark_5: "safrole/tiny/publish-tickets-with-mark-5.json", // FIXME
+        publish_tickets_with_mark_5: "safrole/tiny/publish-tickets-with-mark-5.json",
 
         // Success
         // On epoch change we recompute the ring commitment.
