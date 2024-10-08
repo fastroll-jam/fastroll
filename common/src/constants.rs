@@ -13,6 +13,10 @@ pub const EPOCH_LENGTH: usize = 600; // 600 timeslots per epoch
 #[cfg(feature = "testing")]
 pub const EPOCH_LENGTH: usize = 12; // 12 timeslots per epoch (for tiny test vectors)
 pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
+#[cfg(feature = "testing")]
+pub const CORE_COUNT: usize = 3; // FIXME: This is temporary setting to bypass stack overflow. Fix state component definitions to use smart pointers instead of fixed arrays.
+#[cfg(not(feature = "testing"))]
+
 pub const CORE_COUNT: usize = 341; // (1023 / 3 = 341) cores
 #[cfg(not(feature = "testing"))]
 pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 500;
