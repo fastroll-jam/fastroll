@@ -37,7 +37,7 @@ impl RingVrfSignature {
     }
 }
 
-fn ring_context() -> &'static RingContext {
+pub(crate) fn ring_context() -> &'static RingContext {
     use std::sync::OnceLock;
     static RING_CTX: OnceLock<RingContext> = OnceLock::new();
     RING_CTX.get_or_init(|| {

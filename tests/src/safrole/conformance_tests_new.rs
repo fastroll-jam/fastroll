@@ -241,7 +241,7 @@ mod tests {
 
         // Fail
         // Submit tickets when epoch's lottery is over.
-        // publish_tickets_no_mark_7: "safrole/tiny/publish-tickets-no-mark-7.json",
+        publish_tickets_no_mark_7: "safrole/tiny/publish-tickets-no-mark-7.json",
 
         // Success
         // Progress into epoch tail, closing the epoch's lottery.
@@ -283,6 +283,6 @@ mod tests {
         // One of the keys to be used is invalidated (zeroed out) because it belongs to the (posterior) offenders list.
         // One of the keys is just invalid (i.e. it can't be decoded into a valid Bandersnatch point).
         // Both the invalid keys are replaced with the padding point during ring commitment computation.
-        // enact_epoch_change_with_padding_1: "safrole/tiny/enact-epoch-change-with-padding-1.json", // FIXME
+        enact_epoch_change_with_padding_1: "safrole/tiny/enact-epoch-change-with-padding-1.json",
     }
 }
