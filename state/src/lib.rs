@@ -174,17 +174,17 @@ impl CacheEntry {
 }
 
 pub struct StateManager {
-    state_db: Arc<StateDB>,
-    merkle_db: Arc<MerkleDB>,
+    state_db: Option<Arc<StateDB>>,
+    merkle_db: Option<Arc<MerkleDB>>,
     cache: Arc<DashMap<Hash32, CacheEntry>>,
 }
 
 impl StateManager {
     // TODO: add testing feature
-    pub fn new_for_test(state_db_path: &str, merkle_db_path: &str) -> Self {
+    pub fn new_for_test() -> Self {
         Self {
-            state_db: Arc::new(StateDB::new_for_test(state_db_path)),
-            merkle_db: Arc::new(MerkleDB::new_for_test(merkle_db_path)),
+            state_db: None,
+            merkle_db: None,
             cache: Arc::new(DashMap::new()),
         }
     }
@@ -202,8 +202,8 @@ impl StateManager {
 
     pub fn new(state_db: Arc<StateDB>, merkle_db: Arc<MerkleDB>) -> Self {
         Self {
-            state_db,
-            merkle_db,
+            state_db: Some(state_db),
+            merkle_db: Some(merkle_db),
             cache: Arc::new(DashMap::new()),
         }
     }
@@ -282,21 +282,21 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Octets>, StateManagerError> {
-        // Traverse the trie
-        let (leaf_type, state_data) = match self.merkle_db.retrieve(state_key)? {
-            Some((leaf_type, state_data)) => (leaf_type, state_data),
-            None => return Ok(None),
-        };
+        if let Some(merkle_db) = &self.merkle_db {
+            let (leaf_type, state_data) = match merkle_db.retrieve(state_key)? {
+                Some((leaf_type, state_data)) => (leaf_type, state_data),
+                None => return Ok(None),
+            };
 
-        let state_data = match leaf_type {
-            LeafType::Embedded => state_data,
-            LeafType::Regular => {
-                // state_data is hash of state data
-                self.state_db.get_entry(&state_data)?.unwrap()
+            if let Some(state_db) = &self.state_db {
+                let state_data = match leaf_type {
+                    LeafType::Embedded => state_data,
+                    LeafType::Regular => state_db.get_entry(&state_data)?.unwrap(),
+                };
+                return Ok(Some(state_data));
             }
-        };
-
-        Ok(Some(state_data))
+        }
+        Ok(None)
     }
 
     //

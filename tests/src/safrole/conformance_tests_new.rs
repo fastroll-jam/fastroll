@@ -17,13 +17,13 @@ mod tests {
             timeslot_new::transition_timeslot,
             validators_new::{transition_active_set, transition_past_set},
         },
-        procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
+        procedures::chain_extension::mark_safrole_header_markers,
     };
     use rjam_types::{
         extrinsics::tickets::TicketExtrinsicEntry,
         state::{disputes::DisputesState, timeslot::Timeslot},
     };
-    use std::{error::Error, fs, path::Path};
+    use std::{error::Error, fs};
 
     // Load a test case from the test vector path
     fn load_test_case(path: &str) -> Result<Testcase, ()> {
@@ -39,7 +39,6 @@ mod tests {
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(
-        path: &str,
         test_input: Input,
         test_pre_state: State,
     ) -> Result<(State, Output), Box<dyn Error>> {
@@ -51,10 +50,7 @@ mod tests {
         let prior_timeslot = test_pre_state.into_timeslot()?;
 
         // Initialize StateManager.
-        let mut state_manager = StateManager::new_for_test(
-            format!("./statedb/{}", path).as_str(),
-            format!("./merkledb/{}", path).as_str(),
-        );
+        let mut state_manager = StateManager::new_for_test();
 
         // Load pre-state into the StateCache.
         // TODO: Update the generic `load_state_for_test` method to be generic.
@@ -138,11 +134,10 @@ mod tests {
     }
 
     fn run_state_transition_with_error_mapping(
-        path: &str,
         test_input: Input,
         test_pre_state: State,
     ) -> Result<(State, Output), Box<dyn Error>> {
-        match run_state_transition(path, test_input, test_pre_state.clone()) {
+        match run_state_transition(test_input, test_pre_state.clone()) {
             Ok(result) => Ok(result),
             Err(e) => Ok((test_pre_state, Output::err(map_error_to_custom_code(e)))), // represents rollback mechanism for state transition failures
         }
@@ -152,11 +147,8 @@ mod tests {
         let test_case = load_test_case(path).expect("Failed to load test vector.");
         let expected_post_state = test_case.post_state; // The expected post state.
 
-        let (post_state, output) = run_state_transition_with_error_mapping(
-            path.strip_suffix(".json").unwrap(),
-            test_case.input,
-            test_case.pre_state,
-        )?;
+        let (post_state, output) =
+            run_state_transition_with_error_mapping(test_case.input, test_case.pre_state)?;
 
         // Assertion on the post state
         // assert_eq!(post_state, expected_post_state);
@@ -173,17 +165,6 @@ mod tests {
         // Assertion on the state transition output
         // println!(">>> output: {:?}", &test_case.output);
         assert_eq!(output, test_case.output);
-
-        // Database cleanup
-        let test_statedb_path = Path::new("./statedb");
-        let test_merkledb_path = Path::new("./merkledb");
-        if test_statedb_path.exists() {
-            fs::remove_dir_all(test_statedb_path).expect("Failed to remove test statedb");
-        }
-        if test_merkledb_path.exists() {
-            fs::remove_dir_all(test_merkledb_path).expect("Failed to remove test merkledb");
-        }
-
         Ok(())
     }
 

@@ -40,13 +40,6 @@ pub struct StateDB {
 // APIs required: new, open, put, get, delete, commit (batch-write)
 // stateManager
 impl StateDB {
-    // TODO: add testing feature
-    pub fn new_for_test(path: &str) -> Self {
-        Self {
-            db: Arc::new(DB::open_default(path).unwrap()),
-        }
-    }
-
     pub fn open(config: RocksDBConfig) -> Result<Self, StateDBError> {
         let mut opts = Options::default();
         opts.create_if_missing(config.create_if_missing);
