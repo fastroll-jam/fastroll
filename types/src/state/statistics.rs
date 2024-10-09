@@ -14,5 +14,8 @@ pub struct ValidatorStatEntry {
 }
 
 #[derive(Clone)]
-pub struct ValidatorStats(pub [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
-impl_jam_codec_for_newtype!(ValidatorStats, [[ValidatorStatEntry; VALIDATOR_COUNT]; 2]);
+pub struct ValidatorStats(pub Box<[[ValidatorStatEntry; VALIDATOR_COUNT]; 2]>);
+impl_jam_codec_for_newtype!(
+    ValidatorStats,
+    Box<[[ValidatorStatEntry; VALIDATOR_COUNT]; 2]>
+);

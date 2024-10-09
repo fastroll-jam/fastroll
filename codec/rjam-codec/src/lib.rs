@@ -412,6 +412,23 @@ impl JamDecode for BitVec {
     }
 }
 
+impl<T: JamEncode, const N: usize> JamEncode for Box<[T; N]> {
+    fn size_hint(&self) -> usize {
+        self.as_ref().size_hint() // Delegate to the underlying array
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.as_ref().encode_to(dest) // Delegate encoding to the inner array
+    }
+}
+
+impl<T: JamDecode, const N: usize> JamDecode for Box<[T; N]> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let array: [T; N] = JamDecode::decode(input)?;
+        Ok(Box::new(array))
+    }
+}
+
 pub enum SizeUnit {
     Bytes,
     Bits,

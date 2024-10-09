@@ -8,12 +8,12 @@ pub type Balance = u64;
 pub type BandersnatchPubKey = [u8; 32];
 pub type BandersnatchSignature = [u8; 96]; // `F` signature type
 pub type BandersnatchRingRoot = [u8; 144];
-pub type BandersnatchRingVrfSignature = [u8; 784]; // `F bar` signature type
+pub type BandersnatchRingVrfSignature = Box<[u8; 784]>; // `F bar` signature type
 pub type Ed25519PubKey = [u8; 32];
 pub type Ed25519Signature = [u8; 64];
 pub type BlsPubKey = [u8; 144];
 pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
-pub type ValidatorSet = [ValidatorKey; VALIDATOR_COUNT];
+pub type ValidatorSet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;

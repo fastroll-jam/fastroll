@@ -34,7 +34,7 @@ impl Display for StagingSet {
 
 impl Default for StagingSet {
     fn default() -> Self {
-        Self([ValidatorKey::default(); VALIDATOR_COUNT])
+        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
     }
 }
 

@@ -157,7 +157,7 @@ pub struct TicketEnvelope {
 impl Into<TicketExtrinsicEntry> for TicketEnvelope {
     fn into(self) -> TicketExtrinsicEntry {
         TicketExtrinsicEntry {
-            ticket_proof: self.signature,
+            ticket_proof: Box::new(self.signature),
             entry_index: self.attempt,
         }
     }

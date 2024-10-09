@@ -5,8 +5,8 @@ use rjam_codec::{
 use rjam_common::{WorkReport, CORE_COUNT};
 
 #[derive(Clone)]
-pub struct PendingReports(pub [Option<PendingReport>; CORE_COUNT]);
-impl_jam_codec_for_newtype!(PendingReports, [Option<PendingReport>; CORE_COUNT]);
+pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
+impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 
 #[derive(Clone, JamEncode, JamDecode)]
 pub struct PendingReport {
