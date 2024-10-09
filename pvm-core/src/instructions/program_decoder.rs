@@ -8,7 +8,7 @@ use crate::{
         PVMError, VMCoreError,
         VMCoreError::{InvalidInstructionFormat, InvalidProgram},
     },
-    utils::vm_utils::VMUtils,
+    utils::VMUtils,
 };
 use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};

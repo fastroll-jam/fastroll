@@ -1,5 +1,6 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
+    core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
     instructions::program_decoder::Instruction,
     state::memory::MemAddress,
     types::{
@@ -7,8 +8,7 @@ use crate::{
         error::{PVMError, VMCoreError},
         hostcall::HostCallType,
     },
-    utils::vm_utils::VMUtils,
-    vm_core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
+    utils::VMUtils,
 };
 use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
 

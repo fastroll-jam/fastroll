@@ -15,6 +15,7 @@ use rjam_pvm_core::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
+    core::{PVMCore, Program, VMState},
     state::{
         memory::{AccessType, MemAddress, Memory},
         register::Register,
@@ -28,7 +29,6 @@ use rjam_pvm_core::{
             PVMError,
         },
     },
-    vm_core::{PVMCore, Program, VMState},
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::{

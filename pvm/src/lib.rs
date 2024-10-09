@@ -7,6 +7,7 @@ use rjam_pvm_core::{
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
     },
+    core::{PVMCore, Program, VMState},
     instructions::program_decoder::{FormattedProgram, ProgramDecoder},
     state::{
         memory::{AccessType, MemAddress, Memory},
@@ -20,8 +21,7 @@ use rjam_pvm_core::{
         },
         hostcall::HostCallType,
     },
-    utils::vm_utils::VMUtils,
-    vm_core::{PVMCore, Program, VMState},
+    utils::VMUtils,
 };
 use rjam_state::StateManager;
 
