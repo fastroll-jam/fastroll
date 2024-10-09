@@ -1,4 +1,4 @@
-use crate::types::MerkleError;
+use crate::error::MerkleError;
 use bit_vec::BitVec;
 use rjam_common::{Hash32, Octets};
 use std::{collections::Bound, ops::RangeBounds};

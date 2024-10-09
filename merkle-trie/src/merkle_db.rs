@@ -1,5 +1,6 @@
 use crate::{
     codec::MerkleNodeCodec as NodeCodec,
+    error::MerkleError,
     types::*,
     utils::{bitvec_to_hash32, bytes_to_lsb_bits, slice_bitvec},
 };

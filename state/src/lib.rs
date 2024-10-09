@@ -4,8 +4,9 @@ use rjam_common::{Address, Hash32, Octets};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
 use rjam_merkle_trie::{
+    error::MerkleError,
     merkle_db::MerkleDB,
-    types::{LeafType, MerkleError, EMPTY_HASH},
+    types::{LeafType, EMPTY_HASH},
 };
 use rjam_types::state::{
     authorizer::{AuthPool, AuthQueue},

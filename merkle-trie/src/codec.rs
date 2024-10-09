@@ -1,4 +1,5 @@
 use crate::{
+    error::MerkleError,
     types::*,
     utils::{bytes_to_lsb_bits, slice_bitvec},
 };
