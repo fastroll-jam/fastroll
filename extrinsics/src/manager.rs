@@ -1,4 +1,3 @@
-// Convert Vec<ExtrinsicEntry> to Vec<SomeExtrinsicType>
 use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
 use rjam_codec::JamDecode;
 use rjam_types::{
@@ -55,13 +54,3 @@ pub fn get_lookup_extrinsics(timeslot: Timeslot) -> Vec<PreimageLookupExtrinsicE
         })
         .collect()
 }
-
-// TODO: implement `FromIterator<DisputesExtrinsic>`
-// pub fn get_dispute_extrinsics(timeslot: Timeslot) -> DisputesExtrinsic {
-//     get_extrinsics(ExtrinsicType::Disputes, timeslot)
-//         .into_iter()
-//         .filter_map(|extrinsic| {
-//             DisputesExtrinsic::decode(&mut extrinsic.data.as_slice()).ok()
-//         })
-//         .collect()
-// }
