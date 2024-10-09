@@ -10,7 +10,7 @@ pub type OffendersMarker = Vec<Ed25519PubKey>;
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct EpochMarker {
     pub entropy: Hash32,
-    pub validators: [BandersnatchPubKey; VALIDATOR_COUNT],
+    pub validators: Box<[BandersnatchPubKey; VALIDATOR_COUNT]>,
 }
 
 #[derive(Debug, JamEncode, JamDecode)]

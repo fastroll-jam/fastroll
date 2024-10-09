@@ -12,15 +12,15 @@ pub struct DisputesExtrinsic {
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode)]
 pub struct Verdict {
-    report_hash: Hash32,                                 // r
-    epoch_index: u32,                                    // a
-    votes: [Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1], // j
+    report_hash: Hash32,                                      // r
+    epoch_index: u32,                                         // a
+    votes: Box<[Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
 }
 
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut votes = [Vote::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1];
-        for vote in &mut votes {
+        let mut votes = Box::new([Vote::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]);
+        for vote in votes.iter_mut() {
             *vote = Vote::decode(input)?;
         }
         Ok(Self {

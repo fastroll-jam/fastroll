@@ -101,8 +101,8 @@ pub fn mark_safrole_header_markers(
     })
 }
 
-fn extract_bandersnatch_keys(validator_set: &ValidatorSet) -> [[u8; 32]; VALIDATOR_COUNT] {
-    let mut result = [[0u8; 32]; VALIDATOR_COUNT];
+fn extract_bandersnatch_keys(validator_set: &ValidatorSet) -> Box<[[u8; 32]; VALIDATOR_COUNT]> {
+    let mut result = Box::new([[0u8; 32]; VALIDATOR_COUNT]);
 
     for (index, validator) in validator_set.iter().enumerate() {
         result[index] = validator.bandersnatch_key;
