@@ -161,12 +161,12 @@ impl PVM {
         &mut self,
         change: HostCallVMStateChange,
     ) -> Result<(), PVMError> {
-        // Apply register changes (register index 0 & 1)
-        if let Some(r0) = change.r0_write {
-            self.state.registers[0].value = r0;
+        // Apply register changes (register index 7 & 8)
+        if let Some(r7) = change.r7_write {
+            self.state.registers[7].value = r7;
         }
-        if let Some(r1) = change.r1_write {
-            self.state.registers[1].value = r1;
+        if let Some(r8) = change.r8_write {
+            self.state.registers[8].value = r8;
         }
 
         // Apply memory change

@@ -15,7 +15,7 @@ fn create_host_call_state_change(
 ) -> HostCallVMStateChange {
     HostCallVMStateChange {
         gas_usage,
-        r0_write: Some(constant as u32),
+        r7_write: Some(constant as u32),
         ..Default::default()
     }
 }

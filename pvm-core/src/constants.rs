@@ -2,8 +2,8 @@ use rjam_common::UnsignedGas;
 
 pub const BASE_GAS_USAGE: UnsignedGas = 10;
 pub const REGISTERS_COUNT: usize = 13;
-pub const HOST_CALL_INPUT_REGISTERS_COUNT: usize = 6;
-pub const HOST_CALL_OUTPUT_REGISTERS_COUNT: usize = 2;
+pub const HOST_CALL_INPUT_REGISTERS_COUNT: usize = 13;
+pub const HOST_CALL_OUTPUT_REGISTERS_COUNT: usize = 13;
 pub const MEMORY_SIZE: usize = u32::MAX as usize;
 pub const PAGE_SIZE: usize = 1 << 14; // Z_P; 16KB page size
 pub const SEGMENT_SIZE: usize = 1 << 16; // Z_Q
