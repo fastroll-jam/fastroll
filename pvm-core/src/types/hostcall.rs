@@ -10,24 +10,24 @@ pub enum HostCallType {
     INFO = 4,
     // Accumulate Functions
     EMPOWER = 5,
-    ASSIGN = 21, // TODO: check value
-    DESIGNATE = 6,
-    CHECKPOINT = 7,
-    NEW = 22, // TODO: check value
-    UPGRADE = 8,
-    TRANSFER = 9,
-    QUIT = 10,
-    SOLICIT = 11,
-    FORGET = 12,
+    ASSIGN = 6,
+    DESIGNATE = 7,
+    CHECKPOINT = 8,
+    NEW = 9,
+    UPGRADE = 10,
+    TRANSFER = 11,
+    QUIT = 12,
+    SOLICIT = 13,
+    FORGET = 14,
     // Refine Functions
-    HISTORICAL_LOOKUP = 13,
-    IMPORT = 14,
-    EXPORT = 15,
-    MACHINE = 16,
-    PEEK = 17,
-    POKE = 18,
-    INVOKE = 19,
-    EXPUNGE = 20,
+    HISTORICAL_LOOKUP = 15,
+    IMPORT = 16,
+    EXPORT = 17,
+    MACHINE = 18,
+    PEEK = 19,
+    POKE = 20,
+    INVOKE = 21,
+    EXPUNGE = 22,
 }
 
 impl HostCallType {
