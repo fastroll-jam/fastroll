@@ -122,21 +122,19 @@ impl PVM {
     }
 
     fn initialize_registers(&mut self, args_len: usize) {
-        self.state.registers[1].value = u32::MAX - (1 << 16) + 1;
-        self.state.registers[2].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[10].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[11].value = args_len as u32;
+        self.state.registers[0].value = u32::MAX - (1 << 16) + 1;
+        self.state.registers[1].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[7].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
+        self.state.registers[8].value = args_len as u32;
     }
 
     //
     // PVM helper function
     //
 
-    /// Get a reference to the first 6 registers for host call function arguments
+    /// Get a reference to registers for host call function arguments
     pub fn get_host_call_registers(&self) -> &[Register; HOST_CALL_INPUT_REGISTERS_COUNT] {
-        self.state.registers[..HOST_CALL_INPUT_REGISTERS_COUNT]
-            .try_into()
-            .unwrap()
+        &self.state.registers
     }
 
     //

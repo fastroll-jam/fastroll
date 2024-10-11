@@ -238,8 +238,8 @@ impl HostFunction {
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
         let key_offset = regs[7].value as MemAddress;
-        let value_offset = regs[8].value as MemAddress;
-        let key_size = regs[9].value as usize;
+        let key_size = regs[8].value as usize;
+        let value_offset = regs[9].value as MemAddress;
         let value_size = regs[10].value as usize;
 
         if !memory.is_range_readable(key_offset, key_size)?
