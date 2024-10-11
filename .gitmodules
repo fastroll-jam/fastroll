@@ -5,3 +5,7 @@
 	path = tests/jamtestvectors-new-safrole
 	url = https://github.com/davxy/jam-test-vectors.git
 	branch = safrole-ring-signatures-update
+[submodule "tests/jamtestvectors-history"]
+	path = tests/jamtestvectors-history
+	url = https://github.com/davxy/jam-test-vectors.git
+	branch = blocks-history
