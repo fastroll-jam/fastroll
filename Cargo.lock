@@ -937,6 +937,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rjam-merkle"
+version = "0.1.0"
+dependencies = [
+ "rjam-common",
+ "rjam-crypto",
+ "thiserror",
+]
+
+[[package]]
 name = "rjam-pvm"
 version = "0.1.0"
 dependencies = [

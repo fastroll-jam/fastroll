@@ -8,11 +8,12 @@ members = [
     "db",
     "extrinsics",
     "host-interface",
-    "state-merkle",
+    "merkle",
     "pvm",
     "pvm-core",
     "pvm-invocation",
     "state",
+    "state-merkle",
     "tests",
     "transition",
     "types",
@@ -33,10 +34,11 @@ rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-host-interface = { path = "host-interface" }
-rjam-state-merkle = { path = "state-merkle" }
+rjam-merkle = { path = "merkle" }
 rjam-pvm = { path = "pvm" }
 rjam-pvm-core = { path = "pvm-core" }
 rjam-state = { path = "state" }
+rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }
 rjam-types = { path = "types" }
 # External dependencies

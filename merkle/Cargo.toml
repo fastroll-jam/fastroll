@@ -1,0 +1,9 @@
+[package]
+name = "rjam-merkle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+thiserror = { workspace = true }
