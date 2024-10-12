@@ -21,9 +21,9 @@ pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 10;
 pub const MAX_AUTH_QUEUE_SIZE: usize = 80;
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
 pub const TRANSFER_MEMO_SIZE: usize = 128;
+pub const BLOCK_HISTORY_LENGTH: usize = 8;
 
 // Signing Contexts or Domain Specifiers
-
 pub const X_A: &str = "jam_available"; // Ed25519 Availability assurances
 pub const X_B: &str = "jam_beefy"; // BLS Accumulate-result-root MMR commitment
 pub const X_E: &str = "jam_entropy"; // On-chain entropy generation

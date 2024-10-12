@@ -3,10 +3,10 @@ use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32, Octets};
-use sha3::Keccak256;
 use thiserror::Error;
 
 pub type Blake2b256 = Blake2b<U32>;
+pub type Keccak256 = sha3::Keccak256;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {

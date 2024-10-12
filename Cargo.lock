@@ -1037,6 +1037,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-merkle",
  "rjam-state",
  "rjam-types",
  "thiserror",
@@ -1053,6 +1054,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-merkle",
  "thiserror",
  "time",
 ]

@@ -1,13 +1,9 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
-use rjam_common::{Address, Hash32, Octets};
+use rjam_common::{Address, Hash32, Octets, HASH32_EMPTY};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
-use rjam_state_merkle::{
-    error::StateMerkleError,
-    merkle_db::MerkleDB,
-    types::{LeafType, EMPTY_HASH},
-};
+use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
 use rjam_types::state::{
     authorizer::{AuthPool, AuthQueue},
     disputes::DisputesState,
@@ -87,20 +83,20 @@ impl From<StateKeyConstant> for u8 {
 }
 
 pub(crate) fn construct_state_key<T: Into<u8>>(i: T) -> Hash32 {
-    let mut key = EMPTY_HASH;
+    let mut key = HASH32_EMPTY;
     key[0] = i.into();
     key
 }
 
 pub(crate) fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
-    let mut key = EMPTY_HASH;
+    let mut key = HASH32_EMPTY;
     key[0] = i.into();
     key[1..5].copy_from_slice(&s.to_be_bytes());
     key
 }
 
 pub(crate) fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
-    let mut key = EMPTY_HASH;
+    let mut key = HASH32_EMPTY;
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
         key[i * 2] = s_bytes[i]; // 0, 2, 4, 6

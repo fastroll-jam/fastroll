@@ -1,11 +1,12 @@
 use crate::common::MerkleError;
-use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::Hash32;
 use rjam_crypto::utils::{hash, Blake2b256, Hasher};
 use std::marker::PhantomData;
 
 /// Merkle Mountain Range representation.
-struct MerkleMountainRange<H: Hasher> {
+#[derive(Debug, Clone)]
+pub struct MerkleMountainRange<H: Hasher> {
     peaks: Vec<Option<Hash32>>,
     _hasher: PhantomData<H>,
 }
@@ -20,6 +21,18 @@ impl<H: Hasher> JamEncode for MerkleMountainRange<H> {
     }
 }
 
+impl<H: Hasher> JamDecode for MerkleMountainRange<H> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let peaks = Vec::<Option<Hash32>>::decode(input)?;
+        let mmr = MerkleMountainRange::new_from_peaks(peaks);
+
+        Ok(mmr)
+    }
+}
+
 impl<H: Hasher> MerkleMountainRange<H> {
     pub fn new() -> Self {
         Self {
@@ -27,6 +40,14 @@ impl<H: Hasher> MerkleMountainRange<H> {
             _hasher: PhantomData,
         }
     }
+
+    pub fn new_from_peaks(peaks: Vec<Option<Hash32>>) -> Self {
+        Self {
+            peaks,
+            _hasher: PhantomData,
+        }
+    }
+
     pub fn append(&mut self, leaf_value: Hash32) -> Result<(), MerkleError> {
         let mut curr_root = leaf_value; // Initialize to the leaf value to be appended.
         let mut index: usize = 0; // Initialize to 0.

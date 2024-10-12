@@ -4,7 +4,7 @@ use rjam_crypto::utils::{hash, octets_to_hash32, CryptoError, Hasher};
 use std::marker::PhantomData;
 
 /// Well-balanced binary Merkle Tree representation.
-struct WellBalancedMerkleTree<H: Hasher> {
+pub struct WellBalancedMerkleTree<H: Hasher> {
     root: Hash32,
     _hasher: PhantomData<H>,
 }

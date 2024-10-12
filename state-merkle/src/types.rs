@@ -1,7 +1,6 @@
 use rjam_common::{Hash32, Octets};
 
 pub(crate) const NODE_SIZE_BITS: usize = 512;
-pub const EMPTY_HASH: Hash32 = [0u8; 32];
 
 /// Merkle trie node type.
 pub(crate) enum NodeType {
