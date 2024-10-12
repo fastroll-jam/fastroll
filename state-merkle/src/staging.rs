@@ -2,7 +2,7 @@ use crate::{
     codec::MerkleNodeCodec as NodeCodec, error::MerkleError, types::*, utils::lsb_bits_to_bytes,
 };
 use rjam_common::{Hash32, Octets};
-use rjam_crypto::utils::blake2b_256;
+use rjam_crypto::utils::{hash, Blake2b256};
 use rocksdb::WriteBatch;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -75,7 +75,7 @@ pub fn generate_staging_set(
                         lsb_bits_to_bytes(&NodeCodec::encode_branch(&left_hash, &right_hash)?);
 
                     let staging_node = StagingNode {
-                        hash: blake2b_256(&node_data)?,
+                        hash: hash::<Blake2b256>(&node_data)?,
                         node_data,
                     };
 
@@ -90,7 +90,7 @@ pub fn generate_staging_set(
                                 &context.leaf_state_value,
                             )?);
                             let staging_node = StagingNode {
-                                hash: blake2b_256(&node_data)?,
+                                hash: hash::<Blake2b256>(&node_data)?,
                                 node_data,
                             };
 
@@ -107,7 +107,7 @@ pub fn generate_staging_set(
                                 &context.leaf_state_key,
                                 &context.leaf_state_value,
                             )?);
-                            let added_leaf_node_hash = blake2b_256(&added_leaf_node_data)?;
+                            let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
 
                             let added_leaf_staging_node = StagingNode {
                                 hash: added_leaf_node_hash,
@@ -132,7 +132,7 @@ pub fn generate_staging_set(
                                     &new_branch_left_hash,
                                     &new_branch_right_hash,
                                 )?);
-                            let new_branch_node_hash = blake2b_256(&new_branch_node_data)?;
+                            let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
 
                             let new_branch_staging_node = StagingNode {
                                 hash: new_branch_node_hash,

@@ -895,6 +895,7 @@ dependencies = [
  "blake2",
  "hex",
  "rjam-common",
+ "sha3",
  "thiserror",
 ]
 

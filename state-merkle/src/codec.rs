@@ -6,7 +6,7 @@ use crate::{
 use bit_vec::BitVec;
 use rjam_codec::JamDecodeFixed;
 use rjam_common::{Hash32, Octets};
-use rjam_crypto::utils::blake2b_256;
+use rjam_crypto::utils::{hash, Blake2b256};
 
 pub(crate) struct MerkleNodeCodec;
 
@@ -58,7 +58,7 @@ impl MerkleNodeCodec {
             node.set(1, true); // indicator for the regular leaf node
             node.extend(BitVec::from_elem(6, false)); // fill the first byte with zeros
             node.extend(slice_bitvec(&bytes_to_lsb_bits(state_key), 0..248)?);
-            let value_hash = blake2b_256(state_value)?;
+            let value_hash = hash::<Blake2b256>(state_value)?;
             node.extend(bytes_to_lsb_bits(&value_hash));
         }
 

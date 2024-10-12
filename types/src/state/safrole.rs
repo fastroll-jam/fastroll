@@ -6,7 +6,7 @@ use rjam_common::{
     Ticket, ValidatorKey, ValidatorSet, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
     VALIDATOR_COUNT,
 };
-use rjam_crypto::utils::{blake2b_256_first_4bytes, CryptoError};
+use rjam_crypto::utils::{hash_prefix_4, Blake2b256, CryptoError};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -186,7 +186,7 @@ pub fn generate_fallback_keys(
         let mut entropy_with_index = entropy_vec.clone();
         entropy_with_index.extend_from_slice(&i_encoded);
 
-        let mut hash: &[u8] = &blake2b_256_first_4bytes(&entropy_with_index)?;
+        let mut hash: &[u8] = &hash_prefix_4::<Blake2b256>(&entropy_with_index)?;
         let key_index: u32 = u32::decode_fixed(&mut hash, 4)? % (VALIDATOR_COUNT as u32);
 
         *key = validator_set[key_index as usize].bandersnatch_key;

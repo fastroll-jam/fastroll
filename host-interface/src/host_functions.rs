@@ -9,7 +9,7 @@ use rjam_common::{
     Address, Balance, DeferredTransfer, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT,
     HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use rjam_crypto::utils::blake2b_256;
+use rjam_crypto::utils::{hash, Blake2b256};
 use rjam_pvm_core::{
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
@@ -151,7 +151,7 @@ impl HostFunction {
             return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
         }
 
-        let hash = blake2b_256(&memory.read_bytes(hash_offset, 32)?)?;
+        let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
         let preimage_entry = state_manager.get_account_preimages_entry(account_address, &hash)?;
 
         match preimage_entry {
@@ -203,7 +203,7 @@ impl HostFunction {
         let mut key = vec![];
         key.extend(target_address.encode_fixed(4)?);
         key.extend(memory.read_bytes(key_offset, key_size)?);
-        let storage_key = blake2b_256(&key)?;
+        let storage_key = hash::<Blake2b256>(&key)?;
 
         let storage_entry =
             state_manager.get_account_storage_entry(account_address, &storage_key)?;
@@ -251,7 +251,7 @@ impl HostFunction {
         let mut key = vec![];
         key.extend(target_address.encode_fixed(4)?);
         key.extend(memory.read_bytes(key_offset, key_size)?);
-        let storage_key = blake2b_256(&key)?;
+        let storage_key = hash::<Blake2b256>(&key)?;
 
         let storage_entry =
             state_manager.get_account_storage_entry(target_address, &storage_key)?;

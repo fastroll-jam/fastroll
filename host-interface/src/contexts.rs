@@ -1,7 +1,7 @@
 use crate::inner_vm::InnerPVM;
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, DeferredTransfer, Hash32};
-use rjam_crypto::utils::blake2b_256;
+use rjam_crypto::utils::{hash, Blake2b256};
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::StateManager;
 use rjam_types::state::timeslot::Timeslot;
@@ -93,7 +93,7 @@ impl AccumulateContext {
         entropy.encode_to(&mut buf)?;
         timeslot.0.encode_to(&mut buf)?;
 
-        let source_hash = blake2b_256(&buf[..])?;
+        let source_hash = hash::<Blake2b256>(&buf[..])?;
         let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4)? as u64
             & ((1 << 32) - (1 << 9)) + (1 << 8)) as Address;
         let new_account_address = state_manager.check(initial_check_address)?;

@@ -1,6 +1,6 @@
 use crate::error::TransitionError;
 use rjam_common::Hash32;
-use rjam_crypto::utils::blake2b_256;
+use rjam_crypto::utils::{hash, Blake2b256};
 use rjam_state::{StateManager, StateWriteOp};
 
 /// State transition function of `EntropyAccumulator`.
@@ -28,7 +28,7 @@ pub fn transition_entropy_accumulator(
         let mut hash_combined = [0u8; 64];
         hash_combined[..32].copy_from_slice(current_accumulator_hash.as_slice());
         hash_combined[32..].copy_from_slice(source_hash.as_slice());
-        entropy.0[0] = blake2b_256(hash_combined.as_slice()).unwrap();
+        entropy.0[0] = hash::<Blake2b256>(hash_combined.as_slice()).unwrap();
     })?;
 
     Ok(())

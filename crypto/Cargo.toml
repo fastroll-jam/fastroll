@@ -8,4 +8,5 @@ rjam-common = { workspace = true }
 ark-ec-vrfs = { workspace = true }
 blake2 = { workspace = true }
 hex = { workspace = true }
+sha3 = { workspace = true }
 thiserror = { workspace = true }
