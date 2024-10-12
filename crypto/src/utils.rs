@@ -10,6 +10,8 @@ pub type Blake2b256 = Blake2b<U32>;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("General Hashing Error")]
+    HashError,
     #[error("Blake2b Hashing Error")]
     Blake2bHashError,
     #[error("Keccak256 Hashing Error")]

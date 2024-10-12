@@ -1,5 +1,6 @@
 use crate::{
-    codec::MerkleNodeCodec as NodeCodec, error::MerkleError, types::*, utils::lsb_bits_to_bytes,
+    codec::MerkleNodeCodec as NodeCodec, error::StateMerkleError, types::*,
+    utils::lsb_bits_to_bytes,
 };
 use rjam_common::{Hash32, Octets};
 use rjam_crypto::utils::{hash, Blake2b256};
@@ -43,7 +44,7 @@ impl StagingNode {
 ///
 /// # Returns
 /// * `Ok(HashMap<Hash32, StagingNode>)` - Staging nodes keyed by their prior hash in the trie.
-/// * `Err(MerkleError)` - If an error occurs during node processing or encoding.
+/// * `Err(StateMerkleError)` - If an error occurs during node processing or encoding.
 ///
 /// # Notes
 /// - The `HashMap` allows efficient lookup of updated child hashes for branch nodes in each iteration.
@@ -51,7 +52,7 @@ impl StagingNode {
 /// - For leaf removals, only the parent node is updated to point to the sibling.
 pub fn generate_staging_set(
     affected_nodes_by_depth: BTreeMap<u8, HashSet<AffectedNode>>,
-) -> Result<HashMap<Hash32, StagingNode>, MerkleError> {
+) -> Result<HashMap<Hash32, StagingNode>, StateMerkleError> {
     let mut staging_set: HashMap<Hash32, StagingNode> = HashMap::new();
 
     for (_depth, affected_nodes) in affected_nodes_by_depth.iter().rev() {
@@ -164,7 +165,7 @@ pub fn generate_staging_set(
 /// Generates `WriteBatch` from `staging_set`, simply converting `StagingNode`s into `MerkleDB` entries.
 pub fn generate_write_batch(
     staging_set: HashMap<Hash32, StagingNode>,
-) -> Result<WriteBatch, MerkleError> {
+) -> Result<WriteBatch, StateMerkleError> {
     let mut batch = WriteBatch::default();
     // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
     staging_set.values().for_each(|node| {

@@ -1,5 +1,5 @@
 use crate::{
-    error::MerkleError,
+    error::StateMerkleError,
     types::*,
     utils::{bytes_to_lsb_bits, slice_bitvec},
 };
@@ -19,7 +19,7 @@ impl MerkleNodeCodec {
     ///
     /// Drops the first bit of the left child hash to fit node data in 512 bits.
     /// Uses the first bit as a node type indicator (0 for branch).
-    pub(crate) fn encode_branch(left: &Hash32, right: &Hash32) -> Result<BitVec, MerkleError> {
+    pub(crate) fn encode_branch(left: &Hash32, right: &Hash32) -> Result<BitVec, StateMerkleError> {
         let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
         node.set(0, false); // indicator for the branch node
         node.extend(slice_bitvec(&bytes_to_lsb_bits(left), 1..)?);
@@ -38,7 +38,7 @@ impl MerkleNodeCodec {
     pub(crate) fn encode_leaf(
         state_key: &Hash32,
         state_value: &[u8],
-    ) -> Result<BitVec, MerkleError> {
+    ) -> Result<BitVec, StateMerkleError> {
         let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
         node.set(0, true); // indicator for the leaf node
         if state_value.len() <= 32 {
@@ -82,11 +82,11 @@ impl MerkleNodeCodec {
     pub(crate) fn get_child_hash_bits(
         node_data: &[u8],
         child_type: &ChildType,
-    ) -> Result<BitVec, MerkleError> {
+    ) -> Result<BitVec, StateMerkleError> {
         // check node data length
         let len = node_data.len();
         if len != 64 {
-            return Err(MerkleError::InvalidNodeDataLength(len));
+            return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
         let bv = bytes_to_lsb_bits(node_data);
@@ -94,7 +94,7 @@ impl MerkleNodeCodec {
 
         // ensure the node data represents a branch node
         if first_bit {
-            return Err(MerkleError::InvalidNodeType);
+            return Err(StateMerkleError::InvalidNodeType);
         }
 
         match child_type {
@@ -113,11 +113,11 @@ impl MerkleNodeCodec {
         state_key: &BitVec,
         node_data: &[u8],
         leaf_type: &LeafType,
-    ) -> Result<Octets, MerkleError> {
+    ) -> Result<Octets, StateMerkleError> {
         // check node data length
         let len = node_data.len();
         if len != 64 {
-            return Err(MerkleError::InvalidNodeDataLength(len));
+            return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
         let bv = bytes_to_lsb_bits(node_data);
@@ -125,7 +125,7 @@ impl MerkleNodeCodec {
 
         // ensure the node data represents a leaf node
         if !first_bit {
-            return Err(MerkleError::InvalidNodeType);
+            return Err(StateMerkleError::InvalidNodeType);
         }
 
         // compare the state key with the encoded state key
@@ -150,13 +150,13 @@ impl MerkleNodeCodec {
     pub(crate) fn compare_state_keys(
         node_data_bv: &BitVec,
         state_key: &BitVec,
-    ) -> Result<(), MerkleError> {
+    ) -> Result<(), StateMerkleError> {
         let key_without_last_byte = slice_bitvec(node_data_bv, 8..256)?;
         let state_key_without_last_byte = slice_bitvec(state_key, 0..248)?;
 
         if key_without_last_byte != state_key_without_last_byte {
             // reached to another leaf node with the same prefix
-            Err(MerkleError::NodeNotFound)
+            Err(StateMerkleError::NodeNotFound)
         } else {
             Ok(())
         }

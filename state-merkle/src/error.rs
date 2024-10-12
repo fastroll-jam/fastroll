@@ -3,7 +3,7 @@ use rjam_crypto::utils::CryptoError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum MerkleError {
+pub enum StateMerkleError {
     #[error("Cache size must be larger than zero")]
     CacheSizeNonPositive,
     #[error("Invalid node type with hash")]

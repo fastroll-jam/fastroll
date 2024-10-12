@@ -1,4 +1,4 @@
-use crate::error::MerkleError;
+use crate::error::StateMerkleError;
 use bit_vec::BitVec;
 use rjam_common::{Hash32, Octets};
 use std::{collections::Bound, ops::RangeBounds};
@@ -34,15 +34,15 @@ pub(crate) fn lsb_bits_to_bytes(bits: &BitVec) -> Octets {
     bytes
 }
 
-pub(crate) fn bitvec_to_hash32(data: &BitVec) -> Result<Hash32, MerkleError> {
+pub(crate) fn bitvec_to_hash32(data: &BitVec) -> Result<Hash32, StateMerkleError> {
     let bytes = lsb_bits_to_bytes(data);
     bytes
         .as_slice()
         .try_into()
-        .map_err(|_| MerkleError::InvalidByteLength(data.len()))
+        .map_err(|_| StateMerkleError::InvalidByteLength(data.len()))
 }
 
-pub(crate) fn slice_bitvec<R>(bits: &BitVec, range: R) -> Result<BitVec, MerkleError>
+pub(crate) fn slice_bitvec<R>(bits: &BitVec, range: R) -> Result<BitVec, StateMerkleError>
 where
     R: RangeBounds<usize>,
 {
@@ -59,7 +59,7 @@ where
     };
 
     if start > bits.len() || end > bits.len() || end < start {
-        return Err(MerkleError::InvalidBitVecSliceRange);
+        return Err(StateMerkleError::InvalidBitVecSliceRange);
     }
 
     Ok(bits

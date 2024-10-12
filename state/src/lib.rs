@@ -4,7 +4,7 @@ use rjam_common::{Address, Hash32, Octets};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
 use rjam_state_merkle::{
-    error::MerkleError,
+    error::StateMerkleError,
     merkle_db::MerkleDB,
     types::{LeafType, EMPTY_HASH},
 };
@@ -33,7 +33,7 @@ pub enum StateManagerError {
     #[error("Unexpected entry type")]
     UnexpectedEntryType,
     #[error("Merkle error: {0}")]
-    MerkleError(#[from] MerkleError),
+    StateMerkleError(#[from] StateMerkleError),
     #[error("StateDB error: {0}")]
     StateDBError(#[from] StateDBError),
     #[error("JamCodec error: {0}")]

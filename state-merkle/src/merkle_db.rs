@@ -1,6 +1,6 @@
 use crate::{
     codec::MerkleNodeCodec as NodeCodec,
-    error::MerkleError,
+    error::StateMerkleError,
     types::*,
     utils::{bitvec_to_hash32, bytes_to_lsb_bits, slice_bitvec},
 };
@@ -31,7 +31,7 @@ pub struct Node {
 
 impl Node {
     /// Determines the type of the node based on its binary representation.
-    fn check_node_type(&self) -> Result<NodeType, MerkleError> {
+    fn check_node_type(&self) -> Result<NodeType, StateMerkleError> {
         match (
             NodeCodec::first_bit(&self.data),
             NodeCodec::second_bit(&self.data),
@@ -39,7 +39,7 @@ impl Node {
             (Some(false), _) => Ok(NodeType::Branch),
             (Some(true), Some(false)) => Ok(NodeType::Leaf(LeafType::Embedded)),
             (Some(true), Some(true)) => Ok(NodeType::Leaf(LeafType::Regular)),
-            _ => Err(MerkleError::InvalidNodeType),
+            _ => Err(StateMerkleError::InvalidNodeType),
         }
     }
 }
@@ -55,7 +55,7 @@ pub struct MerkleDB {
 }
 
 impl MerkleDB {
-    pub fn new(db: Arc<DB>, cache_size: usize) -> Result<Self, MerkleError> {
+    pub fn new(db: Arc<DB>, cache_size: usize) -> Result<Self, StateMerkleError> {
         Ok(Self {
             db,
             cache: Arc::new(DashMap::with_capacity(cache_size)),
@@ -65,7 +65,7 @@ impl MerkleDB {
 
     /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
     /// For 511-bit input, try both 0 and 1 as the first bit.
-    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Option<Node>, MerkleError> {
+    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Option<Node>, StateMerkleError> {
         match bits.len() {
             512 => {
                 // for 512-bit input, construct Hash32 type and get the node
@@ -88,12 +88,12 @@ impl MerkleDB {
                     }
                 }
             }
-            _ => Err(MerkleError::InvalidHash32Input),
+            _ => Err(StateMerkleError::InvalidHash32Input),
         }
     }
 
     /// Get a node entry from the MerkleDB.
-    fn get_node(&self, hash: &Hash32) -> Result<Option<Node>, MerkleError> {
+    fn get_node(&self, hash: &Hash32) -> Result<Option<Node>, StateMerkleError> {
         // lookup the cache
         if let Some(node) = self.cache.get(hash) {
             return Ok(Some(node.clone()));
@@ -112,7 +112,10 @@ impl MerkleDB {
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
-    pub fn commit_nodes_write_batch(&mut self, write_batch: WriteBatch) -> Result<(), MerkleError> {
+    pub fn commit_nodes_write_batch(
+        &mut self,
+        write_batch: WriteBatch,
+    ) -> Result<(), StateMerkleError> {
         let write_options = WriteOptions::default();
         self.db.write_opt(write_batch, &write_options)?;
         Ok(())
@@ -143,12 +146,15 @@ impl MerkleDB {
     /// * `Ok((LeafType, Octets))` - A tuple containing:
     ///    - The type of the leaf node (`Embedded` or `Regular`).
     ///    - The Octets representing the state data or its hash, depending on the leaf type.
-    /// * `Err(MerkleError)` - An error that occurred while retrieving the node data.
+    /// * `Err(StateMerkleError)` - An error that occurred while retrieving the node data.
     ///
     /// # Note
     /// For `Regular` leaf nodes, additional steps may be required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
-    pub fn retrieve(&self, state_key: &[u8]) -> Result<Option<(LeafType, Octets)>, MerkleError> {
+    pub fn retrieve(
+        &self,
+        state_key: &[u8],
+    ) -> Result<Option<(LeafType, Octets)>, StateMerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
 
@@ -176,7 +182,7 @@ impl MerkleDB {
                         NodeCodec::get_leaf_value(&state_key_bv, &current_node.data, &leaf_type)?;
                     return Ok(Some((leaf_type, value)));
                 }
-                NodeType::Empty => return Err(MerkleError::EmptyState),
+                NodeType::Empty => return Err(StateMerkleError::EmptyState),
             }
         }
 
@@ -277,7 +283,7 @@ impl MerkleDB {
     ///
     /// # Returns
     /// * `Ok(())` - The path to the leaf node was successfully traversed and affected nodes were collected.
-    /// * `Err(MerkleError)` - An error occurred during the traversal or node collection process.
+    /// * `Err(StateMerkleError)` - An error occurred during the traversal or node collection process.
     ///
     /// # Errors
     /// This function may return an error in the following situations:
@@ -294,7 +300,7 @@ impl MerkleDB {
         state_key: &[u8],
         write_op: WriteOp,
         affected_nodes_by_depth: &mut BTreeMap<u8, HashSet<AffectedNode>>, // u8 for depth of the node in the trie
-    ) -> Result<(), MerkleError> {
+    ) -> Result<(), StateMerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
         let mut parent_hash = self.root;
@@ -354,7 +360,7 @@ impl MerkleDB {
                             let state_key_without_last_byte = slice_bitvec(&state_key_bv, 0..248)?;
                             if key_without_last_byte != state_key_without_last_byte {
                                 // reached to another leaf node with the same prefix
-                                return Err(MerkleError::NodeNotFound);
+                                return Err(StateMerkleError::NodeNotFound);
                             }
                         }
                         _ => {}
@@ -431,11 +437,11 @@ impl MerkleDB {
                         }
                     };
                 }
-                NodeType::Empty => return Err(MerkleError::EmptyState),
+                NodeType::Empty => return Err(StateMerkleError::EmptyState),
             }
             depth += 1;
         }
 
-        return Err(MerkleError::NodeNotFound);
+        return Err(StateMerkleError::NodeNotFound);
     }
 }
