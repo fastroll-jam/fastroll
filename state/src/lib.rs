@@ -3,7 +3,7 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
 use rjam_common::{Address, Hash32, Octets};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
-use rjam_merkle_trie::{
+use rjam_state_merkle::{
     error::MerkleError,
     merkle_db::MerkleDB,
     types::{LeafType, EMPTY_HASH},

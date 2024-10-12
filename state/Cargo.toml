@@ -8,7 +8,7 @@ rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
-rjam-merkle-trie = { workspace = true }
+rjam-state-merkle = { workspace = true }
 rjam-types = { workspace = true }
 blake2 = { workspace = true }
 bit-vec = { workspace = true }
