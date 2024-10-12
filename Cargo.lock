@@ -940,6 +940,7 @@ dependencies = [
 name = "rjam-merkle"
 version = "0.1.0"
 dependencies = [
+ "rjam-codec",
  "rjam-common",
  "rjam-crypto",
  "thiserror",

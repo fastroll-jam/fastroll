@@ -1,3 +1,4 @@
+use rjam_codec::JamCodecError;
 use rjam_common::{Octets, HASH32_EMPTY};
 use rjam_crypto::utils::{hash, Blake2b256, CryptoError, Hasher};
 use thiserror::Error;
@@ -6,6 +7,8 @@ use thiserror::Error;
 pub enum MerkleError {
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
 pub fn node<H: Hasher>(data: &[Octets]) -> Result<Octets, MerkleError> {
