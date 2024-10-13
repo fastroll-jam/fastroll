@@ -9,7 +9,6 @@ use rjam_types::state::{
     timeslot::Timeslot,
     validators::{ActiveSet, PastSet, StagingSet},
 };
-use serde::{Deserializer, Serializer};
 use std::error::Error;
 use thiserror::Error;
 

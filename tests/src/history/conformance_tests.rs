@@ -1,24 +1,18 @@
 #[cfg(test)]
 mod tests {
-    use crate::history::asn_types::{Input, Output, State, TestCase};
+    use crate::{
+        generate_tests,
+        history::asn_types::{Input, Output, State, TestCase},
+        test_utils::load_test_case,
+    };
     use rjam_common::Hash32;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
     use rjam_transition::components::history::{
         transition_block_history_append, transition_block_history_parent_root,
     };
-    use std::{error::Error, fs};
+    use std::{error::Error, path::PathBuf};
 
-    // Load a test case from the test vector path
-    fn load_test_case(path: &str) -> Result<TestCase, ()> {
-        let full_path = format!(
-            "{}/jamtestvectors-history/{}",
-            env!("CARGO_MANIFEST_DIR"),
-            path
-        );
-        let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
-        let test_case = serde_json::from_str(&json_str).expect("Failed to parse JSON");
-        Ok(test_case)
-    }
+    const PATH_PREFIX: &str = "jamtestvectors-history/history/data";
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(
@@ -60,8 +54,9 @@ mod tests {
         Ok((post_state, Output))
     }
 
-    fn run_test_case(path: &str) -> Result<(), Box<dyn Error>> {
-        let test_case = load_test_case(path).expect("Failed to load test vector.");
+    fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
+        let path = PathBuf::from(PATH_PREFIX).join(filename);
+        let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
         let expected_post_state = test_case.post_state; // The expected post state.
 
         let (post_state, _output) = run_state_transition(&test_case.input, &test_case.pre_state)?;
@@ -72,32 +67,21 @@ mod tests {
         Ok(())
     }
 
-    macro_rules! generate_tests {
-        ($($name:ident: $path:expr,)*) => {
-            $(
-                #[test]
-                fn $name() -> Result<(), Box<dyn Error>> {
-                    run_test_case($path)
-                }
-            )*
-        }
-    }
-
     generate_tests! {
         // Success
         // Empty history queue.
-        progress_blocks_history_1: "history/data/progress_blocks_history-1.json",
+        progress_blocks_history_1: "progress_blocks_history-1.json",
 
         // Success
         // Not empty nor full history queue.
-        progress_blocks_history_2: "history/data/progress_blocks_history-2.json",
+        progress_blocks_history_2: "progress_blocks_history-2.json",
 
         // Success
         // Fill the history queue.
-        progress_blocks_history_3: "history/data/progress_blocks_history-3.json",
+        progress_blocks_history_3: "progress_blocks_history-3.json",
 
         // Success
         // Shift the history queue.
-        progress_blocks_history_4: "history/data/progress_blocks_history-4.json",
+        progress_blocks_history_4: "progress_blocks_history-4.json",
     }
 }
