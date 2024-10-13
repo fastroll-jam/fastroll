@@ -1,9 +1,21 @@
-use crate::safrole::utils::{deserialize_hex, serialize_hex, AsnTypeError};
-use rjam_common::{Ticket, ValidatorKey};
+use crate::{
+    safrole::utils::AsnTypeError,
+    test_utils::{deserialize_hex, serialize_hex},
+};
+use rjam_common::{
+    sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, ValidatorKey,
+    ValidatorSet,
+};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
-    block::header::EpochMarker, extrinsics::tickets::TicketExtrinsicEntry,
-    state::safrole::SlotSealerType,
+    block::header::EpochMarker,
+    extrinsics::tickets::TicketExtrinsicEntry,
+    state::{
+        entropy::EntropyAccumulator,
+        safrole::{SafroleState, SlotSealerType},
+        timeslot::Timeslot,
+        validators::{ActiveSet, PastSet, StagingSet},
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -213,6 +225,93 @@ pub struct State {
     pub gamma_z: [U8; 144], // Bandersnatch ring commitment
 }
 
+impl State {
+    pub fn into_safrole_state(&self) -> Result<SafroleState, AsnTypeError> {
+        Ok(SafroleState {
+            pending_set: convert_validator_data(&self.gamma_k)?,
+            ring_root: self.gamma_z.clone().try_into()?,
+            slot_sealers: self.convert_slot_sealers()?,
+            ticket_accumulator: SortedLimitedTickets::from_vec(
+                self.gamma_a
+                    .iter()
+                    .map(|ticket_body| Ticket {
+                        id: ticket_body.id.0,
+                        attempt: ticket_body.attempt,
+                    })
+                    .collect(),
+            ),
+        })
+    }
+
+    fn convert_slot_sealers(&self) -> Result<SlotSealerType, AsnTypeError> {
+        match &self.gamma_s {
+            TicketsOrKeys::tickets(ticket_bodies) => {
+                let tickets: Box<[Ticket; rjam_common::EPOCH_LENGTH]> = ticket_bodies
+                    .iter()
+                    .map(|ticket_body| Ticket {
+                        id: ticket_body.id.0,
+                        attempt: ticket_body.attempt,
+                    })
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert TicketsBodies to Tickets".to_string(),
+                        )
+                    })?;
+                Ok(SlotSealerType::Tickets(tickets))
+            }
+            TicketsOrKeys::keys(epoch_keys) => {
+                let keys: Box<[BandersnatchPubKey; rjam_common::EPOCH_LENGTH]> = epoch_keys
+                    .iter()
+                    .map(|key| key.0)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert EpochKeys to BandersnatchPubKeys".to_string(),
+                        )
+                    })?;
+
+                Ok(SlotSealerType::BandersnatchPubKeys(keys))
+            }
+        }
+    }
+
+    pub fn into_validator_sets(&self) -> Result<(StagingSet, ActiveSet, PastSet), AsnTypeError> {
+        let staging_set = StagingSet(convert_validator_data(&self.iota)?);
+        let active_set = ActiveSet(convert_validator_data(&self.kappa)?);
+        let past_set = PastSet(convert_validator_data(&self.lambda)?);
+
+        Ok((staging_set, active_set, past_set))
+    }
+
+    pub fn into_entropy_accumulator(&self) -> Result<EntropyAccumulator, AsnTypeError> {
+        Ok(EntropyAccumulator(
+            self.eta.clone().map(|entropy| entropy.0),
+        ))
+    }
+
+    pub fn into_timeslot(&self) -> Result<Timeslot, AsnTypeError> {
+        Ok(Timeslot(self.tau.clone().try_into()?))
+    }
+}
+
+fn convert_validator_data(data: &ValidatorsData) -> Result<ValidatorSet, AsnTypeError> {
+    data.iter()
+        .map(|validator_data| {
+            Ok::<ValidatorKey, AsnTypeError>(ValidatorKey {
+                bandersnatch_key: validator_data.bandersnatch.0,
+                ed25519_key: validator_data.ed25519.0,
+                bls_key: validator_data.bls.0,
+                metadata: validator_data.metadata,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .try_into()
+        .map_err(|_| AsnTypeError::ConversionError("Failed to convert ValidatorsData".to_string()))
+}
+
 // Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
@@ -232,7 +331,7 @@ pub enum Output {
 
 // Safrole state transition function execution dump
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Testcase {
+pub struct TestCase {
     pub input: Input,      // Input
     pub pre_state: State,  // Pre-execution state
     pub output: Output,    // Output

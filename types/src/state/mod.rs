@@ -1,7 +1,7 @@
 pub mod authorizer;
 pub mod disputes;
 pub mod entropy;
-pub mod histories;
+pub mod history;
 pub mod privileged;
 pub mod reports;
 pub mod safrole;

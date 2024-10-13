@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use crate::safrole::{
-        asn_types::{Input, Output, OutputMarks, State, Testcase, TicketEnvelope},
+        asn_types::{Input, Output, OutputMarks, State, TestCase, TicketEnvelope},
         utils::{map_error_to_custom_code, StateBuilder},
     };
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
@@ -22,7 +22,7 @@ mod tests {
     use std::{error::Error, fs};
 
     // Load a test case from the test vector path
-    fn load_test_case(path: &str) -> Result<Testcase, ()> {
+    fn load_test_case(path: &str) -> Result<TestCase, ()> {
         let full_path = format!(
             "{}/jamtestvectors-new-safrole/{}",
             env!("CARGO_MANIFEST_DIR"),

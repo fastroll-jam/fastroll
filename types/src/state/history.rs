@@ -6,11 +6,11 @@ use rjam_crypto::utils::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 
 #[derive(Clone)]
-pub struct BlockHistories(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
-impl_jam_codec_for_newtype!(BlockHistories, Vec<BlockHistoryEntry>);
+pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
+impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
 
-impl BlockHistories {
-    /// Appends a new block history entry to the `BlockHistories` vector.
+impl BlockHistory {
+    /// Appends a new block history entry to the `BlockHistory` vector.
     ///
     /// This appends a new `BlockHistoryEntry` to the vector. If the total number of entries
     /// exceeds the maximum allowed (`H = 8`), the oldest entry is removed. The history thus retains
@@ -25,7 +25,7 @@ impl BlockHistories {
 
     /// Returns the most recent block history.
     ///
-    /// Returns `None` if the block histories sequence is empty.
+    /// Returns `None` if the block history sequence is empty.
     pub fn get_latest_history(&self) -> Option<BlockHistoryEntry> {
         if self.0.is_empty() {
             return None;

@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 /// Merkle Mountain Range representation.
 #[derive(Debug, Clone)]
 pub struct MerkleMountainRange<H: Hasher> {
-    peaks: Vec<Option<Hash32>>,
+    pub peaks: Vec<Option<Hash32>>,
     _hasher: PhantomData<H>,
 }
 

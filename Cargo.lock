@@ -1021,6 +1021,8 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "rjam-common",
+ "rjam-crypto",
+ "rjam-merkle",
  "rjam-state",
  "rjam-transition",
  "rjam-types",

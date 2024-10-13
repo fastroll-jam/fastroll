@@ -2,19 +2,15 @@ use crate::safrole::asn_types::{
     ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
     ValidatorsData, U32, U8,
 };
-use rjam_common::{
-    sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, ValidatorKey,
-    ValidatorSet, EPOCH_LENGTH,
-};
 use rjam_transition::error::TransitionError;
 use rjam_types::state::{
     entropy::EntropyAccumulator,
-    safrole::{SafroleState, SlotSealerType},
+    safrole::SafroleState,
     timeslot::Timeslot,
     validators::{ActiveSet, PastSet, StagingSet},
 };
-use serde::{de, de::Visitor, Deserializer, Serializer};
-use std::{error::Error, fmt};
+use serde::{Deserializer, Serializer};
+use std::error::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -25,48 +21,6 @@ pub enum AsnTypeError {
     MissingField(&'static str),
     #[error("Type conversion infallible error")]
     InfallibleError(#[from] std::convert::Infallible),
-}
-
-//
-// Helper Serde
-//
-
-// Helper deserializer to manage `0x` prefix
-pub fn deserialize_hex<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct HexVisitor<const N: usize>;
-
-    impl<'de, const N: usize> Visitor<'de> for HexVisitor<N> {
-        type Value = [u8; N];
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            write!(formatter, "a 0x-prefixed hex string with {} bytes", N)
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            let v = v.strip_prefix("0x").unwrap_or(v);
-            let bytes = hex::decode(v).map_err(E::custom)?;
-            bytes
-                .try_into()
-                .map_err(|_| E::custom(format!("Expected {} bytes", N)))
-        }
-    }
-
-    deserializer.deserialize_str(HexVisitor)
-}
-
-// Helper serializer to manage `0x` prefix
-pub fn serialize_hex<S, const N: usize>(bytes: &[u8; N], serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
 }
 
 //
@@ -149,92 +103,6 @@ impl StateBuilder {
             gamma_z: self.gamma_z.ok_or(AsnTypeError::MissingField("gamma_z"))?,
         })
     }
-}
-
-impl State {
-    pub fn into_safrole_state(&self) -> Result<SafroleState, AsnTypeError> {
-        Ok(SafroleState {
-            pending_set: convert_validator_data(&self.gamma_k)?,
-            ring_root: self.gamma_z.clone().try_into()?,
-            slot_sealers: self.convert_slot_sealers()?,
-            ticket_accumulator: SortedLimitedTickets::from_vec(
-                self.gamma_a
-                    .iter()
-                    .map(|ticket_body| Ticket {
-                        id: ticket_body.id.0,
-                        attempt: ticket_body.attempt,
-                    })
-                    .collect(),
-            ),
-        })
-    }
-    // TODO: consider replacing this with trait implementation
-    fn convert_slot_sealers(&self) -> Result<SlotSealerType, AsnTypeError> {
-        match &self.gamma_s {
-            TicketsOrKeys::tickets(ticket_bodies) => {
-                let tickets: Box<[Ticket; EPOCH_LENGTH]> = ticket_bodies
-                    .iter()
-                    .map(|ticket_body| Ticket {
-                        id: ticket_body.id.0,
-                        attempt: ticket_body.attempt,
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert TicketsBodies to Tickets".to_string(),
-                        )
-                    })?;
-                Ok(SlotSealerType::Tickets(tickets))
-            }
-            TicketsOrKeys::keys(epoch_keys) => {
-                let keys: Box<[BandersnatchPubKey; EPOCH_LENGTH]> = epoch_keys
-                    .iter()
-                    .map(|key| key.0)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert EpochKeys to BandersnatchPubKeys".to_string(),
-                        )
-                    })?;
-
-                Ok(SlotSealerType::BandersnatchPubKeys(keys))
-            }
-        }
-    }
-
-    pub fn into_validator_sets(&self) -> Result<(StagingSet, ActiveSet, PastSet), AsnTypeError> {
-        let staging_set = StagingSet(convert_validator_data(&self.iota)?);
-        let active_set = ActiveSet(convert_validator_data(&self.kappa)?);
-        let past_set = PastSet(convert_validator_data(&self.lambda)?);
-
-        Ok((staging_set, active_set, past_set))
-    }
-    pub fn into_entropy_accumulator(&self) -> Result<EntropyAccumulator, AsnTypeError> {
-        Ok(EntropyAccumulator(
-            self.eta.clone().map(|entropy| entropy.0),
-        ))
-    }
-
-    pub fn into_timeslot(&self) -> Result<Timeslot, AsnTypeError> {
-        Ok(Timeslot(self.tau.clone().try_into()?))
-    }
-}
-
-fn convert_validator_data(data: &ValidatorsData) -> Result<ValidatorSet, AsnTypeError> {
-    data.iter()
-        .map(|validator_data| {
-            Ok::<ValidatorKey, AsnTypeError>(ValidatorKey {
-                bandersnatch_key: validator_data.bandersnatch.0,
-                ed25519_key: validator_data.ed25519.0,
-                bls_key: validator_data.bls.0,
-                metadata: validator_data.metadata,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .try_into()
-        .map_err(|_| AsnTypeError::ConversionError("Failed to convert ValidatorsData".to_string()))
 }
 
 //

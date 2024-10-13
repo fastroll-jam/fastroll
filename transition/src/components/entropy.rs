@@ -8,7 +8,7 @@ use rjam_state::{StateManager, StateWriteOp};
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `eta`: Rotates entropy histories, shifting each entry.
+/// * `eta`: Rotates entropy history, shifting each entry.
 ///
 /// ## Per-block transitions
 /// * `eta`: Accumulates the VRF output hash of the current block header to the current entropy state.
@@ -19,7 +19,7 @@ pub fn transition_entropy_accumulator(
 ) -> Result<(), TransitionError> {
     state_manager.with_mut_entropy_accumulator(StateWriteOp::Update, |entropy| {
         if epoch_progressed {
-            // Rotate entropy histories.
+            // Rotate entropy history.
             // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
             entropy.0.copy_within(0..3, 1);
         }

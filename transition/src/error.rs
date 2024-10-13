@@ -23,8 +23,6 @@ pub enum TransitionError {
     BadTicketAttemptNumber,
     #[error("Ticket submission period has ended")]
     TicketSubmissionClosed,
-    #[error("Block histories sequence is empty")]
-    EmptyBlockHistories,
     // External errors
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),

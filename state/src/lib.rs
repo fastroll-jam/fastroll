@@ -8,7 +8,7 @@ use rjam_types::state::{
     authorizer::{AuthPool, AuthQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,
-    histories::BlockHistories,
+    history::BlockHistory,
     privileged::PrivilegedServices,
     reports::PendingReports,
     safrole::SafroleState,
@@ -40,7 +40,7 @@ pub enum StateManagerError {
 pub enum StateEntryType {
     AuthPool(AuthPool),                     // alpha
     AuthQueue(AuthQueue),                   // phi
-    BlockHistories(BlockHistories),         // beta
+    BlockHistory(BlockHistory),             // beta
     SafroleState(SafroleState),             // gamma
     DisputesState(DisputesState),           // psi
     EntropyAccumulator(EntropyAccumulator), // eta
@@ -62,7 +62,7 @@ pub enum StateEntryType {
 pub enum StateKeyConstant {
     AuthPool = 1,            // alpha
     AuthQueue = 2,           // phi
-    BlockHistories = 3,      // beta
+    BlockHistory = 3,        // beta
     SafroleState = 4,        // gamma
     DisputesState = 5,       // psi
     EntropyAccumulator = 6,  // eta
@@ -394,13 +394,13 @@ impl StateManager {
         }
     }
 
-    pub fn get_block_histories(&self) -> Result<BlockHistories, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::BlockHistories);
+    pub fn get_block_history(&self) -> Result<BlockHistory, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::BlockHistory);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::BlockHistories(block_histories) = entry_ref.value.clone() {
-                return Ok(block_histories);
+            if let StateEntryType::BlockHistory(block_history) = entry_ref.value.clone() {
+                return Ok(block_history);
             }
         }
 
@@ -408,32 +408,32 @@ impl StateManager {
         let state_data = self
             .retrieve_state_encoded(&state_key)?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let block_histories = BlockHistories::decode(&mut state_data.as_slice())?;
+        let block_history = BlockHistory::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::BlockHistories(block_histories.clone()));
+        let cache_entry = CacheEntry::new(StateEntryType::BlockHistory(block_history.clone()));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(block_histories)
+        Ok(block_history)
     }
 
-    pub fn with_mut_block_histories<F>(
+    pub fn with_mut_block_history<F>(
         &self,
         write_op: StateWriteOp,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut BlockHistories),
+        F: FnOnce(&mut BlockHistory),
     {
-        let state_key = construct_state_key(StateKeyConstant::BlockHistories);
+        let state_key = construct_state_key(StateKeyConstant::BlockHistory);
 
         let mut cache_entry = self
             .cache
             .get_mut(&state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let StateEntryType::BlockHistories(ref mut block_histories) = cache_entry.value {
-            f(block_histories); // call the closure to mutate the state
+        if let StateEntryType::BlockHistory(ref mut block_history) = cache_entry.value {
+            f(block_history); // call the closure to mutate the state
             cache_entry.mark_dirty(write_op);
 
             Ok(())
