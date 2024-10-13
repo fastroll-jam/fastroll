@@ -164,9 +164,7 @@ pub fn outside_in_vec<T: Clone>(vec: Vec<T>) -> Vec<T> {
             }
         }
         left += 1;
-        if right > 0 {
-            right -= 1;
-        }
+        right = right.saturating_sub(1);
     }
     result
 }

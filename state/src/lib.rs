@@ -138,7 +138,6 @@ pub enum StateWriteOp {
     Remove,
 }
 
-#[derive(Clone)]
 enum CacheEntryStatus {
     Clean,
     Dirty(StateWriteOp),
@@ -791,7 +790,7 @@ impl StateManager {
         let timeslot = Timeslot::decode(&mut state_data.as_slice())?;
 
         // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::Timeslot(timeslot.clone()));
+        let cache_entry = CacheEntry::new(StateEntryType::Timeslot(timeslot));
         self.cache.insert(state_key, cache_entry);
 
         Ok(timeslot)

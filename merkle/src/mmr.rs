@@ -33,6 +33,12 @@ impl<H: Hasher> JamDecode for MerkleMountainRange<H> {
     }
 }
 
+impl<H: Hasher> Default for MerkleMountainRange<H> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Hasher> MerkleMountainRange<H> {
     pub fn new() -> Self {
         Self {
@@ -87,10 +93,10 @@ impl<H: Hasher> MerkleMountainRange<H> {
     pub fn append_recursive(&mut self, curr_root: Hash32, index: usize) -> Result<(), MerkleError> {
         if index >= self.peaks.len() {
             self.peaks.push(Some(curr_root));
-            return Ok(());
+            Ok(())
         } else if self.peaks[index].is_none() {
             self.peaks[index] = Some(curr_root);
-            return Ok(());
+            Ok(())
         } else {
             let old_root = self.peaks[index].unwrap();
             let mut new_parent_data = [0u8; 64];

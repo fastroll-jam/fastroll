@@ -278,7 +278,7 @@ impl MerkleDB {
     /// # Arguments
     /// * `state_key`: [`Hash32`] - The state key representing the Merkle path to the target leaf node.
     /// * `write_op`: [`WriteOp`] - The write operation to be applied to the leaf node.
-    /// * `affected_nodes_by_depth`: [`&mut BTreeMap<u8, HashSet<AffectedNode>>`] - A mutable reference
+    /// * `affected_nodes_by_depth`: [`&mut BTreeMap<usize, HashSet<AffectedNode>>`] - A mutable reference
     ///   to a collection that will store all `AffectedNode`s encountered, sorted by their depth in the trie.
     ///
     /// # Returns
@@ -299,7 +299,7 @@ impl MerkleDB {
         &self,
         state_key: &[u8],
         write_op: WriteOp,
-        affected_nodes_by_depth: &mut BTreeMap<u8, HashSet<AffectedNode>>, // u8 for depth of the node in the trie
+        affected_nodes_by_depth: &mut BTreeMap<usize, HashSet<AffectedNode>>, // u8 for depth of the node in the trie
     ) -> Result<(), StateMerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
@@ -307,12 +307,12 @@ impl MerkleDB {
         let mut current_node = match self.get_node(&root_hash)? {
             Some(node) => node,
             None => return Ok(()),
-        }; // initialize with the root node
-        let mut depth = 0u8;
+        };
+        // initialize with the root node
         let mut current_child_side = None; // ChildType (Left or Right) of the current node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
-        for b in &state_key_bv {
+        for (depth, b) in (&state_key_bv).into_iter().enumerate() {
             match current_node.check_node_type()? {
                 NodeType::Branch => {
                     let left_hash =
@@ -344,7 +344,7 @@ impl MerkleDB {
 
                     affected_nodes_by_depth
                         .entry(depth)
-                        .or_insert_with(HashSet::new)
+                        .or_default()
                         .insert(affected_node);
                 }
                 NodeType::Leaf(_leaf_type) => {
@@ -372,7 +372,7 @@ impl MerkleDB {
                                 depth,
                                 leaf_write_op_context: LeafWriteOpContext::Update(
                                     LeafUpdateContext {
-                                        leaf_state_key: state_key.clone(),
+                                        leaf_state_key: *state_key,
                                         leaf_state_value: state_value.clone(),
                                         leaf_prior_hash: current_node.hash,
                                     },
@@ -380,7 +380,7 @@ impl MerkleDB {
                             });
                             affected_nodes_by_depth
                                 .entry(depth)
-                                .or_insert_with(HashSet::new)
+                                .or_default()
                                 .insert(affected_node);
                             Ok(())
                         }
@@ -388,7 +388,7 @@ impl MerkleDB {
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
                                 depth,
                                 leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
-                                    leaf_state_key: state_key.clone(),
+                                    leaf_state_key: *state_key,
                                     leaf_state_value: state_value.clone(),
                                     sibling_candidate_hash: current_node.hash, // note: `current_node` isn't the leaf node to be added
                                     added_leaf_child_side: current_child_side.unwrap(),
@@ -397,7 +397,7 @@ impl MerkleDB {
 
                             affected_nodes_by_depth
                                 .entry(depth)
-                                .or_insert_with(HashSet::new)
+                                .or_default()
                                 .insert(affected_node);
                             Ok(())
                         }
@@ -431,7 +431,7 @@ impl MerkleDB {
 
                             affected_nodes_by_depth
                                 .entry(depth)
-                                .or_insert_with(HashSet::new)
+                                .or_default()
                                 .insert(affected_node);
                             Ok(())
                         }
@@ -439,9 +439,8 @@ impl MerkleDB {
                 }
                 NodeType::Empty => return Err(StateMerkleError::EmptyState),
             }
-            depth += 1;
         }
 
-        return Err(StateMerkleError::NodeNotFound);
+        Err(StateMerkleError::NodeNotFound)
     }
 }

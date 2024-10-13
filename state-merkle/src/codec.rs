@@ -43,7 +43,7 @@ impl MerkleNodeCodec {
         node.set(0, true); // indicator for the leaf node
         if state_value.len() <= 32 {
             node.set(1, false); // indicator for the embedded leaf node
-            let length_bits = bytes_to_lsb_bits(&vec![state_value.len() as u8]);
+            let length_bits = bytes_to_lsb_bits(&[state_value.len() as u8]);
 
             for i in 0..6 {
                 node.set(2 + i, length_bits[i]); // 6 bits for the embedded value size

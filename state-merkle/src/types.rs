@@ -1,9 +1,9 @@
 use rjam_common::{Hash32, Octets};
 
-pub(crate) const NODE_SIZE_BITS: usize = 512;
+pub const NODE_SIZE_BITS: usize = 512;
 
 /// Merkle trie node type.
-pub(crate) enum NodeType {
+pub enum NodeType {
     Branch,
     Leaf(LeafType),
     Empty,
@@ -19,13 +19,13 @@ pub enum LeafType {
 
 /// Branch node child type.
 #[derive(Copy, Clone, Eq, Hash, PartialEq)]
-pub(crate) enum ChildType {
+pub enum ChildType {
     Left,
     Right,
 }
 
 impl ChildType {
-    pub(crate) fn opposite(&self) -> Self {
+    pub fn opposite(&self) -> Self {
         match self {
             ChildType::Left => ChildType::Right,
             ChildType::Right => ChildType::Left,
@@ -57,7 +57,7 @@ pub struct AffectedBranch {
     /// Hash identifier of the current node.
     pub hash: Hash32,
     /// Depth of the current node in the trie.
-    pub depth: u8,
+    pub depth: usize,
     /// Hash of the left child. Used as a lookup key in the collection of `StagingNode`s.
     pub left: Hash32,
     /// Hash of the right child. Used as a lookup key in the collection of `StagingNode`s.
@@ -67,44 +67,44 @@ pub struct AffectedBranch {
 #[derive(Eq, Hash, PartialEq)]
 pub struct AffectedLeaf {
     /// Depth of the current node in the trie.
-    pub depth: u8,
+    pub depth: usize,
     /// Context of the write operation.
     pub leaf_write_op_context: LeafWriteOpContext,
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) enum LeafWriteOpContext {
+pub enum LeafWriteOpContext {
     Update(LeafUpdateContext),
     Add(LeafAddContext),
     Remove(LeafRemoveContext),
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) struct LeafUpdateContext {
+pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
-    pub(crate) leaf_state_key: Hash32,
+    pub leaf_state_key: Hash32,
     /// State value of the leaf node to be updated.
-    pub(crate) leaf_state_value: Octets,
+    pub leaf_state_value: Octets,
     /// Leaf hash prior to the update.
-    pub(crate) leaf_prior_hash: Hash32,
+    pub leaf_prior_hash: Hash32,
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) struct LeafAddContext {
+pub struct LeafAddContext {
     /// State key of the leaf node to be added.
-    pub(crate) leaf_state_key: Hash32,
+    pub leaf_state_key: Hash32,
     /// State value of the leaf node to be added.
-    pub(crate) leaf_state_value: Octets,
+    pub leaf_state_value: Octets,
     /// Hash of the leaf node to be the sibling node after adding a new leaf node.
-    pub(crate) sibling_candidate_hash: Hash32,
+    pub sibling_candidate_hash: Hash32,
     /// Child type (Left/Right) of the new leaf node.
-    pub(crate) added_leaf_child_side: ChildType,
+    pub added_leaf_child_side: ChildType,
 }
 
 #[derive(Eq, Hash, PartialEq)]
-pub(crate) struct LeafRemoveContext {
+pub struct LeafRemoveContext {
     /// Hash of the parent node of the leaf node to be removed.
-    pub(crate) parent_hash: Hash32,
+    pub parent_hash: Hash32,
     /// Hash of the sibling node of the leaf node to be removed.
-    pub(crate) sibling_hash: Hash32,
+    pub sibling_hash: Hash32,
 }
