@@ -108,6 +108,44 @@ impl TryFrom<SlotSealerType> for TicketsOrKeys {
     }
 }
 
+impl TryFrom<&TicketsOrKeys> for SlotSealerType {
+    type Error = AsnTypeError;
+
+    fn try_from(value: &TicketsOrKeys) -> Result<Self, Self::Error> {
+        match value {
+            TicketsOrKeys::tickets(ticket_bodies) => {
+                let tickets: Box<[Ticket; EPOCH_LENGTH]> = ticket_bodies
+                    .iter()
+                    .map(|ticket_body| Ticket {
+                        id: ticket_body.id.0,
+                        attempt: ticket_body.attempt,
+                    })
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert TicketsBodies to Tickets".to_string(),
+                        )
+                    })?;
+                Ok(SlotSealerType::Tickets(tickets))
+            }
+            TicketsOrKeys::keys(epoch_keys) => {
+                let keys: Box<[BandersnatchPubKey; EPOCH_LENGTH]> = epoch_keys
+                    .iter()
+                    .map(|key| key.0)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| {
+                        AsnTypeError::ConversionError(
+                            "Failed to convert EpochKeys to BandersnatchPubKeys".to_string(),
+                        )
+                    })?;
+                Ok(SlotSealerType::BandersnatchPubKeys(keys))
+            }
+        }
+    }
+}
+
 // State transition function execution error.
 // Error codes are not specified in the Graypaper.
 #[allow(non_camel_case_types)]
@@ -166,11 +204,11 @@ pub struct TicketEnvelope {
     signature: [U8; 784],
 }
 
-impl Into<TicketExtrinsicEntry> for TicketEnvelope {
-    fn into(self) -> TicketExtrinsicEntry {
+impl From<TicketEnvelope> for TicketExtrinsicEntry {
+    fn from(envelope: TicketEnvelope) -> Self {
         TicketExtrinsicEntry {
-            ticket_proof: Box::new(self.signature),
-            entry_index: self.attempt,
+            ticket_proof: Box::new(envelope.signature),
+            entry_index: envelope.attempt,
         }
     }
 }
@@ -225,14 +263,17 @@ pub struct State {
     pub gamma_z: [U8; 144], // Bandersnatch ring commitment
 }
 
-impl State {
-    pub fn into_safrole_state(&self) -> Result<SafroleState, AsnTypeError> {
+impl TryFrom<&State> for SafroleState {
+    type Error = AsnTypeError;
+
+    fn try_from(state: &State) -> Result<Self, Self::Error> {
         Ok(SafroleState {
-            pending_set: convert_validator_data(&self.gamma_k)?,
-            ring_root: self.gamma_z.clone().try_into()?,
-            slot_sealers: self.convert_slot_sealers()?,
+            pending_set: convert_validator_data(&state.gamma_k)?,
+            ring_root: state.gamma_z.clone().try_into()?,
+            slot_sealers: SlotSealerType::try_from(&state.gamma_s)?,
             ticket_accumulator: SortedLimitedTickets::from_vec(
-                self.gamma_a
+                state
+                    .gamma_a
                     .iter()
                     .map(|ticket_body| Ticket {
                         id: ticket_body.id.0,
@@ -242,58 +283,29 @@ impl State {
             ),
         })
     }
+}
 
-    fn convert_slot_sealers(&self) -> Result<SlotSealerType, AsnTypeError> {
-        match &self.gamma_s {
-            TicketsOrKeys::tickets(ticket_bodies) => {
-                let tickets: Box<[Ticket; rjam_common::EPOCH_LENGTH]> = ticket_bodies
-                    .iter()
-                    .map(|ticket_body| Ticket {
-                        id: ticket_body.id.0,
-                        attempt: ticket_body.attempt,
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert TicketsBodies to Tickets".to_string(),
-                        )
-                    })?;
-                Ok(SlotSealerType::Tickets(tickets))
-            }
-            TicketsOrKeys::keys(epoch_keys) => {
-                let keys: Box<[BandersnatchPubKey; rjam_common::EPOCH_LENGTH]> = epoch_keys
-                    .iter()
-                    .map(|key| key.0)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert EpochKeys to BandersnatchPubKeys".to_string(),
-                        )
-                    })?;
+impl TryFrom<&State> for (StagingSet, ActiveSet, PastSet) {
+    type Error = AsnTypeError;
 
-                Ok(SlotSealerType::BandersnatchPubKeys(keys))
-            }
-        }
-    }
-
-    pub fn into_validator_sets(&self) -> Result<(StagingSet, ActiveSet, PastSet), AsnTypeError> {
-        let staging_set = StagingSet(convert_validator_data(&self.iota)?);
-        let active_set = ActiveSet(convert_validator_data(&self.kappa)?);
-        let past_set = PastSet(convert_validator_data(&self.lambda)?);
+    fn try_from(state: &State) -> Result<Self, Self::Error> {
+        let staging_set = StagingSet(convert_validator_data(&state.iota)?);
+        let active_set = ActiveSet(convert_validator_data(&state.kappa)?);
+        let past_set = PastSet(convert_validator_data(&state.lambda)?);
 
         Ok((staging_set, active_set, past_set))
     }
+}
 
-    pub fn into_entropy_accumulator(&self) -> Result<EntropyAccumulator, AsnTypeError> {
-        Ok(EntropyAccumulator(
-            self.eta.clone().map(|entropy| entropy.0),
-        ))
+impl From<&State> for EntropyAccumulator {
+    fn from(state: &State) -> Self {
+        EntropyAccumulator(state.eta.clone().map(|entropy| entropy.0))
     }
+}
 
-    pub fn into_timeslot(&self) -> Result<Timeslot, AsnTypeError> {
-        Ok(Timeslot(self.tau.clone().try_into()?))
+impl From<&State> for Timeslot {
+    fn from(state: &State) -> Self {
+        Timeslot(state.tau)
     }
 }
 

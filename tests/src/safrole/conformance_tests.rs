@@ -21,7 +21,13 @@ mod tests {
     };
     use rjam_types::{
         extrinsics::tickets::TicketExtrinsicEntry,
-        state::{disputes::DisputesState, timeslot::Timeslot},
+        state::{
+            disputes::DisputesState,
+            entropy::EntropyAccumulator,
+            safrole::SafroleState,
+            timeslot::Timeslot,
+            validators::{ActiveSet, PastSet, StagingSet},
+        },
     };
     use std::{error::Error, path::PathBuf};
 
@@ -33,11 +39,11 @@ mod tests {
         test_pre_state: &State,
     ) -> Result<(State, Output), Box<dyn Error>> {
         // Convert ASN pre-state into RJAM types.
-        let prior_safrole = test_pre_state.into_safrole_state()?;
+        let prior_safrole = SafroleState::try_from(test_pre_state)?;
         let (prior_staging_set, prior_active_set, prior_past_set) =
-            test_pre_state.into_validator_sets()?;
-        let prior_entropy = test_pre_state.into_entropy_accumulator()?;
-        let prior_timeslot = test_pre_state.into_timeslot()?;
+            <(StagingSet, ActiveSet, PastSet)>::try_from(test_pre_state)?;
+        let prior_entropy = EntropyAccumulator::from(test_pre_state);
+        let prior_timeslot = Timeslot::from(test_pre_state);
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
