@@ -3,13 +3,26 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{Ed25519Signature, Hash32, CORE_COUNT};
+use std::cmp::Ordering;
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssuranceExtrinsicEntry {
     anchor_parent_hash: Hash32,    // a
     assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
     validator_index: u16,          // v; N_V
     signature: Ed25519Signature,   // s
+}
+
+impl PartialOrd for AssuranceExtrinsicEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AssuranceExtrinsicEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.validator_index.cmp(&other.validator_index)
+    }
 }
 
 impl JamEncode for AssuranceExtrinsicEntry {

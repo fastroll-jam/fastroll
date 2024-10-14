@@ -4,6 +4,7 @@ use crate::extrinsics::{
     tickets::TicketExtrinsicEntry,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use thiserror::Error;
 
 pub mod assurances;
 pub mod disputes;
@@ -11,12 +12,20 @@ pub mod guarantees;
 pub mod preimages;
 pub mod tickets;
 
-pub(crate) type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
-pub(crate) type GuaranteesExtrinsic = Vec<GuaranteesExtrinsicEntry>;
-pub(crate) type AssurancesExtrinsic = Vec<AssuranceExtrinsicEntry>; // length up to VALIDATOR_COUNT
-pub(crate) type PreimageLookupsExtrinsic = Vec<PreimageLookupExtrinsicEntry>;
+pub type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
+pub type GuaranteesExtrinsic = Vec<GuaranteesExtrinsicEntry>;
+pub type AssurancesExtrinsic = Vec<AssuranceExtrinsicEntry>; // length up to VALIDATOR_COUNT
+pub type PreimageLookupsExtrinsic = Vec<PreimageLookupExtrinsicEntry>;
 
-// Struct used for Extrinsics serialization
+#[derive(Debug, Error)]
+pub enum ExtrinsicsError {
+    #[error("Credential for the validator index already exists")]
+    DuplicateValidatorIndex,
+    #[error("Invalid number of credentials. Must have either 2 or 3 credentials")]
+    InvalidCredentialCount,
+}
+
+/// Struct used for Extrinsics serialization
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct Extrinsics {
     tickets_extrinsic: TicketsExtrinsic,                  // E_T

@@ -2,6 +2,7 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
     Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
+use std::cmp::Ordering;
 
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct DisputesExtrinsic {
@@ -10,11 +11,23 @@ pub struct DisputesExtrinsic {
     faults: Vec<Fault>,     // f
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct Verdict {
     report_hash: Hash32,                                      // r
     epoch_index: u32,                                         // a
-    votes: Box<[Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
+    votes: Box<[Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j; must be ordered by validator index
+}
+
+impl PartialOrd for Verdict {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Verdict {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.report_hash.cmp(&other.report_hash)
+    }
 }
 
 impl JamDecode for Verdict {
@@ -31,7 +44,7 @@ impl JamDecode for Verdict {
     }
 }
 
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
 struct Vote {
     is_report_valid: bool,
     voter_index: u16, // N_V
@@ -49,16 +62,52 @@ impl Default for Vote {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+impl PartialOrd for Vote {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Vote {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.voter_index.cmp(&other.voter_index)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Culprit {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+impl PartialOrd for Culprit {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Culprit {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.validator_key.cmp(&other.validator_key)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Fault {
     report_hash: Hash32,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
+}
+
+impl PartialOrd for Fault {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Fault {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.validator_key.cmp(&other.validator_key)
+    }
 }

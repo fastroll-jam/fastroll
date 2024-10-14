@@ -141,13 +141,13 @@ pub struct WorkItem {
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
-    authorizer_hash: Hash32,                      // a
-    core_index: u32,                              // c; N_C
-    authorization_output: Octets,                 // o
-    refinement_context: RefinementContext,        // x
-    specs: AvailabilitySpecs,                     // s
-    results: Vec<WorkItemResult>,                 // r; length range [1, 4]
-    segment_root_lookup: HashMap<Hash32, Hash32>, // l; number of items up to 8
+    authorizer_hash: Hash32,                       // a
+    core_index: u32,                               // c; N_C
+    authorization_output: Octets,                  // o
+    refinement_context: RefinementContext,         // x
+    specs: AvailabilitySpecs,                      // s
+    results: Vec<WorkItemResult>,                  // r; length range [1, 4]
+    segment_roots_lookup: HashMap<Hash32, Hash32>, // l; number of items up to 8
 }
 
 impl PartialOrd for WorkReport {
@@ -162,7 +162,7 @@ impl Ord for WorkReport {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct RefinementContext {
     pub anchor_header_hash: Hash32,                // a
     pub anchor_state_root: Hash32,                 // s; posterior state root of the anchor block
@@ -172,7 +172,7 @@ pub struct RefinementContext {
     pub prerequisite_work_package: Option<Hash32>, // p
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct AvailabilitySpecs {
     work_package_hash: Hash32,
     work_package_length: u32, // N_N
@@ -212,7 +212,7 @@ impl JamDecode for AvailabilitySpecs {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkItemResult {
     service_index: Address,                 // s; N_S
     service_code_hash: Hash32,              // c
@@ -221,13 +221,13 @@ pub struct WorkItemResult {
     refinement_output: WorkExecutionOutput, // o
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionOutput {
     Output(Octets),            // Y
     Error(WorkExecutionError), // J
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionError {
     OutOfGas,
     UnexpectedTermination,
