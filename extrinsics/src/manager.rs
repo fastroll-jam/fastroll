@@ -2,7 +2,7 @@ use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
 use rjam_codec::JamDecode;
 use rjam_types::{
     extrinsics::{
-        assurances::AssuranceExtrinsicEntry, guarantees::GuaranteeExtrinsicEntry,
+        assurances::AssuranceExtrinsicEntry, guarantees::GuaranteesExtrinsicEntry,
         preimages::PreimageLookupExtrinsicEntry, tickets::TicketExtrinsicEntry,
     },
     state::timeslot::Timeslot,
@@ -28,11 +28,11 @@ pub fn get_ticket_extrinsics(timeslot: Timeslot) -> Vec<TicketExtrinsicEntry> {
         .collect()
 }
 
-pub fn get_guarantee_extrinsics(timeslot: Timeslot) -> Vec<GuaranteeExtrinsicEntry> {
+pub fn get_guarantee_extrinsics(timeslot: Timeslot) -> Vec<GuaranteesExtrinsicEntry> {
     get_extrinsics(ExtrinsicType::Guarantee, timeslot)
         .into_iter()
         .filter_map(|extrinsic| {
-            GuaranteeExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
+            GuaranteesExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
         })
         .collect()
 }

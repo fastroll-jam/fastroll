@@ -6,6 +6,7 @@ use crate::{
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     fmt::{Display, Formatter},
 };
 
@@ -135,14 +136,30 @@ pub struct WorkItem {
     export_segment_count: usize,              // e; max 2^11
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+/// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
+///
+/// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
-    authorizer_hash: Hash32,               // a
-    core_index: u32,                       // c; N_C
-    authorization_output: Octets,          // o
-    refinement_context: RefinementContext, // x
-    specs: AvailabilitySpecs,              // s
-    results: Vec<WorkItemResult>,          // r; length range [1, 4]
+    authorizer_hash: Hash32,                      // a
+    core_index: u32,                              // c; N_C
+    authorization_output: Octets,                 // o
+    refinement_context: RefinementContext,        // x
+    specs: AvailabilitySpecs,                     // s
+    results: Vec<WorkItemResult>,                 // r; length range [1, 4]
+    segment_root_lookup: HashMap<Hash32, Hash32>, // l; number of items up to 8
+}
+
+impl PartialOrd for WorkReport {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.core_index.cmp(&other.core_index))
+    }
+}
+
+impl Ord for WorkReport {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.core_index.cmp(&other.core_index)
+    }
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]

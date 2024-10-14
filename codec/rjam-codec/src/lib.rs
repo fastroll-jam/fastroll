@@ -2,7 +2,9 @@ use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use rjam_codec_derive::*;
 use std::{
+    collections::HashMap,
     fmt::{Debug, Display},
+    hash::Hash,
     mem::size_of,
 };
 use thiserror::Error;
@@ -409,6 +411,45 @@ impl JamDecode for BitVec {
         }
 
         Ok(bv)
+    }
+}
+
+// Simple dictionary codec for `HashMap`.
+impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
+    fn size_hint(&self) -> usize {
+        if self.is_empty() {
+            return self.len().size_hint();
+        }
+        // Sampling an entry to get the size hint of keys and values.
+        let (sample_key, sample_value) = self.iter().next().unwrap();
+        self.len().size_hint() + (sample_key.size_hint() + sample_value.size_hint()) * self.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.len().encode_to(dest)?;
+
+        let mut keys_sorted: Vec<_> = self.keys().collect();
+        keys_sorted.sort();
+
+        for key in keys_sorted {
+            key.encode_to(dest)?;
+            self.get(key).unwrap().encode_to(dest)?;
+        }
+        Ok(())
+    }
+}
+
+impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let len: usize = JamDecode::decode(input)?;
+        let mut map = HashMap::with_capacity(len);
+
+        for _ in 0..len {
+            let key = K::decode(input)?;
+            let value = V::decode(input)?;
+            map.insert(key, value);
+        }
+        Ok(map)
     }
 }
 
@@ -1065,5 +1106,62 @@ mod tests {
 
         let encoded = bv.encode_fixed(4);
         assert!(matches!(encoded, Err(JamCodecError::InvalidSize(_))));
+    }
+
+    #[test]
+    fn test_hashmap_empty() {
+        let map: HashMap<u32, Vec<u8>> = HashMap::new();
+        let encoded = map.encode().unwrap();
+        assert_eq!(encoded, vec![0]);
+
+        let mut slice = &encoded[..];
+        let decoded: HashMap<u32, Vec<u8>> = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(map, decoded);
+    }
+
+    #[test]
+    fn test_hashmap_simple() {
+        let mut map = HashMap::new();
+        map.insert(1u32, vec![1, 2, 3]);
+        map.insert(2u32, vec![4, 5, 6]);
+        map.insert(3u32, vec![7, 8, 9]);
+
+        let encoded = map.encode().unwrap();
+        let mut slice = &encoded[..];
+        let decoded: HashMap<u32, Vec<u8>> = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(map, decoded);
+    }
+
+    #[test]
+    fn test_hashmap_complex() {
+        let mut map = HashMap::new();
+        map.insert(10u32, BitVec::from_bytes(&[0b10101010]));
+        map.insert(20u32, BitVec::from_bytes(&[0b11001100, 0b11110000]));
+        map.insert(30u32, BitVec::from_bytes(&[0b11111111]));
+
+        let encoded = map.encode().unwrap();
+        let mut slice = &encoded[..];
+        let decoded: HashMap<u32, BitVec> = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(map, decoded);
+    }
+
+    #[test]
+    fn test_hashmap_nested() {
+        let mut inner_map1 = HashMap::new();
+        inner_map1.insert(1u8, vec![1, 2, 3]);
+        inner_map1.insert(2u8, vec![4, 5, 6]);
+
+        let mut inner_map2 = HashMap::new();
+        inner_map2.insert(3u8, vec![7, 8, 9]);
+        inner_map2.insert(4u8, vec![10, 11, 12]);
+
+        let mut outer_map = HashMap::new();
+        outer_map.insert(100u32, inner_map1);
+        outer_map.insert(200u32, inner_map2);
+
+        let encoded = outer_map.encode().unwrap();
+        let mut slice = &encoded[..];
+        let decoded: HashMap<u32, HashMap<u8, Vec<u8>>> = JamDecode::decode(&mut slice).unwrap();
+        assert_eq!(outer_map, decoded);
     }
 }

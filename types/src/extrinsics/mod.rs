@@ -1,6 +1,6 @@
 use crate::extrinsics::{
     assurances::AssuranceExtrinsicEntry, disputes::DisputesExtrinsic,
-    guarantees::GuaranteeExtrinsicEntry, preimages::PreimageLookupExtrinsicEntry,
+    guarantees::GuaranteesExtrinsicEntry, preimages::PreimageLookupExtrinsicEntry,
     tickets::TicketExtrinsicEntry,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
@@ -12,7 +12,7 @@ pub mod preimages;
 pub mod tickets;
 
 pub(crate) type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
-pub(crate) type GuaranteesExtrinsic = Vec<GuaranteeExtrinsicEntry>;
+pub(crate) type GuaranteesExtrinsic = Vec<GuaranteesExtrinsicEntry>;
 pub(crate) type AssurancesExtrinsic = Vec<AssuranceExtrinsicEntry>; // length up to VALIDATOR_COUNT
 pub(crate) type PreimageLookupsExtrinsic = Vec<PreimageLookupExtrinsicEntry>;
 
