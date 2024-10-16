@@ -162,6 +162,20 @@ impl Ord for WorkReport {
     }
 }
 
+impl WorkReport {
+    pub fn prerequisite(&self) -> Option<Hash32> {
+        self.refinement_context.prerequisite_work_package
+    }
+
+    pub fn segment_roots_lookup(&self) -> &HashMap<Hash32, Hash32> {
+        &self.segment_roots_lookup
+    }
+
+    pub fn work_package_hash(&self) -> Hash32 {
+        self.specs.work_package_hash
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct RefinementContext {
     pub anchor_header_hash: Hash32,                // a

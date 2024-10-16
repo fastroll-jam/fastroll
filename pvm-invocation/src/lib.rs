@@ -1,3 +1,5 @@
+pub mod accumulation;
+
 use rjam_codec::JamEncode;
 use rjam_common::{
     Address, Balance, DeferredTransfer, Hash32, Octets, RefinementContext, UnsignedGas,
