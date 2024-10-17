@@ -174,6 +174,10 @@ impl WorkReport {
     pub fn work_package_hash(&self) -> Hash32 {
         self.specs.work_package_hash
     }
+
+    pub fn segment_root(&self) -> Hash32 {
+        self.specs.segment_root
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
