@@ -49,7 +49,7 @@ dashmap = "6.1.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 lazy_static = "1.5.0"
-proc-macro2 = "1.0.86"
+proc-macro2 = "1.0.88"
 quote = "1.0.37"
 rocksdb = "0.22.0"
 serde = { version = "1.0.204", features = ["derive"] }
