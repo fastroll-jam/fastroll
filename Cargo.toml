@@ -66,7 +66,7 @@ rjam-state = { workspace = true }
 lazy_static = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1.0.121"
+serde_json = "1.0.129"
 
 [features]
 testing = ["rjam-common/testing"]
