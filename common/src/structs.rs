@@ -178,6 +178,14 @@ impl WorkReport {
     pub fn segment_root(&self) -> Hash32 {
         self.specs.segment_root
     }
+
+    pub fn results(&self) -> &[WorkItemResult] {
+        &self.results
+    }
+
+    pub fn authorization_output(&self) -> &[u8] {
+        &self.authorization_output
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
@@ -232,11 +240,11 @@ impl JamDecode for AvailabilitySpecs {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkItemResult {
-    service_index: Address,                 // s; N_S
-    service_code_hash: Hash32,              // c
-    payload_hash: Hash32,                   // l
-    gas_prioritization_ratio: UnsignedGas,  // g
-    refinement_output: WorkExecutionOutput, // o
+    pub service_index: Address,                 // s; N_S
+    pub service_code_hash: Hash32,              // c
+    pub payload_hash: Hash32,                   // l
+    pub gas_prioritization_ratio: UnsignedGas,  // g
+    pub refinement_output: WorkExecutionOutput, // o
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
