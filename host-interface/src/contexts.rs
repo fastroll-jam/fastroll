@@ -1,6 +1,6 @@
 use crate::inner_vm::InnerPVM;
 use rjam_codec::{JamDecodeFixed, JamEncode};
-use rjam_common::{Address, DeferredTransfer, Hash32};
+use rjam_common::{Address, DeferredTransfer, Hash32, UnsignedGas};
 use rjam_crypto::utils::{hash, Blake2b256};
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::StateManager;
@@ -60,7 +60,8 @@ impl AccumulateContextPair {
 #[derive(Default, Clone)]
 pub struct AccumulateContext {
     pub deferred_transfers: Vec<DeferredTransfer>,
-    next_new_account_address: Address,
+    pub gas_used: UnsignedGas,
+    next_new_account_address: Address, // TODO: Check how to manage this context in the parallelized accumulation.
 }
 
 impl AccumulateContext {

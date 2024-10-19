@@ -181,7 +181,7 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `service_accounts` - The current global state of service accounts, after preimage integration but before accumulation
+    /// * `service_manager` - State manager to access to the state cache values
     /// * `target_address` - The address of the target service account to run the accumulation process
     /// * `gas_limit` - The maximum amount of gas allowed for the accumulation operation
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
@@ -218,6 +218,7 @@ impl PVMInvocation {
 
         // initialize the new account address in-memory state (part of Accumulate context)
 
+        // TODO: Used gas accumulation handling
         let common_invocation_result = PVM::common_invocation(
             state_manager,
             target_address,
