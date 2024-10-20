@@ -370,16 +370,16 @@ impl HostFunction {
         regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let empower = regs[7].value as Address;
+        let manager = regs[7].value as Address;
         let assign = regs[8].value as Address;
         let designate = regs[9].value as Address;
 
         state_manager.with_mut_privileged_services(
             StateWriteOp::Update,
             |privileged_services| {
-                privileged_services.empower_service_index = empower;
-                privileged_services.assign_service_index = assign;
-                privileged_services.designate_service_index = designate;
+                privileged_services.manager_service = manager;
+                privileged_services.assign_service = assign;
+                privileged_services.designate_service = designate;
             },
         )?;
 

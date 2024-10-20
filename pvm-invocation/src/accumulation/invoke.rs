@@ -4,7 +4,8 @@ use rjam_pvm_core::types::{accumulation::AccumulateOperand, error::PVMError};
 use rjam_state::StateManager;
 use std::collections::HashMap;
 
-type AccumulationOutputPairs = Vec<(Address, Hash32)>; // (service index, accumulation output hash)
+type AccumulationOutputHash = Hash32;
+type AccumulationOutputPairs = Vec<(Address, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     gas_used: UnsignedGas,
@@ -39,7 +40,7 @@ fn build_operands(reports: &[WorkReport], service_index: Address) -> Vec<Accumul
 
 /// Invokes the `accumulate` PVM entrypoint for a single service.
 ///
-/// Represents `Delta_1` of the GP.
+/// Represents `Δ1` of the GP.
 fn accumulate_single_service(
     state_manager: &StateManager,
     reports: &[WorkReport],
@@ -64,7 +65,7 @@ fn accumulate_single_service(
     PVMInvocation::accumulate(state_manager, service_index, gas, operands)
 }
 
-/// Represents `Delta_*` of the GP.
+/// Represents `Δ*` of the GP.
 fn accumulate_parallelized(
     state_manager: &StateManager,
     reports: &[WorkReport],
@@ -103,7 +104,7 @@ fn accumulate_parallelized(
     })
 }
 
-/// Represents `Delta_+` of the GP.
+/// Represents `Δ+` of the GP.
 fn accumulate_outer(
     state_manager: &StateManager,
     gas_limit: UnsignedGas,
