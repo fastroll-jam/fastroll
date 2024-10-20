@@ -1,4 +1,4 @@
-use rjam_common::{Hash32, WorkReport, EPOCH_LENGTH};
+use rjam_common::{Address, DeferredTransfer, Hash32, WorkReport, EPOCH_LENGTH};
 use std::collections::{HashMap, HashSet};
 
 type WorkPackageHash = Hash32;
@@ -190,4 +190,26 @@ fn process_accumulatable_reports(
 
     accumulatable_reports.append(&mut new_accumulatables);
     accumulatable_reports
+}
+
+/// Selects and sorts deferred transfers for a specific `destination`.
+///
+/// First it filters transfers by the given destination address, then sorts them
+/// primarily by the `from` address and secondarily by their original order in the input slice.
+///
+/// Represents function `R` of the GP.
+pub fn select_deferred_transfers(
+    transfers: &[DeferredTransfer],
+    destination: Address,
+) -> Vec<DeferredTransfer> {
+    let mut selected: Vec<_> = transfers
+        .iter()
+        .enumerate()
+        .filter(|(_, transfer)| transfer.to == destination)
+        .collect();
+    selected.sort_by_key(|&(i, transfer)| (transfer.from, i));
+    selected
+        .into_iter()
+        .map(|(_, transfer)| transfer.clone())
+        .collect()
 }

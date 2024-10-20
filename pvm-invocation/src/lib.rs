@@ -44,7 +44,7 @@ pub enum AccumulateResult {
     Result(AccumulateContext, Option<Hash32>), // (mutated context, optional result hash)
 }
 
-struct PVMInvocation;
+pub struct PVMInvocation;
 
 impl PVMInvocation {
     //
@@ -257,20 +257,16 @@ impl PVMInvocation {
 
     pub fn on_transfer(
         state_manager: &StateManager,
-        destination_address: Address,
+        destination: Address,
         transfers: Vec<DeferredTransfer>,
     ) -> Result<(), PVMError> {
         let total_amount: Balance = transfers.iter().map(|t| t.amount).sum();
 
-        state_manager.with_mut_account_metadata(
-            StateWriteOp::Update,
-            destination_address,
-            |account| {
-                account.account_info.balance += total_amount;
-            },
-        )?;
+        state_manager.with_mut_account_metadata(StateWriteOp::Update, destination, |account| {
+            account.account_info.balance += total_amount;
+        })?;
 
-        let code = state_manager.get_account_code(destination_address)?;
+        let code = state_manager.get_account_code(destination)?;
         if code.is_none() || transfers.is_empty() {
             return Ok(());
         }
@@ -281,7 +277,7 @@ impl PVMInvocation {
         // TODO: check the return type
         PVM::common_invocation(
             state_manager,
-            destination_address,
+            destination,
             &code,
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,

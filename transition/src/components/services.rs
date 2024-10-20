@@ -1,22 +1,20 @@
 use crate::error::TransitionError;
-use rjam_common::WorkReport;
+use rjam_common::{Address, DeferredTransfer, WorkReport};
 use rjam_pvm_invocation::{
-    accumulation::invoke::{accumulate_outer, OuterAccumulationResult},
-    ACCUMULATION_GAS_ALL_CORES,
+    accumulation::{
+        invoke::{accumulate_outer, OuterAccumulationResult},
+        utils::select_deferred_transfers,
+    },
+    PVMInvocation, ACCUMULATION_GAS_ALL_CORES,
 };
 use rjam_state::StateManager;
+use std::collections::HashSet;
 
 /// State transition function for Accumulate context state components.
 ///
-/// This function manages state transitions for the following components:
-/// - `ServiceAccount` (post-preimage integration)
-/// - `PrivilegedServices`
-/// - `AuthQueue`
-/// - `StagingSet`
-///
-/// The `accumulate` entrypoint invokes host functions that directly modify `StateCache` entries
+/// The `accumulate` PVM entrypoint invokes host functions that directly modify `StateCache` entries
 /// via the `StateManager`:
-/// - `ServiceAccount`:
+/// - `Service Accounts`:
 ///     - host_write
 ///     - host_new
 ///     - host_upgrade
@@ -29,8 +27,6 @@ use rjam_state::StateManager;
 ///     - host_designate
 /// - `AuthQueue`:
 ///     - host_assign
-///
-/// The PVM `accumulate` entrypoint is called to execute the Accumulate code and update the relevant state.
 pub fn transition_accumulate_contexts(
     state_manager: &StateManager,
     reports: &[WorkReport],
@@ -45,4 +41,29 @@ pub fn transition_accumulate_contexts(
         reports,
         always_accumulate_services,
     )?)
+}
+
+/// Processes deferred transfers for service accounts.
+///
+/// This function:
+/// 1. Identifies unique destination addresses from the input transfers.
+/// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
+/// 3. Updates service account states based on the PVM invocation results.
+///
+/// This function implements the second state transition for service accounts,
+/// following the `accumulate` PVM invocation.
+pub fn transition_on_transfer(
+    state_manager: &StateManager,
+    transfers: &[DeferredTransfer],
+) -> Result<(), TransitionError> {
+    // Gather all unique destination addresses.
+    let destinations: HashSet<Address> = transfers.iter().map(|t| t.to).collect();
+
+    // Invoke PVM `on-transfer` entrypoint for each destination.
+    for destination in destinations {
+        let selected_transfers = select_deferred_transfers(transfers, destination);
+        PVMInvocation::on_transfer(state_manager, destination, selected_transfers)?;
+    }
+
+    Ok(())
 }
