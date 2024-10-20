@@ -21,10 +21,18 @@ use rjam_pvm_core::{
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::state::timeslot::Timeslot;
 
+// Initial Program Counters
 const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;
 const REFINE_INITIAL_PC: MemAddress = 5;
 const ACCUMULATE_INITIAL_PC: MemAddress = 10;
 const ON_TRANSFER_INITIAL_PC: MemAddress = 15;
+
+// TODO: Fix constants
+// Gas Allocations
+pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 0; // G_A
+pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 0; // G_T
+pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_I
+pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_R
 
 pub struct RefineResult {
     output: WorkExecutionOutput,

@@ -37,6 +37,7 @@ rjam-host-interface = { path = "host-interface" }
 rjam-merkle = { path = "merkle" }
 rjam-pvm = { path = "pvm" }
 rjam-pvm-core = { path = "pvm-core" }
+rjam-pvm-invocation = { path = "pvm-invocation" }
 rjam-state = { path = "state" }
 rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }

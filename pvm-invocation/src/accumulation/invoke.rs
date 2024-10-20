@@ -14,7 +14,7 @@ struct ParallelAccumulationResult {
 }
 
 #[derive(Default)]
-struct OuterAccumulationResult {
+pub struct OuterAccumulationResult {
     accumulation_counter: u32,
     deferred_transfers: Vec<DeferredTransfer>,
     output_pairs: AccumulationOutputPairs,
@@ -105,7 +105,7 @@ fn accumulate_parallelized(
 }
 
 /// Represents `Δ+` of the GP.
-fn accumulate_outer(
+pub fn accumulate_outer(
     state_manager: &StateManager,
     gas_limit: UnsignedGas,
     reports: &[WorkReport],
