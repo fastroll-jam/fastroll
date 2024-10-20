@@ -1,6 +1,7 @@
 use crate::state::timeslot::Timeslot;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Balance, Hash32, Octets, UnsignedGas};
+use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
+use std::collections::HashMap;
 
 pub const B_S: Balance = 100; // The basic minimum balance which all services require
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
@@ -65,4 +66,12 @@ pub struct AccountLookupsEntry {
     // pub key: Hash32, // constructed with the account address and the lookup dictionary key (h)
     // pub preimage_length: u32, // serialized preimage length (l)
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
+}
+
+#[derive(Debug, Clone, JamEncode, JamDecode)]
+pub struct PrivilegedServices {
+    pub manager_service: Address, // m; Alters state privileged services (`chi`).
+    pub assign_service: Address,  // a; Alters auth queue (`phi`).
+    pub designate_service: Address, // v; Alters staging validator set (`iota`).
+    pub always_accumulate_services: HashMap<Address, UnsignedGas>, // g; Basic gas usage of always-accumulate services.
 }
