@@ -2,7 +2,7 @@ use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use rjam_codec_derive::*;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
     mem::size_of,
@@ -450,6 +450,31 @@ impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
             map.insert(key, value);
         }
         Ok(map)
+    }
+}
+
+// SCALE codec for `HashSet`.
+// FIXME: Here, we assume that sets are encoded following the encoding rules of tuples.
+impl<T: JamEncode + Eq + Hash> JamEncode for HashSet<T> {
+    fn size_hint(&self) -> usize {
+        self.iter().map(|item| item.size_hint()).sum()
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        for item in self {
+            item.encode_to(dest)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: JamDecode + Eq + Hash> JamDecode for HashSet<T> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let mut set = HashSet::new();
+        while let Ok(item) = T::decode(input) {
+            set.insert(item);
+        }
+        Ok(set)
     }
 }
 

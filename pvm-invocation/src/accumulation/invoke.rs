@@ -15,7 +15,7 @@ struct ParallelAccumulationResult {
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {
-    accumulation_counter: u32,
+    accumulation_counter: usize,
     deferred_transfers: Vec<DeferredTransfer>,
     output_pairs: AccumulationOutputPairs,
 }
@@ -156,7 +156,7 @@ pub fn accumulate_outer(
     }
 
     Ok(OuterAccumulationResult {
-        accumulation_counter: accumulated_reports as u32,
+        accumulation_counter: accumulated_reports,
         deferred_transfers,
         output_pairs,
     })

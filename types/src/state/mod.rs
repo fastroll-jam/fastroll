@@ -1,3 +1,4 @@
+pub mod accumulate;
 pub mod authorizer;
 pub mod disputes;
 pub mod entropy;

@@ -1,50 +1,8 @@
-use rjam_common::{Address, DeferredTransfer, Hash32, WorkReport, EPOCH_LENGTH};
+use rjam_common::{Address, DeferredTransfer, WorkReport};
+use rjam_types::state::accumulate::{
+    AccumulateQueue, DeferredWorkReport, SegmentRoot, WorkPackageHash,
+};
 use std::collections::{HashMap, HashSet};
-
-type WorkPackageHash = Hash32;
-type SegmentRoot = Hash32;
-
-/// Pair of a work report and its unaccumulated dependencies.
-type DeferredWorkReport = (WorkReport, HashSet<WorkPackageHash>);
-
-/// History of accumulated work packages over EPOCH_LENGTH timeslots.
-///
-/// Represents `ξ` of the GP.
-struct AccumulateHistory {
-    items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
-}
-
-impl AccumulateHistory {
-    /// Returns a union of all HashMaps in the one-epoch worth of history.
-    pub fn union(&self) -> HashMap<WorkPackageHash, SegmentRoot> {
-        self.items.iter().fold(HashMap::new(), |mut acc, hashmap| {
-            acc.extend(hashmap.iter().map(|(k, v)| (k.clone(), v.clone())));
-            acc
-        })
-    }
-}
-
-/// Queue of work reports pending accumulation due to unresolved dependencies.
-///
-/// Represents `θ` of the GP.
-struct AccumulateQueue {
-    items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
-}
-
-impl AccumulateQueue {
-    fn partition_by_slot_phase_and_flatten(
-        &mut self,
-        timeslot_index: u32,
-    ) -> Vec<DeferredWorkReport> {
-        let slot_phase = timeslot_index as usize % EPOCH_LENGTH;
-        let future_set = self.items.split_off(slot_phase);
-        future_set
-            .into_iter()
-            .chain(self.items.iter().cloned())
-            .flatten()
-            .collect()
-    }
-}
 
 /// Represents function `D` of the GP.
 fn construct_deferred_reports(report: WorkReport) -> DeferredWorkReport {
@@ -70,7 +28,7 @@ fn construct_deferred_reports(report: WorkReport) -> DeferredWorkReport {
 /// - Have segment roots that either match or are not present in the accumulated history
 ///
 /// Represents function `E` of the GP.
-fn edit_queue(
+pub fn edit_queue(
     queue: Vec<DeferredWorkReport>,
     accumulated: &HashMap<WorkPackageHash, SegmentRoot>,
 ) -> Vec<DeferredWorkReport> {
@@ -132,7 +90,7 @@ fn filter_accumulatable_deferred_reports(
 /// Builds a dictionary of work package hashes to segment-roots from a set of work reports.
 ///
 /// Represents function `P` of the GP.
-fn map_segment_roots(reports: &[WorkReport]) -> HashMap<WorkPackageHash, SegmentRoot> {
+pub fn map_segment_roots(reports: &[WorkReport]) -> HashMap<WorkPackageHash, SegmentRoot> {
     reports
         .iter()
         .map(|report| (report.work_package_hash(), report.segment_root()))
@@ -142,7 +100,7 @@ fn map_segment_roots(reports: &[WorkReport]) -> HashMap<WorkPackageHash, Segment
 /// Partitions available work reports into two groups based on the presence of dependencies.
 ///
 /// Implements partitioning available reports `W` into `W^!` and `W^Q` as described in the GP.
-fn partition_reports_by_dependencies(
+pub fn partition_reports_by_dependencies(
     available_reports: Vec<WorkReport>,
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
     let (without_deps, with_deps) = available_reports.into_iter().partition(|report| {
@@ -175,18 +133,28 @@ fn filter_deferred_reports(
 fn process_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &mut AccumulateQueue,
-    unique_history: &mut HashMap<WorkPackageHash, SegmentRoot>,
+    unique_history: HashMap<WorkPackageHash, SegmentRoot>,
     header_timeslot_index: u32,
 ) -> Vec<WorkReport> {
     let (mut accumulatable_reports, reports_with_deps) =
         partition_reports_by_dependencies(available_reports);
 
-    let queue = accumulate_queue
+    // Represents `P(W^!)`
+    let new_accumulated = map_segment_roots(&accumulatable_reports);
+
+    let queue: Vec<_> = accumulate_queue
         .partition_by_slot_phase_and_flatten(header_timeslot_index)
         .into_iter()
-        .chain(filter_deferred_reports(reports_with_deps, unique_history))
+        .chain(filter_deferred_reports(reports_with_deps, &unique_history))
         .collect();
-    let mut new_accumulatables = filter_accumulatable_deferred_reports(queue, unique_history);
+
+    let edited_queue = edit_queue(queue.clone(), &new_accumulated);
+
+    let mut history_union: HashMap<_, _> =
+        unique_history.into_iter().chain(new_accumulated).collect();
+
+    let mut new_accumulatables =
+        filter_accumulatable_deferred_reports(edited_queue, &mut history_union);
 
     accumulatable_reports.append(&mut new_accumulatables);
     accumulatable_reports

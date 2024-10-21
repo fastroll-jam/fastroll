@@ -5,6 +5,7 @@ use rjam_crypto::utils::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
 use rjam_types::state::{
+    accumulate::{AccumulateHistory, AccumulateQueue},
     authorizer::{AuthPool, AuthQueue},
     disputes::DisputesState,
     entropy::EntropyAccumulator,
@@ -53,6 +54,8 @@ pub enum StateEntryType {
     Timeslot(Timeslot),                     // tau
     PrivilegedServices(PrivilegedServices), // chi
     ValidatorStats(ValidatorStats),         // pi
+    AccumulateQueue(AccumulateQueue),       // theta
+    AccumulateHistory(AccumulateHistory),   // xi
     AccountMetadata(AccountMetadata),       // sigma (partial)
     AccountStorageEntry(AccountStorageEntry),
     AccountLookupsEntry(AccountLookupsEntry),
@@ -75,6 +78,8 @@ pub enum StateKeyConstant {
     Timeslot = 11,           // tau
     PrivilegedServices = 12, // chi
     ValidatorStats = 13,     // pi
+    AccumulateQueue = 14,    // theta
+    AccumulateHistory = 15,  // xi
     AccountMetadata = 255,   // sigma (partial)
 }
 
@@ -914,6 +919,105 @@ impl StateManager {
 
         if let StateEntryType::ValidatorStats(ref mut validator_stats) = cache_entry.value {
             f(validator_stats); // call the closure to mutate the state
+            cache_entry.mark_dirty(write_op);
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_accumulate_queue(&self) -> Result<AccumulateQueue, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::AccumulateQueue);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateEntryType::AccumulateQueue(accumulate_queue) = entry_ref.value.clone() {
+                return Ok(accumulate_queue);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
+        let accumulate_queue = AccumulateQueue::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry =
+            CacheEntry::new(StateEntryType::AccumulateQueue(accumulate_queue.clone()));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(accumulate_queue)
+    }
+
+    pub fn with_mut_accumulate_queue<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccumulateQueue),
+    {
+        let state_key = construct_state_key(StateKeyConstant::AccumulateQueue);
+
+        let mut cache_entry = self
+            .cache
+            .get_mut(&state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccumulateQueue(ref mut accumulate_queue) = cache_entry.value {
+            f(accumulate_queue); // call the closure to mutate the state
+            cache_entry.mark_dirty(write_op);
+
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_accumulate_history(&self) -> Result<AccumulateHistory, StateManagerError> {
+        let state_key = construct_state_key(StateKeyConstant::AccumulateHistory);
+
+        // Check the cache
+        if let Some(entry_ref) = self.cache.get(&state_key) {
+            if let StateEntryType::AccumulateHistory(accumulate_history) = entry_ref.value.clone() {
+                return Ok(accumulate_history);
+            }
+        }
+
+        // Retrieve the state from the DB
+        let state_data = self
+            .retrieve_state_encoded(&state_key)?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
+        let accumulate_history = AccumulateHistory::decode(&mut state_data.as_slice())?;
+
+        // Insert into the cache
+        let cache_entry = CacheEntry::new(StateEntryType::AccumulateHistory(
+            accumulate_history.clone(),
+        ));
+        self.cache.insert(state_key, cache_entry);
+
+        Ok(accumulate_history)
+    }
+
+    pub fn with_mut_accumulate_history<F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        F: FnOnce(&mut AccumulateHistory),
+    {
+        let state_key = construct_state_key(StateKeyConstant::AccumulateHistory);
+
+        let mut cache_entry = self
+            .cache
+            .get_mut(&state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::AccumulateHistory(ref mut accumulate_history) = cache_entry.value {
+            f(accumulate_history); // call the closure to mutate the state
             cache_entry.mark_dirty(write_op);
 
             Ok(())
