@@ -8,7 +8,7 @@ use rjam_common::{Ed25519Signature, WorkReport};
 /// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsicEntry {
-    work_report: WorkReport,                   // w
+    pub work_report: WorkReport,               // w
     timeslot: u32,                             // t
     credentials: Vec<(u16, Ed25519Signature)>, // a; length either 2 or 3
 }

@@ -186,6 +186,14 @@ impl WorkReport {
     pub fn authorization_output(&self) -> &[u8] {
         &self.authorization_output
     }
+
+    pub fn core_index(&self) -> u32 {
+        self.core_index
+    }
+
+    pub fn authorizer_hash(&self) -> Hash32 {
+        self.authorizer_hash
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
