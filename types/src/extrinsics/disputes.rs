@@ -1,9 +1,15 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
-    Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    Address, Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32,
+    FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
 use std::cmp::Ordering;
 
+/// # Integrity of each extrinsic component
+/// - `verdicts` must be ordered by report hash, and `judgments` of each `Verdict` must be ordered by
+///   the voters' validator index.
+/// - Offender signatures `culprits` and `faults` must each be ordered by the validator's Ed25519 key.
+/// - No duplicate report hashes allowed within the extrinsic, nor amongst any past reported hashes.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct DisputesExtrinsic {
     verdicts: Vec<Verdict>, // v
@@ -13,9 +19,9 @@ pub struct DisputesExtrinsic {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct Verdict {
-    report_hash: Hash32,                                      // r
-    epoch_index: u32,                                         // a
-    votes: Box<[Vote; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j; must be ordered by validator index
+    report_hash: Hash32,                                              // r
+    epoch_index: u32,                                                 // a
+    judgments: Box<[Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
 }
 
 impl PartialOrd for Verdict {
@@ -32,45 +38,44 @@ impl Ord for Verdict {
 
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut votes = Box::new([Vote::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]);
-        for vote in votes.iter_mut() {
-            *vote = Vote::decode(input)?;
+        let mut judgments = Box::new([Judgment::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]);
+        for judgment in judgments.iter_mut() {
+            *judgment = Judgment::decode(input)?;
         }
         Ok(Self {
             report_hash: Hash32::decode(input)?,
             epoch_index: u32::decode(input)?,
-            votes,
+            judgments,
         })
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
-struct Vote {
-    is_report_valid: bool,
-    voter_index: u16, // N_V
-    voter_signature: Ed25519SignatureWithKeyAndMessage,
+struct Judgment {
+    is_report_valid: bool,                              // v
+    voter: Address,                                     // i
+    voter_signature: Ed25519SignatureWithKeyAndMessage, // s
 }
 
-// Implement Default for Vote to allow array initialization
-impl Default for Vote {
+impl Default for Judgment {
     fn default() -> Self {
         Self {
             is_report_valid: false,
-            voter_index: 0,
+            voter: 0,
             voter_signature: [0u8; 64], // Assuming this implements Default
         }
     }
 }
 
-impl PartialOrd for Vote {
+impl PartialOrd for Judgment {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Vote {
+impl Ord for Judgment {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.voter_index.cmp(&other.voter_index)
+        self.voter.cmp(&other.voter)
     }
 }
 
@@ -96,6 +101,7 @@ impl Ord for Culprit {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Fault {
     report_hash: Hash32,
+    is_report_valid: bool,
     validator_key: Ed25519PubKey,
     signature: Ed25519SignatureWithKeyAndMessage,
 }

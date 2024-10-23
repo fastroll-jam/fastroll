@@ -55,7 +55,7 @@ fn handle_new_epoch_transition(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let current_punish_set = state_manager.get_disputes()?.get_punish_set();
+    let current_punish_set = state_manager.get_disputes()?.punish_set;
     let mut prior_staging_set = state_manager.get_staging_set()?;
 
     // Remove punished validators from the staging set (iota).

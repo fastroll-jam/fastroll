@@ -1,21 +1,21 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
+use std::collections::HashSet;
 
-// TODO: these sets should always be sorted
 #[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct DisputesState {
-    good_set: Vec<Hash32>,          // psi_g; recording hash of correct work-reports
-    bad_set: Vec<Hash32>,           // psi_b; recording hash of incorrect work-reports
-    wonky_set: Vec<Hash32>,         // psi_w; recording hash of work-reports that cannot be judged
-    punish_set: Vec<Ed25519PubKey>, // psi_o; recording Ed25519 public keys of validators which have misjudged.
+    pub good_set: HashSet<Hash32>,  // psi_g; hash of correct work-reports
+    pub bad_set: HashSet<Hash32>,   // psi_b; hash of incorrect work-reports
+    pub wonky_set: HashSet<Hash32>, // psi_w; hash of work-reports that cannot be judged
+    pub punish_set: HashSet<Ed25519PubKey>, // psi_o; Ed25519 public keys of validators which have misjudged.
 }
 
 impl DisputesState {
-    pub fn get_punish_set(self) -> Vec<Ed25519PubKey> {
+    pub fn get_punish_set(self) -> HashSet<Ed25519PubKey> {
         self.punish_set
     }
 
-    pub fn set_punish_set(&mut self, punish_set: Vec<Ed25519PubKey>) {
+    pub fn set_punish_set(&mut self, punish_set: HashSet<Ed25519PubKey>) {
         self.punish_set = punish_set;
     }
 }

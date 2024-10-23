@@ -84,7 +84,7 @@ mod tests {
             StateEntryType::DisputesState(DisputesState::default()),
         );
         state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
-            disputes.set_punish_set(input_punished_set);
+            disputes.punish_set = input_punished_set;
         })?;
         let input_ticket_extrinsics: Vec<TicketExtrinsicEntry> = test_input
             .extrinsic
