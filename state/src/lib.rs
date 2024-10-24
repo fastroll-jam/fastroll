@@ -145,7 +145,7 @@ pub enum StateWriteOp {
     Remove,
 }
 
-enum CacheEntryStatus {
+pub enum CacheEntryStatus {
     Clean,
     Dirty(StateWriteOp),
 }
@@ -163,6 +163,7 @@ impl CacheEntry {
         }
     }
 
+    #[allow(dead_code)]
     fn is_dirty(&self) -> bool {
         matches!(self.status, CacheEntryStatus::Dirty(_))
     }
@@ -171,6 +172,7 @@ impl CacheEntry {
         self.status = CacheEntryStatus::Dirty(write_op);
     }
 
+    #[allow(dead_code)]
     fn mark_clean(&mut self) {
         self.status = CacheEntryStatus::Clean;
     }

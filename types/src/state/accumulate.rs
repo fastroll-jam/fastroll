@@ -18,11 +18,17 @@ pub struct AccumulateQueue {
     items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
 }
 
-impl AccumulateQueue {
-    pub fn new() -> Self {
+impl Default for AccumulateQueue {
+    fn default() -> Self {
         Self {
             items: vec![Vec::new(); EPOCH_LENGTH],
         }
+    }
+}
+
+impl AccumulateQueue {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Safely gets the accumulate queue entry at the given signed index.
@@ -85,7 +91,7 @@ impl AccumulateHistory {
     /// Returns a union of all HashMaps in the one-epoch worth of history.
     pub fn union(&self) -> HashMap<WorkPackageHash, SegmentRoot> {
         self.items.iter().fold(HashMap::new(), |mut acc, hashmap| {
-            acc.extend(hashmap.iter().map(|(k, v)| (k.clone(), v.clone())));
+            acc.extend(hashmap.iter().map(|(k, v)| (*k, *v)));
             acc
         })
     }

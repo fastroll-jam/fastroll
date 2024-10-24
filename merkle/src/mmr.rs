@@ -1,7 +1,7 @@
 use crate::common::MerkleError;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::Hash32;
-use rjam_crypto::utils::{hash, Blake2b256, Hasher};
+use rjam_crypto::utils::{hash, Hasher};
 use std::marker::PhantomData;
 
 /// Merkle Mountain Range representation.
@@ -112,108 +112,114 @@ impl<H: Hasher> MerkleMountainRange<H> {
     }
 }
 
-// Helper function to create a Hash32 from a u8 value
-fn create_hash(value: u8) -> Hash32 {
-    let mut hash = [0u8; 32];
-    hash[0] = value;
-    hash
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rjam_crypto::utils::Blake2b256;
 
-#[test]
-fn test_append_single_leaf() {
-    let mut mmr = MerkleMountainRange::<Blake2b256>::new();
-    let leaf = create_hash(1);
-    assert!(mmr.append(leaf).is_ok());
-    assert_eq!(mmr.peaks, vec![Some(leaf)]);
-}
+    // Helper function to create a Hash32 from a u8 value
+    fn create_hash(value: u8) -> Hash32 {
+        let mut hash = [0u8; 32];
+        hash[0] = value;
+        hash
+    }
 
-#[test]
-fn test_append_two_leaves() {
-    let mut mmr = MerkleMountainRange::<Blake2b256>::new();
-    let leaf1 = create_hash(1);
-    let leaf2 = create_hash(2);
-    assert!(mmr.append(leaf1).is_ok());
-    assert!(mmr.append(leaf2).is_ok());
+    #[test]
+    fn test_append_single_leaf() {
+        let mut mmr = MerkleMountainRange::<Blake2b256>::new();
+        let leaf = create_hash(1);
+        assert!(mmr.append(leaf).is_ok());
+        assert_eq!(mmr.peaks, vec![Some(leaf)]);
+    }
 
-    let expected_root = {
-        let mut data = [0u8; 64];
-        data[..32].copy_from_slice(&leaf1);
-        data[32..].copy_from_slice(&leaf2);
-        hash::<Blake2b256>(&data).unwrap()
-    };
+    #[test]
+    fn test_append_two_leaves() {
+        let mut mmr = MerkleMountainRange::<Blake2b256>::new();
+        let leaf1 = create_hash(1);
+        let leaf2 = create_hash(2);
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
 
-    assert_eq!(mmr.peaks, vec![None, Some(expected_root)]);
-}
-
-#[test]
-fn test_append_three_leaves() {
-    let mut mmr = MerkleMountainRange::<Blake2b256>::new();
-    let leaf1 = create_hash(1);
-    let leaf2 = create_hash(2);
-    let leaf3 = create_hash(3);
-    assert!(mmr.append(leaf1).is_ok());
-    assert!(mmr.append(leaf2).is_ok());
-    assert!(mmr.append(leaf3).is_ok());
-
-    let expected_root12 = {
-        let mut data = [0u8; 64];
-        data[..32].copy_from_slice(&leaf1);
-        data[32..].copy_from_slice(&leaf2);
-        hash::<Blake2b256>(&data).unwrap()
-    };
-
-    assert_eq!(mmr.peaks, vec![Some(leaf3), Some(expected_root12)]);
-}
-
-#[test]
-fn test_append_four_leaves() {
-    let mut mmr = MerkleMountainRange::<Blake2b256>::new();
-    let leaf1 = create_hash(1);
-    let leaf2 = create_hash(2);
-    let leaf3 = create_hash(3);
-    let leaf4 = create_hash(4);
-    assert!(mmr.append(leaf1).is_ok());
-    assert!(mmr.append(leaf2).is_ok());
-    assert!(mmr.append(leaf3).is_ok());
-    assert!(mmr.append(leaf4).is_ok());
-
-    let expected_root1234 = {
-        let root12 = {
+        let expected_root = {
             let mut data = [0u8; 64];
             data[..32].copy_from_slice(&leaf1);
             data[32..].copy_from_slice(&leaf2);
             hash::<Blake2b256>(&data).unwrap()
         };
-        let root34 = {
-            let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&leaf3);
-            data[32..].copy_from_slice(&leaf4);
-            hash::<Blake2b256>(&data).unwrap()
-        };
-        let mut data = [0u8; 64];
-        data[..32].copy_from_slice(&root12);
-        data[32..].copy_from_slice(&root34);
-        hash::<Blake2b256>(&data).unwrap()
-    };
 
-    assert_eq!(mmr.peaks, vec![None, None, Some(expected_root1234)]);
-}
-
-#[test]
-fn test_append_full_mmr() {
-    let n = 10;
-    let num_elements = (1 << n) - 1; // 2^n - 1
-
-    let mut mmr = MerkleMountainRange::<Blake2b256>::new();
-
-    // Append 2^n - 1 elements
-    for i in 0..num_elements {
-        assert!(mmr.append(create_hash(i as u8)).is_ok());
+        assert_eq!(mmr.peaks, vec![None, Some(expected_root)]);
     }
 
-    // The number of peaks must be n.
-    assert_eq!(mmr.peaks.len(), n);
+    #[test]
+    fn test_append_three_leaves() {
+        let mut mmr = MerkleMountainRange::<Blake2b256>::new();
+        let leaf1 = create_hash(1);
+        let leaf2 = create_hash(2);
+        let leaf3 = create_hash(3);
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
+        assert!(mmr.append(leaf3).is_ok());
 
-    // All peaks must be Some.
-    assert!(mmr.peaks.iter().all(|&peak| peak.is_some()));
+        let expected_root12 = {
+            let mut data = [0u8; 64];
+            data[..32].copy_from_slice(&leaf1);
+            data[32..].copy_from_slice(&leaf2);
+            hash::<Blake2b256>(&data).unwrap()
+        };
+
+        assert_eq!(mmr.peaks, vec![Some(leaf3), Some(expected_root12)]);
+    }
+
+    #[test]
+    fn test_append_four_leaves() {
+        let mut mmr = MerkleMountainRange::<Blake2b256>::new();
+        let leaf1 = create_hash(1);
+        let leaf2 = create_hash(2);
+        let leaf3 = create_hash(3);
+        let leaf4 = create_hash(4);
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
+        assert!(mmr.append(leaf3).is_ok());
+        assert!(mmr.append(leaf4).is_ok());
+
+        let expected_root1234 = {
+            let root12 = {
+                let mut data = [0u8; 64];
+                data[..32].copy_from_slice(&leaf1);
+                data[32..].copy_from_slice(&leaf2);
+                hash::<Blake2b256>(&data).unwrap()
+            };
+            let root34 = {
+                let mut data = [0u8; 64];
+                data[..32].copy_from_slice(&leaf3);
+                data[32..].copy_from_slice(&leaf4);
+                hash::<Blake2b256>(&data).unwrap()
+            };
+            let mut data = [0u8; 64];
+            data[..32].copy_from_slice(&root12);
+            data[32..].copy_from_slice(&root34);
+            hash::<Blake2b256>(&data).unwrap()
+        };
+
+        assert_eq!(mmr.peaks, vec![None, None, Some(expected_root1234)]);
+    }
+
+    #[test]
+    fn test_append_full_mmr() {
+        let n = 10;
+        let num_elements = (1 << n) - 1; // 2^n - 1
+
+        let mut mmr = MerkleMountainRange::<Blake2b256>::new();
+
+        // Append 2^n - 1 elements
+        for i in 0..num_elements {
+            assert!(mmr.append(create_hash(i as u8)).is_ok());
+        }
+
+        // The number of peaks must be n.
+        assert_eq!(mmr.peaks.len(), n);
+
+        // All peaks must be Some.
+        assert!(mmr.peaks.iter().all(|&peak| peak.is_some()));
+    }
 }

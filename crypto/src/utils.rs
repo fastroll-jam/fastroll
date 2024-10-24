@@ -38,7 +38,7 @@ pub trait Hasher {
 
 impl Hasher for Blake2b256 {
     fn hash(value: &[u8]) -> Result<Hash32, CryptoError> {
-        let mut hasher = Blake2b256::new();
+        let mut hasher = Self::new();
         hasher.update(value);
         let result = hasher.finalize();
         result
@@ -50,7 +50,7 @@ impl Hasher for Blake2b256 {
 
 impl Hasher for Keccak256 {
     fn hash(value: &[u8]) -> Result<Hash32, CryptoError> {
-        let mut hasher = Keccak256::new();
+        let mut hasher = Self::new();
         hasher.update(value);
         let result = hasher.finalize();
         result

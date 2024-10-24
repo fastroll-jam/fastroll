@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
 use rjam_codec::JamDecode;
 use rjam_types::{
@@ -9,6 +10,7 @@ use rjam_types::{
 };
 
 // TODO: add submitter that accepts `Extrinsic` type (not Entry Type) with encoding
+
 fn submit_extrinsic(extrinsic: ExtrinsicEntry) -> Result<(), String> {
     EXTRINSICS_POOL.write().unwrap().add_extrinsic(extrinsic)
 }

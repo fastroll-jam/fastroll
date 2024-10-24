@@ -62,12 +62,14 @@ impl StateDB {
             .map_err(|e| StateDBError::RocksDBError(e.to_string()))
     }
 
+    #[allow(dead_code)]
     fn put_entry(&self, key: &[u8], value: &[u8]) -> Result<(), StateDBError> {
         let db = self.get_db();
         db.put(key, value)
             .map_err(|e| StateDBError::RocksDBError(e.to_string()))
     }
 
+    #[allow(dead_code)]
     fn delete_entry(&self, key: &[u8]) -> Result<(), StateDBError> {
         let db = self.get_db();
         db.delete(key)

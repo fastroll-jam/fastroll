@@ -144,7 +144,7 @@ pub fn accumulate_outer(
 
     // Recursively process remaining reports
     if accumulated_reports < reports.len() {
-        let mut result = accumulate_outer(
+        let result = accumulate_outer(
             state_manager,
             gas_limit - gas_used,
             &reports[accumulated_reports..],

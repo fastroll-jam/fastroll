@@ -8,7 +8,7 @@ use rjam_codec::JamDecodeFixed;
 use rjam_common::{Hash32, Octets};
 use rjam_crypto::utils::{hash, Blake2b256};
 
-pub(crate) struct MerkleNodeCodec;
+pub struct MerkleNodeCodec;
 
 impl MerkleNodeCodec {
     //

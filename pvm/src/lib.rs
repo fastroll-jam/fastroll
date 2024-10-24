@@ -25,6 +25,7 @@ use rjam_pvm_core::{
 };
 use rjam_state::StateManager;
 
+#[allow(dead_code)]
 enum ExecutionResult {
     Complete(ExitReason),
     HostCall(HostCallType),
@@ -142,6 +143,7 @@ impl PVM {
     //
 
     /// Read a byte from memory
+    #[allow(dead_code)]
     fn read_memory_byte(&self, address: MemAddress) -> Result<u8, PVMError> {
         Ok(self.state.memory.read_byte(address)?)
     }
@@ -204,6 +206,7 @@ impl PVM {
     // Gas operations
     //
 
+    #[allow(dead_code)]
     fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), PVMError> {
         if self.state.gas_counter < amount {
             Err(PVMError::VMCoreError(OutOfGas))
@@ -285,9 +288,7 @@ impl PVM {
             let vm_state_change = match host_call_result {
                 HostCallResult::PageFault(m) => {
                     exit_reason = ExitReason::PageFault(m);
-                    return Ok(ExtendedInvocationResult {
-                        exit_reason: ExitReason::PageFault(m),
-                    });
+                    return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 HostCallResult::Accumulation(result) => result.vm_state_change,
                 _ => unimplemented!("not yet implemented"), // TODO: add other cases
@@ -434,6 +435,7 @@ impl PVM {
             HostCallType::EXPORT => {
                 HostFunction::host_expunge(self.get_host_call_registers(), context)?
             }
+            // TODO: host call type validation and handling `WHAT` host call result
             _ => return Err(PVMError::VMCoreError(InvalidHostCallType)),
         };
 

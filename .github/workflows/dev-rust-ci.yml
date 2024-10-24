@@ -53,4 +53,4 @@ jobs:
           override: true
           components: clippy
       - name: Run clippy
-        run: cargo clippy
+        run: cargo clippy -- -D warnings

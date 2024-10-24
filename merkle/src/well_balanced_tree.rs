@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 
 /// Well-balanced binary Merkle Tree representation.
 pub struct WellBalancedMerkleTree<H: Hasher> {
-    root: Hash32,
+    pub root: Hash32,
     _hasher: PhantomData<H>,
 }
 

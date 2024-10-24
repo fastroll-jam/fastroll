@@ -9,6 +9,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+type ExtrinsicsMap = Arc<RwLock<HashMap<Hash32, ExtrinsicEntry>>>;
+type TypeTimeslotIndex = Arc<RwLock<BTreeMap<(ExtrinsicType, Timeslot), Vec<Hash32>>>>;
+
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub enum DisputesEntryType {
     Verdict(Verdict),
@@ -44,10 +47,10 @@ pub struct ExtrinsicEntry {
 
 pub struct ExtrinsicsPool {
     // Main storage
-    extrinsics: Arc<RwLock<HashMap<Hash32, ExtrinsicEntry>>>,
+    extrinsics: ExtrinsicsMap,
 
     // Index for type and timeslot lookups
-    type_timeslot_index: Arc<RwLock<BTreeMap<(ExtrinsicType, Timeslot), Vec<Hash32>>>>,
+    type_timeslot_index: TypeTimeslotIndex,
 
     max_size: usize,
 }

@@ -131,7 +131,7 @@ fn filter_deferred_reports(
 /// those that become accumulatable after resolving dependencies.
 ///
 /// The output represents `W^*` of the GP.
-fn process_accumulatable_reports(
+pub fn process_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &mut AccumulateQueue,
     unique_history: HashMap<WorkPackageHash, SegmentRoot>,

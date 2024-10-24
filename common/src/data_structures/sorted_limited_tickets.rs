@@ -118,7 +118,7 @@ impl JamDecode for SortedLimitedTickets {
         let tickets_vec = Vec::<Ticket>::decode(input)?;
 
         // Create a new `SortedLimitedTickets`
-        let mut sorted_tickets = SortedLimitedTickets::new();
+        let mut sorted_tickets = Self::new();
         sorted_tickets.add_multiple(tickets_vec);
 
         Ok(sorted_tickets)

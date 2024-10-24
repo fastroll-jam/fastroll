@@ -137,14 +137,14 @@ where
         for i in 0..l {
             dest.push_byte(((remainder >> (8 * i)) & 0xFF) as u8);
         }
-        Ok(())
     }
     // Case 3: 2^56 <= x < 2^64
     else {
         dest.push_byte(0xFF);
         dest.write(&x.to_le_bytes());
-        Ok(())
     }
+
+    Ok(())
 }
 
 fn impl_size_hint_for_integers<T: TryInto<u64>>(value: T) -> usize
@@ -264,6 +264,7 @@ impl JamDecode for bool {
 
 // SCALE Codec for Option<T> types
 impl<T: JamEncode> JamEncode for Option<T> {
+    #![allow(clippy::nursery)]
     fn size_hint(&self) -> usize {
         match self {
             None => 1, // 1 byte for the presence marker
@@ -347,7 +348,7 @@ impl<T: JamDecode> JamDecode for Vec<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
         let len: usize = JamDecode::decode(input)?;
-        let mut vec: Vec<T> = Vec::with_capacity(len);
+        let mut vec = Self::with_capacity(len);
         // Then decode each element
         for _ in 0..len {
             vec.push(JamDecode::decode(input)?);
@@ -396,7 +397,7 @@ impl JamDecode for BitVec {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
         let len: usize = JamDecode::decode(input)?;
-        let mut bv = BitVec::with_capacity(len);
+        let mut bv = Self::with_capacity(len);
 
         let byte_count = (len + 7) / 8;
         for _ in 0..byte_count {
@@ -442,7 +443,7 @@ impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
 impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let len: usize = JamDecode::decode(input)?;
-        let mut map = HashMap::with_capacity(len);
+        let mut map = Self::with_capacity(len);
 
         for _ in 0..len {
             let key = K::decode(input)?;
@@ -470,7 +471,7 @@ impl<T: JamEncode + Eq + Hash> JamEncode for HashSet<T> {
 
 impl<T: JamDecode + Eq + Hash> JamDecode for HashSet<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut set = HashSet::new();
+        let mut set = Self::new();
         while let Ok(item) = T::decode(input) {
             set.insert(item);
         }
@@ -491,7 +492,7 @@ impl<T: JamEncode, const N: usize> JamEncode for Box<[T; N]> {
 impl<T: JamDecode, const N: usize> JamDecode for Box<[T; N]> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let array: [T; N] = JamDecode::decode(input)?;
-        Ok(Box::new(array))
+        Ok(Self::new(array))
     }
 }
 
@@ -702,7 +703,7 @@ impl JamDecodeFixed for BitVec {
     where
         Self: Sized,
     {
-        let mut bv = BitVec::with_capacity(size_in_bits);
+        let mut bv = Self::with_capacity(size_in_bits);
         let expected_bytes = (size_in_bits + 7) / 8;
         let mut bytes_read = 0;
 

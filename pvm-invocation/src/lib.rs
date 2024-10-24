@@ -38,8 +38,8 @@ pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_I
 pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_R
 
 pub struct RefineResult {
-    output: WorkExecutionOutput,
-    export_segments: Vec<ExportDataSegment>,
+    pub output: WorkExecutionOutput,
+    pub export_segments: Vec<ExportDataSegment>,
 }
 
 pub enum AccumulateResult {
@@ -114,9 +114,9 @@ impl PVMInvocation {
         refinement_context: RefinementContext,
         authorizer_hash: Hash32,
         authorization_output: Octets,
-        import_segments: Vec<ExportDataSegment>,
+        _import_segments: Vec<ExportDataSegment>, // FIXME
         extrinsic_data_blobs: Vec<Octets>,
-        export_segment_offset: usize,
+        _export_segment_offset: usize, // FIXME
     ) -> Result<RefineResult, PVMError> {
         // retrieve the service account code via the historical lookup function
         let code = match state_manager.lookup_preimage(

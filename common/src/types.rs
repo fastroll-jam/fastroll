@@ -61,7 +61,7 @@ impl Display for ValidatorKey {
 
 impl Default for ValidatorKey {
     fn default() -> Self {
-        ValidatorKey {
+        Self {
             bandersnatch_key: [0u8; 32],
             ed25519_key: [0u8; 32],
             bls_key: [0u8; 144],

@@ -36,6 +36,7 @@ pub enum CellStatus {
 #[derive(Clone)]
 pub struct Memory {
     cells: Vec<MemoryCell>,
+    #[allow(dead_code)]
     page_size: usize,
     pub heap_start: MemAddress,
 }
