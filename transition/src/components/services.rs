@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::{Address, DeferredTransfer, WorkReport};
+use rjam_common::Address;
 use rjam_pvm_invocation::{
     accumulation::{
         invoke::{accumulate_outer, OuterAccumulationResult},
@@ -8,6 +8,7 @@ use rjam_pvm_invocation::{
     PVMInvocation, ACCUMULATION_GAS_ALL_CORES,
 };
 use rjam_state::StateManager;
+use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashSet;
 
 /// State transition function for Accumulate context state components.

@@ -1,5 +1,6 @@
+use crate::common::workloads::WorkReport;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Hash32, WorkReport, EPOCH_LENGTH};
+use rjam_common::{Hash32, EPOCH_LENGTH};
 use std::collections::{HashMap, HashSet};
 
 pub type SegmentRoot = Hash32;

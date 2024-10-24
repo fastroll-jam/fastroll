@@ -1,6 +1,7 @@
-use rjam_common::{Address, DeferredTransfer, WorkReport};
-use rjam_types::state::accumulate::{
-    AccumulateQueue, DeferredWorkReport, SegmentRoot, WorkPackageHash,
+use rjam_common::Address;
+use rjam_types::{
+    common::{transfers::DeferredTransfer, workloads::WorkReport},
+    state::accumulate::{AccumulateQueue, DeferredWorkReport, SegmentRoot, WorkPackageHash},
 };
 use std::collections::{HashMap, HashSet};
 

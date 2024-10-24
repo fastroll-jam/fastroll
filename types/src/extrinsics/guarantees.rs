@@ -1,6 +1,6 @@
-use crate::extrinsics::ExtrinsicsError;
+use crate::{common::workloads::WorkReport, extrinsics::ExtrinsicsError};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Ed25519Signature, WorkReport};
+use rjam_common::Ed25519Signature;
 
 /// Extrinsic entry containing a work report guaranteed by specific validators called `Guarantors`.
 ///

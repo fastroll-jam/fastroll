@@ -1,5 +1,6 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
-use rjam_common::{Hash32, Octets, WorkExecutionOutput};
+use rjam_common::{Hash32, Octets};
+use rjam_types::common::workloads::WorkExecutionOutput;
 
 #[derive(JamEncode)]
 pub struct AccumulateOperand {

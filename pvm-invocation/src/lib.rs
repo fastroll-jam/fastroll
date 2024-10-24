@@ -1,10 +1,7 @@
 pub mod accumulation;
 
 use rjam_codec::JamEncode;
-use rjam_common::{
-    Address, Balance, DeferredTransfer, Hash32, Octets, RefinementContext, UnsignedGas,
-    WorkExecutionError, WorkExecutionOutput, WorkPackage, MAX_SERVICE_CODE_SIZE,
-};
+use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_host_interface::contexts::{
     AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
@@ -19,7 +16,13 @@ use rjam_pvm_core::{
     },
 };
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::state::timeslot::Timeslot;
+use rjam_types::{
+    common::{
+        transfers::DeferredTransfer,
+        workloads::{RefinementContext, WorkExecutionError, WorkExecutionOutput, WorkPackage},
+    },
+    state::timeslot::Timeslot,
+};
 
 // Initial Program Counters
 const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;

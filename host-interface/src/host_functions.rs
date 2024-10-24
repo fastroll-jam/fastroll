@@ -6,8 +6,8 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Address, Balance, DeferredTransfer, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT,
-    HASH32_EMPTY, HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    Address, Balance, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY,
+    HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::utils::{hash, Blake2b256};
 use rjam_pvm_core::{
@@ -31,9 +31,12 @@ use rjam_pvm_core::{
     },
 };
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::state::{
-    services::{AccountMetadata, B_S},
-    validators::StagingSet,
+use rjam_types::{
+    common::transfers::DeferredTransfer,
+    state::{
+        services::{AccountMetadata, B_S},
+        validators::StagingSet,
+    },
 };
 
 #[repr(u32)]

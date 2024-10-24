@@ -1,8 +1,11 @@
 use crate::error::TransitionError;
-use rjam_common::{WorkReport, EPOCH_LENGTH};
+use rjam_common::EPOCH_LENGTH;
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, map_segment_roots};
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::state::{accumulate::DeferredWorkReport, timeslot::Timeslot};
+use rjam_types::{
+    common::workloads::WorkReport,
+    state::{accumulate::DeferredWorkReport, timeslot::Timeslot},
+};
 
 /// State transition function of `AccumulateQueue`.
 pub fn transition_accumulate_queue(

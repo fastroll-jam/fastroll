@@ -1,8 +1,8 @@
-use crate::state::timeslot::Timeslot;
+use crate::{common::workloads::WorkReport, state::timeslot::Timeslot};
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{Hash32, WorkReport, CORE_COUNT};
+use rjam_common::{Hash32, CORE_COUNT};
 use rjam_crypto::utils::{hash, Blake2b256};
 
 #[derive(Clone)]

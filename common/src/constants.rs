@@ -1,5 +1,3 @@
-// Constants
-
 pub const HASH_SIZE: usize = 32; // 32-byte hash
 pub const COMMON_ERA_TIMESTAMP: u64 = 1704110400; // 1200 UTC on January 1, 2024
 pub const SLOT_DURATION: u64 = 6; // 6 seconds per timeslot

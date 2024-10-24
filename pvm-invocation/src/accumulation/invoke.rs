@@ -1,7 +1,8 @@
 use crate::{AccumulateResult, PVMInvocation};
-use rjam_common::{Address, DeferredTransfer, Hash32, UnsignedGas, WorkReport};
+use rjam_common::{Address, Hash32, UnsignedGas};
 use rjam_pvm_core::types::{accumulation::AccumulateOperand, error::PVMError};
 use rjam_state::StateManager;
+use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashMap;
 
 type AccumulationOutputHash = Hash32;
