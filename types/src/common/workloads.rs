@@ -1,6 +1,16 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Address, Hash32, Octets, UnsignedGas, HASH32_EMPTY};
+use rjam_crypto::utils::{hash, Blake2b256, CryptoError};
 use std::{cmp::Ordering, collections::HashMap};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum WorkReportError {
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
+    #[error("JamCodec error: {0}")]
+    JamCodecError(#[from] JamCodecError),
+}
 
 #[derive(JamEncode)]
 pub struct WorkPackage {
@@ -50,6 +60,12 @@ impl Ord for WorkReport {
 }
 
 impl WorkReport {
+    pub fn hash(&self) -> Result<Hash32, WorkReportError> {
+        let mut buf = vec![];
+        self.encode_to(&mut buf)?;
+        Ok(hash::<Blake2b256>(&buf[..])?)
+    }
+
     pub fn prerequisite(&self) -> Option<Hash32> {
         self.refinement_context.prerequisite_work_package
     }

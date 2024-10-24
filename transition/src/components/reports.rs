@@ -19,7 +19,7 @@ pub fn transition_reports_eliminate_invalid(
 ) -> Result<(), TransitionError> {
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
         for report_hash in bad_set.iter().chain(wonky_set.iter()) {
-            pending_reports.remove_by_hash(report_hash);
+            pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
         }
     })?;
 

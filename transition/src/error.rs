@@ -3,7 +3,7 @@ use rjam_crypto::utils::CryptoError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;
-use rjam_types::state::safrole::FallbackKeyError;
+use rjam_types::state::{reports::PendingReportsError, safrole::FallbackKeyError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -24,6 +24,9 @@ pub enum TransitionError {
     BadTicketAttemptNumber,
     #[error("Ticket submission period has ended")]
     TicketSubmissionClosed,
+    // Pending Work Reports errors
+    #[error("PendingReports Error")]
+    PendingReportsError(#[from] PendingReportsError),
     // External errors
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
