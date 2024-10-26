@@ -8,10 +8,11 @@ use rjam_types::state::history::BlockHistoryEntry;
 ///
 /// # Transitions
 ///
-/// This handles the first state transition for `BlockHistory`. When a new block history
-/// entry is appended to the sequence, the block's state root field is initially set to an empty hash,
-/// as each block stores the state root of its parent block. This function performs the necessary
-/// update to reflect the correct parent state root before accumulation occurs for the current block.
+/// This handles the first state transition for `BlockHistory`, yielding `β†`.
+/// When a new block history entry is appended to the sequence, the block's state root field is
+/// initially set to an empty hash, as each block stores the state root of its parent block.
+/// This function performs the necessary update to reflect the correct parent state root
+/// before accumulation occurs for the current block.
 pub fn transition_block_history_parent_root(
     state_manager: &StateManager,
     root: Hash32,
@@ -33,12 +34,12 @@ pub fn transition_block_history_parent_root(
 ///
 /// # Transitions
 ///
-/// This handles the second state transition for `BlockHistory`. It constructs a new
-/// block history entry using the provided block header, work package hashes from guarantee
-/// extrinsics, and the accumulation result history Merkle Mountain Range (MMR). The new entry is
-/// then appended to the `BlockHistory` vector. If the total number of entries exceeds the maximum
-/// allowed (`H = 8`), the oldest entry is removed to maintain the length limit, ensuring only
-/// the most recent block history are retained.
+/// This handles the second state transition for `BlockHistory`, yielding `β′`.
+/// It constructs a new block history entry using the provided block header, work package hashes
+/// from guarantee extrinsics, and the accumulation result history Merkle Mountain Range (MMR).
+/// The new entry is then appended to the `BlockHistory` vector. If the total number of entries
+/// exceeds the maximum allowed (`H = 8`), the oldest entry is removed to maintain the length limit,
+/// ensuring only the most recent block history are retained.
 pub fn transition_block_history_append(
     state_manager: &StateManager,
     header_hash: Hash32,

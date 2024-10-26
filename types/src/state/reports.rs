@@ -5,13 +5,15 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{Hash32, CORE_COUNT};
+use rjam_common::{CoreIndex, Hash32, CORE_COUNT};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum PendingReportsError {
     #[error("WorkReport error: {0}")]
     WorkReportError(#[from] WorkReportError),
+    #[error("Invalid Core Index: {core_index}")]
+    InvalidCoreIndex { core_index: CoreIndex },
 }
 
 #[derive(Clone)]
@@ -31,6 +33,18 @@ impl PendingReports {
             }
         }
         Ok(false) // Hash not found
+    }
+
+    pub fn remove_by_core_index(
+        &mut self,
+        core_index: CoreIndex,
+    ) -> Result<(), PendingReportsError> {
+        if (core_index as usize) < CORE_COUNT {
+            self.0[core_index as usize] = None;
+            Ok(())
+        } else {
+            Err(PendingReportsError::InvalidCoreIndex { core_index })
+        }
     }
 }
 

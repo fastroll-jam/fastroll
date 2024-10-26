@@ -21,7 +21,7 @@ pub struct GuaranteesExtrinsic {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsicEntry {
     pub work_report: WorkReport,                          // w
-    timeslot: u32,                                        // t
+    timeslot_index: u32,                                  // t
     credentials: Vec<(ValidatorIndex, Ed25519Signature)>, // a; length either 2 or 3
 }
 
@@ -38,10 +38,10 @@ impl Ord for GuaranteesExtrinsicEntry {
 }
 
 impl GuaranteesExtrinsicEntry {
-    pub fn new(work_report: WorkReport, timeslot: u32) -> Self {
+    pub fn new(work_report: WorkReport, timeslot_index: u32) -> Self {
         Self {
             work_report,
-            timeslot,
+            timeslot_index,
             credentials: Vec::with_capacity(3),
         }
     }
