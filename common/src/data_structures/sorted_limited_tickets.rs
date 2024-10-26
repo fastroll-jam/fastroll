@@ -28,15 +28,15 @@ impl Display for SortedLimitedTickets {
 
 impl Default for SortedLimitedTickets {
     fn default() -> Self {
-        Self::new()
+        Self {
+            heap: BinaryHeap::with_capacity(EPOCH_LENGTH),
+        }
     }
 }
 
 impl SortedLimitedTickets {
     pub fn new() -> Self {
-        Self {
-            heap: BinaryHeap::with_capacity(EPOCH_LENGTH),
-        }
+        Self::default()
     }
 
     pub fn len(&self) -> usize {

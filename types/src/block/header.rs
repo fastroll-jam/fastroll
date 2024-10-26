@@ -15,16 +15,16 @@ pub struct EpochMarker {
 
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct BlockHeader {
-    parent_hash: Hash32,
-    prior_state_root: Hash32,
-    extrinsic_hash: Hash32,
-    timeslot_index: u32,
-    epoch_marker: Option<EpochMarker>,
-    winning_tickets_marker: Option<WinningTicketsMarker>,
-    offenders_marker: OffendersMarker,
-    block_author_index: ValidatorIndex,
-    vrf_signature: BandersnatchSignature,
-    block_seal: BandersnatchSignature,
+    parent_hash: Hash32,                                  // p
+    prior_state_root: Hash32,                             // r
+    extrinsic_hash: Hash32,                               // x
+    timeslot_index: u32,                                  // t
+    epoch_marker: Option<EpochMarker>,                    // e
+    winning_tickets_marker: Option<WinningTicketsMarker>, // w
+    offenders_marker: OffendersMarker,                    // o
+    block_author_index: ValidatorIndex,                   // i
+    vrf_signature: BandersnatchSignature,                 // v
+    block_seal: BandersnatchSignature,                    // s
 }
 
 impl BlockHeader {

@@ -1,7 +1,7 @@
 use crate::{common::workloads::WorkReport, extrinsics::ExtrinsicsError};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519Signature, ValidatorIndex};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Deref};
 
 /// # Ordering and Validation Rules for Extrinsic Components
 /// - The length of `items` is at most `CORE_COUNT`.
@@ -9,6 +9,14 @@ use std::cmp::Ordering;
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsic {
     items: Vec<GuaranteesExtrinsicEntry>,
+}
+
+impl Deref for GuaranteesExtrinsic {
+    type Target = Vec<GuaranteesExtrinsicEntry>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
 }
 
 /// Extrinsic entry containing a work report guaranteed by specific validators called `Guarantors`.

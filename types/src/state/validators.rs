@@ -1,7 +1,7 @@
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519PubKey, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{Ed25519PubKey, ValidatorIndex, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use std::{
     collections::HashSet,
     fmt::{Display, Formatter},
@@ -74,6 +74,19 @@ impl Display for ActiveSet {
         }
         writeln!(f, "  }}")?;
         write!(f, "}}")
+    }
+}
+
+impl ActiveSet {
+    pub fn get_validator_key_by_index(&self, validator_index: ValidatorIndex) -> ValidatorKey {
+        self.0[validator_index as usize]
+    }
+
+    pub fn get_validator_ed25519_key_by_index(
+        &self,
+        validator_index: ValidatorIndex,
+    ) -> Ed25519PubKey {
+        self.get_validator_key_by_index(validator_index).ed25519_key
     }
 }
 

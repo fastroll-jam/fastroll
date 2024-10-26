@@ -3,7 +3,7 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Deref};
 
 /// # Ordering and Validation Rules for Extrinsic Components
 /// - The length of `items` is at most `VALIDATOR_COUNT`.
@@ -12,6 +12,21 @@ use std::cmp::Ordering;
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct AssurancesExtrinsic {
     items: Vec<AssurancesExtrinsicEntry>,
+}
+
+impl Deref for AssurancesExtrinsic {
+    type Target = Vec<AssurancesExtrinsicEntry>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl AssurancesExtrinsic {
+    pub fn contains_assurance_for_validator(&self, validator_index: ValidatorIndex) -> bool {
+        self.iter()
+            .any(|entry| entry.validator_index == validator_index)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

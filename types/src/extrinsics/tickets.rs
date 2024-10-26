@@ -2,7 +2,7 @@ use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSignature;
 use rjam_crypto::vrf::RingVrfSignature;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Deref};
 
 /// # Ordering and Validation Rules for Extrinsic Components
 /// - The length of `items` is at most `K = 16` if the current slot phase `m'` is less than
@@ -10,6 +10,14 @@ use std::cmp::Ordering;
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct TicketsExtrinsic {
     items: Vec<TicketsExtrinsicEntry>,
+}
+
+impl Deref for TicketsExtrinsic {
+    type Target = Vec<TicketsExtrinsicEntry>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
