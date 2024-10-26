@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::{MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
+use rjam_common::{CoreIndex, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsicEntry, state::timeslot::Timeslot};
 
@@ -25,7 +25,7 @@ pub fn transition_auth_pool(
             // Find a guarantees extrinsics entry that utilized the current core, if there is any.
             let report_used_core = guarantees
                 .iter()
-                .find(|guarantee| guarantee.work_report.core_index() == core as u32)
+                .find(|guarantee| guarantee.work_report.core_index() == core as CoreIndex)
                 .map(|guarantee| guarantee.work_report.authorizer_hash());
 
             // Remove the oldest authorizer hash from the pool that matches the used one for the

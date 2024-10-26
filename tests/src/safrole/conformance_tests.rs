@@ -20,7 +20,7 @@ mod tests {
         procedures::chain_extension::mark_safrole_header_markers,
     };
     use rjam_types::{
-        extrinsics::tickets::TicketExtrinsicEntry,
+        extrinsics::tickets::TicketsExtrinsicEntry,
         state::{
             disputes::DisputesState,
             entropy::EntropyAccumulator,
@@ -86,7 +86,7 @@ mod tests {
         state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
             disputes.punish_set = input_punished_set;
         })?;
-        let input_ticket_extrinsics: Vec<TicketExtrinsicEntry> = test_input
+        let input_ticket_extrinsics: Vec<TicketsExtrinsicEntry> = test_input
             .extrinsic
             .clone()
             .into_iter()

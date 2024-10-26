@@ -3,8 +3,8 @@ use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
 use rjam_codec::JamDecode;
 use rjam_types::{
     extrinsics::{
-        assurances::AssuranceExtrinsicEntry, guarantees::GuaranteesExtrinsicEntry,
-        preimages::PreimageLookupExtrinsicEntry, tickets::TicketExtrinsicEntry,
+        assurances::AssurancesExtrinsicEntry, guarantees::GuaranteesExtrinsicEntry,
+        preimages::PreimageLookupsExtrinsicEntry, tickets::TicketsExtrinsicEntry,
     },
     state::timeslot::Timeslot,
 };
@@ -23,10 +23,10 @@ fn get_extrinsics(extrinsic_type: ExtrinsicType, timeslot: Timeslot) -> Vec<Extr
 }
 
 // Getters for Extrinsic entries in a deserialized form
-pub fn get_ticket_extrinsics(timeslot: Timeslot) -> Vec<TicketExtrinsicEntry> {
+pub fn get_ticket_extrinsics(timeslot: Timeslot) -> Vec<TicketsExtrinsicEntry> {
     get_extrinsics(ExtrinsicType::Ticket, timeslot)
         .into_iter()
-        .filter_map(|extrinsic| TicketExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok())
+        .filter_map(|extrinsic| TicketsExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok())
         .collect()
 }
 
@@ -39,20 +39,20 @@ pub fn get_guarantee_extrinsics(timeslot: Timeslot) -> Vec<GuaranteesExtrinsicEn
         .collect()
 }
 
-pub fn get_assurance_extrinsics(timeslot: Timeslot) -> Vec<AssuranceExtrinsicEntry> {
+pub fn get_assurance_extrinsics(timeslot: Timeslot) -> Vec<AssurancesExtrinsicEntry> {
     get_extrinsics(ExtrinsicType::Assurance, timeslot)
         .into_iter()
         .filter_map(|extrinsic| {
-            AssuranceExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
+            AssurancesExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
         })
         .collect()
 }
 
-pub fn get_lookup_extrinsics(timeslot: Timeslot) -> Vec<PreimageLookupExtrinsicEntry> {
+pub fn get_lookup_extrinsics(timeslot: Timeslot) -> Vec<PreimageLookupsExtrinsicEntry> {
     get_extrinsics(ExtrinsicType::PreimageLookup, timeslot)
         .into_iter()
         .filter_map(|extrinsic| {
-            PreimageLookupExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
+            PreimageLookupsExtrinsicEntry::decode(&mut extrinsic.data.as_slice()).ok()
         })
         .collect()
 }

@@ -9,7 +9,7 @@ use rjam_crypto::{
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
-    extrinsics::tickets::TicketExtrinsicEntry,
+    extrinsics::tickets::TicketsExtrinsicEntry,
     state::{
         entropy::EntropyAccumulator,
         safrole::{generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType},
@@ -39,7 +39,7 @@ pub fn transition_safrole(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
-    tickets: &[TicketExtrinsicEntry],
+    tickets: &[TicketsExtrinsicEntry],
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager, prior_timeslot)?;
@@ -115,7 +115,7 @@ fn update_slot_sealers(
 
 fn handle_ticket_accumulation(
     state_manager: &StateManager,
-    tickets: &[TicketExtrinsicEntry],
+    tickets: &[TicketsExtrinsicEntry],
 ) -> Result<(), TransitionError> {
     if tickets.is_empty() {
         return Ok(());
@@ -153,7 +153,7 @@ fn handle_ticket_accumulation(
 /// Validates submitted ticket extrinsics.
 fn validate_tickets(
     state_manager: &StateManager,
-    tickets: &[TicketExtrinsicEntry],
+    tickets: &[TicketsExtrinsicEntry],
 ) -> Result<(), TransitionError> {
     validate_tickets_order(tickets)?;
     validate_tickets_attempts(tickets)?;
@@ -164,7 +164,7 @@ fn validate_tickets(
 }
 
 /// Checks if the ticket extrinsics are ordered by ticket id.
-fn validate_tickets_order(tickets: &[TicketExtrinsicEntry]) -> Result<(), TransitionError> {
+fn validate_tickets_order(tickets: &[TicketsExtrinsicEntry]) -> Result<(), TransitionError> {
     for window in tickets.windows(2) {
         if let [prev, curr] = window {
             if prev > curr {
@@ -181,7 +181,7 @@ fn validate_tickets_order(tickets: &[TicketExtrinsicEntry]) -> Result<(), Transi
 /// The entropy_2 is the second history of the entropy accumulator, assuming that the Safrole state
 /// transition happens after the entropy transition.
 fn validate_tickets_proofs(
-    tickets: &[TicketExtrinsicEntry],
+    tickets: &[TicketsExtrinsicEntry],
     pending_set: &ValidatorSet,
     entropy_2: Hash32,
 ) -> Result<(), TransitionError> {
@@ -202,7 +202,7 @@ fn validate_tickets_proofs(
 }
 
 /// Checks if the ticket extrinsics have valid attempt numbers (0 or 1).
-fn validate_tickets_attempts(tickets: &[TicketExtrinsicEntry]) -> Result<(), TransitionError> {
+fn validate_tickets_attempts(tickets: &[TicketsExtrinsicEntry]) -> Result<(), TransitionError> {
     for ticket in tickets {
         if ticket.entry_index > 1 {
             return Err(TransitionError::BadTicketAttemptNumber);
@@ -212,7 +212,7 @@ fn validate_tickets_attempts(tickets: &[TicketExtrinsicEntry]) -> Result<(), Tra
 }
 
 pub(crate) fn ticket_extrinsics_to_new_tickets(
-    ticket_extrinsics: &[TicketExtrinsicEntry],
+    ticket_extrinsics: &[TicketsExtrinsicEntry],
 ) -> Vec<Ticket> {
     ticket_extrinsics
         .iter()

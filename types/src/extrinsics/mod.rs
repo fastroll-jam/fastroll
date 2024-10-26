@@ -1,7 +1,6 @@
 use crate::extrinsics::{
-    assurances::AssuranceExtrinsicEntry, disputes::DisputesExtrinsic,
-    guarantees::GuaranteesExtrinsicEntry, preimages::PreimageLookupExtrinsicEntry,
-    tickets::TicketExtrinsicEntry,
+    assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic, guarantees::GuaranteesExtrinsic,
+    preimages::PreimageLookupsExtrinsic, tickets::TicketsExtrinsic,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use thiserror::Error;
@@ -11,11 +10,6 @@ pub mod disputes;
 pub mod guarantees;
 pub mod preimages;
 pub mod tickets;
-
-pub type TicketsExtrinsic = Vec<TicketExtrinsicEntry>;
-pub type GuaranteesExtrinsic = Vec<GuaranteesExtrinsicEntry>;
-pub type AssurancesExtrinsic = Vec<AssuranceExtrinsicEntry>; // length up to VALIDATOR_COUNT
-pub type PreimageLookupsExtrinsic = Vec<PreimageLookupExtrinsicEntry>;
 
 #[derive(Debug, Error)]
 pub enum ExtrinsicsError {

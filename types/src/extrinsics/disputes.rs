@@ -5,7 +5,7 @@ use rjam_common::{
 };
 use std::cmp::Ordering;
 
-/// # Integrity of each extrinsic component
+/// # Ordering and Validation Rules for extrinsic components
 /// - `verdicts` must be ordered by report hash, and `judgments` of each `Verdict` must be ordered by
 ///   the voters' validator index.
 /// - Offender signatures `culprits` and `faults` must each be ordered by the validator's Ed25519 key.

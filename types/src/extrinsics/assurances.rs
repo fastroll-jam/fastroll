@@ -2,30 +2,39 @@ use bit_vec::BitVec;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519Signature, Hash32, CORE_COUNT};
+use rjam_common::{Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT};
 use std::cmp::Ordering;
 
+/// # Ordering and Validation Rules for Extrinsic Components
+/// - The length of `items` is at most `VALIDATOR_COUNT`.
+/// - The `anchor_parent_hash` of each entry must match the parent hash of the header.
+/// - `items` must be ordered by `validator_index` of each entry.
+#[derive(Debug, JamEncode, JamDecode)]
+pub struct AssurancesExtrinsic {
+    items: Vec<AssurancesExtrinsicEntry>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssuranceExtrinsicEntry {
-    anchor_parent_hash: Hash32,    // a
+pub struct AssurancesExtrinsicEntry {
+    anchor_parent_hash: Hash32,      // a
     assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
-    validator_index: u16,          // v; N_V
+    validator_index: ValidatorIndex, // v;
     signature: Ed25519Signature,   // s
 }
 
-impl PartialOrd for AssuranceExtrinsicEntry {
+impl PartialOrd for AssurancesExtrinsicEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for AssuranceExtrinsicEntry {
+impl Ord for AssurancesExtrinsicEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         self.validator_index.cmp(&other.validator_index)
     }
 }
 
-impl JamEncode for AssuranceExtrinsicEntry {
+impl JamEncode for AssurancesExtrinsicEntry {
     fn size_hint(&self) -> usize {
         self.anchor_parent_hash.size_hint()
             + (self.assuring_cores_bitvec.len() + 7) / 8 // size hint for packed bits in bytes (fixed-length encoding)
@@ -43,12 +52,12 @@ impl JamEncode for AssuranceExtrinsicEntry {
     }
 }
 
-impl JamDecode for AssuranceExtrinsicEntry {
+impl JamDecode for AssurancesExtrinsicEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             anchor_parent_hash: Hash32::decode(input)?,
             assuring_cores_bitvec: BitVec::decode_fixed(input, CORE_COUNT)?,
-            validator_index: u16::decode(input)?,
+            validator_index: ValidatorIndex::decode(input)?,
             signature: Ed25519Signature::decode(input)?,
         })
     }

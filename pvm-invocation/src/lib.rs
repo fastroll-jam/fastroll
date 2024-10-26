@@ -1,7 +1,9 @@
 pub mod accumulation;
 
 use rjam_codec::JamEncode;
-use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE};
+use rjam_common::{
+    Address, Balance, CoreIndex, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE,
+};
 use rjam_crypto::utils::octets_to_hash32;
 use rjam_host_interface::contexts::{
     AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
@@ -57,7 +59,7 @@ impl PVMInvocation {
     pub fn is_authorized(
         state_manager: &StateManager, // FIXME: not needed
         work_package: WorkPackage,
-        core_index: u32,
+        core_index: CoreIndex,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via the historical lookup function
         let code = match state_manager.lookup_preimage(

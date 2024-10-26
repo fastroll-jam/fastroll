@@ -9,6 +9,8 @@ use std::{
 pub type Hash32 = [u8; 32];
 pub type Octets = Vec<u8>;
 pub type Address = u32; // service account address (index)
+pub type ValidatorIndex = u16;
+pub type CoreIndex = u16;
 pub type Balance = u64;
 pub type BandersnatchPubKey = [u8; 32];
 pub type BandersnatchSignature = [u8; 96]; // `F` signature type

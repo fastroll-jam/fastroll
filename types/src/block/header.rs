@@ -1,7 +1,7 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
-    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, EPOCH_LENGTH,
-    VALIDATOR_COUNT,
+    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
+    EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
@@ -22,7 +22,7 @@ pub struct BlockHeader {
     epoch_marker: Option<EpochMarker>,
     winning_tickets_marker: Option<WinningTicketsMarker>,
     offenders_marker: OffendersMarker,
-    block_author_index: u16, //  N_V
+    block_author_index: ValidatorIndex,
     vrf_signature: BandersnatchSignature,
     block_seal: BandersnatchSignature,
 }

@@ -1,5 +1,5 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Address, Hash32, Octets, UnsignedGas, HASH32_EMPTY};
+use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas, HASH32_EMPTY};
 use rjam_crypto::utils::{hash, Blake2b256, CryptoError};
 use std::{cmp::Ordering, collections::HashMap};
 use thiserror::Error;
@@ -39,7 +39,7 @@ pub struct WorkItem {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
     authorizer_hash: Hash32,                       // a
-    core_index: u32,                               // c; N_C
+    core_index: CoreIndex,                         // c;
     authorization_output: Octets,                  // o
     refinement_context: RefinementContext,         // x
     specs: AvailabilitySpecs,                      // s
@@ -90,7 +90,7 @@ impl WorkReport {
         &self.authorization_output
     }
 
-    pub fn core_index(&self) -> u32 {
+    pub fn core_index(&self) -> CoreIndex {
         self.core_index
     }
 

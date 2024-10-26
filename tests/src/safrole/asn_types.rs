@@ -9,7 +9,7 @@ use rjam_common::{
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
     block::header::EpochMarker,
-    extrinsics::tickets::TicketExtrinsicEntry,
+    extrinsics::tickets::TicketsExtrinsicEntry,
     state::{
         entropy::EntropyAccumulator,
         safrole::{SafroleState, SlotSealerType},
@@ -204,9 +204,9 @@ pub struct TicketEnvelope {
     signature: [U8; 784],
 }
 
-impl From<TicketEnvelope> for TicketExtrinsicEntry {
+impl From<TicketEnvelope> for TicketsExtrinsicEntry {
     fn from(envelope: TicketEnvelope) -> Self {
-        TicketExtrinsicEntry {
+        TicketsExtrinsicEntry {
             ticket_proof: Box::new(envelope.signature),
             entry_index: envelope.attempt,
         }
