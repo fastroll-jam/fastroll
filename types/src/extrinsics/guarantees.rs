@@ -8,7 +8,7 @@ use std::{cmp::Ordering, ops::Deref};
 /// - `items` must be ordered by the `core_index` field in the `work_report` of each entry.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsic {
-    items: Vec<GuaranteesExtrinsicEntry>,
+    pub items: Vec<GuaranteesExtrinsicEntry>,
 }
 
 impl Deref for GuaranteesExtrinsic {

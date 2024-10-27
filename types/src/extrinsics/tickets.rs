@@ -9,7 +9,7 @@ use std::{cmp::Ordering, ops::Deref};
 ///   `Y = 500`. Otherwise, the `items` must be empty.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct TicketsExtrinsic {
-    items: Vec<TicketsExtrinsicEntry>,
+    pub items: Vec<TicketsExtrinsicEntry>,
 }
 
 impl Deref for TicketsExtrinsic {

@@ -5,13 +5,11 @@ use rjam_codec::{
 use rjam_common::{Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT};
 use std::{cmp::Ordering, ops::Deref};
 
-/// # Ordering and Validation Rules for Extrinsic Components
-/// - The length of `items` is at most `VALIDATOR_COUNT`.
-/// - The `anchor_parent_hash` of each entry must match the parent hash of the header.
-/// - `items` must be ordered by `validator_index` of each entry.
+/// Represents a sequence of validator assurances regarding the availability of work-reports
+/// on assigned cores.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct AssurancesExtrinsic {
-    items: Vec<AssurancesExtrinsicEntry>,
+    pub items: Vec<AssurancesExtrinsicEntry>,
 }
 
 impl Deref for AssurancesExtrinsic {
@@ -31,10 +29,10 @@ impl AssurancesExtrinsic {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssurancesExtrinsicEntry {
-    anchor_parent_hash: Hash32,      // a
-    assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
-    validator_index: ValidatorIndex, // v;
-    signature: Ed25519Signature,   // s
+    pub anchor_parent_hash: Hash32,      // a
+    pub assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
+    pub validator_index: ValidatorIndex, // v;
+    pub signature: Ed25519Signature,   // s
 }
 
 impl PartialOrd for AssurancesExtrinsicEntry {

@@ -12,9 +12,9 @@ use std::cmp::Ordering;
 /// - No duplicate report hashes allowed within the extrinsic, nor amongst any past reported hashes.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct DisputesExtrinsic {
-    verdicts: Vec<Verdict>, // v
-    culprits: Vec<Culprit>, // c
-    faults: Vec<Fault>,     // f
+    pub verdicts: Vec<Verdict>, // v
+    pub culprits: Vec<Culprit>, // c
+    pub faults: Vec<Fault>,     // f
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]

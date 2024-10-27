@@ -10,3 +10,4 @@ rjam-crypto = { workspace = true }
 rjam-state = { workspace = true }
 rjam-types = { workspace = true }
 lazy_static = { workspace = true }
+thiserror = { workspace = true }

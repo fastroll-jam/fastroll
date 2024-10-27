@@ -7,7 +7,7 @@ use std::ops::Deref;
 /// - `items` must have no duplicate entries.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct PreimageLookupsExtrinsic {
-    items: Vec<PreimageLookupsExtrinsicEntry>,
+    pub items: Vec<PreimageLookupsExtrinsicEntry>,
 }
 
 impl Deref for PreimageLookupsExtrinsic {

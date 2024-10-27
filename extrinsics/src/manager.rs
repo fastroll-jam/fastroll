@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::extrinsics_pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
+use crate::pool::{ExtrinsicEntry, ExtrinsicType, EXTRINSICS_POOL};
 use rjam_codec::JamDecode;
 use rjam_types::{
     extrinsics::{

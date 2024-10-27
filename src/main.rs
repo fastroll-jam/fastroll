@@ -1,4 +1,4 @@
-use rjam_extrinsics::extrinsics_pool::EXTRINSICS_POOL;
+use rjam_extrinsics::pool::EXTRINSICS_POOL;
 
 fn main() {
     // Explicitly initialize the extrinsics pool

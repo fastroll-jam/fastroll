@@ -1013,6 +1013,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-state",
  "rjam-types",
+ "thiserror",
 ]
 
 [[package]]
