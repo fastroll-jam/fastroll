@@ -1,9 +1,13 @@
+#![allow(dead_code)]
 use crate::validation::error::ExtrinsicValidationError;
 use rjam_codec::JamEncode;
 use rjam_common::{Hash32, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::StateManager;
-use rjam_types::extrinsics::assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry};
+use rjam_types::{
+    extrinsics::assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
+    state::validators::get_validator_ed25519_key_by_index,
+};
 
 /// Validates contents of `AssurancesExtrinsic` type.
 ///
@@ -16,9 +20,9 @@ use rjam_types::extrinsics::assurances::{AssurancesExtrinsic, AssurancesExtrinsi
 /// - The length of `items` must not exceed `VALIDATOR_COUNT`.
 ///
 /// ## Entry Validation
-/// - The `anchor_parent_hash` of each entry must match the parent hash of the block header.
-/// - Each entry's `signature` must be a valid Ed25519 signature, signed by the public key
-///   corresponding to the `validator_index`.
+/// - Each entry's `anchor_parent_hash` must match the parent hash of the current block header.
+/// - Each entry's `signature` must be a valid Ed25519 signature of a message that includes the
+///   parent hash and the `assuring_cores_bitvec`, signed by the public key corresponding to the `validator_index`.
 /// - The `assuring_cores_bitvec` must only have bits set for cores that have pending reports
 ///   awaiting availability.
 pub struct AssurancesExtrinsicValidator<'a> {
@@ -80,7 +84,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
 
         let current_active_set = self.state_manager.get_active_set()?;
         let assurer_public_key =
-            current_active_set.get_validator_ed25519_key_by_index(entry.validator_index);
+            get_validator_ed25519_key_by_index(&current_active_set.0, entry.validator_index);
 
         if !verify_signature(&message, &assurer_public_key, &entry.signature) {
             return Ok(false);

@@ -25,7 +25,6 @@ impl<H: Hasher> WellBalancedMerkleTree<H> {
             return Ok(hash::<H>(&data[0])?);
         }
 
-        octets_to_hash32(&node::<H>(data)?)
-            .ok_or_else(|| MerkleError::CryptoError(CryptoError::HashError))
+        octets_to_hash32(&node::<H>(data)?).ok_or(MerkleError::CryptoError(CryptoError::HashError))
     }
 }

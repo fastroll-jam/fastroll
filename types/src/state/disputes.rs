@@ -11,11 +11,19 @@ pub struct DisputesState {
 }
 
 impl DisputesState {
-    pub fn get_punish_set(self) -> HashSet<Ed25519PubKey> {
-        self.punish_set
+    pub fn get_punish_set(&self) -> &HashSet<Ed25519PubKey> {
+        &self.punish_set
     }
 
     pub fn set_punish_set(&mut self, punish_set: HashSet<Ed25519PubKey>) {
         self.punish_set = punish_set;
+    }
+
+    pub fn get_all_report_hashes(&self) -> HashSet<Hash32> {
+        self.good_set
+            .union(&self.bad_set)
+            .chain(self.wonky_set.iter())
+            .cloned()
+            .collect()
     }
 }

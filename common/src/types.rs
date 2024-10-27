@@ -1,4 +1,4 @@
-use crate::VALIDATOR_COUNT;
+use crate::{HASH_SIZE, VALIDATOR_COUNT};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
@@ -6,7 +6,7 @@ use std::{
 };
 
 // Type aliases
-pub type Hash32 = [u8; 32];
+pub type Hash32 = [u8; HASH_SIZE];
 pub type Octets = Vec<u8>;
 pub type Address = u32; // service account address (index)
 pub type ValidatorIndex = u16;
@@ -19,7 +19,6 @@ pub type BandersnatchRingVrfSignature = Box<[u8; 784]>; // `F bar` signature typ
 pub type Ed25519PubKey = [u8; 32];
 pub type Ed25519SecretKey = [u8; 32];
 pub type Ed25519Signature = [u8; 64];
-pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
 pub type BlsPubKey = [u8; 144];
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;

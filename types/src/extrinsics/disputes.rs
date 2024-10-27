@@ -1,15 +1,11 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
-    Address, Ed25519PubKey, Ed25519SignatureWithKeyAndMessage, Hash32,
-    FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
 use std::cmp::Ordering;
 
-/// # Ordering and Validation Rules for extrinsic components
-/// - `verdicts` must be ordered by report hash, and `judgments` of each `Verdict` must be ordered by
-///   the voters' validator index.
-/// - Offender signatures `culprits` and `faults` must each be ordered by the validator's Ed25519 key.
-/// - No duplicate report hashes allowed within the extrinsic, nor amongst any past reported hashes.
+/// Represents a collection of judgments regarding the validity of work reports and the misbehavior
+/// of validators.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct DisputesExtrinsic {
     pub verdicts: Vec<Verdict>, // v
@@ -19,9 +15,9 @@ pub struct DisputesExtrinsic {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct Verdict {
-    report_hash: Hash32,                                              // r
-    epoch_index: u32,                                                 // a
-    judgments: Box<[Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
+    pub report_hash: Hash32,                                              // r
+    pub epoch_index: u32,                                                 // a
+    pub judgments: Box<[Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
 }
 
 impl PartialOrd for Verdict {
@@ -51,10 +47,10 @@ impl JamDecode for Verdict {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
-struct Judgment {
-    is_report_valid: bool,                              // v
-    voter: Address,                                     // i
-    voter_signature: Ed25519SignatureWithKeyAndMessage, // s
+pub struct Judgment {
+    pub is_report_valid: bool,             // v
+    pub voter: ValidatorIndex,             // i
+    pub voter_signature: Ed25519Signature, // s
 }
 
 impl Default for Judgment {
@@ -79,11 +75,12 @@ impl Ord for Judgment {
     }
 }
 
+/// Set of validators which have guaranteed a wrong work report.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Culprit {
-    report_hash: Hash32,
-    validator_key: Ed25519PubKey,
-    signature: Ed25519SignatureWithKeyAndMessage,
+    pub report_hash: Hash32,          // r
+    pub validator_key: Ed25519PubKey, // k; the guarantor
+    pub signature: Ed25519Signature,  // s
 }
 
 impl PartialOrd for Culprit {
@@ -98,12 +95,15 @@ impl Ord for Culprit {
     }
 }
 
+/// Set of validators which have cast a wrong vote (judgment) for a dispute, either:
+/// - Cast `is_valid=false` for a good report.
+/// - Cast `is_valid=true` for a bad report.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Fault {
-    report_hash: Hash32,
-    is_report_valid: bool,
-    validator_key: Ed25519PubKey,
-    signature: Ed25519SignatureWithKeyAndMessage,
+    pub report_hash: Hash32,          // r
+    pub is_report_valid: bool,        // v
+    pub validator_key: Ed25519PubKey, // k; the voter
+    pub signature: Ed25519Signature,  // s
 }
 
 impl PartialOrd for Fault {

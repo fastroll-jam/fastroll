@@ -1,8 +1,12 @@
 use crate::error::TransitionError;
 use rjam_common::{Ed25519PubKey, ValidatorIndex};
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::extrinsics::{
-    assurances::AssurancesExtrinsic, preimages::PreimageLookupsExtrinsic, tickets::TicketsExtrinsic,
+use rjam_types::{
+    extrinsics::{
+        assurances::AssurancesExtrinsic, preimages::PreimageLookupsExtrinsic,
+        tickets::TicketsExtrinsic,
+    },
+    state::validators::get_validator_ed25519_key_by_index,
 };
 
 /// State transition function of `ValidatorStats`
@@ -71,7 +75,8 @@ fn handle_stats_accumulation(
 
             // Update `guarantees_count` if the current validator's Ed25519 public key is in `reporters`.
             if reporters.iter().any(|reporter| {
-                reporter == &current_active_set.get_validator_ed25519_key_by_index(validator_index)
+                reporter
+                    == &get_validator_ed25519_key_by_index(&current_active_set.0, validator_index)
             }) {
                 validator_stats.guarantees_count += 1;
             }

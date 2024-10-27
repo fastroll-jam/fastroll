@@ -78,15 +78,11 @@ impl Display for ActiveSet {
 }
 
 impl ActiveSet {
-    pub fn get_validator_key_by_index(&self, validator_index: ValidatorIndex) -> ValidatorKey {
-        self.0[validator_index as usize]
-    }
-
-    pub fn get_validator_ed25519_key_by_index(
-        &self,
-        validator_index: ValidatorIndex,
-    ) -> Ed25519PubKey {
-        self.get_validator_key_by_index(validator_index).ed25519_key
+    pub fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
+        self.0
+            .iter()
+            .map(|validator| validator.ed25519_key)
+            .collect()
     }
 }
 
@@ -112,4 +108,28 @@ impl Display for PastSet {
         writeln!(f, "  }}")?;
         write!(f, "}}")
     }
+}
+
+impl PastSet {
+    pub fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
+        self.0
+            .iter()
+            .map(|validator| validator.ed25519_key)
+            .collect()
+    }
+}
+
+// Util Functions
+pub fn get_validator_key_by_index(
+    validator_set: &ValidatorSet,
+    validator_index: ValidatorIndex,
+) -> ValidatorKey {
+    validator_set[validator_index as usize]
+}
+
+pub fn get_validator_ed25519_key_by_index(
+    validator_set: &ValidatorSet,
+    validator_index: ValidatorIndex,
+) -> Ed25519PubKey {
+    get_validator_key_by_index(validator_set, validator_index).ed25519_key
 }

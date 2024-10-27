@@ -33,7 +33,7 @@ pub trait JamInput {
     }
 }
 
-impl<'a> JamInput for &'a [u8] {
+impl JamInput for &[u8] {
     fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError> {
         if into.len() > self.len() {
             return Err(JamCodecError::InputError(
