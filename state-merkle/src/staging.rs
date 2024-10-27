@@ -3,7 +3,7 @@ use crate::{
     utils::lsb_bits_to_bytes,
 };
 use rjam_common::{Hash32, Octets};
-use rjam_crypto::utils::{hash, Blake2b256};
+use rjam_crypto::{hash, Blake2b256};
 use rocksdb::WriteBatch;
 use std::collections::{BTreeMap, HashMap, HashSet};
 

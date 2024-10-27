@@ -2,7 +2,7 @@ use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
 use rjam_common::{Hash32, BLOCK_HISTORY_LENGTH};
-use rjam_crypto::utils::Keccak256;
+use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 
 #[derive(Clone)]

@@ -9,7 +9,7 @@ use rjam_common::{
     Address, Balance, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY,
     HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use rjam_crypto::utils::{hash, Blake2b256};
+use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
     constants::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,

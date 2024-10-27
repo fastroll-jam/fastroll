@@ -8,7 +8,7 @@ use crate::{
     error::TransitionError,
 };
 use rjam_common::{ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT};
-use rjam_crypto::utils::entropy_hash_ietf_vrf;
+use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
 use rjam_types::{
     block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},

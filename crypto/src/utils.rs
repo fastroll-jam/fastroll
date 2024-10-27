@@ -1,30 +1,11 @@
-use crate::vrf::{IetfVrfSignature, RingVrfSignature};
-use ark_ec_vrfs::prelude::{ark_serialize, ark_serialize::SerializationError};
+use crate::{CryptoError, IetfVrfSignature, RingVrfSignature};
+use ark_ec_vrfs::prelude::ark_serialize;
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32, Octets};
-use thiserror::Error;
 
 pub type Blake2b256 = Blake2b<U32>;
 pub type Keccak256 = sha3::Keccak256;
-
-#[derive(Debug, Error)]
-pub enum CryptoError {
-    #[error("General Hashing Error")]
-    HashError,
-    #[error("Blake2b Hashing Error")]
-    Blake2bHashError,
-    #[error("Keccak256 Hashing Error")]
-    Keccak256HashError,
-    #[error("Hash Conversion Error")]
-    HashConversionError,
-    #[error("Failed to find ring context resource")]
-    RingContextResourceError,
-    #[error("Serialization Error")]
-    SerializationError(SerializationError),
-    #[error("VRF proof verification Error")]
-    VrfVerificationFailed,
-}
 
 /// Trait for different types of hasher
 pub trait Hasher {

@@ -1,7 +1,7 @@
 use crate::inner_vm::InnerPVM;
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, Hash32, UnsignedGas};
-use rjam_crypto::utils::{hash, Blake2b256};
+use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::StateManager;
 use rjam_types::{common::transfers::DeferredTransfer, state::timeslot::Timeslot};

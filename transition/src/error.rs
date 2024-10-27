@@ -1,5 +1,5 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
-use rjam_crypto::utils::CryptoError;
+use rjam_crypto::CryptoError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;

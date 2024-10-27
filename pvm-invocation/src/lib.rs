@@ -4,7 +4,7 @@ use rjam_codec::JamEncode;
 use rjam_common::{
     Address, Balance, CoreIndex, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE,
 };
-use rjam_crypto::utils::octets_to_hash32;
+use rjam_crypto::octets_to_hash32;
 use rjam_host_interface::contexts::{
     AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
 };

@@ -1,4 +1,4 @@
-use crate::utils::CryptoError;
+use crate::CryptoError;
 /// The following code originates from the `bandersnatch-vrfs-spec` repository.
 /// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
 use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;

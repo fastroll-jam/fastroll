@@ -1,5 +1,5 @@
 use rjam_codec::JamCodecError;
-use rjam_crypto::utils::CryptoError;
+use rjam_crypto::CryptoError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

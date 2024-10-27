@@ -6,7 +6,7 @@ use rjam_common::{
     Ticket, ValidatorKey, ValidatorSet, BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH,
     VALIDATOR_COUNT,
 };
-use rjam_crypto::utils::{hash_prefix_4, Blake2b256, CryptoError};
+use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 

@@ -1,5 +1,5 @@
 use crate::test_utils::{deserialize_hex, serialize_hex};
-use rjam_crypto::utils::Hasher;
+use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_types::state::history::{BlockHistory, BlockHistoryEntry};
 use serde::{Deserialize, Serialize};

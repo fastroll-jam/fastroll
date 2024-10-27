@@ -17,6 +17,7 @@ pub type BandersnatchSignature = [u8; 96]; // `F` signature type
 pub type BandersnatchRingRoot = [u8; 144];
 pub type BandersnatchRingVrfSignature = Box<[u8; 784]>; // `F bar` signature type
 pub type Ed25519PubKey = [u8; 32];
+pub type Ed25519SecretKey = [u8; 32];
 pub type Ed25519Signature = [u8; 64];
 pub type Ed25519SignatureWithKeyAndMessage = Ed25519Signature;
 pub type BlsPubKey = [u8; 144];

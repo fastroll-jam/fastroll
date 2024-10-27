@@ -6,7 +6,7 @@ use crate::{
 use bit_vec::BitVec;
 use rjam_codec::JamDecodeFixed;
 use rjam_common::{Hash32, Octets};
-use rjam_crypto::utils::{hash, Blake2b256};
+use rjam_crypto::{hash, Blake2b256};
 
 pub struct MerkleNodeCodec;
 

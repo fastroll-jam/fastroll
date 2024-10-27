@@ -1,6 +1,6 @@
 use crate::state::memory::MemoryError;
 use rjam_codec::JamCodecError;
-use rjam_crypto::utils::CryptoError;
+use rjam_crypto::CryptoError;
 use rjam_state::StateManagerError;
 use thiserror::Error;
 

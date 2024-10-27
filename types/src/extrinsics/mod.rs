@@ -3,6 +3,7 @@ use crate::extrinsics::{
     preimages::PreimageLookupsExtrinsic, tickets::TicketsExtrinsic,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_crypto::CryptoError;
 use thiserror::Error;
 
 pub mod assurances;
@@ -17,6 +18,10 @@ pub enum ExtrinsicsError {
     DuplicateValidatorIndex,
     #[error("Invalid number of credentials. Must have either 2 or 3 credentials")]
     InvalidCredentialCount,
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
 /// Struct used for Extrinsics serialization

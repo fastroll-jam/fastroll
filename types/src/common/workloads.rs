@@ -1,6 +1,6 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas, HASH32_EMPTY};
-use rjam_crypto::utils::{hash, Blake2b256, CryptoError};
+use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::{cmp::Ordering, collections::HashMap};
 use thiserror::Error;
 

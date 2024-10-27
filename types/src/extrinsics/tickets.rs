@@ -1,7 +1,7 @@
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSignature;
-use rjam_crypto::vrf::RingVrfSignature;
+use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, ops::Deref};
 
 /// # Ordering and Validation Rules for Extrinsic Components

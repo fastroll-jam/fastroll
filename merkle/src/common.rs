@@ -1,6 +1,6 @@
 use rjam_codec::JamCodecError;
 use rjam_common::{Octets, HASH32_EMPTY};
-use rjam_crypto::utils::{hash, CryptoError, Hasher};
+use rjam_crypto::{hash, CryptoError, Hasher};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,7 +36,7 @@ pub fn node<H: Hasher>(data: &[Octets]) -> Result<Octets, MerkleError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rjam_crypto::utils::Blake2b256;
+    use rjam_crypto::Blake2b256;
 
     #[test]
     fn test_node_empty() -> Result<(), MerkleError> {

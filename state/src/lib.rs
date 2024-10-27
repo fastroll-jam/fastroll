@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
 use rjam_common::{Address, Hash32, Octets, HASH32_EMPTY};
-use rjam_crypto::utils::octets_to_hash32;
+use rjam_crypto::octets_to_hash32;
 use rjam_db::{StateDB, StateDBError};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
 use rjam_types::state::{

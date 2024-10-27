@@ -4,8 +4,7 @@ use rjam_common::{
     TICKET_SUBMISSION_DEADLINE_SLOT, X_T,
 };
 use rjam_crypto::{
-    generate_ring_root, utils::entropy_hash_ring_vrf, validator_set_to_bandersnatch_ring,
-    vrf::Verifier,
+    entropy_hash_ring_vrf, generate_ring_root, validator_set_to_bandersnatch_ring, Verifier,
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
@@ -189,7 +188,7 @@ fn validate_tickets_proofs(
     let verifier = Verifier::new(ring);
     for ticket in tickets {
         let mut expected_vrf_input = vec![];
-        expected_vrf_input.extend_from_slice(X_T.as_bytes());
+        expected_vrf_input.extend_from_slice(X_T);
         expected_vrf_input.extend_from_slice(&entropy_2);
         expected_vrf_input.push(ticket.entry_index);
 
