@@ -39,7 +39,7 @@ pub struct WorkItem {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
     authorizer_hash: Hash32,                       // a
-    core_index: CoreIndex,                         // c;
+    core_index: CoreIndex,                         // c
     authorization_output: Octets,                  // o
     refinement_context: RefinementContext,         // x
     specs: AvailabilitySpecs,                      // s
@@ -64,6 +64,10 @@ impl WorkReport {
         let mut buf = vec![];
         self.encode_to(&mut buf)?;
         Ok(hash::<Blake2b256>(&buf[..])?)
+    }
+
+    pub fn refinement_context(&self) -> &RefinementContext {
+        &self.refinement_context
     }
 
     pub fn prerequisite(&self) -> Option<Hash32> {

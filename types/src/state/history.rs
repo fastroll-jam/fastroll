@@ -26,13 +26,25 @@ impl BlockHistory {
     /// Returns the most recent block history.
     ///
     /// Returns `None` if the block history sequence is empty.
-    pub fn get_latest_history(&self) -> Option<BlockHistoryEntry> {
+    pub fn get_latest_history(&self) -> Option<&BlockHistoryEntry> {
         if self.0.is_empty() {
             return None;
         }
 
         let last_index = self.0.len() - 1;
-        Some(self.0[last_index].clone())
+        Some(&self.0[last_index])
+    }
+
+    pub fn get_by_header_hash(&self, header_hash: &Hash32) -> Option<&BlockHistoryEntry> {
+        self.0
+            .iter()
+            .find(|entry| entry.header_hash == *header_hash)
+    }
+
+    pub fn check_work_package_hash_exists(&self, work_package_hash: &Hash32) -> bool {
+        self.0
+            .iter()
+            .any(|entry| entry.work_package_hashes.contains(work_package_hash))
     }
 }
 

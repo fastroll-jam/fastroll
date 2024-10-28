@@ -1,3 +1,4 @@
 pub mod assurances;
-mod disputes;
-mod error;
+pub mod disputes;
+pub mod error;
+pub mod guarantees;

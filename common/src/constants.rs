@@ -1,26 +1,28 @@
 pub const HASH_SIZE: usize = 32; // 32-byte hash
-pub const COMMON_ERA_TIMESTAMP: u64 = 1704110400; // 1200 UTC on January 1, 2024
-pub const SLOT_DURATION: u64 = 6; // 6 seconds per timeslot
+pub const COMMON_ERA_TIMESTAMP: u64 = 1_704_110_400; // 1200 UTC on January 1, 2024
+pub const SLOT_DURATION: u64 = 6; // P; 6 seconds per timeslot
 
 #[cfg(not(feature = "testing"))]
-pub const VALIDATOR_COUNT: usize = 1023; // 1023 validators
+pub const VALIDATOR_COUNT: usize = 1023; // V; 1023 validators
 #[cfg(feature = "testing")]
 pub const VALIDATOR_COUNT: usize = 6; // 6 validators (for tiny test vectors)
 #[cfg(not(feature = "testing"))]
-pub const EPOCH_LENGTH: usize = 600; // 600 timeslots per epoch
+pub const EPOCH_LENGTH: usize = 600; // E; 600 timeslots per epoch
 #[cfg(feature = "testing")]
 pub const EPOCH_LENGTH: usize = 12; // 12 timeslots per epoch (for tiny test vectors)
 pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
-pub const CORE_COUNT: usize = 341;
+pub const CORE_COUNT: usize = 341; // C
 #[cfg(not(feature = "testing"))]
-pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 500;
+pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 500; // Y
 #[cfg(feature = "testing")]
 pub const TICKET_SUBMISSION_DEADLINE_SLOT: usize = 10;
-pub const MAX_AUTH_POOL_SIZE: usize = 8;
-pub const MAX_AUTH_QUEUE_SIZE: usize = 80;
-pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
-pub const TRANSFER_MEMO_SIZE: usize = 128;
-pub const BLOCK_HISTORY_LENGTH: usize = 8;
+pub const MAX_AUTH_POOL_SIZE: usize = 8; // O
+pub const MAX_AUTH_QUEUE_SIZE: usize = 80; // Q
+pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000; // W_C
+pub const TRANSFER_MEMO_SIZE: usize = 128; // W_T
+pub const BLOCK_HISTORY_LENGTH: usize = 8; // H
+pub const PENDING_REPORT_TIMEOUT: usize = 5; // U
+pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400; // L
 
 // Signing Contexts or Domain Specifiers
 pub const X_A: &[u8] = b"jam_available"; // Ed25519 Availability assurances

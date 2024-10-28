@@ -20,11 +20,14 @@ use rjam_types::{
 /// - The length of `items` must not exceed `VALIDATOR_COUNT`.
 ///
 /// ## Entry Validation
-/// - Each entry's `anchor_parent_hash` must match the parent hash of the current block header.
-/// - Each entry's `signature` must be a valid Ed25519 signature of a message that includes the
-///   parent hash and the `assuring_cores_bitvec`, signed by the public key corresponding to the `validator_index`.
-/// - The `assuring_cores_bitvec` must only have bits set for cores that have pending reports
-///   awaiting availability.
+/// - `anchor_parent_hash`
+///   - Each entry's `anchor_parent_hash` must match the parent hash of the current block header.
+/// - `signature`
+///   - Each entry's `signature` must be a valid Ed25519 signature of a message that includes the
+///     parent hash and the `assuring_cores_bitvec`, signed by the public key corresponding to the `validator_index`.
+/// - `assuring_cores_bitvec`
+///   - The `assuring_cores_bitvec` must only have bits set for cores that have pending reports
+///     awaiting availability.
 pub struct AssurancesExtrinsicValidator<'a> {
     state_manager: &'a StateManager,
 }
@@ -52,10 +55,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
 
         // Validate each entry
         let all_valid = extrinsic.items.iter().all(|entry| {
-            match self.validate_entry(entry, header_parent_hash) {
-                Ok(true) => true,
-                _ => false, // TODO: Check if we need error propagation.
-            }
+            matches!(self.validate_entry(entry, header_parent_hash), Ok(true)) // TODO: Check if we need error propagation.
         });
 
         Ok(all_valid)

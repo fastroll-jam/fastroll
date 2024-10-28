@@ -28,7 +28,7 @@ use std::collections::HashSet;
 /// - No length limit applies.
 ///
 /// ## Entry Validation
-/// - No duplicate report hashes are allowed within the extrinsic or among any previously reported hashes.
+/// - No duplicate work-report hashes are allowed within the extrinsic or among any previously reported hashes.
 /// - `verdicts`
 ///     - All `voter_signature`s in `judgments` must be valid Ed25519 signatures of the work report
 ///       hash, signed by the corresponding public keys of the `voter`s,
@@ -214,9 +214,10 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         }
 
         // Validate the signature
-        let mut message = Vec::with_capacity(X_G.len() + HASH_SIZE);
+        let hash = &entry.report_hash;
+        let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
-        message.extend_from_slice(&entry.report_hash);
+        message.extend_from_slice(hash);
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
             return Ok(false);

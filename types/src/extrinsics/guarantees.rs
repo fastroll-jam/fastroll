@@ -3,9 +3,10 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519Signature, ValidatorIndex};
 use std::{cmp::Ordering, ops::Deref};
 
-/// # Ordering and Validation Rules for Extrinsic Components
-/// - The length of `items` is at most `CORE_COUNT`.
-/// - `items` must be ordered by the `core_index` field in the `work_report` of each entry.
+pub type GuaranteesCredential = (ValidatorIndex, Ed25519Signature);
+
+/// Represents a sequence of validator guarantees affirming the validity of a work report
+/// to be processed on-chain.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsic {
     pub items: Vec<GuaranteesExtrinsicEntry>,
@@ -23,14 +24,11 @@ impl Deref for GuaranteesExtrinsic {
 ///
 /// Each block, three `Guarantors` are assigned per core to verify accuracy of the work and this
 /// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
-///
-/// - `credentials` must have a length of either 2 or 3.
-/// - `credentials` must be ordered by the `validator_index`.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsicEntry {
-    pub work_report: WorkReport,                          // w
-    timeslot_index: u32,                                  // t
-    credentials: Vec<(ValidatorIndex, Ed25519Signature)>, // a; length either 2 or 3
+    pub work_report: WorkReport,            // w
+    timeslot_index: u32,                    // t
+    credentials: Vec<GuaranteesCredential>, // a
 }
 
 impl PartialOrd for GuaranteesExtrinsicEntry {
@@ -81,7 +79,7 @@ impl GuaranteesExtrinsicEntry {
         Ok(())
     }
 
-    pub fn get_credentials(&self) -> &[(ValidatorIndex, Ed25519Signature)] {
+    pub fn credentials(&self) -> &Vec<GuaranteesCredential> {
         &self.credentials
     }
 }

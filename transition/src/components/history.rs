@@ -47,7 +47,7 @@ pub fn transition_block_history_append(
     work_package_hashes: &[Hash32],
 ) -> Result<(), TransitionError> {
     let block_history = state_manager.get_block_history()?;
-    let mut mmr = match block_history.get_latest_history() {
+    let mut mmr = match block_history.get_latest_history().cloned() {
         Some(history) => history.accumulation_result_mmr,
         None => MerkleMountainRange::new(),
     };

@@ -245,6 +245,16 @@ impl StateManager {
         }
     }
 
+    pub fn get_account_code_hash(
+        &self,
+        address: Address,
+    ) -> Result<Option<Hash32>, StateManagerError> {
+        match self.get_account_metadata(address)? {
+            Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
+            None => Ok(None),
+        }
+    }
+
     /// The historical lookup function
     pub fn lookup_preimage(
         &self,

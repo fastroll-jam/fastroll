@@ -21,6 +21,10 @@ pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 
 impl PendingReports {
+    pub fn get_by_core_index(&self, core_index: CoreIndex) -> &Option<PendingReport> {
+        &self.0[core_index as usize]
+    }
+
     /// Checks if any entry holds `Some(PendingReport)` with the given hash.
     /// If found, the entry is replaced with `None`.
     pub fn remove_by_hash(&mut self, target_hash: &Hash32) -> Result<bool, PendingReportsError> {
