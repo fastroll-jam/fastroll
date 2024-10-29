@@ -2,17 +2,14 @@ use crate::{
     safrole::utils::AsnTypeError,
     test_utils::{deserialize_hex, serialize_hex},
 };
-use rjam_common::{
-    sorted_limited_tickets::SortedLimitedTickets, BandersnatchPubKey, Ticket, ValidatorKey,
-    ValidatorSet,
-};
+use rjam_common::{BandersnatchPubKey, Ticket, ValidatorKey, ValidatorSet};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
     block::header::EpochMarker,
     extrinsics::tickets::TicketsExtrinsicEntry,
     state::{
         entropy::EntropyAccumulator,
-        safrole::{SafroleState, SlotSealerType},
+        safrole::{SafroleState, SlotSealerType, TicketAccumulator},
         timeslot::Timeslot,
         validators::{ActiveSet, PastSet, StagingSet},
     },
@@ -271,7 +268,7 @@ impl TryFrom<&State> for SafroleState {
             pending_set: convert_validator_data(&state.gamma_k)?,
             ring_root: state.gamma_z.clone().try_into()?,
             slot_sealers: SlotSealerType::try_from(&state.gamma_s)?,
-            ticket_accumulator: SortedLimitedTickets::from_vec(
+            ticket_accumulator: TicketAccumulator::from_vec(
                 state
                     .gamma_a
                     .iter()

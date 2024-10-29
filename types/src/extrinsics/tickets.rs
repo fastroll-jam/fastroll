@@ -4,9 +4,7 @@ use rjam_common::BandersnatchRingVrfSignature;
 use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, ops::Deref};
 
-/// # Ordering and Validation Rules for Extrinsic Components
-/// - The length of `items` is at most `K = 16` if the current slot phase `m'` is less than
-///   `Y = 500`. Otherwise, the `items` must be empty.
+/// Represents a sequence of validators' ticket proofs for block authoring privileges.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct TicketsExtrinsic {
     pub items: Vec<TicketsExtrinsicEntry>,

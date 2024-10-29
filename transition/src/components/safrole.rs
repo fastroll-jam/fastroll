@@ -1,7 +1,6 @@
 use crate::error::TransitionError;
 use rjam_common::{
-    sorted_limited_tickets::SortedLimitedTickets, Hash32, Ticket, ValidatorSet, EPOCH_LENGTH,
-    TICKET_SUBMISSION_DEADLINE_SLOT, X_T,
+    Hash32, Ticket, ValidatorSet, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT, X_T,
 };
 use rjam_crypto::{
     entropy_hash_ring_vrf, generate_ring_root, validator_set_to_bandersnatch_ring, Verifier,
@@ -11,7 +10,9 @@ use rjam_types::{
     extrinsics::tickets::TicketsExtrinsicEntry,
     state::{
         entropy::EntropyAccumulator,
-        safrole::{generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType},
+        safrole::{
+            generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType, TicketAccumulator,
+        },
         timeslot::Timeslot,
         validators::ActiveSet,
     },
@@ -81,7 +82,7 @@ fn handle_new_epoch_transition(
         );
 
         // reset ticket accumulator (gamma_a)
-        safrole.ticket_accumulator = SortedLimitedTickets::new();
+        safrole.ticket_accumulator = TicketAccumulator::new();
     })?;
 
     Ok(())

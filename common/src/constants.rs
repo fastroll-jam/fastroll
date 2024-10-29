@@ -23,6 +23,7 @@ pub const TRANSFER_MEMO_SIZE: usize = 128; // W_T
 pub const BLOCK_HISTORY_LENGTH: usize = 8; // H
 pub const PENDING_REPORT_TIMEOUT: usize = 5; // U
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400; // L
+pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16; // K
 
 // Signing Contexts or Domain Specifiers
 pub const X_A: &[u8] = b"jam_available"; // Ed25519 Availability assurances
