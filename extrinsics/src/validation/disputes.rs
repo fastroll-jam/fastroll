@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::validation::error::ExtrinsicValidationError;
 use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
@@ -51,11 +50,6 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         extrinsic: &DisputesExtrinsic,
         prior_timeslot: &Timeslot,
     ) -> Result<bool, ExtrinsicValidationError> {
-        // For duplicate validation
-        let mut verdicts_hashes = HashSet::new();
-        let mut culprits_hashes = HashSet::new();
-        let mut faults_hashes = HashSet::new();
-
         // Check if the entries are sorted
         if !extrinsic.verdicts.is_sorted()
             || !extrinsic.culprits.is_sorted()
@@ -63,6 +57,11 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         {
             return Ok(false);
         }
+
+        // Used for duplicate validation
+        let mut verdicts_hashes = HashSet::new();
+        let mut culprits_hashes = HashSet::new();
+        let mut faults_hashes = HashSet::new();
 
         // Validate each verdicts entry
         let all_past_report_hashes = self.state_manager.get_disputes()?.get_all_report_hashes();

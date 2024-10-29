@@ -17,10 +17,10 @@ use std::collections::HashSet;
 /// # Validation Rules
 ///
 /// ## Ordering
-/// - Entries in `items` must be ordered by the `work_report`'s `core_index` in ascending order.
+/// - Extrinsic entries must be ordered by the `work_report`'s `core_index` in ascending order.
 ///
 /// ## Length Limit
-/// - The length of `items` must not exceed `CORE_COUNT`.
+/// - The length must not exceed `CORE_COUNT`.
 ///
 /// ## Entry Validation
 /// - `work_report`
@@ -80,7 +80,6 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         // Duplicate validation of core indices
         let mut work_report_cores = HashSet::new();
         let no_duplicate_cores = extrinsic
-            .items
             .iter()
             .all(|entry| work_report_cores.insert(entry.work_report.core_index()));
         if !no_duplicate_cores {
@@ -90,7 +89,6 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         // Duplicate validation of work packages
         let mut work_package_hashes = HashSet::new();
         let no_duplicate_packages = extrinsic
-            .items
             .iter()
             .all(|entry| work_package_hashes.insert(entry.work_report.work_package_hash()));
         if !no_duplicate_packages {
@@ -107,7 +105,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let auth_pool = self.state_manager.get_auth_pool()?;
         let block_history = self.state_manager.get_block_history()?;
 
-        let all_valid = extrinsic.items.iter().all(|entry| {
+        let all_valid = extrinsic.iter().all(|entry| {
             matches!(
                 self.validate_entry(
                     entry,

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::validation::error::ExtrinsicValidationError;
 use rjam_codec::JamEncode;
 use rjam_common::{Hash32, VALIDATOR_COUNT, X_A};
@@ -14,10 +13,10 @@ use rjam_types::{
 /// # Validation Rules
 ///
 /// ## Ordering
-/// - Entries in `items` must be ordered by `validator_index`.
+/// - Extrinsic entries must be ordered by `validator_index`.
 ///
 /// ## Length Limit
-/// - The length of `items` must not exceed `VALIDATOR_COUNT`.
+/// - The length must not exceed `VALIDATOR_COUNT`.
 ///
 /// ## Entry Validation
 /// - `anchor_parent_hash`
@@ -54,7 +53,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         }
 
         // Validate each entry
-        let all_valid = extrinsic.items.iter().all(|entry| {
+        let all_valid = extrinsic.iter().all(|entry| {
             matches!(self.validate_entry(entry, header_parent_hash), Ok(true)) // TODO: Check if we need error propagation.
         });
 

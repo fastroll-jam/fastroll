@@ -2,9 +2,9 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Address, Octets};
 use std::ops::Deref;
 
-/// # Ordering and Validation Rules for Extrinsic Components
-/// - `items` must be ordered by `service_index` of each entry.
-/// - `items` must have no duplicate entries.
+/// Represents a sequence of preimage lookups, where each lookup corresponds to
+/// a requested piece of data (preimage) that has been solicited by a service
+/// but has not yet been provided.
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct PreimageLookupsExtrinsic {
     pub items: Vec<PreimageLookupsExtrinsicEntry>,
@@ -24,10 +24,10 @@ impl PreimageLookupsExtrinsic {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash, JamEncode, JamDecode)]
 pub struct PreimageLookupsExtrinsicEntry {
-    service_index: Address,
-    preimage_data: Octets,
+    pub service_index: Address,
+    pub preimage_data: Octets,
 }
 
 impl PreimageLookupsExtrinsicEntry {
