@@ -20,7 +20,7 @@ mod tests {
         procedures::chain_extension::mark_safrole_header_markers,
     };
     use rjam_types::{
-        extrinsics::tickets::TicketsExtrinsicEntry,
+        extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
         state::{
             disputes::DisputesState,
             entropy::EntropyAccumulator,
@@ -86,12 +86,15 @@ mod tests {
         state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
             disputes.punish_set = input_punished_set;
         })?;
-        let input_ticket_extrinsics: Vec<TicketsExtrinsicEntry> = test_input
+        let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
             .extrinsic
             .clone()
             .into_iter()
             .map(TicketEnvelope::into)
             .collect();
+        let input_ticket_extrinsic = TicketsExtrinsic {
+            items: input_ticket_entries,
+        };
 
         // Run the chain extension procedure.
         transition_timeslot(&state_manager, &input_timeslot)?;
@@ -108,7 +111,7 @@ mod tests {
             &state_manager,
             &prior_timeslot,
             epoch_progressed,
-            &input_ticket_extrinsics,
+            &input_ticket_extrinsic,
         )?;
 
         // Convert RJAM output into ASN Output.

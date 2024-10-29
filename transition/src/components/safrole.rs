@@ -1,13 +1,12 @@
 use crate::error::TransitionError;
-use rjam_common::{
-    Hash32, Ticket, ValidatorSet, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT, X_T,
-};
-use rjam_crypto::{
-    entropy_hash_ring_vrf, generate_ring_root, validator_set_to_bandersnatch_ring, Verifier,
+use rjam_common::{Ticket, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT};
+use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
+use rjam_extrinsics::validation::{
+    error::ExtrinsicValidationError, tickets::TicketsExtrinsicValidator,
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
-    extrinsics::tickets::TicketsExtrinsicEntry,
+    extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
     state::{
         entropy::EntropyAccumulator,
         safrole::{
@@ -39,7 +38,7 @@ pub fn transition_safrole(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
-    tickets: &[TicketsExtrinsicEntry],
+    tickets: &TicketsExtrinsic,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager, prior_timeslot)?;
@@ -115,7 +114,7 @@ fn update_slot_sealers(
 
 fn handle_ticket_accumulation(
     state_manager: &StateManager,
-    tickets: &[TicketsExtrinsicEntry],
+    tickets: &TicketsExtrinsic,
 ) -> Result<(), TransitionError> {
     if tickets.is_empty() {
         return Ok(());
@@ -124,11 +123,14 @@ fn handle_ticket_accumulation(
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot()?.slot_phase();
     if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
-        return Err(TransitionError::TicketSubmissionClosed);
+        return Err(TransitionError::ExtrinsicValidationError(
+            ExtrinsicValidationError::TicketSubmissionClosed,
+        ));
     }
 
     // Validate ticket extrinsic data.
-    validate_tickets(state_manager, tickets)?;
+    let ticket_validator = TicketsExtrinsicValidator::new(state_manager);
+    ticket_validator.validate(tickets)?;
 
     // Construct new tickets from ticket extrinsics.
     let new_tickets = ticket_extrinsics_to_new_tickets(tickets);
@@ -138,7 +140,9 @@ fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole()?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::DuplicateTicket);
+            return Err(TransitionError::ExtrinsicValidationError(
+                ExtrinsicValidationError::DuplicateTicket,
+            ));
         }
         curr_ticket_accumulator.add(ticket);
     }
@@ -147,67 +151,6 @@ fn handle_ticket_accumulation(
         safrole.ticket_accumulator = curr_ticket_accumulator;
     })?;
 
-    Ok(())
-}
-
-/// Validates submitted ticket extrinsics.
-fn validate_tickets(
-    state_manager: &StateManager,
-    tickets: &[TicketsExtrinsicEntry],
-) -> Result<(), TransitionError> {
-    validate_tickets_order(tickets)?;
-    validate_tickets_attempts(tickets)?;
-    let pending_set = state_manager.get_safrole()?.pending_set;
-    let entropy_2 = state_manager.get_entropy_accumulator()?.second_history();
-    validate_tickets_proofs(tickets, &pending_set, entropy_2)?;
-    Ok(())
-}
-
-/// Checks if the ticket extrinsics are ordered by ticket id.
-fn validate_tickets_order(tickets: &[TicketsExtrinsicEntry]) -> Result<(), TransitionError> {
-    for window in tickets.windows(2) {
-        if let [prev, curr] = window {
-            if prev > curr {
-                return Err(TransitionError::TicketsNotOrdered);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Checks if the ticket extrinsics have valid VRF proofs.
-///
-/// The entropy_2 is the second history of the entropy accumulator, assuming that the Safrole state
-/// transition happens after the entropy transition.
-fn validate_tickets_proofs(
-    tickets: &[TicketsExtrinsicEntry],
-    pending_set: &ValidatorSet,
-    entropy_2: Hash32,
-) -> Result<(), TransitionError> {
-    let ring = validator_set_to_bandersnatch_ring(pending_set)?;
-    let verifier = Verifier::new(ring);
-    for ticket in tickets {
-        let mut expected_vrf_input = vec![];
-        expected_vrf_input.extend_from_slice(X_T);
-        expected_vrf_input.extend_from_slice(&entropy_2);
-        expected_vrf_input.push(ticket.entry_index);
-
-        let aux_data = vec![]; // no aux data for ticket vrf signature
-        let _ = verifier
-            .ring_vrf_verify(&expected_vrf_input, &aux_data, &ticket.ticket_proof[..])
-            .map_err(|_e| TransitionError::BadTicketProof)?;
-    }
-    Ok(())
-}
-
-/// Checks if the ticket extrinsics have valid attempt numbers (0 or 1).
-fn validate_tickets_attempts(tickets: &[TicketsExtrinsicEntry]) -> Result<(), TransitionError> {
-    for ticket in tickets {
-        if ticket.entry_index > 1 {
-            return Err(TransitionError::BadTicketAttemptNumber);
-        }
-    }
     Ok(())
 }
 

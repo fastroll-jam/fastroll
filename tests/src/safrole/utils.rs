@@ -2,6 +2,7 @@ use crate::safrole::asn_types::{
     ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
     ValidatorsData, U32, U8,
 };
+use rjam_extrinsics::validation::error::ExtrinsicValidationError;
 use rjam_transition::error::TransitionError;
 use rjam_types::state::{
     entropy::EntropyAccumulator,
@@ -112,11 +113,21 @@ pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode
     if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
         match transition_error {
             TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
-            TransitionError::TicketSubmissionClosed => CustomErrorCode::unexpected_ticket,
-            TransitionError::TicketsNotOrdered => CustomErrorCode::bad_ticket_order,
-            TransitionError::BadTicketProof => CustomErrorCode::bad_ticket_proof,
-            TransitionError::BadTicketAttemptNumber => CustomErrorCode::bad_ticket_attempt,
-            TransitionError::DuplicateTicket => CustomErrorCode::duplicate_ticket,
+            TransitionError::ExtrinsicValidationError(
+                ExtrinsicValidationError::TicketSubmissionClosed,
+            ) => CustomErrorCode::unexpected_ticket,
+            TransitionError::ExtrinsicValidationError(
+                ExtrinsicValidationError::TicketsNotOrdered,
+            ) => CustomErrorCode::bad_ticket_order,
+            TransitionError::ExtrinsicValidationError(ExtrinsicValidationError::BadTicketProof) => {
+                CustomErrorCode::bad_ticket_proof
+            }
+            TransitionError::ExtrinsicValidationError(
+                ExtrinsicValidationError::BadTicketAttemptNumber,
+            ) => CustomErrorCode::bad_ticket_attempt,
+            TransitionError::ExtrinsicValidationError(
+                ExtrinsicValidationError::DuplicateTicket,
+            ) => CustomErrorCode::duplicate_ticket,
             _ => CustomErrorCode::reserved,
         }
     } else {

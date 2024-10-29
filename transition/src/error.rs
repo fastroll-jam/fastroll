@@ -1,5 +1,6 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::CryptoError;
+use rjam_extrinsics::validation::error::ExtrinsicValidationError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;
@@ -13,21 +14,12 @@ pub enum TransitionError {
     InvalidTimeslot { next_slot: u32, current_slot: u32 },
     #[error("Timeslot value {0} is in the future")]
     FutureTimeslot(u32),
-    // Safrole ticket errors
-    #[error("Submitted ticket already exists in the accumulator")]
-    DuplicateTicket,
-    #[error("Submitted tickets must be ordered by the ticket proof hash")]
-    TicketsNotOrdered,
-    #[error("Submitted tickets must have valid ring VRF proofs")]
-    BadTicketProof,
-    #[error("Ticket attempt number must be either 0 or 1")]
-    BadTicketAttemptNumber,
-    #[error("Ticket submission period has ended")]
-    TicketSubmissionClosed,
     // Pending Work Reports errors
     #[error("PendingReports Error")]
     PendingReportsError(#[from] PendingReportsError),
     // External errors
+    #[error("Extrinsic validation error: {0}")]
+    ExtrinsicValidationError(#[from] ExtrinsicValidationError),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
     #[error("Fallback key error: {0}")]

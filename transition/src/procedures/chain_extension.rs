@@ -12,7 +12,7 @@ use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
 use rjam_types::{
     block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},
-    extrinsics::tickets::TicketsExtrinsicEntry,
+    extrinsics::tickets::TicketsExtrinsic,
     state::{safrole::outside_in_vec, timeslot::Timeslot},
 };
 
@@ -31,7 +31,7 @@ pub struct SafroleHeaderMarkers {
 pub fn chain_extension_procedure(
     state_manager: &StateManager,
     header: &BlockHeader,
-    tickets: &[TicketsExtrinsicEntry],
+    tickets: &TicketsExtrinsic,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
     let prior_timeslot = state_manager.get_timeslot()?;
 

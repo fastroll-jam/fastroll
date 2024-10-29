@@ -1007,6 +1007,7 @@ dependencies = [
 name = "rjam-extrinsics"
 version = "0.1.0"
 dependencies = [
+ "ark-ec-vrfs",
  "lazy_static",
  "rjam-codec",
  "rjam-common",
@@ -1116,6 +1117,7 @@ dependencies = [
  "hex",
  "rjam-common",
  "rjam-crypto",
+ "rjam-extrinsics",
  "rjam-merkle",
  "rjam-state",
  "rjam-transition",
@@ -1133,6 +1135,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-extrinsics",
  "rjam-merkle",
  "rjam-pvm-core",
  "rjam-pvm-invocation",

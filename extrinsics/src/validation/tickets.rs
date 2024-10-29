@@ -1,7 +1,14 @@
-use crate::validation::error::ExtrinsicValidationError;
-use rjam_common::{MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT};
+use crate::validation::error::{
+    ExtrinsicValidationError,
+    ExtrinsicValidationError::{
+        BadTicketAttemptNumber, BadTicketProof, TicketSubmissionClosed, TicketsNotOrdered,
+        TooManyTickets,
+    },
+};
+use rjam_common::{Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT, X_T};
+use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
-use rjam_types::extrinsics::tickets::TicketsExtrinsic;
+use rjam_types::extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry};
 
 /// Validate contents of `TicketsExtrinsic` type.
 ///
@@ -33,17 +40,74 @@ impl<'a> TicketsExtrinsicValidator<'a> {
     }
 
     /// Validates the entire `TicketsExtrinsic`.
-    pub fn validate(&self, extrinsic: &TicketsExtrinsic) -> Result<bool, ExtrinsicValidationError> {
+    pub fn validate(&self, extrinsic: &TicketsExtrinsic) -> Result<(), ExtrinsicValidationError> {
         // Check the slot phase
         let current_slot_phase = self.state_manger.get_timeslot()?.slot_phase();
         if current_slot_phase >= TICKET_SUBMISSION_DEADLINE_SLOT as u32 && !extrinsic.is_empty() {
-            return Ok(false);
+            return Err(TicketSubmissionClosed);
         }
 
         if extrinsic.len() > MAX_TICKETS_PER_EXTRINSIC {
-            return Ok(false);
+            return Err(TooManyTickets);
         }
 
-        Ok(true)
+        // Check if the entries are sorted
+        if !extrinsic.is_sorted() {
+            return Err(TicketsNotOrdered);
+        }
+
+        let pending_set = self.state_manger.get_safrole()?.pending_set;
+        let entropy_2 = self
+            .state_manger
+            .get_entropy_accumulator()?
+            .second_history();
+        let ring = validator_set_to_bandersnatch_ring(&pending_set)?;
+        let verifier = Verifier::new(ring);
+
+        // Validate each entry
+        for entry in extrinsic.iter() {
+            self.validate_entry(entry, &verifier, &entropy_2)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validates each `TicketsExtrinsicEntry`.
+    pub fn validate_entry(
+        &self,
+        entry: &TicketsExtrinsicEntry,
+        verifier: &Verifier,
+        entropy_2: &Hash32,
+    ) -> Result<(), ExtrinsicValidationError> {
+        // Check if the ticket attempt number is correct (0 or 1)
+        if entry.entry_index > 1 {
+            return Err(BadTicketAttemptNumber);
+        }
+
+        Self::validate_ticket_proof(entry, verifier, entropy_2)?;
+
+        Ok(())
+    }
+
+    /// Checks if the ticket extrinsics have valid VRF proofs.
+    ///
+    /// The entropy_2 is the second history of the entropy accumulator, assuming that the Safrole state
+    /// transition happens after the entropy transition.
+    fn validate_ticket_proof(
+        entry: &TicketsExtrinsicEntry,
+        verifier: &Verifier,
+        entropy_2: &Hash32,
+    ) -> Result<(), ExtrinsicValidationError> {
+        let mut expected_vrf_input = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
+        expected_vrf_input.extend_from_slice(X_T);
+        expected_vrf_input.extend_from_slice(entropy_2);
+        expected_vrf_input.push(entry.entry_index);
+
+        let aux_data = vec![]; // no aux data for ticket vrf signature
+        verifier
+            .ring_vrf_verify(&expected_vrf_input, &aux_data, &entry.ticket_proof[..])
+            .map_err(|_| BadTicketProof)?;
+
+        Ok(())
     }
 }

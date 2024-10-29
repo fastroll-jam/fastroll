@@ -7,6 +7,7 @@ edition = "2021"
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
+rjam-extrinsics = { workspace = true }
 rjam-merkle = { workspace = true }
 rjam-pvm-core = { workspace = true }
 rjam-pvm-invocation = { workspace = true }
