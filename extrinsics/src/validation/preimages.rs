@@ -1,4 +1,4 @@
-use crate::validation::error::ExtrinsicValidationError;
+use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_state::StateManager;
 use rjam_types::extrinsics::preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry};
@@ -31,27 +31,31 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
     pub fn validate(
         &self,
         extrinsic: &PreimageLookupsExtrinsic,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Ok(false);
+            return Err(PreimageLookupsNotOrdered);
         }
 
         // Duplicate validation of the preimage entries
         let mut entries = HashSet::new();
         let no_duplicate = extrinsic.iter().all(|entry| entries.insert(entry));
         if !no_duplicate {
-            return Ok(false);
+            return Err(DuplicatePreimageLookups);
         }
 
-        Ok(true)
+        for entry in extrinsic.iter() {
+            self.validate_entry(entry)?;
+        }
+
+        Ok(())
     }
 
     /// Validates each `PreimageLookupsExtrinsicEntry`.
     pub fn validate_entry(
         &self,
         entry: &PreimageLookupsExtrinsicEntry,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         let service_index = entry.service_index;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
@@ -62,7 +66,7 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
             .get_account_preimages_entry(service_index, &preimage_data_hash)?
             .is_some()
         {
-            return Ok(false);
+            return Err(PreimageAlreadyIntegrated);
         }
 
         if self
@@ -70,9 +74,9 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
             .get_account_lookups_entry(service_index, lookups_key)?
             .is_some()
         {
-            return Ok(false);
+            return Err(PreimageAlreadyIntegrated);
         }
 
-        Ok(true)
+        Ok(())
     }
 }

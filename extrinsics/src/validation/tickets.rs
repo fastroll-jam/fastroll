@@ -1,10 +1,4 @@
-use crate::validation::error::{
-    ExtrinsicValidationError,
-    ExtrinsicValidationError::{
-        BadTicketAttemptNumber, BadTicketProof, TicketSubmissionClosed, TicketsNotOrdered,
-        TooManyTickets,
-    },
-};
+use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
 use rjam_common::{Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT, X_T};
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
@@ -28,8 +22,6 @@ use rjam_types::extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry};
 ///   - Each entry's `ticket_proof` must be a valid Bandersnatch RingVRF proof, using the `ring_root`
 ///     retrieved from the `SafroleState` and a context that includes the secondary history component
 ///     of the current entropy state and the ticket attempt identifier.
-///   - Note: currently this validation process is part of the Safrole state transition function,
-///   - TODO: Consider moving that logic to this struct
 pub struct TicketsExtrinsicValidator<'a> {
     state_manger: &'a StateManager,
 }

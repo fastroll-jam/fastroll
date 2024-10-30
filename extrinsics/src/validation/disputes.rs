@@ -1,12 +1,9 @@
-use crate::validation::error::ExtrinsicValidationError;
+use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
 use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
-    extrinsics::{
-        disputes::{Culprit, DisputesExtrinsic, Fault, Verdict},
-        ExtrinsicsError,
-    },
+    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict},
     state::{
         timeslot::Timeslot,
         validators::{get_validator_ed25519_key_by_index, ActiveSet, PastSet},
@@ -49,13 +46,13 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         &self,
         extrinsic: &DisputesExtrinsic,
         prior_timeslot: &Timeslot,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Check if the entries are sorted
         if !extrinsic.verdicts.is_sorted()
             || !extrinsic.culprits.is_sorted()
             || !extrinsic.faults.is_sorted()
         {
-            return Ok(false);
+            return Err(DisputesNotOrdered);
         }
 
         // Used for duplicate validation
@@ -63,21 +60,16 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         let mut culprits_hashes = HashSet::new();
         let mut faults_hashes = HashSet::new();
 
-        // Validate each verdicts entry
         let all_past_report_hashes = self.state_manager.get_disputes()?.get_all_report_hashes();
 
-        let all_verdicts_valid = extrinsic.verdicts.iter().all(|verdict| {
+        // Validate each verdicts entry
+        for verdict in extrinsic.verdicts.iter() {
             // Check for duplicate entry (report_hash)
             if !verdicts_hashes.insert(verdict.report_hash) {
-                return false;
+                return Err(DuplicateVerdict);
             }
-            matches!(
-                self.validate_verdicts_entry(verdict, prior_timeslot, &all_past_report_hashes),
-                Ok(true)
-            )
-        });
-        if !all_verdicts_valid {
-            return Ok(false);
+
+            self.validate_verdicts_entry(verdict, prior_timeslot, &all_past_report_hashes)?;
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
@@ -91,36 +83,26 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         let current_good_set = self.state_manager.get_disputes()?.good_set;
 
         // Validate each culprits entry
-        let all_culprits_valid = extrinsic.culprits.iter().all(|culprit| {
+        for culprit in extrinsic.culprits.iter() {
             // Check for duplicate entry (validator_key)
             if !culprits_hashes.insert(culprit.validator_key) {
-                return false;
+                return Err(DuplicateCulprit);
             }
-            matches!(
-                self.validate_culprits_entry(culprit, &current_bad_set, &valid_set),
-                Ok(true)
-            )
-        });
-        if !all_culprits_valid {
-            return Ok(false);
+
+            self.validate_culprits_entry(culprit, &current_bad_set, &valid_set)?;
         }
 
         // Validate each faults entry
-        let all_faults_valid = extrinsic.faults.iter().all(|fault| {
+        for fault in extrinsic.faults.iter() {
             // Check for duplicate entry (validator_key)
             if !faults_hashes.insert(fault.validator_key) {
-                return false;
+                return Err(DuplicateFault);
             }
-            matches!(
-                self.validate_faults_entry(fault, &current_bad_set, &current_good_set, &valid_set),
-                Ok(true)
-            )
-        });
-        if !all_faults_valid {
-            return Ok(false);
+
+            self.validate_faults_entry(fault, &current_bad_set, &current_good_set, &valid_set)?;
         }
 
-        Ok(true)
+        Ok(())
     }
 
     fn union_active_and_past_exclude_punish(
@@ -146,23 +128,23 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Verdict,
         prior_timeslot: &Timeslot,
         all_past_report_hashes: &HashSet<Hash32>,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Verdicts entry must not be present in any past report hashes - neither in the `GoodSet`,
         // `BadSet`, nor `WonkySet`.
         if all_past_report_hashes.contains(&entry.report_hash) {
-            return Ok(false);
+            return Err(VerdictsAlreadyIntroduces);
         }
 
         // Check if judgments are sorted
         if !entry.judgments.is_sorted() {
-            return Ok(false);
+            return Err(JudgmentsNotOrdered);
         }
 
         // Check for duplicate entry
         let mut voters_set = HashSet::new();
         for judgment in entry.judgments.iter() {
             if !voters_set.insert(judgment.voter) {
-                return Ok(false);
+                return Err(DuplicateJudgment);
             }
         }
 
@@ -191,11 +173,11 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 get_validator_ed25519_key_by_index(&validator_set, judgment.voter);
 
             if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
-                return Ok(false);
+                return Err(BadJudgmentSignature);
             }
         }
 
-        Ok(true)
+        Ok(())
     }
 
     pub fn validate_culprits_entry(
@@ -203,13 +185,13 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Culprit,
         current_bad_set: &HashSet<Hash32>,
         valid_set: &HashSet<Ed25519PubKey>,
-    ) -> Result<bool, ExtrinsicsError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         if !current_bad_set.contains(&entry.report_hash) {
-            return Ok(false);
+            return Err(NotCulprit);
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Ok(false);
+            return Err(InvalidValidatorSet);
         }
 
         // Validate the signature
@@ -219,10 +201,10 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         message.extend_from_slice(hash);
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Ok(false);
+            return Err(BadCulpritSignature);
         }
 
-        Ok(true)
+        Ok(())
     }
 
     pub fn validate_faults_entry(
@@ -231,16 +213,16 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         current_bad_set: &HashSet<Hash32>,
         current_good_set: &HashSet<Hash32>,
         valid_set: &HashSet<Ed25519PubKey>,
-    ) -> Result<bool, ExtrinsicsError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Validate fails when the voter's vote was correct but the voter is in the faults set.
         if (entry.is_report_valid && current_good_set.contains(&entry.report_hash))
             || (!entry.is_report_valid && current_bad_set.contains(&entry.report_hash))
         {
-            return Ok(false);
+            return Err(NotFault);
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Ok(false);
+            return Err(InvalidValidatorSet);
         }
 
         // Validate the signature
@@ -257,9 +239,9 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         };
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Ok(false);
+            return Err(BadFaultSignature);
         }
 
-        Ok(true)
+        Ok(())
     }
 }

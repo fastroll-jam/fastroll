@@ -1,6 +1,6 @@
-use crate::validation::error::ExtrinsicValidationError;
+use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
 use rjam_codec::JamEncode;
-use rjam_common::{Hash32, VALIDATOR_COUNT, X_A};
+use rjam_common::{CoreIndex, Hash32, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::StateManager;
 use rjam_types::{
@@ -41,23 +41,23 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         &self,
         extrinsic: &AssurancesExtrinsic,
         header_parent_hash: Hash32,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
-            return Ok(false);
+            return Err(TooManyAssurances);
         }
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Ok(false);
+            return Err(AssurancesNotOrdered);
         }
 
         // Validate each entry
-        let all_valid = extrinsic.iter().all(|entry| {
-            matches!(self.validate_entry(entry, header_parent_hash), Ok(true)) // TODO: Check if we need error propagation.
-        });
+        for entry in extrinsic.iter() {
+            self.validate_entry(entry, header_parent_hash)?;
+        }
 
-        Ok(all_valid)
+        Ok(())
     }
 
     /// Validates each `AssurancesExtrinsicEntry`.
@@ -65,10 +65,10 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         &self,
         entry: &AssurancesExtrinsicEntry,
         header_parent_hash: Hash32,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Check the anchored parent hash
         if entry.anchor_parent_hash != header_parent_hash {
-            return Ok(false);
+            return Err(BadParentHash);
         }
 
         // Verify the signature
@@ -86,7 +86,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
             get_validator_ed25519_key_by_index(&current_active_set.0, entry.validator_index);
 
         if !verify_signature(&message, &assurer_public_key, &entry.signature) {
-            return Ok(false);
+            return Err(BadAssuranceSignature);
         }
 
         // Validate the assuring cores bit-vec
@@ -94,10 +94,10 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
             if bit && pending_reports.0[core_index].is_none() {
-                return Ok(false);
+                return Err(NoPendingReportInCore(core_index as CoreIndex));
             }
         }
 
-        Ok(true)
+        Ok(())
     }
 }

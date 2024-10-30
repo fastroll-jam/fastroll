@@ -1,4 +1,4 @@
-use crate::validation::error::ExtrinsicValidationError;
+use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
 use rjam_codec::JamEncode;
 use rjam_common::{Hash32, CORE_COUNT, MAX_LOOKUP_ANCHOR_AGE, PENDING_REPORT_TIMEOUT, X_G};
 use rjam_crypto::{hash, Keccak256};
@@ -9,7 +9,6 @@ use rjam_types::{
     state::{authorizer::AuthPool, history::BlockHistory, reports::PendingReports},
 };
 use std::collections::HashSet;
-
 // TODO: Add validation over gas allocation.
 
 /// Validates contents of `GuaranteesExtrinsic` type.
@@ -66,15 +65,15 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         &self,
         extrinsic: &GuaranteesExtrinsic,
         header_timeslot_index: u32,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
-            return Ok(false);
+            return Err(TooManyGuarantees);
         }
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Ok(false);
+            return Err(GuaranteesNotOrdered);
         }
 
         // Duplicate validation of core indices
@@ -83,7 +82,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .iter()
             .all(|entry| work_report_cores.insert(entry.work_report.core_index()));
         if !no_duplicate_cores {
-            return Ok(false);
+            return Err(DuplicateCore);
         }
 
         // Duplicate validation of work packages
@@ -92,12 +91,12 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .iter()
             .all(|entry| work_package_hashes.insert(entry.work_report.work_package_hash()));
         if !no_duplicate_packages {
-            return Ok(false);
+            return Err(DuplicateWorkPackages);
         }
 
         // Additionally, check the cardinality of work package hashes and the work reports
         if work_package_hashes.len() != extrinsic.len() {
-            return Ok(false);
+            return Err(DuplicateWorkPackages);
         }
 
         // Validate each entry
@@ -105,21 +104,18 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let auth_pool = self.state_manager.get_auth_pool()?;
         let block_history = self.state_manager.get_block_history()?;
 
-        let all_valid = extrinsic.iter().all(|entry| {
-            matches!(
-                self.validate_entry(
-                    entry,
-                    &pending_reports,
-                    &auth_pool,
-                    &block_history,
-                    &work_package_hashes,
-                    header_timeslot_index
-                ),
-                Ok(true)
-            )
-        });
+        for entry in extrinsic.iter() {
+            self.validate_entry(
+                entry,
+                &pending_reports,
+                &auth_pool,
+                &block_history,
+                &work_package_hashes,
+                header_timeslot_index,
+            )?;
+        }
 
-        Ok(all_valid)
+        Ok(())
     }
 
     /// Validates each `GuaranteesExtrinsicEntry`.
@@ -131,23 +127,19 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<bool, ExtrinsicValidationError> {
-        if !self.validate_work_report(
+    ) -> Result<(), ExtrinsicValidationError> {
+        self.validate_work_report(
             &entry.work_report,
             pending_reports,
             auth_pool,
             block_history,
             work_package_hashes,
             header_timeslot_index,
-        )? {
-            return Ok(false);
-        }
+        )?;
 
-        if !self.validate_credentials(entry)? {
-            return Ok(false);
-        }
+        self.validate_credentials(entry)?;
 
-        Ok(true)
+        Ok(())
     }
 
     fn validate_work_report(
@@ -158,7 +150,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         let core_index = work_report.core_index();
         let core_pending_report = pending_reports.get_by_core_index(core_index).clone();
 
@@ -167,7 +159,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         if let Some(core_report) = core_pending_report {
             let expiration = core_report.timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
             if header_timeslot_index < expiration {
-                return Ok(false);
+                return Err(PendingReportExists);
             }
         }
 
@@ -176,24 +168,18 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .get_by_core_index(core_index)
             .contains(&work_report.authorizer_hash())
         {
-            return Ok(false);
+            return Err(BadAuthorizerHash);
         }
 
         // Validate anchor block
-        if !self.validate_anchor_block(work_report.refinement_context(), block_history)? {
-            return Ok(false);
-        }
+        self.validate_anchor_block(work_report.refinement_context(), block_history)?;
 
         // Validate lookup-anchor block
-        if !self
-            .validate_lookup_anchor_block(work_report.refinement_context(), header_timeslot_index)?
-        {
-            return Ok(false);
-        }
+        self.validate_lookup_anchor_block(work_report.refinement_context(), header_timeslot_index)?;
 
         // Check that the work-package hash is not in the block history
         if block_history.check_work_package_hash_exists(&work_report.work_package_hash()) {
-            return Ok(false);
+            return Err(WorkPackageAlreadyInHistory);
         }
 
         // Check prerequisite work-package exists either in the current extrinsic or in the recent
@@ -202,23 +188,21 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             if !work_package_hashes.contains(&prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(&prerequisite_hash)
             {
-                return Ok(false);
+                return Err(PrerequisiteNotFound);
             }
         }
 
         // Validate work results' code hashes
-        if !self.validate_work_results(work_report)? {
-            return Ok(false);
-        }
+        self.validate_work_results(work_report)?;
 
-        Ok(true)
+        Ok(())
     }
 
     fn validate_anchor_block(
         &self,
         work_report_context: &RefinementContext,
         block_history: &BlockHistory,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         let anchor_hash = work_report_context.anchor_header_hash;
         let anchor_state_root = work_report_context.anchor_state_root;
         let anchor_beefy_root = work_report_context.beefy_root;
@@ -227,37 +211,43 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let anchor_in_block_history = block_history.get_by_header_hash(&anchor_hash);
 
         // Validate contents of the anchor block if it exists in the recent block history
-        match anchor_in_block_history {
-            Some(entry) => Ok(entry.state_root == anchor_state_root
-                && hash::<Keccak256>(&entry.accumulation_result_mmr.encode()?)?
-                    == anchor_beefy_root),
-            None => Ok(false),
+        if let Some(entry) = anchor_in_block_history {
+            if (entry.state_root != anchor_state_root)
+                || (hash::<Keccak256>(&entry.accumulation_result_mmr.encode()?)?
+                    != anchor_beefy_root)
+            {
+                return Err(InvalidAnchorBlock);
+            }
+        } else {
+            return Err(AnchorBlockNotFound);
         }
+
+        Ok(())
     }
 
     fn validate_lookup_anchor_block(
         &self,
         work_report_context: &RefinementContext,
         header_timeslot_index: u32,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
         let _lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
 
-        // Check that lookup-anchor block is within the las L timeslots
+        // Check that lookup-anchor block is within the last L timeslots
         if lookup_anchor_timeslot
             < header_timeslot_index.saturating_sub(MAX_LOOKUP_ANCHOR_AGE as u32)
         {
-            return Ok(false);
+            return Err(LookupAnchorBlockTimeout);
         }
 
-        Ok(true)
+        Ok(())
     }
 
     fn validate_work_results(
         &self,
         work_report: &WorkReport,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         for result in work_report.results() {
             if let Some(expected_code_hash) = self
                 .state_manager
@@ -265,54 +255,52 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
-                    return Ok(false);
+                    return Err(BadCodeHash);
                 }
             } else {
                 // code hash doesn't exist for the service account
-                return Ok(false);
+                return Err(CodeHashNotFound);
             }
         }
 
-        Ok(true)
+        Ok(())
     }
 
     fn validate_credentials(
         &self,
         entry: &GuaranteesExtrinsicEntry,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
-            return Ok(false);
+            return Err(CredentialsLengthMismatch);
         }
 
         // Check if the entries are sorted
         if !credentials.is_sorted() {
-            return Ok(false);
+            return Err(CredentialsNotOrdered);
         }
 
         // Duplicate validation of validator indices
         let mut validator_indices = HashSet::new();
         let no_duplicate_indices = credentials.iter().all(|c| validator_indices.insert(c.0));
         if !no_duplicate_indices {
-            return Ok(false);
+            return Err(DuplicateGuarantors);
         }
 
         // Validate each credential
         for credential in credentials {
-            if !self.validate_credential(&entry.work_report, credential)? {
-                return Ok(false);
-            }
+            self.validate_credential(&entry.work_report, credential)?;
         }
 
-        Ok(true)
+        Ok(())
     }
 
     fn validate_credential(
         &self,
         work_report: &WorkReport,
         _credential: &GuaranteesCredential,
-    ) -> Result<bool, ExtrinsicValidationError> {
+    ) -> Result<(), ExtrinsicValidationError> {
         // Verify the signature
         let hash = work_report.hash()?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
