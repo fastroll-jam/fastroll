@@ -1,4 +1,5 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use hex::encode;
 use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
@@ -173,7 +174,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 get_validator_ed25519_key_by_index(&validator_set, judgment.voter);
 
             if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
-                return Err(InvalidJudgmentSignature);
+                return Err(InvalidJudgmentSignature(judgment.voter));
             }
         }
 
@@ -187,11 +188,11 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         valid_set: &HashSet<Ed25519PubKey>,
     ) -> Result<(), ExtrinsicValidationError> {
         if !current_bad_set.contains(&entry.report_hash) {
-            return Err(NotCulprit);
+            return Err(NotCulprit(encode(entry.validator_key)));
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet);
+            return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }
 
         // Validate the signature
@@ -201,7 +202,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         message.extend_from_slice(hash);
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidCulpritSignature);
+            return Err(InvalidCulpritSignature(encode(entry.validator_key)));
         }
 
         Ok(())
@@ -218,11 +219,11 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         if (entry.is_report_valid && current_good_set.contains(&entry.report_hash))
             || (!entry.is_report_valid && current_bad_set.contains(&entry.report_hash))
         {
-            return Err(NotFault);
+            return Err(NotFault(encode(entry.validator_key)));
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet);
+            return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }
 
         // Validate the signature
@@ -239,7 +240,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         };
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidFaultSignature);
+            return Err(InvalidFaultSignature(encode(entry.validator_key)));
         }
 
         Ok(())

@@ -1,6 +1,6 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_codec::JamCodecError;
-use rjam_common::CoreIndex;
+use rjam_common::{Address, CoreIndex, ValidatorIndex};
 use rjam_crypto::CryptoError;
 use rjam_state::StateManagerError;
 use rjam_types::common::workloads::WorkReportError;
@@ -10,16 +10,16 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ExtrinsicValidationError {
     // Assurances validation errors
-    #[error("The number of assurance entries exceeds the allowed validator count")]
-    AssurancesEntryLimitExceeded,
+    #[error("The number of assurance entries ({0}) exceeds the allowed validator count ({1})")]
+    AssurancesEntryLimitExceeded(usize, usize),
     #[error("Assurance entries must be sorted by validator index")]
     AssurancesNotSorted,
-    #[error("Invalid parent hash for assurance entry")]
-    InvalidAssuranceParentHash,
-    #[error("Invalid assurance signature")]
-    InvalidAssuranceSignature,
-    #[error("No pending report found for core {0}")]
-    NoPendingReportForCore(CoreIndex),
+    #[error("Invalid parent hash for assurance entry submitted: Extrinsic: {0}, Header: {1}. Assurer: {2}")]
+    InvalidAssuranceParentHash(String, String, ValidatorIndex),
+    #[error("Invalid assurance signature. Assurer: {0}")]
+    InvalidAssuranceSignature(ValidatorIndex),
+    #[error("No pending report found for core {0}. Assurer: {1}")]
+    NoPendingReportForCore(CoreIndex, ValidatorIndex),
 
     // Disputes validation errors
     #[error("Dispute entries must be sorted correctly")]
@@ -36,74 +36,74 @@ pub enum ExtrinsicValidationError {
     DuplicateFault,
     #[error("Verdict entry already exists in past dispute sets")]
     VerdictAlreadyExists,
-    #[error("Validator was not a culprit")]
-    NotCulprit,
-    #[error("Validator did not cast a faulty vote")]
-    NotFault,
-    #[error("Validator is not part of the active or past set")]
-    InvalidValidatorSet,
-    #[error("Invalid signature for judgment")]
-    InvalidJudgmentSignature,
-    #[error("Invalid culprit signature")]
-    InvalidCulpritSignature,
-    #[error("Invalid fault signature")]
-    InvalidFaultSignature,
+    #[error("Validator was not a culprit. Validator Ed25519 key: {0}")]
+    NotCulprit(String),
+    #[error("Validator did not cast a faulty vote. Voter: {0}")]
+    NotFault(String),
+    #[error("Validator is not part of the active or past set. Validator Ed25519 key: {0}")]
+    InvalidValidatorSet(String),
+    #[error("Invalid signature for judgment. Voter validator index: {0}")]
+    InvalidJudgmentSignature(ValidatorIndex),
+    #[error("Invalid culprit signature. Validator Ed25519 key: {0}")]
+    InvalidCulpritSignature(String),
+    #[error("Invalid fault signature. Validator Ed25519 key: {0}")]
+    InvalidFaultSignature(String),
 
     // Guarantees validation errors
-    #[error("The number of guarantee entries exceeds the allowed core count")]
-    GuaranteesEntryLimitExceeded,
+    #[error("The number of guarantee entries ({0}) exceeds the allowed core count ({1})")]
+    GuaranteesEntryLimitExceeded(usize, usize),
     #[error("Guarantee entries must be sorted by core index")]
     GuaranteesNotSorted,
     #[error("Duplicate core index found in guarantees")]
     DuplicateCoreIndex,
     #[error("Duplicate work package hashes found in guarantees")]
     DuplicateWorkPackageHash,
-    #[error("Pending report exists for the core")]
-    PendingReportExists,
-    #[error("Invalid authorizer hash in work report")]
-    InvalidAuthorizerHash,
-    #[error("Work package hash already exists in block history")]
-    WorkPackageAlreadyInHistory,
-    #[error("Prerequisite work package not found")]
-    PrerequisiteNotFound,
-    #[error("Invalid code hash in work result")]
-    InvalidCodeHash,
-    #[error("Code hash not found for the service account")]
-    CodeHashNotFound,
-    #[error("Anchor block not found in recent block history")]
-    AnchorBlockNotFound,
-    #[error("Invalid anchor block")]
-    InvalidAnchorBlock,
-    #[error("Lookup anchor block timed out")]
-    LookupAnchorBlockTimeout,
-    #[error("Invalid number of guarantors, must be 2 or 3")]
-    InvalidGuarantorCount,
-    #[error("Credentials in guarantee must be sorted by the validator index")]
-    CredentialsNotSorted,
     #[error("Duplicate guarantor entry found")]
     DuplicateGuarantor,
+    #[error("Pending report exists for the core {0}.")]
+    PendingReportExists(CoreIndex),
+    #[error("Invalid authorizer hash in work report. Core index: {0}")]
+    InvalidAuthorizerHash(CoreIndex),
+    #[error("Work package hash already exists in block history. Core index: {0}, Work package hash: {1}")]
+    WorkPackageAlreadyInHistory(CoreIndex, String),
+    #[error("Prerequisite work package not found. Core index: {0}, Work package hash: {1}")]
+    PrerequisiteNotFound(CoreIndex, String),
+    #[error("Invalid code hash in work result. Core index: {0}, Service index: {1}, Provided code hash: {2}")]
+    InvalidCodeHash(CoreIndex, Address, String),
+    #[error("Code hash not found for the service account. Core index: {0}, Service index: {1}, Provided code hash: {2}")]
+    CodeHashNotFound(CoreIndex, Address, String),
+    #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
+    AnchorBlockNotFound(CoreIndex, String),
+    #[error("Invalid anchor block. Core index: {0}, Provided anchor hash: {1}")]
+    InvalidAnchorBlock(CoreIndex, String),
+    #[error("Lookup anchor block timed out. Core index: {0}, Provided lookup anchor hash: {1}")]
+    LookupAnchorBlockTimeout(CoreIndex, String),
+    #[error("Invalid number of guarantors ({0}), must be 2 or 3. Core index: {1}")]
+    InvalidGuarantorCount(usize, CoreIndex),
+    #[error("Credentials in guarantee must be sorted by the validator index. Core index: {0}")]
+    CredentialsNotSorted(CoreIndex),
 
     // Preimages validation errors
     #[error("Preimage lookups must be sorted by service index")]
     PreimageLookupsNotSorted,
     #[error("Duplicate preimage lookup entry found")]
     DuplicatePreimageLookup,
-    #[error("Preimage already integrated into the state")]
-    PreimageAlreadyIntegrated,
+    #[error("Preimage already integrated into the state. Service index: {0}")]
+    PreimageAlreadyIntegrated(Address),
 
     // Ticket validation errors
-    #[error("The number of ticket entries exceeds the allowed tickets")]
-    TicketsEntryLimitExceeded,
+    #[error("The number of ticket entries ({0}) exceeds the allowed tickets ({1})")]
+    TicketsEntryLimitExceeded(usize, usize),
     #[error("Duplicate ticket found in accumulator")]
     DuplicateTicket,
     #[error("Ticket entries must be sorted by proof hash")]
     TicketsNotSorted,
-    #[error("Invalid VRF proof for ticket entry")]
-    InvalidTicketProof,
-    #[error("Invalid ticket attempt number, must be 0 or 1")]
-    InvalidTicketAttemptNumber,
-    #[error("Ticket submission period has ended")]
-    TicketSubmissionClosed,
+    #[error("Invalid VRF proof for ticket entry. Proof: {0}")]
+    InvalidTicketProof(String),
+    #[error("Invalid ticket attempt number ({0}), must be 0 or 1")]
+    InvalidTicketAttemptNumber(u8),
+    #[error("Ticket submission period has ended. Current slot phase: {0}")]
+    TicketSubmissionClosed(u32),
 
     // External errors
     #[error("StateManagerError: {0}")]

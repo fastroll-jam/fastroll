@@ -1,4 +1,5 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use hex::encode;
 use rjam_codec::JamEncode;
 use rjam_common::{CoreIndex, Hash32, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
@@ -44,7 +45,10 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
-            return Err(AssurancesEntryLimitExceeded);
+            return Err(AssurancesEntryLimitExceeded(
+                extrinsic.len(),
+                VALIDATOR_COUNT,
+            ));
         }
 
         // Check if the entries are sorted
@@ -68,7 +72,11 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the anchored parent hash
         if entry.anchor_parent_hash != header_parent_hash {
-            return Err(InvalidAssuranceParentHash);
+            return Err(InvalidAssuranceParentHash(
+                encode(entry.anchor_parent_hash),
+                encode(header_parent_hash),
+                entry.validator_index,
+            ));
         }
 
         // Verify the signature
@@ -86,7 +94,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
             get_validator_ed25519_key_by_index(&current_active_set.0, entry.validator_index);
 
         if !verify_signature(&message, &assurer_public_key, &entry.signature) {
-            return Err(InvalidAssuranceSignature);
+            return Err(InvalidAssuranceSignature(entry.validator_index));
         }
 
         // Validate the assuring cores bit-vec
@@ -94,7 +102,10 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
             if bit && pending_reports.0[core_index].is_none() {
-                return Err(NoPendingReportForCore(core_index as CoreIndex));
+                return Err(NoPendingReportForCore(
+                    core_index as CoreIndex,
+                    entry.validator_index,
+                ));
             }
         }
 

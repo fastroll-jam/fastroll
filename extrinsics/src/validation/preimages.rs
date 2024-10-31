@@ -65,16 +65,12 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
             .state_manager
             .get_account_preimages_entry(service_index, &preimage_data_hash)?
             .is_some()
+            || self
+                .state_manager
+                .get_account_lookups_entry(service_index, lookups_key)?
+                .is_some()
         {
-            return Err(PreimageAlreadyIntegrated);
-        }
-
-        if self
-            .state_manager
-            .get_account_lookups_entry(service_index, lookups_key)?
-            .is_some()
-        {
-            return Err(PreimageAlreadyIntegrated);
+            return Err(PreimageAlreadyIntegrated(service_index));
         }
 
         Ok(())

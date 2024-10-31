@@ -10,5 +10,6 @@ rjam-crypto = { workspace = true }
 rjam-state = { workspace = true }
 rjam-types = { workspace = true }
 ark-ec-vrfs = { workspace = true }
+hex = { workspace = true }
 lazy_static = { workspace = true }
 thiserror = { workspace = true }

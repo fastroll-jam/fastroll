@@ -1,6 +1,9 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use hex::encode;
 use rjam_codec::JamEncode;
-use rjam_common::{Hash32, CORE_COUNT, MAX_LOOKUP_ANCHOR_AGE, PENDING_REPORT_TIMEOUT, X_G};
+use rjam_common::{
+    CoreIndex, Hash32, CORE_COUNT, MAX_LOOKUP_ANCHOR_AGE, PENDING_REPORT_TIMEOUT, X_G,
+};
 use rjam_crypto::{hash, Keccak256};
 use rjam_state::StateManager;
 use rjam_types::{
@@ -68,7 +71,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
-            return Err(GuaranteesEntryLimitExceeded);
+            return Err(GuaranteesEntryLimitExceeded(extrinsic.len(), CORE_COUNT));
         }
 
         // Check if the entries are sorted
@@ -159,7 +162,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         if let Some(core_report) = core_pending_report {
             let expiration = core_report.timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
             if header_timeslot_index < expiration {
-                return Err(PendingReportExists);
+                return Err(PendingReportExists(core_index));
             }
         }
 
@@ -168,18 +171,25 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .get_by_core_index(core_index)
             .contains(&work_report.authorizer_hash())
         {
-            return Err(InvalidAuthorizerHash);
+            return Err(InvalidAuthorizerHash(core_index));
         }
 
         // Validate anchor block
-        self.validate_anchor_block(work_report.refinement_context(), block_history)?;
+        self.validate_anchor_block(core_index, work_report.refinement_context(), block_history)?;
 
         // Validate lookup-anchor block
-        self.validate_lookup_anchor_block(work_report.refinement_context(), header_timeslot_index)?;
+        self.validate_lookup_anchor_block(
+            core_index,
+            work_report.refinement_context(),
+            header_timeslot_index,
+        )?;
 
         // Check that the work-package hash is not in the block history
         if block_history.check_work_package_hash_exists(&work_report.work_package_hash()) {
-            return Err(WorkPackageAlreadyInHistory);
+            return Err(WorkPackageAlreadyInHistory(
+                core_index,
+                encode(work_report.work_package_hash()),
+            ));
         }
 
         // Check prerequisite work-package exists either in the current extrinsic or in the recent
@@ -188,7 +198,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             if !work_package_hashes.contains(&prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(&prerequisite_hash)
             {
-                return Err(PrerequisiteNotFound);
+                return Err(PrerequisiteNotFound(core_index, encode(prerequisite_hash)));
             }
         }
 
@@ -200,6 +210,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
     fn validate_anchor_block(
         &self,
+        core_index: CoreIndex,
         work_report_context: &RefinementContext,
         block_history: &BlockHistory,
     ) -> Result<(), ExtrinsicValidationError> {
@@ -216,10 +227,10 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
                 || (hash::<Keccak256>(&entry.accumulation_result_mmr.encode()?)?
                     != anchor_beefy_root)
             {
-                return Err(InvalidAnchorBlock);
+                return Err(InvalidAnchorBlock(core_index, encode(anchor_hash)));
             }
         } else {
-            return Err(AnchorBlockNotFound);
+            return Err(AnchorBlockNotFound(core_index, encode(anchor_hash)));
         }
 
         Ok(())
@@ -227,18 +238,22 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
     fn validate_lookup_anchor_block(
         &self,
+        core_index: CoreIndex,
         work_report_context: &RefinementContext,
         header_timeslot_index: u32,
     ) -> Result<(), ExtrinsicValidationError> {
         // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
-        let _lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
+        let lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
 
         // Check that lookup-anchor block is within the last L timeslots
         if lookup_anchor_timeslot
             < header_timeslot_index.saturating_sub(MAX_LOOKUP_ANCHOR_AGE as u32)
         {
-            return Err(LookupAnchorBlockTimeout);
+            return Err(LookupAnchorBlockTimeout(
+                core_index,
+                encode(lookup_anchor_hash),
+            ));
         }
 
         Ok(())
@@ -255,11 +270,19 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
-                    return Err(InvalidCodeHash);
+                    return Err(InvalidCodeHash(
+                        work_report.core_index(),
+                        result.service_index,
+                        encode(result.service_code_hash),
+                    ));
                 }
             } else {
                 // code hash doesn't exist for the service account
-                return Err(CodeHashNotFound);
+                return Err(CodeHashNotFound(
+                    work_report.core_index(),
+                    result.service_index,
+                    encode(result.service_code_hash),
+                ));
             }
         }
 
@@ -273,12 +296,15 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
-            return Err(InvalidGuarantorCount);
+            return Err(InvalidGuarantorCount(
+                credentials.len(),
+                entry.work_report.core_index(),
+            ));
         }
 
         // Check if the entries are sorted
         if !credentials.is_sorted() {
-            return Err(CredentialsNotSorted);
+            return Err(CredentialsNotSorted(entry.work_report.core_index()));
         }
 
         // Duplicate validation of validator indices

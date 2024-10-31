@@ -1008,6 +1008,7 @@ name = "rjam-extrinsics"
 version = "0.1.0"
 dependencies = [
  "ark-ec-vrfs",
+ "hex",
  "lazy_static",
  "rjam-codec",
  "rjam-common",

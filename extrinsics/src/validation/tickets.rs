@@ -1,4 +1,5 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use hex::encode;
 use rjam_common::{Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT, X_T};
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
@@ -36,11 +37,14 @@ impl<'a> TicketsExtrinsicValidator<'a> {
         // Check the slot phase
         let current_slot_phase = self.state_manger.get_timeslot()?.slot_phase();
         if current_slot_phase >= TICKET_SUBMISSION_DEADLINE_SLOT as u32 && !extrinsic.is_empty() {
-            return Err(TicketSubmissionClosed);
+            return Err(TicketSubmissionClosed(current_slot_phase));
         }
 
         if extrinsic.len() > MAX_TICKETS_PER_EXTRINSIC {
-            return Err(TicketsEntryLimitExceeded);
+            return Err(TicketsEntryLimitExceeded(
+                extrinsic.len(),
+                MAX_TICKETS_PER_EXTRINSIC,
+            ));
         }
 
         // Check if the entries are sorted
@@ -73,7 +77,7 @@ impl<'a> TicketsExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check if the ticket attempt number is correct (0 or 1)
         if entry.entry_index > 1 {
-            return Err(InvalidTicketAttemptNumber);
+            return Err(InvalidTicketAttemptNumber(entry.entry_index));
         }
 
         Self::validate_ticket_proof(entry, verifier, entropy_2)?;
@@ -98,7 +102,7 @@ impl<'a> TicketsExtrinsicValidator<'a> {
         let aux_data = vec![]; // no aux data for ticket vrf signature
         verifier
             .ring_vrf_verify(&expected_vrf_input, &aux_data, &entry.ticket_proof[..])
-            .map_err(|_| InvalidTicketProof)?;
+            .map_err(|_| InvalidTicketProof(encode(&entry.ticket_proof[..])))?;
 
         Ok(())
     }

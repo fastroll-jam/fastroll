@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use rjam_common::{Ticket, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{
-    error::ExtrinsicValidationError, tickets::TicketsExtrinsicValidator,
+    error::ExtrinsicValidationError::*, tickets::TicketsExtrinsicValidator,
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
@@ -124,7 +124,7 @@ fn handle_ticket_accumulation(
     let current_slot_phase = state_manager.get_timeslot()?.slot_phase();
     if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
         return Err(TransitionError::ExtrinsicValidationError(
-            ExtrinsicValidationError::TicketSubmissionClosed,
+            TicketSubmissionClosed(current_slot_phase),
         ));
     }
 
@@ -140,9 +140,7 @@ fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole()?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::ExtrinsicValidationError(
-                ExtrinsicValidationError::DuplicateTicket,
-            ));
+            return Err(TransitionError::ExtrinsicValidationError(DuplicateTicket));
         }
         curr_ticket_accumulator.add(ticket);
     }
