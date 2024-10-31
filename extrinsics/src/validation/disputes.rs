@@ -52,7 +52,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             || !extrinsic.culprits.is_sorted()
             || !extrinsic.faults.is_sorted()
         {
-            return Err(DisputesNotOrdered);
+            return Err(DisputesNotSorted);
         }
 
         // Used for duplicate validation
@@ -132,12 +132,12 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         // Verdicts entry must not be present in any past report hashes - neither in the `GoodSet`,
         // `BadSet`, nor `WonkySet`.
         if all_past_report_hashes.contains(&entry.report_hash) {
-            return Err(VerdictsAlreadyIntroduces);
+            return Err(VerdictAlreadyExists);
         }
 
         // Check if judgments are sorted
         if !entry.judgments.is_sorted() {
-            return Err(JudgmentsNotOrdered);
+            return Err(JudgmentsNotSorted);
         }
 
         // Check for duplicate entry
@@ -173,7 +173,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 get_validator_ed25519_key_by_index(&validator_set, judgment.voter);
 
             if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
-                return Err(BadJudgmentSignature);
+                return Err(InvalidJudgmentSignature);
             }
         }
 
@@ -201,7 +201,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         message.extend_from_slice(hash);
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(BadCulpritSignature);
+            return Err(InvalidCulpritSignature);
         }
 
         Ok(())
@@ -239,7 +239,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         };
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(BadFaultSignature);
+            return Err(InvalidFaultSignature);
         }
 
         Ok(())

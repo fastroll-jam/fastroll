@@ -34,14 +34,14 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(PreimageLookupsNotOrdered);
+            return Err(PreimageLookupsNotSorted);
         }
 
         // Duplicate validation of the preimage entries
         let mut entries = HashSet::new();
         let no_duplicate = extrinsic.iter().all(|entry| entries.insert(entry));
         if !no_duplicate {
-            return Err(DuplicatePreimageLookups);
+            return Err(DuplicatePreimageLookup);
         }
 
         for entry in extrinsic.iter() {

@@ -44,12 +44,12 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
-            return Err(TooManyAssurances);
+            return Err(AssurancesEntryLimitExceeded);
         }
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(AssurancesNotOrdered);
+            return Err(AssurancesNotSorted);
         }
 
         // Validate each entry
@@ -68,7 +68,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the anchored parent hash
         if entry.anchor_parent_hash != header_parent_hash {
-            return Err(BadParentHash);
+            return Err(InvalidAssuranceParentHash);
         }
 
         // Verify the signature
@@ -86,7 +86,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
             get_validator_ed25519_key_by_index(&current_active_set.0, entry.validator_index);
 
         if !verify_signature(&message, &assurer_public_key, &entry.signature) {
-            return Err(BadAssuranceSignature);
+            return Err(InvalidAssuranceSignature);
         }
 
         // Validate the assuring cores bit-vec
@@ -94,7 +94,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
             if bit && pending_reports.0[core_index].is_none() {
-                return Err(NoPendingReportInCore(core_index as CoreIndex));
+                return Err(NoPendingReportForCore(core_index as CoreIndex));
             }
         }
 

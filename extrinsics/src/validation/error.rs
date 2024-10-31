@@ -10,96 +10,101 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ExtrinsicValidationError {
     // Assurances validation errors
-    #[error("Assurance entries length exceeds the number of validators")]
-    TooManyAssurances,
-    #[error("Submitted assurances must be ordered by the validator index")]
-    AssurancesNotOrdered,
-    #[error("Submitted assurances must have correct parent hash anchored to")]
-    BadParentHash,
-    #[error("Submitted assurances must have valid signatures")]
-    BadAssuranceSignature,
-    #[error("No pending report exists in the core {0}")]
-    NoPendingReportInCore(CoreIndex),
+    #[error("The number of assurance entries exceeds the allowed validator count")]
+    AssurancesEntryLimitExceeded,
+    #[error("Assurance entries must be sorted by validator index")]
+    AssurancesNotSorted,
+    #[error("Invalid parent hash for assurance entry")]
+    InvalidAssuranceParentHash,
+    #[error("Invalid assurance signature")]
+    InvalidAssuranceSignature,
+    #[error("No pending report found for core {0}")]
+    NoPendingReportForCore(CoreIndex),
+
     // Disputes validation errors
-    #[error("All disputes entries must be ordered correctly")]
-    DisputesNotOrdered,
-    #[error("Duplicate verdict entry")]
+    #[error("Dispute entries must be sorted correctly")]
+    DisputesNotSorted,
+    #[error("Judgments must be sorted by validator index")]
+    JudgmentsNotSorted,
+    #[error("Duplicate verdict entry found")]
     DuplicateVerdict,
-    #[error("Duplicate culprit entry")]
-    DuplicateCulprit,
-    #[error("Duplicate fault entry")]
-    DuplicateFault,
-    #[error("Verdicts must not be present in any past disputes set")]
-    VerdictsAlreadyIntroduces,
-    #[error("All judgments in verdicts must be ordered by the validator index")]
-    JudgmentsNotOrdered,
-    #[error("Duplicate judgment entry")]
+    #[error("Duplicate judgment entry found")]
     DuplicateJudgment,
-    #[error("All judgments must have valid signature signed by the voter")]
-    BadJudgmentSignature,
-    #[error("The guarantor didn't submit bad report")]
+    #[error("Duplicate culprit entry found")]
+    DuplicateCulprit,
+    #[error("Duplicate fault entry found")]
+    DuplicateFault,
+    #[error("Verdict entry already exists in past dispute sets")]
+    VerdictAlreadyExists,
+    #[error("Validator was not a culprit")]
     NotCulprit,
-    #[error("The voter didn't cast bad vote")]
+    #[error("Validator did not cast a faulty vote")]
     NotFault,
-    #[error("The validator must be part of either the active set or the past set")]
+    #[error("Validator is not part of the active or past set")]
     InvalidValidatorSet,
-    #[error("Bad culprit signature")]
-    BadCulpritSignature,
-    #[error("Bad fault signature")]
-    BadFaultSignature,
+    #[error("Invalid signature for judgment")]
+    InvalidJudgmentSignature,
+    #[error("Invalid culprit signature")]
+    InvalidCulpritSignature,
+    #[error("Invalid fault signature")]
+    InvalidFaultSignature,
+
     // Guarantees validation errors
-    #[error("Guarantee entries length exceeds the number of cores")]
-    TooManyGuarantees,
-    #[error("Submitted guarantees must be ordered by the core indices of work reports")]
-    GuaranteesNotOrdered,
-    #[error("Duplicate core indices found in the guarantees")]
-    DuplicateCore,
-    #[error("Duplicate work package hashes found in the guarantees")]
-    DuplicateWorkPackages,
-    #[error("Valid pending report exists assigned to the core")]
+    #[error("The number of guarantee entries exceeds the allowed core count")]
+    GuaranteesEntryLimitExceeded,
+    #[error("Guarantee entries must be sorted by core index")]
+    GuaranteesNotSorted,
+    #[error("Duplicate core index found in guarantees")]
+    DuplicateCoreIndex,
+    #[error("Duplicate work package hashes found in guarantees")]
+    DuplicateWorkPackageHash,
+    #[error("Pending report exists for the core")]
     PendingReportExists,
-    #[error("Bad authorizer hash")]
-    BadAuthorizerHash,
-    #[error("Submitted work package is already in the history")]
+    #[error("Invalid authorizer hash in work report")]
+    InvalidAuthorizerHash,
+    #[error("Work package hash already exists in block history")]
     WorkPackageAlreadyInHistory,
-    #[error("Prerequisite work package must exist either in the current extrinsic or in the recent history")]
+    #[error("Prerequisite work package not found")]
     PrerequisiteNotFound,
-    #[error("Code hash of the work result is invalid")]
-    BadCodeHash,
-    #[error("Code hash not found from the service account")]
+    #[error("Invalid code hash in work result")]
+    InvalidCodeHash,
+    #[error("Code hash not found for the service account")]
     CodeHashNotFound,
-    #[error("The anchor block must be found in the recent block history")]
+    #[error("Anchor block not found in recent block history")]
     AnchorBlockNotFound,
     #[error("Invalid anchor block")]
     InvalidAnchorBlock,
-    #[error("Lookup anchor block is timed out")]
+    #[error("Lookup anchor block timed out")]
     LookupAnchorBlockTimeout,
-    #[error("Number of credentials of guarantee must be either 2 or 3")]
-    CredentialsLengthMismatch,
-    #[error("Credentials in guarantee must be ordered by the validator index")]
-    CredentialsNotOrdered,
-    #[error("Duplicate guarantors")]
-    DuplicateGuarantors,
+    #[error("Invalid number of guarantors, must be 2 or 3")]
+    InvalidGuarantorCount,
+    #[error("Credentials in guarantee must be sorted by the validator index")]
+    CredentialsNotSorted,
+    #[error("Duplicate guarantor entry found")]
+    DuplicateGuarantor,
+
     // Preimages validation errors
-    #[error("PreimageLookups must be ordered by the service index")]
-    PreimageLookupsNotOrdered,
-    #[error("Duplicate preimage lookups entry")]
-    DuplicatePreimageLookups,
-    #[error("Provided preimage is already integrated to the state")]
+    #[error("Preimage lookups must be sorted by service index")]
+    PreimageLookupsNotSorted,
+    #[error("Duplicate preimage lookup entry found")]
+    DuplicatePreimageLookup,
+    #[error("Preimage already integrated into the state")]
     PreimageAlreadyIntegrated,
+
     // Ticket validation errors
-    #[error("Submitted ticket already exists in the accumulator")]
+    #[error("The number of ticket entries exceeds the allowed tickets")]
+    TicketsEntryLimitExceeded,
+    #[error("Duplicate ticket found in accumulator")]
     DuplicateTicket,
-    #[error("Submitted tickets must be ordered by the ticket proof hash")]
-    TicketsNotOrdered,
-    #[error("Submitted tickets must have valid ring VRF proofs")]
-    BadTicketProof,
-    #[error("Ticket attempt number must be either 0 or 1")]
-    BadTicketAttemptNumber,
+    #[error("Ticket entries must be sorted by proof hash")]
+    TicketsNotSorted,
+    #[error("Invalid VRF proof for ticket entry")]
+    InvalidTicketProof,
+    #[error("Invalid ticket attempt number, must be 0 or 1")]
+    InvalidTicketAttemptNumber,
     #[error("Ticket submission period has ended")]
     TicketSubmissionClosed,
-    #[error("Too many tickets")]
-    TooManyTickets,
+
     // External errors
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),

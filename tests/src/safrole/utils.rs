@@ -2,7 +2,7 @@ use crate::safrole::asn_types::{
     ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
     ValidatorsData, U32, U8,
 };
-use rjam_extrinsics::validation::error::ExtrinsicValidationError;
+use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
 use rjam_types::state::{
     entropy::EntropyAccumulator,
@@ -23,10 +23,7 @@ pub enum AsnTypeError {
     InfallibleError(#[from] std::convert::Infallible),
 }
 
-//
-// State Builder to facilitate conversion between ASN and RJAM types
-//
-
+/// State builder to facilitate conversion between ASN and RJAM types
 #[derive(Default)]
 pub struct StateBuilder {
     tau: Option<U32>,
@@ -105,29 +102,26 @@ impl StateBuilder {
     }
 }
 
-//
-// Conversion from JAM implementation Errors into test vectors' error code output
-//
-
+/// Converts JAM implementation error types into test vector error code output
 pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode {
     if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
         match transition_error {
             TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
-            TransitionError::ExtrinsicValidationError(
-                ExtrinsicValidationError::TicketSubmissionClosed,
-            ) => CustomErrorCode::unexpected_ticket,
-            TransitionError::ExtrinsicValidationError(
-                ExtrinsicValidationError::TicketsNotOrdered,
-            ) => CustomErrorCode::bad_ticket_order,
-            TransitionError::ExtrinsicValidationError(ExtrinsicValidationError::BadTicketProof) => {
+            TransitionError::ExtrinsicValidationError(TicketSubmissionClosed) => {
+                CustomErrorCode::unexpected_ticket
+            }
+            TransitionError::ExtrinsicValidationError(TicketsNotSorted) => {
+                CustomErrorCode::bad_ticket_order
+            }
+            TransitionError::ExtrinsicValidationError(InvalidTicketProof) => {
                 CustomErrorCode::bad_ticket_proof
             }
-            TransitionError::ExtrinsicValidationError(
-                ExtrinsicValidationError::BadTicketAttemptNumber,
-            ) => CustomErrorCode::bad_ticket_attempt,
-            TransitionError::ExtrinsicValidationError(
-                ExtrinsicValidationError::DuplicateTicket,
-            ) => CustomErrorCode::duplicate_ticket,
+            TransitionError::ExtrinsicValidationError(InvalidTicketAttemptNumber) => {
+                CustomErrorCode::bad_ticket_attempt
+            }
+            TransitionError::ExtrinsicValidationError(DuplicateTicket) => {
+                CustomErrorCode::duplicate_ticket
+            }
             _ => CustomErrorCode::reserved,
         }
     } else {

@@ -68,12 +68,12 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
-            return Err(TooManyGuarantees);
+            return Err(GuaranteesEntryLimitExceeded);
         }
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(GuaranteesNotOrdered);
+            return Err(GuaranteesNotSorted);
         }
 
         // Duplicate validation of core indices
@@ -82,7 +82,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .iter()
             .all(|entry| work_report_cores.insert(entry.work_report.core_index()));
         if !no_duplicate_cores {
-            return Err(DuplicateCore);
+            return Err(DuplicateCoreIndex);
         }
 
         // Duplicate validation of work packages
@@ -91,12 +91,12 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .iter()
             .all(|entry| work_package_hashes.insert(entry.work_report.work_package_hash()));
         if !no_duplicate_packages {
-            return Err(DuplicateWorkPackages);
+            return Err(DuplicateWorkPackageHash);
         }
 
         // Additionally, check the cardinality of work package hashes and the work reports
         if work_package_hashes.len() != extrinsic.len() {
-            return Err(DuplicateWorkPackages);
+            return Err(DuplicateWorkPackageHash);
         }
 
         // Validate each entry
@@ -168,7 +168,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             .get_by_core_index(core_index)
             .contains(&work_report.authorizer_hash())
         {
-            return Err(BadAuthorizerHash);
+            return Err(InvalidAuthorizerHash);
         }
 
         // Validate anchor block
@@ -255,7 +255,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
-                    return Err(BadCodeHash);
+                    return Err(InvalidCodeHash);
                 }
             } else {
                 // code hash doesn't exist for the service account
@@ -273,19 +273,19 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
-            return Err(CredentialsLengthMismatch);
+            return Err(InvalidGuarantorCount);
         }
 
         // Check if the entries are sorted
         if !credentials.is_sorted() {
-            return Err(CredentialsNotOrdered);
+            return Err(CredentialsNotSorted);
         }
 
         // Duplicate validation of validator indices
         let mut validator_indices = HashSet::new();
         let no_duplicate_indices = credentials.iter().all(|c| validator_indices.insert(c.0));
         if !no_duplicate_indices {
-            return Err(DuplicateGuarantors);
+            return Err(DuplicateGuarantor);
         }
 
         // Validate each credential
