@@ -12,6 +12,8 @@ pub enum BlockHeaderDBError {
     HeaderNotFound(u32),
     #[error("Staging header not initialized")]
     StagingHeaderNotInitialized,
+    #[error("Staging header is already initialized")]
+    StagingHeaderAlreadyInitialized,
     #[error("KeyValueDBError: {0}")]
     KeyValueDBError(#[from] KeyValueDBError),
     #[error("JamCodecError: {0}")]
@@ -28,7 +30,7 @@ pub struct BlockHeaderDB {
 }
 
 impl BlockHeaderDB {
-    pub fn open(config: RocksDBConfig, cache_size: usize) -> Result<Self, BlockHeaderDBError> {
+    pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, BlockHeaderDBError> {
         let db = KeyValueDB::new(config)?;
         Ok(Self {
             db,
@@ -67,8 +69,26 @@ impl BlockHeaderDB {
         Ok(())
     }
 
-    pub fn initialize_staging_header(&mut self, parent_hash: Hash32, timeslot_index: u32) {
+    pub fn initialize_staging_header(
+        &mut self,
+        parent_hash: Hash32,
+        timeslot_index: u32,
+    ) -> Result<(), BlockHeaderDBError> {
+        if let Some(_staging_header) = self.get_staging_header() {
+            return Err(BlockHeaderDBError::StagingHeaderAlreadyInitialized);
+        }
+
         self.staging_header = Some(BlockHeader::new(parent_hash, timeslot_index));
+
+        Ok(())
+    }
+
+    pub fn get_staging_header(&self) -> Option<&BlockHeader> {
+        self.staging_header.as_ref()
+    }
+
+    pub fn drop_staging_header(&mut self) {
+        self.staging_header = None;
     }
 
     pub fn update_staging_header<F>(&mut self, f: F) -> Result<(), BlockHeaderDBError>

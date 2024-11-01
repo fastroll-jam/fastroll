@@ -106,6 +106,7 @@ impl PVMInvocation {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn refine(
         state_manager: &StateManager, // FIXME: not needed
         code_hash: Hash32,

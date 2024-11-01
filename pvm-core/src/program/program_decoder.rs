@@ -2,7 +2,7 @@ use crate::{
     constants::{
         INPUT_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
     },
-    instructions::opcode::*,
+    program::opcode::*,
     state::memory::MemAddress,
     types::error::{
         PVMError, VMCoreError,
@@ -203,7 +203,7 @@ impl ProgramDecoder {
         current_pc: MemAddress,
         skip_distance: usize,
     ) -> Result<Instruction, PVMError> {
-        use crate::instructions::opcode::Opcode::*;
+        use crate::program::opcode::Opcode::*;
         let op = Opcode::from_u8(inst_blob[0]).ok_or(VMCoreError::InvalidOpcode)?;
 
         match op {

@@ -1,10 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Register {
     pub value: u32,
-}
-
-impl Default for Register {
-    fn default() -> Self {
-        Self { value: 0 }
-    }
 }

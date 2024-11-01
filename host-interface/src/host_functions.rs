@@ -300,7 +300,7 @@ impl HostFunction {
             .get_account_metadata(target_address)?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
-        let result = if target_account_metadata.get_threshold_balance()
+        if target_account_metadata.get_threshold_balance()
             > target_account_metadata.account_info.balance
         {
             Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
@@ -310,9 +310,7 @@ impl HostFunction {
                 r7_write: Some(previous_size as u32),
                 ..Default::default()
             }))
-        };
-
-        result
+        }
     }
 
     pub fn host_info(
@@ -391,6 +389,7 @@ impl HostFunction {
         }))
     }
 
+    #[allow(clippy::needless_range_loop)]
     pub fn host_assign(
         regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
         memory: &Memory,
@@ -1283,7 +1282,7 @@ impl HostFunction {
                     vm_state_change: HostCallVMStateChange {
                         gas_usage: BASE_GAS_USAGE,
                         r7_write: Some(FAULT as u32),
-                        r8_write: Some(address as u32),
+                        r8_write: Some(address),
                         memory_write: (memory_offset, 60, buf),
                         exit_reason: ExitReason::PageFault(address),
                     },
@@ -1334,7 +1333,7 @@ impl HostFunction {
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
                 gas_usage: BASE_GAS_USAGE,
-                r7_write: Some(final_pc as u32),
+                r7_write: Some(final_pc),
                 ..Default::default()
             },
         }))

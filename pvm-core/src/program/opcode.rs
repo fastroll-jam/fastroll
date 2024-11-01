@@ -94,6 +94,7 @@ pub enum Opcode {
 }
 
 impl Opcode {
+    #[allow(clippy::missing_transmute_annotations)]
     pub fn from_u8(value: u8) -> Option<Self> {
         if value <= 87 {
             Some(unsafe { std::mem::transmute(value) })

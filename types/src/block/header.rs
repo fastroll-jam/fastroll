@@ -3,6 +3,7 @@ use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
     BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, HASH32_EMPTY, VALIDATOR_COUNT,
 };
+use std::fmt::Display;
 
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 pub type OffendersMarker = Vec<Ed25519PubKey>;
@@ -25,6 +26,42 @@ pub struct BlockHeader {
     pub block_author_index: ValidatorIndex,                   // i
     pub vrf_signature: BandersnatchSignature,                 // v
     pub block_seal: BandersnatchSignature,                    // s
+}
+
+impl Display for BlockHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let offenders_encoded = self
+            .offenders_marker
+            .iter()
+            .map(hex::encode)
+            .collect::<Vec<_>>();
+
+        write!(
+            f,
+            "BlockHeader {{\n\
+             \tparent_hash: {:?},\n\
+             \tprior_state_root: {:?},\n\
+             \textrinsic_hash: {:?},\n\
+             \ttimeslot_index: {},\n\
+             \tepoch_marker: {:?},\n\
+             \twinning_tickets_marker: {:?},\n\
+             \toffenders_marker: {:?},\n\
+             \tblock_author_index: {:?},\n\
+             \tvrf_signature: {:?},\n\
+             \tblock_seal: {:?}\n\
+             }}",
+            hex::encode(self.parent_hash),
+            hex::encode(self.prior_state_root),
+            hex::encode(self.extrinsic_hash),
+            self.timeslot_index,
+            self.epoch_marker,
+            self.winning_tickets_marker,
+            offenders_encoded,
+            self.block_author_index,
+            hex::encode(self.vrf_signature),
+            hex::encode(self.block_seal)
+        )
+    }
 }
 
 impl Default for BlockHeader {

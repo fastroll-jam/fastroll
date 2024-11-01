@@ -75,7 +75,7 @@ fn handle_new_epoch_transition(
         // slot-sealer series transition (gamma_s)
         update_slot_sealers(
             safrole,
-            &prior_timeslot,
+            prior_timeslot,
             &current_active_set,
             &current_entropy,
         );

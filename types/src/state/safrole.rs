@@ -34,15 +34,15 @@ impl Display for SafroleState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "SafroleState {{")?;
 
-        writeln!(f, "  Pending Validator Set: [")?;
+        writeln!(f, "\tPending Validator Set: [")?;
         for (i, validator) in self.pending_set.iter().enumerate() {
-            writeln!(f, "    Validator {}: {}", i, validator)?;
+            writeln!(f, "\t\tValidator {}: {}", i, validator)?;
         }
-        writeln!(f, "  ]")?;
+        writeln!(f, "\t]")?;
 
-        writeln!(f, "  Ring Root: {}", hex::encode(self.ring_root))?;
+        writeln!(f, "\tRing Root: {}", hex::encode(self.ring_root))?;
 
-        writeln!(f, "  Slot Sealers:")?;
+        writeln!(f, "\tSlot Sealers:")?;
         match &self.slot_sealers {
             SlotSealerType::Tickets(tickets) => {
                 for (i, ticket) in tickets.iter().enumerate() {
@@ -210,7 +210,7 @@ impl Display for TicketAccumulator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "TicketAccumulator {{")?;
         for (i, ticket) in self.heap.iter().enumerate() {
-            writeln!(f, "  {}: {}", i, ticket)?;
+            writeln!(f, "\t{}: {}", i, ticket)?;
         }
         write!(f, "}}")
     }

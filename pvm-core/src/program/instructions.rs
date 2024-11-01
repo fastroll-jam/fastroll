@@ -1,7 +1,7 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
     core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
-    instructions::program_decoder::Instruction,
+    program::program_decoder::Instruction,
     state::memory::MemAddress,
     types::{
         common::ExitReason,
@@ -812,7 +812,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.unwrap(), alloc_start)],
-                new_pc: Some(PVMCore::next_pc(&vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program)),
                 ..Default::default()
             },
         })

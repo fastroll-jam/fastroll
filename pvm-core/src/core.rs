@@ -1,6 +1,6 @@
 use crate::{
     constants::REGISTERS_COUNT,
-    instructions::{
+    program::{
         instructions::InstructionSet as IS,
         opcode::Opcode,
         program_decoder::{Instruction, ProgramDecoder},
@@ -208,7 +208,7 @@ impl PVMCore {
 
             // TODO: define instruction_blob with endless zeroes padding
             let ins =
-                ProgramDecoder::decode_instruction(&instruction_blob, current_pc, skip_distance)?;
+                ProgramDecoder::decode_instruction(instruction_blob, current_pc, skip_distance)?;
 
             let single_invocation_result = Self::single_step_invocation(vm_state, program, &ins)?;
 

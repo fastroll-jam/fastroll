@@ -7,7 +7,8 @@ use crate::{
 use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, Octets, HASH32_EMPTY};
-use rocksdb::{WriteBatch, WriteOptions, DB};
+use rjam_db::RocksDBConfig;
+use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -55,9 +56,17 @@ pub struct MerkleDB {
 }
 
 impl MerkleDB {
-    pub fn new(db: Arc<DB>, cache_size: usize) -> Result<Self, StateMerkleError> {
+    pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, StateMerkleError> {
+        let mut opts = Options::default();
+        opts.create_if_missing(config.create_if_missing);
+        opts.set_max_open_files(config.max_open_files);
+        opts.set_write_buffer_size(config.write_buffer_size);
+        opts.set_max_write_buffer_number(config.max_write_buffer_number);
+
+        let db = DB::open(&opts, &config.path).map_err(StateMerkleError::RocksDBError)?;
+
         Ok(Self {
-            db,
+            db: Arc::new(db),
             cache: Arc::new(DashMap::with_capacity(cache_size)),
             root: HASH32_EMPTY,
         })

@@ -16,7 +16,7 @@ pub fn transition_timeslot(
     validate_timeslot(&prior_timeslot, header_timeslot)?;
 
     state_manager.with_mut_timeslot(StateWriteOp::Update, |timeslot| {
-        *timeslot = header_timeslot.clone();
+        *timeslot = *header_timeslot;
     })?;
     Ok(())
 }

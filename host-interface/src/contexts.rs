@@ -95,9 +95,9 @@ impl AccumulateContext {
         timeslot.0.encode_to(&mut buf)?;
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
-        let initial_check_address = (u32::decode_fixed(&mut &source_hash[..], 4)? as u64
-            & ((1 << 32) - (1 << 9)) + (1 << 8)) as Address;
-        let new_account_address = state_manager.check(initial_check_address)?;
+        let initial_check_address = u32::decode_fixed(&mut &source_hash[..], 4)? as u64
+            & (((1 << 32) - (1 << 9)) + (1 << 8));
+        let new_account_address = state_manager.check(initial_check_address as Address)?;
 
         Ok(new_account_address)
     }
@@ -106,6 +106,7 @@ impl AccumulateContext {
         self.next_new_account_address
     }
 
+    #[allow(clippy::redundant_closure_call)]
     pub fn rotate_new_account_address(
         &mut self,
         state_manager: &StateManager,
@@ -122,21 +123,11 @@ impl AccumulateContext {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct RefineContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     pub export_segments: Vec<ExportDataSegment>,
     next_instance_id: usize, // PVM instance ID to be assigned for the next instance
-}
-
-impl Default for RefineContext {
-    fn default() -> Self {
-        Self {
-            pvm_instances: HashMap::new(),
-            export_segments: Vec::new(),
-            next_instance_id: 0,
-        }
-    }
 }
 
 impl RefineContext {

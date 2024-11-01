@@ -948,6 +948,8 @@ dependencies = [
  "rjam-db",
  "rjam-extrinsics",
  "rjam-state",
+ "rjam-state-merkle",
+ "rjam-transition",
  "serde_json",
 ]
 
@@ -1110,6 +1112,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-db",
  "rocksdb",
  "thiserror",
 ]

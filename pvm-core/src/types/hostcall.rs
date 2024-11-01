@@ -31,6 +31,7 @@ pub enum HostCallType {
 }
 
 impl HostCallType {
+    #[allow(clippy::missing_transmute_annotations)]
     pub fn from_u8(value: u8) -> Option<Self> {
         if value <= 22 {
             Some(unsafe { std::mem::transmute(value) })

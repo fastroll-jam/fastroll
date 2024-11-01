@@ -179,6 +179,6 @@ pub fn select_deferred_transfers(
     selected.sort_by_key(|&(i, transfer)| (transfer.from, i));
     selected
         .into_iter()
-        .map(|(_, transfer)| transfer.clone())
+        .map(|(_, transfer)| *transfer)
         .collect()
 }

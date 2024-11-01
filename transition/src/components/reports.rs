@@ -47,9 +47,7 @@ pub fn transition_reports_clear_availables(
 ) -> Result<(), TransitionError> {
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
         for core_index in available_reports_core_indices {
-            pending_reports
-                .remove_by_core_index(core_index.clone())
-                .unwrap()
+            pending_reports.remove_by_core_index(*core_index).unwrap()
         }
     })?;
 
@@ -74,7 +72,7 @@ pub fn transition_reports_replace_entries(
         for report in new_valid_reports {
             pending_reports.0[report.core_index() as usize] = Some(PendingReport {
                 work_report: report.clone(),
-                timeslot: current_timeslot.clone(),
+                timeslot: *current_timeslot,
             })
         }
     })?;

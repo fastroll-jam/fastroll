@@ -8,7 +8,7 @@ use rjam_pvm_core::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
     },
     core::{PVMCore, Program, VMState},
-    instructions::program_decoder::{FormattedProgram, ProgramDecoder},
+    program::program_decoder::{FormattedProgram, ProgramDecoder},
     state::{
         memory::{AccessType, MemAddress, Memory},
         register::Register,
@@ -68,7 +68,7 @@ impl PVM {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
-        pvm.setup_memory_layout(&formatted_program, &args)?;
+        pvm.setup_memory_layout(&formatted_program, args)?;
         pvm.initialize_registers(args.len());
         pvm.program.program_code = formatted_program.code;
 
@@ -106,7 +106,7 @@ impl PVM {
         // Arguments
         let args_start = (1 << 32) - SEGMENT_SIZE - INPUT_SIZE;
         let args_end = args_start + args.len();
-        memory.set_range(args_start, &args[..], AccessType::ReadOnly);
+        memory.set_range(args_start, args, AccessType::ReadOnly);
         memory.set_access_range(
             args_end,
             (1 << 32) - SEGMENT_SIZE - INPUT_SIZE + VMUtils::p(args.len()),

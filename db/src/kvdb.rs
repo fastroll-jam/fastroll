@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum KeyValueDBError {
     #[error("RocksDB error: {0}")]
-    RocksDBError(String),
+    RocksDBError(#[from] rocksdb::Error),
 }
 
 pub struct RocksDBConfig {
@@ -29,6 +29,15 @@ impl Default for RocksDBConfig {
     }
 }
 
+impl RocksDBConfig {
+    pub fn from_path(path: &str) -> Self {
+        Self {
+            path: PathBuf::from(path),
+            ..Default::default()
+        }
+    }
+}
+
 pub enum DBWriteOp<'a> {
     Put(&'a [u8], Octets), // key, value
     Delete(&'a [u8]),      // key
@@ -39,34 +48,29 @@ pub struct KeyValueDB {
 }
 
 impl KeyValueDB {
-    pub fn new(config: RocksDBConfig) -> Result<Self, KeyValueDBError> {
+    pub fn new(config: &RocksDBConfig) -> Result<Self, KeyValueDBError> {
         let mut opts = Options::default();
         opts.create_if_missing(config.create_if_missing);
         opts.set_max_open_files(config.max_open_files);
         opts.set_write_buffer_size(config.write_buffer_size);
         opts.set_max_write_buffer_number(config.max_write_buffer_number);
 
-        let db = DB::open(&opts, &config.path)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))?;
+        let db = DB::open(&opts, &config.path).map_err(KeyValueDBError::RocksDBError)?;
         Ok(KeyValueDB { db: Arc::new(db) })
     }
 
     pub fn get_entry(&self, key: &[u8]) -> Result<Option<Octets>, KeyValueDBError> {
-        self.db
-            .get(key)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+        self.db.get(key).map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn put_entry(&self, key: &[u8], value: &[u8]) -> Result<(), KeyValueDBError> {
         self.db
             .put(key, value)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+            .map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn delete_entry(&self, key: &[u8]) -> Result<(), KeyValueDBError> {
-        self.db
-            .delete(key)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+        self.db.delete(key).map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn commit(&self, changes: &[DBWriteOp]) -> Result<(), KeyValueDBError> {
@@ -82,7 +86,7 @@ impl KeyValueDB {
 
         self.db
             .write_opt(batch, &write_opts)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+            .map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn batch_operation<F>(&self, operations: F) -> Result<(), KeyValueDBError>
@@ -91,9 +95,7 @@ impl KeyValueDB {
     {
         let mut batch = WriteBatch::default();
         operations(&mut batch);
-        self.db
-            .write(batch)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+        self.db.write(batch).map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn write_without_wal(&self, key: &[u8], value: &[u8]) -> Result<(), KeyValueDBError> {
@@ -101,6 +103,6 @@ impl KeyValueDB {
         write_opts.disable_wal(true);
         self.db
             .put_opt(key, value, &write_opts)
-            .map_err(|e| KeyValueDBError::RocksDBError(e.to_string()))
+            .map_err(KeyValueDBError::RocksDBError)
     }
 }

@@ -20,17 +20,17 @@ impl_jam_codec_for_newtype!(StagingSet, ValidatorSet);
 impl Display for StagingSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"StagingSet\": {{")?;
+        writeln!(f, "\t\"StagingSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
             if i < self.0.len() - 1 {
-                writeln!(f, "    }},")?;
+                writeln!(f, "\t\t}},")?;
             } else {
-                writeln!(f, "    }}")?;
+                writeln!(f, "\t\t}}")?;
             }
         }
-        writeln!(f, "  }}")?;
+        writeln!(f, "\t}}")?;
         write!(f, "}}")
     }
 }
@@ -62,17 +62,17 @@ impl_jam_codec_for_newtype!(ActiveSet, ValidatorSet);
 impl Display for ActiveSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"ActiveSet\": {{")?;
+        writeln!(f, "\t\"ActiveSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
             if i < self.0.len() - 1 {
-                writeln!(f, "    }},")?;
+                writeln!(f, "\t\t}},")?;
             } else {
-                writeln!(f, "    }}")?;
+                writeln!(f, "\t\t}}")?;
             }
         }
-        writeln!(f, "  }}")?;
+        writeln!(f, "\t}}")?;
         write!(f, "}}")
     }
 }
@@ -95,14 +95,14 @@ impl_jam_codec_for_newtype!(PastSet, ValidatorSet);
 impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
-        writeln!(f, "  \"PastSet\": {{")?;
+        writeln!(f, "\t\"PastSet\": {{")?;
         for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "    \"Validator_{}\": {{", i)?;
+            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
             write!(f, "{}", validator.to_json_like(6))?;
             if i < self.0.len() - 1 {
-                writeln!(f, "    }},")?;
+                writeln!(f, "\t\t}},")?;
             } else {
-                writeln!(f, "    }}")?;
+                writeln!(f, "\t\t}}")?;
             }
         }
         writeln!(f, "  }}")?;

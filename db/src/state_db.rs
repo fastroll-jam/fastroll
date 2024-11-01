@@ -19,7 +19,7 @@ impl Deref for StateDB {
 }
 
 impl StateDB {
-    pub fn open(config: RocksDBConfig) -> Result<Self, StateDBError> {
+    pub fn open(config: &RocksDBConfig) -> Result<Self, StateDBError> {
         let kvdb = KeyValueDB::new(config)?;
         Ok(Self(kvdb))
     }
