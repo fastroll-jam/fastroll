@@ -2,7 +2,7 @@ use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
 use rjam_common::{Address, Hash32, Octets, HASH32_EMPTY};
 use rjam_crypto::octets_to_hash32;
-use rjam_db::{StateDB, StateDBError};
+use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
 use rjam_types::state::{
     accumulate::{AccumulateHistory, AccumulateQueue},
@@ -55,8 +55,8 @@ pub enum StateManagerError {
     UnexpectedEntryType,
     #[error("Merkle error: {0}")]
     StateMerkleError(#[from] StateMerkleError),
-    #[error("StateDB error: {0}")]
-    StateDBError(#[from] StateDBError),
+    #[error("KeyValueDB error: {0}")]
+    KeyValueDBError(#[from] KeyValueDBError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
 }

@@ -995,10 +995,13 @@ dependencies = [
 name = "rjam-db"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "dotenv",
  "lazy_static",
+ "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-types",
  "rocksdb",
  "thiserror",
 ]

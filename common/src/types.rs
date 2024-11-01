@@ -26,6 +26,7 @@ pub type ValidatorSet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
 // Default values
 pub const HASH32_EMPTY: Hash32 = [0u8; 32];
+pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = [0u8; 96];
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = [0u8; 144];
 
 // Types

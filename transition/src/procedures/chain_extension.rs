@@ -36,15 +36,15 @@ pub fn chain_extension_procedure(
     let prior_timeslot = state_manager.get_timeslot()?;
 
     // Timeslot transition
-    let header_timeslot_index = header.get_timeslot_index();
+    let header_timeslot_index = header.timeslot_index;
     transition_timeslot(state_manager, &Timeslot::new(header_timeslot_index))?;
 
     // Determine if the epoch has progressed
-    let current_timeslot = state_manager.get_timeslot()?;
+    let current_timeslot = &state_manager.get_timeslot()?;
     let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
 
     // EntropyAccumulator transition
-    let header_vrf_signature = header.get_vrf_signature();
+    let header_vrf_signature = &header.vrf_signature;
     transition_entropy_accumulator(
         state_manager,
         epoch_progressed,
