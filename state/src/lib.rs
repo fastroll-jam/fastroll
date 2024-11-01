@@ -23,6 +23,28 @@ use rjam_types::state::{
 use std::sync::Arc;
 use thiserror::Error;
 
+const STATE_KEYS: [Hash32; 15] = [
+    construct_state_key(StateKeyConstant::AuthPool as u8),
+    construct_state_key(StateKeyConstant::AuthQueue as u8),
+    construct_state_key(StateKeyConstant::BlockHistory as u8),
+    construct_state_key(StateKeyConstant::SafroleState as u8),
+    construct_state_key(StateKeyConstant::DisputesState as u8),
+    construct_state_key(StateKeyConstant::EntropyAccumulator as u8),
+    construct_state_key(StateKeyConstant::StagingSet as u8),
+    construct_state_key(StateKeyConstant::ActiveSet as u8),
+    construct_state_key(StateKeyConstant::PastSet as u8),
+    construct_state_key(StateKeyConstant::PendingReports as u8),
+    construct_state_key(StateKeyConstant::Timeslot as u8),
+    construct_state_key(StateKeyConstant::PrivilegedServices as u8),
+    construct_state_key(StateKeyConstant::ValidatorStats as u8),
+    construct_state_key(StateKeyConstant::AccumulateQueue as u8),
+    construct_state_key(StateKeyConstant::AccumulateHistory as u8),
+];
+
+const fn get_state_key(key: StateKeyConstant) -> Hash32 {
+    STATE_KEYS[key as usize - 1]
+}
+
 #[derive(Debug, Error)]
 pub enum StateManagerError {
     #[error("State key not initialized")]
@@ -89,20 +111,20 @@ impl From<StateKeyConstant> for u8 {
     }
 }
 
-pub(crate) fn construct_state_key<T: Into<u8>>(i: T) -> Hash32 {
+const fn construct_state_key(i: u8) -> Hash32 {
     let mut key = HASH32_EMPTY;
-    key[0] = i.into();
+    key[0] = i;
     key
 }
 
-pub(crate) fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
+fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
     let mut key = HASH32_EMPTY;
     key[0] = i.into();
     key[1..5].copy_from_slice(&s.to_be_bytes());
     key
 }
 
-pub(crate) fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
+fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
     let mut key = HASH32_EMPTY;
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
@@ -123,7 +145,7 @@ fn not_hash_slice(h: &Hash32) -> [u8; 28] {
     result
 }
 
-pub(crate) fn construct_account_lookups_state_key(
+fn construct_account_lookups_state_key(
     s: Address,
     h: &Hash32,
     l: u32,
@@ -198,7 +220,7 @@ impl StateManager {
         state_key_constant: StateKeyConstant,
         state_entry_type: StateEntryType,
     ) {
-        let state_key = construct_state_key(state_key_constant);
+        let state_key = get_state_key(state_key_constant);
         self.cache
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
@@ -317,7 +339,7 @@ impl StateManager {
     //
 
     pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::AuthPool);
+        let state_key = get_state_key(StateKeyConstant::AuthPool);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -347,7 +369,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AuthPool),
     {
-        let state_key = construct_state_key(StateKeyConstant::AuthPool);
+        let state_key = get_state_key(StateKeyConstant::AuthPool);
 
         let mut cache_entry = self
             .cache
@@ -365,7 +387,7 @@ impl StateManager {
     }
 
     pub fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::AuthQueue);
+        let state_key = get_state_key(StateKeyConstant::AuthQueue);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -395,7 +417,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AuthQueue),
     {
-        let state_key = construct_state_key(StateKeyConstant::AuthQueue);
+        let state_key = get_state_key(StateKeyConstant::AuthQueue);
 
         let mut cache_entry = self
             .cache
@@ -413,7 +435,7 @@ impl StateManager {
     }
 
     pub fn get_block_history(&self) -> Result<BlockHistory, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::BlockHistory);
+        let state_key = get_state_key(StateKeyConstant::BlockHistory);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -443,7 +465,7 @@ impl StateManager {
     where
         F: FnOnce(&mut BlockHistory),
     {
-        let state_key = construct_state_key(StateKeyConstant::BlockHistory);
+        let state_key = get_state_key(StateKeyConstant::BlockHistory);
 
         let mut cache_entry = self
             .cache
@@ -461,7 +483,7 @@ impl StateManager {
     }
 
     pub fn get_safrole(&self) -> Result<SafroleState, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::SafroleState);
+        let state_key = get_state_key(StateKeyConstant::SafroleState);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -487,7 +509,7 @@ impl StateManager {
     where
         F: FnOnce(&mut SafroleState),
     {
-        let state_key = construct_state_key(StateKeyConstant::SafroleState);
+        let state_key = get_state_key(StateKeyConstant::SafroleState);
 
         let mut cache_entry = self
             .cache
@@ -505,7 +527,7 @@ impl StateManager {
     }
 
     pub fn get_disputes(&self) -> Result<DisputesState, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::DisputesState);
+        let state_key = get_state_key(StateKeyConstant::DisputesState);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -535,7 +557,7 @@ impl StateManager {
     where
         F: FnOnce(&mut DisputesState),
     {
-        let state_key = construct_state_key(StateKeyConstant::DisputesState);
+        let state_key = get_state_key(StateKeyConstant::DisputesState);
 
         let mut cache_entry = self
             .cache
@@ -553,7 +575,7 @@ impl StateManager {
     }
 
     pub fn get_entropy_accumulator(&self) -> Result<EntropyAccumulator, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::EntropyAccumulator);
+        let state_key = get_state_key(StateKeyConstant::EntropyAccumulator);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -583,7 +605,7 @@ impl StateManager {
     where
         F: FnOnce(&mut EntropyAccumulator),
     {
-        let state_key = construct_state_key(StateKeyConstant::EntropyAccumulator);
+        let state_key = get_state_key(StateKeyConstant::EntropyAccumulator);
 
         let mut cache_entry = self
             .cache
@@ -601,7 +623,7 @@ impl StateManager {
     }
 
     pub fn get_staging_set(&self) -> Result<StagingSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::StagingSet);
+        let state_key = get_state_key(StateKeyConstant::StagingSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -631,7 +653,7 @@ impl StateManager {
     where
         F: FnOnce(&mut StagingSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::StagingSet);
+        let state_key = get_state_key(StateKeyConstant::StagingSet);
 
         let mut cache_entry = self
             .cache
@@ -649,7 +671,7 @@ impl StateManager {
     }
 
     pub fn get_active_set(&self) -> Result<ActiveSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::ActiveSet);
+        let state_key = get_state_key(StateKeyConstant::ActiveSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -679,7 +701,7 @@ impl StateManager {
     where
         F: FnOnce(&mut ActiveSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::ActiveSet);
+        let state_key = get_state_key(StateKeyConstant::ActiveSet);
 
         let mut cache_entry = self
             .cache
@@ -697,7 +719,7 @@ impl StateManager {
     }
 
     pub fn get_past_set(&self) -> Result<PastSet, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::PastSet);
+        let state_key = get_state_key(StateKeyConstant::PastSet);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -727,7 +749,7 @@ impl StateManager {
     where
         F: FnOnce(&mut PastSet),
     {
-        let state_key = construct_state_key(StateKeyConstant::PastSet);
+        let state_key = get_state_key(StateKeyConstant::PastSet);
 
         let mut cache_entry = self
             .cache
@@ -745,7 +767,7 @@ impl StateManager {
     }
 
     pub fn get_pending_reports(&self) -> Result<PendingReports, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::PendingReports);
+        let state_key = get_state_key(StateKeyConstant::PendingReports);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -775,7 +797,7 @@ impl StateManager {
     where
         F: FnOnce(&mut PendingReports),
     {
-        let state_key = construct_state_key(StateKeyConstant::PendingReports);
+        let state_key = get_state_key(StateKeyConstant::PendingReports);
 
         let mut cache_entry = self
             .cache
@@ -793,7 +815,7 @@ impl StateManager {
     }
 
     pub fn get_timeslot(&self) -> Result<Timeslot, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::Timeslot);
+        let state_key = get_state_key(StateKeyConstant::Timeslot);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -823,7 +845,7 @@ impl StateManager {
     where
         F: FnOnce(&mut Timeslot),
     {
-        let state_key = construct_state_key(StateKeyConstant::Timeslot);
+        let state_key = get_state_key(StateKeyConstant::Timeslot);
 
         let mut cache_entry = self
             .cache
@@ -841,7 +863,7 @@ impl StateManager {
     }
 
     pub fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::PrivilegedServices);
+        let state_key = get_state_key(StateKeyConstant::PrivilegedServices);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -874,7 +896,7 @@ impl StateManager {
     where
         F: FnOnce(&mut PrivilegedServices),
     {
-        let state_key = construct_state_key(StateKeyConstant::PrivilegedServices);
+        let state_key = get_state_key(StateKeyConstant::PrivilegedServices);
 
         let mut cache_entry = self
             .cache
@@ -892,7 +914,7 @@ impl StateManager {
     }
 
     pub fn get_validator_stats(&self) -> Result<ValidatorStats, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::ValidatorStats);
+        let state_key = get_state_key(StateKeyConstant::ValidatorStats);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -922,7 +944,7 @@ impl StateManager {
     where
         F: FnOnce(&mut ValidatorStats),
     {
-        let state_key = construct_state_key(StateKeyConstant::ValidatorStats);
+        let state_key = get_state_key(StateKeyConstant::ValidatorStats);
 
         let mut cache_entry = self
             .cache
@@ -940,7 +962,7 @@ impl StateManager {
     }
 
     pub fn get_accumulate_queue(&self) -> Result<AccumulateQueue, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::AccumulateQueue);
+        let state_key = get_state_key(StateKeyConstant::AccumulateQueue);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -971,7 +993,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccumulateQueue),
     {
-        let state_key = construct_state_key(StateKeyConstant::AccumulateQueue);
+        let state_key = get_state_key(StateKeyConstant::AccumulateQueue);
 
         let mut cache_entry = self
             .cache
@@ -989,7 +1011,7 @@ impl StateManager {
     }
 
     pub fn get_accumulate_history(&self) -> Result<AccumulateHistory, StateManagerError> {
-        let state_key = construct_state_key(StateKeyConstant::AccumulateHistory);
+        let state_key = get_state_key(StateKeyConstant::AccumulateHistory);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -1021,7 +1043,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccumulateHistory),
     {
-        let state_key = construct_state_key(StateKeyConstant::AccumulateHistory);
+        let state_key = get_state_key(StateKeyConstant::AccumulateHistory);
 
         let mut cache_entry = self
             .cache
