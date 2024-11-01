@@ -543,7 +543,7 @@ impl HostFunction {
         )?;
 
         // Add a new account.
-        // State of new accounts is also maintained in the StateCache, marked as `Dirty(StateWriteOp::Add)`
+        // State of new accounts is also maintained in the state cache, marked as `Dirty(StateWriteOp::Add)`
         let new_account_address = x.get_next_new_account_address();
         state_manager.with_mut_account_metadata(
             StateWriteOp::Add,

@@ -294,7 +294,7 @@ impl MerkleDB {
     ///
     /// # Note
     /// This function should be called iteratively for all leaf nodes affected by a state transition,
-    /// typically corresponding to all `StateCache` entries marked as `Dirty`.
+    /// typically corresponding to all state cache entries marked as `Dirty`.
     pub fn extract_path_nodes_to_leaf(
         &self,
         state_key: &[u8],

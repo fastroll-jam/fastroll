@@ -25,7 +25,7 @@ mod tests {
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
 
-        // Load pre-state into the StateCache.
+        // Load pre-state into the state cache.
         state_manager.load_state_for_test(
             StateKeyConstant::BlockHistory,
             StateEntryType::BlockHistory(prior_block_history),
@@ -46,7 +46,7 @@ mod tests {
             &work_package_hashes,
         )?;
 
-        // Get the posterior state from the StateCache.
+        // Get the posterior state from the state cache.
         let current_block_history = state_manager.get_block_history()?;
 
         // Convert RJAM types post-state into ASN post-state

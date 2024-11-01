@@ -48,7 +48,7 @@ mod tests {
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
 
-        // Load pre-state into the StateCache.
+        // Load pre-state into the state cache.
         // TODO: Update the generic `load_state_for_test` method to be generic.
         state_manager.load_state_for_test(
             StateKeyConstant::SafroleState,
@@ -118,7 +118,7 @@ mod tests {
         let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
         let output_marks = OutputMarks::from(markers);
 
-        // Get the posterior state from the StateCache.
+        // Get the posterior state from the state cache.
         let current_safrole = state_manager.get_safrole()?;
         let current_staging_set = state_manager.get_staging_set()?;
         let current_active_set = state_manager.get_active_set()?;
