@@ -10,12 +10,12 @@ impl VMUtils {
 
     pub fn p(x: usize) -> usize {
         // P(x) = Z_P * ceil(x / Z_P)
-        PAGE_SIZE * ((x + PAGE_SIZE - 1) / PAGE_SIZE)
+        x.div_ceil(PAGE_SIZE)
     }
 
     pub fn q(x: usize) -> usize {
         // Q(x) = Z_Q * ceil(x / Z_Q)
-        SEGMENT_SIZE * ((x + SEGMENT_SIZE - 1) / SEGMENT_SIZE)
+        x.div_ceil(SEGMENT_SIZE)
     }
 
     //
