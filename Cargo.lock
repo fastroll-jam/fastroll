@@ -1000,6 +1000,7 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "dotenv",
+ "hex",
  "lazy_static",
  "rjam-codec",
  "rjam-common",

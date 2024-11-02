@@ -3,9 +3,19 @@ use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
     BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, HASH32_EMPTY, VALIDATOR_COUNT,
 };
+use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Display;
+use thiserror::Error;
 
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
+
+#[derive(Debug, Error)]
+pub enum BlockHeaderError {
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
+    #[error("JamCodec error: {0}")]
+    JamCodecError(#[from] JamCodecError),
+}
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct EpochMarker {
@@ -86,5 +96,11 @@ impl BlockHeader {
             parent_hash,
             ..Default::default()
         }
+    }
+
+    pub fn hash(&self) -> Result<Hash32, BlockHeaderError> {
+        let mut buf = vec![];
+        self.encode_to(&mut buf)?;
+        Ok(hash::<Blake2b256>(&buf[..])?)
     }
 }

@@ -1,25 +1,31 @@
 use crate::{KeyValueDB, KeyValueDBError, RocksDBConfig};
 use dashmap::DashMap;
+use hex::encode;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::Hash32;
-use rjam_types::block::header::BlockHeader;
+use rjam_types::block::header::{BlockHeader, BlockHeaderError};
 use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderDBError {
-    #[error("Header at timeslot {0} not found")]
-    HeaderNotFound(u32),
+    #[error("Header at index {0} not found")]
+    HeaderNotFound(String),
     #[error("Staging header not initialized")]
     StagingHeaderNotInitialized,
     #[error("Staging header is already initialized")]
     StagingHeaderAlreadyInitialized,
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
     #[error("KeyValueDBError: {0}")]
     KeyValueDBError(#[from] KeyValueDBError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
 }
 
+/// Main storage and cache for block headers.
+///
+/// Block headers are stored in the database indexed by both the timeslot and the header hash.
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
     db: KeyValueDB,
@@ -46,12 +52,14 @@ impl BlockHeaderDB {
             return Ok(header.clone());
         }
 
-        let key = timeslot_index.to_le_bytes();
+        let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
-        let header_encoded = self
-            .db
-            .get_entry(&key)?
-            .ok_or(BlockHeaderDBError::HeaderNotFound(timeslot_index))?;
+        let header_encoded =
+            self.db
+                .get_entry(&timeslot_key)?
+                .ok_or(BlockHeaderDBError::HeaderNotFound(
+                    timeslot_index.to_string(),
+                ))?;
 
         let header = BlockHeader::decode(&mut header_encoded.as_slice())?;
         self.cache.insert(timeslot_index, header.clone());
@@ -59,11 +67,30 @@ impl BlockHeaderDB {
         Ok(header)
     }
 
+    /// Get a block header by its hash from the DB.
+    pub fn get_header_by_hash(
+        &self,
+        header_hash: &Hash32,
+    ) -> Result<BlockHeader, BlockHeaderDBError> {
+        let header_hash_string = format!("H::{}", encode(header_hash));
+        let header_hash_key = header_hash_string.clone().into_bytes();
+
+        let header_encoded = self
+            .db
+            .get_entry(&header_hash_key)?
+            .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
+
+        Ok(BlockHeader::decode(&mut header_encoded.as_slice())?)
+    }
+
     fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
-        let key = header.timeslot_index.to_le_bytes();
+        let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
+        let header_hash_key = format!("H::{}", encode(header.hash()?)).into_bytes();
+
         let header_encoded = header.encode()?;
 
-        self.db.put_entry(&key, &header_encoded)?;
+        self.db.put_entry(&timeslot_key, &header_encoded)?;
+        self.db.put_entry(&header_hash_key, &header_encoded)?;
         self.cache.insert(header.timeslot_index, header.clone());
 
         Ok(())
