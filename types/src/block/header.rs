@@ -82,10 +82,9 @@ impl Default for BlockHeader {
 }
 
 impl BlockHeader {
-    pub fn new(parent_hash: Hash32, timeslot_index: u32) -> Self {
+    pub fn new(parent_hash: Hash32) -> Self {
         Self {
             parent_hash,
-            timeslot_index,
             ..Default::default()
         }
     }

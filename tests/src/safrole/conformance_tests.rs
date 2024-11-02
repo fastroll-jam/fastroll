@@ -11,13 +11,13 @@ mod tests {
     };
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
     use rjam_transition::{
-        components::{
+        procedures::chain_extension::mark_safrole_header_markers,
+        state::{
             entropy::transition_entropy_accumulator,
             safrole::transition_safrole,
             timeslot::transition_timeslot,
             validators::{transition_active_set, transition_past_set},
         },
-        procedures::chain_extension::mark_safrole_header_markers,
     };
     use rjam_types::{
         extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},

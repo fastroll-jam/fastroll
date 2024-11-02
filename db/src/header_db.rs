@@ -69,16 +69,12 @@ impl BlockHeaderDB {
         Ok(())
     }
 
-    pub fn initialize_staging_header(
-        &mut self,
-        parent_hash: Hash32,
-        timeslot_index: u32,
-    ) -> Result<(), BlockHeaderDBError> {
+    pub fn init_staging_header(&mut self, parent_hash: Hash32) -> Result<(), BlockHeaderDBError> {
         if let Some(_staging_header) = self.get_staging_header() {
             return Err(BlockHeaderDBError::StagingHeaderAlreadyInitialized);
         }
 
-        self.staging_header = Some(BlockHeader::new(parent_hash, timeslot_index));
+        self.staging_header = Some(BlockHeader::new(parent_hash));
 
         Ok(())
     }

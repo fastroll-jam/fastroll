@@ -11,7 +11,7 @@ use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashSet;
 
-/// State transition function for Accumulate context state components.
+/// State transition function for Accumulate context state state.
 ///
 /// The `accumulate` PVM entrypoint invokes host functions that directly modify state cache entries
 /// via the `StateManager`:

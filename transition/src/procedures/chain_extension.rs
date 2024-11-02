@@ -1,11 +1,11 @@
 use crate::{
-    components::{
+    error::TransitionError,
+    state::{
         entropy::transition_entropy_accumulator,
         safrole::transition_safrole,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
     },
-    error::TransitionError,
 };
 use rjam_common::{ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT};
 use rjam_crypto::entropy_hash_ietf_vrf;

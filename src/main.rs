@@ -24,8 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("DB initialized successfully");
 
-    header_db.initialize_staging_header(HASH32_EMPTY, 1)?;
-    header_db.update_staging_header(|_| {})?;
+    header_db.init_staging_header(HASH32_EMPTY)?;
+    header_db.update_staging_header(|header| {
+        header.timeslot_index = 1;
+    })?;
     header_db.commit_staging_header()?;
 
     let header_1 = header_db.get_header(1)?;

@@ -7,7 +7,7 @@ mod tests {
     };
     use rjam_common::Hash32;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
-    use rjam_transition::components::history::{
+    use rjam_transition::state::history::{
         transition_block_history_append, transition_block_history_parent_root,
     };
     use std::{error::Error, path::PathBuf};
