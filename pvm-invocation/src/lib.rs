@@ -57,7 +57,7 @@ impl PVMInvocation {
     //
 
     pub fn is_authorized(
-        state_manager: &StateManager, // FIXME: not needed
+        state_manager: &StateManager,
         work_package: WorkPackage,
         core_index: CoreIndex,
     ) -> Result<WorkExecutionOutput, PVMError> {
@@ -89,7 +89,7 @@ impl PVMInvocation {
             IS_AUTHORIZED_INITIAL_PC,
             is_authorized_gas_limit,
             &args,
-            &mut InvocationContext::X_I, // TODO: better handling (not used)
+            &mut InvocationContext::X_I, // not used
         )?;
 
         match common_invocation_result {
@@ -108,7 +108,7 @@ impl PVMInvocation {
 
     #[allow(clippy::too_many_arguments)]
     pub fn refine(
-        state_manager: &StateManager, // FIXME: not needed
+        state_manager: &StateManager,
         code_hash: Hash32,
         gas_limit: UnsignedGas,
         account_address: Address,
@@ -288,7 +288,7 @@ impl PVMInvocation {
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
             &transfers.encode()?,
-            &mut InvocationContext::X_T, // TODO: better handling (not used)
+            &mut InvocationContext::X_T, // not used
         )?;
 
         // TODO: check return type (service account context)
