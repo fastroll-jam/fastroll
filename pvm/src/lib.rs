@@ -263,11 +263,6 @@ impl PVM {
     /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
     /// common invocation function
     ///
-    /// # Arguments
-    ///
-    /// * `&mut self` - Mutable reference to the PVM including program code and VM states
-    /// * `context` - The invocation context
-    ///
     /// Represents `Psi_H` of the GP
     fn extended_invocation(
         &mut self,

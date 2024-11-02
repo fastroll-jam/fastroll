@@ -950,6 +950,7 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "rjam-transition",
+ "rjam-types",
  "serde_json",
 ]
 

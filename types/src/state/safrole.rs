@@ -32,33 +32,33 @@ pub struct SafroleState {
 
 impl Display for SafroleState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "SafroleState {{")?;
-
-        writeln!(f, "\tPending Validator Set: [")?;
+        writeln!(f, "{{")?;
+        writeln!(f, "  \"PendingSet\": [")?;
         for (i, validator) in self.pending_set.iter().enumerate() {
-            writeln!(f, "\t\tValidator {}: {}", i, validator)?;
+            writeln!(f, "    {{")?;
+            writeln!(f, "      \"{}\": {}", i, validator)?;
+            writeln!(f, "    }},")?;
         }
-        writeln!(f, "\t]")?;
+        writeln!(f, "  ],")?;
+        writeln!(f, "  \"Ring Root\": \"{}\",", hex::encode(self.ring_root))?;
 
-        writeln!(f, "\tRing Root: {}", hex::encode(self.ring_root))?;
-
-        writeln!(f, "\tSlot Sealers:")?;
+        writeln!(f, "  \"Slot Sealers\": {{")?;
         match &self.slot_sealers {
             SlotSealerType::Tickets(tickets) => {
                 for (i, ticket) in tickets.iter().enumerate() {
-                    writeln!(f, "    Slot {}: {}", i, ticket)?;
+                    writeln!(f, "    \"{}\": \"{}\",", i, ticket)?;
                 }
             }
             SlotSealerType::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    Slot {}: {}", i, hex::encode(key))?;
+                    writeln!(f, "    \"{}\": \"{}\",", i, hex::encode(key))?;
                 }
             }
         }
+        writeln!(f, "  }},")?;
 
-        writeln!(f, "  Ticket Accumulator: {}", self.ticket_accumulator)?;
-
-        write!(f, "}}")
+        writeln!(f, "  \"Ticket Accumulator\": {}", self.ticket_accumulator)?;
+        write!(f, "}},")
     }
 }
 
@@ -208,10 +208,12 @@ pub struct TicketAccumulator {
 
 impl Display for TicketAccumulator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "TicketAccumulator {{")?;
+        writeln!(f, "{{")?;
+        writeln!(f, "  \"Tickets\": [")?;
         for (i, ticket) in self.heap.iter().enumerate() {
-            writeln!(f, "\t{}: {}", i, ticket)?;
+            writeln!(f, "    \"{}\": {}", i, ticket)?;
         }
+        writeln!(f, "  ]")?;
         write!(f, "}}")
     }
 }

@@ -1,8 +1,9 @@
-use rjam_common::HASH32_EMPTY;
+use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_db::{BlockHeaderDB, RocksDBConfig, StateDB};
 use rjam_extrinsics::pool::EXTRINSICS_POOL;
 use rjam_state::StateManager;
 use rjam_state_merkle::merkle_db::MerkleDB;
+use rjam_types::block::Block;
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,4 +36,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", header_1);
 
     Ok(())
+}
+
+#[allow(dead_code)]
+fn validate_block(
+    _state_manager: &StateManager,
+    _block: &Block,
+    _posterior_state_root: &Hash32,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    unimplemented!();
 }

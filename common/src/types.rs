@@ -51,14 +51,16 @@ pub struct ValidatorKey {
 
 impl Display for ValidatorKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
         writeln!(
             f,
-            "Bandersnatch key: {}",
+            "  \"Bandersnatch\": \"{}\",",
             hex::encode(self.bandersnatch_key)
         )?;
-        writeln!(f, "Ed25519 key: {}", hex::encode(self.ed25519_key))?;
-        writeln!(f, "BLS key: {}", hex::encode(self.bls_key))?;
-        write!(f, "Metadata: {}", hex::encode(self.metadata))
+        writeln!(f, "  \"Ed25519\": \"{}\",", hex::encode(self.ed25519_key))?;
+        writeln!(f, "  \"BLS\": \"{}\",", hex::encode(self.bls_key))?;
+        writeln!(f, "  \"Metadata\": \"{}\"", hex::encode(self.metadata))?;
+        write!(f, "}}")
     }
 }
 
@@ -117,7 +119,7 @@ impl Display for Ticket {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Ticket {{ id: {}, attempt: {} }}",
+            "{{ \"id\": \"{}\", \"attempt\": \"{}\" }}",
             hex::encode(self.id),
             self.attempt
         )

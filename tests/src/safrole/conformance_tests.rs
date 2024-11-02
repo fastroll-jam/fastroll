@@ -49,7 +49,6 @@ mod tests {
         let mut state_manager = StateManager::new_for_test();
 
         // Load pre-state into the state cache.
-        // TODO: Update the generic `load_state_for_test` method to be generic.
         state_manager.load_state_for_test(
             StateKeyConstant::SafroleState,
             StateEntryType::SafroleState(prior_safrole),

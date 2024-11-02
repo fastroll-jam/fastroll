@@ -68,6 +68,7 @@ rjam-extrinsics = { workspace = true }
 rjam-state = { workspace = true }
 rjam-state-merkle = { workspace = true }
 rjam-transition = { workspace = true }
+rjam-types = { workspace = true }
 lazy_static = { workspace = true }
 
 [dev-dependencies]
