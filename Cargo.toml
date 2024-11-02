@@ -7,7 +7,7 @@ members = [
     "crypto",
     "db",
     "extrinsics",
-    "host-interface",
+    "pvm-hostcall",
     "merkle",
     "pvm",
     "pvm-core",
@@ -33,11 +33,11 @@ rjam-common = { path = "common" }
 rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
-rjam-host-interface = { path = "host-interface" }
 rjam-merkle = { path = "merkle" }
 rjam-pvm = { path = "pvm" }
 rjam-pvm-core = { path = "pvm-core" }
 rjam-pvm-invocation = { path = "pvm-invocation" }
+rjam-pvm-hostcall = { path = "pvm-hostcall" }
 rjam-state = { path = "state" }
 rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }

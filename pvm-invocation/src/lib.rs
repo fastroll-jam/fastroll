@@ -5,9 +5,6 @@ use rjam_common::{
     Address, Balance, CoreIndex, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE,
 };
 use rjam_crypto::octets_to_hash32;
-use rjam_host_interface::contexts::{
-    AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
-};
 use rjam_pvm::{CommonInvocationResult, PVM};
 use rjam_pvm_core::{
     state::memory::MemAddress,
@@ -16,6 +13,9 @@ use rjam_pvm_core::{
         common::ExportDataSegment,
         error::{HostCallError::InvalidContext, PVMError},
     },
+};
+use rjam_pvm_hostcall::contexts::{
+    AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{

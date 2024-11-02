@@ -1,5 +1,5 @@
 [package]
-name = "rjam-host-interface"
+name = "rjam-pvm-hostcall"
 version = "0.1.0"
 edition = "2021"
 

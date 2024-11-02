@@ -1,8 +1,4 @@
 use rjam_common::{Address, Octets, UnsignedGas};
-use rjam_host_interface::{
-    contexts::InvocationContext,
-    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
-};
 use rjam_pvm_core::{
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
@@ -22,6 +18,10 @@ use rjam_pvm_core::{
         hostcall::HostCallType,
     },
     utils::VMUtils,
+};
+use rjam_pvm_hostcall::{
+    contexts::InvocationContext,
+    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
 };
 use rjam_state::StateManager;
 
