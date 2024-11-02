@@ -83,6 +83,14 @@ impl BlockHeaderDB {
         self.staging_header.as_ref()
     }
 
+    pub fn assert_staging_header_initialized(&self) -> Result<(), BlockHeaderDBError> {
+        if self.staging_header.is_some() {
+            Ok(())
+        } else {
+            Err(BlockHeaderDBError::StagingHeaderNotInitialized)
+        }
+    }
+
     pub fn drop_staging_header(&mut self) {
         self.staging_header = None;
     }

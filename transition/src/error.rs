@@ -1,10 +1,13 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::CryptoError;
+use rjam_db::BlockHeaderDBError;
 use rjam_extrinsics::validation::error::ExtrinsicValidationError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;
-use rjam_types::state::{reports::PendingReportsError, safrole::FallbackKeyError};
+use rjam_types::state::{
+    reports::PendingReportsError, safrole::FallbackKeyError, timeslot::TimeslotError,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -18,6 +21,8 @@ pub enum TransitionError {
     #[error("PendingReports Error")]
     PendingReportsError(#[from] PendingReportsError),
     // External errors
+    #[error("Block header update error: {0}")]
+    BlockHeaderUpdateError(BlockHeaderUpdateError),
     #[error("Extrinsic validation error: {0}")]
     ExtrinsicValidationError(#[from] ExtrinsicValidationError),
     #[error("Serialization error: {0}")]
@@ -32,4 +37,12 @@ pub enum TransitionError {
     MerkleError(#[from] MerkleError),
     #[error("PVM error: {0}")]
     PVMError(#[from] PVMError),
+}
+
+#[derive(Debug, Error)]
+pub enum BlockHeaderUpdateError {
+    #[error("BlockHeaderDB error: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("Timeslot error: {0}")]
+    TimeslotError(#[from] TimeslotError),
 }

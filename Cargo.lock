@@ -1142,6 +1142,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-db",
  "rjam-extrinsics",
  "rjam-merkle",
  "rjam-pvm-core",

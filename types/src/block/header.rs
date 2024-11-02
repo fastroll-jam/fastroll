@@ -6,7 +6,6 @@ use rjam_common::{
 use std::fmt::Display;
 
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
-pub type OffendersMarker = Vec<Ed25519PubKey>;
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct EpochMarker {
@@ -22,7 +21,7 @@ pub struct BlockHeader {
     pub timeslot_index: u32,                                  // t
     pub epoch_marker: Option<EpochMarker>,                    // e
     pub winning_tickets_marker: Option<WinningTicketsMarker>, // w
-    pub offenders_marker: OffendersMarker,                    // o
+    pub offenders_marker: Vec<Ed25519PubKey>,                 // o
     pub block_author_index: ValidatorIndex,                   // i
     pub vrf_signature: BandersnatchSignature,                 // v
     pub block_seal: BandersnatchSignature,                    // s
