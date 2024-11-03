@@ -60,6 +60,17 @@ impl DisputesExtrinsic {
             items: offenders_keys,
         }
     }
+
+    pub fn extract_culprits_set(&self) -> HashSet<Hash32> {
+        self.culprits
+            .iter()
+            .map(|culprit| culprit.report_hash)
+            .collect()
+    }
+
+    pub fn extract_faults_set(&self) -> HashSet<Hash32> {
+        self.faults.iter().map(|fault| fault.report_hash).collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]

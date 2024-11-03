@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
-use rjam_common::Hash32;
+use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
 use rjam_state::{StateManager, StateWriteOp};
-use std::collections::HashSet;
+use rjam_types::{extrinsics::disputes::DisputesExtrinsic, state::timeslot::Timeslot};
 
 /// State transition function of `Disputes`.
 ///
@@ -13,12 +13,16 @@ use std::collections::HashSet;
 /// identified culprits and faults.
 pub fn transition_disputes(
     state_manager: &StateManager,
-    good_set: &HashSet<Hash32>,
-    bad_set: &HashSet<Hash32>,
-    wonky_set: &HashSet<Hash32>,
-    culprits_set: &HashSet<Hash32>,
-    faults_set: &HashSet<Hash32>,
+    disputes: &DisputesExtrinsic,
+    prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
+    let disputes_validator = DisputesExtrinsicValidator::new(state_manager);
+    disputes_validator.validate(disputes, prior_timeslot)?;
+
+    let (good_set, bad_set, wonky_set) = disputes.split_report_set();
+    let culprits_set = disputes.extract_culprits_set();
+    let faults_set = disputes.extract_faults_set();
+
     state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
         disputes.good_set.extend(good_set.iter());
         disputes.bad_set.extend(bad_set.iter());

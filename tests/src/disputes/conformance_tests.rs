@@ -10,7 +10,6 @@ mod tests {
         generate_tests,
         test_utils::load_test_case,
     };
-    use rjam_common::Hash32;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
     use rjam_transition::{
         error::TransitionError,
@@ -25,7 +24,7 @@ mod tests {
             validators::{ActiveSet, PastSet},
         },
     };
-    use std::{collections::HashSet, path::PathBuf};
+    use std::path::PathBuf;
 
     const PATH_PREFIX: &str = "jamtestvectors-disputes/disputes/tiny";
 
@@ -70,27 +69,9 @@ mod tests {
         let input_extrinsic: DisputesExtrinsic = test_input.disputes.clone().into();
 
         // Run state transitions.
-        let (good_set, bad_set, wonky_set) = input_extrinsic.split_report_set();
-        let culprits_set: HashSet<Hash32> = input_extrinsic
-            .culprits
-            .iter()
-            .map(|culprit| culprit.report_hash)
-            .collect();
-        let faults_set: HashSet<Hash32> = input_extrinsic
-            .faults
-            .iter()
-            .map(|fault| fault.report_hash)
-            .collect();
         let offenders_marker = input_extrinsic.extract_offender_keys();
-        transition_reports_eliminate_invalid(&state_manager, &bad_set, &wonky_set)?;
-        transition_disputes(
-            &state_manager,
-            &good_set,
-            &bad_set,
-            &wonky_set,
-            &culprits_set,
-            &faults_set,
-        )?;
+        transition_reports_eliminate_invalid(&state_manager, &input_extrinsic, &prior_timeslot)?;
+        transition_disputes(&state_manager, &input_extrinsic, &prior_timeslot)?;
 
         // Convert RJAM output into ASN Output.
         let disputes_output_marks: DisputesOutputMarks = offenders_marker.into();
@@ -134,16 +115,16 @@ mod tests {
         let (post_state, output) =
             run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
 
-        // // Assertion on the post state
-        // // assert_eq!(post_state, expected_post_state);
-        // assert_eq!(post_state.psi, expected_post_state.psi);
-        // assert_eq!(post_state.rho, expected_post_state.rho);
-        // assert_eq!(post_state.tau, expected_post_state.tau);
-        // assert_eq!(post_state.kappa, expected_post_state.kappa);
-        // assert_eq!(post_state.lambda, expected_post_state.lambda);
-        //
-        // // Assertion on the state transition output
-        // assert_eq!(output, test_case.output);
+        // Assertion on the post state
+        // assert_eq!(post_state, expected_post_state);
+        assert_eq!(post_state.psi, expected_post_state.psi);
+        assert_eq!(post_state.rho, expected_post_state.rho);
+        assert_eq!(post_state.tau, expected_post_state.tau);
+        assert_eq!(post_state.kappa, expected_post_state.kappa);
+        assert_eq!(post_state.lambda, expected_post_state.lambda);
+
+        // Assertion on the state transition output
+        assert_eq!(output, test_case.output);
         Ok(())
     }
 

@@ -1,11 +1,12 @@
 use crate::error::TransitionError;
-use rjam_common::{CoreIndex, Hash32};
+use rjam_common::CoreIndex;
+use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
     common::workloads::WorkReport,
+    extrinsics::disputes::DisputesExtrinsic,
     state::{reports::PendingReport, timeslot::Timeslot},
 };
-use std::collections::HashSet;
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming
 /// the `DisputesExtrinsic`.
@@ -20,9 +21,14 @@ use std::collections::HashSet;
 /// the on-chain state.
 pub fn transition_reports_eliminate_invalid(
     state_manager: &StateManager,
-    bad_set: &HashSet<Hash32>,
-    wonky_set: &HashSet<Hash32>,
+    disputes: &DisputesExtrinsic,
+    prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
+    let disputes_validator = DisputesExtrinsicValidator::new(state_manager);
+    disputes_validator.validate(disputes, prior_timeslot)?;
+
+    let (_good_set, bad_set, wonky_set) = disputes.split_report_set();
+
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
         for report_hash in bad_set.iter().chain(wonky_set.iter()) {
             pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
