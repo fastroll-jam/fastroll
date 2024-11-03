@@ -38,10 +38,8 @@ mod tests {
         let prior_disputes_state = DisputesState::from(test_pre_state.psi.clone());
         let prior_pending_reports = PendingReports::from(test_pre_state.rho.clone());
         let prior_timeslot = Timeslot::new(test_pre_state.tau);
-        let prior_active_set =
-            ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa).unwrap());
-        let prior_past_set =
-            PastSet(validators_data_to_validator_set(&test_pre_state.lambda).unwrap());
+        let prior_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+        let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
@@ -108,8 +106,8 @@ mod tests {
             psi: current_disputes_state.into(),
             rho: current_pending_reports.into(),
             tau: current_timeslot.0,
-            kappa: validator_set_to_validators_data(&current_active_set.0).unwrap(),
-            lambda: validator_set_to_validators_data(&current_past_set.0).unwrap(),
+            kappa: validator_set_to_validators_data(&current_active_set.0),
+            lambda: validator_set_to_validators_data(&current_past_set.0),
         };
 
         Ok((post_state, Output::ok(disputes_output_marks)))

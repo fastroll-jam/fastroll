@@ -2,10 +2,13 @@
 #[cfg(test)]
 mod tests {
     use crate::{
+        common_asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
         generate_tests,
         safrole::{
             asn_types::{Input, Output, OutputMarks, State, TestCase, TicketEnvelope},
-            utils::{map_error_to_custom_code, StateBuilder},
+            utils::{
+                entropy_accumulator_to_eta, map_error_to_custom_code, safrole_state_to_gammas,
+            },
         },
         test_utils::load_test_case,
     };
@@ -40,11 +43,12 @@ mod tests {
         test_pre_state: &State,
     ) -> Result<(State, Output), TransitionError> {
         // Convert ASN pre-state into RJAM types.
-        let prior_safrole = SafroleState::try_from(test_pre_state).unwrap();
-        let (prior_staging_set, prior_active_set, prior_past_set) =
-            <(StagingSet, ActiveSet, PastSet)>::try_from(test_pre_state).unwrap();
+        let prior_safrole = SafroleState::from(test_pre_state);
         let prior_entropy = EntropyAccumulator::from(test_pre_state);
-        let prior_timeslot = Timeslot::from(test_pre_state);
+        let prior_staging_set = StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
+        let prior_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+        let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+        let prior_timeslot = Timeslot::new(test_pre_state.tau);
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
@@ -129,18 +133,19 @@ mod tests {
         let current_timeslot = state_manager.get_timeslot()?;
 
         // Convert RJAM types post-state into ASN post-state
-        let builder = StateBuilder::new();
-        let post_state = builder
-            .from_safrole_state(&current_safrole)
-            .unwrap()
-            .from_validator_sets(&current_staging_set, &current_active_set, &current_past_set)
-            .unwrap()
-            .from_entropy_accumulator(&current_entropy)
-            .unwrap()
-            .from_timeslot(&current_timeslot)
-            .unwrap()
-            .build()
-            .unwrap();
+
+        let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&current_safrole);
+        let post_state = State {
+            tau: current_timeslot.slot(),
+            eta: entropy_accumulator_to_eta(&current_entropy),
+            lambda: validator_set_to_validators_data(&current_past_set.0),
+            kappa: validator_set_to_validators_data(&current_active_set.0),
+            gamma_k,
+            iota: validator_set_to_validators_data(&current_staging_set.0),
+            gamma_a,
+            gamma_s,
+            gamma_z,
+        };
 
         Ok((post_state, Output::ok(output_marks)))
     }

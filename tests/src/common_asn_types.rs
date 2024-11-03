@@ -5,17 +5,6 @@ use std::{
     fmt,
     fmt::{Debug, Display},
 };
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum AsnTypeError {
-    #[error("State conversion error: {0}")]
-    ConversionError(String),
-    #[error("Missing field for type conversion: {0}")]
-    MissingField(&'static str),
-    #[error("Type conversion infallible error")]
-    InfallibleError(#[from] std::convert::Infallible),
-}
 
 // Define constants
 pub const VALIDATORS_COUNT: usize = 6;
@@ -118,24 +107,20 @@ impl From<ValidatorData> for ValidatorKey {
 
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
-pub fn validators_data_to_validator_set(
-    data: &ValidatorsData,
-) -> Result<ValidatorSet, AsnTypeError> {
+pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorSet {
     let mut validator_keys = [ValidatorKey::default(); VALIDATOR_COUNT];
     for (i, validator_data) in data.iter().enumerate() {
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
     }
 
-    Ok(Box::new(validator_keys))
+    Box::new(validator_keys)
 }
 
-pub fn validator_set_to_validators_data(
-    data: &ValidatorSet,
-) -> Result<ValidatorsData, AsnTypeError> {
+pub fn validator_set_to_validators_data(data: &ValidatorSet) -> ValidatorsData {
     let mut validators_data = ValidatorsData::default();
     for (i, key) in data.into_iter().enumerate() {
         validators_data[i] = ValidatorData::from(key);
     }
 
-    Ok(validators_data)
+    validators_data
 }

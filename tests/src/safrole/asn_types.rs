@@ -1,7 +1,7 @@
 use crate::{
     common_asn_types::{
-        validators_data_to_validator_set, AsnTypeError, BandersnatchKey, ByteArray32, Ed25519Key,
-        ValidatorsData, EPOCH_LENGTH, VALIDATORS_COUNT,
+        validators_data_to_validator_set, BandersnatchKey, ByteArray32, Ed25519Key, ValidatorsData,
+        EPOCH_LENGTH, VALIDATORS_COUNT,
     },
     test_utils::{deserialize_hex, serialize_hex},
 };
@@ -13,8 +13,6 @@ use rjam_types::{
     state::{
         entropy::EntropyAccumulator,
         safrole::{SafroleState, SlotSealerType, TicketAccumulator},
-        timeslot::Timeslot,
-        validators::{ActiveSet, PastSet, StagingSet},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -33,79 +31,49 @@ pub enum TicketsOrKeys {
     keys(EpochKeys),
 }
 
-impl TryFrom<SlotSealerType> for TicketsOrKeys {
-    type Error = AsnTypeError;
-
-    fn try_from(value: SlotSealerType) -> Result<Self, Self::Error> {
+impl From<TicketsOrKeys> for SlotSealerType {
+    fn from(value: TicketsOrKeys) -> Self {
         match value {
-            SlotSealerType::Tickets(tickets) => {
-                let ticket_bodies: TicketsBodies = tickets
-                    .iter()
-                    .map(|ticket| TicketBody {
-                        id: ByteArray32(ticket.id),
-                        attempt: ticket.attempt,
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert tickets to TicketsBodies".to_string(),
-                        )
-                    })?;
-
-                Ok(TicketsOrKeys::tickets(ticket_bodies))
+            TicketsOrKeys::tickets(ticket_bodies) => {
+                let mut tickets: [Ticket; EPOCH_LENGTH] = Default::default();
+                for (i, ticket_body) in ticket_bodies.into_iter().enumerate() {
+                    tickets[i] = Ticket {
+                        id: ticket_body.id.0,
+                        attempt: ticket_body.attempt,
+                    };
+                }
+                SlotSealerType::Tickets(Box::new(tickets))
             }
-            SlotSealerType::BandersnatchPubKeys(keys) => {
-                let epoch_keys: EpochKeys = keys
-                    .iter()
-                    .map(|key| ByteArray32(*key))
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert BandersnatchPubKeys to EpochKeys".to_string(),
-                        )
-                    })?;
-
-                Ok(TicketsOrKeys::keys(epoch_keys))
+            TicketsOrKeys::keys(epoch_keys) => {
+                let mut keys: [BandersnatchPubKey; EPOCH_LENGTH] = Default::default();
+                for (i, key) in epoch_keys.into_iter().enumerate() {
+                    keys[i] = key.0
+                }
+                SlotSealerType::BandersnatchPubKeys(Box::new(keys))
             }
         }
     }
 }
 
-impl TryFrom<&TicketsOrKeys> for SlotSealerType {
-    type Error = AsnTypeError;
-
-    fn try_from(value: &TicketsOrKeys) -> Result<Self, Self::Error> {
+impl From<SlotSealerType> for TicketsOrKeys {
+    fn from(value: SlotSealerType) -> Self {
         match value {
-            TicketsOrKeys::tickets(ticket_bodies) => {
-                let tickets: Box<[Ticket; EPOCH_LENGTH]> = ticket_bodies
-                    .iter()
-                    .map(|ticket_body| Ticket {
-                        id: ticket_body.id.0,
-                        attempt: ticket_body.attempt,
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert TicketsBodies to Tickets".to_string(),
-                        )
-                    })?;
-                Ok(SlotSealerType::Tickets(tickets))
+            SlotSealerType::Tickets(tickets) => {
+                let mut ticket_bodies: TicketsBodies = Default::default();
+                for (i, ticket) in tickets.into_iter().enumerate() {
+                    ticket_bodies[i] = TicketBody {
+                        id: ByteArray32(ticket.id),
+                        attempt: ticket.attempt,
+                    };
+                }
+                TicketsOrKeys::tickets(ticket_bodies)
             }
-            TicketsOrKeys::keys(epoch_keys) => {
-                let keys: Box<[BandersnatchPubKey; EPOCH_LENGTH]> = epoch_keys
-                    .iter()
-                    .map(|key| key.0)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| {
-                        AsnTypeError::ConversionError(
-                            "Failed to convert EpochKeys to BandersnatchPubKeys".to_string(),
-                        )
-                    })?;
-                Ok(SlotSealerType::BandersnatchPubKeys(keys))
+            SlotSealerType::BandersnatchPubKeys(keys) => {
+                let mut epoch_keys: EpochKeys = Default::default();
+                for (i, key) in keys.into_iter().enumerate() {
+                    epoch_keys[i] = ByteArray32(key);
+                }
+                TicketsOrKeys::keys(epoch_keys)
             }
         }
     }
@@ -125,7 +93,7 @@ pub enum CustomErrorCode {
     duplicate_ticket,   // Found a ticket duplicate
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
     pub attempt: u8,
@@ -206,16 +174,14 @@ pub struct State {
     pub gamma_z: [u8; 144], // Bandersnatch ring commitment
 }
 
-impl TryFrom<&State> for SafroleState {
-    type Error = AsnTypeError;
-
-    fn try_from(state: &State) -> Result<Self, Self::Error> {
-        Ok(SafroleState {
-            pending_set: validators_data_to_validator_set(&state.gamma_k)?,
-            ring_root: state.gamma_z.clone().try_into()?,
-            slot_sealers: SlotSealerType::try_from(&state.gamma_s)?,
+impl From<&State> for SafroleState {
+    fn from(value: &State) -> Self {
+        SafroleState {
+            pending_set: validators_data_to_validator_set(&value.gamma_k),
+            ring_root: value.gamma_z.clone().into(),
+            slot_sealers: SlotSealerType::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
-                state
+                value
                     .gamma_a
                     .iter()
                     .map(|ticket_body| Ticket {
@@ -224,31 +190,13 @@ impl TryFrom<&State> for SafroleState {
                     })
                     .collect(),
             ),
-        })
-    }
-}
-
-impl TryFrom<&State> for (StagingSet, ActiveSet, PastSet) {
-    type Error = AsnTypeError;
-
-    fn try_from(state: &State) -> Result<Self, Self::Error> {
-        let staging_set = StagingSet(validators_data_to_validator_set(&state.iota)?);
-        let active_set = ActiveSet(validators_data_to_validator_set(&state.kappa)?);
-        let past_set = PastSet(validators_data_to_validator_set(&state.lambda)?);
-
-        Ok((staging_set, active_set, past_set))
+        }
     }
 }
 
 impl From<&State> for EntropyAccumulator {
-    fn from(state: &State) -> Self {
-        EntropyAccumulator(state.eta.clone().map(|entropy| entropy.0))
-    }
-}
-
-impl From<&State> for Timeslot {
-    fn from(state: &State) -> Self {
-        Timeslot(state.tau)
+    fn from(value: &State) -> Self {
+        EntropyAccumulator(value.eta.clone().map(|entropy| entropy.0))
     }
 }
 
