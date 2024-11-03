@@ -291,8 +291,8 @@ pub enum ErrorCode {
     fault_verdict_wrong,       // not covered
     offender_already_reported, // not covered
     bad_judgement_age,         // not covered
-    bad_signature,             // not covered
-    reserved,                  // Note: not in ASN
+    bad_signature,
+    reserved, // Note: not in ASN
 }
 
 /// Output from Disputes STF

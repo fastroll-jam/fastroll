@@ -5,6 +5,16 @@ use rjam_common::{
 };
 use std::{cmp::Ordering, collections::HashSet};
 
+pub enum VerdictEvaluation {
+    IsGood,
+    IsBad,
+    IsWonky,
+}
+
+pub struct OffendersHeaderMarker {
+    pub items: Vec<Ed25519PubKey>,
+}
+
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
 #[derive(Debug, JamEncode, JamDecode)]
@@ -14,35 +24,53 @@ pub struct DisputesExtrinsic {
     pub faults: Vec<Fault>,     // f
 }
 
-pub struct OffendersHeaderMarker {
-    pub items: Vec<Ed25519PubKey>,
-}
-
 impl DisputesExtrinsic {
+    /// Used for extrinsic validation
+    pub fn extract_offenders_from_verdicts(
+        &self,
+    ) -> (HashSet<Ed25519PubKey>, HashSet<ValidatorIndex>) {
+        let extracted_culprits = HashSet::new();
+        let extracted_faults = HashSet::new();
+
+        for verdict in &self.verdicts {
+            match verdict.evaluate_verdict() {
+                VerdictEvaluation::IsGood => {
+                    // Voters who voted as "false" should be in the faults set.
+                    unimplemented!()
+                }
+                VerdictEvaluation::IsBad => {
+                    // Guarantors of the work reports related to the judgment should be in the culprits set.
+                    // Voters who voted as "true" should be in the faults set.
+                    unimplemented!()
+                }
+                _ => {}
+            }
+        }
+
+        (extracted_culprits, extracted_faults)
+    }
+
+    pub fn count_offenders_from_verdicts(&self) -> (usize, usize) {
+        unimplemented!()
+    }
+
     pub fn split_report_set(&self) -> (HashSet<Hash32>, HashSet<Hash32>, HashSet<Hash32>) {
         let mut good_set = HashSet::new();
         let mut bad_set = HashSet::new();
         let mut wonky_set = HashSet::new();
 
         for verdict in &self.verdicts {
-            let valid_judgment_count = verdict
-                .judgments
-                .iter()
-                .filter(|judgment| judgment.is_report_valid)
-                .count();
-            if valid_judgment_count > FLOOR_TWO_THIRDS_VALIDATOR_COUNT {
-                good_set.insert(verdict.report_hash);
-            } else if valid_judgment_count < FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
-                bad_set.insert(verdict.report_hash);
-            } else {
-                wonky_set.insert(verdict.report_hash);
-            }
+            let _ = match verdict.evaluate_verdict() {
+                VerdictEvaluation::IsGood => good_set.insert(verdict.report_hash),
+                VerdictEvaluation::IsBad => bad_set.insert(verdict.report_hash),
+                VerdictEvaluation::IsWonky => wonky_set.insert(verdict.report_hash),
+            };
         }
 
         (good_set, bad_set, wonky_set)
     }
 
-    pub fn extract_offender_keys(&self) -> OffendersHeaderMarker {
+    pub fn collect_offender_keys(&self) -> OffendersHeaderMarker {
         let mut offenders_keys: Vec<Ed25519PubKey> = self
             .culprits
             .iter()
@@ -61,14 +89,14 @@ impl DisputesExtrinsic {
         }
     }
 
-    pub fn extract_culprits_set(&self) -> HashSet<Hash32> {
+    pub fn culprits_set(&self) -> HashSet<Hash32> {
         self.culprits
             .iter()
             .map(|culprit| culprit.report_hash)
             .collect()
     }
 
-    pub fn extract_faults_set(&self) -> HashSet<Hash32> {
+    pub fn faults_set(&self) -> HashSet<Hash32> {
         self.faults.iter().map(|fault| fault.report_hash).collect()
     }
 }
@@ -103,6 +131,23 @@ impl JamDecode for Verdict {
             epoch_index: u32::decode(input)?,
             judgments,
         })
+    }
+}
+
+impl Verdict {
+    pub fn evaluate_verdict(&self) -> VerdictEvaluation {
+        let valid_judgments_count = self
+            .judgments
+            .iter()
+            .filter(|judgment| judgment.is_report_valid)
+            .count();
+        if valid_judgments_count > FLOOR_TWO_THIRDS_VALIDATOR_COUNT {
+            VerdictEvaluation::IsGood
+        } else if valid_judgments_count < FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
+            VerdictEvaluation::IsBad
+        } else {
+            VerdictEvaluation::IsWonky
+        }
     }
 }
 

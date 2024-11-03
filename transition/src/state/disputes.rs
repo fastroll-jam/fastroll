@@ -20,8 +20,8 @@ pub fn transition_disputes(
     disputes_validator.validate(disputes, prior_timeslot)?;
 
     let (good_set, bad_set, wonky_set) = disputes.split_report_set();
-    let culprits_set = disputes.extract_culprits_set();
-    let faults_set = disputes.extract_faults_set();
+    let culprits_set = disputes.culprits_set();
+    let faults_set = disputes.faults_set();
 
     state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
         disputes.good_set.extend(good_set.iter());
