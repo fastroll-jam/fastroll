@@ -1,3 +1,4 @@
+//! Block history state transition conformance tests
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -7,10 +8,11 @@ mod tests {
     };
     use rjam_common::Hash32;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
-    use rjam_transition::state::history::{
-        transition_block_history_append, transition_block_history_parent_root,
+    use rjam_transition::{
+        error::TransitionError,
+        state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
-    use std::{error::Error, path::PathBuf};
+    use std::path::PathBuf;
 
     const PATH_PREFIX: &str = "jamtestvectors-history/history/data";
 
@@ -18,7 +20,7 @@ mod tests {
     fn run_state_transition(
         test_input: &Input,
         test_pre_state: &State,
-    ) -> Result<(State, Output), Box<dyn Error>> {
+    ) -> Result<(State, Output), TransitionError> {
         // Convert ASN pre-state into RJAM types.
         let prior_block_history = test_pre_state.clone().into();
 
@@ -54,10 +56,10 @@ mod tests {
         Ok((post_state, Output))
     }
 
-    fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
+    fn run_test_case(filename: &str) -> Result<(), TransitionError> {
         let path = PathBuf::from(PATH_PREFIX).join(filename);
         let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
-        let expected_post_state = test_case.post_state; // The expected post state.
+        let expected_post_state = test_case.post_state;
 
         let (post_state, _output) = run_state_transition(&test_case.input, &test_case.pre_state)?;
 

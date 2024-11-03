@@ -22,10 +22,16 @@ pub enum ExtrinsicValidationError {
     NoPendingReportForCore(CoreIndex, ValidatorIndex),
 
     // Disputes validation errors
-    #[error("Dispute entries must be sorted correctly")]
-    DisputesNotSorted,
+    #[error("Verdict entry already exists in past dispute sets")]
+    VerdictAlreadyExists,
+    #[error("Verdicts entries must be sorted correctly")]
+    VerdictsNotSorted,
     #[error("Judgments must be sorted by validator index")]
     JudgmentsNotSorted,
+    #[error("Culprits entries must be sorted correctly")]
+    CulpritsNotSorted,
+    #[error("Faults entries must be sorted correctly")]
+    FaultsNotSorted,
     #[error("Duplicate verdict entry found")]
     DuplicateVerdict,
     #[error("Duplicate judgment entry found")]
@@ -34,8 +40,6 @@ pub enum ExtrinsicValidationError {
     DuplicateCulprit,
     #[error("Duplicate fault entry found")]
     DuplicateFault,
-    #[error("Verdict entry already exists in past dispute sets")]
-    VerdictAlreadyExists,
     #[error("Validator was not a culprit. Validator Ed25519 key: {0}")]
     NotCulprit(String),
     #[error("Validator did not cast a faulty vote. Voter: {0}")]

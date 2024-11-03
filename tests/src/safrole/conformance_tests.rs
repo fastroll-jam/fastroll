@@ -11,6 +11,7 @@ mod tests {
     };
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
     use rjam_transition::{
+        error::TransitionError,
         procedures::chain_extension::mark_safrole_header_markers,
         state::{
             entropy::transition_entropy_accumulator,
@@ -29,7 +30,7 @@ mod tests {
             validators::{ActiveSet, PastSet, StagingSet},
         },
     };
-    use std::{error::Error, path::PathBuf};
+    use std::path::PathBuf;
 
     const PATH_PREFIX: &str = "jamtestvectors-new-safrole/safrole/tiny";
 
@@ -37,11 +38,11 @@ mod tests {
     fn run_state_transition(
         test_input: &Input,
         test_pre_state: &State,
-    ) -> Result<(State, Output), Box<dyn Error>> {
+    ) -> Result<(State, Output), TransitionError> {
         // Convert ASN pre-state into RJAM types.
-        let prior_safrole = SafroleState::try_from(test_pre_state)?;
+        let prior_safrole = SafroleState::try_from(test_pre_state).unwrap();
         let (prior_staging_set, prior_active_set, prior_past_set) =
-            <(StagingSet, ActiveSet, PastSet)>::try_from(test_pre_state)?;
+            <(StagingSet, ActiveSet, PastSet)>::try_from(test_pre_state).unwrap();
         let prior_entropy = EntropyAccumulator::from(test_pre_state);
         let prior_timeslot = Timeslot::from(test_pre_state);
 
@@ -73,18 +74,20 @@ mod tests {
             StateKeyConstant::Timeslot,
             StateEntryType::Timeslot(prior_timeslot),
         );
+        state_manager.load_state_for_test(
+            StateKeyConstant::DisputesState,
+            StateEntryType::DisputesState(DisputesState::default()),
+        );
 
         // Convert ASN Input into RJAM types.
         let input_timeslot = Timeslot::new(test_input.slot);
         let input_header_entropy_hash = test_input.entropy.0;
         let input_punished_set = test_input.post_offenders.iter().map(|key| key.0).collect();
-        state_manager.load_state_for_test(
-            StateKeyConstant::DisputesState,
-            StateEntryType::DisputesState(DisputesState::default()),
-        );
+
         state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
             disputes.punish_set = input_punished_set;
         })?;
+
         let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
             .extrinsic
             .clone()
@@ -128,11 +131,16 @@ mod tests {
         // Convert RJAM types post-state into ASN post-state
         let builder = StateBuilder::new();
         let post_state = builder
-            .from_safrole_state(&current_safrole)?
-            .from_validator_sets(&current_staging_set, &current_active_set, &current_past_set)?
-            .from_entropy_accumulator(&current_entropy)?
-            .from_timeslot(&current_timeslot)?
-            .build()?;
+            .from_safrole_state(&current_safrole)
+            .unwrap()
+            .from_validator_sets(&current_staging_set, &current_active_set, &current_past_set)
+            .unwrap()
+            .from_entropy_accumulator(&current_entropy)
+            .unwrap()
+            .from_timeslot(&current_timeslot)
+            .unwrap()
+            .build()
+            .unwrap();
 
         Ok((post_state, Output::ok(output_marks)))
     }
@@ -140,20 +148,20 @@ mod tests {
     fn run_state_transition_with_error_mapping(
         test_input: &Input,
         test_pre_state: &State,
-    ) -> Result<(State, Output), Box<dyn Error>> {
-        match run_state_transition(test_input, test_pre_state) {
-            Ok(result) => Ok(result),
-            Err(e) => Ok((
+    ) -> Result<(State, Output), TransitionError> {
+        run_state_transition(test_input, test_pre_state).or_else(|e| {
+            // Rollback on failure
+            Ok((
                 test_pre_state.clone(),
                 Output::err(map_error_to_custom_code(e)),
-            )), // represents rollback mechanism for state transition failures
-        }
+            ))
+        })
     }
 
-    fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
+    fn run_test_case(filename: &str) -> Result<(), TransitionError> {
         let path = PathBuf::from(PATH_PREFIX).join(filename);
         let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
-        let expected_post_state = test_case.post_state; // The expected post state.
+        let expected_post_state = test_case.post_state;
 
         let (post_state, output) =
             run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
@@ -179,22 +187,22 @@ mod tests {
         // Success
         // Progress by one slot.
         // Randomness accumulator is updated.
-        test_enact_epoch_change_with_no_tickets_1: "enact-epoch-change-with-no-tickets-1.json",
+        enact_epoch_change_with_no_tickets_1: "enact-epoch-change-with-no-tickets-1.json",
 
         // Fail
         // Progress from slot X to slot X.
         // Timeslot must be strictly monotonic.
-        test_enact_epoch_change_with_no_tickets_2: "enact-epoch-change-with-no-tickets-2.json",
+        enact_epoch_change_with_no_tickets_2: "enact-epoch-change-with-no-tickets-2.json",
 
         // Success
         // Progress from a slot at the begin of the epoch to a slot in the epoch's tail.
         // Tickets mark is not generated (no enough tickets).
-        test_enact_epoch_change_with_no_tickets_3: "enact-epoch-change-with-no-tickets-3.json",
+        enact_epoch_change_with_no_tickets_3: "enact-epoch-change-with-no-tickets-3.json",
 
         // Success
         // Progress from epoch's tail to next epoch.
         // Authorities and entropies are rotated. Epoch mark is generated.
-        test_enact_epoch_change_with_no_tickets_4: "enact-epoch-change-with-no-tickets-4.json",
+        enact_epoch_change_with_no_tickets_4: "enact-epoch-change-with-no-tickets-4.json",
 
         // Success
         // Progress skipping epochs with a full tickets accumulator.

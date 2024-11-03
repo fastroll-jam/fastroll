@@ -1,6 +1,6 @@
-use crate::safrole::asn_types::{
-    ByteArray32, CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys, ValidatorData,
-    ValidatorsData, U32, U8,
+use crate::{
+    common_asn_types::{AsnTypeError, ByteArray32, ValidatorData, ValidatorsData},
+    safrole::asn_types::{CustomErrorCode, OpaqueHash, State, TicketBody, TicketsOrKeys},
 };
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
@@ -10,23 +10,11 @@ use rjam_types::state::{
     timeslot::Timeslot,
     validators::{ActiveSet, PastSet, StagingSet},
 };
-use std::error::Error;
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum AsnTypeError {
-    #[error("Safrole state conversion error: {0}")]
-    ConversionError(String),
-    #[error("Missing field for type conversion: {0}")]
-    MissingField(&'static str),
-    #[error("Type conversion infallible error")]
-    InfallibleError(#[from] std::convert::Infallible),
-}
 
 /// State builder to facilitate conversion between ASN and RJAM types
 #[derive(Default)]
 pub struct StateBuilder {
-    tau: Option<U32>,
+    tau: Option<u32>,
     eta: Option<[OpaqueHash; 4]>,
     lambda: Option<ValidatorsData>,
     kappa: Option<ValidatorsData>,
@@ -34,7 +22,7 @@ pub struct StateBuilder {
     iota: Option<ValidatorsData>,
     gamma_a: Option<Vec<TicketBody>>,
     gamma_s: Option<TicketsOrKeys>,
-    gamma_z: Option<[U8; 144]>,
+    gamma_z: Option<[u8; 144]>,
 }
 
 impl StateBuilder {
@@ -102,29 +90,25 @@ impl StateBuilder {
     }
 }
 
-/// Converts JAM implementation error types into test vector error code output
-pub(crate) fn map_error_to_custom_code(error: Box<dyn Error>) -> CustomErrorCode {
-    if let Some(transition_error) = error.downcast_ref::<TransitionError>() {
-        match transition_error {
-            TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
-            TransitionError::ExtrinsicValidationError(TicketSubmissionClosed(_)) => {
-                CustomErrorCode::unexpected_ticket
-            }
-            TransitionError::ExtrinsicValidationError(TicketsNotSorted) => {
-                CustomErrorCode::bad_ticket_order
-            }
-            TransitionError::ExtrinsicValidationError(InvalidTicketProof(_)) => {
-                CustomErrorCode::bad_ticket_proof
-            }
-            TransitionError::ExtrinsicValidationError(InvalidTicketAttemptNumber(_)) => {
-                CustomErrorCode::bad_ticket_attempt
-            }
-            TransitionError::ExtrinsicValidationError(DuplicateTicket) => {
-                CustomErrorCode::duplicate_ticket
-            }
-            _ => CustomErrorCode::reserved,
+/// Converts RJAM error types into test vector error code output
+pub(crate) fn map_error_to_custom_code(e: TransitionError) -> CustomErrorCode {
+    match e {
+        TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
+        TransitionError::ExtrinsicValidationError(TicketSubmissionClosed(_)) => {
+            CustomErrorCode::unexpected_ticket
         }
-    } else {
-        CustomErrorCode::reserved
+        TransitionError::ExtrinsicValidationError(TicketsNotSorted) => {
+            CustomErrorCode::bad_ticket_order
+        }
+        TransitionError::ExtrinsicValidationError(InvalidTicketProof(_)) => {
+            CustomErrorCode::bad_ticket_proof
+        }
+        TransitionError::ExtrinsicValidationError(InvalidTicketAttemptNumber(_)) => {
+            CustomErrorCode::bad_ticket_attempt
+        }
+        TransitionError::ExtrinsicValidationError(DuplicateTicket) => {
+            CustomErrorCode::duplicate_ticket
+        }
+        _ => CustomErrorCode::reserved,
     }
 }

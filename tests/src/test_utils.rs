@@ -25,7 +25,7 @@ macro_rules! generate_tests {
     ($($name:ident: $path:expr,)*) => {
         $(
             #[test]
-            fn $name() -> Result<(), Box<dyn Error>> {
+            fn $name() -> Result<(), TransitionError> {
                 run_test_case($path)
             }
         )*

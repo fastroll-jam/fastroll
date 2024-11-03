@@ -49,11 +49,14 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         prior_timeslot: &Timeslot,
     ) -> Result<(), ExtrinsicValidationError> {
         // Check if the entries are sorted
-        if !extrinsic.verdicts.is_sorted()
-            || !extrinsic.culprits.is_sorted()
-            || !extrinsic.faults.is_sorted()
-        {
-            return Err(DisputesNotSorted);
+        if !extrinsic.verdicts.is_sorted() {
+            return Err(VerdictsNotSorted);
+        }
+        if !extrinsic.culprits.is_sorted() {
+            return Err(CulpritsNotSorted);
+        }
+        if !extrinsic.faults.is_sorted() {
+            return Err(FaultsNotSorted);
         }
 
         // Used for duplicate validation

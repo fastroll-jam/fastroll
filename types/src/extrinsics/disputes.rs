@@ -1,8 +1,9 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
-    Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashSet};
 
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
@@ -11,6 +12,54 @@ pub struct DisputesExtrinsic {
     pub verdicts: Vec<Verdict>, // v
     pub culprits: Vec<Culprit>, // c
     pub faults: Vec<Fault>,     // f
+}
+
+pub struct OffendersHeaderMarker {
+    pub items: Vec<Ed25519PubKey>,
+}
+
+impl DisputesExtrinsic {
+    pub fn split_report_set(&self) -> (HashSet<Hash32>, HashSet<Hash32>, HashSet<Hash32>) {
+        let mut good_set = HashSet::new();
+        let mut bad_set = HashSet::new();
+        let mut wonky_set = HashSet::new();
+
+        for verdict in &self.verdicts {
+            let valid_judgment_count = verdict
+                .judgments
+                .iter()
+                .filter(|judgment| judgment.is_report_valid)
+                .count();
+            if valid_judgment_count > FLOOR_TWO_THIRDS_VALIDATOR_COUNT {
+                good_set.insert(verdict.report_hash);
+            } else if valid_judgment_count < FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
+                bad_set.insert(verdict.report_hash);
+            } else {
+                wonky_set.insert(verdict.report_hash);
+            }
+        }
+
+        (good_set, bad_set, wonky_set)
+    }
+
+    pub fn extract_offender_keys(&self) -> OffendersHeaderMarker {
+        let mut offenders_keys: Vec<Ed25519PubKey> = self
+            .culprits
+            .iter()
+            .map(|culprit| culprit.validator_key)
+            .collect();
+        let faults_keys: Vec<Ed25519PubKey> = self
+            .faults
+            .iter()
+            .map(|fault| fault.validator_key)
+            .collect();
+
+        offenders_keys.extend(faults_keys);
+
+        OffendersHeaderMarker {
+            items: offenders_keys,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]

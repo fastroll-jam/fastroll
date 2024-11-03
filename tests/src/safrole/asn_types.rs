@@ -1,8 +1,11 @@
 use crate::{
-    safrole::utils::AsnTypeError,
+    common_asn_types::{
+        validators_data_to_validator_set, AsnTypeError, BandersnatchKey, ByteArray32, Ed25519Key,
+        ValidatorsData, EPOCH_LENGTH, VALIDATORS_COUNT,
+    },
     test_utils::{deserialize_hex, serialize_hex},
 };
-use rjam_common::{BandersnatchPubKey, Ticket, ValidatorKey, ValidatorSet};
+use rjam_common::{BandersnatchPubKey, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
     block::header::EpochMarker,
@@ -15,45 +18,10 @@ use rjam_types::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt,
-    fmt::{Debug, Display},
-};
-
-// Define constants
-pub const VALIDATORS_COUNT: usize = 6;
-pub const EPOCH_LENGTH: usize = 12;
-
-// Define basic types
-pub type U8 = u8;
-pub type U32 = u32;
-
-// Define fixed-length arrays
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
-pub struct ByteArray32(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
-);
-
-impl Debug for ByteArray32 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-impl Display for ByteArray32 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
+use std::fmt::Debug;
 
 pub type OpaqueHash = ByteArray32;
 
-pub type Ed25519Key = ByteArray32;
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct BlsKey(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 144],
-);
-pub type BandersnatchKey = ByteArray32;
 pub type EpochKeys = [BandersnatchKey; EPOCH_LENGTH];
 pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];
 
@@ -160,7 +128,7 @@ pub enum CustomErrorCode {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct TicketBody {
     pub id: OpaqueHash,
-    pub attempt: U8,
+    pub attempt: u8,
 }
 
 impl From<Ticket> for TicketBody {
@@ -172,33 +140,11 @@ impl From<Ticket> for TicketBody {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ValidatorData {
-    pub bandersnatch: BandersnatchKey,
-    pub ed25519: Ed25519Key,
-    pub bls: BlsKey,
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
-    pub metadata: [U8; 128],
-}
-
-impl From<ValidatorKey> for ValidatorData {
-    fn from(value: ValidatorKey) -> Self {
-        Self {
-            bandersnatch: ByteArray32(value.bandersnatch_key),
-            ed25519: ByteArray32(value.ed25519_key),
-            bls: BlsKey(value.bls_key),
-            metadata: value.metadata,
-        }
-    }
-}
-
-pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct TicketEnvelope {
-    attempt: U8,
+    attempt: u8,
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
-    signature: [U8; 784],
+    signature: [u8; 784],
 }
 
 impl From<TicketEnvelope> for TicketsExtrinsicEntry {
@@ -248,7 +194,7 @@ impl From<SafroleHeaderMarkers> for OutputMarks {
 // State relevant to Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub tau: U32,                 // Most recent block's timeslot
+    pub tau: u32,                 // Most recent block's timeslot
     pub eta: [OpaqueHash; 4],     // Entropy accumulator and epochal randomness
     pub lambda: ValidatorsData, // Validator keys and metadata which were active in the prior epoch
     pub kappa: ValidatorsData,  // Validator keys and metadata currently active
@@ -257,7 +203,7 @@ pub struct State {
     pub gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
     pub gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
-    pub gamma_z: [U8; 144], // Bandersnatch ring commitment
+    pub gamma_z: [u8; 144], // Bandersnatch ring commitment
 }
 
 impl TryFrom<&State> for SafroleState {
@@ -265,7 +211,7 @@ impl TryFrom<&State> for SafroleState {
 
     fn try_from(state: &State) -> Result<Self, Self::Error> {
         Ok(SafroleState {
-            pending_set: convert_validator_data(&state.gamma_k)?,
+            pending_set: validators_data_to_validator_set(&state.gamma_k)?,
             ring_root: state.gamma_z.clone().try_into()?,
             slot_sealers: SlotSealerType::try_from(&state.gamma_s)?,
             ticket_accumulator: TicketAccumulator::from_vec(
@@ -286,9 +232,9 @@ impl TryFrom<&State> for (StagingSet, ActiveSet, PastSet) {
     type Error = AsnTypeError;
 
     fn try_from(state: &State) -> Result<Self, Self::Error> {
-        let staging_set = StagingSet(convert_validator_data(&state.iota)?);
-        let active_set = ActiveSet(convert_validator_data(&state.kappa)?);
-        let past_set = PastSet(convert_validator_data(&state.lambda)?);
+        let staging_set = StagingSet(validators_data_to_validator_set(&state.iota)?);
+        let active_set = ActiveSet(validators_data_to_validator_set(&state.kappa)?);
+        let past_set = PastSet(validators_data_to_validator_set(&state.lambda)?);
 
         Ok((staging_set, active_set, past_set))
     }
@@ -306,25 +252,10 @@ impl From<&State> for Timeslot {
     }
 }
 
-fn convert_validator_data(data: &ValidatorsData) -> Result<ValidatorSet, AsnTypeError> {
-    data.iter()
-        .map(|validator_data| {
-            Ok::<ValidatorKey, AsnTypeError>(ValidatorKey {
-                bandersnatch_key: validator_data.bandersnatch.0,
-                ed25519_key: validator_data.ed25519.0,
-                bls_key: validator_data.bls.0,
-                metadata: validator_data.metadata,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .try_into()
-        .map_err(|_| AsnTypeError::ConversionError("Failed to convert ValidatorsData".to_string()))
-}
-
 // Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub slot: U32,                       // Current slot
+    pub slot: u32,                       // Current slot
     pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
     pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
     pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
