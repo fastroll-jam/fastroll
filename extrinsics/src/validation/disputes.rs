@@ -4,7 +4,7 @@ use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
-    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict},
+    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict, VerdictEvaluation},
     state::{
         timeslot::Timeslot,
         validators::{get_validator_ed25519_key_by_index, ActiveSet, PastSet},
@@ -30,6 +30,9 @@ use std::collections::HashSet;
 ///     - All `voter_signature`s in `judgments` must be valid Ed25519 signatures of the work report
 ///       hash, signed by the corresponding public keys of the `voter`s,
 ///       which must be part of either the `ActiveSet` or the `PastSet`.
+///     - `epoch_index` of verdicts must match either the current epoch or the previous epoch.
+///     - Judgments of each verdict entry must have one of the following valid vote counts for the
+///       target work report: zero, `FLOOR_ONE_THIRDS_VALIDATOR_COUNT`, or `VALIDATORS_SUPER_MAJORITY`.
 /// - `culprits` and `faults`
 ///     - Offender signatures must be valid Ed25519 signatures of the work report hash,
 ///       similar to the validation of `verdicts`.
@@ -66,14 +69,19 @@ impl<'a> DisputesExtrinsicValidator<'a> {
 
         let all_past_report_hashes = self.state_manager.get_disputes()?.get_all_report_hashes();
 
-        // Validate each verdicts entry
+        // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
             // Check for duplicate entry (report_hash)
             if !verdicts_hashes.insert(verdict.report_hash) {
                 return Err(DuplicateVerdict);
             }
 
-            self.validate_verdicts_entry(verdict, prior_timeslot, &all_past_report_hashes)?;
+            self.validate_verdicts_entry(
+                verdict,
+                prior_timeslot,
+                &all_past_report_hashes,
+                extrinsic,
+            )?;
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
@@ -83,7 +91,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
 
-        // Validate each culprits entry
+        // Validate each culprit entry
         for culprit in extrinsic.culprits.iter() {
             // Check for duplicate entry (validator_key)
             if !culprits_hashes.insert(culprit.validator_key) {
@@ -93,14 +101,14 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             self.validate_culprits_entry(culprit, &valid_set)?;
         }
 
-        // Validate each faults entry
+        // Validate each fault entry
         for fault in extrinsic.faults.iter() {
             // Check for duplicate entry (validator_key)
             if !faults_hashes.insert(fault.validator_key) {
                 return Err(DuplicateFault);
             }
 
-            self.validate_faults_entry(fault, &valid_set)?;
+            self.validate_faults_entry(fault, &valid_set, extrinsic)?;
         }
 
         Ok(())
@@ -128,7 +136,38 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Verdict,
         prior_timeslot: &Timeslot,
         all_past_report_hashes: &[Hash32],
+        extrinsic: &DisputesExtrinsic,
     ) -> Result<(), ExtrinsicValidationError> {
+        // Check if verdicts contain entries with epoch index older the previous epoch
+        if entry.epoch_index + 1 < prior_timeslot.epoch() {
+            return Err(InvalidJudgmentsAge(
+                entry.epoch_index,
+                prior_timeslot.epoch(),
+            ));
+        }
+
+        // Check the valid votes count
+        if let VerdictEvaluation::Invalid = entry.evaluate_verdict() {
+            return Err(InvalidVotesCount);
+        }
+
+        // Check the valid votes count and ensure that the minimum number of culprits or faults
+        // corresponding to the verdict is included in the extrinsic.
+        match entry.evaluate_verdict() {
+            VerdictEvaluation::Invalid => return Err(InvalidVotesCount),
+            VerdictEvaluation::IsGood => {
+                if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 {
+                    return Err(NotEnoughFault(encode(entry.report_hash)));
+                }
+            }
+            VerdictEvaluation::IsBad => {
+                if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 {
+                    return Err(NotEnoughCulprit(encode(entry.report_hash)));
+                }
+            }
+            _ => (),
+        }
+
         // Verdicts entry must not be present in any past report hashes - neither in the `GoodSet`,
         // `BadSet`, nor `WonkySet`.
         if all_past_report_hashes.contains(&entry.report_hash) {
@@ -206,7 +245,23 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         &self,
         entry: &Fault,
         valid_set: &HashSet<Ed25519PubKey>,
+        extrinsic: &DisputesExtrinsic,
     ) -> Result<(), ExtrinsicValidationError> {
+        // Verdict entry that corresponds to the fault entry
+        let verdict_entry = extrinsic
+            .get_verdict_by_report_hash(&entry.report_hash)
+            .ok_or(InvalidFaultReportHash(encode(entry.validator_key)))?;
+
+        let is_fault = match verdict_entry.evaluate_verdict() {
+            VerdictEvaluation::IsGood => !entry.is_report_valid,
+            VerdictEvaluation::IsBad => entry.is_report_valid,
+            _ => false,
+        };
+
+        if !is_fault {
+            return Err(NotFault(encode(entry.validator_key)));
+        }
+
         if !valid_set.contains(&entry.validator_key) {
             return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }

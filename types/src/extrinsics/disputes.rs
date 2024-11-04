@@ -1,14 +1,15 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
     Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
-    FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    VALIDATORS_SUPER_MAJORITY,
 };
-use std::{cmp::Ordering, collections::HashSet};
+use std::cmp::Ordering;
 
 pub enum VerdictEvaluation {
     IsGood,
     IsBad,
     IsWonky,
+    Invalid,
 }
 
 pub struct OffendersHeaderMarker {
@@ -25,33 +26,24 @@ pub struct DisputesExtrinsic {
 }
 
 impl DisputesExtrinsic {
-    /// Used for extrinsic validation
-    pub fn extract_offenders_from_verdicts(
-        &self,
-    ) -> (HashSet<Ed25519PubKey>, HashSet<ValidatorIndex>) {
-        let extracted_culprits = HashSet::new();
-        let extracted_faults = HashSet::new();
-
-        for verdict in &self.verdicts {
-            match verdict.evaluate_verdict() {
-                VerdictEvaluation::IsGood => {
-                    // Voters who voted as "false" should be in the faults set.
-                    unimplemented!()
-                }
-                VerdictEvaluation::IsBad => {
-                    // Guarantors of the work reports related to the judgment should be in the culprits set.
-                    // Voters who voted as "true" should be in the faults set.
-                    unimplemented!()
-                }
-                _ => {}
-            }
-        }
-
-        (extracted_culprits, extracted_faults)
+    pub fn count_culprits_with_report_hash(&self, report_hash: &Hash32) -> usize {
+        self.culprits
+            .iter()
+            .filter(|culprit| &culprit.report_hash == report_hash)
+            .count()
     }
 
-    pub fn count_offenders_from_verdicts(&self) -> (usize, usize) {
-        unimplemented!()
+    pub fn count_faults_with_report_hash(&self, report_hash: &Hash32) -> usize {
+        self.faults
+            .iter()
+            .filter(|fault| &fault.report_hash == report_hash)
+            .count()
+    }
+
+    pub fn get_verdict_by_report_hash(&self, report_hash: &Hash32) -> Option<&Verdict> {
+        self.verdicts
+            .iter()
+            .find(|verdict| &verdict.report_hash == report_hash)
     }
 
     pub fn split_report_set(&self) -> (Vec<Hash32>, Vec<Hash32>, Vec<Hash32>) {
@@ -64,6 +56,7 @@ impl DisputesExtrinsic {
                 VerdictEvaluation::IsGood => good_set.push(verdict.report_hash),
                 VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash),
                 VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash),
+                _ => (),
             };
         }
 
@@ -106,9 +99,9 @@ impl DisputesExtrinsic {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct Verdict {
-    pub report_hash: Hash32,                                              // r
-    pub epoch_index: u32,                                                 // a
-    pub judgments: Box<[Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]>, // j
+    pub report_hash: Hash32,                                   // r
+    pub epoch_index: u32,                                      // a
+    pub judgments: Box<[Judgment; VALIDATORS_SUPER_MAJORITY]>, // j
 }
 
 impl PartialOrd for Verdict {
@@ -125,7 +118,7 @@ impl Ord for Verdict {
 
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut judgments = Box::new([Judgment::default(); FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1]);
+        let mut judgments = Box::new([Judgment::default(); VALIDATORS_SUPER_MAJORITY]);
         for judgment in judgments.iter_mut() {
             *judgment = Judgment::decode(input)?;
         }
@@ -144,12 +137,14 @@ impl Verdict {
             .iter()
             .filter(|judgment| judgment.is_report_valid)
             .count();
-        if valid_judgments_count > FLOOR_TWO_THIRDS_VALIDATOR_COUNT {
+        if valid_judgments_count == VALIDATORS_SUPER_MAJORITY {
             VerdictEvaluation::IsGood
-        } else if valid_judgments_count < FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
+        } else if valid_judgments_count == 0 {
             VerdictEvaluation::IsBad
-        } else {
+        } else if valid_judgments_count == FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
             VerdictEvaluation::IsWonky
+        } else {
+            VerdictEvaluation::Invalid
         }
     }
 }

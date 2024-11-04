@@ -285,12 +285,12 @@ pub enum ErrorCode {
     judgements_not_sorted_unique,
     culprits_not_sorted_unique,
     faults_not_sorted_unique,
-    not_enough_culprits,       // not covered
-    not_enough_faults,         // not covered
-    culprits_verdict_not_bad,  // not covered
-    fault_verdict_wrong,       // not covered
+    not_enough_culprits,      // not covered
+    not_enough_faults,        // not covered
+    culprits_verdict_not_bad, // not covered
+    fault_verdict_wrong,
     offender_already_reported, // not covered
-    bad_judgement_age,         // not covered
+    bad_judgement_age,
     bad_signature,
     reserved, // Note: not in ASN
 }

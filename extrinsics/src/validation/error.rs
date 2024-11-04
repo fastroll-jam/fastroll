@@ -40,8 +40,22 @@ pub enum ExtrinsicValidationError {
     DuplicateCulprit,
     #[error("Duplicate fault entry found")]
     DuplicateFault,
+    #[error("Validator was not a culprit. Validator Ed25519 key: {0}")]
+    NotCulprit(String),
+    #[error("Validator did not cast a faulty vote. Voter: {0}")]
+    NotFault(String),
+    #[error("Verdicts with all negative votes must have at least two culprits for the corresponding work report. Work report hash: {0}")]
+    NotEnoughCulprit(String),
+    #[error("Verdicts with all positive votes must have at least one fault for the corresponding work report. Work report hash: {0}")]
+    NotEnoughFault(String),
     #[error("Validator is not part of the active or past set. Validator Ed25519 key: {0}")]
     InvalidValidatorSet(String),
+    #[error("Epoch index of the verdict is older than the previous epoch. Epoch index: {0}, Current epoch index: {1}")]
+    InvalidJudgmentsAge(u32, u32),
+    #[error("Report hash of fault entry is not found in the extrinsic verdicts. Validator Ed25519 key: {0}")]
+    InvalidFaultReportHash(String),
+    #[error("Positive votes count must be one of the following: 0, `FLOOR_ONE_THIRDS_VALIDATOR_COUNT`, or `VALIDATORS_SUPER_MAJORITY`.")]
+    InvalidVotesCount,
     #[error("Invalid signature for judgment. Voter validator index: {0}")]
     InvalidJudgmentSignature(ValidatorIndex),
     #[error("Invalid culprit signature. Validator Ed25519 key: {0}")]
