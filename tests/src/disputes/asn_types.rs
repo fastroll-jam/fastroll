@@ -280,14 +280,14 @@ pub struct Input {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ErrorCode {
     already_judged,
-    bad_vote_split, // not covered
+    bad_vote_split,
     verdicts_not_sorted_unique,
     judgements_not_sorted_unique,
     culprits_not_sorted_unique,
     faults_not_sorted_unique,
-    not_enough_culprits,      // not covered
-    not_enough_faults,        // not covered
-    culprits_verdict_not_bad, // not covered
+    not_enough_culprits,
+    not_enough_faults,
+    culprits_verdict_not_bad,
     fault_verdict_wrong,
     offender_already_reported, // not covered
     bad_judgement_age,

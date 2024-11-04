@@ -9,7 +9,7 @@ pub enum VerdictEvaluation {
     IsGood,
     IsBad,
     IsWonky,
-    Invalid,
+    Invalid(usize),
 }
 
 pub struct OffendersHeaderMarker {
@@ -144,7 +144,7 @@ impl Verdict {
         } else if valid_judgments_count == FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
             VerdictEvaluation::IsWonky
         } else {
-            VerdictEvaluation::Invalid
+            VerdictEvaluation::Invalid(valid_judgments_count)
         }
     }
 }

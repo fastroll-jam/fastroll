@@ -98,7 +98,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 return Err(DuplicateCulprit);
             }
 
-            self.validate_culprits_entry(culprit, &valid_set)?;
+            self.validate_culprits_entry(culprit, &valid_set, &punish_set, extrinsic)?;
         }
 
         // Validate each fault entry
@@ -108,7 +108,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 return Err(DuplicateFault);
             }
 
-            self.validate_faults_entry(fault, &valid_set, extrinsic)?;
+            self.validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
         }
 
         Ok(())
@@ -147,14 +147,16 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         }
 
         // Check the valid votes count
-        if let VerdictEvaluation::Invalid = entry.evaluate_verdict() {
-            return Err(InvalidVotesCount);
+        if let VerdictEvaluation::Invalid(positive_votes) = entry.evaluate_verdict() {
+            return Err(InvalidVotesCount(positive_votes));
         }
 
         // Check the valid votes count and ensure that the minimum number of culprits or faults
         // corresponding to the verdict is included in the extrinsic.
         match entry.evaluate_verdict() {
-            VerdictEvaluation::Invalid => return Err(InvalidVotesCount),
+            VerdictEvaluation::Invalid(positive_votes) => {
+                return Err(InvalidVotesCount(positive_votes))
+            }
             VerdictEvaluation::IsGood => {
                 if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 {
                     return Err(NotEnoughFault(encode(entry.report_hash)));
@@ -223,7 +225,19 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         &self,
         entry: &Culprit,
         valid_set: &HashSet<Ed25519PubKey>,
+        punish_set: &[Ed25519PubKey],
+        extrinsic: &DisputesExtrinsic,
     ) -> Result<(), ExtrinsicValidationError> {
+        // Check if the culprit is already in the punish set
+        if punish_set.contains(&entry.validator_key) {
+            return Err(CulpritAlreadyReported(encode(entry.validator_key)));
+        }
+
+        // Check the verdict entry that corresponds to the fault entry exists
+        extrinsic
+            .get_verdict_by_report_hash(&entry.report_hash)
+            .ok_or(InvalidCulpritReportHash(encode(entry.validator_key)))?;
+
         if !valid_set.contains(&entry.validator_key) {
             return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }
@@ -245,8 +259,14 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         &self,
         entry: &Fault,
         valid_set: &HashSet<Ed25519PubKey>,
+        punish_set: &[Ed25519PubKey],
         extrinsic: &DisputesExtrinsic,
     ) -> Result<(), ExtrinsicValidationError> {
+        // Check if the culprit is already in the punish set
+        if punish_set.contains(&entry.validator_key) {
+            return Err(FaultAlreadyReported(encode(entry.validator_key)));
+        }
+
         // Verdict entry that corresponds to the fault entry
         let verdict_entry = extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)

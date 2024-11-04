@@ -2,10 +2,8 @@ use crate::disputes::asn_types::ErrorCode;
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
 
-// TODO: complete error mapping
 /// Converts RJAM error types into test vector error code output
 pub(crate) fn map_error_to_custom_code(e: TransitionError) -> ErrorCode {
-    println!(">>> ERROR type: {:?}", e);
     match e {
         TransitionError::ExtrinsicValidationError(VerdictAlreadyExists) => {
             ErrorCode::already_judged
@@ -40,6 +38,16 @@ pub(crate) fn map_error_to_custom_code(e: TransitionError) -> ErrorCode {
         }
         TransitionError::ExtrinsicValidationError(NotEnoughFault(_)) => {
             ErrorCode::not_enough_faults
+        }
+        TransitionError::ExtrinsicValidationError(InvalidVotesCount(_)) => {
+            ErrorCode::bad_vote_split
+        }
+        TransitionError::ExtrinsicValidationError(InvalidCulpritReportHash(_)) => {
+            ErrorCode::culprits_verdict_not_bad
+        }
+        TransitionError::ExtrinsicValidationError(CulpritAlreadyReported(_))
+        | TransitionError::ExtrinsicValidationError(FaultAlreadyReported(_)) => {
+            ErrorCode::offender_already_reported
         }
         _ => ErrorCode::reserved,
     }

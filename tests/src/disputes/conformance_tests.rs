@@ -127,19 +127,17 @@ mod tests {
 
         let (post_state, output) =
             run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
-        println!(">>> (actual) output: {:?}", output);
-        println!(">>> (expected) test_case.output: {:?}", test_case.output);
 
         // Assertion on the post state
         // assert_eq!(post_state, expected_post_state);
-        // assert_eq!(post_state.psi, expected_post_state.psi);
-        // assert_eq!(post_state.rho, expected_post_state.rho);
-        // assert_eq!(post_state.tau, expected_post_state.tau);
-        // assert_eq!(post_state.kappa, expected_post_state.kappa);
-        // assert_eq!(post_state.lambda, expected_post_state.lambda);
+        assert_eq!(post_state.psi, expected_post_state.psi);
+        assert_eq!(post_state.rho, expected_post_state.rho);
+        assert_eq!(post_state.tau, expected_post_state.tau);
+        assert_eq!(post_state.kappa, expected_post_state.kappa);
+        assert_eq!(post_state.lambda, expected_post_state.lambda);
 
         // Assertion on the state transition output
-        // assert_eq!(output, test_case.output);
+        assert_eq!(output, test_case.output);
         Ok(())
     }
 
@@ -228,7 +226,7 @@ mod tests {
         // Auditor marked as offender, but vote matches the verdict.
         progress_with_faults_7: "progress_with_faults-7.json",
 
-        // FIXME: WorkReport decoding error
+        // TODO: Fails decoding dummy work report.
         // Success
         // Invalidation of availability assignments.
         // progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
