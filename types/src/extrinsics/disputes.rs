@@ -54,16 +54,16 @@ impl DisputesExtrinsic {
         unimplemented!()
     }
 
-    pub fn split_report_set(&self) -> (HashSet<Hash32>, HashSet<Hash32>, HashSet<Hash32>) {
-        let mut good_set = HashSet::new();
-        let mut bad_set = HashSet::new();
-        let mut wonky_set = HashSet::new();
+    pub fn split_report_set(&self) -> (Vec<Hash32>, Vec<Hash32>, Vec<Hash32>) {
+        let mut good_set = Vec::new();
+        let mut bad_set = Vec::new();
+        let mut wonky_set = Vec::new();
 
         for verdict in &self.verdicts {
-            let _ = match verdict.evaluate_verdict() {
-                VerdictEvaluation::IsGood => good_set.insert(verdict.report_hash),
-                VerdictEvaluation::IsBad => bad_set.insert(verdict.report_hash),
-                VerdictEvaluation::IsWonky => wonky_set.insert(verdict.report_hash),
+            match verdict.evaluate_verdict() {
+                VerdictEvaluation::IsGood => good_set.push(verdict.report_hash),
+                VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash),
+                VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash),
             };
         }
 
@@ -89,14 +89,14 @@ impl DisputesExtrinsic {
         }
     }
 
-    pub fn culprits_set(&self) -> HashSet<Ed25519PubKey> {
+    pub fn culprits_keys(&self) -> Vec<Ed25519PubKey> {
         self.culprits
             .iter()
             .map(|culprit| culprit.validator_key)
             .collect()
     }
 
-    pub fn faults_set(&self) -> HashSet<Ed25519PubKey> {
+    pub fn faults_keys(&self) -> Vec<Ed25519PubKey> {
         self.faults
             .iter()
             .map(|fault| fault.validator_key)

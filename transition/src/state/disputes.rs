@@ -1,4 +1,5 @@
 use crate::error::TransitionError;
+use rjam_common::Ed25519PubKey;
 use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{extrinsics::disputes::DisputesExtrinsic, state::timeslot::Timeslot};
@@ -20,16 +21,15 @@ pub fn transition_disputes(
     disputes_validator.validate(disputes, prior_timeslot)?;
 
     let (good_set, bad_set, wonky_set) = disputes.split_report_set();
-    let culprits_set = disputes.culprits_set();
-    let faults_set = disputes.faults_set();
+    let culprits_keys = disputes.culprits_keys();
+    let faults_keys = disputes.faults_keys();
+    let offenders_keys: Vec<Ed25519PubKey> = culprits_keys.into_iter().chain(faults_keys).collect();
 
     state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
-        disputes.good_set.extend(good_set.iter());
-        disputes.bad_set.extend(bad_set.iter());
-        disputes.wonky_set.extend(wonky_set.iter());
-        disputes
-            .punish_set
-            .extend(culprits_set.iter().chain(faults_set.iter()));
+        disputes.sort_extend_good_set(good_set);
+        disputes.sort_extend_bad_set(bad_set);
+        disputes.sort_extend_wonky_set(wonky_set);
+        disputes.sort_extend_punish_set(offenders_keys);
     })?;
 
     Ok(())

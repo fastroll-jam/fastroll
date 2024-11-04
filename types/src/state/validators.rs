@@ -42,7 +42,7 @@ impl Default for StagingSet {
 }
 
 impl StagingSet {
-    pub fn nullify_punished_validators(&mut self, punish_set: &HashSet<Ed25519PubKey>) {
+    pub fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
         for validator in self.0.iter_mut() {
             if punish_set.contains(&validator.ed25519_key) {
                 *validator = ValidatorKey::default();

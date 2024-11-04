@@ -109,14 +109,13 @@ impl<'a> DisputesExtrinsicValidator<'a> {
     fn union_active_and_past_exclude_punish(
         active_set: &ActiveSet,
         past_set: &PastSet,
-        punish_set: &HashSet<Ed25519PubKey>,
+        punish_set: &[Ed25519PubKey],
     ) -> HashSet<Ed25519PubKey> {
         let active_keys = active_set.ed25519_keys();
         let past_keys = past_set.ed25519_keys();
 
         let mut active_and_past_keys: HashSet<Ed25519PubKey> =
             active_keys.union(&past_keys).cloned().collect();
-
         for key in punish_set {
             active_and_past_keys.remove(key);
         }
@@ -128,7 +127,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         &self,
         entry: &Verdict,
         prior_timeslot: &Timeslot,
-        all_past_report_hashes: &HashSet<Hash32>,
+        all_past_report_hashes: &[Hash32],
     ) -> Result<(), ExtrinsicValidationError> {
         // Verdicts entry must not be present in any past report hashes - neither in the `GoodSet`,
         // `BadSet`, nor `WonkySet`.
