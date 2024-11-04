@@ -5,6 +5,7 @@ use rjam_transition::error::TransitionError;
 // TODO: complete error mapping
 /// Converts RJAM error types into test vector error code output
 pub(crate) fn map_error_to_custom_code(e: TransitionError) -> ErrorCode {
+    println!(">>> ERROR type: {:?}", e);
     match e {
         TransitionError::ExtrinsicValidationError(VerdictAlreadyExists) => {
             ErrorCode::already_judged

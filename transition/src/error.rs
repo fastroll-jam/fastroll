@@ -22,7 +22,7 @@ pub enum TransitionError {
     PendingReportsError(#[from] PendingReportsError),
     // External errors
     #[error("Block header update error: {0}")]
-    BlockHeaderUpdateError(BlockHeaderUpdateError),
+    BlockHeaderUpdateError(#[from] BlockHeaderUpdateError),
     #[error("Extrinsic validation error: {0}")]
     ExtrinsicValidationError(#[from] ExtrinsicValidationError),
     #[error("Serialization error: {0}")]

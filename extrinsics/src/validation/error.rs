@@ -40,10 +40,6 @@ pub enum ExtrinsicValidationError {
     DuplicateCulprit,
     #[error("Duplicate fault entry found")]
     DuplicateFault,
-    #[error("Validator was not a culprit. Validator Ed25519 key: {0}")]
-    NotCulprit(String),
-    #[error("Validator did not cast a faulty vote. Voter: {0}")]
-    NotFault(String),
     #[error("Validator is not part of the active or past set. Validator Ed25519 key: {0}")]
     InvalidValidatorSet(String),
     #[error("Invalid signature for judgment. Voter validator index: {0}")]

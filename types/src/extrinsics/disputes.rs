@@ -89,15 +89,18 @@ impl DisputesExtrinsic {
         }
     }
 
-    pub fn culprits_set(&self) -> HashSet<Hash32> {
+    pub fn culprits_set(&self) -> HashSet<Ed25519PubKey> {
         self.culprits
             .iter()
-            .map(|culprit| culprit.report_hash)
+            .map(|culprit| culprit.validator_key)
             .collect()
     }
 
-    pub fn faults_set(&self) -> HashSet<Hash32> {
-        self.faults.iter().map(|fault| fault.report_hash).collect()
+    pub fn faults_set(&self) -> HashSet<Ed25519PubKey> {
+        self.faults
+            .iter()
+            .map(|fault| fault.validator_key)
+            .collect()
     }
 }
 

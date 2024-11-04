@@ -79,7 +79,7 @@ impl From<BlockHistoryEntry> for BlockInfo {
 }
 
 /// State relevant to History STF
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     /// Blocks history
     pub beta: Vec<BlockInfo>,

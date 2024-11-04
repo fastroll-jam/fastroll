@@ -10,13 +10,15 @@ mod tests {
         generate_tests,
         test_utils::load_test_case,
     };
+    use rjam_db::BlockHeaderDB;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
     use rjam_transition::{
         error::TransitionError,
+        header::set_header_offenders_marker,
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
     };
     use rjam_types::{
-        extrinsics::disputes::DisputesExtrinsic,
+        extrinsics::disputes::{DisputesExtrinsic, OffendersHeaderMarker},
         state::{
             disputes::DisputesState,
             reports::PendingReports,
@@ -42,6 +44,8 @@ mod tests {
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
+        // Initialize HeaderDB.
+        let mut header_db = BlockHeaderDB::initialize_for_test();
 
         // Load pre-state info the state cache.
         state_manager.load_state_for_test(
@@ -72,9 +76,18 @@ mod tests {
         let offenders_marker = input_extrinsic.collect_offender_keys();
         transition_reports_eliminate_invalid(&state_manager, &input_extrinsic, &prior_timeslot)?;
         transition_disputes(&state_manager, &input_extrinsic, &prior_timeslot)?;
+        set_header_offenders_marker(&mut header_db, &offenders_marker.items)?;
 
         // Convert RJAM output into ASN Output.
-        let disputes_output_marks: DisputesOutputMarks = offenders_marker.into();
+        let current_header_offenders_marker = header_db
+            .get_staging_header()
+            .cloned()
+            .unwrap()
+            .offenders_marker;
+        let current_offenders_marker = OffendersHeaderMarker {
+            items: current_header_offenders_marker,
+        };
+        let disputes_output_marks: DisputesOutputMarks = current_offenders_marker.into();
 
         // Get the posterior state from the state cache.
         let current_disputes_state = state_manager.get_disputes()?;
@@ -114,8 +127,8 @@ mod tests {
 
         let (post_state, output) =
             run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
-        println!(">>> (expected) test_case.output: {:?}", test_case.output);
         println!(">>> (actual) output: {:?}", output);
+        println!(">>> (expected) test_case.output: {:?}", test_case.output);
 
         // Assertion on the post state
         // assert_eq!(post_state, expected_post_state);

@@ -83,9 +83,6 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
 
-        let current_bad_set = self.state_manager.get_disputes()?.bad_set;
-        let current_good_set = self.state_manager.get_disputes()?.good_set;
-
         // Validate each culprits entry
         for culprit in extrinsic.culprits.iter() {
             // Check for duplicate entry (validator_key)
@@ -93,7 +90,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 return Err(DuplicateCulprit);
             }
 
-            self.validate_culprits_entry(culprit, &current_bad_set, &valid_set)?;
+            self.validate_culprits_entry(culprit, &valid_set)?;
         }
 
         // Validate each faults entry
@@ -103,7 +100,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
                 return Err(DuplicateFault);
             }
 
-            self.validate_faults_entry(fault, &current_bad_set, &current_good_set, &valid_set)?;
+            self.validate_faults_entry(fault, &valid_set)?;
         }
 
         Ok(())
@@ -187,13 +184,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
     pub fn validate_culprits_entry(
         &self,
         entry: &Culprit,
-        current_bad_set: &HashSet<Hash32>,
         valid_set: &HashSet<Ed25519PubKey>,
     ) -> Result<(), ExtrinsicValidationError> {
-        if !current_bad_set.contains(&entry.report_hash) {
-            return Err(NotCulprit(encode(entry.validator_key)));
-        }
-
         if !valid_set.contains(&entry.validator_key) {
             return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }
@@ -214,17 +206,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
     pub fn validate_faults_entry(
         &self,
         entry: &Fault,
-        current_bad_set: &HashSet<Hash32>,
-        current_good_set: &HashSet<Hash32>,
         valid_set: &HashSet<Ed25519PubKey>,
     ) -> Result<(), ExtrinsicValidationError> {
-        // Validate fails when the voter's vote was correct but the voter is in the faults set.
-        if (entry.is_report_valid && current_good_set.contains(&entry.report_hash))
-            || (!entry.is_report_valid && current_bad_set.contains(&entry.report_hash))
-        {
-            return Err(NotFault(encode(entry.validator_key)));
-        }
-
         if !valid_set.contains(&entry.validator_key) {
             return Err(InvalidValidatorSet(encode(entry.validator_key)));
         }

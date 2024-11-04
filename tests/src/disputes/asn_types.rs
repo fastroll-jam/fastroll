@@ -261,7 +261,7 @@ impl From<DisputesState> for DisputesRecords {
 }
 
 /// State relevant to Disputes STF
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     pub psi: DisputesRecords,         // Disputes verdicts and offenders
     pub rho: AvailabilityAssignments, // Availability cores assignments

@@ -2,13 +2,15 @@ use crate::{KeyValueDB, KeyValueDBError, RocksDBConfig};
 use dashmap::DashMap;
 use hex::encode;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
-use rjam_common::Hash32;
+use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_types::block::header::{BlockHeader, BlockHeaderError};
 use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderDBError {
+    #[error("Header DB is not initialized")]
+    HeaderDBNotInitialized,
     #[error("Header at index {0} not found")]
     HeaderNotFound(String),
     #[error("Staging header not initialized")]
@@ -28,7 +30,7 @@ pub enum BlockHeaderDBError {
 /// Block headers are stored in the database indexed by both the timeslot and the header hash.
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
-    db: KeyValueDB,
+    db: Option<Arc<KeyValueDB>>,
     /// Cache for storing block headers, keyed by timeslot index.
     cache: Arc<DashMap<u32, BlockHeader>>,
     /// Mutable staging header used for block construction.
@@ -36,10 +38,18 @@ pub struct BlockHeaderDB {
 }
 
 impl BlockHeaderDB {
+    pub fn initialize_for_test() -> Self {
+        Self {
+            db: None,
+            cache: Arc::new(DashMap::new()),
+            staging_header: Some(BlockHeader::new(HASH32_EMPTY)),
+        }
+    }
+
     pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, BlockHeaderDBError> {
         let db = KeyValueDB::new(config)?;
         Ok(Self {
-            db,
+            db: Some(Arc::new(db)),
             cache: Arc::new(DashMap::with_capacity(cache_size)),
             staging_header: None,
         })
@@ -52,11 +62,15 @@ impl BlockHeaderDB {
             return Ok(header.clone());
         }
 
+        let db = self
+            .db
+            .as_ref()
+            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
+
         let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
         let header_encoded =
-            self.db
-                .get_entry(&timeslot_key)?
+            db.get_entry(&timeslot_key)?
                 .ok_or(BlockHeaderDBError::HeaderNotFound(
                     timeslot_index.to_string(),
                 ))?;
@@ -72,11 +86,15 @@ impl BlockHeaderDB {
         &self,
         header_hash: &Hash32,
     ) -> Result<BlockHeader, BlockHeaderDBError> {
+        let db = self
+            .db
+            .as_ref()
+            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
+
         let header_hash_string = format!("H::{}", encode(header_hash));
         let header_hash_key = header_hash_string.clone().into_bytes();
 
-        let header_encoded = self
-            .db
+        let header_encoded = db
             .get_entry(&header_hash_key)?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
@@ -84,13 +102,18 @@ impl BlockHeaderDB {
     }
 
     fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
+        let db = self
+            .db
+            .as_ref()
+            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
+
         let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
         let header_hash_key = format!("H::{}", encode(header.hash()?)).into_bytes();
 
         let header_encoded = header.encode()?;
 
-        self.db.put_entry(&timeslot_key, &header_encoded)?;
-        self.db.put_entry(&header_hash_key, &header_encoded)?;
+        db.put_entry(&timeslot_key, &header_encoded)?;
+        db.put_entry(&header_hash_key, &header_encoded)?;
         self.cache.insert(header.timeslot_index, header.clone());
 
         Ok(())

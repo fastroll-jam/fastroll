@@ -17,12 +17,23 @@ pub type Ed25519Key = ByteArray32;
 pub type Ed25519Signature = ByteArray64;
 pub type BandersnatchKey = ByteArray32;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BlsKey(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 144],
 );
 
-// Define fixed-length arrays
+impl Debug for BlsKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl Display for BlsKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
 pub struct ByteArray32(
     #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
