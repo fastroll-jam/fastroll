@@ -1,5 +1,7 @@
+use num_enum::TryFromPrimitive;
+
 #[repr(u8)]
-#[derive(Clone)]
+#[derive(Clone, TryFromPrimitive)]
 #[allow(non_camel_case_types)]
 pub enum HostCallType {
     // General Functions
@@ -31,12 +33,7 @@ pub enum HostCallType {
 }
 
 impl HostCallType {
-    #[allow(clippy::missing_transmute_annotations)]
     pub fn from_u8(value: u8) -> Option<Self> {
-        if value <= 22 {
-            Some(unsafe { std::mem::transmute(value) })
-        } else {
-            None
-        }
+        Self::try_from(value).ok()
     }
 }

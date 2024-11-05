@@ -10,4 +10,5 @@ rjam-crypto = { workspace = true }
 rjam-state = { workspace = true }
 rjam-types = { workspace = true }
 bit-vec = { workspace = true }
+num_enum = { workspace = true }
 thiserror = { workspace = true }

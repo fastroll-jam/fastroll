@@ -1,6 +1,8 @@
+use num_enum::TryFromPrimitive;
+
 /// PVM Opcodes
 #[repr(u8)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, TryFromPrimitive)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     TRAP = 0,
@@ -94,13 +96,8 @@ pub enum Opcode {
 }
 
 impl Opcode {
-    #[allow(clippy::missing_transmute_annotations)]
     pub fn from_u8(value: u8) -> Option<Self> {
-        if value <= 87 {
-            Some(unsafe { std::mem::transmute(value) })
-        } else {
-            None
-        }
+        Self::try_from(value).ok()
     }
 
     pub fn is_termination_opcode(&self) -> bool {
