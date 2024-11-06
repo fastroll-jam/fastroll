@@ -3,11 +3,11 @@ use rjam_types::{
     common::{transfers::DeferredTransfer, workloads::WorkReport},
     state::accumulate::{AccumulateQueue, DeferredWorkReport, SegmentRoot, WorkPackageHash},
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 /// Represents function `D` of the GP.
 fn construct_deferred_reports(report: WorkReport) -> DeferredWorkReport {
-    let deps: HashSet<WorkPackageHash> = report
+    let deps: BTreeSet<WorkPackageHash> = report
         .prerequisite()
         .into_iter()
         .chain(report.segment_roots_lookup().keys().cloned())
@@ -37,7 +37,7 @@ pub fn edit_queue(
         .into_iter()
         .filter(|(report, _)| !accumulated.contains_key(&report.work_package_hash()))
         .map(|(report, deps)| {
-            let edited_deps: HashSet<WorkPackageHash> = deps
+            let edited_deps: BTreeSet<WorkPackageHash> = deps
                 .into_iter()
                 .filter(|dep| !accumulated.contains_key(dep))
                 .collect();

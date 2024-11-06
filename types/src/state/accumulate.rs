@@ -1,12 +1,12 @@
 use crate::common::workloads::WorkReport;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Hash32, EPOCH_LENGTH};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
-pub type DeferredWorkReport = (WorkReport, HashSet<WorkPackageHash>); // FIXME: Not implemented for the `HashSet`.
+pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
 
 /// Queue of work reports pending accumulation due to unresolved dependencies.
 ///

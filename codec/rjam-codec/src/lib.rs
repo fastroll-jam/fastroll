@@ -2,14 +2,14 @@ use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use rjam_codec_derive::*;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     fmt::{Debug, Display},
     hash::Hash,
     mem::size_of,
 };
 use thiserror::Error;
 
-/// Error types for JAM SCALE Codec
+/// Error types for JAM Codec
 #[derive(Debug, Error)]
 pub enum JamCodecError {
     #[error("Invalid size: {0}")]
@@ -237,7 +237,6 @@ macro_rules! impl_jam_codec_for_uint {
 
 impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
 
-// 1-byte boolean codec
 impl JamEncode for bool {
     fn size_hint(&self) -> usize {
         1
@@ -262,7 +261,6 @@ impl JamDecode for bool {
     }
 }
 
-// SCALE Codec for Option<T> types
 impl<T: JamEncode> JamEncode for Option<T> {
     #![allow(clippy::nursery)]
     fn size_hint(&self) -> usize {
@@ -300,7 +298,7 @@ impl<T: JamDecode> JamDecode for Option<T> {
     }
 }
 
-// Fixed-length array codec without length discriminator
+// Fixed-length array codec without length discriminator.
 impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
     fn size_hint(&self) -> usize {
         self.iter().map(|e| e.size_hint()).sum()
@@ -325,8 +323,8 @@ impl<E: JamDecode, const N: usize> JamDecode for [E; N] {
     }
 }
 
-// Length discriminated SCALE codec for Vec<T> type. The length discriminator also follows the SCALE
-// code rules of integer types.
+// Length discriminated codec for Vec<T> type.
+// The length discriminator also follows the Jam Codec rules of integer types.
 impl<T: JamEncode> JamEncode for Vec<T> {
     fn size_hint(&self) -> usize {
         // Size hint for the length prefix + sum of size hints for all elements
@@ -357,7 +355,6 @@ impl<T: JamDecode> JamDecode for Vec<T> {
     }
 }
 
-// SCALE codec for BitVec type
 impl JamEncode for BitVec {
     fn size_hint(&self) -> usize {
         let length_size = ((self.len() + 7) / 8).size_hint();
@@ -415,7 +412,7 @@ impl JamDecode for BitVec {
     }
 }
 
-// Simple dictionary codec for `HashMap`.
+// Codec for simple dictionaries (HashMap)
 impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
     fn size_hint(&self) -> usize {
         if self.is_empty() {
@@ -454,9 +451,8 @@ impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
     }
 }
 
-// SCALE codec for `HashSet`.
-// FIXME: Here, we assume that sets are encoded following the encoding rules of tuples.
-impl<T: JamEncode + Eq + Hash> JamEncode for HashSet<T> {
+// Codec for simple ordered sets (BTreeSet)
+impl<T: JamEncode + Ord> JamEncode for BTreeSet<T> {
     fn size_hint(&self) -> usize {
         self.iter().map(|item| item.size_hint()).sum()
     }
@@ -469,7 +465,7 @@ impl<T: JamEncode + Eq + Hash> JamEncode for HashSet<T> {
     }
 }
 
-impl<T: JamDecode + Eq + Hash> JamDecode for HashSet<T> {
+impl<T: JamDecode + Ord> JamDecode for BTreeSet<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let mut set = Self::new();
         while let Ok(item) = T::decode(input) {
