@@ -6,12 +6,12 @@ mod tests {
         history::asn_types::{Input, Output, State, TestCase},
         test_utils::load_test_case,
     };
-    use rjam_common::Hash32;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
     use rjam_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
+    use rjam_types::state::history::ReportedWorkPackage;
     use std::path::PathBuf;
 
     const PATH_PREFIX: &str = "jamtestvectors-history/history/data";
@@ -39,13 +39,19 @@ mod tests {
         transition_block_history_parent_root(&state_manager, test_input.parent_state_root.0)?;
 
         // Second transition: Append new history entry.
-        let work_package_hashes: Vec<Hash32> =
-            test_input.work_packages.iter().map(|hash| hash.0).collect();
+        let reported_packages: Vec<ReportedWorkPackage> = test_input
+            .work_packages
+            .iter()
+            .map(|reported| ReportedWorkPackage {
+                work_package_hash: reported.hash.0,
+                segment_root: reported.exports_root.0,
+            })
+            .collect();
         transition_block_history_append(
             &state_manager,
             test_input.header_hash.0,
             test_input.accumulate_root.0,
-            &work_package_hashes,
+            &reported_packages,
         )?;
 
         // Get the posterior state from the state cache.

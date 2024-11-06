@@ -1,5 +1,5 @@
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas, HASH32_EMPTY};
+use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::{cmp::Ordering, collections::HashMap};
 use thiserror::Error;
@@ -115,10 +115,10 @@ pub struct RefinementContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AvailabilitySpecs {
-    work_package_hash: Hash32,
-    work_package_length: u32, // N_N
-    erasure_root: Hash32,
-    segment_root: Hash32,
+    work_package_hash: Hash32, // h
+    work_package_length: u32,  // l
+    erasure_root: Hash32,      // u
+    segment_root: Hash32,      // e; exports root
 }
 
 impl JamEncode for AvailabilitySpecs {
@@ -126,13 +126,14 @@ impl JamEncode for AvailabilitySpecs {
         self.work_package_hash.size_hint()
             + self.work_package_length.size_hint()
             + self.erasure_root.size_hint()
+            + self.segment_root.size_hint()
     }
 
-    // FIXME: segment-root not part of the encoding (GP v0.3.0)
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.work_package_hash.encode_to(dest)?;
         self.work_package_length.encode_to(dest)?;
         self.erasure_root.encode_to(dest)?;
+        self.segment_root.encode_to(dest)?;
         Ok(())
     }
 }
@@ -142,7 +143,7 @@ impl JamDecode for AvailabilitySpecs {
         let work_package_hash = Hash32::decode(input)?;
         let work_package_length = u32::decode(input)?;
         let erasure_root = Hash32::decode(input)?;
-        let segment_root = HASH32_EMPTY; // Default value since it is not part of the encoding
+        let segment_root = Hash32::decode(input)?;
 
         Ok(AvailabilitySpecs {
             work_package_hash,
@@ -180,7 +181,7 @@ impl JamEncode for WorkExecutionOutput {
     fn size_hint(&self) -> usize {
         match self {
             WorkExecutionOutput::Output(data) => {
-                1 + data.size_hint() // with 1 byte prefix // TODO: check using 1-bit prefix instead
+                1 + data.size_hint() // with 1 byte prefix
             }
             WorkExecutionOutput::Error(_) => 1, // 1 byte succinct encoding
         }

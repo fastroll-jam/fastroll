@@ -42,10 +42,21 @@ impl BlockHistory {
     }
 
     pub fn check_work_package_hash_exists(&self, work_package_hash: &Hash32) -> bool {
-        self.0
-            .iter()
-            .any(|entry| entry.work_package_hashes.contains(work_package_hash))
+        self.0.iter().any(|entry| {
+            entry
+                .reported_packages
+                .iter()
+                .map(|package| package.work_package_hash)
+                .collect::<Vec<_>>()
+                .contains(work_package_hash)
+        })
     }
+}
+
+#[derive(Debug, Clone, JamEncode, JamDecode)]
+pub struct ReportedWorkPackage {
+    pub work_package_hash: Hash32,
+    pub segment_root: Hash32, // exports root
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +64,7 @@ pub struct BlockHistoryEntry {
     pub header_hash: Hash32,
     pub accumulation_result_mmr: MerkleMountainRange<Keccak256>,
     pub state_root: Hash32,
-    pub work_package_hashes: Vec<Hash32>, // Length up to CORE_COUNT.
+    pub reported_packages: Vec<ReportedWorkPackage>, // Length up to CORE_COUNT.
 }
 
 impl JamEncode for BlockHistoryEntry {
@@ -61,14 +72,14 @@ impl JamEncode for BlockHistoryEntry {
         self.header_hash.size_hint()
             + self.accumulation_result_mmr.size_hint()
             + self.state_root.size_hint()
-            + self.work_package_hashes.size_hint()
+            + self.reported_packages.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.header_hash.encode_to(dest)?;
         self.accumulation_result_mmr.encode_to(dest)?;
         self.state_root.encode_to(dest)?;
-        self.work_package_hashes.encode_to(dest)?;
+        self.reported_packages.encode_to(dest)?;
         Ok(())
     }
 }
@@ -79,7 +90,7 @@ impl JamDecode for BlockHistoryEntry {
             header_hash: Hash32::decode(input)?,
             accumulation_result_mmr: MerkleMountainRange::decode(input)?,
             state_root: Hash32::decode(input)?,
-            work_package_hashes: Vec::decode(input)?,
+            reported_packages: Vec::decode(input)?,
         })
     }
 }

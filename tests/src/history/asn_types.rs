@@ -1,7 +1,7 @@
 use crate::test_utils::{deserialize_hex, serialize_hex};
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
-use rjam_types::state::history::{BlockHistory, BlockHistoryEntry};
+use rjam_types::state::history::{BlockHistory, BlockHistoryEntry, ReportedWorkPackage};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 
@@ -45,12 +45,18 @@ impl<H: Hasher> From<MerkleMountainRange<H>> for Mmr {
     }
 }
 
-pub type Reports = Vec<Hash>;
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Reported {
+    pub hash: Hash,
+    pub exports_root: Hash,
+}
+
+pub type Reports = Vec<Reported>;
 
 // Recorded disputes sequences and offenders
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlockInfo {
-    header_hash: Hash,
+    hash: Hash,
     mmr: Mmr,
     state_root: Hash,
     reported: Reports,
@@ -59,10 +65,17 @@ pub struct BlockInfo {
 impl From<BlockInfo> for BlockHistoryEntry {
     fn from(value: BlockInfo) -> Self {
         Self {
-            header_hash: value.header_hash.0,
+            header_hash: value.hash.0,
             accumulation_result_mmr: value.mmr.into(),
             state_root: value.state_root.0,
-            work_package_hashes: value.reported.into_iter().map(|hash| hash.0).collect(),
+            reported_packages: value
+                .reported
+                .into_iter()
+                .map(|reported| ReportedWorkPackage {
+                    work_package_hash: reported.hash.0,
+                    segment_root: reported.exports_root.0,
+                })
+                .collect(),
         }
     }
 }
@@ -70,10 +83,17 @@ impl From<BlockInfo> for BlockHistoryEntry {
 impl From<BlockHistoryEntry> for BlockInfo {
     fn from(value: BlockHistoryEntry) -> Self {
         Self {
-            header_hash: Hash(value.header_hash),
+            hash: Hash(value.header_hash),
             mmr: value.accumulation_result_mmr.into(),
             state_root: Hash(value.state_root),
-            reported: value.work_package_hashes.into_iter().map(Hash).collect(),
+            reported: value
+                .reported_packages
+                .into_iter()
+                .map(|package| Reported {
+                    hash: Hash(package.work_package_hash),
+                    exports_root: Hash(package.segment_root),
+                })
+                .collect(),
         }
     }
 }
