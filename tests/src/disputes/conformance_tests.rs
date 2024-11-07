@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        common_asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
+        asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
         disputes::{
             asn_types::{DisputesOutputMarks, Input, Output, State, TestCase},
             utils::map_error_to_custom_code,

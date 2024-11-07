@@ -1,7 +1,7 @@
 use crate::{
-    common_asn_types::{
-        ByteArray32, ByteArray64, Ed25519Key, Ed25519Signature, ValidatorsData, CORE_COUNT,
-        VALIDATORS_SUPER_MAJORITY,
+    asn_types::{
+        ByteArray32, ByteArray64, Ed25519Key, Ed25519Signature, TimeSlot, ValidatorsData,
+        CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
     },
     test_utils::{deserialize_hex, serialize_hex},
 };
@@ -23,7 +23,6 @@ use std::fmt::Debug;
 
 pub type WorkReportHash = ByteArray32;
 pub type EpochIndex = u32;
-pub type TimeSlot = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AvailabilityAssignment {

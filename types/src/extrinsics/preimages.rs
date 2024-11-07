@@ -26,7 +26,7 @@ impl PreimageLookupsExtrinsic {
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash, JamEncode, JamDecode)]
 pub struct PreimageLookupsExtrinsicEntry {
-    pub service_index: Address,
+    pub service_index: Address, // requester of the preimage data
     pub preimage_data: Octets,
 }
 

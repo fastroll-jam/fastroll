@@ -65,7 +65,7 @@ impl PVMInvocation {
         let code = match state_manager.lookup_preimage(
             work_package.authorizer_address,
             &Timeslot(work_package.context.lookup_anchor_timeslot),
-            &work_package.auth_code_hash,
+            &work_package.authorizer.auth_code_hash,
         )? {
             Some(code) => code,
             None => {

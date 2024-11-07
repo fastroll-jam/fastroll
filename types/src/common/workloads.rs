@@ -12,25 +12,42 @@ pub enum WorkReportError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(JamEncode)]
+#[derive(JamEncode, JamDecode)]
+pub struct Authorizer {
+    pub auth_code_hash: Hash32, // c
+    pub param_blob: Octets,     // p
+}
+
+#[derive(JamEncode, JamDecode)]
 pub struct WorkPackage {
     pub auth_token: Octets,          // j
     pub authorizer_address: Address, // h; service which hosts the authorization code
-    pub auth_code_hash: Hash32,      // c
-    pub param_blob: Octets,          // p
+    pub authorizer: Authorizer,      // c and p
     pub context: RefinementContext,  // x
     pub work_items: Vec<WorkItem>,   // w; length range [1, 4]
 }
 
-#[derive(JamEncode)]
+#[derive(JamEncode, JamDecode)]
+pub struct ImportInfo {
+    pub segments_tree_root: Hash32,
+    pub item_index: usize,
+}
+
+#[derive(JamEncode, JamDecode)]
+pub struct ExtrinsicInfo {
+    blob_hash: Hash32,
+    blob_length: usize,
+}
+
+#[derive(JamEncode, JamDecode)]
 pub struct WorkItem {
-    service_index: Address,                    // s
-    service_code_hash: Hash32,                 // c
-    payload_blob: Octets,                      // y
-    gas_limit: UnsignedGas,                    // g
-    import_segment_ids: Vec<(Hash32, usize)>, // i; [(segments_tree_root, item_index)], up to 2^11 entries
-    extrinsic_data_info: Vec<(Hash32, usize)>, // x; [(blob_hash, blob_length)]
-    export_segment_count: usize,              // e; max 2^11
+    service_index: Address,                  // s
+    service_code_hash: Hash32,               // c
+    payload_blob: Octets,                    // y
+    gas_limit: UnsignedGas,                  // g
+    import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
+    extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
+    export_segment_count: usize,             // e; max 2^11
 }
 
 /// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
@@ -38,13 +55,13 @@ pub struct WorkItem {
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
-    authorizer_hash: Hash32,                       // a
-    core_index: CoreIndex,                         // c
-    authorization_output: Octets,                  // o
-    refinement_context: RefinementContext,         // x
     specs: AvailabilitySpecs,                      // s
-    results: Vec<WorkItemResult>,                  // r; length range [1, 4]
+    refinement_context: RefinementContext,         // x
+    core_index: CoreIndex,                         // c
+    authorizer_hash: Hash32,                       // a
+    authorization_output: Octets,                  // o
     segment_roots_lookup: HashMap<Hash32, Hash32>, // l; number of items up to 8
+    results: Vec<WorkItemResult>,                  // r; length range [1, 4]
 }
 
 impl PartialOrd for WorkReport {
@@ -156,7 +173,7 @@ impl JamDecode for AvailabilitySpecs {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkItemResult {
-    pub service_index: Address,                 // s; N_S
+    pub service_index: Address,                 // s
     pub service_code_hash: Hash32,              // c
     pub payload_hash: Hash32,                   // l
     pub gas_prioritization_ratio: UnsignedGas,  // g
@@ -172,7 +189,7 @@ pub enum WorkExecutionOutput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionError {
     OutOfGas,
-    UnexpectedTermination,
+    UnexpectedTermination,  // Panic
     ServiceCodeLookupError, // BAD
     CodeSizeExceeded,       // BIG; exceeds MAX_SERVICE_CODE_SIZE
 }

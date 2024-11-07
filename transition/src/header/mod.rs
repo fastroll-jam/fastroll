@@ -16,13 +16,13 @@ pub fn set_header_timeslot(header_db: &mut BlockHeaderDB) -> Result<(), BlockHea
     Ok(())
 }
 
-pub fn set_header_prior_state_root(
+pub fn set_header_parent_state_root(
     header_db: &mut BlockHeaderDB,
-    prior_state_root: &Hash32,
+    parent_state_root: &Hash32,
 ) -> Result<(), BlockHeaderUpdateError> {
     header_db.assert_staging_header_initialized()?;
     header_db.update_staging_header(|header| {
-        header.prior_state_root = *prior_state_root;
+        header.parent_state_root = *parent_state_root;
     })?;
 
     Ok(())

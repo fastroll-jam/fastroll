@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        common_asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
+        asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
         generate_tests,
         safrole::{
             asn_types::{Input, Output, OutputMarks, State, TestCase, TicketEnvelope},

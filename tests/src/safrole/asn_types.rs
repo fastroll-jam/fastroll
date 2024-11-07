@@ -1,7 +1,7 @@
 use crate::{
-    common_asn_types::{
-        validators_data_to_validator_set, BandersnatchKey, ByteArray32, Ed25519Key, ValidatorsData,
-        EPOCH_LENGTH, VALIDATORS_COUNT,
+    asn_types::{
+        validators_data_to_validator_set, BandersnatchKey, ByteArray32, Ed25519Key, OpaqueHash,
+        ValidatorsData, EPOCH_LENGTH, VALIDATORS_COUNT,
     },
     test_utils::{deserialize_hex, serialize_hex},
 };
@@ -17,8 +17,6 @@ use rjam_types::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-
-pub type OpaqueHash = ByteArray32;
 
 pub type EpochKeys = [BandersnatchKey; EPOCH_LENGTH];
 pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];

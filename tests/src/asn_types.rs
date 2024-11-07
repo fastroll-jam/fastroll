@@ -1,5 +1,5 @@
 use crate::test_utils::{deserialize_hex, serialize_hex};
-use rjam_common::{ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{Octets, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
@@ -11,11 +11,48 @@ pub const VALIDATORS_COUNT: usize = 6;
 pub const VALIDATORS_SUPER_MAJORITY: usize = 5;
 pub const EPOCH_LENGTH: usize = 12;
 pub const CORE_COUNT: usize = 2;
+// pub const AVAIL_BITFIELD_BYTES: usize = 1; // (CORE_COUNT + 7) / 8
 
 // Define basic types
+pub type TimeSlot = u32;
+pub type OpaqueHash = ByteArray32;
 pub type Ed25519Key = ByteArray32;
 pub type Ed25519Signature = ByteArray64;
 pub type BandersnatchKey = ByteArray32;
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct BandersnatchVrfSignature(
+    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 96],
+);
+
+impl Debug for BandersnatchVrfSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl Display for BandersnatchVrfSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct BandersnatchRingSignature(
+    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 784],
+);
+
+impl Debug for BandersnatchRingSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl Display for BandersnatchRingSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BlsKey(
@@ -31,6 +68,31 @@ impl Debug for BlsKey {
 impl Display for BlsKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+// TODO: Add hex serde support for Vec<u8> type
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct ByteSequence(
+    // #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub Octets,
+    pub Octets,
+);
+
+impl Debug for ByteSequence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
+    }
+}
+
+impl Display for ByteSequence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
+    }
+}
+
+impl From<Octets> for ByteSequence {
+    fn from(value: Octets) -> Self {
+        Self(value)
     }
 }
 

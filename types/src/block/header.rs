@@ -26,7 +26,7 @@ pub struct EpochMarker {
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct BlockHeader {
     pub parent_hash: Hash32,                                  // p
-    pub prior_state_root: Hash32,                             // r
+    pub parent_state_root: Hash32,                            // r
     pub extrinsic_hash: Hash32,                               // x
     pub timeslot_index: u32,                                  // t
     pub epoch_marker: Option<EpochMarker>,                    // e
@@ -49,7 +49,7 @@ impl Display for BlockHeader {
             f,
             "BlockHeader {{\n\
              \tparent_hash: {:?},\n\
-             \tprior_state_root: {:?},\n\
+             \tparent_state_root: {:?},\n\
              \textrinsic_hash: {:?},\n\
              \ttimeslot_index: {},\n\
              \tepoch_marker: {:?},\n\
@@ -60,7 +60,7 @@ impl Display for BlockHeader {
              \tblock_seal: {:?}\n\
              }}",
             hex::encode(self.parent_hash),
-            hex::encode(self.prior_state_root),
+            hex::encode(self.parent_state_root),
             hex::encode(self.extrinsic_hash),
             self.timeslot_index,
             self.epoch_marker,
@@ -77,7 +77,7 @@ impl Default for BlockHeader {
     fn default() -> Self {
         Self {
             parent_hash: HASH32_EMPTY,
-            prior_state_root: HASH32_EMPTY,
+            parent_state_root: HASH32_EMPTY,
             extrinsic_hash: HASH32_EMPTY,
             timeslot_index: 0,
             epoch_marker: None,

@@ -1,6 +1,6 @@
 use crate::{
-    common_asn_types::{ByteArray32, ValidatorData, ValidatorsData},
-    safrole::asn_types::{CustomErrorCode, OpaqueHash, TicketBody, TicketsOrKeys},
+    asn_types::{ByteArray32, OpaqueHash, ValidatorData, ValidatorsData},
+    safrole::asn_types::{CustomErrorCode, TicketBody, TicketsOrKeys},
 };
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
