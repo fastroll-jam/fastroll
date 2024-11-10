@@ -3,6 +3,7 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
+    ops::{Deref, DerefMut},
 };
 
 // Type aliases
@@ -30,6 +31,52 @@ pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = [0u8; 96];
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = [0u8; 144];
 
 // Types
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ByteArray<const N: usize>(pub [u8; N]);
+
+impl<const N: usize> Deref for ByteArray<N> {
+    type Target = [u8; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const N: usize> DerefMut for ByteArray<N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<const N: usize> JamEncode for ByteArray<N> {
+    fn size_hint(&self) -> usize {
+        N
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        dest.write(&self.0);
+        Ok(())
+    }
+}
+
+impl<const N: usize> JamDecode for ByteArray<N> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut array = [0u8; N];
+        input
+            .read(&mut array)
+            .map_err(|_| JamCodecError::InputError("Failed to convert Vec to array".into()))?;
+        Ok(ByteArray(array))
+    }
+}
+
+impl<const N: usize> ByteArray<N> {
+    pub fn new(data: [u8; N]) -> Self {
+        Self(data)
+    }
+}
 
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
