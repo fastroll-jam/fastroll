@@ -3,7 +3,10 @@ use rjam_common::{
     Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Display, Formatter},
+};
 
 pub enum VerdictEvaluation {
     IsGood,
@@ -25,6 +28,26 @@ pub struct DisputesExtrinsic {
     pub faults: Vec<Fault>,     // f
 }
 
+impl Display for DisputesExtrinsic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "verdicts:")?;
+        for verdict in &self.verdicts {
+            writeln!(f, "  - {}", verdict)?;
+        }
+
+        writeln!(f, "culprits:")?;
+        for culprit in &self.culprits {
+            writeln!(f, "  - {}", culprit)?;
+        }
+
+        writeln!(f, "faults:")?;
+        for fault in &self.faults {
+            writeln!(f, "  - {}", fault)?;
+        }
+
+        Ok(())
+    }
+}
 impl DisputesExtrinsic {
     pub fn count_culprits_with_report_hash(&self, report_hash: &Hash32) -> usize {
         self.culprits
@@ -104,6 +127,18 @@ pub struct Verdict {
     pub judgments: Box<[Judgment; VALIDATORS_SUPER_MAJORITY]>, // j
 }
 
+impl Display for Verdict {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
+        writeln!(f, "epoch_index: {}", self.epoch_index)?;
+        writeln!(f, "judgments:")?;
+        for judgment in self.judgments.iter() {
+            writeln!(f, "  - {}", judgment)?;
+        }
+        Ok(())
+    }
+}
+
 impl PartialOrd for Verdict {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -156,6 +191,14 @@ pub struct Judgment {
     pub voter_signature: Ed25519Signature, // s
 }
 
+impl Display for Judgment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "vote: {}", self.is_report_valid)?;
+        writeln!(f, "voter: {}", self.voter)?;
+        write!(f, "signature: {}", hex::encode(self.voter_signature))
+    }
+}
+
 impl Default for Judgment {
     fn default() -> Self {
         Self {
@@ -186,6 +229,14 @@ pub struct Culprit {
     pub signature: Ed25519Signature,  // s
 }
 
+impl Display for Culprit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
+        writeln!(f, "validator_key: {}", hex::encode(self.validator_key))?;
+        write!(f, "signature: {}", hex::encode(self.signature))
+    }
+}
+
 impl PartialOrd for Culprit {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -207,6 +258,15 @@ pub struct Fault {
     pub is_report_valid: bool,        // v
     pub validator_key: Ed25519PubKey, // k; the voter
     pub signature: Ed25519Signature,  // s
+}
+
+impl Display for Fault {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
+        writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
+        writeln!(f, "validator_key: {}", hex::encode(self.validator_key))?;
+        write!(f, "signature: {}", hex::encode(self.signature))
+    }
 }
 
 impl PartialOrd for Fault {

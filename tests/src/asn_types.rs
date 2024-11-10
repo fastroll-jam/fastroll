@@ -1,4 +1,6 @@
-use crate::test_utils::{deserialize_hex, serialize_hex};
+use crate::test_utils::{
+    deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+};
 use rjam_common::{Octets, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,7 +24,11 @@ pub type BandersnatchKey = ByteArray32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BandersnatchVrfSignature(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 96],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 96],
 );
 
 impl Debug for BandersnatchVrfSignature {
@@ -39,7 +45,11 @@ impl Display for BandersnatchVrfSignature {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BandersnatchRingSignature(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 784],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 784],
 );
 
 impl Debug for BandersnatchRingSignature {
@@ -56,7 +66,11 @@ impl Display for BandersnatchRingSignature {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BlsKey(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 144],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 144],
 );
 
 impl Debug for BlsKey {
@@ -71,10 +85,12 @@ impl Display for BlsKey {
     }
 }
 
-// TODO: Add hex serde support for Vec<u8> type
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct ByteSequence(
-    // #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub Octets,
+    #[serde(
+        serialize_with = "serialize_hex_vec",
+        deserialize_with = "deserialize_hex_vec"
+    )]
     pub Octets,
 );
 
@@ -98,7 +114,11 @@ impl From<Octets> for ByteSequence {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
 pub struct ByteArray32(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 32],
 );
 
 impl Debug for ByteArray32 {
@@ -121,7 +141,11 @@ impl From<[u8; 32]> for ByteArray32 {
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct ByteArray64(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 64],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 64],
 );
 
 impl Debug for ByteArray64 {
@@ -141,7 +165,10 @@ pub struct ValidatorData {
     pub bandersnatch: BandersnatchKey,
     pub ed25519: Ed25519Key,
     pub bls: BlsKey,
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
     pub metadata: [u8; 128],
 }
 

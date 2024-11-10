@@ -2,7 +2,9 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::asn_types::AsnDisputesExtrinsic;
+    use crate::codec::asn_types::{AsnDisputesExtrinsic, WorkResult};
+    use rjam_codec::JamEncode;
+    use rjam_types::{common::workloads::WorkItemResult, extrinsics::disputes::DisputesExtrinsic};
     use serde::{de::DeserializeOwned, Serialize};
     use std::{
         fs,
@@ -34,12 +36,58 @@ mod tests {
 
     #[test]
     fn test_ser_disputes_extrinsic() {
-        let filename = "disputes_extrinsic.json";
-        let path = PathBuf::from(PATH_PREFIX).join(filename);
+        let json_filename = "disputes_extrinsic.json";
+        let json_path = PathBuf::from(PATH_PREFIX).join(json_filename);
 
         let asn_type: AsnDisputesExtrinsic =
-            load_json_file(&path).expect("Failed to load test vector.");
+            load_json_file(&json_path).expect("Failed to load test vector.");
 
-        println!(">>> ASN type: {:?}", asn_type);
+        let rjam_type: DisputesExtrinsic = DisputesExtrinsic::from(asn_type);
+        let rjam_type_encoded = rjam_type.encode().unwrap();
+
+        let bin_filename = "disputes_extrinsic.bin";
+        let bin_path = PathBuf::from(PATH_PREFIX).join(bin_filename);
+
+        let asn_type_encoded = load_bin_file(&bin_path).unwrap();
+
+        println!(
+            ">>> RJAM type encoded: (length: {} bytes) {:?}",
+            hex::encode(&rjam_type_encoded).len(),
+            hex::encode(&rjam_type_encoded)
+        );
+
+        println!(
+            "\n>>> ASN type encoded: (length: {} bytes) {:?}",
+            hex::encode(&asn_type_encoded).len(),
+            hex::encode(&asn_type_encoded)
+        );
+    }
+
+    #[test]
+    fn test_ser_work_result_0() {
+        let json_filename = "work_result_0.json";
+        let json_path = PathBuf::from(PATH_PREFIX).join(json_filename);
+
+        let asn_type: WorkResult = load_json_file(&json_path).expect("Failed to load test vector.");
+
+        let rjam_type: WorkItemResult = WorkItemResult::from(asn_type);
+        let rjam_type_encoded = rjam_type.encode().unwrap();
+
+        let bin_filename = "work_result_0.bin";
+        let bin_path = PathBuf::from(PATH_PREFIX).join(bin_filename);
+
+        let asn_type_encoded = load_bin_file(&bin_path).unwrap();
+
+        println!(
+            ">>> RJAM type encoded: (length: {} bytes) {:?}",
+            hex::encode(&rjam_type_encoded).len(),
+            hex::encode(&rjam_type_encoded)
+        );
+
+        println!(
+            "\n>>> ASN type encoded: (length: {} bytes) {:?}",
+            hex::encode(&asn_type_encoded).len(),
+            hex::encode(&asn_type_encoded)
+        );
     }
 }

@@ -3,7 +3,7 @@ use crate::{
         ByteArray32, ByteArray64, Ed25519Key, Ed25519Signature, TimeSlot, ValidatorsData,
         CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
     },
-    test_utils::{deserialize_hex, serialize_hex},
+    test_utils::{deserialize_hex_array, serialize_hex_array},
 };
 use rjam_codec::{JamDecode, JamEncode};
 use rjam_common::FLOOR_TWO_THIRDS_VALIDATOR_COUNT;
@@ -26,7 +26,10 @@ pub type EpochIndex = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AvailabilityAssignment {
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
     pub dummy_work_report: [u8; 353],
     pub timeout: u32,
 }

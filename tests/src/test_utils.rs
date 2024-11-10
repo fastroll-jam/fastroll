@@ -1,10 +1,11 @@
 use serde::{
-    de,
-    de::{DeserializeOwned, Visitor},
+    de::{DeserializeOwned, Error, Visitor},
     Deserializer, Serialize, Serializer,
 };
 use std::{
-    fmt, fs,
+    fmt,
+    fmt::Formatter,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -43,8 +44,8 @@ where
     Ok(test_case)
 }
 
-// Helper deserializer to manage `0x` prefix
-pub fn deserialize_hex<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
+// Helper deserializers to manage `0x` prefix
+pub fn deserialize_hex_array<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -59,7 +60,7 @@ where
 
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
         where
-            E: de::Error,
+            E: Error,
         {
             let v = v.strip_prefix("0x").unwrap_or(v);
             let bytes = hex::decode(v).map_err(E::custom)?;
@@ -72,8 +73,45 @@ where
     deserializer.deserialize_str(HexVisitor)
 }
 
-// Helper serializer to manage `0x` prefix
-pub fn serialize_hex<S, const N: usize>(bytes: &[u8; N], serializer: S) -> Result<S::Ok, S::Error>
+pub fn deserialize_hex_vec<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct HexVisitor;
+
+    impl<'de> Visitor<'de> for HexVisitor {
+        type Value = Vec<u8>;
+
+        fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+            write!(formatter, "a 0x-prefixed hex string")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            let v = v.strip_prefix("0x").unwrap_or(v);
+            let bytes = hex::decode(v).map_err(E::custom)?;
+            bytes.try_into().map_err(E::custom)
+        }
+    }
+
+    deserializer.deserialize_str(HexVisitor)
+}
+
+// Helper serializers to manage `0x` prefix
+pub fn serialize_hex_array<S, const N: usize>(
+    bytes: &[u8; N],
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let hex_string = format!("0x{}", hex::encode(bytes));
+    serializer.serialize_str(&hex_string)
+}
+
+pub fn serialize_hex_vec<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

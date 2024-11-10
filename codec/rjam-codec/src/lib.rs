@@ -298,7 +298,7 @@ impl<T: JamDecode> JamDecode for Option<T> {
     }
 }
 
-// Fixed-length array codec without length discriminator.
+// Fixed-length general array codec without length discriminator.
 impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
     fn size_hint(&self) -> usize {
         self.iter().map(|e| e.size_hint()).sum()
@@ -901,6 +901,18 @@ mod tests {
         let mut slice_arr0 = &encoded_arr0[..];
         let decoded_arr0: [u8; 0] = JamDecode::decode(&mut slice_arr0).unwrap();
         assert_eq!(arr0, decoded_arr0);
+
+        // Test [u8; 32] (hash value, etc.)
+        let arr32: [u8; 32] = (1..=32)
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("expected array of length 32");
+        let encoded_arr32 = arr32.encode().unwrap();
+
+        assert_eq!(encoded_arr32, (1..=32).collect::<Vec<_>>());
+        let mut slice_arr32 = &encoded_arr32[..];
+        let decoded_arr32: [u8; 32] = JamDecode::decode(&mut slice_arr32).unwrap();
+        assert_eq!(arr32, decoded_arr32);
 
         // Test [u32; 3]
         let arr_u32: [u32; 3] = [1, 1000, 1_000_000];

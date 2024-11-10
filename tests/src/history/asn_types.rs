@@ -1,4 +1,4 @@
-use crate::test_utils::{deserialize_hex, serialize_hex};
+use crate::test_utils::{deserialize_hex_array, serialize_hex_array};
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_types::state::history::{BlockHistory, BlockHistoryEntry, ReportedWorkPackage};
@@ -9,7 +9,11 @@ use std::{fmt, fmt::Debug};
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct Hash(
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")] pub [u8; 32],
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 32],
 );
 
 impl Debug for Hash {

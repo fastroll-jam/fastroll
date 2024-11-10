@@ -3,7 +3,7 @@ use crate::{
         validators_data_to_validator_set, BandersnatchKey, ByteArray32, Ed25519Key, OpaqueHash,
         ValidatorsData, EPOCH_LENGTH, VALIDATORS_COUNT,
     },
-    test_utils::{deserialize_hex, serialize_hex},
+    test_utils::{deserialize_hex_array, serialize_hex_array},
 };
 use rjam_common::{BandersnatchPubKey, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
@@ -109,7 +109,10 @@ impl From<Ticket> for TicketBody {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct TicketEnvelope {
     attempt: u8,
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
     signature: [u8; 784],
 }
 
@@ -168,7 +171,10 @@ pub struct State {
     pub iota: ValidatorsData,   // Validator keys and metadata to be drawn from next
     pub gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
     pub gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
-    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
     pub gamma_z: [u8; 144], // Bandersnatch ring commitment
 }
 

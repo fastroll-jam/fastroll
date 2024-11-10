@@ -1,4 +1,6 @@
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::{cmp::Ordering, collections::HashMap};
@@ -171,13 +173,46 @@ impl JamDecode for AvailabilitySpecs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItemResult {
     pub service_index: Address,                 // s
     pub service_code_hash: Hash32,              // c
     pub payload_hash: Hash32,                   // l
     pub gas_prioritization_ratio: UnsignedGas,  // g
     pub refinement_output: WorkExecutionOutput, // o
+}
+
+impl JamEncode for WorkItemResult {
+    fn size_hint(&self) -> usize {
+        4 + self.service_code_hash.size_hint()
+            + self.payload_hash.size_hint()
+            + 8
+            + self.refinement_output.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_index.encode_to_fixed(dest, 4)?;
+        self.service_code_hash.encode_to(dest)?;
+        self.payload_hash.encode_to(dest)?;
+        self.gas_prioritization_ratio.encode_to_fixed(dest, 8)?;
+        self.refinement_output.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for WorkItemResult {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            service_index: Address::decode_fixed(input, 4)?,
+            service_code_hash: Hash32::decode(input)?,
+            payload_hash: Hash32::decode(input)?,
+            gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,
+            refinement_output: WorkExecutionOutput::decode(input)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -2,6 +2,16 @@ use crate::asn_types::{
     BandersnatchKey, BandersnatchRingSignature, BandersnatchVrfSignature, ByteSequence, Ed25519Key,
     Ed25519Signature, OpaqueHash, TimeSlot,
 };
+use rjam_common::FLOOR_TWO_THIRDS_VALIDATOR_COUNT;
+use rjam_types::{
+    common::workloads::{
+        WorkExecutionError::{
+            CodeSizeExceeded, OutOfGas, ServiceCodeLookupError, UnexpectedTermination,
+        },
+        WorkExecutionOutput, WorkItemResult,
+    },
+    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, Verdict},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -62,6 +72,18 @@ pub enum WorkExecResult {
     code_oversize,
 }
 
+impl From<WorkExecResult> for WorkExecutionOutput {
+    fn from(value: WorkExecResult) -> Self {
+        match value {
+            WorkExecResult::ok(bytes) => Self::Output(bytes.0),
+            WorkExecResult::out_of_gas => Self::Error(OutOfGas),
+            WorkExecResult::panic => Self::Error(UnexpectedTermination),
+            WorkExecResult::bad_code => Self::Error(ServiceCodeLookupError),
+            WorkExecResult::code_oversize => Self::Error(CodeSizeExceeded),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct WorkResult {
     pub service: u32,
@@ -69,6 +91,18 @@ pub struct WorkResult {
     pub payload_hash: OpaqueHash,
     pub gas_ratio: u64,
     pub result: WorkExecResult,
+}
+
+impl From<WorkResult> for WorkItemResult {
+    fn from(value: WorkResult) -> Self {
+        Self {
+            service_index: value.service,
+            service_code_hash: value.code_hash.0,
+            payload_hash: value.payload_hash.0,
+            gas_prioritization_ratio: value.gas_ratio,
+            refinement_output: value.result.into(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -125,40 +159,96 @@ pub struct TicketEnvelope {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-
-pub struct Judgement {
+pub struct AsnJudgement {
     pub vote: bool,
     pub index: u16,
     pub signature: Ed25519Signature,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Verdict {
-    pub target: OpaqueHash,
-    pub age: u32,
-    pub votes: Vec<Judgement>, // SIZE(validators-super-majority)
+impl From<AsnJudgement> for Judgment {
+    fn from(value: AsnJudgement) -> Self {
+        Self {
+            is_report_valid: value.vote,
+            voter: value.index,
+            voter_signature: value.signature.0,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Culprit {
+pub struct AsnVerdict {
+    pub target: OpaqueHash,
+    pub age: u32,
+    pub votes: Vec<AsnJudgement>, // SIZE(validators-super-majority)
+}
+
+impl From<AsnVerdict> for Verdict {
+    fn from(value: AsnVerdict) -> Self {
+        let mut judgments: [Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1] = Default::default();
+
+        for (i, vote) in value.votes.into_iter().enumerate() {
+            judgments[i] = vote.into()
+        }
+
+        Self {
+            report_hash: value.target.0,
+            epoch_index: value.age,
+            judgments: Box::new(judgments),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AsnCulprit {
     pub target: OpaqueHash,
     pub key: Ed25519Key,
     pub signature: Ed25519Signature,
 }
 
+impl From<AsnCulprit> for Culprit {
+    fn from(value: AsnCulprit) -> Self {
+        Self {
+            report_hash: value.target.0,
+            validator_key: value.key.0,
+            signature: value.signature.0,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Fault {
+pub struct AsnFault {
     pub target: OpaqueHash,
     pub vote: bool,
     pub key: Ed25519Key,
     pub signature: Ed25519Signature,
 }
 
+impl From<AsnFault> for Fault {
+    fn from(value: AsnFault) -> Self {
+        Self {
+            report_hash: value.target.0,
+            is_report_valid: value.vote,
+            validator_key: value.key.0,
+            signature: value.signature.0,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnDisputesExtrinsic {
-    pub verdicts: Vec<Verdict>,
-    pub culprits: Vec<Culprit>,
-    pub faults: Vec<Fault>,
+    pub verdicts: Vec<AsnVerdict>,
+    pub culprits: Vec<AsnCulprit>,
+    pub faults: Vec<AsnFault>,
+}
+
+impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
+    fn from(value: AsnDisputesExtrinsic) -> Self {
+        Self {
+            verdicts: value.verdicts.into_iter().map(Verdict::from).collect(),
+            culprits: value.culprits.into_iter().map(Culprit::from).collect(),
+            faults: value.faults.into_iter().map(Fault::from).collect(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
