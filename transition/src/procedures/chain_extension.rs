@@ -7,7 +7,9 @@ use crate::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use rjam_common::{ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT};
+use rjam_common::{
+    BandersnatchPubKey, ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT,
+};
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
 use rjam_types::{
@@ -101,8 +103,10 @@ pub fn mark_safrole_header_markers(
     })
 }
 
-fn extract_bandersnatch_keys(validator_set: &ValidatorSet) -> Box<[[u8; 32]; VALIDATOR_COUNT]> {
-    let mut result = Box::new([[0u8; 32]; VALIDATOR_COUNT]);
+fn extract_bandersnatch_keys(
+    validator_set: &ValidatorSet,
+) -> Box<[BandersnatchPubKey; VALIDATOR_COUNT]> {
+    let mut result = Box::new([BandersnatchPubKey::default(); VALIDATOR_COUNT]);
 
     for (index, validator) in validator_set.iter().enumerate() {
         result[index] = validator.bandersnatch_key;

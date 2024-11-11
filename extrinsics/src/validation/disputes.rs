@@ -1,5 +1,4 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
-use hex::encode;
 use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
@@ -159,12 +158,12 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             }
             VerdictEvaluation::IsGood => {
                 if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 {
-                    return Err(NotEnoughFault(encode(entry.report_hash)));
+                    return Err(NotEnoughFault(entry.report_hash.encode_hex()));
                 }
             }
             VerdictEvaluation::IsBad => {
                 if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 {
-                    return Err(NotEnoughCulprit(encode(entry.report_hash)));
+                    return Err(NotEnoughCulprit(entry.report_hash.encode_hex()));
                 }
             }
             _ => (),
@@ -198,10 +197,10 @@ impl<'a> DisputesExtrinsicValidator<'a> {
 
         let mut positive_message = Vec::with_capacity(X_1.len() + HASH_SIZE);
         positive_message.extend_from_slice(X_1);
-        positive_message.extend_from_slice(&entry.report_hash);
+        positive_message.extend_from_slice(entry.report_hash.as_slice());
         let mut negative_message = Vec::with_capacity(X_0.len() + HASH_SIZE);
         negative_message.extend_from_slice(X_0);
-        negative_message.extend_from_slice(&entry.report_hash);
+        negative_message.extend_from_slice(entry.report_hash.as_slice());
 
         for judgment in entry.judgments.iter() {
             let message = if judgment.is_report_valid {
@@ -230,26 +229,26 @@ impl<'a> DisputesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
-            return Err(CulpritAlreadyReported(encode(entry.validator_key)));
+            return Err(CulpritAlreadyReported(entry.validator_key.encode_hex()));
         }
 
         // Check the verdict entry that corresponds to the fault entry exists
         extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
-            .ok_or(InvalidCulpritReportHash(encode(entry.validator_key)))?;
+            .ok_or(InvalidCulpritReportHash(entry.validator_key.encode_hex()))?;
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet(encode(entry.validator_key)));
+            return Err(InvalidValidatorSet(entry.validator_key.encode_hex()));
         }
 
         // Validate the signature
         let hash = &entry.report_hash;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
-        message.extend_from_slice(hash);
+        message.extend_from_slice(hash.as_slice());
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidCulpritSignature(encode(entry.validator_key)));
+            return Err(InvalidCulpritSignature(entry.validator_key.encode_hex()));
         }
 
         Ok(())
@@ -264,13 +263,13 @@ impl<'a> DisputesExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
-            return Err(FaultAlreadyReported(encode(entry.validator_key)));
+            return Err(FaultAlreadyReported(entry.validator_key.encode_hex()));
         }
 
         // Verdict entry that corresponds to the fault entry
         let verdict_entry = extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
-            .ok_or(InvalidFaultReportHash(encode(entry.validator_key)))?;
+            .ok_or(InvalidFaultReportHash(entry.validator_key.encode_hex()))?;
 
         let is_fault = match verdict_entry.evaluate_verdict() {
             VerdictEvaluation::IsGood => !entry.is_report_valid,
@@ -279,28 +278,28 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         };
 
         if !is_fault {
-            return Err(NotFault(encode(entry.validator_key)));
+            return Err(NotFault(entry.validator_key.encode_hex()));
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet(encode(entry.validator_key)));
+            return Err(InvalidValidatorSet(entry.validator_key.encode_hex()));
         }
 
         // Validate the signature
         let message = if entry.is_report_valid {
             let mut _message = Vec::with_capacity(X_1.len() + HASH_SIZE);
             _message.extend_from_slice(X_1);
-            _message.extend_from_slice(&entry.report_hash);
+            _message.extend_from_slice(entry.report_hash.as_slice());
             _message
         } else {
             let mut _message = Vec::with_capacity(X_0.len() + HASH_SIZE);
             _message.extend_from_slice(X_0);
-            _message.extend_from_slice(&entry.report_hash);
+            _message.extend_from_slice(entry.report_hash.as_slice());
             _message
         };
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidFaultSignature(encode(entry.validator_key)));
+            return Err(InvalidFaultSignature(entry.validator_key.encode_hex()));
         }
 
         Ok(())

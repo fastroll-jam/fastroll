@@ -5,7 +5,7 @@ use crate::{
     },
     test_utils::{deserialize_hex_array, serialize_hex_array},
 };
-use rjam_common::{BandersnatchPubKey, Ticket};
+use rjam_common::{BandersnatchPubKey, ByteArray, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
     block::header::EpochMarker,
@@ -36,7 +36,7 @@ impl From<TicketsOrKeys> for SlotSealerType {
                 let mut tickets: [Ticket; EPOCH_LENGTH] = Default::default();
                 for (i, ticket_body) in ticket_bodies.into_iter().enumerate() {
                     tickets[i] = Ticket {
-                        id: ticket_body.id.0,
+                        id: ByteArray::new(ticket_body.id.0),
                         attempt: ticket_body.attempt,
                     };
                 }
@@ -45,7 +45,7 @@ impl From<TicketsOrKeys> for SlotSealerType {
             TicketsOrKeys::keys(epoch_keys) => {
                 let mut keys: [BandersnatchPubKey; EPOCH_LENGTH] = Default::default();
                 for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = key.0
+                    keys[i] = ByteArray::new(key.0)
                 }
                 SlotSealerType::BandersnatchPubKeys(Box::new(keys))
             }
@@ -60,7 +60,7 @@ impl From<SlotSealerType> for TicketsOrKeys {
                 let mut ticket_bodies: TicketsBodies = Default::default();
                 for (i, ticket) in tickets.into_iter().enumerate() {
                     ticket_bodies[i] = TicketBody {
-                        id: ByteArray32(ticket.id),
+                        id: ByteArray32(ticket.id.0),
                         attempt: ticket.attempt,
                     };
                 }
@@ -69,7 +69,7 @@ impl From<SlotSealerType> for TicketsOrKeys {
             SlotSealerType::BandersnatchPubKeys(keys) => {
                 let mut epoch_keys: EpochKeys = Default::default();
                 for (i, key) in keys.into_iter().enumerate() {
-                    epoch_keys[i] = ByteArray32(key);
+                    epoch_keys[i] = ByteArray32(key.0);
                 }
                 TicketsOrKeys::keys(epoch_keys)
             }
@@ -100,7 +100,7 @@ pub struct TicketBody {
 impl From<Ticket> for TicketBody {
     fn from(ticket: Ticket) -> Self {
         TicketBody {
-            id: ByteArray32(ticket.id),
+            id: ByteArray32(ticket.id.0),
             attempt: ticket.attempt,
         }
     }
@@ -119,7 +119,7 @@ pub struct TicketEnvelope {
 impl From<TicketEnvelope> for TicketsExtrinsicEntry {
     fn from(envelope: TicketEnvelope) -> Self {
         TicketsExtrinsicEntry {
-            ticket_proof: Box::new(envelope.signature),
+            ticket_proof: Box::new(ByteArray::new(envelope.signature)),
             entry_index: envelope.attempt,
         }
     }
@@ -134,8 +134,8 @@ pub struct EpochMark {
 impl From<EpochMarker> for EpochMark {
     fn from(marker: EpochMarker) -> Self {
         EpochMark {
-            entropy: ByteArray32(marker.entropy),
-            validators: marker.validators.map(ByteArray32),
+            entropy: ByteArray32(marker.entropy.0),
+            validators: marker.validators.map(|key| ByteArray32(key.0)),
         }
     }
 }
@@ -182,14 +182,14 @@ impl From<&State> for SafroleState {
     fn from(value: &State) -> Self {
         SafroleState {
             pending_set: validators_data_to_validator_set(&value.gamma_k),
-            ring_root: value.gamma_z.clone().into(),
+            ring_root: ByteArray::new(value.gamma_z),
             slot_sealers: SlotSealerType::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
                 value
                     .gamma_a
                     .iter()
                     .map(|ticket_body| Ticket {
-                        id: ticket_body.id.0,
+                        id: ByteArray::new(ticket_body.id.0),
                         attempt: ticket_body.attempt,
                     })
                     .collect(),
@@ -200,7 +200,7 @@ impl From<&State> for SafroleState {
 
 impl From<&State> for EntropyAccumulator {
     fn from(value: &State) -> Self {
-        EntropyAccumulator(value.eta.clone().map(|entropy| entropy.0))
+        EntropyAccumulator(value.eta.clone().map(|entropy| ByteArray::new(entropy.0)))
     }
 }
 

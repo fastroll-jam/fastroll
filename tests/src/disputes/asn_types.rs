@@ -6,7 +6,7 @@ use crate::{
     test_utils::{deserialize_hex_array, serialize_hex_array},
 };
 use rjam_codec::{JamDecode, JamEncode};
-use rjam_common::FLOOR_TWO_THIRDS_VALIDATOR_COUNT;
+use rjam_common::{ByteArray, FLOOR_TWO_THIRDS_VALIDATOR_COUNT};
 use rjam_types::{
     common::workloads::WorkReport,
     extrinsics::disputes::{
@@ -123,7 +123,7 @@ impl From<DisputeJudgement> for Judgment {
         Self {
             is_report_valid: value.vote,
             voter: value.index,
-            voter_signature: value.signature.0,
+            voter_signature: ByteArray::new(value.signature.0),
         }
     }
 }
@@ -133,7 +133,7 @@ impl From<Judgment> for DisputeJudgement {
         Self {
             vote: value.is_report_valid,
             index: value.voter,
-            signature: ByteArray64(value.voter_signature),
+            signature: ByteArray64(value.voter_signature.0),
         }
     }
 }
@@ -156,7 +156,7 @@ impl From<DisputeVerdict> for Verdict {
         }
 
         Self {
-            report_hash: value.target.0,
+            report_hash: ByteArray::new(value.target.0),
             epoch_index: value.age,
             judgments: Box::new(judgments),
         }
@@ -173,9 +173,9 @@ pub struct DisputeCulpritProof {
 impl From<DisputeCulpritProof> for Culprit {
     fn from(value: DisputeCulpritProof) -> Self {
         Self {
-            report_hash: value.target.0,
-            validator_key: value.key.0,
-            signature: value.signature.0,
+            report_hash: ByteArray::new(value.target.0),
+            validator_key: ByteArray::new(value.key.0),
+            signature: ByteArray::new(value.signature.0),
         }
     }
 }
@@ -191,10 +191,10 @@ pub struct DisputeFaultProof {
 impl From<DisputeFaultProof> for Fault {
     fn from(value: DisputeFaultProof) -> Self {
         Self {
-            report_hash: value.target.0,
+            report_hash: ByteArray::new(value.target.0),
             is_report_valid: value.vote,
-            validator_key: value.key.0,
-            signature: value.signature.0,
+            validator_key: ByteArray::new(value.key.0),
+            signature: ByteArray::new(value.signature.0),
         }
     }
 }
@@ -239,10 +239,26 @@ pub struct DisputesRecords {
 impl From<DisputesRecords> for DisputesState {
     fn from(value: DisputesRecords) -> Self {
         Self {
-            good_set: value.psi_g.into_iter().map(|hash| hash.0).collect(),
-            bad_set: value.psi_b.into_iter().map(|hash| hash.0).collect(),
-            wonky_set: value.psi_w.into_iter().map(|hash| hash.0).collect(),
-            punish_set: value.psi_o.into_iter().map(|key| key.0).collect(),
+            good_set: value
+                .psi_g
+                .into_iter()
+                .map(|hash| ByteArray::new(hash.0))
+                .collect(),
+            bad_set: value
+                .psi_b
+                .into_iter()
+                .map(|hash| ByteArray::new(hash.0))
+                .collect(),
+            wonky_set: value
+                .psi_w
+                .into_iter()
+                .map(|hash| ByteArray::new(hash.0))
+                .collect(),
+            punish_set: value
+                .psi_o
+                .into_iter()
+                .map(|key| ByteArray::new(key.0))
+                .collect(),
         }
     }
 }

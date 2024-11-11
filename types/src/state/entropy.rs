@@ -12,7 +12,7 @@ impl Display for EntropyAccumulator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Entropy Accumulator: {{")?;
         for (i, entropy) in self.0.iter().enumerate() {
-            writeln!(f, "\tentropy #{i}: {}", hex::encode(entropy))?;
+            writeln!(f, "\tentropy #{i}: {}", entropy.encode_hex())?;
         }
 
         write!(f, "}}")

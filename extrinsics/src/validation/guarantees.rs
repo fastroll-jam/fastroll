@@ -1,5 +1,4 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
-use hex::encode;
 use rjam_codec::JamEncode;
 use rjam_common::{
     CoreIndex, Hash32, CORE_COUNT, MAX_LOOKUP_ANCHOR_AGE, PENDING_REPORT_TIMEOUT, X_G,
@@ -188,7 +187,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         if block_history.check_work_package_hash_exists(&work_report.work_package_hash()) {
             return Err(WorkPackageAlreadyInHistory(
                 core_index,
-                encode(work_report.work_package_hash()),
+                work_report.work_package_hash().encode_hex(),
             ));
         }
 
@@ -198,7 +197,10 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             if !work_package_hashes.contains(&prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(&prerequisite_hash)
             {
-                return Err(PrerequisiteNotFound(core_index, encode(prerequisite_hash)));
+                return Err(PrerequisiteNotFound(
+                    core_index,
+                    prerequisite_hash.encode_hex(),
+                ));
             }
         }
 
@@ -227,10 +229,10 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
                 || (hash::<Keccak256>(&entry.accumulation_result_mmr.encode()?)?
                     != anchor_beefy_root)
             {
-                return Err(InvalidAnchorBlock(core_index, encode(anchor_hash)));
+                return Err(InvalidAnchorBlock(core_index, anchor_hash.encode_hex()));
             }
         } else {
-            return Err(AnchorBlockNotFound(core_index, encode(anchor_hash)));
+            return Err(AnchorBlockNotFound(core_index, anchor_hash.encode_hex()));
         }
 
         Ok(())
@@ -252,7 +254,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         {
             return Err(LookupAnchorBlockTimeout(
                 core_index,
-                encode(lookup_anchor_hash),
+                lookup_anchor_hash.encode_hex(),
             ));
         }
 
@@ -273,7 +275,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
                     return Err(InvalidCodeHash(
                         work_report.core_index(),
                         result.service_index,
-                        encode(result.service_code_hash),
+                        result.service_code_hash.encode_hex(),
                     ));
                 }
             } else {
@@ -281,7 +283,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
                 return Err(CodeHashNotFound(
                     work_report.core_index(),
                     result.service_index,
-                    encode(result.service_code_hash),
+                    result.service_code_hash.encode_hex(),
                 ));
             }
         }
@@ -331,7 +333,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         let hash = work_report.hash()?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
-        message.extend_from_slice(&hash);
+        message.extend_from_slice(hash.as_slice());
 
         unimplemented!();
     }

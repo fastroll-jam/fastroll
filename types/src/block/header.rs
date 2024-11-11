@@ -42,7 +42,7 @@ impl Display for BlockHeader {
         let offenders_encoded = self
             .offenders_marker
             .iter()
-            .map(hex::encode)
+            .map(|key| key.encode_hex())
             .collect::<Vec<_>>();
 
         write!(
@@ -59,16 +59,16 @@ impl Display for BlockHeader {
              \tvrf_signature: {:?},\n\
              \tblock_seal: {:?}\n\
              }}",
-            hex::encode(self.parent_hash),
-            hex::encode(self.parent_state_root),
-            hex::encode(self.extrinsic_hash),
+            self.parent_hash.encode_hex(),
+            self.parent_state_root.encode_hex(),
+            self.extrinsic_hash.encode_hex(),
             self.timeslot_index,
             self.epoch_marker,
             self.winning_tickets_marker,
             offenders_encoded,
             self.block_author_index,
-            hex::encode(self.vrf_signature),
-            hex::encode(self.block_seal)
+            self.vrf_signature.encode_hex(),
+            self.block_seal.encode_hex(),
         )
     }
 }

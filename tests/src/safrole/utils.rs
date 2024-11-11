@@ -16,17 +16,17 @@ pub fn safrole_state_to_gammas(
         .into_vec()
         .into_iter()
         .map(|ticket| TicketBody {
-            id: ByteArray32(ticket.id),
+            id: ByteArray32(*ticket.id),
             attempt: ticket.attempt,
         })
         .collect();
     let gamma_s = safrole.slot_sealers.clone().into();
-    let gamma_z = safrole.ring_root.into();
+    let gamma_z = safrole.ring_root.0;
     (gamma_k, gamma_a, gamma_s, gamma_z)
 }
 
 pub fn entropy_accumulator_to_eta(entropy_accumulator: &EntropyAccumulator) -> [OpaqueHash; 4] {
-    entropy_accumulator.0.map(ByteArray32)
+    entropy_accumulator.0.map(|entropy| ByteArray32(entropy.0))
 }
 
 /// Converts RJAM error types into test vector error code output

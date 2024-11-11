@@ -40,7 +40,7 @@ impl Display for SafroleState {
             writeln!(f, "    }},")?;
         }
         writeln!(f, "  ],")?;
-        writeln!(f, "  \"Ring Root\": \"{}\",", hex::encode(self.ring_root))?;
+        writeln!(f, "  \"Ring Root\": \"{}\",", self.ring_root.encode_hex())?;
 
         writeln!(f, "  \"Slot Sealers\": {{")?;
         match &self.slot_sealers {
@@ -51,7 +51,7 @@ impl Display for SafroleState {
             }
             SlotSealerType::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    \"{}\": \"{}\",", i, hex::encode(key))?;
+                    writeln!(f, "    \"{}\": \"{}\",", i, key.encode_hex())?;
                 }
             }
         }
@@ -70,7 +70,7 @@ impl JamDecode for SafroleState {
         }
 
         let mut ring_root = BANDERSNATCH_RING_ROOT_DEFAULT;
-        input.read(&mut ring_root)?;
+        input.read(&mut *ring_root)?;
 
         let slot_sealers = SlotSealerType::decode(input)?;
         let ticket_accumulator = TicketAccumulator::decode(input)?;
@@ -175,7 +175,8 @@ pub fn generate_fallback_keys(
     validator_set: &ValidatorSet,
     entropy: Hash32,
 ) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], FallbackKeyError> {
-    let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] = [[0u8; 32]; EPOCH_LENGTH];
+    let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
+        [BandersnatchPubKey::default(); EPOCH_LENGTH];
     let entropy_vec = entropy.to_vec();
 
     for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
@@ -364,7 +365,7 @@ mod ticket_accumulator_tests {
 
         let expected: Vec<Ticket> = (0..EPOCH_LENGTH as u16)
             .map(|i| {
-                let mut hash = [0u8; 32];
+                let mut hash = HASH32_EMPTY;
                 hash[0] = (i >> 8) as u8;
                 hash[1] = (i & 0xFF) as u8;
                 Ticket {
@@ -378,7 +379,7 @@ mod ticket_accumulator_tests {
 
         // Large ticket should not be included in the MaxHeap
         let large_ticket = {
-            let mut hash = [0u8; 32];
+            let mut hash = HASH32_EMPTY;
             hash[0] = (EPOCH_LENGTH as u16 >> 8) as u8;
             hash[1] = (EPOCH_LENGTH as u16 & 0xFF) as u8;
             Ticket {

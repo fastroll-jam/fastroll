@@ -1,6 +1,5 @@
 use crate::{KeyValueDB, KeyValueDBError, RocksDBConfig};
 use dashmap::DashMap;
-use hex::encode;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_types::block::header::{BlockHeader, BlockHeaderError};
@@ -91,7 +90,7 @@ impl BlockHeaderDB {
             .as_ref()
             .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
 
-        let header_hash_string = format!("H::{}", encode(header_hash));
+        let header_hash_string = format!("H::{}", header_hash.encode_hex());
         let header_hash_key = header_hash_string.clone().into_bytes();
 
         let header_encoded = db
@@ -108,7 +107,7 @@ impl BlockHeaderDB {
             .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
 
         let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
-        let header_hash_key = format!("H::{}", encode(header.hash()?)).into_bytes();
+        let header_hash_key = format!("H::{}", header.hash()?.encode_hex()).into_bytes();
 
         let header_encoded = header.encode()?;
 

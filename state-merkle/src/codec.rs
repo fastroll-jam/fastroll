@@ -22,8 +22,8 @@ impl MerkleNodeCodec {
     pub(crate) fn encode_branch(left: &Hash32, right: &Hash32) -> Result<BitVec, StateMerkleError> {
         let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
         node.set(0, false); // indicator for the branch node
-        node.extend(slice_bitvec(&bytes_to_lsb_bits(left), 1..)?);
-        node.extend(bytes_to_lsb_bits(right));
+        node.extend(slice_bitvec(&bytes_to_lsb_bits(left.as_slice()), 1..)?);
+        node.extend(bytes_to_lsb_bits(right.as_slice()));
 
         Ok(node)
     }
@@ -48,7 +48,10 @@ impl MerkleNodeCodec {
             for i in 0..6 {
                 node.set(2 + i, length_bits[i]); // 6 bits for the embedded value size
             }
-            node.extend(slice_bitvec(&bytes_to_lsb_bits(state_key), 0..248)?);
+            node.extend(slice_bitvec(
+                &bytes_to_lsb_bits(state_key.as_slice()),
+                0..248,
+            )?);
             node.extend(bytes_to_lsb_bits(state_value));
 
             while node.len() < NODE_SIZE_BITS {
@@ -57,9 +60,12 @@ impl MerkleNodeCodec {
         } else {
             node.set(1, true); // indicator for the regular leaf node
             node.extend(BitVec::from_elem(6, false)); // fill the first byte with zeros
-            node.extend(slice_bitvec(&bytes_to_lsb_bits(state_key), 0..248)?);
+            node.extend(slice_bitvec(
+                &bytes_to_lsb_bits(state_key.as_slice()),
+                0..248,
+            )?);
             let value_hash = hash::<Blake2b256>(state_value)?;
-            node.extend(bytes_to_lsb_bits(&value_hash));
+            node.extend(bytes_to_lsb_bits(value_hash.as_slice()));
         }
 
         Ok(node)

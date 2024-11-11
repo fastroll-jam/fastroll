@@ -129,7 +129,7 @@ pub struct Verdict {
 
 impl Display for Verdict {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
+        writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "epoch_index: {}", self.epoch_index)?;
         writeln!(f, "judgments:")?;
         for judgment in self.judgments.iter() {
@@ -184,7 +184,7 @@ impl Verdict {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Judgment {
     pub is_report_valid: bool,             // v
     pub voter: ValidatorIndex,             // i
@@ -195,17 +195,7 @@ impl Display for Judgment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "vote: {}", self.is_report_valid)?;
         writeln!(f, "voter: {}", self.voter)?;
-        write!(f, "signature: {}", hex::encode(self.voter_signature))
-    }
-}
-
-impl Default for Judgment {
-    fn default() -> Self {
-        Self {
-            is_report_valid: false,
-            voter: 0,
-            voter_signature: [0u8; 64], // Assuming this implements Default
-        }
+        write!(f, "signature: {}", self.voter_signature.encode_hex())
     }
 }
 
@@ -231,9 +221,9 @@ pub struct Culprit {
 
 impl Display for Culprit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
-        writeln!(f, "validator_key: {}", hex::encode(self.validator_key))?;
-        write!(f, "signature: {}", hex::encode(self.signature))
+        writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
+        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
+        write!(f, "signature: {}", self.signature.encode_hex())
     }
 }
 
@@ -262,10 +252,10 @@ pub struct Fault {
 
 impl Display for Fault {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", hex::encode(self.report_hash))?;
+        writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
-        writeln!(f, "validator_key: {}", hex::encode(self.validator_key))?;
-        write!(f, "signature: {}", hex::encode(self.signature))
+        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
+        write!(f, "signature: {}", self.signature.encode_hex())
     }
 }
 

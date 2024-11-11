@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
-use rjam_common::{Address, Hash32, Octets, HASH32_EMPTY};
+use rjam_common::{Address, ByteArray, Hash32, Octets, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::octets_to_hash32;
 use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
@@ -112,9 +112,9 @@ impl From<StateKeyConstant> for u8 {
 }
 
 const fn construct_state_key(i: u8) -> Hash32 {
-    let mut key = HASH32_EMPTY;
+    let mut key = [0u8; HASH_SIZE];
     key[0] = i;
-    key
+    ByteArray(key)
 }
 
 fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
@@ -318,7 +318,7 @@ impl StateManager {
         state_key: &Hash32,
     ) -> Result<Option<Octets>, StateManagerError> {
         if let Some(merkle_db) = &self.merkle_db {
-            let (leaf_type, state_data) = match merkle_db.retrieve(state_key)? {
+            let (leaf_type, state_data) = match merkle_db.retrieve(state_key.as_slice())? {
                 Some((leaf_type, state_data)) => (leaf_type, state_data),
                 None => return Ok(None),
             };

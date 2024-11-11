@@ -2,7 +2,7 @@ use crate::asn_types::{
     BandersnatchKey, BandersnatchRingSignature, BandersnatchVrfSignature, ByteSequence, Ed25519Key,
     Ed25519Signature, OpaqueHash, TimeSlot,
 };
-use rjam_common::FLOOR_TWO_THIRDS_VALIDATOR_COUNT;
+use rjam_common::{ByteArray, FLOOR_TWO_THIRDS_VALIDATOR_COUNT};
 use rjam_types::{
     common::workloads::{
         WorkExecutionError::{
@@ -97,8 +97,8 @@ impl From<WorkResult> for WorkItemResult {
     fn from(value: WorkResult) -> Self {
         Self {
             service_index: value.service,
-            service_code_hash: value.code_hash.0,
-            payload_hash: value.payload_hash.0,
+            service_code_hash: ByteArray::new(value.code_hash.0),
+            payload_hash: ByteArray::new(value.payload_hash.0),
             gas_prioritization_ratio: value.gas_ratio,
             refinement_output: value.result.into(),
         }
@@ -170,7 +170,7 @@ impl From<AsnJudgement> for Judgment {
         Self {
             is_report_valid: value.vote,
             voter: value.index,
-            voter_signature: value.signature.0,
+            voter_signature: ByteArray::new(value.signature.0),
         }
     }
 }
@@ -191,7 +191,7 @@ impl From<AsnVerdict> for Verdict {
         }
 
         Self {
-            report_hash: value.target.0,
+            report_hash: ByteArray::new(value.target.0),
             epoch_index: value.age,
             judgments: Box::new(judgments),
         }
@@ -208,9 +208,9 @@ pub struct AsnCulprit {
 impl From<AsnCulprit> for Culprit {
     fn from(value: AsnCulprit) -> Self {
         Self {
-            report_hash: value.target.0,
-            validator_key: value.key.0,
-            signature: value.signature.0,
+            report_hash: ByteArray::new(value.target.0),
+            validator_key: ByteArray::new(value.key.0),
+            signature: ByteArray::new(value.signature.0),
         }
     }
 }
@@ -226,10 +226,10 @@ pub struct AsnFault {
 impl From<AsnFault> for Fault {
     fn from(value: AsnFault) -> Self {
         Self {
-            report_hash: value.target.0,
+            report_hash: ByteArray::new(value.target.0),
             is_report_valid: value.vote,
-            validator_key: value.key.0,
-            signature: value.signature.0,
+            validator_key: ByteArray::new(value.key.0),
+            signature: ByteArray::new(value.signature.0),
         }
     }
 }

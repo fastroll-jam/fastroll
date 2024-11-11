@@ -1,5 +1,4 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
-use hex::encode;
 use rjam_common::{Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT, X_T};
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
@@ -96,13 +95,13 @@ impl<'a> TicketsExtrinsicValidator<'a> {
     ) -> Result<(), ExtrinsicValidationError> {
         let mut expected_vrf_input = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
         expected_vrf_input.extend_from_slice(X_T);
-        expected_vrf_input.extend_from_slice(entropy_2);
+        expected_vrf_input.extend_from_slice(entropy_2.as_slice());
         expected_vrf_input.push(entry.entry_index);
 
         let aux_data = vec![]; // no aux data for ticket vrf signature
         verifier
             .ring_vrf_verify(&expected_vrf_input, &aux_data, &entry.ticket_proof[..])
-            .map_err(|_| InvalidTicketProof(encode(&entry.ticket_proof[..])))?;
+            .map_err(|_| InvalidTicketProof(hex::encode(&entry.ticket_proof[..])))?;
 
         Ok(())
     }

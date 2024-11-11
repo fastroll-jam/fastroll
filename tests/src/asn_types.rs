@@ -1,7 +1,7 @@
 use crate::test_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
-use rjam_common::{Octets, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{ByteArray, Octets, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
@@ -31,6 +31,12 @@ pub struct BandersnatchVrfSignature(
     pub [u8; 96],
 );
 
+impl From<ByteArray<96>> for BandersnatchVrfSignature {
+    fn from(value: ByteArray<96>) -> Self {
+        Self(value.0)
+    }
+}
+
 impl Debug for BandersnatchVrfSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
@@ -52,6 +58,12 @@ pub struct BandersnatchRingSignature(
     pub [u8; 784],
 );
 
+impl From<ByteArray<784>> for BandersnatchRingSignature {
+    fn from(value: ByteArray<784>) -> Self {
+        Self(value.0)
+    }
+}
+
 impl Debug for BandersnatchRingSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
@@ -72,6 +84,12 @@ pub struct BlsKey(
     )]
     pub [u8; 144],
 );
+
+impl From<ByteArray<144>> for BlsKey {
+    fn from(value: ByteArray<144>) -> Self {
+        Self(value.0)
+    }
+}
 
 impl Debug for BlsKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -121,6 +139,18 @@ pub struct ByteArray32(
     pub [u8; 32],
 );
 
+impl From<ByteArray<32>> for ByteArray32 {
+    fn from(value: ByteArray<32>) -> Self {
+        Self(value.0)
+    }
+}
+
+impl From<[u8; 32]> for ByteArray32 {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
+
 impl Debug for ByteArray32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
@@ -133,12 +163,6 @@ impl Display for ByteArray32 {
     }
 }
 
-impl From<[u8; 32]> for ByteArray32 {
-    fn from(value: [u8; 32]) -> Self {
-        Self(value)
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct ByteArray64(
     #[serde(
@@ -147,6 +171,12 @@ pub struct ByteArray64(
     )]
     pub [u8; 64],
 );
+
+impl From<ByteArray<64>> for ByteArray64 {
+    fn from(value: ByteArray<64>) -> Self {
+        Self(value.0)
+    }
+}
 
 impl Debug for ByteArray64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -186,10 +216,10 @@ impl Default for ValidatorData {
 impl From<ValidatorKey> for ValidatorData {
     fn from(value: ValidatorKey) -> Self {
         Self {
-            bandersnatch: ByteArray32(value.bandersnatch_key),
-            ed25519: ByteArray32(value.ed25519_key),
-            bls: BlsKey(value.bls_key),
-            metadata: value.metadata,
+            bandersnatch: ByteArray32(value.bandersnatch_key.0),
+            ed25519: ByteArray32(value.ed25519_key.0),
+            bls: BlsKey(value.bls_key.0),
+            metadata: value.metadata.0,
         }
     }
 }
@@ -197,10 +227,10 @@ impl From<ValidatorKey> for ValidatorData {
 impl From<ValidatorData> for ValidatorKey {
     fn from(value: ValidatorData) -> Self {
         Self {
-            bandersnatch_key: value.bandersnatch.0,
-            ed25519_key: value.ed25519.0,
-            bls_key: value.bls.0,
-            metadata: value.metadata,
+            bandersnatch_key: ByteArray::new(value.bandersnatch.0),
+            ed25519_key: ByteArray::new(value.ed25519.0),
+            bls_key: ByteArray::new(value.bls.0),
+            metadata: ByteArray::new(value.metadata),
         }
     }
 }

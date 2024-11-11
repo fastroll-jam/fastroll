@@ -13,6 +13,8 @@ pub enum CryptoError {
     HashConversionError,
     #[error("Failed to find ring context resource")]
     RingContextResourceError,
+    #[error("Failed to construct ring root")]
+    RingRootError,
     #[error("Serialization Error")]
     SerializationError(SerializationError),
     #[error("VRF proof verification Error")]

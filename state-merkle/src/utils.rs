@@ -1,6 +1,6 @@
 use crate::error::StateMerkleError;
 use bit_vec::BitVec;
-use rjam_common::{Hash32, Octets};
+use rjam_common::{ByteArray, Hash32, Octets};
 use std::{collections::Bound, ops::RangeBounds};
 
 /// The `bits` function of the GP.
@@ -39,6 +39,7 @@ pub(crate) fn bitvec_to_hash32(data: &BitVec) -> Result<Hash32, StateMerkleError
     bytes
         .as_slice()
         .try_into()
+        .map(ByteArray::new)
         .map_err(|_| StateMerkleError::InvalidByteLength(data.len()))
 }
 

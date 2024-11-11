@@ -12,6 +12,7 @@ mod tests {
         },
         test_utils::load_test_case,
     };
+    use rjam_common::ByteArray;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
     use rjam_transition::{
         error::TransitionError,
@@ -86,7 +87,11 @@ mod tests {
         // Convert ASN Input into RJAM types.
         let input_timeslot = Timeslot::new(test_input.slot);
         let input_header_entropy_hash = test_input.entropy.0;
-        let input_punished_set = test_input.post_offenders.iter().map(|key| key.0).collect();
+        let input_punished_set = test_input
+            .post_offenders
+            .iter()
+            .map(|key| ByteArray::new(key.0))
+            .collect();
 
         state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
             disputes.punish_set = input_punished_set;
@@ -109,7 +114,7 @@ mod tests {
         transition_entropy_accumulator(
             &state_manager,
             epoch_progressed,
-            input_header_entropy_hash,
+            ByteArray::new(input_header_entropy_hash),
         )?;
         transition_past_set(&state_manager, epoch_progressed)?;
         transition_active_set(&state_manager, epoch_progressed)?;

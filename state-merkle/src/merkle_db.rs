@@ -109,7 +109,7 @@ impl MerkleDB {
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.db.get(hash) {
+        match self.db.get(hash.as_slice()) {
             Ok(Some(data)) => {
                 let node = Node { hash: *hash, data };
                 self.cache.insert(*hash, node.clone());

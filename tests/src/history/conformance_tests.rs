@@ -6,6 +6,7 @@ mod tests {
         history::asn_types::{Input, Output, State, TestCase},
         test_utils::load_test_case,
     };
+    use rjam_common::ByteArray;
     use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
     use rjam_transition::{
         error::TransitionError,
@@ -36,21 +37,24 @@ mod tests {
         // Run BlockHistory state transitions.
 
         // First transition: Prior state root integration.
-        transition_block_history_parent_root(&state_manager, test_input.parent_state_root.0)?;
+        transition_block_history_parent_root(
+            &state_manager,
+            ByteArray::new(test_input.parent_state_root.0),
+        )?;
 
         // Second transition: Append new history entry.
         let reported_packages: Vec<ReportedWorkPackage> = test_input
             .work_packages
             .iter()
             .map(|reported| ReportedWorkPackage {
-                work_package_hash: reported.hash.0,
-                segment_root: reported.exports_root.0,
+                work_package_hash: ByteArray::new(reported.hash.0),
+                segment_root: ByteArray::new(reported.exports_root.0),
             })
             .collect();
         transition_block_history_append(
             &state_manager,
-            test_input.header_hash.0,
-            test_input.accumulate_root.0,
+            ByteArray::new(test_input.header_hash.0),
+            ByteArray::new(test_input.accumulate_root.0),
             &reported_packages,
         )?;
 

@@ -169,7 +169,7 @@ pub fn generate_write_batch(
     let mut batch = WriteBatch::default();
     // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
     staging_set.values().for_each(|node| {
-        batch.put(node.hash, &node.node_data);
+        batch.put(node.hash.as_slice(), &node.node_data);
     });
 
     Ok(batch)

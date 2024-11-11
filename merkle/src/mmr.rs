@@ -73,8 +73,8 @@ impl<H: Hasher> MerkleMountainRange<H> {
                 let old_root = self.peaks[index].unwrap();
 
                 let mut new_parent_data = [0u8; 64];
-                new_parent_data[..32].copy_from_slice(&old_root);
-                new_parent_data[32..].copy_from_slice(&curr_root);
+                new_parent_data[..32].copy_from_slice(&*old_root);
+                new_parent_data[32..].copy_from_slice(&*curr_root);
 
                 // Calculate the new root by hashing the concatenated data of the two children.
                 curr_root = hash::<H>(&new_parent_data)?;
@@ -100,8 +100,8 @@ impl<H: Hasher> MerkleMountainRange<H> {
         } else {
             let old_root = self.peaks[index].unwrap();
             let mut new_parent_data = [0u8; 64];
-            new_parent_data[..32].copy_from_slice(&old_root);
-            new_parent_data[32..].copy_from_slice(&curr_root);
+            new_parent_data[..32].copy_from_slice(&*old_root);
+            new_parent_data[32..].copy_from_slice(&*curr_root);
             let new_root = hash::<H>(&new_parent_data)?;
 
             self.peaks[index] = None;
@@ -115,13 +115,14 @@ impl<H: Hasher> MerkleMountainRange<H> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rjam_common::ByteArray;
     use rjam_crypto::Blake2b256;
 
     // Helper function to create a Hash32 from a u8 value
     fn create_hash(value: u8) -> Hash32 {
         let mut hash = [0u8; 32];
         hash[0] = value;
-        hash
+        ByteArray::new(hash)
     }
 
     #[test]
@@ -142,8 +143,8 @@ mod tests {
 
         let expected_root = {
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&leaf1);
-            data[32..].copy_from_slice(&leaf2);
+            data[..32].copy_from_slice(&*leaf1);
+            data[32..].copy_from_slice(&*leaf2);
             hash::<Blake2b256>(&data).unwrap()
         };
 
@@ -162,8 +163,8 @@ mod tests {
 
         let expected_root12 = {
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&leaf1);
-            data[32..].copy_from_slice(&leaf2);
+            data[..32].copy_from_slice(&*leaf1);
+            data[32..].copy_from_slice(&*leaf2);
             hash::<Blake2b256>(&data).unwrap()
         };
 
@@ -185,19 +186,19 @@ mod tests {
         let expected_root1234 = {
             let root12 = {
                 let mut data = [0u8; 64];
-                data[..32].copy_from_slice(&leaf1);
-                data[32..].copy_from_slice(&leaf2);
+                data[..32].copy_from_slice(&*leaf1);
+                data[32..].copy_from_slice(&*leaf2);
                 hash::<Blake2b256>(&data).unwrap()
             };
             let root34 = {
                 let mut data = [0u8; 64];
-                data[..32].copy_from_slice(&leaf3);
-                data[32..].copy_from_slice(&leaf4);
+                data[..32].copy_from_slice(&*leaf3);
+                data[32..].copy_from_slice(&*leaf4);
                 hash::<Blake2b256>(&data).unwrap()
             };
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&root12);
-            data[32..].copy_from_slice(&root34);
+            data[..32].copy_from_slice(&*root12);
+            data[32..].copy_from_slice(&*root34);
             hash::<Blake2b256>(&data).unwrap()
         };
 

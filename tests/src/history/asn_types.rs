@@ -1,10 +1,10 @@
 use crate::test_utils::{deserialize_hex_array, serialize_hex_array};
+use rjam_common::ByteArray;
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_types::state::history::{BlockHistory, BlockHistoryEntry, ReportedWorkPackage};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
-
 // Define basic types
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
@@ -34,7 +34,7 @@ impl<H: Hasher> From<Mmr> for MerkleMountainRange<H> {
         let peaks = value
             .peaks
             .into_iter()
-            .map(|peak| peak.map(|hash| hash.0))
+            .map(|peak| peak.map(|hash| ByteArray::new(hash.0)))
             .collect();
 
         MerkleMountainRange::new_from_peaks(peaks)
@@ -43,7 +43,11 @@ impl<H: Hasher> From<Mmr> for MerkleMountainRange<H> {
 
 impl<H: Hasher> From<MerkleMountainRange<H>> for Mmr {
     fn from(value: MerkleMountainRange<H>) -> Self {
-        let peaks = value.peaks.into_iter().map(|peak| peak.map(Hash)).collect();
+        let peaks = value
+            .peaks
+            .into_iter()
+            .map(|peak| peak.map(|hash| Hash(hash.0)))
+            .collect();
 
         Mmr { peaks }
     }
@@ -69,15 +73,15 @@ pub struct BlockInfo {
 impl From<BlockInfo> for BlockHistoryEntry {
     fn from(value: BlockInfo) -> Self {
         Self {
-            header_hash: value.hash.0,
+            header_hash: ByteArray::new(value.hash.0),
             accumulation_result_mmr: value.mmr.into(),
-            state_root: value.state_root.0,
+            state_root: ByteArray::new(value.state_root.0),
             reported_packages: value
                 .reported
                 .into_iter()
                 .map(|reported| ReportedWorkPackage {
-                    work_package_hash: reported.hash.0,
-                    segment_root: reported.exports_root.0,
+                    work_package_hash: ByteArray::new(reported.hash.0),
+                    segment_root: ByteArray::new(reported.exports_root.0),
                 })
                 .collect(),
         }
@@ -87,15 +91,15 @@ impl From<BlockInfo> for BlockHistoryEntry {
 impl From<BlockHistoryEntry> for BlockInfo {
     fn from(value: BlockHistoryEntry) -> Self {
         Self {
-            hash: Hash(value.header_hash),
+            hash: Hash(value.header_hash.0),
             mmr: value.accumulation_result_mmr.into(),
-            state_root: Hash(value.state_root),
+            state_root: Hash(value.state_root.0),
             reported: value
                 .reported_packages
                 .into_iter()
                 .map(|package| Reported {
-                    hash: Hash(package.work_package_hash),
-                    exports_root: Hash(package.segment_root),
+                    hash: Hash(package.work_package_hash.0),
+                    exports_root: Hash(package.segment_root.0),
                 })
                 .collect(),
         }

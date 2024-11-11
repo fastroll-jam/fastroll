@@ -1,5 +1,4 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
-use hex::encode;
 use rjam_codec::JamEncode;
 use rjam_common::{CoreIndex, Hash32, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
@@ -73,8 +72,8 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         // Check the anchored parent hash
         if entry.anchor_parent_hash != header_parent_hash {
             return Err(InvalidAssuranceParentHash(
-                encode(entry.anchor_parent_hash),
-                encode(header_parent_hash),
+                entry.anchor_parent_hash.encode_hex(),
+                header_parent_hash.encode_hex(),
                 entry.validator_index,
             ));
         }
@@ -87,7 +86,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
 
         let mut message = Vec::with_capacity(X_A.len() + hash.len());
         message.extend_from_slice(X_A);
-        message.extend_from_slice(&hash);
+        message.extend_from_slice(hash.as_slice());
 
         let current_active_set = self.state_manager.get_active_set()?;
         let assurer_public_key =

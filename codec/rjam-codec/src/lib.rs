@@ -475,20 +475,20 @@ impl<T: JamDecode + Ord> JamDecode for BTreeSet<T> {
     }
 }
 
-impl<T: JamEncode, const N: usize> JamEncode for Box<[T; N]> {
+impl<T: JamEncode> JamEncode for Box<T> {
     fn size_hint(&self) -> usize {
-        self.as_ref().size_hint() // Delegate to the underlying array
+        self.as_ref().size_hint()
     }
 
     fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
-        self.as_ref().encode_to(dest) // Delegate encoding to the inner array
+        self.as_ref().encode_to(dest)
     }
 }
 
-impl<T: JamDecode, const N: usize> JamDecode for Box<[T; N]> {
+impl<T: JamDecode> JamDecode for Box<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let array: [T; N] = JamDecode::decode(input)?;
-        Ok(Self::new(array))
+        let value: T = JamDecode::decode(input)?;
+        Ok(Self::new(value))
     }
 }
 
