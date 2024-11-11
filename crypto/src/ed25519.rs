@@ -31,10 +31,9 @@ pub fn verify_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rjam_common::Octets;
 
     // Helper function to create a message
-    fn create_message() -> Octets {
+    fn create_message() -> Vec<u8> {
         b"Some message".to_vec()
     }
 

@@ -5,7 +5,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_codec::JamDecodeFixed;
-use rjam_common::{Hash32, Octets};
+use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 
 pub struct MerkleNodeCodec;
@@ -119,7 +119,7 @@ impl MerkleNodeCodec {
         state_key: &BitVec,
         node_data: &[u8],
         leaf_type: &LeafType,
-    ) -> Result<Octets, StateMerkleError> {
+    ) -> Result<Vec<u8>, StateMerkleError> {
         // check node data length
         let len = node_data.len();
         if len != 64 {

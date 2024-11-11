@@ -2,7 +2,7 @@ use crate::{
     codec::MerkleNodeCodec as NodeCodec, error::StateMerkleError, types::*,
     utils::lsb_bits_to_bytes,
 };
-use rjam_common::{Hash32, Octets};
+use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rocksdb::WriteBatch;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -14,11 +14,11 @@ pub struct StagingNode {
     hash: Hash32,
     /// Encoded node data after state transition.
     /// Data of the new entry to be added in the `MerkleDB`.
-    node_data: Octets,
+    node_data: Vec<u8>,
 }
 
 impl StagingNode {
-    pub fn new(hash: Hash32, node_data: Octets) -> Self {
+    pub fn new(hash: Hash32, node_data: Vec<u8>) -> Self {
         Self { hash, node_data }
     }
 }

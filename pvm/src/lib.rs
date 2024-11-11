@@ -1,4 +1,4 @@
-use rjam_common::{Address, Octets, UnsignedGas};
+use rjam_common::{Address, UnsignedGas};
 use rjam_pvm_core::{
     constants::{
         HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
@@ -34,9 +34,9 @@ enum ExecutionResult {
 // TODO: check the GP - `InvocationContext` elided for `Result` and `ResultUnavailable`
 pub enum CommonInvocationResult {
     OutOfGas(ExitReason),
-    Result((UnsignedGas, Octets)), // (posterior_gas, return_value)
-    ResultUnavailable((UnsignedGas, Octets)), // (posterior_gas, [])
-    Failure(ExitReason),           // panic
+    Result((UnsignedGas, Vec<u8>)), // (posterior_gas, return_value)
+    ResultUnavailable((UnsignedGas, Vec<u8>)), // (posterior_gas, [])
+    Failure(ExitReason),            // panic
 }
 
 // TODO: add other posterior VM states?
@@ -149,7 +149,7 @@ impl PVM {
     }
 
     /// Read a specified number of bytes from memory starting at the given address
-    fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, PVMError> {
+    fn read_memory_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, PVMError> {
         Ok(self.state.memory.read_bytes(address, length)?)
     }
 

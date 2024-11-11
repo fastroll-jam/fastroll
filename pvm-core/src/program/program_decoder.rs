@@ -12,17 +12,16 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
-use rjam_common::Octets;
 
 pub struct FormattedProgram {
-    pub read_only_len: u32,      // |o|
-    pub read_write_len: u32,     // |w|
-    pub extra_heap_pages: u16,   // z
-    pub stack_size: u32,         // s
-    pub read_only_data: Octets,  // o
-    pub read_write_data: Octets, // w
-    pub code_len: u32,           // |c|
-    pub code: Octets,            // c
+    pub read_only_len: u32,       // |o|
+    pub read_write_len: u32,      // |w|
+    pub extra_heap_pages: u16,    // z
+    pub stack_size: u32,          // s
+    pub read_only_data: Vec<u8>,  // o
+    pub read_write_data: Vec<u8>, // w
+    pub code_len: u32,            // |c|
+    pub code: Vec<u8>,            // c
 }
 
 impl JamDecode for FormattedProgram {
@@ -34,10 +33,10 @@ impl JamDecode for FormattedProgram {
         let read_write_len = u32::decode_fixed(input, 3)?;
         let extra_heap_pages = u16::decode_fixed(input, 2)?;
         let stack_size = u32::decode_fixed(input, 3)?;
-        let read_only_data = Octets::decode_fixed(input, read_only_len as usize)?;
-        let read_write_data = Octets::decode_fixed(input, read_write_len as usize)?;
+        let read_only_data = JamDecodeFixed::decode_fixed(input, read_only_len as usize)?;
+        let read_write_data = JamDecodeFixed::decode_fixed(input, read_write_len as usize)?;
         let code_len = u32::decode_fixed(input, 4)?;
-        let code = Octets::decode_fixed(input, code_len as usize)?;
+        let code = JamDecodeFixed::decode_fixed(input, code_len as usize)?;
 
         Ok(Self {
             read_only_len,
@@ -119,7 +118,9 @@ impl ProgramDecoder {
     }
 
     /// Decode program code into instruction sequence, opcode bitmask and dynamic jump table
-    pub fn decode_program_code(code: &[u8]) -> Result<(Octets, BitVec, Vec<MemAddress>), PVMError> {
+    pub fn decode_program_code(
+        code: &[u8],
+    ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), PVMError> {
         let mut input = code;
 
         // Decode the length of the jump table (|j|)
@@ -138,7 +139,7 @@ impl ProgramDecoder {
         }
 
         // Decode the instruction sequence (c)
-        let instructions = Octets::decode_fixed(&mut input, instructions_len)?;
+        let instructions = JamDecodeFixed::decode_fixed(&mut input, instructions_len)?;
 
         // Decode the opcode bitmask (k)
         // The length of `k` must be equivalent to the length of `c`, |k| = |c|

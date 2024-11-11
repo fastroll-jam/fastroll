@@ -1,5 +1,4 @@
 use crate::constants::PAGE_SIZE;
-use rjam_common::Octets;
 use thiserror::Error;
 
 pub type MemAddress = u32;
@@ -181,7 +180,7 @@ impl Memory {
     }
 
     /// Read a specified number of bytes from memory starting at the given address
-    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Octets, MemoryError> {
+    pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
         (0..length)
             .map(|i| self.read_byte(address + i as MemAddress))
             .collect()

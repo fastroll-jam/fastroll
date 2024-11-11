@@ -12,7 +12,7 @@ use crate::{
     types::{common::ExitReason, error::PVMError},
 };
 use bit_vec::BitVec;
-use rjam_common::{Octets, UnsignedGas};
+use rjam_common::UnsignedGas;
 
 pub struct SingleInvocationResult {
     pub exit_reason: ExitReason,
@@ -31,8 +31,8 @@ pub struct VMState {
 /// Immutable VM state (program components)
 #[derive(Default)]
 pub struct Program {
-    pub program_code: Octets, // p (`c` of the Initialization Decoder Function `Y`)
-    pub instructions: Octets, // c; serialized
+    pub program_code: Vec<u8>, // p (`c` of the Initialization Decoder Function `Y`)
+    pub instructions: Vec<u8>, // c; serialized
     pub jump_table: Vec<MemAddress>, // j
     pub opcode_bitmask: BitVec, // k
     pub basic_block_bitmask: BitVec, // bitmask to detect opcode addresses that begin basic blocks
@@ -42,7 +42,7 @@ pub struct Program {
 #[derive(Default)]
 pub struct StateChange {
     pub register_writes: Vec<(usize, u32)>,
-    pub memory_write: (MemAddress, u32, Octets), // (start_address, data_len, data)
+    pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
     pub new_pc: Option<MemAddress>,
     pub gas_usage: UnsignedGas,
 }

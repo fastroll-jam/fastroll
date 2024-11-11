@@ -1,9 +1,7 @@
 pub mod accumulation;
 
 use rjam_codec::JamEncode;
-use rjam_common::{
-    Address, Balance, CoreIndex, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE,
-};
+use rjam_common::{Address, Balance, CoreIndex, Hash32, UnsignedGas, MAX_SERVICE_CODE_SIZE};
 use rjam_crypto::octets_to_hash32;
 use rjam_pvm::{CommonInvocationResult, PVM};
 use rjam_pvm_core::{
@@ -113,12 +111,12 @@ impl PVMInvocation {
         gas_limit: UnsignedGas,
         account_address: Address,
         work_package_hash: Hash32,
-        work_payload: Octets,
+        work_payload: Vec<u8>,
         refinement_context: RefinementContext,
         authorizer_hash: Hash32,
-        authorization_output: Octets,
+        authorization_output: Vec<u8>,
         _import_segments: Vec<ExportDataSegment>, // FIXME
-        extrinsic_data_blobs: Vec<Octets>,
+        extrinsic_data_blobs: Vec<Vec<u8>>,
         _export_segment_offset: usize, // FIXME
     ) -> Result<RefineResult, PVMError> {
         // retrieve the service account code via the historical lookup function

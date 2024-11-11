@@ -1,4 +1,3 @@
-use rjam_common::Octets;
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
@@ -39,8 +38,8 @@ impl RocksDBConfig {
 }
 
 pub enum DBWriteOp<'a> {
-    Put(&'a [u8], Octets), // key, value
-    Delete(&'a [u8]),      // key
+    Put(&'a [u8], Vec<u8>), // key, value
+    Delete(&'a [u8]),       // key
 }
 
 pub struct KeyValueDB {
@@ -59,7 +58,7 @@ impl KeyValueDB {
         Ok(KeyValueDB { db: Arc::new(db) })
     }
 
-    pub fn get_entry(&self, key: &[u8]) -> Result<Option<Octets>, KeyValueDBError> {
+    pub fn get_entry(&self, key: &[u8]) -> Result<Option<Vec<u8>>, KeyValueDBError> {
         self.db.get(key).map_err(KeyValueDBError::RocksDBError)
     }
 

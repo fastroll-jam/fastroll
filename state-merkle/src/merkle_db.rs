@@ -6,7 +6,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use dashmap::DashMap;
-use rjam_common::{Hash32, Octets, HASH32_EMPTY};
+use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_db::RocksDBConfig;
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use std::{
@@ -27,7 +27,7 @@ pub struct Node {
     /// - Branch node:        [0]  + [255-bit left child hash (partial)] + [256-bit right child hash]
     /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key (partial)] + [encoded state value] + [zero padding]
     /// - Regular leaf node:  [11] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
-    data: Octets,
+    data: Vec<u8>,
 }
 
 impl Node {
@@ -152,9 +152,9 @@ impl MerkleDB {
     /// * `state_key`: [`Hash32`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
     ///
     /// # Returns
-    /// * `Ok((LeafType, Octets))` - A tuple containing:
+    /// * `Ok((LeafType, Vec<u8>))` - A tuple containing:
     ///    - The type of the leaf node (`Embedded` or `Regular`).
-    ///    - The Octets representing the state data or its hash, depending on the leaf type.
+    ///    - The Vec<u8> representing the state data or its hash, depending on the leaf type.
     /// * `Err(StateMerkleError)` - An error that occurred while retrieving the node data.
     ///
     /// # Note
@@ -163,7 +163,7 @@ impl MerkleDB {
     pub fn retrieve(
         &self,
         state_key: &[u8],
-    ) -> Result<Option<(LeafType, Octets)>, StateMerkleError> {
+    ) -> Result<Option<(LeafType, Vec<u8>)>, StateMerkleError> {
         let state_key_bv = bytes_to_lsb_bits(state_key);
         let root_hash = self.root;
 

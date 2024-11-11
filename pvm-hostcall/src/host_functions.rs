@@ -6,8 +6,8 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Address, Balance, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY,
-    HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    Address, Balance, Hash32, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY, HASH_SIZE,
+    MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
@@ -81,8 +81,8 @@ pub struct HostCallVMStateChange {
     pub gas_usage: UnsignedGas,
     pub r7_write: Option<u32>,
     pub r8_write: Option<u32>,
-    pub memory_write: (MemAddress, u32, Octets), // (start_address, data_len, data)
-    pub exit_reason: ExitReason,                 // TODO: check if necessary
+    pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
+    pub exit_reason: ExitReason,                  // TODO: check if necessary
 }
 
 impl Default for HostCallVMStateChange {
@@ -1065,7 +1065,7 @@ impl HostFunction {
         let data: ExportDataSegment =
             zero_pad(memory.read_bytes(offset, size)?, DATA_SEGMENTS_SIZE)
                 .try_into()
-                .map_err(|v: Octets| {
+                .map_err(|v: Vec<u8>| {
                     PVMError::HostCallError(DataSegmentLengthMismatch {
                         expected: DATA_SEGMENTS_SIZE,
                         actual: v.len(),

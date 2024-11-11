@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
-use rjam_common::{Address, ByteArray, Hash32, Octets, HASH32_EMPTY, HASH_SIZE};
+use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::octets_to_hash32;
 use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
@@ -255,7 +255,7 @@ impl StateManager {
     /// This function assumes that the code preimage is available.
     /// For on-chain PVM invocations (`Accumulate` and `On-Transfer`) get account code directly from this function
     /// whereas for off-chain/in-core PVM invocations (`Refine` and `Is-Authorized`) conduct historical lookups.
-    pub fn get_account_code(&self, address: Address) -> Result<Option<Octets>, StateManagerError> {
+    pub fn get_account_code(&self, address: Address) -> Result<Option<Vec<u8>>, StateManagerError> {
         let code_hash = match self.get_account_metadata(address)? {
             Some(metadata) => metadata.account_info.code_hash,
             None => return Ok(None),
@@ -283,7 +283,7 @@ impl StateManager {
         address: Address,
         reference_timeslot: &Timeslot,
         preimage_hash: &Hash32,
-    ) -> Result<Option<Octets>, StateManagerError> {
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
         let preimage = match self.get_account_preimages_entry(address, preimage_hash)? {
             Some(preimage) => preimage.value,
             None => return Ok(None),
@@ -316,7 +316,7 @@ impl StateManager {
     fn retrieve_state_encoded(
         &self,
         state_key: &Hash32,
-    ) -> Result<Option<Octets>, StateManagerError> {
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
         if let Some(merkle_db) = &self.merkle_db {
             let (leaf_type, state_data) = match merkle_db.retrieve(state_key.as_slice())? {
                 Some((leaf_type, state_data)) => (leaf_type, state_data),

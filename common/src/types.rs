@@ -31,6 +31,41 @@ pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = ByteArray([0u8; 
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = ByteArray([0u8; 144]);
 
 // Types
+#[derive(Debug, Clone, Default)]
+pub struct ByteSequence(pub Vec<u8>);
+
+impl Deref for ByteSequence {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ByteSequence {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl JamEncode for ByteSequence {
+    fn size_hint(&self) -> usize {
+        self.0.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        dest.write(self.0.as_slice());
+        Ok(())
+    }
+}
+
+impl ByteSequence {
+    #[allow(dead_code)]
+    fn new(data: &[u8]) -> Self {
+        Self(data.to_vec())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ByteArray<const N: usize>(pub [u8; N]);
 

@@ -1,4 +1,4 @@
-use rjam_common::{Hash32, Octets};
+use rjam_common::Hash32;
 
 pub const NODE_SIZE_BITS: usize = 512;
 
@@ -40,8 +40,8 @@ impl ChildType {
 /// Leaf node write operations.
 #[derive(Eq, Hash, PartialEq)]
 pub enum WriteOp {
-    Update(Hash32, Octets),
-    Add(Hash32, Octets),
+    Update(Hash32, Vec<u8>),
+    Add(Hash32, Vec<u8>),
     Remove(Hash32),
 }
 
@@ -84,7 +84,7 @@ pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
     pub leaf_state_key: Hash32,
     /// State value of the leaf node to be updated.
-    pub leaf_state_value: Octets,
+    pub leaf_state_value: Vec<u8>,
     /// Leaf hash prior to the update.
     pub leaf_prior_hash: Hash32,
 }
@@ -94,7 +94,7 @@ pub struct LeafAddContext {
     /// State key of the leaf node to be added.
     pub leaf_state_key: Hash32,
     /// State value of the leaf node to be added.
-    pub leaf_state_value: Octets,
+    pub leaf_state_value: Vec<u8>,
     /// Hash of the leaf node to be the sibling node after adding a new leaf node.
     pub sibling_candidate_hash: Hash32,
     /// Child type (Left/Right) of the new leaf node.

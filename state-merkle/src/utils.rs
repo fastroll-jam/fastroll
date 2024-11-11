@@ -1,6 +1,6 @@
 use crate::error::StateMerkleError;
 use bit_vec::BitVec;
-use rjam_common::{ByteArray, Hash32, Octets};
+use rjam_common::{ByteArray, Hash32};
 use std::{collections::Bound, ops::RangeBounds};
 
 /// The `bits` function of the GP.
@@ -15,7 +15,7 @@ pub(crate) fn bytes_to_lsb_bits(data: &[u8]) -> BitVec {
 }
 
 /// The inverse function of `bits` of the GP.
-pub(crate) fn lsb_bits_to_bytes(bits: &BitVec) -> Octets {
+pub(crate) fn lsb_bits_to_bytes(bits: &BitVec) -> Vec<u8> {
     let mut bytes = Vec::with_capacity((bits.len() + 7) / 8);
     let mut current_byte = 0u8;
     for (i, bit) in bits.iter().enumerate() {

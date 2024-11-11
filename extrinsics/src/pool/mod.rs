@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use rjam_common::{Hash32, Octets};
+use rjam_common::Hash32;
 use rjam_types::extrinsics::disputes::{Culprit, Fault, Verdict};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -44,7 +44,7 @@ lazy_static! {
 #[derive(Clone)]
 pub struct ExtrinsicEntry {
     pub hash: Hash32,
-    pub data: Octets, // serialized extrinsic data
+    pub data: Vec<u8>, // serialized extrinsic data
     pub extrinsic_type: ExtrinsicType,
     pub timeslot_index: u32,
 }

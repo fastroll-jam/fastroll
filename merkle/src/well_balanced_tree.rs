@@ -1,5 +1,5 @@
 use crate::common::{node, MerkleError};
-use rjam_common::{Hash32, Octets};
+use rjam_common::Hash32;
 use rjam_crypto::{hash, octets_to_hash32, CryptoError, Hasher};
 use std::marker::PhantomData;
 
@@ -11,7 +11,7 @@ pub struct WellBalancedMerkleTree<H: Hasher> {
 
 impl<H: Hasher> WellBalancedMerkleTree<H> {
     /// Constructs a new WellBalancedMerkleTree and returns the tree
-    pub fn new(data: &[Octets]) -> Result<Self, MerkleError> {
+    pub fn new(data: &[Vec<u8>]) -> Result<Self, MerkleError> {
         let root = Self::compute_root(data)?;
         Ok(Self {
             root,
@@ -20,7 +20,7 @@ impl<H: Hasher> WellBalancedMerkleTree<H> {
     }
 
     /// Computes the root of the well-balanced Merkle tree
-    pub fn compute_root(data: &[Octets]) -> Result<Hash32, MerkleError> {
+    pub fn compute_root(data: &[Vec<u8>]) -> Result<Hash32, MerkleError> {
         if data.len() == 1 {
             return Ok(hash::<H>(&data[0])?);
         }

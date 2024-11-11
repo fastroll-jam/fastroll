@@ -1,7 +1,7 @@
 use crate::test_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
-use rjam_common::{ByteArray, Octets, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{ByteArray, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
@@ -109,7 +109,7 @@ pub struct ByteSequence(
         serialize_with = "serialize_hex_vec",
         deserialize_with = "deserialize_hex_vec"
     )]
-    pub Octets,
+    pub Vec<u8>,
 );
 
 impl Debug for ByteSequence {
@@ -124,8 +124,8 @@ impl Display for ByteSequence {
     }
 }
 
-impl From<Octets> for ByteSequence {
-    fn from(value: Octets) -> Self {
+impl From<Vec<u8>> for ByteSequence {
+    fn from(value: Vec<u8>) -> Self {
         Self(value)
     }
 }

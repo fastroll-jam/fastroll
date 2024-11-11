@@ -1,5 +1,5 @@
 use rjam_codec::JamCodecError;
-use rjam_common::{Octets, HASH32_EMPTY};
+use rjam_common::HASH32_EMPTY;
 use rjam_crypto::{hash, CryptoError, Hasher};
 use thiserror::Error;
 
@@ -11,7 +11,7 @@ pub enum MerkleError {
     JamCodecError(#[from] JamCodecError),
 }
 
-pub fn node<H: Hasher>(data: &[Octets]) -> Result<Octets, MerkleError> {
+pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
 
     if data.is_empty() {
@@ -40,7 +40,7 @@ mod tests {
 
     #[test]
     fn test_node_empty() -> Result<(), MerkleError> {
-        let data: &[Octets] = &[];
+        let data: &[Vec<u8>] = &[];
         let root = node::<Blake2b256>(data)?;
 
         assert_eq!(root, HASH32_EMPTY.to_vec());
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_node_single_element() -> Result<(), MerkleError> {
-        let data: &[Octets] = &[vec![0, 1]];
+        let data: &[Vec<u8>] = &[vec![0, 1]];
         let root = node::<Blake2b256>(data)?;
 
         assert_eq!(root, vec![0, 1]);
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn test_node_two_elements() -> Result<(), MerkleError> {
-        let data: &[Octets] = &[vec![10, 11], vec![12, 13]];
+        let data: &[Vec<u8>] = &[vec![10, 11], vec![12, 13]];
         let root = node::<Blake2b256>(data)?;
 
         let expected =
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_node_three_elements() -> Result<(), MerkleError> {
-        let data: &[Octets] = &[vec![10, 11], vec![12, 13], vec![14, 15]];
+        let data: &[Vec<u8>] = &[vec![10, 11], vec![12, 13], vec![14, 15]];
         let root = node::<Blake2b256>(data)?;
 
         let hash_10111213 =
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_node_five_elements() -> Result<(), MerkleError> {
-        let data: &[Octets] = &[vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
+        let data: &[Vec<u8>] = &[vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
         let root = node::<Blake2b256>(data)?;
 
         let hash_0123 =
