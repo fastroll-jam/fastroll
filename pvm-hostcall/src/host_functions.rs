@@ -6,8 +6,8 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Address, Balance, Hash32, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY, HASH_SIZE,
-    MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    Address, Balance, Hash32, Octets, UnsignedGas, ValidatorKey, CORE_COUNT, HASH32_EMPTY,
+    HASH_SIZE, MAX_AUTH_QUEUE_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
@@ -281,7 +281,7 @@ impl HostFunction {
                     target_address,
                     &storage_key,
                     |entry| {
-                        entry.value = data;
+                        entry.value = Octets::from_vec(data);
                     },
                 )?;
             } else {
@@ -290,7 +290,7 @@ impl HostFunction {
                     target_address,
                     &storage_key,
                     |entry| {
-                        entry.value = data;
+                        entry.value = Octets::from_vec(data);
                     },
                 )?;
             }

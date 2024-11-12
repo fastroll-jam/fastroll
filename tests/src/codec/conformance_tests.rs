@@ -2,9 +2,17 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::asn_types::{AsnDisputesExtrinsic, WorkResult};
-    use rjam_codec::JamEncode;
-    use rjam_types::{common::workloads::WorkItemResult, extrinsics::disputes::DisputesExtrinsic};
+    use crate::codec::asn_types::*;
+    use rjam_codec::{JamDecode, JamEncode};
+    use rjam_types::{
+        block::{header::BlockHeader, Block},
+        common::workloads::{RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport},
+        extrinsics::{
+            assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic,
+            guarantees::GuaranteesExtrinsic, preimages::PreimageLookupsExtrinsic,
+            tickets::TicketsExtrinsic, Extrinsics,
+        },
+    };
     use serde::{de::DeserializeOwned, Serialize};
     use std::{
         fs,
@@ -34,21 +42,19 @@ mod tests {
         Ok(test_type)
     }
 
-    #[test]
-    fn test_ser_disputes_extrinsic() {
-        let json_filename = "disputes_extrinsic.json";
-        let json_path = PathBuf::from(PATH_PREFIX).join(json_filename);
+    pub fn test_round_trip<T, U>(filename: &str)
+    where
+        T: JamEncode + JamDecode + From<U>,
+        U: Serialize + DeserializeOwned, // TODO: + From<T>,
+    {
+        let json_path = PathBuf::from(PATH_PREFIX).join(format!("{}.json", filename));
 
-        let asn_type: AsnDisputesExtrinsic =
-            load_json_file(&json_path).expect("Failed to load test vector.");
+        let asn_type: U = load_json_file(&json_path).expect("Failed to load .json test vector.");
+        let rjam_type: T = T::from(asn_type);
+        let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
-        let rjam_type: DisputesExtrinsic = DisputesExtrinsic::from(asn_type);
-        let rjam_type_encoded = rjam_type.encode().unwrap();
-
-        let bin_filename = "disputes_extrinsic.bin";
-        let bin_path = PathBuf::from(PATH_PREFIX).join(bin_filename);
-
-        let asn_type_encoded = load_bin_file(&bin_path).unwrap();
+        let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{}.bin", filename));
+        let asn_type_encoded = load_bin_file(&bin_path).expect("Failed to load .bin test vector.");
 
         println!(
             ">>> RJAM type encoded: (length: {} bytes) {:?}",
@@ -61,33 +67,37 @@ mod tests {
             hex::encode(&asn_type_encoded).len(),
             hex::encode(&asn_type_encoded)
         );
+        // assert_eq!(rjam_type_encoded, asn_type_encoded);
+
+        // TODO: test deserialization
     }
 
-    #[test]
-    fn test_ser_work_result_0() {
-        let json_filename = "work_result_0.json";
-        let json_path = PathBuf::from(PATH_PREFIX).join(json_filename);
+    macro_rules! generate_codec_tests {
+        ($($name:ident: ($path:expr, $t: ty, $u: ty),)*) => {
+            $(
+                #[test]
+                fn $name() {
+                    test_round_trip::<$t, $u>($path)
+                }
+            )*
+        }
+    }
 
-        let asn_type: WorkResult = load_json_file(&json_path).expect("Failed to load test vector.");
-
-        let rjam_type: WorkItemResult = WorkItemResult::from(asn_type);
-        let rjam_type_encoded = rjam_type.encode().unwrap();
-
-        let bin_filename = "work_result_0.bin";
-        let bin_path = PathBuf::from(PATH_PREFIX).join(bin_filename);
-
-        let asn_type_encoded = load_bin_file(&bin_path).unwrap();
-
-        println!(
-            ">>> RJAM type encoded: (length: {} bytes) {:?}",
-            hex::encode(&rjam_type_encoded).len(),
-            hex::encode(&rjam_type_encoded)
-        );
-
-        println!(
-            "\n>>> ASN type encoded: (length: {} bytes) {:?}",
-            hex::encode(&asn_type_encoded).len(),
-            hex::encode(&asn_type_encoded)
-        );
+    generate_codec_tests! {
+        // assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
+        // block: ("block", Block, AsnBlock),
+        disputes_extrinsic: ("disputes_extrinsic", DisputesExtrinsic, AsnDisputesExtrinsic),
+        // extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
+        // guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
+        // header_0: ("header_0", BlockHeader, AsnHeader),
+        // header_1: ("header_1", BlockHeader, AsnHeader),
+        // preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
+        // refine_context: ("refine_context", RefinementContext, RefineContext),
+        tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic),
+        // work_item: ("work_item", WorkItem, AsnWorkItem),
+        // work_package: ("work_package", WorkPackage, AsnWorkPackage),
+        // work_report: ("work_report", WorkReport, AsnWorkReport),
+        work_result_0: ("work_result_0", WorkItemResult, WorkResult),
+        work_result_1: ("work_result_1", WorkItemResult, WorkResult),
     }
 }

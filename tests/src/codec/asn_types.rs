@@ -1,8 +1,5 @@
-use crate::asn_types::{
-    BandersnatchKey, BandersnatchRingSignature, BandersnatchVrfSignature, ByteSequence, Ed25519Key,
-    Ed25519Signature, OpaqueHash, TimeSlot,
-};
-use rjam_common::{ByteArray, FLOOR_TWO_THIRDS_VALIDATOR_COUNT};
+use crate::asn_types::*;
+use rjam_common::{ByteArray, Octets, FLOOR_TWO_THIRDS_VALIDATOR_COUNT};
 use rjam_types::{
     common::workloads::{
         WorkExecutionError::{
@@ -10,7 +7,10 @@ use rjam_types::{
         },
         WorkExecutionOutput, WorkItemResult,
     },
-    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, Verdict},
+    extrinsics::{
+        disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, Verdict},
+        tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +43,7 @@ pub struct Authorizer {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct WorkItem {
+pub struct AsnWorkItem {
     pub service: u32,
     pub code_hash: OpaqueHash,
     pub payload: ByteSequence,
@@ -59,7 +59,7 @@ pub struct AsnWorkPackage {
     pub auth_code_host: u32,
     pub authorizer: Authorizer,
     pub context: RefineContext,
-    pub items: Vec<WorkItem>,
+    pub items: Vec<AsnWorkItem>,
 }
 
 #[allow(non_camel_case_types)]
@@ -75,7 +75,7 @@ pub enum WorkExecResult {
 impl From<WorkExecResult> for WorkExecutionOutput {
     fn from(value: WorkExecResult) -> Self {
         match value {
-            WorkExecResult::ok(bytes) => Self::Output(bytes.0),
+            WorkExecResult::ok(bytes) => Self::Output(Octets::from_vec(bytes.0)),
             WorkExecResult::out_of_gas => Self::Error(OutOfGas),
             WorkExecResult::panic => Self::Error(UnexpectedTermination),
             WorkExecResult::bad_code => Self::Error(ServiceCodeLookupError),
@@ -114,7 +114,7 @@ pub struct WorkPackageSpec {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct WorkReport {
+pub struct AsnWorkReport {
     pub package_spec: WorkPackageSpec,
     pub context: RefineContext,
     pub core_index: u16,
@@ -156,6 +156,30 @@ pub struct AsnHeader {
 pub struct TicketEnvelope {
     pub attempt: u8,
     pub signature: BandersnatchRingSignature,
+}
+
+impl From<TicketEnvelope> for TicketsExtrinsicEntry {
+    fn from(value: TicketEnvelope) -> Self {
+        Self {
+            ticket_proof: Box::new(ByteArray::new(value.signature.0)),
+            entry_index: value.attempt,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AsnTicketsExtrinsic(pub Vec<TicketEnvelope>);
+
+impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
+    fn from(value: AsnTicketsExtrinsic) -> Self {
+        Self {
+            items: value
+                .0
+                .into_iter()
+                .map(TicketsExtrinsicEntry::from)
+                .collect(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -273,18 +297,27 @@ pub struct ValidatorSignature {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ReportGuarantee {
-    pub report: WorkReport,
+    pub report: AsnWorkReport,
     pub slot: u32,
     pub signatures: Vec<ValidatorSignature>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AsnPreimageLookupsExtrinsic(pub Vec<Preimage>);
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AsnAssurancesExtrinsic(pub Vec<AvailAssurance>);
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AsnGuaranteesExtrinsic(pub Vec<ReportGuarantee>);
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnExtrinsic {
-    pub tickets: Vec<TicketEnvelope>,
+    pub tickets: AsnTicketsExtrinsic,
     pub disputes: AsnDisputesExtrinsic,
-    pub preimages: Vec<Preimage>,
-    pub assurances: Vec<AvailAssurance>,
-    pub guarantees: Vec<ReportGuarantee>,
+    pub preimages: AsnPreimageLookupsExtrinsic,
+    pub assurances: AsnAssurancesExtrinsic,
+    pub guarantees: AsnGuaranteesExtrinsic,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

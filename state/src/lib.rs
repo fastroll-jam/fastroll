@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
-use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
+use rjam_common::{Address, ByteArray, Hash32, Octets, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::octets_to_hash32;
 use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
@@ -262,7 +262,7 @@ impl StateManager {
         };
 
         match self.get_account_preimages_entry(address, &code_hash)? {
-            Some(entry) => Ok(Some(entry.value)),
+            Some(entry) => Ok(Some(entry.value.into_vec())),
             None => Ok(None),
         }
     }
@@ -307,7 +307,7 @@ impl StateManager {
         };
 
         if valid {
-            Ok(Some(preimage))
+            Ok(Some(preimage.into_vec()))
         } else {
             Ok(None)
         }
@@ -1134,7 +1134,7 @@ impl StateManager {
         let storage_entry = AccountStorageEntry {
             // key: storage_key.clone(),
             value: match self.retrieve_state_encoded(&state_key)? {
-                Some(state_data) => state_data,
+                Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),
             },
         };
@@ -1195,7 +1195,7 @@ impl StateManager {
         let preimages_entry = AccountPreimagesEntry {
             // key: preimages_key.clone(),
             value: match self.retrieve_state_encoded(&state_key)? {
-                Some(state_data) => state_data,
+                Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),
             },
         };

@@ -1,7 +1,9 @@
 pub mod accumulation;
 
 use rjam_codec::JamEncode;
-use rjam_common::{Address, Balance, CoreIndex, Hash32, UnsignedGas, MAX_SERVICE_CODE_SIZE};
+use rjam_common::{
+    Address, Balance, CoreIndex, Hash32, Octets, UnsignedGas, MAX_SERVICE_CODE_SIZE,
+};
 use rjam_crypto::octets_to_hash32;
 use rjam_pvm::{CommonInvocationResult, PVM};
 use rjam_pvm_core::{
@@ -99,7 +101,7 @@ impl PVMInvocation {
             )),
             CommonInvocationResult::Result((_gas, output))
             | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
-                Ok(WorkExecutionOutput::Output(output))
+                Ok(WorkExecutionOutput::Output(Octets::from_vec(output)))
             }
         }
     }
@@ -175,7 +177,7 @@ impl PVMInvocation {
         match common_invocation_result {
             CommonInvocationResult::Result((_gas, output))
             | CommonInvocationResult::ResultUnavailable((_gas, output)) => Ok(RefineResult {
-                output: WorkExecutionOutput::Output(output),
+                output: WorkExecutionOutput::Output(Octets::from_vec(output)),
                 export_segments,
             }),
             CommonInvocationResult::OutOfGas(_) => Ok(RefineResult {

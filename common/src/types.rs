@@ -8,7 +8,7 @@ use std::{
 
 // Type aliases
 pub type Hash32 = ByteArray<HASH_SIZE>;
-pub type Octets = Vec<u8>;
+pub type Octets = ByteSequence;
 pub type Address = u32; // service account address (index)
 pub type ValidatorIndex = u16;
 pub type CoreIndex = u16;
@@ -31,7 +31,7 @@ pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = ByteArray([0u8; 
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = ByteArray([0u8; 144]);
 
 // Types
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteSequence(pub Vec<u8>);
 
 impl Deref for ByteSequence {
@@ -54,19 +54,41 @@ impl JamEncode for ByteSequence {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        // By default add length discriminator prefix for octets
+        (self.0.len() as u8).encode_to(dest)?;
         dest.write(self.0.as_slice());
         Ok(())
     }
 }
 
-impl ByteSequence {
-    #[allow(dead_code)]
-    fn new(data: &[u8]) -> Self {
-        Self(data.to_vec())
+impl JamDecode for ByteSequence {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut vec = vec![];
+        input
+            .read(&mut vec)
+            .map_err(|_| JamCodecError::InputError("Failed to Decode ByteSequence".into()))?;
+        Ok(Self(vec))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+impl ByteSequence {
+    pub fn new(data: &[u8]) -> Self {
+        Self(data.to_vec())
+    }
+
+    pub fn from_vec(data: Vec<u8>) -> Self {
+        Self(data)
+    }
+
+    pub fn into_vec(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteArray<const N: usize>(pub [u8; N]);
 
 impl<const N: usize> Deref for ByteArray<N> {
@@ -108,7 +130,7 @@ impl<const N: usize> JamDecode for ByteArray<N> {
         let mut array = [0u8; N];
         input
             .read(&mut array)
-            .map_err(|_| JamCodecError::InputError("Failed to convert Vec to array".into()))?;
+            .map_err(|_| JamCodecError::InputError("Failed to decode ByteArray".into()))?;
         Ok(Self(array))
     }
 }
