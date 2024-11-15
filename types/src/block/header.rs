@@ -33,7 +33,7 @@ pub struct BlockHeader {
     pub winning_tickets_marker: Option<WinningTicketsMarker>, // w
     pub offenders_marker: Vec<Ed25519PubKey>,                 // o
     pub block_author_index: ValidatorIndex,                   // i
-    pub vrf_signature: BandersnatchSignature,                 // v
+    pub vrf_signature: BandersnatchSignature,                 // v; the entropy source
     pub block_seal: BandersnatchSignature,                    // s
 }
 

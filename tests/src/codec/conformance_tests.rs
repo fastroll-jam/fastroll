@@ -15,6 +15,7 @@ mod tests {
     };
     use serde::{de::DeserializeOwned, Serialize};
     use std::{
+        fmt::Debug,
         fs,
         fs::File,
         io,
@@ -22,7 +23,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    const PATH_PREFIX: &str = "jamtestvectors/codec/data";
+    const PATH_PREFIX: &str = "jamtestvectors-codec-with-lookup/codec/data";
 
     #[allow(dead_code)]
     pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {
@@ -32,9 +33,9 @@ mod tests {
         Ok(buffer)
     }
 
-    pub fn load_json_file<T>(path: &Path) -> Result<T, ()>
+    pub fn load_json_file<AsnType>(path: &Path) -> Result<AsnType, ()>
     where
-        T: Serialize + DeserializeOwned,
+        AsnType: Serialize + DeserializeOwned,
     {
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
         let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
@@ -42,15 +43,15 @@ mod tests {
         Ok(test_type)
     }
 
-    pub fn test_round_trip<T, U>(filename: &str)
+    pub fn test_round_trip<RjamType, AsnType>(filename: &str)
     where
-        T: JamEncode + JamDecode + From<U>,
-        U: Serialize + DeserializeOwned, // TODO: + From<T>,
+        RjamType: JamEncode + JamDecode + From<AsnType> + Debug,
+        AsnType: Serialize + DeserializeOwned, // TODO: + From<T>,
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{}.json", filename));
-
-        let asn_type: U = load_json_file(&json_path).expect("Failed to load .json test vector.");
-        let rjam_type: T = T::from(asn_type);
+        let asn_type: AsnType =
+            load_json_file(&json_path).expect("Failed to load .json test vector.");
+        let rjam_type: RjamType = RjamType::from(asn_type);
         let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
         let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{}.bin", filename));
@@ -84,19 +85,19 @@ mod tests {
     }
 
     generate_codec_tests! {
-        // assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
-        // block: ("block", Block, AsnBlock),
+        assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
+        block: ("block", Block, AsnBlock),
         disputes_extrinsic: ("disputes_extrinsic", DisputesExtrinsic, AsnDisputesExtrinsic),
-        // extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
-        // guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
-        // header_0: ("header_0", BlockHeader, AsnHeader),
-        // header_1: ("header_1", BlockHeader, AsnHeader),
-        // preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
-        // refine_context: ("refine_context", RefinementContext, RefineContext),
+        extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
+        guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
+        header_0: ("header_0", BlockHeader, AsnHeader),
+        header_1: ("header_1", BlockHeader, AsnHeader),
+        preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
+        refine_context: ("refine_context", RefinementContext, RefineContext),
         tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic),
-        // work_item: ("work_item", WorkItem, AsnWorkItem),
-        // work_package: ("work_package", WorkPackage, AsnWorkPackage),
-        // work_report: ("work_report", WorkReport, AsnWorkReport),
+        work_item: ("work_item", WorkItem, AsnWorkItem),
+        work_package: ("work_package", WorkPackage, AsnWorkPackage),
+        work_report: ("work_report", WorkReport, AsnWorkReport),
         work_result_0: ("work_result_0", WorkItemResult, WorkResult),
         work_result_1: ("work_result_1", WorkItemResult, WorkResult),
     }

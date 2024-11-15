@@ -50,16 +50,16 @@ impl Ord for AssurancesExtrinsicEntry {
 impl JamEncode for AssurancesExtrinsicEntry {
     fn size_hint(&self) -> usize {
         self.anchor_parent_hash.size_hint()
-            + (self.assuring_cores_bitvec.len() + 7) / 8 // size hint for packed bits in bytes (fixed-length encoding)
+            // + (self.assuring_cores_bitvec.len() + 7) / 8 // size hint for packed bits in bytes (fixed-length encoding)
+            + self.assuring_cores_bitvec.size_hint() // TODO: revisit
             + self.validator_index.size_hint()
             + self.signature.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.anchor_parent_hash.encode_to(dest)?;
-        self.assuring_cores_bitvec
-            .encode_to_fixed(dest, CORE_COUNT)?;
-        self.validator_index.encode_to(dest)?; // TODO: check if this should take the first 2 bytes only
+        self.assuring_cores_bitvec.encode_to(dest)?;
+        self.validator_index.encode_to_fixed(dest, 2)?;
         self.signature.encode_to(dest)?;
         Ok(())
     }
@@ -70,7 +70,7 @@ impl JamDecode for AssurancesExtrinsicEntry {
         Ok(Self {
             anchor_parent_hash: Hash32::decode(input)?,
             assuring_cores_bitvec: BitVec::decode_fixed(input, CORE_COUNT)?,
-            validator_index: ValidatorIndex::decode(input)?,
+            validator_index: ValidatorIndex::decode_fixed(input, 2)?,
             signature: Ed25519Signature::decode(input)?,
         })
     }

@@ -1176,6 +1176,7 @@ dependencies = [
 name = "rjam-tests"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "hex",
  "rjam-codec",
  "rjam-common",

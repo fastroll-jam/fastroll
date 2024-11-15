@@ -94,7 +94,7 @@ pub fn set_header_winning_tickets_marker(
 ) -> Result<(), BlockHeaderUpdateError> {
     header_db.assert_staging_header_initialized()?;
     header_db.update_staging_header(|header| {
-        header.winning_tickets_marker = Some(winning_tickets_marker.clone());
+        header.winning_tickets_marker = Some(*winning_tickets_marker);
     })?;
 
     Ok(())

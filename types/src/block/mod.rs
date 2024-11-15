@@ -5,6 +5,6 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct Block {
-    header: BlockHeader,
-    extrinsics: Extrinsics,
+    pub header: BlockHeader,
+    pub extrinsics: Extrinsics,
 }

@@ -26,9 +26,9 @@ impl Deref for GuaranteesExtrinsic {
 /// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsicEntry {
-    pub work_report: WorkReport,            // w
-    timeslot_index: u32,                    // t
-    credentials: Vec<GuaranteesCredential>, // a
+    pub work_report: WorkReport,                // w
+    pub timeslot_index: u32,                    // t
+    pub credentials: Vec<GuaranteesCredential>, // a
 }
 
 impl PartialOrd for GuaranteesExtrinsicEntry {

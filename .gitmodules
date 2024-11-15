@@ -13,3 +13,7 @@
 	path = tests/jamtestvectors-disputes
 	url = https://github.com/davxy/jam-test-vectors.git
 	branch = disputes
+[submodule "tests/jamtestvectors-codec-with-lookup"]
+	path = tests/jamtestvectors-codec-with-lookup
+	url = https://github.com/davxy/jam-test-vectors.git
+	branch = codec-vectors-with-sr-lookup

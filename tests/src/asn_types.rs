@@ -104,7 +104,7 @@ impl Display for BlsKey {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct ByteSequence(
+pub struct AsnByteSequence(
     #[serde(
         serialize_with = "serialize_hex_vec",
         deserialize_with = "deserialize_hex_vec"
@@ -112,19 +112,19 @@ pub struct ByteSequence(
     pub Vec<u8>,
 );
 
-impl Debug for ByteSequence {
+impl Debug for AsnByteSequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0))
     }
 }
 
-impl Display for ByteSequence {
+impl Display for AsnByteSequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0))
     }
 }
 
-impl From<Vec<u8>> for ByteSequence {
+impl From<Vec<u8>> for AsnByteSequence {
     fn from(value: Vec<u8>) -> Self {
         Self(value)
     }

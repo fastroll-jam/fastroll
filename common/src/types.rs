@@ -203,7 +203,7 @@ impl ValidatorKey {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
     pub id: Hash32,  // ticket identifier; `Y` hash of the RingVRF proof
     pub attempt: u8, // `N_N`; 0 or 1

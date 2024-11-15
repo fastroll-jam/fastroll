@@ -3,7 +3,7 @@ use rjam_codec::{
 };
 use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, ops::Deref};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -14,13 +14,13 @@ pub enum WorkReportError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct Authorizer {
     pub auth_code_hash: Hash32, // c
     pub param_blob: Octets,     // p
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct WorkPackage {
     pub auth_token: Octets,          // j
     pub authorizer_address: Address, // h; service which hosts the authorization code
@@ -29,27 +29,46 @@ pub struct WorkPackage {
     pub work_items: Vec<WorkItem>,   // w; length range [1, 4]
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct ImportInfo {
     pub segments_tree_root: Hash32,
     pub item_index: usize,
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct ExtrinsicInfo {
-    blob_hash: Hash32,
-    blob_length: usize,
+    pub blob_hash: Hash32,
+    pub blob_length: usize,
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct WorkItem {
-    service_index: Address,                  // s
-    service_code_hash: Hash32,               // c
-    payload_blob: Octets,                    // y
-    gas_limit: UnsignedGas,                  // g
-    import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
-    extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
-    export_segment_count: usize,             // e; max 2^11
+    pub service_index: Address,                  // s
+    pub service_code_hash: Hash32,               // c
+    pub payload_blob: Octets,                    // y
+    pub gas_limit: UnsignedGas,                  // g
+    pub import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
+    pub extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
+    pub export_segment_count: usize,             // e; max 2^11
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct SegmentRootLookupTable {
+    items: HashMap<Hash32, Hash32>,
+}
+
+impl Deref for SegmentRootLookupTable {
+    type Target = HashMap<Hash32, Hash32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl SegmentRootLookupTable {
+    pub fn new(items: HashMap<Hash32, Hash32>) -> Self {
+        Self { items }
+    }
 }
 
 /// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
@@ -57,13 +76,13 @@ pub struct WorkItem {
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct WorkReport {
-    specs: AvailabilitySpecs,                      // s
-    refinement_context: RefinementContext,         // x
-    core_index: CoreIndex,                         // c
-    authorizer_hash: Hash32,                       // a
-    authorization_output: Octets,                  // o
-    segment_roots_lookup: HashMap<Hash32, Hash32>, // l; number of items up to 8
-    results: Vec<WorkItemResult>,                  // r; length range [1, 4]
+    pub specs: AvailabilitySpecs,                     // s
+    pub refinement_context: RefinementContext,        // x
+    pub core_index: CoreIndex,                        // c
+    pub authorizer_hash: Hash32,                      // a
+    pub authorization_output: Octets,                 // o
+    pub segment_roots_lookup: SegmentRootLookupTable, // l; number of items up to 8
+    pub results: Vec<WorkItemResult>,                 // r; length range [1, 4]
 }
 
 impl PartialOrd for WorkReport {
@@ -133,11 +152,11 @@ pub struct RefinementContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct AvailabilitySpecs {
-    work_package_hash: Hash32, // h
-    work_package_length: u32,  // l
-    erasure_root: Hash32,      // u
-    segment_root: Hash32,      // e; exports root
+pub struct AvailabilitySpecs {
+    pub work_package_hash: Hash32, // h
+    pub work_package_length: u32,  // l
+    pub erasure_root: Hash32,      // u
+    pub segment_root: Hash32,      // e; exports root
 }
 
 impl JamEncode for AvailabilitySpecs {
