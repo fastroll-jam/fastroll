@@ -50,9 +50,8 @@ impl Ord for AssurancesExtrinsicEntry {
 impl JamEncode for AssurancesExtrinsicEntry {
     fn size_hint(&self) -> usize {
         self.anchor_parent_hash.size_hint()
-            // + (self.assuring_cores_bitvec.len() + 7) / 8 // size hint for packed bits in bytes (fixed-length encoding)
-            + self.assuring_cores_bitvec.size_hint() // TODO: revisit
-            + self.validator_index.size_hint()
+            + self.assuring_cores_bitvec.size_hint()
+            + 2
             + self.signature.size_hint()
     }
 

@@ -1,4 +1,6 @@
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{
     Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
@@ -120,7 +122,7 @@ impl DisputesExtrinsic {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
     pub report_hash: Hash32,                                   // r
     pub epoch_index: u32,                                      // a
@@ -151,16 +153,30 @@ impl Ord for Verdict {
     }
 }
 
+impl JamEncode for Verdict {
+    fn size_hint(&self) -> usize {
+        self.report_hash.size_hint() + 4 + self.judgments.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.report_hash.encode_to(dest)?;
+        self.epoch_index.encode_to_fixed(dest, 4)?;
+        self.judgments.encode_to(dest)?;
+        Ok(())
+    }
+}
+
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut judgments = Box::new([Judgment::default(); VALIDATORS_SUPER_MAJORITY]);
-        for judgment in judgments.iter_mut() {
-            *judgment = Judgment::decode(input)?;
-        }
+        // TODO: delete
+        // let mut judgments = Box::new([Judgment::default(); VALIDATORS_SUPER_MAJORITY]);
+        // for judgment in judgments.iter_mut() {
+        //     *judgment = Judgment::decode(input)?;
+        // }
         Ok(Self {
             report_hash: Hash32::decode(input)?,
-            epoch_index: u32::decode(input)?,
-            judgments,
+            epoch_index: u32::decode_fixed(input, 4)?,
+            judgments: Box::<[Judgment; VALIDATORS_SUPER_MAJORITY]>::decode(input)?,
         })
     }
 }
@@ -184,11 +200,37 @@ impl Verdict {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Judgment {
     pub is_report_valid: bool,             // v
     pub voter: ValidatorIndex,             // i
     pub voter_signature: Ed25519Signature, // s
+}
+
+impl JamEncode for Judgment {
+    fn size_hint(&self) -> usize {
+        self.is_report_valid.size_hint() + 2 + self.voter_signature.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.is_report_valid.encode_to(dest)?;
+        self.voter.encode_to_fixed(dest, 2)?;
+        self.voter_signature.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for Judgment {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            is_report_valid: bool::decode(input)?,
+            voter: ValidatorIndex::decode_fixed(input, 2)?,
+            voter_signature: Ed25519Signature::decode(input)?,
+        })
+    }
 }
 
 impl Display for Judgment {

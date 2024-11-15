@@ -1,5 +1,7 @@
 use crate::{common::workloads::WorkReport, extrinsics::ExtrinsicsError};
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{Ed25519Signature, ValidatorIndex};
 use std::{cmp::Ordering, ops::Deref};
 
@@ -24,7 +26,7 @@ impl Deref for GuaranteesExtrinsic {
 ///
 /// Each block, three `Guarantors` are assigned per core to verify accuracy of the work and this
 /// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuaranteesExtrinsicEntry {
     pub work_report: WorkReport,                // w
     pub timeslot_index: u32,                    // t
@@ -40,6 +42,32 @@ impl PartialOrd for GuaranteesExtrinsicEntry {
 impl Ord for GuaranteesExtrinsicEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         self.work_report.cmp(&other.work_report)
+    }
+}
+
+impl JamEncode for GuaranteesExtrinsicEntry {
+    fn size_hint(&self) -> usize {
+        self.work_report.size_hint() + 4 + self.credentials.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.work_report.encode_to(dest)?;
+        self.timeslot_index.encode_to_fixed(dest, 4)?;
+        self.credentials.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for GuaranteesExtrinsicEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            work_report: WorkReport::decode(input)?,
+            timeslot_index: u32::decode_fixed(input, 4)?,
+            credentials: Vec::<GuaranteesCredential>::decode(input)?,
+        })
     }
 }
 

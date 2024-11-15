@@ -23,8 +23,8 @@ pub enum ExtrinsicsError {
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct Extrinsics {
     pub tickets: TicketsExtrinsic,
-    pub disputes: DisputesExtrinsic,
     pub preimage_lookups: PreimageLookupsExtrinsic,
-    pub assurances: AssurancesExtrinsic,
     pub guarantees: GuaranteesExtrinsic,
+    pub assurances: AssurancesExtrinsic,
+    pub disputes: DisputesExtrinsic,
 }

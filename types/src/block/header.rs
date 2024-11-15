@@ -1,4 +1,6 @@
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
     BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, HASH32_EMPTY, VALIDATOR_COUNT,
@@ -23,7 +25,7 @@ pub struct EpochMarker {
     pub validators: Box<[BandersnatchPubKey; VALIDATOR_COUNT]>,
 }
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug)]
 pub struct BlockHeader {
     pub parent_hash: Hash32,                                  // p
     pub parent_state_root: Hash32,                            // r
@@ -35,6 +37,55 @@ pub struct BlockHeader {
     pub block_author_index: ValidatorIndex,                   // i
     pub vrf_signature: BandersnatchSignature,                 // v; the entropy source
     pub block_seal: BandersnatchSignature,                    // s
+}
+
+impl JamEncode for BlockHeader {
+    fn size_hint(&self) -> usize {
+        self.parent_hash.size_hint()
+            + self.parent_state_root.size_hint()
+            + self.extrinsic_hash.size_hint()
+            + 4
+            + self.epoch_marker.size_hint()
+            + self.winning_tickets_marker.size_hint()
+            + self.offenders_marker.size_hint()
+            + 2
+            + self.vrf_signature.size_hint()
+            + self.block_seal.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.parent_hash.encode_to(dest)?;
+        self.parent_state_root.encode_to(dest)?;
+        self.extrinsic_hash.encode_to(dest)?;
+        self.timeslot_index.encode_to_fixed(dest, 4)?;
+        self.epoch_marker.encode_to(dest)?;
+        self.winning_tickets_marker.encode_to(dest)?;
+        self.offenders_marker.encode_to(dest)?;
+        self.block_author_index.encode_to_fixed(dest, 2)?;
+        self.vrf_signature.encode_to(dest)?;
+        self.block_seal.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for BlockHeader {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            parent_hash: Hash32::decode(input)?,
+            parent_state_root: Hash32::decode(input)?,
+            extrinsic_hash: Hash32::decode(input)?,
+            timeslot_index: u32::decode_fixed(input, 4)?,
+            epoch_marker: Option::<EpochMarker>::decode(input)?,
+            winning_tickets_marker: Option::<WinningTicketsMarker>::decode(input)?,
+            offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
+            block_author_index: ValidatorIndex::decode_fixed(input, 2)?,
+            vrf_signature: BandersnatchSignature::decode(input)?,
+            block_seal: BandersnatchSignature::decode(input)?,
+        })
+    }
 }
 
 impl Display for BlockHeader {

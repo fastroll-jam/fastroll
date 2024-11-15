@@ -15,7 +15,7 @@ use rjam_types::{
         WorkExecutionError::{
             CodeSizeExceeded, OutOfGas, ServiceCodeLookupError, UnexpectedTermination,
         },
-        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkReport,
+        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
     extrinsics::{
         assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
@@ -60,9 +60,16 @@ pub struct ImportSpec {
 
 impl From<ImportSpec> for ImportInfo {
     fn from(value: ImportSpec) -> Self {
+        let hash = ByteArray::new(value.tree_root.0);
+        let work_package_id = if value.index >= (1 << 15) {
+            WorkPackageId::WorkPackageHash(hash)
+        } else {
+            WorkPackageId::SegmentRoot(hash)
+        };
+
         Self {
-            segments_tree_root: ByteArray::new(value.tree_root.0),
-            item_index: value.index as usize,
+            work_package_id,
+            item_index: value.index,
         }
     }
 }
@@ -209,6 +216,7 @@ impl From<WorkPackageSpec> for AvailabilitySpecs {
             work_package_length: value.len,
             erasure_root: ByteArray::new(value.erasure_root.0),
             segment_root: ByteArray::new(value.exports_root.0),
+            segment_count: 0, // FIXME: fix after test vector updates
         }
     }
 }
