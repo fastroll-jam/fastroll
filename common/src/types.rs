@@ -222,9 +222,9 @@ impl Display for Ticket {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ \"id\": \"{}\", \"attempt\": \"{}\" }}",
+            "{{ \"attempt\": \"{}\", \"id\": \"{}\" }}",
+            self.attempt,
             self.id.encode_hex(),
-            self.attempt
         )
     }
 }

@@ -220,7 +220,7 @@ impl SegmentRootLookupTable {
 /// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
 ///
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkReport {
     pub specs: AvailabilitySpecs,                     // s
     pub refinement_context: RefinementContext,        // x
@@ -229,6 +229,46 @@ pub struct WorkReport {
     pub authorization_output: Octets,                 // o
     pub segment_roots_lookup: SegmentRootLookupTable, // l; number of items up to 8
     pub results: Vec<WorkItemResult>,                 // r; length range [1, 4]
+}
+
+impl JamEncode for WorkReport {
+    fn size_hint(&self) -> usize {
+        self.specs.size_hint()
+            + self.refinement_context.size_hint()
+            + 2
+            + self.authorizer_hash.size_hint()
+            + self.authorization_output.size_hint()
+            + self.segment_roots_lookup.size_hint()
+            + self.results.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.specs.encode_to(dest)?;
+        self.refinement_context.encode_to(dest)?;
+        self.core_index.encode_to_fixed(dest, 2)?; // TODO: check - GP doesn't use fixed encoding here but test vector assumes fixed encoding for u16 core indices
+        self.authorizer_hash.encode_to(dest)?;
+        self.authorization_output.encode_to(dest)?;
+        self.segment_roots_lookup.encode_to(dest)?;
+        self.results.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for WorkReport {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            specs: AvailabilitySpecs::decode(input)?,
+            refinement_context: RefinementContext::decode(input)?,
+            core_index: CoreIndex::decode_fixed(input, 2)?,
+            authorizer_hash: Hash32::decode(input)?,
+            authorization_output: Octets::decode(input)?,
+            segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
+            results: Vec::<WorkItemResult>::decode(input)?,
+        })
+    }
 }
 
 impl PartialOrd for WorkReport {
@@ -349,7 +389,7 @@ impl JamEncode for AvailabilitySpecs {
             + 4
             + self.erasure_root.size_hint()
             + self.segment_root.size_hint()
-            + 2
+        // + 2 // FIXME: uncomment after test vector updates
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
@@ -357,7 +397,7 @@ impl JamEncode for AvailabilitySpecs {
         self.work_package_length.encode_to_fixed(dest, 4)?;
         self.erasure_root.encode_to(dest)?;
         self.segment_root.encode_to(dest)?;
-        self.segment_count.encode_to_fixed(dest, 2)?;
+        // self.segment_count.encode_to_fixed(dest, 2)?; // FIXME: uncomment after test vector updates
         Ok(())
     }
 }

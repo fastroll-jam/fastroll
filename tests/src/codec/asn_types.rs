@@ -307,15 +307,15 @@ impl From<EpochMark> for EpochMarker {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TicketBody {
-    pub id: OpaqueHash,
     pub attempt: u8,
+    pub id: OpaqueHash,
 }
 
 impl From<TicketBody> for Ticket {
     fn from(value: TicketBody) -> Self {
         Self {
-            id: ByteArray::new(value.id.0),
             attempt: value.attempt,
+            id: ByteArray::new(value.id.0),
         }
     }
 }
