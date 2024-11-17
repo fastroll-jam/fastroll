@@ -3,7 +3,11 @@ use rjam_codec::{
 };
 use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use std::{cmp::Ordering, collections::HashMap, ops::Deref};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    ops::Deref,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -294,8 +298,8 @@ impl WorkReport {
         &self.refinement_context
     }
 
-    pub fn prerequisite(&self) -> Option<Hash32> {
-        self.refinement_context.prerequisite_work_package
+    pub fn prerequisite(&self) -> &BTreeSet<Hash32> {
+        &self.refinement_context.prerequisite_work_packages
     }
 
     pub fn segment_roots_lookup(&self) -> &HashMap<Hash32, Hash32> {
@@ -329,12 +333,12 @@ impl WorkReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefinementContext {
-    pub anchor_header_hash: Hash32,                // a
-    pub anchor_state_root: Hash32,                 // s; posterior state root of the anchor block
-    pub beefy_root: Hash32,                        // b
-    pub lookup_anchor_header_hash: Hash32,         // l
-    pub lookup_anchor_timeslot: u32,               // t
-    pub prerequisite_work_package: Option<Hash32>, // p; FIXME: not optional (GP 0.5.0)
+    pub anchor_header_hash: Hash32,                   // a
+    pub anchor_state_root: Hash32,                    // s; posterior state root of the anchor block
+    pub beefy_root: Hash32,                           // b
+    pub lookup_anchor_header_hash: Hash32,            // l
+    pub lookup_anchor_timeslot: u32,                  // t
+    pub prerequisite_work_packages: BTreeSet<Hash32>, // p;
 }
 
 impl JamEncode for RefinementContext {
@@ -344,7 +348,7 @@ impl JamEncode for RefinementContext {
             + self.beefy_root.size_hint()
             + self.lookup_anchor_header_hash.size_hint()
             + 4
-            + self.prerequisite_work_package.size_hint()
+            + self.prerequisite_work_packages.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -353,7 +357,7 @@ impl JamEncode for RefinementContext {
         self.beefy_root.encode_to(dest)?;
         self.lookup_anchor_header_hash.encode_to(dest)?;
         self.lookup_anchor_timeslot.encode_to_fixed(dest, 4)?;
-        self.prerequisite_work_package.encode_to(dest)?;
+        self.prerequisite_work_packages.encode_to(dest)?;
         Ok(())
     }
 }
@@ -369,7 +373,7 @@ impl JamDecode for RefinementContext {
             beefy_root: Hash32::decode(input)?,
             lookup_anchor_header_hash: Hash32::decode(input)?,
             lookup_anchor_timeslot: u32::decode_fixed(input, 4)?,
-            prerequisite_work_package: Option::<Hash32>::decode(input)?,
+            prerequisite_work_packages: BTreeSet::<Hash32>::decode(input)?,
         })
     }
 }
@@ -389,7 +393,7 @@ impl JamEncode for AvailabilitySpecs {
             + 4
             + self.erasure_root.size_hint()
             + self.segment_root.size_hint()
-        // + 2 // FIXME: uncomment after test vector updates
+            + 2
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
@@ -397,7 +401,7 @@ impl JamEncode for AvailabilitySpecs {
         self.work_package_length.encode_to_fixed(dest, 4)?;
         self.erasure_root.encode_to(dest)?;
         self.segment_root.encode_to(dest)?;
-        // self.segment_count.encode_to_fixed(dest, 2)?; // FIXME: uncomment after test vector updates
+        self.segment_count.encode_to_fixed(dest, 2)?;
         Ok(())
     }
 }

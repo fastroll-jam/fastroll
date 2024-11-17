@@ -23,7 +23,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    const PATH_PREFIX: &str = "jamtestvectors-codec-with-lookup/codec/data";
+    const PATH_PREFIX: &str = "jamtestvectors-new-codec/codec/data";
 
     #[allow(dead_code)]
     pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {
@@ -46,7 +46,7 @@ mod tests {
     pub fn test_round_trip<RjamType, AsnType>(filename: &str)
     where
         RjamType: JamEncode + JamDecode + From<AsnType> + Debug,
-        AsnType: Serialize + DeserializeOwned, // TODO: + From<T>,
+        AsnType: Serialize + DeserializeOwned, // TODO: + From<RjamType>,
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{}.json", filename));
         let asn_type: AsnType =

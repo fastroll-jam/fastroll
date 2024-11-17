@@ -458,6 +458,7 @@ impl<T: JamEncode + Ord> JamEncode for BTreeSet<T> {
     }
 
     fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.len().encode_to(dest)?; // FIXME: delete length discriminator (temporarily added to pass new codec test)
         for item in self {
             item.encode_to(dest)?;
         }

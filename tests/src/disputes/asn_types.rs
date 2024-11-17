@@ -3,12 +3,10 @@ use crate::{
         ByteArray32, ByteArray64, Ed25519Key, Ed25519Signature, TimeSlot, ValidatorsData,
         CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
     },
-    test_utils::{deserialize_hex_array, serialize_hex_array},
+    codec::asn_types::AsnWorkReport,
 };
-use rjam_codec::{JamDecode, JamEncode};
 use rjam_common::{ByteArray, FLOOR_TWO_THIRDS_VALIDATOR_COUNT};
 use rjam_types::{
-    common::workloads::WorkReport,
     extrinsics::disputes::{
         Culprit, DisputesExtrinsic, Fault, Judgment, OffendersHeaderMarker, Verdict,
     },
@@ -26,29 +24,14 @@ pub type EpochIndex = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AvailabilityAssignment {
-    #[serde(
-        serialize_with = "serialize_hex_array",
-        deserialize_with = "deserialize_hex_array"
-    )]
-    pub dummy_work_report: [u8; 353],
+    pub report: AsnWorkReport,
     pub timeout: u32,
-}
-
-fn encode_to_dummy_report<T>(data: T) -> [u8; 353]
-where
-    T: JamEncode + JamDecode,
-{
-    data.encode().unwrap().try_into().unwrap()
-}
-
-fn decode_from_dummy_report(data: &[u8; 353]) -> WorkReport {
-    WorkReport::decode(&mut data.as_slice()).unwrap()
 }
 
 impl From<PendingReport> for AvailabilityAssignment {
     fn from(value: PendingReport) -> Self {
         Self {
-            dummy_work_report: encode_to_dummy_report(value.work_report),
+            report: value.work_report.into(),
             timeout: value.timeslot.0,
         }
     }
@@ -57,7 +40,7 @@ impl From<PendingReport> for AvailabilityAssignment {
 impl From<AvailabilityAssignment> for PendingReport {
     fn from(value: AvailabilityAssignment) -> Self {
         Self {
-            work_report: WorkReport::decode(&mut value.dummy_work_report.as_slice()).unwrap(),
+            work_report: value.report.into(),
             timeslot: Timeslot::new(value.timeout),
         }
     }
@@ -73,7 +56,7 @@ impl From<AvailabilityAssignments> for PendingReports {
         for (i, item) in value.0.iter().enumerate() {
             reports[i] = match item {
                 Some(assignment) => {
-                    let work_report = decode_from_dummy_report(&assignment.dummy_work_report);
+                    let work_report = assignment.clone().report.into();
                     let pending_report = PendingReport {
                         work_report,
                         timeslot: Timeslot::new(assignment.timeout),
@@ -95,10 +78,9 @@ impl From<PendingReports> for AvailabilityAssignments {
         for (i, report_option) in value.0.iter().enumerate() {
             assignments[i] = match report_option {
                 Some(pending_report) => {
-                    let dummy_work_report =
-                        encode_to_dummy_report(pending_report.work_report.clone());
+                    let report = pending_report.clone().work_report.into();
                     let assignment = AvailabilityAssignment {
-                        dummy_work_report,
+                        report,
                         timeout: pending_report.timeslot.0,
                     };
                     Some(assignment)

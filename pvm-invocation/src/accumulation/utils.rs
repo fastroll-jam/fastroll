@@ -7,11 +7,8 @@ use std::collections::{BTreeSet, HashMap};
 
 /// Represents function `D` of the GP.
 fn construct_deferred_reports(report: WorkReport) -> DeferredWorkReport {
-    let deps: BTreeSet<WorkPackageHash> = report
-        .prerequisite()
-        .into_iter()
-        .chain(report.segment_roots_lookup().keys().cloned())
-        .collect();
+    let mut deps = report.prerequisite().clone();
+    deps.extend(report.segment_roots_lookup().keys().cloned());
 
     (report, deps)
 }
@@ -105,7 +102,7 @@ pub fn partition_reports_by_dependencies(
     available_reports: Vec<WorkReport>,
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
     let (without_deps, with_deps) = available_reports.into_iter().partition(|report| {
-        report.prerequisite().is_none() && report.segment_roots_lookup().is_empty()
+        report.prerequisite().is_empty() && report.segment_roots_lookup().is_empty()
     });
 
     (without_deps, with_deps)

@@ -1,9 +1,6 @@
-use crate::asn_types::*;
+use crate::{asn_types::*, disputes::asn_types::DisputesXt};
 use bit_vec::BitVec;
-use rjam_common::{
-    ByteArray, ByteSequence, Hash32, Octets, Ticket, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
-    VALIDATOR_COUNT,
-};
+use rjam_common::{ByteArray, ByteSequence, Hash32, Octets, Ticket, VALIDATOR_COUNT};
 use rjam_types::{
     block::{
         header::{BlockHeader, EpochMarker},
@@ -19,7 +16,6 @@ use rjam_types::{
     },
     extrinsics::{
         assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
-        disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, Verdict},
         guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
         preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry},
         tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
@@ -29,14 +25,14 @@ use rjam_types::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, ops::Deref};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RefineContext {
     pub anchor: OpaqueHash,
     pub state_root: OpaqueHash,
     pub beefy_root: OpaqueHash,
     pub lookup_anchor: OpaqueHash,
     pub lookup_anchor_slot: TimeSlot,
-    pub prerequisite: Option<OpaqueHash>,
+    pub prerequisites: Vec<OpaqueHash>,
 }
 
 impl From<RefineContext> for RefinementContext {
@@ -47,7 +43,28 @@ impl From<RefineContext> for RefinementContext {
             beefy_root: ByteArray::new(value.beefy_root.0),
             lookup_anchor_header_hash: ByteArray::new(value.lookup_anchor.0),
             lookup_anchor_timeslot: value.lookup_anchor_slot,
-            prerequisite_work_package: value.prerequisite.map(|h| ByteArray::new(h.0)),
+            prerequisite_work_packages: value
+                .prerequisites
+                .into_iter()
+                .map(|h| ByteArray::new(h.0))
+                .collect(),
+        }
+    }
+}
+
+impl From<RefinementContext> for RefineContext {
+    fn from(value: RefinementContext) -> Self {
+        Self {
+            anchor: ByteArray32(value.anchor_header_hash.0),
+            state_root: ByteArray32(value.anchor_state_root.0),
+            beefy_root: ByteArray32(value.beefy_root.0),
+            lookup_anchor: ByteArray32(value.lookup_anchor_header_hash.0),
+            lookup_anchor_slot: value.lookup_anchor_timeslot,
+            prerequisites: value
+                .prerequisite_work_packages
+                .into_iter()
+                .map(|h| ByteArray32(h.0))
+                .collect(),
         }
     }
 }
@@ -159,7 +176,7 @@ impl From<AsnWorkPackage> for WorkPackage {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum WorkExecResult {
     ok(AsnByteSequence),
     out_of_gas,
@@ -180,9 +197,21 @@ impl From<WorkExecResult> for WorkExecutionOutput {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+impl From<WorkExecutionOutput> for WorkExecResult {
+    fn from(value: WorkExecutionOutput) -> Self {
+        match value {
+            WorkExecutionOutput::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
+            WorkExecutionOutput::Error(OutOfGas) => Self::out_of_gas,
+            WorkExecutionOutput::Error(UnexpectedTermination) => Self::panic,
+            WorkExecutionOutput::Error(ServiceCodeLookupError) => Self::bad_code,
+            WorkExecutionOutput::Error(CodeSizeExceeded) => Self::code_oversize,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkResult {
-    pub service: u32,
+    pub service_id: u32,
     pub code_hash: OpaqueHash,
     pub payload_hash: OpaqueHash,
     pub gas: u64,
@@ -192,7 +221,7 @@ pub struct WorkResult {
 impl From<WorkResult> for WorkItemResult {
     fn from(value: WorkResult) -> Self {
         Self {
-            service_index: value.service,
+            service_index: value.service_id,
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_hash: ByteArray::new(value.payload_hash.0),
             gas_prioritization_ratio: value.gas,
@@ -201,36 +230,61 @@ impl From<WorkResult> for WorkItemResult {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+impl From<WorkItemResult> for WorkResult {
+    fn from(value: WorkItemResult) -> Self {
+        Self {
+            service_id: value.service_index,
+            code_hash: ByteArray32(value.service_code_hash.0),
+            payload_hash: ByteArray32(value.payload_hash.0),
+            gas: value.gas_prioritization_ratio,
+            result: value.refinement_output.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkPackageSpec {
     pub hash: OpaqueHash,
-    pub len: u32,
+    pub length: u32,
     pub erasure_root: OpaqueHash,
     pub exports_root: OpaqueHash,
+    pub exports_count: u16,
 }
 
 impl From<WorkPackageSpec> for AvailabilitySpecs {
     fn from(value: WorkPackageSpec) -> Self {
         Self {
             work_package_hash: ByteArray::new(value.hash.0),
-            work_package_length: value.len,
+            work_package_length: value.length,
             erasure_root: ByteArray::new(value.erasure_root.0),
             segment_root: ByteArray::new(value.exports_root.0),
-            segment_count: 0, // FIXME: fix after test vector updates
+            segment_count: value.exports_count as usize,
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+impl From<AvailabilitySpecs> for WorkPackageSpec {
+    fn from(value: AvailabilitySpecs) -> Self {
+        Self {
+            hash: ByteArray32(value.work_package_hash.0),
+            length: value.work_package_length,
+            erasure_root: ByteArray32(value.erasure_root.0),
+            exports_root: ByteArray32(value.segment_root.0),
+            exports_count: value.segment_count as u16,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SegmentRootLookupItem {
     pub work_package_hash: OpaqueHash,
     pub segment_tree_root: OpaqueHash,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(transparent)]
 pub struct AsnSegmentRootLookupTable {
-    items: Vec<SegmentRootLookupItem>,
+    pub items: Vec<SegmentRootLookupItem>,
 }
 
 impl Deref for AsnSegmentRootLookupTable {
@@ -255,7 +309,21 @@ impl From<AsnSegmentRootLookupTable> for SegmentRootLookupTable {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+impl From<SegmentRootLookupTable> for AsnSegmentRootLookupTable {
+    fn from(value: SegmentRootLookupTable) -> Self {
+        let mut items: Vec<SegmentRootLookupItem> = Vec::with_capacity(value.len());
+        for (key, value) in value.iter() {
+            items.push(SegmentRootLookupItem {
+                work_package_hash: ByteArray32(key.0),
+                segment_tree_root: ByteArray32(value.0),
+            })
+        }
+
+        AsnSegmentRootLookupTable { items }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnWorkReport {
     pub package_spec: WorkPackageSpec,
     pub context: RefineContext,
@@ -284,7 +352,19 @@ impl From<AsnWorkReport> for WorkReport {
     }
 }
 
-// TODO: reuse from other test ASN types (e.g., Safrole)
+impl From<WorkReport> for AsnWorkReport {
+    fn from(value: WorkReport) -> Self {
+        Self {
+            package_spec: value.specs.into(),
+            context: value.refinement_context.into(),
+            core_index: value.core_index,
+            authorizer_hash: ByteArray32(value.authorizer_hash.0),
+            auth_output: AsnByteSequence(value.authorization_output.0),
+            segment_root_lookup: value.segment_roots_lookup.into(),
+            results: value.results.into_iter().map(WorkResult::from).collect(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EpochMark {
@@ -387,99 +467,6 @@ impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
                 .into_iter()
                 .map(TicketsExtrinsicEntry::from)
                 .collect(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnJudgement {
-    pub vote: bool,
-    pub index: u16,
-    pub signature: Ed25519Signature,
-}
-
-impl From<AsnJudgement> for Judgment {
-    fn from(value: AsnJudgement) -> Self {
-        Self {
-            is_report_valid: value.vote,
-            voter: value.index,
-            voter_signature: ByteArray::new(value.signature.0),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnVerdict {
-    pub target: OpaqueHash,
-    pub age: u32,
-    pub votes: Vec<AsnJudgement>, // SIZE(validators-super-majority)
-}
-
-impl From<AsnVerdict> for Verdict {
-    fn from(value: AsnVerdict) -> Self {
-        let mut judgments: [Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1] = Default::default();
-
-        for (i, vote) in value.votes.into_iter().enumerate() {
-            judgments[i] = vote.into()
-        }
-
-        Self {
-            report_hash: ByteArray::new(value.target.0),
-            epoch_index: value.age,
-            judgments: Box::new(judgments),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnCulprit {
-    pub target: OpaqueHash,
-    pub key: Ed25519Key,
-    pub signature: Ed25519Signature,
-}
-
-impl From<AsnCulprit> for Culprit {
-    fn from(value: AsnCulprit) -> Self {
-        Self {
-            report_hash: ByteArray::new(value.target.0),
-            validator_key: ByteArray::new(value.key.0),
-            signature: ByteArray::new(value.signature.0),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnFault {
-    pub target: OpaqueHash,
-    pub vote: bool,
-    pub key: Ed25519Key,
-    pub signature: Ed25519Signature,
-}
-
-impl From<AsnFault> for Fault {
-    fn from(value: AsnFault) -> Self {
-        Self {
-            report_hash: ByteArray::new(value.target.0),
-            is_report_valid: value.vote,
-            validator_key: ByteArray::new(value.key.0),
-            signature: ByteArray::new(value.signature.0),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnDisputesExtrinsic {
-    pub verdicts: Vec<AsnVerdict>,
-    pub culprits: Vec<AsnCulprit>,
-    pub faults: Vec<AsnFault>,
-}
-
-impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
-    fn from(value: AsnDisputesExtrinsic) -> Self {
-        Self {
-            verdicts: value.verdicts.into_iter().map(Verdict::from).collect(),
-            culprits: value.culprits.into_iter().map(Culprit::from).collect(),
-            faults: value.faults.into_iter().map(Fault::from).collect(),
         }
     }
 }
@@ -610,6 +597,8 @@ impl From<AsnGuaranteesExtrinsic> for GuaranteesExtrinsic {
         }
     }
 }
+
+pub type AsnDisputesExtrinsic = DisputesXt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnExtrinsic {

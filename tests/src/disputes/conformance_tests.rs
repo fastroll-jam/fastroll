@@ -226,10 +226,9 @@ mod tests {
         // Auditor marked as offender, but vote matches the verdict.
         progress_with_faults_7: "progress_with_faults-7.json",
 
-        // TODO: Fails decoding dummy work report.
         // Success
         // Invalidation of availability assignments.
-        // progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
+        progress_invalidates_avail_assignments_1: "progress_invalidates_avail_assignments-1.json",
 
         // Fail
         // Bad signature within the verdict judgements.

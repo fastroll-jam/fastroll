@@ -64,7 +64,7 @@ pub type Reports = Vec<Reported>;
 // Recorded disputes sequences and offenders
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlockInfo {
-    hash: Hash,
+    header_hash: Hash,
     mmr: Mmr,
     state_root: Hash,
     reported: Reports,
@@ -73,7 +73,7 @@ pub struct BlockInfo {
 impl From<BlockInfo> for BlockHistoryEntry {
     fn from(value: BlockInfo) -> Self {
         Self {
-            header_hash: ByteArray::new(value.hash.0),
+            header_hash: ByteArray::new(value.header_hash.0),
             accumulation_result_mmr: value.mmr.into(),
             state_root: ByteArray::new(value.state_root.0),
             reported_packages: value
@@ -91,7 +91,7 @@ impl From<BlockInfo> for BlockHistoryEntry {
 impl From<BlockHistoryEntry> for BlockInfo {
     fn from(value: BlockHistoryEntry) -> Self {
         Self {
-            hash: Hash(value.header_hash.0),
+            header_hash: Hash(value.header_hash.0),
             mmr: value.accumulation_result_mmr.into(),
             state_root: Hash(value.state_root.0),
             reported: value
