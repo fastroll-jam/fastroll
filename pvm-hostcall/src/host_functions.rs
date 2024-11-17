@@ -643,8 +643,9 @@ impl HostFunction {
             }));
         }
 
-        let transfer_memo =
-            JamDecode::decode(&mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..])?;
+        let transfer_memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
+            &mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..],
+        )?;
 
         let transfer = DeferredTransfer {
             from: sender_address,
@@ -738,8 +739,9 @@ impl HostFunction {
             }));
         }
 
-        let transfer_memo =
-            JamDecode::decode(&mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..])?;
+        let transfer_memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
+            &mut &memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?[..],
+        )?;
 
         let transfer = DeferredTransfer {
             from: target_address,

@@ -33,10 +33,10 @@ impl JamDecode for FormattedProgram {
         let read_write_len = u32::decode_fixed(input, 3)?;
         let extra_heap_pages = u16::decode_fixed(input, 2)?;
         let stack_size = u32::decode_fixed(input, 3)?;
-        let read_only_data = JamDecodeFixed::decode_fixed(input, read_only_len as usize)?;
-        let read_write_data = JamDecodeFixed::decode_fixed(input, read_write_len as usize)?;
+        let read_only_data = Vec::<u8>::decode_fixed(input, read_only_len as usize)?;
+        let read_write_data = Vec::<u8>::decode_fixed(input, read_write_len as usize)?;
         let code_len = u32::decode_fixed(input, 4)?;
-        let code = JamDecodeFixed::decode_fixed(input, code_len as usize)?;
+        let code = Vec::<u8>::decode_fixed(input, code_len as usize)?;
 
         Ok(Self {
             read_only_len,
@@ -139,7 +139,7 @@ impl ProgramDecoder {
         }
 
         // Decode the instruction sequence (c)
-        let instructions = JamDecodeFixed::decode_fixed(&mut input, instructions_len)?;
+        let instructions = Vec::<u8>::decode_fixed(&mut input, instructions_len)?;
 
         // Decode the opcode bitmask (k)
         // The length of `k` must be equivalent to the length of `c`, |k| = |c|
