@@ -85,16 +85,16 @@ mod tests {
     }
 
     generate_codec_tests! {
-        // assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
-        // block: ("block", Block, AsnBlock),
+        assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
+        block: ("block", Block, AsnBlock),
         disputes_extrinsic: ("disputes_extrinsic", DisputesExtrinsic, AsnDisputesExtrinsic),
-        // extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
-        // guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
+        extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
+        guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
-        // preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
+        preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
         refine_context: ("refine_context", RefinementContext, RefineContext),
-        // tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic), // TODO: check - test vector encodes "attempt" first, but the GP says to encode "signature" first.
+        tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic),
         work_item: ("work_item", WorkItem, AsnWorkItem),
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
         work_report: ("work_report", WorkReport, AsnWorkReport),

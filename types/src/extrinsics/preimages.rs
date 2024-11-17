@@ -1,4 +1,6 @@
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{Address, Octets};
 use std::ops::Deref;
 
@@ -24,10 +26,34 @@ impl PreimageLookupsExtrinsic {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct PreimageLookupsExtrinsicEntry {
     pub service_index: Address, // requester of the preimage data
     pub preimage_data: Octets,
+}
+
+impl JamEncode for PreimageLookupsExtrinsicEntry {
+    fn size_hint(&self) -> usize {
+        4 + self.preimage_data.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_index.encode_to_fixed(dest, 4)?; // TODO: check - Not fixed encoding in GP
+        self.preimage_data.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for PreimageLookupsExtrinsicEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            service_index: Address::decode_fixed(input, 4)?,
+            preimage_data: Octets::decode(input)?,
+        })
+    }
 }
 
 impl PreimageLookupsExtrinsicEntry {

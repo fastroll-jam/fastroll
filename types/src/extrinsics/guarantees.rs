@@ -5,8 +5,6 @@ use rjam_codec::{
 use rjam_common::{Ed25519Signature, ValidatorIndex};
 use std::{cmp::Ordering, ops::Deref};
 
-pub type GuaranteesCredential = (ValidatorIndex, Ed25519Signature);
-
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
 #[derive(Debug, JamEncode, JamDecode)]
@@ -19,6 +17,36 @@ impl Deref for GuaranteesExtrinsic {
 
     fn deref(&self) -> &Self::Target {
         &self.items
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GuaranteesCredential {
+    pub validator_index: ValidatorIndex,
+    pub signature: Ed25519Signature,
+}
+
+impl JamEncode for GuaranteesCredential {
+    fn size_hint(&self) -> usize {
+        2 + self.signature.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.validator_index.encode_to_fixed(dest, 2)?; // TODO: check - Not fixed encoding in GP
+        self.signature.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for GuaranteesCredential {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            validator_index: ValidatorIndex::decode_fixed(input, 2)?,
+            signature: Ed25519Signature::decode(input)?,
+        })
     }
 }
 
@@ -94,15 +122,18 @@ impl GuaranteesExtrinsicEntry {
         if self
             .credentials
             .iter()
-            .any(|&(idx, _)| idx == validator_index)
+            .any(|credential| credential.validator_index == validator_index)
         {
             return Err(ExtrinsicsError::DuplicateValidatorIndex);
         }
 
-        self.credentials.push((validator_index, signature));
+        self.credentials.push(GuaranteesCredential {
+            validator_index,
+            signature,
+        });
 
         // Sort the credentials by validator_index
-        self.credentials.sort_by_key(|&(idx, _)| idx);
+        self.credentials.sort();
 
         Ok(())
     }

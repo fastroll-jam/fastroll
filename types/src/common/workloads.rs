@@ -245,7 +245,7 @@ impl JamEncode for WorkReport {
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         self.specs.encode_to(dest)?;
         self.refinement_context.encode_to(dest)?;
-        self.core_index.encode_to_fixed(dest, 2)?; // TODO: check - GP doesn't use fixed encoding here but test vector assumes fixed encoding for u16 core indices
+        self.core_index.encode_to_fixed(dest, 2)?; // TODO: check - Not fixed encoding in GP
         self.authorizer_hash.encode_to(dest)?;
         self.authorization_output.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;

@@ -20,7 +20,7 @@ use rjam_types::{
     extrinsics::{
         assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
         disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, Verdict},
-        guarantees::{GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
+        guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
         preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry},
         tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
         Extrinsics,
@@ -507,11 +507,23 @@ pub struct AvailAssurance {
     pub signature: Ed25519Signature,
 }
 
+// Example: 0x01 => 0b0000_0001 => (truncate num_bits) => 0b01 => BitVec([1, 0])
+fn bytes_to_bitvec(bytes: &[u8], num_bits: usize) -> BitVec {
+    let bitvec = BitVec::from_bytes(bytes);
+    let mut bitvec_rev = BitVec::new();
+    for bit in bitvec.iter().rev() {
+        bitvec_rev.push(bit);
+    }
+
+    bitvec_rev.truncate(num_bits);
+    bitvec_rev
+}
+
 impl From<AvailAssurance> for AssurancesExtrinsicEntry {
     fn from(value: AvailAssurance) -> Self {
         Self {
             anchor_parent_hash: ByteArray::new(value.anchor.0),
-            assuring_cores_bitvec: BitVec::from_bytes(&value.bitfield.0),
+            assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, CORE_COUNT),
             validator_index: value.validator_index,
             signature: ByteArray::new(value.signature.0),
         }
@@ -522,6 +534,15 @@ impl From<AvailAssurance> for AssurancesExtrinsicEntry {
 pub struct ValidatorSignature {
     pub validator_index: u16,
     pub signature: Ed25519Signature,
+}
+
+impl From<ValidatorSignature> for GuaranteesCredential {
+    fn from(value: ValidatorSignature) -> Self {
+        Self {
+            validator_index: value.validator_index,
+            signature: ByteArray::new(value.signature.0),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -539,7 +560,7 @@ impl From<ReportGuarantee> for GuaranteesExtrinsicEntry {
             credentials: value
                 .signatures
                 .into_iter()
-                .map(|sig| (sig.validator_index, ByteArray::new(sig.signature.0)))
+                .map(GuaranteesCredential::from)
                 .collect(),
         }
     }

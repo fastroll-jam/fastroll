@@ -49,15 +49,13 @@ impl Ord for AssurancesExtrinsicEntry {
 
 impl JamEncode for AssurancesExtrinsicEntry {
     fn size_hint(&self) -> usize {
-        self.anchor_parent_hash.size_hint()
-            + self.assuring_cores_bitvec.size_hint()
-            + 2
-            + self.signature.size_hint()
+        self.anchor_parent_hash.size_hint() + (CORE_COUNT + 7) / 8 + 2 + self.signature.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.anchor_parent_hash.encode_to(dest)?;
-        self.assuring_cores_bitvec.encode_to(dest)?;
+        self.assuring_cores_bitvec
+            .encode_to_fixed(dest, CORE_COUNT)?;
         self.validator_index.encode_to_fixed(dest, 2)?;
         self.signature.encode_to(dest)?;
         Ok(())

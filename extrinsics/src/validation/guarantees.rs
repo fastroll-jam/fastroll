@@ -311,7 +311,9 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
         // Duplicate validation of validator indices
         let mut validator_indices = HashSet::new();
-        let no_duplicate_indices = credentials.iter().all(|c| validator_indices.insert(c.0));
+        let no_duplicate_indices = credentials
+            .iter()
+            .all(|c| validator_indices.insert(c.validator_index));
         if !no_duplicate_indices {
             return Err(DuplicateGuarantor);
         }

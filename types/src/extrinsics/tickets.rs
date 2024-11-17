@@ -18,10 +18,11 @@ impl Deref for TicketsExtrinsic {
     }
 }
 
+// TODO: check - test vector encodes "attempt" first, but GP encodes "signature" first.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsExtrinsicEntry {
-    pub ticket_proof: BandersnatchRingVrfSignature, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
     pub entry_index: u8,                            // r; N_N
+    pub ticket_proof: BandersnatchRingVrfSignature, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
 }
 
 impl PartialOrd for TicketsExtrinsicEntry {
