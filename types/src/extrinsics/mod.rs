@@ -19,13 +19,12 @@ pub enum ExtrinsicsError {
     InvalidCredentialCount,
 }
 
-// TODO: Fix ordering after test vectors get updated
 /// Struct used for Extrinsics serialization
 #[derive(Debug, JamEncode, JamDecode)]
 pub struct Extrinsics {
     pub tickets: TicketsExtrinsic,
-    pub disputes: DisputesExtrinsic,
     pub preimage_lookups: PreimageLookupsExtrinsic,
-    pub assurances: AssurancesExtrinsic,
     pub guarantees: GuaranteesExtrinsic,
+    pub assurances: AssurancesExtrinsic,
+    pub disputes: DisputesExtrinsic,
 }
