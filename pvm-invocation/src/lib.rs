@@ -6,13 +6,10 @@ use rjam_common::{
 };
 use rjam_crypto::octets_to_hash32;
 use rjam_pvm::{CommonInvocationResult, PVM};
-use rjam_pvm_core::{
-    state::memory::MemAddress,
-    types::{
-        accumulation::AccumulateOperand,
-        common::ExportDataSegment,
-        error::{HostCallError::InvalidContext, PVMError},
-    },
+use rjam_pvm_core::types::{
+    accumulation::AccumulateOperand,
+    common::{ExportDataSegment, RegValue},
+    error::{HostCallError::InvalidContext, PVMError},
 };
 use rjam_pvm_hostcall::contexts::{
     AccumulateContext, AccumulateContextPair, InvocationContext, RefineContext,
@@ -27,10 +24,10 @@ use rjam_types::{
 };
 
 // Initial Program Counters
-const IS_AUTHORIZED_INITIAL_PC: MemAddress = 0;
-const REFINE_INITIAL_PC: MemAddress = 5;
-const ACCUMULATE_INITIAL_PC: MemAddress = 10;
-const ON_TRANSFER_INITIAL_PC: MemAddress = 15;
+const IS_AUTHORIZED_INITIAL_PC: RegValue = 0;
+const REFINE_INITIAL_PC: RegValue = 5;
+const ACCUMULATE_INITIAL_PC: RegValue = 10;
+const ON_TRANSFER_INITIAL_PC: RegValue = 15;
 
 // TODO: Fix constants
 // Gas Allocations

@@ -4,9 +4,12 @@ use crate::{
     },
     program::opcode::*,
     state::memory::MemAddress,
-    types::error::{
-        PVMError, VMCoreError,
-        VMCoreError::{InvalidInstructionFormat, InvalidProgram},
+    types::{
+        common::RegValue,
+        error::{
+            PVMError, VMCoreError,
+            VMCoreError::{InvalidInstructionFormat, InvalidProgram},
+        },
     },
     utils::VMUtils,
 };
@@ -66,13 +69,13 @@ impl FormattedProgram {
 
 #[derive(Debug)]
 pub struct Instruction {
-    pub op: Opcode,          // opcode
-    pub r1: Option<usize>,   // first source register index
-    pub r2: Option<usize>,   // second source register index
-    pub rd: Option<usize>,   // destination register index
-    pub imm1: Option<u32>,   // first immediate value argument
-    pub imm2: Option<u32>,   // second immediate value argument
-    pub offset: Option<i32>, // offset argument
+    pub op: Opcode,             // opcode
+    pub r1: Option<usize>,      // first source register index
+    pub r2: Option<usize>,      // second source register index
+    pub rd: Option<usize>,      // destination register index
+    pub imm1: Option<RegValue>, // first immediate value argument
+    pub imm2: Option<RegValue>, // second immediate value argument
+    pub offset: Option<i64>,    // offset argument
 }
 
 impl Instruction {
@@ -81,9 +84,9 @@ impl Instruction {
         r1: Option<usize>,
         r2: Option<usize>,
         rd: Option<usize>,
-        imm1: Option<u32>,
-        imm2: Option<u32>,
-        offset: Option<i32>,
+        imm1: Option<RegValue>,
+        imm2: Option<RegValue>,
+        offset: Option<i64>,
     ) -> Result<Self, PVMError> {
         // Validate register indices
         for &reg in [rd, r1, r2].iter().flatten() {
@@ -155,17 +158,18 @@ impl ProgramDecoder {
     /// Extracts and processes an immediate value from the instruction blob.
     pub fn extract_imm_value(
         inst_blob: &[u8],
-        l_x: usize,
+        imm_size: usize,
         start_index: usize,
-        end_index: usize,
-    ) -> Result<u32, PVMError> {
-        if l_x > 0 {
-            let mut buffer = [0u8; 4];
-            buffer[..l_x].copy_from_slice(&inst_blob[start_index..end_index]);
-            Ok(
-                VMUtils::signed_extend(l_x as u32, u32::decode_fixed(&mut &buffer[..l_x], l_x)?)
-                    .unwrap(),
+        end_index: usize, // TODO: accept offset instead
+    ) -> Result<RegValue, PVMError> {
+        if imm_size > 0 {
+            let mut buffer = [0u8; 8];
+            buffer[..imm_size].copy_from_slice(&inst_blob[start_index..end_index]);
+            Ok(VMUtils::signed_extend(
+                u64::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
+                imm_size,
             )
+            .ok_or(PVMError::VMCoreError(InvalidInstructionFormat))?)
         } else {
             Ok(0)
         }
@@ -173,22 +177,25 @@ impl ProgramDecoder {
 
     /// Extracts and processes an immediate address (pc increment) value from the instruction blob.
     pub fn extract_imm_address(
-        pc: MemAddress,
+        pc: RegValue,
         inst_blob: &[u8],
-        l_y: usize,
+        imm_size: usize,
         start_index: usize,
         end_index: usize,
-    ) -> Result<i32, PVMError> {
-        let pc_increment = if l_y > 0 {
+    ) -> Result<i64, PVMError> {
+        let pc_increment = if imm_size > 0 {
             let mut buffer = [0u8; 4];
-            buffer[..l_y].copy_from_slice(&inst_blob[start_index..end_index]);
-            VMUtils::unsigned_to_signed(l_y as u32, u32::decode_fixed(&mut &buffer[..l_y], l_y)?)
-                .unwrap()
+            buffer[..imm_size].copy_from_slice(&inst_blob[start_index..end_index]);
+            VMUtils::unsigned_to_signed(
+                imm_size as u64,
+                u64::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
+            )
+            .ok_or(PVMError::VMCoreError(InvalidInstructionFormat))?
         } else {
             0
         };
 
-        Ok(pc as i32 + pc_increment)
+        Ok(pc as i64 + pc_increment)
     }
 
     /// Decodes a single instruction blob into an `Instruction` type.
@@ -201,7 +208,7 @@ impl ProgramDecoder {
     /// The opcode is represented by the first byte of the instruction blob.
     pub fn decode_instruction(
         inst_blob: &[u8],
-        current_pc: MemAddress,
+        current_pc: RegValue,
         skip_distance: usize,
     ) -> Result<Instruction, PVMError> {
         use crate::program::opcode::Opcode::*;

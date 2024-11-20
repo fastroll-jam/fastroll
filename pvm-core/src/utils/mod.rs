@@ -1,4 +1,7 @@
-use crate::constants::{PAGE_SIZE, SEGMENT_SIZE};
+use crate::{
+    constants::{PAGE_SIZE, SEGMENT_SIZE},
+    types::common::RegValue,
+};
 use bit_vec::BitVec;
 
 pub struct VMUtils;
@@ -26,20 +29,20 @@ impl VMUtils {
     /// Represents `Z_n` of the GP
     /// # Arguments
     ///
-    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `n`: The number of octets in the integer.
     /// * `a`: The unsigned integer to convert.
     ///
     /// # Returns
     ///
     /// The signed equivalent of the input, or None if `n` is 0 or greater than 4.
-    pub fn unsigned_to_signed(n: u32, a: u32) -> Option<i32> {
+    pub fn unsigned_to_signed(n: u64, a: u64) -> Option<i64> {
         match n {
-            1..=4 => {
-                let max_positive = 1u32 << (8 * n - 1);
+            1..=8 => {
+                let max_positive = 1u64 << (8 * n - 1);
                 if a < max_positive {
-                    Some(a as i32)
+                    Some(a as i64)
                 } else {
-                    Some((a as i32) - (1i32 << (8 * n)))
+                    Some((a as i64) - (1i64 << (8 * n)))
                 }
             }
             _ => None,
@@ -51,17 +54,17 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `n`: The number of octets in the integer.
     /// * `a`: The signed integer to convert.
     ///
     /// # Returns
     ///
-    /// The unsigned equivalent of the input, or None if `n` is 0 or greater than 4.
-    pub fn signed_to_unsigned(n: u32, a: i32) -> Option<u32> {
+    /// The unsigned equivalent of the input, or None if `n` is 0 or greater than 8.
+    pub fn signed_to_unsigned(n: u64, a: i64) -> Option<u64> {
         match n {
-            1..=4 => {
-                let modulus = 1u32 << (8 * n);
-                Some(((modulus as i64 + a as i64) % modulus as i64) as u32)
+            1..=8 => {
+                let modulus = 1i64 << (8 * n);
+                Some(((modulus + a) % modulus) as u64)
             }
             _ => None,
         }
@@ -72,16 +75,16 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `n`: The number of octets in the integer.
     /// * `x`: The unsigned integer to convert.
     ///
     /// # Returns
     ///
     /// A vector of booleans representing the binary form of the input,
-    /// or None if `n` is 0 or greater than 4.
-    pub fn int_to_bitvec(n: u32, x: u32) -> Option<BitVec> {
+    /// or None if `n` is 0 or greater than 8.
+    pub fn int_to_bitvec(n: u64, x: u64) -> Option<BitVec> {
         match n {
-            1..=4 => {
+            1..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
                 for i in 0..(8 * n) {
                     result.set(i as usize, (x >> i) & 1 == 1);
@@ -97,14 +100,14 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets (8-bit units) in the integer.
+    /// * `n`: The number of octets in the integer.
     /// * `x`: A vector of booleans representing the binary form.
     ///
     /// # Returns
     ///
     /// The unsigned integer represented by the input binary form,
-    /// or None if `n` is 0 or greater than 4, or if the input vector's length doesn't match 8*n.
-    pub fn bitvec_to_int(n: u32, x: &BitVec) -> Option<u32> {
+    /// or None if `n` is 0 or greater than 8, or if the input vector's length doesn't match 8*n.
+    pub fn bitvec_to_int(n: u64, x: &BitVec) -> Option<u64> {
         if n == 0 || n > 4 || x.len() != (8 * n) as usize {
             return None;
         }
@@ -112,27 +115,35 @@ impl VMUtils {
         Some(
             x.iter()
                 .enumerate()
-                .fold(0, |acc, (i, bit)| acc | ((bit as u32) << i)),
+                .fold(0, |acc, (i, bit)| acc | ((bit as u64) << i)),
         )
     }
 
-    /// Performs signed extension on an unsigned integer.
-    /// Represents `X_n` of the GP
+    /// Performs signed extension on compactly encoded immediate argument octets, so that the
+    /// argument can fit in the 64-bit register.
+    /// Represents `X_n` of the GP.
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets (8-bit units) in the input integer.
-    /// * `x`: The unsigned integer to extend.
+    /// * `compact_val`: The immediate value compactly encoded into an integer type.
+    /// * `n`: The number of octets that the input integer `compact_val` represents.
     ///
     /// # Returns
     ///
-    /// The sign-extended 32-bit unsigned integer, or None if `n` is 0 or greater than 4.
-    pub fn signed_extend(n: u32, x: u32) -> Option<u32> {
+    /// The sign-extended 64-bit unsigned integer, or None if `n` is 0 or greater than 4.
+    pub fn signed_extend<T>(compact_val: T, n: usize) -> Option<RegValue>
+    where
+        T: Into<u64> + Copy,
+    {
         match n {
-            1..=4 => {
-                let msb = x >> (8 * n - 1);
-                let extension = msb * (u32::MAX - (1 << (8 * n)) + 1);
-                Some(x + extension)
+            1..=8 => {
+                let val = compact_val.into();
+                let msb = (val >> (8 * n - 1)) & 1;
+                if msb == 1 {
+                    Some(val + (RegValue::MAX - (1 << (8 * n)) + 1))
+                } else {
+                    Some(val)
+                }
             }
             _ => None,
         }

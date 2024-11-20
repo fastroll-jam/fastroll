@@ -1,5 +1,6 @@
 use crate::host_functions::{HostCallResultConstant, HostCallVMStateChange};
 use rjam_common::UnsignedGas;
+use rjam_pvm_core::types::common::RegValue;
 
 // Zero-padding function for octet sequences
 pub fn zero_pad(mut input: Vec<u8>, block_size: usize) -> Vec<u8> {
@@ -15,7 +16,7 @@ fn create_host_call_state_change(
 ) -> HostCallVMStateChange {
     HostCallVMStateChange {
         gas_usage,
-        r7_write: Some(constant as u32),
+        r7_write: Some(constant as RegValue),
         ..Default::default()
     }
 }

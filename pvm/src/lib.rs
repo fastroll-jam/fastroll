@@ -10,7 +10,7 @@ use rjam_pvm_core::{
         register::Register,
     },
     types::{
-        common::ExitReason,
+        common::{ExitReason, RegValue},
         error::{
             PVMError,
             VMCoreError::{InvalidHostCallType, InvalidProgram, OutOfGas},
@@ -123,10 +123,10 @@ impl PVM {
     }
 
     fn initialize_registers(&mut self, args_len: usize) {
-        self.state.registers[0].value = u32::MAX - (1 << 16) + 1;
-        self.state.registers[1].value = u32::MAX - (2 * SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[7].value = u32::MAX - (SEGMENT_SIZE + INPUT_SIZE) as u32 + 1;
-        self.state.registers[8].value = args_len as u32;
+        self.state.registers[0].value = (1 << 32) - (1 << 16);
+        self.state.registers[1].value = (1 << 32) - (2 * SEGMENT_SIZE + INPUT_SIZE) as RegValue;
+        self.state.registers[7].value = (1 << 32) - (SEGMENT_SIZE + INPUT_SIZE) as RegValue;
+        self.state.registers[8].value = args_len as RegValue;
     }
 
     //
@@ -228,7 +228,7 @@ impl PVM {
         state_manager: &StateManager,
         target_address: Address,
         standard_program: &[u8],
-        pc: MemAddress,
+        pc: RegValue,
         gas: UnsignedGas,
         args: &[u8],
         context: &mut InvocationContext,
@@ -245,7 +245,7 @@ impl PVM {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
             ExitReason::RegularHalt => {
                 let result = pvm.read_memory_bytes(
-                    PVMCore::read_reg(&pvm.state, 10)?,
+                    PVMCore::read_reg_as_mem_address(&pvm.state, 10)?,
                     PVMCore::read_reg(&pvm.state, 11)? as usize,
                 );
 

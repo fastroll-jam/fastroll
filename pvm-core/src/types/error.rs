@@ -36,6 +36,10 @@ pub enum VMCoreError {
     InvalidInstructionFormat,
     #[error("Invalid opcode")]
     InvalidOpcode,
+    #[error("Invalid register value")]
+    InvalidRegValue,
+    #[error("Invalid memory value")]
+    InvalidMemoryValue,
     #[error("Invalid immediate value")]
     InvalidImmediateValue,
     #[error("Invalid host call type")]

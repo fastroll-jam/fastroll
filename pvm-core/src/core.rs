@@ -9,7 +9,10 @@ use crate::{
         memory::{MemAddress, Memory},
         register::Register,
     },
-    types::{common::ExitReason, error::PVMError},
+    types::{
+        common::{ExitReason, RegValue},
+        error::{PVMError, VMCoreError::InvalidRegValue},
+    },
 };
 use bit_vec::BitVec;
 use rjam_common::UnsignedGas;
@@ -24,8 +27,18 @@ pub struct SingleInvocationResult {
 pub struct VMState {
     pub registers: [Register; REGISTERS_COUNT], // omega
     pub memory: Memory,                         // mu
-    pub pc: MemAddress,                         // iota
+    pub pc: RegValue,                           // iota
     pub gas_counter: UnsignedGas,               // xi
+}
+
+impl VMState {
+    pub fn pc(&self) -> RegValue {
+        self.pc
+    }
+
+    pub fn pc_as_mem_address(&self) -> Result<MemAddress, PVMError> {
+        MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegValue))
+    }
 }
 
 /// Immutable VM state (program components)
@@ -41,9 +54,9 @@ pub struct Program {
 /// VM mutable state change set
 #[derive(Default)]
 pub struct StateChange {
-    pub register_writes: Vec<(usize, u32)>,
+    pub register_writes: Vec<(usize, RegValue)>,
     pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
-    pub new_pc: Option<MemAddress>,
+    pub new_pc: Option<RegValue>,
     pub gas_usage: UnsignedGas,
 }
 
@@ -54,14 +67,25 @@ impl PVMCore {
     // PVM util functions
     //
 
-    /// Read a `u32` value stored in a register of the given index
-    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<u32, PVMError> {
-        Ok(vm_state.registers[index].value)
+    /// Read a `u64` value stored in a register of the given index
+    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<RegValue, PVMError> {
+        Ok(vm_state.registers[index].value())
+    }
+
+    pub fn read_reg_as_mem_address(
+        vm_state: &VMState,
+        index: usize,
+    ) -> Result<MemAddress, PVMError> {
+        vm_state.registers[index].as_mem_address()
+    }
+
+    pub fn read_reg_as_reg_index(vm_state: &VMState, index: usize) -> Result<usize, PVMError> {
+        vm_state.registers[index].as_reg_index()
     }
 
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
-    fn skip(pc: MemAddress, instructions: &[u8], opcode_bitmask: &BitVec) -> usize {
+    fn skip(pc: RegValue, instructions: &[u8], opcode_bitmask: &BitVec) -> usize {
         let mut skip_distance = 0;
         let max_skip = 24;
 
@@ -83,8 +107,8 @@ impl PVMCore {
 
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
-    pub fn next_pc(vm_state: &VMState, program: &Program) -> MemAddress {
-        1 + Self::skip(vm_state.pc, &program.instructions, &program.opcode_bitmask) as MemAddress
+    pub fn next_pc(vm_state: &VMState, program: &Program) -> RegValue {
+        1 + Self::skip(vm_state.pc, &program.instructions, &program.opcode_bitmask) as RegValue
     }
 
     /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
@@ -102,7 +126,7 @@ impl PVMCore {
                         let basic_block_start_address = n
                             + 1
                             + Self::skip(
-                                n as MemAddress,
+                                n as RegValue,
                                 &program.instructions,
                                 &program.opcode_bitmask,
                             );
