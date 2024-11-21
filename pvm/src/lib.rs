@@ -1,8 +1,6 @@
 use rjam_common::{Address, UnsignedGas};
 use rjam_pvm_core::{
-    constants::{
-        HOST_CALL_INPUT_REGISTERS_COUNT, INPUT_SIZE, MEMORY_SIZE, PAGE_SIZE, SEGMENT_SIZE,
-    },
+    constants::{HOST_CALL_INPUT_REGISTERS_COUNT, INIT_SIZE, MEMORY_SIZE, PAGE_SIZE, REGION_SIZE},
     core::{PVMCore, Program, VMState},
     program::program_decoder::{FormattedProgram, ProgramDecoder},
     state::{
@@ -64,7 +62,7 @@ impl PVM {
 
         // decode program and check validity
         let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
-        if !formatted_program.check_size_limit() {
+        if !formatted_program.validate_program_size() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
@@ -79,42 +77,43 @@ impl PVM {
         let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
 
         // Program-specific read-only data area (o)
-        let o_start = SEGMENT_SIZE; // Z_Q
+        let o_start = REGION_SIZE; // Z_Q
         let o_end = o_start + fp.read_only_len as usize;
         memory.set_range(o_start, &fp.read_only_data[..], AccessType::ReadOnly);
         memory.set_access_range(
             o_end,
-            SEGMENT_SIZE + VMUtils::p(fp.read_only_len as usize),
+            REGION_SIZE + VMUtils::page_align(fp.read_only_len as usize),
             AccessType::ReadOnly,
         );
 
         // Read-write (heap) data (w)
-        let w_start = 2 * SEGMENT_SIZE + VMUtils::q(fp.read_only_len as usize);
+        let w_start = 2 * REGION_SIZE + VMUtils::region_align(fp.read_only_len as usize);
         memory.heap_start = w_start as MemAddress;
         let w_end = w_start + fp.read_write_len as usize;
         memory.set_range(w_start, &fp.read_write_data[..], AccessType::ReadWrite);
-        let heap_end = w_end + VMUtils::p(fp.read_write_len as usize) - fp.read_write_len as usize
+        let heap_end = w_end + VMUtils::page_align(fp.read_write_len as usize)
+            - fp.read_write_len as usize
             + fp.extra_heap_pages as usize * PAGE_SIZE;
         memory.set_access_range(w_end, heap_end, AccessType::ReadWrite);
 
         // Stack (s)
         let stack_start =
-            (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE - VMUtils::p(fp.stack_size as usize);
-        let stack_end = (1 << 32) - 2 * SEGMENT_SIZE - INPUT_SIZE;
+            (1 << 32) - 2 * REGION_SIZE - INIT_SIZE - VMUtils::page_align(fp.stack_size as usize);
+        let stack_end = (1 << 32) - 2 * REGION_SIZE - INIT_SIZE;
         memory.set_access_range(stack_start, stack_end, AccessType::ReadWrite);
 
         // Arguments
-        let args_start = (1 << 32) - SEGMENT_SIZE - INPUT_SIZE;
+        let args_start = (1 << 32) - REGION_SIZE - INIT_SIZE;
         let args_end = args_start + args.len();
         memory.set_range(args_start, args, AccessType::ReadOnly);
         memory.set_access_range(
             args_end,
-            (1 << 32) - SEGMENT_SIZE - INPUT_SIZE + VMUtils::p(args.len()),
+            (1 << 32) - REGION_SIZE - INIT_SIZE + VMUtils::page_align(args.len()),
             AccessType::ReadOnly,
         );
 
         // Other addresses are inaccessible
-        memory.set_access_range(0, SEGMENT_SIZE, AccessType::Inaccessible);
+        memory.set_access_range(0, REGION_SIZE, AccessType::Inaccessible);
         memory.set_access_range(heap_end, stack_start, AccessType::Inaccessible);
         memory.set_access_range(stack_end, args_start, AccessType::Inaccessible);
 
@@ -124,8 +123,8 @@ impl PVM {
 
     fn initialize_registers(&mut self, args_len: usize) {
         self.state.registers[0].value = (1 << 32) - (1 << 16);
-        self.state.registers[1].value = (1 << 32) - (2 * SEGMENT_SIZE + INPUT_SIZE) as RegValue;
-        self.state.registers[7].value = (1 << 32) - (SEGMENT_SIZE + INPUT_SIZE) as RegValue;
+        self.state.registers[1].value = (1 << 32) - (2 * REGION_SIZE + INIT_SIZE) as RegValue;
+        self.state.registers[7].value = (1 << 32) - (REGION_SIZE + INIT_SIZE) as RegValue;
         self.state.registers[8].value = args_len as RegValue;
     }
 

@@ -1,7 +1,5 @@
 use crate::{
-    constants::{
-        INPUT_SIZE, PAGE_SIZE, REGISTERS_COUNT, SEGMENT_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
-    },
+    constants::{INIT_SIZE, PAGE_SIZE, REGION_SIZE, REGISTERS_COUNT, STANDARD_PROGRAM_SIZE_LIMIT},
     program::opcode::*,
     state::memory::MemAddress,
     types::{
@@ -17,9 +15,9 @@ use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
 
 pub struct FormattedProgram {
-    pub read_only_len: u32,       // |o|
-    pub read_write_len: u32,      // |w|
-    pub extra_heap_pages: u16,    // z
+    pub read_only_len: u32,       // |o|; length of read-only data of the program
+    pub read_write_len: u32,      // |w|; length of read-write data of the program
+    pub extra_heap_pages: u16,    // z; extra heap allocation in pages
     pub stack_size: u32,          // s
     pub read_only_data: Vec<u8>,  // o
     pub read_write_data: Vec<u8>, // w
@@ -36,10 +34,10 @@ impl JamDecode for FormattedProgram {
         let read_write_len = u32::decode_fixed(input, 3)?;
         let extra_heap_pages = u16::decode_fixed(input, 2)?;
         let stack_size = u32::decode_fixed(input, 3)?;
-        let read_only_data = Vec::<u8>::decode_fixed(input, read_only_len as usize)?;
-        let read_write_data = Vec::<u8>::decode_fixed(input, read_write_len as usize)?;
+        let read_only_data = Vec::<u8>::decode_fixed(input, read_only_len as usize)?; // no length prefix
+        let read_write_data = Vec::<u8>::decode_fixed(input, read_write_len as usize)?; // no length prefix
         let code_len = u32::decode_fixed(input, 4)?;
-        let code = Vec::<u8>::decode_fixed(input, code_len as usize)?;
+        let code = Vec::<u8>::decode_fixed(input, code_len as usize)?; // no length prefix
 
         Ok(Self {
             read_only_len,
@@ -55,15 +53,15 @@ impl JamDecode for FormattedProgram {
 }
 
 impl FormattedProgram {
-    pub fn check_size_limit(&self) -> bool {
-        let condition_value = 5 * SEGMENT_SIZE
-            + VMUtils::q(self.read_only_len as usize)
-            + VMUtils::q(
+    pub fn validate_program_size(&self) -> bool {
+        5 * REGION_SIZE
+            + VMUtils::region_align(self.read_only_len as usize)
+            + VMUtils::region_align(
                 self.read_write_len as usize + (self.extra_heap_pages as usize) * PAGE_SIZE,
             )
-            + VMUtils::q(self.stack_size as usize)
-            + INPUT_SIZE;
-        condition_value <= STANDARD_PROGRAM_SIZE_LIMIT
+            + VMUtils::region_align(self.stack_size as usize)
+            + INIT_SIZE
+            <= STANDARD_PROGRAM_SIZE_LIMIT
     }
 }
 
