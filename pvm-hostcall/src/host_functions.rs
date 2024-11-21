@@ -1194,7 +1194,6 @@ impl HostFunction {
         let data = memory.read_bytes(memory_offset, data_len)?;
 
         inner_memory.set_range(inner_memory_offset as usize, &data, AccessType::ReadWrite);
-        // TODO: set `CellStatus` for the range
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),

@@ -14,22 +14,12 @@ pub enum MemoryError {
 }
 
 /// Memory Cell Access Types
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub enum AccessType {
     #[default]
     Inaccessible,
     ReadOnly,
     ReadWrite,
-}
-
-// TODO: consider removing
-/// Memory Cell Statuses
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub enum CellStatus {
-    #[default]
-    Unavailable,
-    Readable,
-    Writable,
 }
 
 #[derive(Clone)]
@@ -44,7 +34,6 @@ pub struct Memory {
 struct MemoryCell {
     value: u8,
     access: AccessType,
-    status: CellStatus,
 }
 
 impl Default for Memory {
@@ -74,11 +63,6 @@ impl Memory {
             if let Some(cell) = self.cells.get_mut(start + i) {
                 cell.value = byte;
                 cell.access = access;
-                cell.status = match access {
-                    AccessType::ReadOnly => CellStatus::Readable,
-                    AccessType::ReadWrite => CellStatus::Writable,
-                    AccessType::Inaccessible => CellStatus::Unavailable,
-                };
             }
         }
     }
@@ -86,11 +70,7 @@ impl Memory {
     /// Set memory cells of provided range with access type
     pub fn set_access_range(&mut self, start: usize, end: usize, access: AccessType) {
         for cell in &mut self.cells[start..end] {
-            cell.status = match access {
-                AccessType::ReadOnly => CellStatus::Readable,
-                AccessType::ReadWrite => CellStatus::Writable,
-                AccessType::Inaccessible => CellStatus::Unavailable,
-            };
+            cell.access = access
         }
     }
 
@@ -124,7 +104,7 @@ impl Memory {
                 // If we can read, we need to check if it's also writable
                 matches!(
                     self.cells.get(address as usize),
-                    Some(cell) if matches!(cell.status, CellStatus::Writable)
+                    Some(cell) if matches!(cell.access, AccessType::ReadWrite)
                 )
             }
             Err(_) => false,
@@ -155,9 +135,9 @@ impl Memory {
             .get(address as usize)
             .ok_or(MemoryError::AccessViolation(address))?;
 
-        match cell.status {
-            CellStatus::Readable | CellStatus::Writable => Ok(cell.value),
-            CellStatus::Unavailable => Err(MemoryError::CellUnavailable(address)),
+        match cell.access {
+            AccessType::ReadOnly | AccessType::ReadWrite => Ok(cell.value),
+            AccessType::Inaccessible => Err(MemoryError::CellUnavailable(address)),
         }
     }
 
@@ -168,12 +148,12 @@ impl Memory {
             .get_mut(address as usize)
             .ok_or(MemoryError::AccessViolation(address))?;
 
-        match cell.status {
-            CellStatus::Writable => {
+        match cell.access {
+            AccessType::ReadWrite => {
                 cell.value = value;
                 Ok(())
             }
-            CellStatus::Readable | CellStatus::Unavailable => {
+            AccessType::ReadOnly | AccessType::Inaccessible => {
                 Err(MemoryError::CellUnavailable(address))
             }
         }
@@ -202,7 +182,7 @@ impl Memory {
         let mut consecutive_unavailable = 0;
 
         for (i, cell) in self.cells[heap_start as usize..].iter().enumerate() {
-            if cell.status == CellStatus::Unavailable {
+            if cell.access == AccessType::Inaccessible {
                 consecutive_unavailable += 1;
                 if consecutive_unavailable == requested_size {
                     return Ok(current_start);
@@ -227,7 +207,6 @@ impl Memory {
 
         // mark the new cells (expanding heap area) as writable
         for cell in &mut self.cells[start as usize..end as usize] {
-            cell.status = CellStatus::Writable;
             cell.access = AccessType::ReadWrite;
         }
 
