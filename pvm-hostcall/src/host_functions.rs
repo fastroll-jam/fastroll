@@ -17,7 +17,7 @@ use rjam_pvm_core::{
     },
     core::{PVMCore, Program, VMState},
     state::{
-        memory::{AccessType, MemAddress, Memory},
+        memory::{MemAddress, Memory},
         register::Register,
     },
     types::{
@@ -1193,7 +1193,7 @@ impl HostFunction {
         }
         let data = memory.read_bytes(memory_offset, data_len)?;
 
-        inner_memory.set_range(inner_memory_offset as usize, &data, AccessType::ReadWrite);
+        inner_memory.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: ok_change(BASE_GAS_USAGE),

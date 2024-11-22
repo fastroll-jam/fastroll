@@ -1,5 +1,5 @@
 use crate::{
-    constants::{PAGE_SIZE, REGION_SIZE},
+    constants::{INIT_PAGE_SIZE, REGION_SIZE},
     types::common::RegValue,
 };
 use bit_vec::BitVec;
@@ -11,11 +11,13 @@ impl VMUtils {
     // Program initialization util functions
     //
 
+    /// Represents `P` of the GP
     pub fn page_align(x: usize) -> usize {
-        // P(x) = Z_P * ceil(x / Z_P)
-        x.div_ceil(PAGE_SIZE)
+        // P(x) = Z_G * ceil(x / Z_G)
+        x.div_ceil(INIT_PAGE_SIZE)
     }
 
+    /// Represents `Q` of the GP
     pub fn region_align(x: usize) -> usize {
         // Q(x) = Z_Q * ceil(x / Z_Q)
         x.div_ceil(REGION_SIZE)

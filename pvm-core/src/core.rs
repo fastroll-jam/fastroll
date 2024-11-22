@@ -44,10 +44,10 @@ impl VMState {
 /// Immutable VM state (program components)
 #[derive(Default)]
 pub struct Program {
-    pub program_code: Vec<u8>, // p (`c` of the Initialization Decoder Function `Y`)
-    pub instructions: Vec<u8>, // c; serialized
+    pub program_code: Vec<u8>,       // p; equivalent to `FormattedProgram.code`
+    pub instructions: Vec<u8>,       // c; serialized
     pub jump_table: Vec<MemAddress>, // j
-    pub opcode_bitmask: BitVec, // k
+    pub opcode_bitmask: BitVec,      // k
     pub basic_block_bitmask: BitVec, // bitmask to detect opcode addresses that begin basic blocks
 }
 

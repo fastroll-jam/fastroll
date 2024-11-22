@@ -57,7 +57,7 @@ impl PVM {
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
     /// Represents `Y` of the GP
-    fn new_from_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
+    fn init_with_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
         let mut pvm = PVM::default();
 
         // decode program and check validity
@@ -76,46 +76,41 @@ impl PVM {
     fn setup_memory_layout(&mut self, fp: &FormattedProgram, args: &[u8]) -> Result<(), PVMError> {
         let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
 
-        // Program-specific read-only data area (o)
-        let o_start = REGION_SIZE; // Z_Q
-        let o_end = o_start + fp.read_only_len as usize;
-        memory.set_range(o_start, &fp.read_only_data[..], AccessType::ReadOnly);
-        memory.set_access_range(
-            o_end,
-            REGION_SIZE + VMUtils::page_align(fp.read_only_len as usize),
-            AccessType::ReadOnly,
-        );
+        // Program-specific read-only static data (o)
+        let o_start = REGION_SIZE as MemAddress; // Z_Q
+        let o_padding_end = o_start + VMUtils::page_align(fp.read_only_len as usize) as MemAddress;
+        memory.init_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
+        memory.write_bytes(o_start, &fp.read_only_data)?;
 
-        // Read-write (heap) data (w)
-        let w_start = 2 * REGION_SIZE + VMUtils::region_align(fp.read_only_len as usize);
-        memory.heap_start = w_start as MemAddress;
-        let w_end = w_start + fp.read_write_len as usize;
-        memory.set_range(w_start, &fp.read_write_data[..], AccessType::ReadWrite);
-        let heap_end = w_end + VMUtils::page_align(fp.read_write_len as usize)
-            - fp.read_write_len as usize
-            + fp.extra_heap_pages as usize * PAGE_SIZE;
-        memory.set_access_range(w_end, heap_end, AccessType::ReadWrite);
+        // Read-write heap data (w)
+        let w_start =
+            (2 * REGION_SIZE + VMUtils::region_align(fp.read_only_len as usize)) as MemAddress;
+        let w_padding_end = w_start
+            + VMUtils::page_align(fp.read_write_len as usize) as MemAddress
+            + fp.extra_heap_pages as MemAddress * PAGE_SIZE as MemAddress;
+        memory.init_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
+        memory.write_bytes(w_start, &fp.read_write_data)?;
+        memory.heap_start = w_start;
 
         // Stack (s)
-        let stack_start =
-            (1 << 32) - 2 * REGION_SIZE - INIT_SIZE - VMUtils::page_align(fp.stack_size as usize);
-        let stack_end = (1 << 32) - 2 * REGION_SIZE - INIT_SIZE;
-        memory.set_access_range(stack_start, stack_end, AccessType::ReadWrite);
+        let s_start =
+            ((1 << 32) - 2 * REGION_SIZE - INIT_SIZE - VMUtils::page_align(fp.stack_size as usize))
+                as MemAddress;
+        let s_end = ((1 << 32) - 2 * REGION_SIZE - INIT_SIZE) as MemAddress;
+        memory.init_range_access(s_start..s_end, AccessType::ReadWrite)?;
 
-        // Arguments
-        let args_start = (1 << 32) - REGION_SIZE - INIT_SIZE;
-        let args_end = args_start + args.len();
-        memory.set_range(args_start, args, AccessType::ReadOnly);
-        memory.set_access_range(
-            args_end,
-            (1 << 32) - REGION_SIZE - INIT_SIZE + VMUtils::page_align(args.len()),
-            AccessType::ReadOnly,
-        );
+        // Arguments (a)
+        let a_start = ((1 << 32) - REGION_SIZE - INIT_SIZE) as MemAddress;
+        let a_padding_end = a_start + VMUtils::page_align(args.len()) as MemAddress;
+        memory.init_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
+        memory.write_bytes(a_start, args)?;
 
         // Other addresses are inaccessible
-        memory.set_access_range(0, REGION_SIZE, AccessType::Inaccessible);
-        memory.set_access_range(heap_end, stack_start, AccessType::Inaccessible);
-        memory.set_access_range(stack_end, args_start, AccessType::Inaccessible);
+        memory.init_range_access(0..o_start, AccessType::Inaccessible)?;
+        memory.init_range_access(o_padding_end..w_start, AccessType::Inaccessible)?;
+        memory.init_range_access(w_padding_end..s_start, AccessType::Inaccessible)?;
+        memory.init_range_access(s_end..a_start, AccessType::Inaccessible)?;
+        memory.init_range_access(a_padding_end..MemAddress::MAX, AccessType::Inaccessible)?;
 
         self.state.memory = memory;
         Ok(())
@@ -233,7 +228,7 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<CommonInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
-        let mut pvm = Self::new_from_standard_program(standard_program, args)?;
+        let mut pvm = Self::init_with_standard_program(standard_program, args)?;
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 

@@ -848,7 +848,12 @@ impl InstructionSet {
 
     /// System break (allocate memory)
     ///
+    /// Expands heap memory to the area which is between the end of the current heap padding area
+    /// and the start of the stack area, which were initially inaccessible.
+    ///
     /// This instruction directly mutates the VM memory state unlike other instructions
+    ///
+    /// Note: might be replaced or modified.
     ///
     /// Opcode: 87
     pub fn sbrk(

@@ -1,5 +1,7 @@
 use crate::{
-    constants::{INIT_SIZE, PAGE_SIZE, REGION_SIZE, REGISTERS_COUNT, STANDARD_PROGRAM_SIZE_LIMIT},
+    constants::{
+        INIT_PAGE_SIZE, INIT_SIZE, REGION_SIZE, REGISTERS_COUNT, STANDARD_PROGRAM_SIZE_LIMIT,
+    },
     program::opcode::*,
     state::memory::MemAddress,
     types::{
@@ -57,7 +59,7 @@ impl FormattedProgram {
         5 * REGION_SIZE
             + VMUtils::region_align(self.read_only_len as usize)
             + VMUtils::region_align(
-                self.read_write_len as usize + (self.extra_heap_pages as usize) * PAGE_SIZE,
+                self.read_write_len as usize + (self.extra_heap_pages as usize) * INIT_PAGE_SIZE,
             )
             + VMUtils::region_align(self.stack_size as usize)
             + INIT_SIZE
