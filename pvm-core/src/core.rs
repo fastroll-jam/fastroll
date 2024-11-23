@@ -11,7 +11,10 @@ use crate::{
     },
     types::{
         common::{ExitReason, RegValue},
-        error::{PVMError, VMCoreError::InvalidRegValue},
+        error::{
+            PVMError,
+            VMCoreError::{InvalidRegIndex, InvalidRegValue, MemoryStateChangeDataLengthMismatch},
+        },
     },
 };
 use bit_vec::BitVec;
@@ -144,34 +147,20 @@ impl PVMCore {
     fn apply_state_change(vm_state: &mut VMState, change: StateChange) -> Result<(), PVMError> {
         // Apply register changes
         for (reg_index, new_value) in change.register_writes {
-            if reg_index < REGISTERS_COUNT {
-                vm_state.registers[reg_index] = Register { value: new_value };
-            } else {
-                eprintln!(
-                    "Warning: Attempted to change invalid register index: {}",
-                    reg_index
-                );
+            if reg_index >= REGISTERS_COUNT {
+                return Err(PVMError::VMCoreError(InvalidRegIndex(reg_index)));
             }
+            vm_state.registers[reg_index] = Register { value: new_value };
         }
 
         // Apply memory change
+        // FIXME: data_len arg is redundant
         let (start_address, data_len, data) = change.memory_write;
-        if data_len as usize <= data.len() {
-            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
-                if let Err(e) = vm_state
-                    .memory
-                    .write_byte(start_address.wrapping_add(offset as u32), byte)
-                {
-                    eprintln!(
-                        "Warning: Failed to write to memory at address {:X}: {:?}",
-                        start_address.wrapping_add(offset as u32),
-                        e
-                    );
-                }
-            }
-        } else {
-            eprintln!("Warning: Data length mismatch in memory changes");
+        if data_len as usize > data.len() {
+            return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
         }
+
+        vm_state.memory.write_bytes(start_address, &data)?;
 
         // Apply PC change
         if let Some(new_pc) = change.new_pc {

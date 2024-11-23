@@ -38,12 +38,16 @@ pub enum VMCoreError {
     InvalidOpcode,
     #[error("Invalid register value")]
     InvalidRegValue,
+    #[error("Invalid register index: {0}")]
+    InvalidRegIndex(usize),
     #[error("Invalid memory value")]
     InvalidMemoryValue,
     #[error("Invalid immediate value")]
     InvalidImmediateValue,
     #[error("Invalid host call type")]
     InvalidHostCallType,
+    #[error("Data length mismatch in memory state changes")]
+    MemoryStateChangeDataLengthMismatch,
 }
 
 /// PVM Host Call Error Codes
