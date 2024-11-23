@@ -17,14 +17,14 @@ use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
 
 pub struct FormattedProgram {
-    pub read_only_len: u32,       // |o|; length of read-only data of the program
-    pub read_write_len: u32,      // |w|; length of read-write data of the program
-    pub extra_heap_pages: u16,    // z; extra heap allocation in pages
-    pub stack_size: u32,          // s
-    pub read_only_data: Vec<u8>,  // o
-    pub read_write_data: Vec<u8>, // w
-    pub code_len: u32,            // |c|
-    pub code: Vec<u8>,            // c
+    pub static_size: u32,      // |o|; length of read-only data of the program
+    pub heap_size: u32,        // |w|; length of read-write data of the program
+    pub extra_heap_pages: u16, // z; extra heap allocation in pages
+    pub stack_size: u32,       // s
+    pub static_data: Vec<u8>,  // o
+    pub heap_data: Vec<u8>,    // w
+    pub code_size: u32,        // |c|
+    pub code: Vec<u8>,         // c
 }
 
 impl JamDecode for FormattedProgram {
@@ -32,23 +32,23 @@ impl JamDecode for FormattedProgram {
     where
         Self: Sized,
     {
-        let read_only_len = u32::decode_fixed(input, 3)?;
-        let read_write_len = u32::decode_fixed(input, 3)?;
+        let static_size = u32::decode_fixed(input, 3)?;
+        let heap_size = u32::decode_fixed(input, 3)?;
         let extra_heap_pages = u16::decode_fixed(input, 2)?;
         let stack_size = u32::decode_fixed(input, 3)?;
-        let read_only_data = Vec::<u8>::decode_fixed(input, read_only_len as usize)?; // no length prefix
-        let read_write_data = Vec::<u8>::decode_fixed(input, read_write_len as usize)?; // no length prefix
-        let code_len = u32::decode_fixed(input, 4)?;
-        let code = Vec::<u8>::decode_fixed(input, code_len as usize)?; // no length prefix
+        let static_data = Vec::<u8>::decode_fixed(input, static_size as usize)?; // no length prefix
+        let heap_data = Vec::<u8>::decode_fixed(input, heap_size as usize)?; // no length prefix
+        let code_size = u32::decode_fixed(input, 4)?;
+        let code = Vec::<u8>::decode_fixed(input, code_size as usize)?; // no length prefix
 
         Ok(Self {
-            read_only_len,
-            read_write_len,
+            static_size,
+            heap_size,
             extra_heap_pages,
             stack_size,
-            read_only_data,
-            read_write_data,
-            code_len,
+            static_data,
+            heap_data,
+            code_size,
             code,
         })
     }
@@ -57,13 +57,57 @@ impl JamDecode for FormattedProgram {
 impl FormattedProgram {
     pub fn validate_program_size(&self) -> bool {
         5 * REGION_SIZE
-            + VMUtils::region_align(self.read_only_len as usize)
+            + VMUtils::region_align(self.static_size as usize)
             + VMUtils::region_align(
-                self.read_write_len as usize + (self.extra_heap_pages as usize) * INIT_PAGE_SIZE,
+                self.heap_size as usize + (self.extra_heap_pages as usize) * INIT_PAGE_SIZE,
             )
             + VMUtils::region_align(self.stack_size as usize)
             + INIT_SIZE
             <= STANDARD_PROGRAM_SIZE_LIMIT
+    }
+}
+
+/// Immutable VM state (program components)
+///
+/// Equivalent to `FormattedProgram.code`.
+#[derive(Default)]
+pub struct ProgramState {
+    pub instructions: Vec<u8>,       // c; serialized
+    pub jump_table: Vec<MemAddress>, // j
+    pub opcode_bitmask: BitVec,      // k
+    pub basic_block_bitmask: BitVec, // additional bitmask to detect opcode addresses that begin basic blocks
+}
+
+impl JamDecode for ProgramState {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        // Decode the length of the jump table (|j|)
+        let jump_table_len = usize::decode(input)?;
+
+        // Decode the jump table entry length in octets (z)
+        let z = u8::decode_fixed(input, 1)?;
+
+        // Decode the length of the instruction sequence (|c|)
+        let instructions_len = usize::decode(input)?;
+
+        // Decode the dynamic jump table (j)
+        let mut jump_table = Vec::with_capacity(jump_table_len);
+        for _ in 0..jump_table_len {
+            jump_table.push(MemAddress::decode_fixed(input, z as usize)?);
+        }
+
+        // Decode the instruction sequence (c)
+        let instructions = Vec::<u8>::decode_fixed(input, instructions_len)?;
+
+        // Decode the opcode bitmask (k)
+        // The length of `k` must be equivalent to the length of `c`, |k| = |c|
+        let opcode_bitmask = BitVec::decode_fixed(input, instructions_len)?;
+
+        Ok(Self {
+            instructions,
+            jump_table,
+            opcode_bitmask,
+            basic_block_bitmask: BitVec::default(), // FIXME: check where this is updated
+        })
     }
 }
 
@@ -107,56 +151,61 @@ impl Instruction {
     }
 }
 
+/// General program decoders used for processing PVM programs.
+///
+/// Programs executed on the PVM are processed through the following steps:
+///
+/// 1. A standard program blob is provided to the `Ψ_M`.
+///
+/// 2. The program is decoded into a `FormattedProgram`, which contains information about memory
+///    initialization, including the sizes of various memory regions (e.g., heap, stack, static)
+///    and initial data to be loaded in those regions.
+///
+/// 3. After memory initialization, the `code` from the `FormattedProgram` is loaded into the `PVM` state.
+///
+/// 4. Internal PVM invocation functions, such as `Ψ_H` and `Ψ`, utilize the `code` stored in the `PVM` state.
+///
+/// 5. The general invocation function `Ψ` further decodes the `code` into
+///    `instructions`, an `opcode_bitmask`, and a `dynamic_jump_table`.
+///
+/// 6. Finally, the single-step execution functions (`Ψ_1`) use these three components
+///    to interpret and execute the program one instruction at a time.
 pub struct ProgramDecoder;
 
 impl ProgramDecoder {
-    //
-    // Program decoding functions
-    //
+    /// Decodes program blob into formatted program. Used by `Ψ_M`.
+    pub fn decode_standard_program(program_blob: &[u8]) -> Result<FormattedProgram, PVMError> {
+        let mut input = program_blob;
+        let formatted_program = FormattedProgram::decode(&mut input)?;
+        if !input.is_empty() {
+            return Err(PVMError::VMCoreError(InvalidProgram));
+        }
 
-    /// Decode program blob into formatted program
-    pub fn decode_standard_program(program: &[u8]) -> Result<FormattedProgram, PVMError> {
-        let mut input = program;
-        Ok(FormattedProgram::decode(&mut input)?)
+        Ok(formatted_program)
     }
 
-    /// Decode program code into instruction sequence, opcode bitmask and dynamic jump table
+    /// Decodes code element of the formatted program code into
+    /// instruction sequence (c), opcode bitmask (k) and dynamic jump table (j).
+    /// Used by `Ψ`.
     pub fn decode_program_code(
         code: &[u8],
     ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), PVMError> {
         let mut input = code;
-
-        // Decode the length of the jump table (|j|)
-        let jump_table_len = usize::decode(&mut input)?;
-
-        // Decode the jump table entry length in octets (z)
-        let z = u8::decode_fixed(&mut input, 1)?;
-
-        // Decode the length of the instruction sequence (|c|)
-        let instructions_len = usize::decode(&mut input)?;
-
-        // Decode the dynamic jump table (j)
-        let mut jump_table = Vec::with_capacity(jump_table_len);
-        for _ in 0..jump_table_len {
-            jump_table.push(MemAddress::decode_fixed(&mut input, z as usize)?);
-        }
-
-        // Decode the instruction sequence (c)
-        let instructions = Vec::<u8>::decode_fixed(&mut input, instructions_len)?;
-
-        // Decode the opcode bitmask (k)
-        // The length of `k` must be equivalent to the length of `c`, |k| = |c|
-        let opcode_bitmask = BitVec::decode_fixed(&mut input, instructions_len)?;
+        let program = ProgramState::decode(&mut input)?;
 
         if !input.is_empty() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
-        Ok((instructions, opcode_bitmask, jump_table))
+        Ok((
+            program.instructions,
+            program.opcode_bitmask,
+            program.jump_table,
+        ))
     }
 
     /// Extracts and processes an immediate value from the instruction blob.
-    pub fn extract_imm_value(
+    fn extract_imm_value(
         inst_blob: &[u8],
         imm_size: usize,
         start_index: usize,
@@ -176,7 +225,7 @@ impl ProgramDecoder {
     }
 
     /// Extracts and processes an immediate address (pc increment) value from the instruction blob.
-    pub fn extract_imm_address(
+    fn extract_imm_address(
         pc: RegValue,
         inst_blob: &[u8],
         imm_size: usize,

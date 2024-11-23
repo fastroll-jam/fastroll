@@ -1,7 +1,7 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
-    core::{PVMCore, Program, SingleInvocationResult, StateChange, VMState},
-    program::program_decoder::Instruction,
+    core::{PVMCore, SingleInvocationResult, StateChange, VMState},
+    program::program_decoder::{Instruction, ProgramState},
     state::memory::MemAddress,
     types::{
         common::{ExitReason, RegValue},
@@ -44,11 +44,14 @@ impl InstructionSet {
     /// The target address must be the beginning of a basic block.
     pub fn branch(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         target: MemAddress,
         condition: bool,
     ) -> Result<(ExitReason, MemAddress), PVMError> {
-        match (condition, program.basic_block_bitmask.get(target as usize)) {
+        match (
+            condition,
+            program_state.basic_block_bitmask.get(target as usize),
+        ) {
             (false, _) => Ok((ExitReason::Continue, vm_state.pc_as_mem_address()?)),
             (true, Some(true)) => Ok((ExitReason::Continue, target)),
             (true, _) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
@@ -62,7 +65,7 @@ impl InstructionSet {
     /// and validity checks.
     pub fn djump(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         a: usize,
     ) -> Result<(ExitReason, MemAddress), PVMError> {
         const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
@@ -71,12 +74,12 @@ impl InstructionSet {
             return Ok((ExitReason::RegularHalt, vm_state.pc_as_mem_address()?));
         }
 
-        let jump_table_len = program.jump_table.len();
+        let jump_table_len = program_state.jump_table.len();
 
         // Check if 'a' is valid and compute the target
         match (a != 0 && a <= jump_table_len * JUMP_ALIGNMENT && a % JUMP_ALIGNMENT == 0)
-            .then(|| program.jump_table[(a / JUMP_ALIGNMENT) - 1])
-            .filter(|&target| program.basic_block_bitmask[target as usize])
+            .then(|| program_state.jump_table[(a / JUMP_ALIGNMENT) - 1])
+            .filter(|&target| program_state.basic_block_bitmask[target as usize])
         {
             Some(target) => Ok((ExitReason::Continue, target)),
             None => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
@@ -90,11 +93,14 @@ impl InstructionSet {
     /// `panic` with no mutation to the VM state
     ///
     /// Opcode: 0
-    pub fn trap(vm_state: &VMState, program: &Program) -> Result<SingleInvocationResult, PVMError> {
+    pub fn trap(
+        vm_state: &VMState,
+        program_state: &ProgramState,
+    ) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -105,12 +111,12 @@ impl InstructionSet {
     /// Opcode: 17
     pub fn fallthrough(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
     ) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -125,7 +131,7 @@ impl InstructionSet {
     /// Opcode: 78
     pub fn ecalli(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm1 = ins.imm1.ok_or(InvalidImmediateValue)?;
@@ -138,7 +144,7 @@ impl InstructionSet {
         Ok(SingleInvocationResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -153,7 +159,7 @@ impl InstructionSet {
     /// Opcode: 62
     pub fn store_imm_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -165,7 +171,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 1, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -176,7 +182,7 @@ impl InstructionSet {
     /// Opcode: 79
     pub fn store_imm_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -188,7 +194,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 2, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -199,7 +205,7 @@ impl InstructionSet {
     /// Opcode: 38
     pub fn store_imm_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -211,7 +217,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 4, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -226,11 +232,11 @@ impl InstructionSet {
     /// Opcode: 5
     pub fn jump(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
-        let (exit_reason, target) = Self::branch(vm_state, program, imm_address, true)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, imm_address, true)?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -253,13 +259,13 @@ impl InstructionSet {
     /// Opcode: 19
     pub fn jump_ind(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
         let (exit_reason, target) = Self::djump(
             vm_state,
-            program,
+            program_state,
             ((r1_val + ins.imm1.ok_or(InvalidImmediateValue)?) % (1 << 32)) as usize,
         )?;
 
@@ -277,7 +283,7 @@ impl InstructionSet {
     /// Opcode: 4
     pub fn load_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         Ok(SingleInvocationResult {
@@ -287,7 +293,7 @@ impl InstructionSet {
                     ins.r1.ok_or(InvalidImmediateValue)?,
                     ins.imm1.ok_or(InvalidImmediateValue)?,
                 )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -298,7 +304,7 @@ impl InstructionSet {
     /// Opcode: 60
     pub fn load_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -308,7 +314,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, val as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -319,7 +325,7 @@ impl InstructionSet {
     /// Opcode: 74
     pub fn load_i8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -331,7 +337,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.unwrap(), unsigned_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -342,7 +348,7 @@ impl InstructionSet {
     /// Opcode: 76
     pub fn load_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -355,7 +361,7 @@ impl InstructionSet {
                     ins.r1.ok_or(InvalidImmediateValue)?,
                     RegValue::decode_fixed(&mut &val[..], 2)?,
                 )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -366,7 +372,7 @@ impl InstructionSet {
     /// Opcode: 66
     pub fn load_i16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -379,7 +385,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, unsigned_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -390,7 +396,7 @@ impl InstructionSet {
     /// Opcode: 10
     pub fn load_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -403,7 +409,7 @@ impl InstructionSet {
                     ins.r1.ok_or(InvalidImmediateValue)?,
                     RegValue::decode_fixed(&mut &val[..], 4)?,
                 )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -414,7 +420,7 @@ impl InstructionSet {
     /// Opcode: 71
     pub fn store_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -424,7 +430,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 1, r1_value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -435,7 +441,7 @@ impl InstructionSet {
     /// Opcode: 69
     pub fn store_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -446,7 +452,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 2, r1_value.encode_fixed(2)?),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -457,7 +463,7 @@ impl InstructionSet {
     /// Opcode: 22
     pub fn store_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmediateValue)?)?;
@@ -467,7 +473,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (imm_address, 4, r1_value.encode_fixed(4)?),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -483,7 +489,7 @@ impl InstructionSet {
     /// Opcode: 26
     pub fn store_imm_ind_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -496,7 +502,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 1, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -507,7 +513,7 @@ impl InstructionSet {
     /// Opcode: 54
     pub fn store_imm_ind_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -520,7 +526,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 2, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -531,7 +537,7 @@ impl InstructionSet {
     /// Opcode: 13
     pub fn store_imm_ind_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -544,7 +550,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 4, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -559,11 +565,11 @@ impl InstructionSet {
     /// Opcode: 6
     pub fn load_imm_jump(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, true)?;
+            Self::branch(vm_state, program_state, ins.offset.unwrap() as u32, true)?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -583,13 +589,17 @@ impl InstructionSet {
     /// Opcode: 7
     pub fn branch_eq_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             == ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -605,13 +615,17 @@ impl InstructionSet {
     /// Opcode: 15
     pub fn branch_ne_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             != ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -627,13 +641,17 @@ impl InstructionSet {
     /// Opcode: 44
     pub fn branch_lt_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             < ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -649,13 +667,17 @@ impl InstructionSet {
     /// Opcode: 59
     pub fn branch_le_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             <= ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -671,13 +693,17 @@ impl InstructionSet {
     /// Opcode: 52
     pub fn branch_ge_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             >= ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -693,13 +719,17 @@ impl InstructionSet {
     /// Opcode: 50
     pub fn branch_gt_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
             > ins.imm1.ok_or(InvalidImmediateValue)?;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -715,7 +745,7 @@ impl InstructionSet {
     /// Opcode: 32
     pub fn branch_lt_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = VMUtils::unsigned_to_signed(
@@ -726,8 +756,12 @@ impl InstructionSet {
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.ok_or(InvalidImmediateValue)?)
             .ok_or(InvalidImmediateValue)?;
         let condition = r1_val < imm_val;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -743,7 +777,7 @@ impl InstructionSet {
     /// Opcode: 46
     pub fn branch_le_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = VMUtils::unsigned_to_signed(
@@ -754,8 +788,12 @@ impl InstructionSet {
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.ok_or(InvalidImmediateValue)?)
             .ok_or(InvalidImmediateValue)?;
         let condition = r1_val <= imm_val;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -771,7 +809,7 @@ impl InstructionSet {
     /// Opcode: 45
     pub fn branch_ge_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = VMUtils::unsigned_to_signed(
@@ -782,8 +820,12 @@ impl InstructionSet {
         let imm_val =
             VMUtils::unsigned_to_signed(4, ins.imm1.ok_or(InvalidImmediateValue)?).unwrap();
         let condition = r1_val >= imm_val;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -799,7 +841,7 @@ impl InstructionSet {
     /// Opcode: 53
     pub fn branch_gt_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let r1_val = VMUtils::unsigned_to_signed(
@@ -810,8 +852,12 @@ impl InstructionSet {
         let imm_val = VMUtils::unsigned_to_signed(4, ins.imm1.ok_or(InvalidImmediateValue)?)
             .ok_or(InvalidImmediateValue)?;
         let condition = r1_val > imm_val;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -831,7 +877,7 @@ impl InstructionSet {
     /// Opcode: 82
     pub fn move_reg(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let value = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -840,7 +886,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -858,7 +904,7 @@ impl InstructionSet {
     /// Opcode: 87
     pub fn sbrk(
         vm_state: &mut VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let requested_size =
@@ -878,7 +924,7 @@ impl InstructionSet {
                     ins.rd.ok_or(InvalidImmediateValue)?,
                     alloc_start as RegValue,
                 )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -893,7 +939,7 @@ impl InstructionSet {
     /// Opcode: 16
     pub fn store_ind_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -907,7 +953,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 1, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -918,7 +964,7 @@ impl InstructionSet {
     /// Opcode: 29
     pub fn store_ind_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -933,7 +979,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 2, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -944,7 +990,7 @@ impl InstructionSet {
     /// Opcode: 3
     pub fn store_ind_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -958,7 +1004,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: (address, 4, value),
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -969,7 +1015,7 @@ impl InstructionSet {
     /// Opcode: 11
     pub fn load_ind_u8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -982,7 +1028,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.unwrap(), value as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -993,7 +1039,7 @@ impl InstructionSet {
     /// Opcode: 21
     pub fn load_ind_i8(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -1010,7 +1056,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1021,7 +1067,7 @@ impl InstructionSet {
     /// Opcode: 37
     pub fn load_ind_u16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -1035,7 +1081,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.unwrap(), r_val as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1046,7 +1092,7 @@ impl InstructionSet {
     /// Opcode: 33
     pub fn load_ind_i16(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -1064,7 +1110,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1075,7 +1121,7 @@ impl InstructionSet {
     /// Opcode: 1
     pub fn load_ind_u32(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let address = reg_to_mem_address(
@@ -1092,7 +1138,7 @@ impl InstructionSet {
                     ins.r1.ok_or(InvalidImmediateValue)?,
                     value_decoded as RegValue,
                 )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1103,7 +1149,7 @@ impl InstructionSet {
     /// Opcode: 2
     pub fn add_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
@@ -1113,7 +1159,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1124,7 +1170,7 @@ impl InstructionSet {
     /// Opcode: 18
     pub fn and_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
@@ -1134,7 +1180,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1145,7 +1191,7 @@ impl InstructionSet {
     /// Opcode: 31
     pub fn xor_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
@@ -1155,7 +1201,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1166,7 +1212,7 @@ impl InstructionSet {
     /// Opcode: 49
     pub fn or_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
@@ -1176,7 +1222,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1187,7 +1233,7 @@ impl InstructionSet {
     /// Opcode: 35
     pub fn mul_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
@@ -1197,7 +1243,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1208,7 +1254,7 @@ impl InstructionSet {
     /// Opcode: 65
     pub fn mul_upper_s_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1225,7 +1271,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, unsigned_result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1236,7 +1282,7 @@ impl InstructionSet {
     /// Opcode: 63
     pub fn mul_upper_u_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
@@ -1247,7 +1293,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1258,7 +1304,7 @@ impl InstructionSet {
     /// Opcode: 27
     pub fn set_lt_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?;
@@ -1269,7 +1315,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1280,7 +1326,7 @@ impl InstructionSet {
     /// Opcode: 56
     pub fn set_lt_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1296,7 +1342,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1307,7 +1353,7 @@ impl InstructionSet {
     /// Opcode: 9
     pub fn shlo_l_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmediateValue)? & 0x1F; // shift range within [0, 32)
@@ -1317,7 +1363,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1328,7 +1374,7 @@ impl InstructionSet {
     /// Opcode: 14
     pub fn shlo_r_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmediateValue)? & 0x1F; // shift range within [0, 32)
@@ -1338,7 +1384,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1349,7 +1395,7 @@ impl InstructionSet {
     /// Opcode: 25
     pub fn shar_r_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmediateValue)? & 0x1F; // shift range within [0, 32)
@@ -1365,7 +1411,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, unsigned_result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1376,7 +1422,7 @@ impl InstructionSet {
     /// Opcode: 40
     pub fn neg_add_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = ins
@@ -1391,7 +1437,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1402,7 +1448,7 @@ impl InstructionSet {
     /// Opcode: 39
     pub fn set_gt_u_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?;
@@ -1413,7 +1459,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1424,7 +1470,7 @@ impl InstructionSet {
     /// Opcode: 61
     pub fn set_gt_s_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1440,7 +1486,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1451,7 +1497,7 @@ impl InstructionSet {
     /// Opcode: 75
     pub fn shlo_l_imm_alt(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -1461,7 +1507,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1472,7 +1518,7 @@ impl InstructionSet {
     /// Opcode: 72
     pub fn shlo_r_imm_alt(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -1482,7 +1528,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1493,7 +1539,7 @@ impl InstructionSet {
     /// Opcode: 80
     pub fn shar_r_imm_alt(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -1507,7 +1553,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1518,7 +1564,7 @@ impl InstructionSet {
     /// Opcode: 85
     pub fn cmov_iz_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? == 0 {
@@ -1531,7 +1577,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1542,7 +1588,7 @@ impl InstructionSet {
     /// Opcode: 86
     pub fn cmov_nz_imm(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? != 0 {
@@ -1555,7 +1601,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.r1.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1570,7 +1616,7 @@ impl InstructionSet {
     /// Opcode: 24
     pub fn branch_eq(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -1578,7 +1624,7 @@ impl InstructionSet {
         let condition = a == b;
         let (exit_reason, target) = Self::branch(
             vm_state,
-            program,
+            program_state,
             ins.offset.unwrap() as MemAddress,
             condition,
         )?;
@@ -1597,14 +1643,18 @@ impl InstructionSet {
     /// Opcode: 30
     pub fn branch_ne(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a != b;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -1620,7 +1670,7 @@ impl InstructionSet {
     /// Opcode: 47
     pub fn branch_lt_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -1628,7 +1678,7 @@ impl InstructionSet {
         let condition = a < b;
         let (exit_reason, target) = Self::branch(
             vm_state,
-            program,
+            program_state,
             ins.offset.unwrap() as MemAddress,
             condition,
         )?;
@@ -1647,7 +1697,7 @@ impl InstructionSet {
     /// Opcode: 48
     pub fn branch_lt_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1663,7 +1713,7 @@ impl InstructionSet {
         let condition = a < b;
         let (_exit_reason, target) = Self::branch(
             vm_state,
-            program,
+            program_state,
             ins.offset.unwrap() as MemAddress,
             condition,
         )?;
@@ -1682,14 +1732,18 @@ impl InstructionSet {
     /// Opcode: 41
     pub fn branch_ge_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let b = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = a >= b;
-        let (exit_reason, target) =
-            Self::branch(vm_state, program, ins.offset.unwrap() as u32, condition)?;
+        let (exit_reason, target) = Self::branch(
+            vm_state,
+            program_state,
+            ins.offset.unwrap() as u32,
+            condition,
+        )?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -1705,7 +1759,7 @@ impl InstructionSet {
     /// Opcode: 43
     pub fn branch_ge_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1721,7 +1775,7 @@ impl InstructionSet {
         let condition = a >= b;
         let (exit_reason, target) = Self::branch(
             vm_state,
-            program,
+            program_state,
             ins.offset.unwrap() as MemAddress,
             condition,
         )?;
@@ -1744,12 +1798,12 @@ impl InstructionSet {
     /// Opcode: 42
     pub fn load_imm_jump_ind(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let jump_address = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)?
             .wrapping_add(ins.imm2.ok_or(InvalidImmediateValue)?);
-        let (exit_reason, target) = Self::djump(vm_state, program, jump_address as usize)?;
+        let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address as usize)?;
 
         Ok(SingleInvocationResult {
             exit_reason,
@@ -1773,7 +1827,7 @@ impl InstructionSet {
     /// Opcode: 8
     pub fn add(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result =
@@ -1785,7 +1839,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1796,7 +1850,7 @@ impl InstructionSet {
     /// Opcode: 20
     pub fn sub(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result =
@@ -1808,7 +1862,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1819,7 +1873,7 @@ impl InstructionSet {
     /// Opcode: 23
     pub fn and(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
@@ -1829,7 +1883,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1840,7 +1894,7 @@ impl InstructionSet {
     /// Opcode: 28
     pub fn xor(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
@@ -1850,7 +1904,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1861,7 +1915,7 @@ impl InstructionSet {
     /// Opcode: 12
     pub fn or(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?
@@ -1871,7 +1925,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1882,7 +1936,7 @@ impl InstructionSet {
     /// Opcode: 34
     pub fn mul(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result =
@@ -1894,7 +1948,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1905,7 +1959,7 @@ impl InstructionSet {
     /// Opcode: 67
     pub fn mul_upper_s_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1925,7 +1979,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1936,7 +1990,7 @@ impl InstructionSet {
     /// Opcode: 57
     pub fn mul_upper_u_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -1947,7 +2001,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1958,7 +2012,7 @@ impl InstructionSet {
     /// Opcode: 81
     pub fn mul_upper_s_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -1974,7 +2028,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -1985,7 +2039,7 @@ impl InstructionSet {
     /// Opcode: 68
     pub fn div_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -2000,7 +2054,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2011,7 +2065,7 @@ impl InstructionSet {
     /// Opcode: 64
     pub fn div_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
@@ -2038,7 +2092,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2049,7 +2103,7 @@ impl InstructionSet {
     /// Opcode: 73
     pub fn rem_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -2064,7 +2118,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2075,7 +2129,7 @@ impl InstructionSet {
     /// Opcode: 70
     pub fn rem_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
@@ -2100,7 +2154,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2111,7 +2165,7 @@ impl InstructionSet {
     /// Opcode: 36
     pub fn set_lt_u(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmediateValue)?)?;
@@ -2122,7 +2176,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2133,7 +2187,7 @@ impl InstructionSet {
     /// Opcode: 58
     pub fn set_lt_s(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let a = VMUtils::unsigned_to_signed(
@@ -2152,7 +2206,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2163,7 +2217,7 @@ impl InstructionSet {
     /// Opcode: 55
     pub fn shlo_l(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -2173,7 +2227,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2184,7 +2238,7 @@ impl InstructionSet {
     /// Opcode: 51
     pub fn shlo_r(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -2194,7 +2248,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2205,7 +2259,7 @@ impl InstructionSet {
     /// Opcode: 77
     pub fn shar_r(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? & 0x1F; // shift range within [0, 32)
@@ -2221,7 +2275,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2232,7 +2286,7 @@ impl InstructionSet {
     /// Opcode: 83
     pub fn cmov_iz(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? == 0 {
@@ -2245,7 +2299,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })
@@ -2256,7 +2310,7 @@ impl InstructionSet {
     /// Opcode: 84
     pub fn cmov_nz(
         vm_state: &VMState,
-        program: &Program,
+        program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleInvocationResult, PVMError> {
         let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmediateValue)?)? != 0 {
@@ -2269,7 +2323,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd.ok_or(InvalidImmediateValue)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program)),
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
         })

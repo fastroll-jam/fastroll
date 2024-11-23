@@ -1,8 +1,8 @@
 use rjam_common::{Address, UnsignedGas};
 use rjam_pvm_core::{
     constants::{HOST_CALL_INPUT_REGISTERS_COUNT, INIT_SIZE, MEMORY_SIZE, PAGE_SIZE, REGION_SIZE},
-    core::{PVMCore, Program, VMState},
-    program::program_decoder::{FormattedProgram, ProgramDecoder},
+    core::{PVMCore, VMState},
+    program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
     state::{
         memory::{AccessType, MemAddress, Memory},
         register::Register,
@@ -46,7 +46,8 @@ struct ExtendedInvocationResult {
 #[derive(Default)]
 pub struct PVM {
     state: VMState,
-    program: Program,
+    program_blob: Vec<u8>,       // serialization of `PVM.program`
+    program_state: ProgramState, // initialized in the general invocation `Ψ`
 }
 
 impl PVM {
@@ -58,7 +59,7 @@ impl PVM {
     ///
     /// Represents `Y` of the GP
     fn init_with_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
-        let mut pvm = PVM::default();
+        let mut pvm = Self::default();
 
         // decode program and check validity
         let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
@@ -68,7 +69,7 @@ impl PVM {
 
         pvm.setup_memory_layout(&formatted_program, args)?;
         pvm.initialize_registers(args.len());
-        pvm.program.program_code = formatted_program.code;
+        pvm.program_blob = formatted_program.code;
 
         Ok(pvm)
     }
@@ -78,18 +79,18 @@ impl PVM {
 
         // Program-specific read-only static data (o)
         let o_start = REGION_SIZE as MemAddress; // Z_Q
-        let o_padding_end = o_start + VMUtils::page_align(fp.read_only_len as usize) as MemAddress;
+        let o_padding_end = o_start + VMUtils::page_align(fp.static_size as usize) as MemAddress;
         memory.init_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
-        memory.write_bytes(o_start, &fp.read_only_data)?;
+        memory.write_bytes(o_start, &fp.static_data)?;
 
         // Read-write heap data (w)
         let w_start =
-            (2 * REGION_SIZE + VMUtils::region_align(fp.read_only_len as usize)) as MemAddress;
+            (2 * REGION_SIZE + VMUtils::region_align(fp.static_size as usize)) as MemAddress;
         let w_padding_end = w_start
-            + VMUtils::page_align(fp.read_write_len as usize) as MemAddress
+            + VMUtils::page_align(fp.heap_size as usize) as MemAddress
             + fp.extra_heap_pages as MemAddress * PAGE_SIZE as MemAddress;
         memory.init_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
-        memory.write_bytes(w_start, &fp.read_write_data)?;
+        memory.write_bytes(w_start, &fp.heap_data)?;
         memory.heap_start = w_start;
 
         // Stack (s)
@@ -214,10 +215,17 @@ impl PVM {
     // Common PVM invocation functions
     //
 
-    /// Invoke the PVM with program and arguments
-    /// This works as a common interface for the four PVM invocation entry-points
+    /// Invokes the PVM with standard program blob and arguments.
+    /// This works as a common interface for the four PVM invocation entry-points.
     ///
-    /// Represents `Psi_M` of the GP
+    /// # Input Program
+    /// This function accepts a standard program blob as input, which is then decoded into a
+    /// `FormattedProgram` type. The decoding process extracts information about the memory layout
+    /// necessary for initialization. Subsequently, the code section of the `FormattedProgram`
+    /// is loaded as an immutable state within the `PVM`. This immutable state allows the program code
+    /// to be utilized during the execution of the `extended_invocation` and `general_invocation` functions.
+    ///
+    /// Represents `Ψ_M` of the GP.
     pub fn common_invocation(
         state_manager: &StateManager,
         target_address: Address,
@@ -257,7 +265,10 @@ impl PVM {
     /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
     /// common invocation function
     ///
-    /// Represents `Psi_H` of the GP
+    /// # Input Program
+    /// This function utilizes the program component of the `PVM` state.
+    ///
+    /// Represents `Ψ_H` of the GP.
     fn extended_invocation(
         &mut self,
         state_manager: &StateManager,
@@ -265,7 +276,11 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
-            let mut exit_reason = PVMCore::general_invocation(&mut self.state, &mut self.program)?;
+            let mut exit_reason = PVMCore::general_invocation(
+                &mut self.state,
+                &mut self.program_state,
+                &self.program_blob,
+            )?;
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
@@ -284,7 +299,7 @@ impl PVM {
             };
 
             self.apply_host_call_state_change(vm_state_change)?; // update the vm states
-            self.state.pc = PVMCore::next_pc(&self.state, &self.program); // increment the pc on host call success
+            self.state.pc = PVMCore::next_pc(&self.state, &self.program_state); // increment the pc on host call success
         }
     }
 

@@ -15,7 +15,8 @@ use rjam_pvm_core::{
         BASE_GAS_USAGE, DATA_SEGMENTS_SIZE, HOST_CALL_INPUT_REGISTERS_COUNT,
         PREIMAGE_EXPIRATION_PERIOD, REGISTERS_COUNT,
     },
-    core::{PVMCore, Program, VMState},
+    core::{PVMCore, VMState},
+    program::program_decoder::ProgramState,
     state::{
         memory::{MemAddress, Memory},
         register::Register,
@@ -1242,19 +1243,21 @@ impl HostFunction {
 
         let inner_vm = x.pvm_instances.get_mut(&inner_vm_id).unwrap();
 
-        // Construct a new `VMState` and `Program` for the general invocation function.
+        // Construct a new `VMState` and `ProgramState` for the general invocation function.
         let mut inner_vm_state = VMState {
             registers: regs,
             memory: inner_vm.memory.clone(), // FIXME: remove `clone`
             pc: inner_vm.pc,
             gas_counter: gas,
         };
-        let mut inner_vm_program = Program {
-            program_code: inner_vm.program_code.clone(), // FIXME: remove `clone`
-            ..Default::default()
-        };
+        let inner_vm_program_code = &inner_vm.program_code;
+        let mut inner_vm_program_state = ProgramState::default();
 
-        let exit_reason = PVMCore::general_invocation(&mut inner_vm_state, &mut inner_vm_program)?;
+        let exit_reason = PVMCore::general_invocation(
+            &mut inner_vm_state,
+            &mut inner_vm_program_state,
+            inner_vm_program_code,
+        )?;
 
         // TODO: update the InnerVM pc
 
