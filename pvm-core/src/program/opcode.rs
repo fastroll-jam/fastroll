@@ -1,3 +1,4 @@
+use crate::types::error::{PVMError, VMCoreError::InvalidOpcode};
 use num_enum::TryFromPrimitive;
 
 /// PVM Opcodes
@@ -96,8 +97,8 @@ pub enum Opcode {
 }
 
 impl Opcode {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        Self::try_from(value).ok()
+    pub fn from_u8(value: u8) -> Result<Self, PVMError> {
+        Self::try_from(value).map_err(|_| PVMError::VMCoreError(InvalidOpcode))
     }
 
     pub fn is_termination_opcode(&self) -> bool {

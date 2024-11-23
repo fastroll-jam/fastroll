@@ -78,62 +78,45 @@ impl PVMCore {
 
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
-    fn skip(pc: RegValue, instructions: &[u8], opcode_bitmask: &BitVec) -> usize {
-        let mut skip_distance = 0;
-        let max_skip = 24;
+    fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
+        const MAX_SKIP: usize = 24;
 
-        // TODO: assertion for instructions.len() == bitmask.len() needed?
-
-        for i in 1..=max_skip {
-            let next_opcode_address = pc as usize + i;
-            if next_opcode_address >= instructions.len() {
-                break;
-            }
-            if opcode_bitmask[next_opcode_address] {
-                skip_distance = i;
-                break;
+        for skip_distance in 1..=MAX_SKIP {
+            if opcode_bitmask
+                .get(curr_opcode_index + 1 + skip_distance)
+                .unwrap_or(true)
+            {
+                return skip_distance;
             }
         }
 
-        skip_distance.min(max_skip)
+        MAX_SKIP // Note: this case implies malformed program.
     }
 
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
     pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
-        1 + Self::skip(
-            vm_state.pc,
-            &program_state.instructions,
-            &program_state.opcode_bitmask,
-        ) as RegValue
+        1 + Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask) as RegValue
     }
 
-    /// Set `basic_blocks` array of the VM immutable state utilizing instructions blob and opcode bitmask
-    fn set_basic_block_bitmask(program: &mut ProgramState) -> Result<(), PVMError> {
-        let bitmask_len = program.opcode_bitmask.len();
-        let mut basic_block_bitmask = BitVec::from_elem(bitmask_len, false);
+    /// Collects opcode indices that indicate beginning of basic blocks and sets the
+    /// `basic_block_start_indices` of the `ProgramState`.
+    fn set_basic_block_start_indices(program: &mut ProgramState) -> Result<(), PVMError> {
+        program.basic_block_start_indices.insert(0);
+        let instructions_len = program.instructions.len();
 
-        // MemAddress 0 always starts a basic block
-        basic_block_bitmask.set(0, true);
-
-        for n in 0..bitmask_len {
-            if program.opcode_bitmask.get(n).unwrap() {
-                if let Some(op) = Opcode::from_u8(n as u8) {
+        for n in 1..instructions_len {
+            if let Some(true) = program.opcode_bitmask.get(n) {
+                if let Some(&op_val) = program.instructions.get(n) {
+                    let op = Opcode::from_u8(op_val)?;
                     if op.is_termination_opcode() {
-                        let basic_block_start_address = n
-                            + 1
-                            + Self::skip(
-                                n as RegValue,
-                                &program.instructions,
-                                &program.opcode_bitmask,
-                            );
-                        basic_block_bitmask.set(basic_block_start_address, true);
+                        let next_op_index = n + 1 + Self::skip(n, &program.opcode_bitmask);
+                        program.basic_block_start_indices.insert(next_op_index);
                     }
                 }
             }
         }
 
-        program.basic_block_bitmask = basic_block_bitmask;
         Ok(())
     }
 
@@ -151,7 +134,7 @@ impl PVMCore {
         program_state.instructions = instructions;
         program_state.opcode_bitmask = opcode_bitmask;
         program_state.jump_table = jump_table;
-        Self::set_basic_block_bitmask(program_state)?;
+        Self::set_basic_block_start_indices(program_state)?;
         Ok(())
     }
 
@@ -215,11 +198,7 @@ impl PVMCore {
         Self::set_program_state(program_code, program_state)?;
 
         loop {
-            let skip_distance = Self::skip(
-                vm_state.pc,
-                &program_state.instructions,
-                &program_state.opcode_bitmask,
-            );
+            let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
 
             let current_pc = vm_state.pc;
             let address = current_pc as usize;
@@ -235,7 +214,6 @@ impl PVMCore {
                 }
             };
 
-            // TODO: define instruction_blob with endless zeroes padding
             let ins =
                 ProgramDecoder::decode_instruction(instruction_blob, current_pc, skip_distance)?;
 

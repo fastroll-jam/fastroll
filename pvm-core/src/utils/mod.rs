@@ -36,10 +36,10 @@ impl VMUtils {
     ///
     /// # Returns
     ///
-    /// The signed equivalent of the input, or None if `n` is 0 or greater than 4.
+    /// The signed equivalent of the input, or None if `n` is greater than 8.
     pub fn unsigned_to_signed(n: u64, a: u64) -> Option<i64> {
         match n {
-            1..=8 => {
+            0..=8 => {
                 let max_positive = 1u64 << (8 * n - 1);
                 if a < max_positive {
                     Some(a as i64)
@@ -61,10 +61,10 @@ impl VMUtils {
     ///
     /// # Returns
     ///
-    /// The unsigned equivalent of the input, or None if `n` is 0 or greater than 8.
+    /// The unsigned equivalent of the input, or None if `n` is greater than 8.
     pub fn signed_to_unsigned(n: u64, a: i64) -> Option<u64> {
         match n {
-            1..=8 => {
+            0..=8 => {
                 let modulus = 1i64 << (8 * n);
                 Some(((modulus + a) % modulus) as u64)
             }
@@ -83,10 +83,10 @@ impl VMUtils {
     /// # Returns
     ///
     /// A vector of booleans representing the binary form of the input,
-    /// or None if `n` is 0 or greater than 8.
+    /// or None if `n` is greater than 8.
     pub fn int_to_bitvec(n: u64, x: u64) -> Option<BitVec> {
         match n {
-            1..=8 => {
+            0..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
                 for i in 0..(8 * n) {
                     result.set(i as usize, (x >> i) & 1 == 1);
@@ -108,9 +108,9 @@ impl VMUtils {
     /// # Returns
     ///
     /// The unsigned integer represented by the input binary form,
-    /// or None if `n` is 0 or greater than 8, or if the input vector's length doesn't match 8*n.
+    /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
     pub fn bitvec_to_int(n: u64, x: &BitVec) -> Option<u64> {
-        if n == 0 || n > 4 || x.len() != (8 * n) as usize {
+        if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
 
@@ -132,13 +132,13 @@ impl VMUtils {
     ///
     /// # Returns
     ///
-    /// The sign-extended 64-bit unsigned integer, or None if `n` is 0 or greater than 4.
+    /// The sign-extended 64-bit unsigned integer, or None if `n` is greater than 4.
     pub fn signed_extend<T>(compact_val: T, n: usize) -> Option<RegValue>
     where
         T: Into<u64> + Copy,
     {
         match n {
-            1..=8 => {
+            0..=8 => {
                 let val = compact_val.into();
                 let msb = (val >> (8 * n - 1)) & 1;
                 if msb == 1 {

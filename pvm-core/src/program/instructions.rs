@@ -7,7 +7,9 @@ use crate::{
         common::{ExitReason, RegValue},
         error::{
             PVMError, VMCoreError,
-            VMCoreError::{InvalidImmediateValue, InvalidMemoryValue, InvalidRegValue},
+            VMCoreError::{
+                InvalidImmediateValue, InvalidMemoryValue, InvalidRegValue, JumpTableOutOfBounds,
+            },
         },
         hostcall::HostCallType,
     },
@@ -38,11 +40,11 @@ impl InstructionSet {
     // Group 0: Helper functions
     //
 
-    /// Determines the next execution step based on a branch condition.
+    /// Determines the next instruction counter based on a branch condition.
     ///
     /// If the condition is true, attempts to jump to the target address.
     /// The target address must be the beginning of a basic block.
-    pub fn branch(
+    fn branch(
         vm_state: &VMState,
         program_state: &ProgramState,
         target: MemAddress,
@@ -50,19 +52,22 @@ impl InstructionSet {
     ) -> Result<(ExitReason, MemAddress), PVMError> {
         match (
             condition,
-            program_state.basic_block_bitmask.get(target as usize),
+            program_state
+                .basic_block_start_indices
+                .contains(&(target as usize)),
         ) {
             (false, _) => Ok((ExitReason::Continue, vm_state.pc_as_mem_address()?)),
-            (true, Some(true)) => Ok((ExitReason::Continue, target)),
-            (true, _) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
+            (true, true) => Ok((ExitReason::Continue, target)),
+            (true, false) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
         }
     }
 
     /// Performs a dynamic jump operation.
     ///
     /// This function handles jumps where the next instruction is dynamically computed.
-    /// The jump address is derived from the jump table, with special handling for alignment
-    /// and validity checks.
+    /// The jump address is derived from the jump table, with special handling for memory alignment
+    /// and validity checks. Specifically, the dynamic addresses are set as jump table indices
+    /// incremented by one and multiplied by the `JUMP_ALIGNMENT`.
     pub fn djump(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -76,13 +81,23 @@ impl InstructionSet {
 
         let jump_table_len = program_state.jump_table.len();
 
-        // Check if 'a' is valid and compute the target
-        match (a != 0 && a <= jump_table_len * JUMP_ALIGNMENT && a % JUMP_ALIGNMENT == 0)
-            .then(|| program_state.jump_table[(a / JUMP_ALIGNMENT) - 1])
-            .filter(|&target| program_state.basic_block_bitmask[target as usize])
-        {
-            Some(target) => Ok((ExitReason::Continue, target)),
-            None => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
+        // Check if the argument `a` is valid and compute the target
+        if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
+            return Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?));
+        }
+
+        let aligned_index = (a / JUMP_ALIGNMENT) - 1;
+
+        match program_state.jump_table.get(aligned_index) {
+            Some(&target)
+                if program_state
+                    .basic_block_start_indices
+                    .contains(&(target as usize)) =>
+            {
+                Ok((ExitReason::Continue, target))
+            }
+            Some(_) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
+            None => Err(PVMError::VMCoreError(JumpTableOutOfBounds(aligned_index))),
         }
     }
 

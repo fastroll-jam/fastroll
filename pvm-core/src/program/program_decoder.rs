@@ -7,7 +7,7 @@ use crate::{
     types::{
         common::RegValue,
         error::{
-            PVMError, VMCoreError,
+            PVMError,
             VMCoreError::{InvalidInstructionFormat, InvalidProgram},
         },
     },
@@ -15,6 +15,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use std::collections::HashSet;
 
 pub struct FormattedProgram {
     pub static_size: u32,      // |o|; length of read-only data of the program
@@ -72,10 +73,10 @@ impl FormattedProgram {
 /// Equivalent to `FormattedProgram.code`.
 #[derive(Default)]
 pub struct ProgramState {
-    pub instructions: Vec<u8>,       // c; serialized
+    pub instructions: Vec<u8>, // c; serialized // TODO: define instruction_blob with endless zeroes padding
     pub jump_table: Vec<MemAddress>, // j
-    pub opcode_bitmask: BitVec,      // k
-    pub basic_block_bitmask: BitVec, // additional bitmask to detect opcode addresses that begin basic blocks
+    pub opcode_bitmask: BitVec, // k
+    pub basic_block_start_indices: HashSet<usize>, // opcode indices that are beginning of basic-blocks
 }
 
 impl JamDecode for ProgramState {
@@ -100,13 +101,14 @@ impl JamDecode for ProgramState {
 
         // Decode the opcode bitmask (k)
         // The length of `k` must be equivalent to the length of `c`, |k| = |c|
+        // TODO: add validation for the instruction length limit of 16?
         let opcode_bitmask = BitVec::decode_fixed(input, instructions_len)?;
 
         Ok(Self {
             instructions,
             jump_table,
             opcode_bitmask,
-            basic_block_bitmask: BitVec::default(), // FIXME: check where this is updated
+            basic_block_start_indices: HashSet::from([0]),
         })
     }
 }
@@ -261,7 +263,7 @@ impl ProgramDecoder {
         skip_distance: usize,
     ) -> Result<Instruction, PVMError> {
         use crate::program::opcode::Opcode::*;
-        let op = Opcode::from_u8(inst_blob[0]).ok_or(VMCoreError::InvalidOpcode)?;
+        let op = Opcode::from_u8(inst_blob[0])?;
 
         match op {
             // Group 1: no arguments
