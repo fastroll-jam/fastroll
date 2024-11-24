@@ -39,13 +39,17 @@ pub enum VMCoreError {
     #[error("Dynamic jump target {0} is out of bounds in the jump table")]
     JumpTableOutOfBounds(usize),
     #[error("Invalid register value")]
-    InvalidRegValue,
+    InvalidRegVal,
     #[error("Invalid register index: {0}")]
     InvalidRegIndex(usize),
     #[error("Invalid memory value")]
-    InvalidMemoryValue,
+    InvalidMemVal,
     #[error("Invalid immediate value")]
-    InvalidImmediateValue,
+    InvalidImmVal,
+    #[error("Invalid offset value")]
+    InvalidOffset,
+    #[error("Invalid pc value")]
+    InvalidPC,
     #[error("Invalid host call type")]
     InvalidHostCallType,
     #[error("Data length mismatch in memory state changes")]

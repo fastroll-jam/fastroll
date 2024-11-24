@@ -13,14 +13,14 @@ use crate::{
         common::{ExitReason, RegValue},
         error::{
             PVMError,
-            VMCoreError::{InvalidRegIndex, InvalidRegValue, MemoryStateChangeDataLengthMismatch},
+            VMCoreError::{InvalidRegIndex, InvalidRegVal, MemoryStateChangeDataLengthMismatch},
         },
     },
 };
 use bit_vec::BitVec;
 use rjam_common::UnsignedGas;
 
-pub struct SingleInvocationResult {
+pub struct SingleStepResult {
     pub exit_reason: ExitReason,
     pub state_change: StateChange,
 }
@@ -40,7 +40,7 @@ impl VMState {
     }
 
     pub fn pc_as_mem_address(&self) -> Result<MemAddress, PVMError> {
-        MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegValue))
+        MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 }
 
@@ -241,7 +241,7 @@ impl PVMCore {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleInvocationResult, PVMError> {
+    ) -> Result<SingleStepResult, PVMError> {
         match ins.op {
             Opcode::TRAP => IS::trap(vm_state, program_state),
             Opcode::FALLTHROUGH => IS::fallthrough(vm_state, program_state),
@@ -284,24 +284,22 @@ impl PVMCore {
             Opcode::LOAD_IND_U16 => IS::load_ind_u16(vm_state, program_state, ins),
             Opcode::LOAD_IND_I16 => IS::load_ind_i16(vm_state, program_state, ins),
             Opcode::LOAD_IND_U32 => IS::load_ind_u32(vm_state, program_state, ins),
-            Opcode::ADD_IMM => IS::add_imm(vm_state, program_state, ins),
+            Opcode::ADD_IMM_32 => IS::add_imm_32(vm_state, program_state, ins),
             Opcode::AND_IMM => IS::and_imm(vm_state, program_state, ins),
             Opcode::XOR_IMM => IS::xor_imm(vm_state, program_state, ins),
             Opcode::OR_IMM => IS::or_imm(vm_state, program_state, ins),
-            Opcode::MUL_IMM => IS::mul_imm(vm_state, program_state, ins),
-            Opcode::MUL_UPPER_SS_IMM => IS::mul_upper_s_s_imm(vm_state, program_state, ins),
-            Opcode::MUL_UPPER_UU_IMM => IS::mul_upper_u_u_imm(vm_state, program_state, ins),
+            Opcode::MUL_IMM_32 => IS::mul_imm_32(vm_state, program_state, ins),
             Opcode::SET_LT_U_IMM => IS::set_lt_u_imm(vm_state, program_state, ins),
             Opcode::SET_LT_S_IMM => IS::set_lt_s_imm(vm_state, program_state, ins),
-            Opcode::SHLO_L_IMM => IS::shlo_l_imm(vm_state, program_state, ins),
-            Opcode::SHLO_R_IMM => IS::shlo_r_imm(vm_state, program_state, ins),
-            Opcode::SHAR_R_IMM => IS::shar_r_imm(vm_state, program_state, ins),
-            Opcode::NEG_ADD_IMM => IS::neg_add_imm(vm_state, program_state, ins),
+            Opcode::SHLO_L_IMM_32 => IS::shlo_l_imm_32(vm_state, program_state, ins),
+            Opcode::SHLO_R_IMM_32 => IS::shlo_r_imm_32(vm_state, program_state, ins),
+            Opcode::SHAR_R_IMM_32 => IS::shar_r_imm_32(vm_state, program_state, ins),
+            Opcode::NEG_ADD_IMM_32 => IS::neg_add_imm_32(vm_state, program_state, ins),
             Opcode::SET_GT_U_IMM => IS::set_gt_u_imm(vm_state, program_state, ins),
             Opcode::SET_GT_S_IMM => IS::set_gt_s_imm(vm_state, program_state, ins),
-            Opcode::SHLO_L_IMM_ALT => IS::shlo_l_imm_alt(vm_state, program_state, ins),
-            Opcode::SHLO_R_IMM_ALT => IS::shlo_r_imm_alt(vm_state, program_state, ins),
-            Opcode::SHAR_R_IMM_ALT => IS::shar_r_imm_alt(vm_state, program_state, ins),
+            Opcode::SHLO_L_IMM_ALT_32 => IS::shlo_l_imm_alt_32(vm_state, program_state, ins),
+            Opcode::SHLO_R_IMM_ALT_32 => IS::shlo_r_imm_alt_32(vm_state, program_state, ins),
+            Opcode::SHAR_R_IMM_ALT_32 => IS::shar_r_imm_alt_32(vm_state, program_state, ins),
             Opcode::CMOV_IZ_IMM => IS::cmov_iz_imm(vm_state, program_state, ins),
             Opcode::CMOV_NZ_IMM => IS::cmov_nz_imm(vm_state, program_state, ins),
             Opcode::BRANCH_EQ => IS::branch_eq(vm_state, program_state, ins),
@@ -311,24 +309,24 @@ impl PVMCore {
             Opcode::BRANCH_GE_U => IS::branch_ge_u(vm_state, program_state, ins),
             Opcode::BRANCH_GE_S => IS::branch_ge_s(vm_state, program_state, ins),
             Opcode::LOAD_IMM_JUMP_IND => IS::load_imm_jump_ind(vm_state, program_state, ins),
-            Opcode::ADD => IS::add(vm_state, program_state, ins),
-            Opcode::SUB => IS::sub(vm_state, program_state, ins),
+            Opcode::ADD_32 => IS::add_32(vm_state, program_state, ins),
+            Opcode::SUB_32 => IS::sub_32(vm_state, program_state, ins),
             Opcode::AND => IS::and(vm_state, program_state, ins),
             Opcode::XOR => IS::xor(vm_state, program_state, ins),
             Opcode::OR => IS::or(vm_state, program_state, ins),
-            Opcode::MUL => IS::mul(vm_state, program_state, ins),
+            Opcode::MUL_32 => IS::mul_32(vm_state, program_state, ins),
             Opcode::MUL_UPPER_SS => IS::mul_upper_s_s(vm_state, program_state, ins),
             Opcode::MUL_UPPER_UU => IS::mul_upper_u_u(vm_state, program_state, ins),
             Opcode::MUL_UPPER_SU => IS::mul_upper_s_u(vm_state, program_state, ins),
-            Opcode::DIV_U => IS::div_u(vm_state, program_state, ins),
-            Opcode::DIV_S => IS::div_s(vm_state, program_state, ins),
-            Opcode::REM_U => IS::rem_u(vm_state, program_state, ins),
-            Opcode::REM_S => IS::rem_s(vm_state, program_state, ins),
+            Opcode::DIV_U_32 => IS::div_u_32(vm_state, program_state, ins),
+            Opcode::DIV_S_32 => IS::div_s_32(vm_state, program_state, ins),
+            Opcode::REM_U_32 => IS::rem_u_32(vm_state, program_state, ins),
+            Opcode::REM_S_32 => IS::rem_s_32(vm_state, program_state, ins),
             Opcode::SET_LT_U => IS::set_lt_u(vm_state, program_state, ins),
             Opcode::SET_LT_S => IS::set_lt_s(vm_state, program_state, ins),
-            Opcode::SHLO_L => IS::shlo_l(vm_state, program_state, ins),
-            Opcode::SHLO_R => IS::shlo_r(vm_state, program_state, ins),
-            Opcode::SHAR_R => IS::shar_r(vm_state, program_state, ins),
+            Opcode::SHLO_L_32 => IS::shlo_l_32(vm_state, program_state, ins),
+            Opcode::SHLO_R_32 => IS::shlo_r_32(vm_state, program_state, ins),
+            Opcode::SHAR_R_32 => IS::shar_r_32(vm_state, program_state, ins),
             Opcode::CMOV_IZ => IS::cmov_iz(vm_state, program_state, ins),
             Opcode::CMOV_NZ => IS::cmov_nz(vm_state, program_state, ins),
         }

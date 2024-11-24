@@ -2,7 +2,7 @@ use crate::{
     state::memory::MemAddress,
     types::{
         common::RegValue,
-        error::{PVMError, VMCoreError::InvalidRegValue},
+        error::{PVMError, VMCoreError::InvalidRegVal},
     },
 };
 use rjam_common::Address;
@@ -22,11 +22,11 @@ impl Register {
     }
 
     pub fn as_u8(&self) -> Result<u8, PVMError> {
-        u8::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegValue))
+        u8::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 
     pub fn as_usize(&self) -> Result<usize, PVMError> {
-        usize::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegValue))
+        usize::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 
     pub fn as_reg_index(&self) -> Result<usize, PVMError> {
@@ -34,7 +34,7 @@ impl Register {
     }
 
     pub fn as_u32(&self) -> Result<u32, PVMError> {
-        u32::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegValue))
+        u32::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 
     pub fn as_mem_address(&self) -> Result<MemAddress, PVMError> {

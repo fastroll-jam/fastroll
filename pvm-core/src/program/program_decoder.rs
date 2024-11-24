@@ -401,10 +401,10 @@ impl ProgramDecoder {
 
             // Group 9: two register & one immediate
             STORE_IND_U8 | STORE_IND_U16 | STORE_IND_U32 | LOAD_IND_U8 | LOAD_IND_I8
-            | LOAD_IND_U16 | LOAD_IND_I16 | LOAD_IND_U32 | ADD_IMM | AND_IMM | XOR_IMM | OR_IMM
-            | MUL_IMM | MUL_UPPER_SS_IMM | MUL_UPPER_UU_IMM | SET_LT_U_IMM | SET_LT_S_IMM
-            | SHLO_L_IMM | SHLO_R_IMM | SHAR_R_IMM | NEG_ADD_IMM | SET_GT_U_IMM | SET_GT_S_IMM
-            | SHLO_L_IMM_ALT | SHLO_R_IMM_ALT | SHAR_R_IMM_ALT | CMOV_IZ_IMM | CMOV_NZ_IMM => {
+            | LOAD_IND_U16 | LOAD_IND_I16 | LOAD_IND_U32 | ADD_IMM_32 | AND_IMM | XOR_IMM
+            | OR_IMM | MUL_IMM_32 | SET_LT_U_IMM | SET_LT_S_IMM | SHLO_L_IMM_32 | SHLO_R_IMM_32
+            | SHAR_R_IMM_32 | NEG_ADD_IMM_32 | SET_GT_U_IMM | SET_GT_S_IMM | SHLO_L_IMM_ALT_32
+            | SHLO_R_IMM_ALT_32 | SHAR_R_IMM_ALT_32 | CMOV_IZ_IMM | CMOV_NZ_IMM => {
                 let r_a = 12.min(inst_blob[current_pc as usize + 1] % 16) as usize;
                 let r_b = 12.min((inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8)
                     as usize;
@@ -463,9 +463,9 @@ impl ProgramDecoder {
             }
 
             // Group 12: three registers
-            ADD | SUB | AND | XOR | OR | MUL | MUL_UPPER_SS | MUL_UPPER_UU | MUL_UPPER_SU
-            | DIV_U | DIV_S | REM_U | REM_S | SET_LT_U | SET_LT_S | SHLO_L | SHLO_R | SHAR_R
-            | CMOV_IZ | CMOV_NZ => {
+            ADD_32 | SUB_32 | AND | XOR | OR | MUL_32 | MUL_UPPER_SS | MUL_UPPER_UU
+            | MUL_UPPER_SU | DIV_U_32 | DIV_S_32 | REM_U_32 | REM_S_32 | SET_LT_U | SET_LT_S
+            | SHLO_L_32 | SHLO_R_32 | SHAR_R_32 | CMOV_IZ | CMOV_NZ => {
                 let r_a = 12.min(inst_blob[current_pc as usize + 1] % 16) as usize;
                 let r_b = 12.min((inst_blob[current_pc as usize + 1] as f64 / 16.0).floor() as u8)
                     as usize;
