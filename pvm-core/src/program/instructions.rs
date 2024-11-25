@@ -7,10 +7,7 @@ use crate::{
         common::{ExitReason, RegValue},
         error::{
             PVMError, VMCoreError,
-            VMCoreError::{
-                InvalidImmVal, InvalidMemVal, InvalidOffset, InvalidPC, InvalidRegVal,
-                JumpTableOutOfBounds,
-            },
+            VMCoreError::{InvalidImmVal, InvalidMemVal, InvalidRegVal, JumpTableOutOfBounds},
         },
         hostcall::HostCallType,
     },
@@ -43,14 +40,8 @@ fn reg_to_i64(reg: RegValue) -> Result<i64, PVMError> {
     i64::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
 }
 
-#[allow(dead_code)]
 fn reg_to_usize(reg: RegValue) -> Result<usize, PVMError> {
     usize::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
-}
-
-fn offset_target_address(vm_state: &VMState, offset: i64) -> Result<MemAddress, PVMError> {
-    let pc_signed = i64::try_from(vm_state.pc).map_err(|_| PVMError::VMCoreError(InvalidPC))?;
-    MemAddress::try_from(pc_signed + offset).map_err(|_| PVMError::VMCoreError(InvalidOffset))
 }
 
 pub struct InstructionSet;
@@ -317,8 +308,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?; // FIXME
-        let (exit_reason, target) = Self::branch(vm_state, program_state, imm_address, true)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
             exit_reason,
@@ -742,9 +733,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
@@ -768,8 +757,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             == ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -792,8 +780,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             != ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -816,8 +803,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             < ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -840,8 +826,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             <= ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -864,8 +849,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             >= ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -888,8 +872,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             > ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -912,9 +895,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
@@ -943,9 +924,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
@@ -974,9 +953,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
@@ -1005,9 +982,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
@@ -2018,9 +1993,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let condition = r1_val == r2_val;
@@ -2044,9 +2017,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = r1_val != r2_val;
@@ -2070,9 +2041,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let condition = r1_val < r2_val;
@@ -2095,9 +2064,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val_signed = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
@@ -2129,9 +2096,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = r1_val >= r2_val;
@@ -2155,9 +2120,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let offset_val = ins.offset.ok_or(InvalidImmVal)?;
-        let target = offset_target_address(vm_state, offset_val)?;
-
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val_signed = VMUtils::unsigned_to_signed(
             8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
