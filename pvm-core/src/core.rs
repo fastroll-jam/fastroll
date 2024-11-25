@@ -13,12 +13,15 @@ use crate::{
         common::{ExitReason, RegValue},
         error::{
             PVMError,
-            VMCoreError::{InvalidRegIndex, InvalidRegVal, MemoryStateChangeDataLengthMismatch},
+            VMCoreError::{
+                InvalidRegIndex, InvalidRegVal, MemoryStateChangeDataLengthMismatch,
+                TooLargeGasCounter,
+            },
         },
     },
 };
 use bit_vec::BitVec;
-use rjam_common::UnsignedGas;
+use rjam_common::{SignedGas, UnsignedGas};
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -138,8 +141,34 @@ impl PVMCore {
         Ok(())
     }
 
+    fn apply_gas_cost(
+        vm_state: &mut VMState,
+        gas_usage: UnsignedGas,
+    ) -> Result<SignedGas, PVMError> {
+        let gas_counter_signed: SignedGas = vm_state
+            .gas_counter
+            .try_into()
+            .map_err(|_| PVMError::VMCoreError(TooLargeGasCounter))?;
+        let post_gas = gas_counter_signed - gas_usage as SignedGas;
+        if vm_state.gas_counter < gas_usage {
+            vm_state.gas_counter = 0;
+        } else {
+            vm_state.gas_counter -= gas_usage;
+        }
+
+        Ok(post_gas)
+    }
+
     /// Mutate the VM states from the change set produced by single-step instruction execution functions
-    fn apply_state_change(vm_state: &mut VMState, change: StateChange) -> Result<(), PVMError> {
+    ///
+    /// # Returns
+    ///
+    /// The amount of remaining gas allocation after applying the state change.
+    /// This might be negative, which will trigger the out-of-gas exit reason of the general invocation.
+    fn apply_state_change(
+        vm_state: &mut VMState,
+        change: StateChange,
+    ) -> Result<SignedGas, PVMError> {
         // Apply register changes
         for (reg_index, new_value) in change.register_writes {
             if reg_index >= REGISTERS_COUNT {
@@ -162,16 +191,9 @@ impl PVMCore {
             vm_state.pc = new_pc;
         }
 
-        // Apply gas change
-        vm_state.gas_counter -= change.gas_usage;
-        // TODO: add a separate gas check logic outside this function
-        // if self.state.gas_counter >= change.gas_usage {
-        //     self.state.gas_counter -= change.gas_usage;
-        // } else {
-        //     return ExitReason::OutOfGas;
-        // }
-
-        Ok(())
+        // Check gas counter and apply gas change
+        let post_gas = Self::apply_gas_cost(vm_state, change.gas_usage)?;
+        Ok(post_gas)
     }
 
     //
@@ -201,29 +223,34 @@ impl PVMCore {
             let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
 
             let current_pc = vm_state.pc;
-            let address = current_pc as usize;
-            let next_address = address + 1 + skip_distance;
+            let current_ins_idx = current_pc as usize;
+            let next_ins_idx = current_ins_idx + 1 + skip_distance;
 
             // Instruction blob length is not greater than 16
-            let instruction_blob = {
-                let full_slice = &program_state.instructions[address..next_address];
-                if full_slice.len() > 16 {
-                    &full_slice[..16]
-                } else {
-                    full_slice
-                }
-            };
+            let mut instruction_blob = &program_state.instructions[current_ins_idx..next_ins_idx];
+            if instruction_blob.len() > 16 {
+                instruction_blob = &instruction_blob[..16];
+            }
 
-            let ins =
+            let instruction =
                 ProgramDecoder::decode_instruction(instruction_blob, current_pc, skip_distance)?;
 
             let single_invocation_result =
-                Self::single_step_invocation(vm_state, program_state, &ins)?;
+                Self::single_step_invocation(vm_state, program_state, &instruction)?;
 
-            Self::apply_state_change(vm_state, single_invocation_result.state_change)?;
+            let post_gas =
+                Self::apply_state_change(vm_state, single_invocation_result.state_change)?;
+            if post_gas < 0 {
+                return Ok(ExitReason::OutOfGas);
+            }
+
             match single_invocation_result.exit_reason {
                 ExitReason::Continue => continue,
-                ExitReason::OutOfGas => return Ok(ExitReason::OutOfGas),
+                termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
+                    // Reset the program counter
+                    vm_state.pc = 0;
+                    return Ok(termination);
+                }
                 other => return Ok(other),
             }
         }

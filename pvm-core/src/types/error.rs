@@ -30,6 +30,8 @@ pub enum PVMError {
 pub enum VMCoreError {
     #[error("Out of gas")]
     OutOfGas,
+    #[error("Too large gas counter value")]
+    TooLargeGasCounter,
     #[error("Invalid program")]
     InvalidProgram,
     #[error("Invalid instruction format")]

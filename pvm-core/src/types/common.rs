@@ -7,7 +7,7 @@ pub enum ExitReason {
     Continue,
     RegularHalt,
     Panic,
-    OutOfGas,
+    OutOfGas, // Note: Not used in the single-step invocation.
     PageFault(MemAddress),
     HostCall(HostCallType),
 }
