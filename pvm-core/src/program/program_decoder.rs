@@ -1,15 +1,10 @@
 use crate::{
-    constants::{
-        INIT_PAGE_SIZE, INIT_SIZE, REGION_SIZE, REGISTERS_COUNT, STANDARD_PROGRAM_SIZE_LIMIT,
-    },
+    constants::*,
     program::opcode::*,
     state::memory::MemAddress,
     types::{
         common::RegValue,
-        error::{
-            PVMError,
-            VMCoreError::{InvalidInstructionFormat, InvalidProgram},
-        },
+        error::{PVMError, VMCoreError::*},
     },
     utils::VMUtils,
 };

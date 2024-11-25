@@ -11,13 +11,7 @@ use crate::{
     },
     types::{
         common::{ExitReason, RegValue},
-        error::{
-            PVMError,
-            VMCoreError::{
-                InvalidRegIndex, InvalidRegVal, MemoryStateChangeDataLengthMismatch,
-                TooLargeGasCounter,
-            },
-        },
+        error::{PVMError, VMCoreError::*},
     },
 };
 use bit_vec::BitVec;

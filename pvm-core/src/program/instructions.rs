@@ -5,10 +5,7 @@ use crate::{
     state::memory::MemAddress,
     types::{
         common::{ExitReason, RegValue},
-        error::{
-            PVMError, VMCoreError,
-            VMCoreError::{InvalidImmVal, InvalidMemVal, InvalidRegVal, JumpTableOutOfBounds},
-        },
+        error::{PVMError, VMCoreError, VMCoreError::*},
         hostcall::HostCallType,
     },
     utils::VMUtils,
