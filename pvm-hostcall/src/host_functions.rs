@@ -27,27 +27,28 @@ use rjam_types::{
     },
 };
 
-#[repr(u32)]
+#[repr(u64)]
 pub enum HostCallResultConstant {
-    NONE = u32::MAX,
-    OOB = u32::MAX - 1,
-    WHO = u32::MAX - 2,
-    FULL = u32::MAX - 3,
-    CORE = u32::MAX - 4,
-    CASH = u32::MAX - 5,
-    LOW = u32::MAX - 6,
-    HIGH = u32::MAX - 7,
-    WHAT = u32::MAX - 8,
-    HUH = u32::MAX - 9,
+    NONE = u64::MAX,     // An item does not exist.
+    WHAT = u64::MAX - 1, // Name unknown.
+    OOB = u64::MAX - 2,  // Memory index is not accessible for reading or writing.
+    WHO = u64::MAX - 3,  // Index unknown.
+    FULL = u64::MAX - 4, // Storage full.
+    CORE = u64::MAX - 5, // Core index unknown.
+    CASH = u64::MAX - 6, // Insufficient funds.
+    LOW = u64::MAX - 7,  // Gas limit too low.
+    HIGH = u64::MAX - 8, // Gas limit too high.
+    HUH = u64::MAX - 9,  // The item is already solicited or cannot be forgotten.
     OK = 0,
 }
 
 #[repr(u32)]
 pub enum InnerPVMResultConstant {
-    HALT = 0,
-    PANIC = 1,
-    FAULT = 2,
-    HOST = 3,
+    HALT = 0,  // Normal halt
+    PANIC = 1, // Panic
+    FAULT = 2, // Page fault
+    HOST = 3,  // Host-call fault
+    OOG = 4,   // out of gas
 }
 
 pub enum HostCallResult {
@@ -248,9 +249,9 @@ impl HostFunction {
             state_manager.get_account_storage_entry(target_address, &storage_key)?;
 
         let previous_size = if let Some(entry) = storage_entry {
-            entry.value.len()
+            entry.value.len() as u64
         } else {
-            HostCallResultConstant::NONE as usize
+            HostCallResultConstant::NONE as u64
         };
 
         if value_size == 0 {
@@ -263,7 +264,7 @@ impl HostFunction {
         } else {
             let data = memory.read_bytes(value_offset, value_size)?;
 
-            if previous_size == HostCallResultConstant::NONE as usize {
+            if previous_size == HostCallResultConstant::NONE as u64 {
                 state_manager.with_mut_account_storage_entry(
                     StateWriteOp::Add,
                     target_address,

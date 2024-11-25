@@ -21,16 +21,15 @@ use rjam_types::{
 
 // Initial Program Counters
 const IS_AUTHORIZED_INITIAL_PC: RegValue = 0;
-const REFINE_INITIAL_PC: RegValue = 5;
-const ACCUMULATE_INITIAL_PC: RegValue = 10;
-const ON_TRANSFER_INITIAL_PC: RegValue = 15;
+const REFINE_INITIAL_PC: RegValue = 0;
+const ACCUMULATE_INITIAL_PC: RegValue = 5;
+const ON_TRANSFER_INITIAL_PC: RegValue = 10;
 
-// TODO: Fix constants
 // Gas Allocations
-pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 0; // G_A
-pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 0; // G_T
-pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_I
-pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 0; // G_R
+pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 100_000; // G_A
+pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 341_000_000; // G_T
+pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 1_000_000; // G_I
+pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 500_000_000; // G_R
 
 pub struct RefineResult {
     pub output: WorkExecutionOutput,
@@ -193,7 +192,7 @@ impl PVMInvocation {
     /// * `gas_limit` - The maximum amount of gas allowed for the accumulation operation
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     ///
-    /// Represents `Psi_A` of the GP
+    /// Represents `Ψ_A` of the GP
     pub fn accumulate(
         state_manager: &StateManager,
         target_address: Address,
