@@ -16,7 +16,7 @@ use rjam_pvm_core::{
 };
 use rjam_pvm_hostcall::{
     contexts::InvocationContext,
-    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
+    host_functions::{HostCallChangeSet, HostCallVMStateChange, HostFunction},
 };
 use rjam_state::StateManager;
 
@@ -264,28 +264,20 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
-            let mut exit_reason = PVMCore::general_invocation(
+            let exit_reason = PVMCore::general_invocation(
                 &mut self.state,
                 &mut self.program_state,
                 &self.program_blob,
             )?;
 
-            let host_call_result = match exit_reason {
+            let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
                     self.execute_host_function(state_manager, target_address, context, &h)?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            let change_set = match host_call_result {
-                HostCallResult::PageFault(m) => {
-                    exit_reason = ExitReason::PageFault(m);
-                    return Ok(ExtendedInvocationResult { exit_reason });
-                }
-                HostCallResult::Complete(result) => result,
-            };
-
-            self.apply_host_call_state_change(change_set.vm_change)?; // update the vm states
+            self.apply_host_call_state_change(host_call_change_set.vm_change)?; // update the vm states
             self.state.pc = PVMCore::next_pc(&self.state, &self.program_state); // increment the pc on host call success
         }
     }
@@ -296,7 +288,7 @@ impl PVM {
         target_address: Address,
         context: &mut InvocationContext,
         h: &HostCallType,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallChangeSet, PVMError> {
         let result = match h {
             //
             // General Functions
