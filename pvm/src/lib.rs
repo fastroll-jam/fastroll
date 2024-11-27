@@ -282,8 +282,7 @@ impl PVM {
                     exit_reason = ExitReason::PageFault(m);
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
-                HostCallResult::Accumulation(result) => result,
-                _ => unimplemented!("not yet implemented"), // FIXME: add other cases
+                HostCallResult::Complete(result) => result,
             };
 
             self.apply_host_call_state_change(change_set.vm_change)?; // update the vm states
