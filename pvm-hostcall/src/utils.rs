@@ -12,10 +12,10 @@ pub fn zero_pad(mut input: Vec<u8>, block_size: usize) -> Vec<u8> {
 // Convenience function for `HostCallVMStateChange` construction
 fn create_host_call_state_change(
     constant: HostCallResultConstant,
-    gas_usage: UnsignedGas,
+    gas_charge: UnsignedGas,
 ) -> HostCallVMStateChange {
     HostCallVMStateChange {
-        gas_usage,
+        gas_charge,
         r7_write: Some(constant as RegValue),
         ..Default::default()
     }
@@ -23,8 +23,8 @@ fn create_host_call_state_change(
 
 macro_rules! define_host_call_state_change_function {
     ($func_name:ident, $constant:ident) => {
-        pub fn $func_name(gas_usage: UnsignedGas) -> HostCallVMStateChange {
-            create_host_call_state_change(HostCallResultConstant::$constant, gas_usage)
+        pub fn $func_name(gas_charge: UnsignedGas) -> HostCallVMStateChange {
+            create_host_call_state_change(HostCallResultConstant::$constant, gas_charge)
         }
     };
 }

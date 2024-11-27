@@ -23,7 +23,7 @@ use std::collections::HashSet;
 ///     - host_solicit
 ///     - host_forget
 /// - `PrivilegedServices`:
-///     - host_empower
+///     - host_bless
 /// - `StagingSet`:
 ///     - host_designate
 /// - `AuthQueue`:

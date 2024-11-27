@@ -1,9 +1,7 @@
 use rjam_common::UnsignedGas;
 
-pub const BASE_GAS_USAGE: UnsignedGas = 10;
+pub const BASE_GAS_CHARGE: UnsignedGas = 10;
 pub const REGISTERS_COUNT: usize = 13;
-pub const HOST_CALL_INPUT_REGISTERS_COUNT: usize = 13;
-pub const HOST_CALL_OUTPUT_REGISTERS_COUNT: usize = 13;
 pub const MEMORY_SIZE: usize = 1 << 32;
 pub const INIT_PAGE_SIZE: usize = 1 << 14; // Z_G; 16KB memory page size (for initialization only)
 pub const PAGE_SIZE: usize = 1 << 12; // Z_P; 4KB memory page size

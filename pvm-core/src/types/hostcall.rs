@@ -11,7 +11,7 @@ pub enum HostCallType {
     WRITE = 3,
     INFO = 4,
     // Accumulate Functions
-    EMPOWER = 5,
+    BLESS = 5,
     ASSIGN = 6,
     DESIGNATE = 7,
     CHECKPOINT = 8,
@@ -28,8 +28,10 @@ pub enum HostCallType {
     MACHINE = 18,
     PEEK = 19,
     POKE = 20,
-    INVOKE = 21,
-    EXPUNGE = 22,
+    ZERO = 21,
+    VOID = 22,
+    INVOKE = 23,
+    EXPUNGE = 24,
 }
 
 impl HostCallType {

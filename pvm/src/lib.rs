@@ -126,7 +126,7 @@ impl PVM {
     //
 
     /// Get a reference to registers for host call function arguments
-    pub fn get_host_call_registers(&self) -> &[Register; HOST_CALL_INPUT_REGISTERS_COUNT] {
+    pub fn get_host_call_registers(&self) -> &[Register; REGISTERS_COUNT] {
         &self.state.registers
     }
 
@@ -182,11 +182,11 @@ impl PVM {
         }
 
         // Apply gas change
-        self.state.gas_counter -= change.gas_usage;
+        self.state.gas_counter -= change.gas_charge;
 
         // TODO: add a separate gas check logic outside this function
-        // if self.state.gas_counter >= change.gas_usage {
-        //     self.state.gas_counter -= change.gas_usage;
+        // if self.state.gas_counter >= change.gas_charge {
+        //     self.state.gas_counter -= change.gas_charge;
         // } else {
         //     return ExitReason::OutOfGas;
         // }
@@ -292,7 +292,7 @@ impl PVM {
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 HostCallResult::Accumulation(result) => result.vm_state_change,
-                _ => unimplemented!("not yet implemented"), // TODO: add other cases
+                _ => unimplemented!("not yet implemented"), // FIXME: add other cases
             };
 
             self.apply_host_call_state_change(vm_state_change)?; // update the vm states
@@ -341,8 +341,8 @@ impl PVM {
             //
             // Accumulate Functions
             //
-            HostCallType::EMPOWER => {
-                HostFunction::host_empower(self.get_host_call_registers(), state_manager)?
+            HostCallType::BLESS => {
+                HostFunction::host_bless(self.get_host_call_registers(), state_manager)?
             }
             HostCallType::ASSIGN => HostFunction::host_assign(
                 self.get_host_call_registers(),

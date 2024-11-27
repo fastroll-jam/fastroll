@@ -67,17 +67,17 @@ pub enum AccumulateResult {
 }
 
 pub struct HostCallVMStateChange {
-    pub gas_usage: UnsignedGas,
+    pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
     pub r8_write: Option<RegValue>,
     pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
-    pub exit_reason: ExitReason,                  // TODO: check if necessary
+    pub exit_reason: ExitReason,                  // TODO: separate to another struct
 }
 
 impl Default for HostCallVMStateChange {
     fn default() -> Self {
         Self {
-            gas_usage: BASE_GAS_USAGE,
+            gas_charge: BASE_GAS_CHARGE,
             r7_write: None,
             r8_write: None,
             memory_write: (0, 0, vec![]),
@@ -114,7 +114,7 @@ impl HostFunction {
         let gas_remaining = gas.wrapping_sub(10);
 
         Ok(HostCallResult::General(HostCallVMStateChange {
-            gas_usage: BASE_GAS_USAGE,
+            gas_charge: BASE_GAS_CHARGE,
             r7_write: Some((gas_remaining & 0xFFFFFFFF) as RegValue),
             r8_write: Some((gas_remaining >> 32) as RegValue),
             ..Default::default()
@@ -123,7 +123,7 @@ impl HostFunction {
 
     pub fn host_lookup(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -140,7 +140,7 @@ impl HostFunction {
             };
 
         if !memory.is_range_readable(hash_offset, 32).unwrap() {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
         }
 
         let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
@@ -151,11 +151,11 @@ impl HostFunction {
                 let write_data_size = buffer_size.min(entry.value.len());
 
                 if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                    return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+                    return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
                 }
 
                 Ok(HostCallResult::General(HostCallVMStateChange {
-                    gas_usage: BASE_GAS_USAGE,
+                    gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(entry.value.len() as RegValue),
                     memory_write: (
                         buffer_offset,
@@ -165,13 +165,13 @@ impl HostFunction {
                     ..Default::default()
                 }))
             }
-            None => Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
+            None => Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE))),
         }
     }
 
     pub fn host_read(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -189,7 +189,7 @@ impl HostFunction {
             };
 
         if !memory.is_range_readable(key_offset, key_size)? {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
         }
 
         let mut key = vec![];
@@ -204,11 +204,11 @@ impl HostFunction {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+                return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
             }
 
             Ok(HostCallResult::General(HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(entry.value.len() as RegValue),
                 memory_write: (
                     buffer_offset,
@@ -218,14 +218,14 @@ impl HostFunction {
                 ..Default::default()
             }))
         } else {
-            Ok(HostCallResult::General(none_change(BASE_GAS_USAGE)))
+            Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE)))
         }
     }
 
     // TODO: check if `target_address` is provided as an arg - not specified in the GP
     pub fn host_write(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -237,7 +237,7 @@ impl HostFunction {
         if !memory.is_range_readable(key_offset, key_size)?
             || !memory.is_range_readable(value_offset, value_size)?
         {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
         }
 
         let mut key = vec![];
@@ -292,10 +292,10 @@ impl HostFunction {
         if target_account_metadata.get_threshold_balance()
             > target_account_metadata.account_info.balance
         {
-            Ok(HostCallResult::General(full_change(BASE_GAS_USAGE)))
+            Ok(HostCallResult::General(full_change(BASE_GAS_CHARGE)))
         } else {
             Ok(HostCallResult::General(HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(previous_size as RegValue),
                 ..Default::default()
             }))
@@ -304,7 +304,7 @@ impl HostFunction {
 
     pub fn host_info(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -320,7 +320,7 @@ impl HostFunction {
 
         let account = match state_manager.get_account_metadata(account_address)? {
             Some(metadata) => metadata,
-            None => return Ok(HostCallResult::General(none_change(BASE_GAS_USAGE))),
+            None => return Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE))),
         };
 
         // Encode account fields with JAM Codec
@@ -340,11 +340,11 @@ impl HostFunction {
         account.item_counts_footprint.encode_to(&mut info)?; // i
 
         if !memory.is_range_writable(buffer_offset, info.len())? {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_USAGE)));
+            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
         }
 
         Ok(HostCallResult::General(HostCallVMStateChange {
-            gas_usage: BASE_GAS_USAGE,
+            gas_charge: BASE_GAS_CHARGE,
             r7_write: Some(HostCallResultConstant::OK as RegValue),
             memory_write: (buffer_offset, info.len() as u32, info.clone()),
             ..Default::default()
@@ -356,8 +356,8 @@ impl HostFunction {
     //
 
     // Accumulation host functions mutate: gas, regs, contexts
-    pub fn host_empower(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+    pub fn host_bless(
+        regs: &[Register; REGISTERS_COUNT],
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
         let manager = regs[7].as_account_address()?;
@@ -380,7 +380,7 @@ impl HostFunction {
 
     #[allow(clippy::needless_range_loop)]
     pub fn host_assign(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -389,13 +389,13 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
         if core_index >= CORE_COUNT {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: core_change(BASE_GAS_USAGE),
+                vm_state_change: core_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -412,12 +412,12 @@ impl HostFunction {
         })?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_USAGE),
+            vm_state_change: ok_change(BASE_GAS_CHARGE),
         }))
     }
 
     pub fn host_designate(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -427,7 +427,7 @@ impl HostFunction {
         const PUBLIC_KEY_SIZE: usize = 336;
         if !memory.is_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -447,7 +447,7 @@ impl HostFunction {
         })?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_USAGE),
+            vm_state_change: ok_change(BASE_GAS_CHARGE),
         }))
     }
 
@@ -463,11 +463,11 @@ impl HostFunction {
         let x_clone = acc_pair.get_x().clone();
         *acc_pair.get_mut_y() = x_clone; // assign the cloned `x` context to the `y` context
 
-        let post_gas = gas.saturating_sub(BASE_GAS_USAGE); // TODO: gas management
+        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE); // TODO: gas management
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(post_gas as RegValue),
                 r8_write: Some((post_gas >> 32) as RegValue),
                 ..Default::default()
@@ -476,7 +476,7 @@ impl HostFunction {
     }
     pub fn host_new(
         creator_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
         context: &mut InvocationContext,
@@ -496,7 +496,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -520,7 +520,7 @@ impl HostFunction {
 
         if creator_subtracted_balance < creator_account_threshold_balance {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: cash_change(BASE_GAS_USAGE),
+                vm_state_change: cash_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -558,7 +558,7 @@ impl HostFunction {
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(new_account_address as RegValue),
                 ..Default::default()
             },
@@ -567,7 +567,7 @@ impl HostFunction {
 
     pub fn host_upgrade(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -579,7 +579,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -598,14 +598,14 @@ impl HostFunction {
         )?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_USAGE),
+            vm_state_change: ok_change(BASE_GAS_CHARGE),
         }))
     }
 
     pub fn host_transfer(
         sender_address: Address,
         gas: UnsignedGas,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
         context: &mut InvocationContext,
@@ -628,7 +628,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -651,7 +651,7 @@ impl HostFunction {
         // State cache lookup also detects new accounts added during accumulation
         if !state_manager.account_exists(dest)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE + amount),
+                vm_state_change: who_change(BASE_GAS_CHARGE + amount),
             }));
         }
 
@@ -663,19 +663,19 @@ impl HostFunction {
 
         if gas_limit < dest_gas_limit_m {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: low_change(BASE_GAS_USAGE + amount),
+                vm_state_change: low_change(BASE_GAS_CHARGE + amount),
             }));
         }
 
         if gas < gas_limit {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: high_change(BASE_GAS_USAGE + amount),
+                vm_state_change: high_change(BASE_GAS_CHARGE + amount),
             }));
         }
 
         if sender_post_balance < sender_account_metadata.get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: cash_change(BASE_GAS_USAGE + amount),
+                vm_state_change: cash_change(BASE_GAS_CHARGE + amount),
             }));
         }
 
@@ -689,14 +689,14 @@ impl HostFunction {
         )?;
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: oob_change(BASE_GAS_USAGE + amount),
+            vm_state_change: oob_change(BASE_GAS_CHARGE + amount),
         }))
     }
 
     pub fn host_quit(
         target_address: Address,
         gas: UnsignedGas,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
         context: &mut InvocationContext,
@@ -719,12 +719,12 @@ impl HostFunction {
             + B_S;
 
         if dest == u32::MAX || dest == target_address {
-            return Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_USAGE))); // TODO: check gas usage from the GP
+            return Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_CHARGE))); // TODO: check gas usage from the GP
         }
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -743,7 +743,7 @@ impl HostFunction {
         // State cache lookup also detects new accounts added during accumulation
         if !state_manager.account_exists(dest)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE + amount),
+                vm_state_change: who_change(BASE_GAS_CHARGE + amount),
             }));
         }
 
@@ -755,17 +755,17 @@ impl HostFunction {
 
         if gas < dest_gas_limit_m {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: low_change(BASE_GAS_USAGE + amount),
+                vm_state_change: low_change(BASE_GAS_CHARGE + amount),
             }));
         }
         x.add_to_deferred_transfers(transfer);
 
-        Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_USAGE)))
+        Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_CHARGE)))
     }
 
     pub fn host_solicit(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -774,7 +774,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -783,7 +783,7 @@ impl HostFunction {
         let account = state_manager.get_account_metadata(target_address)?.unwrap();
         if account.account_info.balance < account.get_threshold_balance() {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: full_change(BASE_GAS_USAGE),
+                vm_state_change: full_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -808,7 +808,7 @@ impl HostFunction {
                     )?;
                 } else {
                     return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                        vm_state_change: huh_change(BASE_GAS_USAGE),
+                        vm_state_change: huh_change(BASE_GAS_CHARGE),
                     }));
                 }
             }
@@ -824,13 +824,13 @@ impl HostFunction {
         }
 
         Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_USAGE),
+            vm_state_change: ok_change(BASE_GAS_CHARGE),
         }))
     }
 
     pub fn host_forget(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -839,7 +839,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -851,7 +851,7 @@ impl HostFunction {
             state_manager.get_account_lookups_entry(target_address, lookups_key)?;
 
         let vm_state_change = match account_lookups_entry {
-            None => huh_change(BASE_GAS_USAGE),
+            None => huh_change(BASE_GAS_CHARGE),
             Some(entry) => {
                 let lookups_timeslots = entry.value;
                 // Length of the timeslots vector
@@ -872,7 +872,7 @@ impl HostFunction {
                             &lookup_hash,
                             |_| {},
                         )?;
-                        ok_change(BASE_GAS_USAGE)
+                        ok_change(BASE_GAS_CHARGE)
                     }
                     1 => {
                         state_manager.with_mut_account_lookups_entry(
@@ -883,7 +883,7 @@ impl HostFunction {
                                 entry_mut.value.push(current_timeslot);
                             },
                         )?;
-                        ok_change(BASE_GAS_USAGE)
+                        ok_change(BASE_GAS_CHARGE)
                     }
                     2 | 3
                         if lookups_timeslots[1].0
@@ -917,9 +917,9 @@ impl HostFunction {
                                 },
                             )?
                         }
-                        ok_change(BASE_GAS_USAGE)
+                        ok_change(BASE_GAS_CHARGE)
                     }
-                    _ => huh_change(BASE_GAS_USAGE),
+                    _ => huh_change(BASE_GAS_CHARGE),
                 }
             }
         };
@@ -935,7 +935,7 @@ impl HostFunction {
 
     pub fn host_historical_lookup(
         target_address: Address,
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
@@ -954,13 +954,13 @@ impl HostFunction {
                 account_address_reg
             } else {
                 return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: none_change(BASE_GAS_USAGE),
+                    vm_state_change: none_change(BASE_GAS_CHARGE),
                 }));
             };
 
         if !memory.is_range_readable(lookup_hash_offset, HASH_SIZE)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -974,13 +974,13 @@ impl HostFunction {
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
                 return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: oob_change(BASE_GAS_USAGE),
+                    vm_state_change: oob_change(BASE_GAS_CHARGE),
                 }));
             }
 
             Ok(HostCallResult::Refinement(RefineHostCallResult {
                 vm_state_change: HostCallVMStateChange {
-                    gas_usage: BASE_GAS_USAGE,
+                    gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage.len() as RegValue),
                     memory_write: (
                         buffer_offset,
@@ -992,13 +992,13 @@ impl HostFunction {
             }))
         } else {
             Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: none_change(BASE_GAS_USAGE),
+                vm_state_change: none_change(BASE_GAS_CHARGE),
             }))
         }
     }
 
     pub fn host_import(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         import_segments: Vec<ExportDataSegment>,
     ) -> Result<HostCallResult, PVMError> {
@@ -1008,7 +1008,7 @@ impl HostFunction {
 
         if segments_len >= DATA_SEGMENTS_SIZE {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: none_change(BASE_GAS_USAGE),
+                vm_state_change: none_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1017,13 +1017,13 @@ impl HostFunction {
 
         if !memory.is_range_writable(offset, segment_len)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
                 memory_write: (offset, segment_len as u32, import_segment.to_vec()),
                 ..Default::default()
@@ -1032,7 +1032,7 @@ impl HostFunction {
     }
 
     pub fn host_export(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
         export_segment_offset: usize,
@@ -1049,7 +1049,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(offset, size)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1067,7 +1067,7 @@ impl HostFunction {
         // TODO: check the size limit - definition of the constant `W_X` in the GP isn't clear
         if export_segment_limit >= DATA_SEGMENTS_SIZE {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: full_change(BASE_GAS_USAGE),
+                vm_state_change: full_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1075,7 +1075,7 @@ impl HostFunction {
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some((export_segment_limit) as RegValue),
                 ..Default::default()
             },
@@ -1083,7 +1083,7 @@ impl HostFunction {
     }
 
     pub fn host_machine(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -1098,7 +1098,7 @@ impl HostFunction {
 
         if !memory.is_range_readable(program_offset, program_size)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1108,7 +1108,7 @@ impl HostFunction {
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(inner_vm_id as RegValue),
                 ..Default::default()
             },
@@ -1116,7 +1116,7 @@ impl HostFunction {
     }
 
     pub fn host_peek(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.as_refine_context_mut() {
@@ -1131,21 +1131,21 @@ impl HostFunction {
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE),
+                vm_state_change: who_change(BASE_GAS_CHARGE),
             }));
         }
         let inner_memory = &x.pvm_instances.get(&inner_vm_id).unwrap().memory;
 
         if !inner_memory.is_range_readable(inner_memory_offset, data_len)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_len)?;
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
                 memory_write: (memory_offset, data_len as u32, data),
                 ..Default::default()
@@ -1154,7 +1154,7 @@ impl HostFunction {
     }
 
     pub fn host_poke(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -1170,14 +1170,14 @@ impl HostFunction {
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE),
+                vm_state_change: who_change(BASE_GAS_CHARGE),
             }));
         }
         let inner_memory = &mut x.pvm_instances.get_mut(&inner_vm_id).unwrap().memory;
 
         if !memory.is_range_readable(memory_offset, data_len)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
         let data = memory.read_bytes(memory_offset, data_len)?;
@@ -1185,12 +1185,12 @@ impl HostFunction {
         inner_memory.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_USAGE),
+            vm_state_change: ok_change(BASE_GAS_CHARGE),
         }))
     }
 
     pub fn host_invoke(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -1204,13 +1204,13 @@ impl HostFunction {
 
         if !memory.is_range_writable(memory_offset, 60)? {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_USAGE),
+                vm_state_change: oob_change(BASE_GAS_CHARGE),
             }));
         }
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE),
+                vm_state_change: who_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1261,7 +1261,7 @@ impl HostFunction {
 
                 Ok(HostCallResult::Refinement(RefineHostCallResult {
                     vm_state_change: HostCallVMStateChange {
-                        gas_usage: BASE_GAS_USAGE,
+                        gas_charge: BASE_GAS_CHARGE,
                         r7_write: Some(HOST as RegValue),
                         r8_write: Some(host_call_type.clone() as RegValue),
                         memory_write: (memory_offset, 60, buf),
@@ -1272,7 +1272,7 @@ impl HostFunction {
             ExitReason::PageFault(address) => {
                 Ok(HostCallResult::Refinement(RefineHostCallResult {
                     vm_state_change: HostCallVMStateChange {
-                        gas_usage: BASE_GAS_USAGE,
+                        gas_charge: BASE_GAS_CHARGE,
                         r7_write: Some(FAULT as RegValue),
                         r8_write: Some(address as RegValue),
                         memory_write: (memory_offset, 60, buf),
@@ -1282,7 +1282,7 @@ impl HostFunction {
             }
             ExitReason::Panic => Ok(HostCallResult::Refinement(RefineHostCallResult {
                 vm_state_change: HostCallVMStateChange {
-                    gas_usage: BASE_GAS_USAGE,
+                    gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(PANIC as RegValue),
                     r8_write: None,
                     memory_write: (memory_offset, 60, buf),
@@ -1291,7 +1291,7 @@ impl HostFunction {
             })),
             ExitReason::RegularHalt => Ok(HostCallResult::Refinement(RefineHostCallResult {
                 vm_state_change: HostCallVMStateChange {
-                    gas_usage: BASE_GAS_USAGE,
+                    gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(HALT as RegValue),
                     r8_write: None,
                     memory_write: (memory_offset, 60, buf),
@@ -1303,7 +1303,7 @@ impl HostFunction {
     }
 
     pub fn host_expunge(
-        regs: &[Register; HOST_CALL_INPUT_REGISTERS_COUNT],
+        regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = match context {
@@ -1315,7 +1315,7 @@ impl HostFunction {
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
             return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_USAGE),
+                vm_state_change: who_change(BASE_GAS_CHARGE),
             }));
         }
 
@@ -1324,7 +1324,7 @@ impl HostFunction {
 
         Ok(HostCallResult::Refinement(RefineHostCallResult {
             vm_state_change: HostCallVMStateChange {
-                gas_usage: BASE_GAS_USAGE,
+                gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(final_pc),
                 ..Default::default()
             },

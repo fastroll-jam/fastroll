@@ -47,7 +47,7 @@ pub struct StateChange {
     pub register_writes: Vec<(usize, RegValue)>,
     pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
     pub new_pc: Option<RegValue>,
-    pub gas_usage: UnsignedGas,
+    pub gas_charge: UnsignedGas,
 }
 
 pub struct PVMCore;
@@ -137,17 +137,17 @@ impl PVMCore {
 
     fn apply_gas_cost(
         vm_state: &mut VMState,
-        gas_usage: UnsignedGas,
+        gas_charge: UnsignedGas,
     ) -> Result<SignedGas, PVMError> {
         let gas_counter_signed: SignedGas = vm_state
             .gas_counter
             .try_into()
             .map_err(|_| PVMError::VMCoreError(TooLargeGasCounter))?;
-        let post_gas = gas_counter_signed - gas_usage as SignedGas;
-        if vm_state.gas_counter < gas_usage {
+        let post_gas = gas_counter_signed - gas_charge as SignedGas;
+        if vm_state.gas_counter < gas_charge {
             vm_state.gas_counter = 0;
         } else {
-            vm_state.gas_counter -= gas_usage;
+            vm_state.gas_counter -= gas_charge;
         }
 
         Ok(post_gas)
@@ -186,7 +186,7 @@ impl PVMCore {
         }
 
         // Check gas counter and apply gas change
-        let post_gas = Self::apply_gas_cost(vm_state, change.gas_usage)?;
+        let post_gas = Self::apply_gas_cost(vm_state, change.gas_charge)?;
         Ok(post_gas)
     }
 
