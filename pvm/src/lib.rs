@@ -9,7 +9,7 @@ use rjam_pvm_core::{
     },
     types::{
         common::{ExitReason, RegValue},
-        error::{PVMError, VMCoreError::*},
+        error::{HostCallError::InvalidMemoryWrite, PVMError, VMCoreError::*},
         hostcall::HostCallType,
     },
     utils::VMUtils,
@@ -163,22 +163,13 @@ impl PVM {
 
         // Apply memory change
         let (start_address, data_len, data) = change.memory_write;
-        if data_len as usize <= data.len() {
-            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
-                if let Err(e) = self
-                    .state
-                    .memory
-                    .write_byte(start_address.wrapping_add(offset as u32), byte)
-                {
-                    eprintln!(
-                        "Warning: Failed to write to memory at address {:X}: {:?}",
-                        start_address.wrapping_add(offset as u32),
-                        e
-                    );
-                }
-            }
-        } else {
-            eprintln!("Warning: Data length mismatch in memory changes");
+        if data_len as usize > data.len() {
+            return Err(PVMError::HostCallError(InvalidMemoryWrite));
+        }
+        for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
+            self.state
+                .memory
+                .write_byte(start_address.wrapping_add(offset as u32), byte)?;
         }
 
         // Apply gas change
@@ -286,16 +277,16 @@ impl PVM {
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            let vm_state_change = match host_call_result {
+            let change_set = match host_call_result {
                 HostCallResult::PageFault(m) => {
                     exit_reason = ExitReason::PageFault(m);
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
-                HostCallResult::Accumulation(result) => result.vm_state_change,
+                HostCallResult::Accumulation(result) => result,
                 _ => unimplemented!("not yet implemented"), // FIXME: add other cases
             };
 
-            self.apply_host_call_state_change(vm_state_change)?; // update the vm states
+            self.apply_host_call_state_change(change_set.vm_change)?; // update the vm states
             self.state.pc = PVMCore::next_pc(&self.state, &self.program_state); // increment the pc on host call success
         }
     }

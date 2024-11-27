@@ -52,12 +52,12 @@ pub enum InnerPVMResultConstant {
 }
 
 pub enum HostCallResult {
-    VMHalt(HostCallVMStateChange),
+    VMHalt(HostCallChangeSet),
     PageFault(MemAddress), // TODO: properly apply page fault exit reason for host call results
-    General(HostCallVMStateChange),
+    General(HostCallChangeSet),
     IsAuthorized,
-    Refinement(RefineHostCallResult),
-    Accumulation(AccumulateHostCallResult),
+    Refinement(HostCallChangeSet),
+    Accumulation(HostCallChangeSet),
     OnTransfer,
 }
 
@@ -66,12 +66,26 @@ pub enum AccumulateResult {
     Result(Option<Hash32>), // optional result hash
 }
 
+#[derive(Default)]
+pub struct HostCallChangeSet {
+    pub vm_change: HostCallVMStateChange,
+    pub exit_reason: ExitReason,
+}
+
+impl HostCallChangeSet {
+    fn continue_with_vm_change(vm_change: HostCallVMStateChange) -> Self {
+        Self {
+            vm_change,
+            exit_reason: ExitReason::Continue,
+        }
+    }
+}
+
 pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
     pub r8_write: Option<RegValue>,
     pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
-    pub exit_reason: ExitReason,                  // TODO: separate to another struct
 }
 
 impl Default for HostCallVMStateChange {
@@ -81,22 +95,8 @@ impl Default for HostCallVMStateChange {
             r7_write: None,
             r8_write: None,
             memory_write: (0, 0, vec![]),
-            exit_reason: ExitReason::Continue,
         }
     }
-}
-
-//
-// Host Call Results
-//
-
-// FIXME: replace with `HostCallVMStateChange`
-pub struct AccumulateHostCallResult {
-    pub vm_state_change: HostCallVMStateChange,
-}
-
-pub struct RefineHostCallResult {
-    pub vm_state_change: HostCallVMStateChange,
 }
 
 //
@@ -113,12 +113,14 @@ impl HostFunction {
     pub fn host_gas(gas: UnsignedGas) -> Result<HostCallResult, PVMError> {
         let gas_remaining = gas.wrapping_sub(10);
 
-        Ok(HostCallResult::General(HostCallVMStateChange {
-            gas_charge: BASE_GAS_CHARGE,
-            r7_write: Some((gas_remaining & 0xFFFFFFFF) as RegValue),
-            r8_write: Some((gas_remaining >> 32) as RegValue),
-            ..Default::default()
-        }))
+        Ok(HostCallResult::General(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some((gas_remaining & 0xFFFF_FFFF) as RegValue),
+                r8_write: Some((gas_remaining >> 32) as RegValue),
+                ..Default::default()
+            }),
+        ))
     }
 
     pub fn host_lookup(
@@ -140,7 +142,9 @@ impl HostFunction {
             };
 
         if !memory.is_range_readable(hash_offset, 32).unwrap() {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+            return Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
@@ -151,21 +155,27 @@ impl HostFunction {
                 let write_data_size = buffer_size.min(entry.value.len());
 
                 if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                    return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+                    return Ok(HostCallResult::General(
+                        HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+                    ));
                 }
 
-                Ok(HostCallResult::General(HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(entry.value.len() as RegValue),
-                    memory_write: (
-                        buffer_offset,
-                        write_data_size as u32,
-                        entry.value[..write_data_size].to_vec(),
-                    ),
-                    ..Default::default()
-                }))
+                Ok(HostCallResult::General(
+                    HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
+                        gas_charge: BASE_GAS_CHARGE,
+                        r7_write: Some(entry.value.len() as RegValue),
+                        memory_write: (
+                            buffer_offset,
+                            write_data_size as u32,
+                            entry.value[..write_data_size].to_vec(),
+                        ),
+                        ..Default::default()
+                    }),
+                ))
             }
-            None => Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE))),
+            None => Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+            )),
         }
     }
 
@@ -189,7 +199,9 @@ impl HostFunction {
             };
 
         if !memory.is_range_readable(key_offset, key_size)? {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+            return Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let mut key = vec![];
@@ -204,21 +216,27 @@ impl HostFunction {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+                return Ok(HostCallResult::General(
+                    HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+                ));
             }
 
-            Ok(HostCallResult::General(HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(entry.value.len() as RegValue),
-                memory_write: (
-                    buffer_offset,
-                    write_data_size as u32,
-                    entry.value[..write_data_size].to_vec(),
-                ),
-                ..Default::default()
-            }))
+            Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
+                    gas_charge: BASE_GAS_CHARGE,
+                    r7_write: Some(entry.value.len() as RegValue),
+                    memory_write: (
+                        buffer_offset,
+                        write_data_size as u32,
+                        entry.value[..write_data_size].to_vec(),
+                    ),
+                    ..Default::default()
+                }),
+            ))
         } else {
-            Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE)))
+            Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+            ))
         }
     }
 
@@ -237,7 +255,9 @@ impl HostFunction {
         if !memory.is_range_readable(key_offset, key_size)?
             || !memory.is_range_readable(value_offset, value_size)?
         {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+            return Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let mut key = vec![];
@@ -292,13 +312,17 @@ impl HostFunction {
         if target_account_metadata.get_threshold_balance()
             > target_account_metadata.account_info.balance
         {
-            Ok(HostCallResult::General(full_change(BASE_GAS_CHARGE)))
+            Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(full_change(BASE_GAS_CHARGE)),
+            ))
         } else {
-            Ok(HostCallResult::General(HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(previous_size as RegValue),
-                ..Default::default()
-            }))
+            Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
+                    gas_charge: BASE_GAS_CHARGE,
+                    r7_write: Some(previous_size as RegValue),
+                    ..Default::default()
+                }),
+            ))
         }
     }
 
@@ -320,7 +344,11 @@ impl HostFunction {
 
         let account = match state_manager.get_account_metadata(account_address)? {
             Some(metadata) => metadata,
-            None => return Ok(HostCallResult::General(none_change(BASE_GAS_CHARGE))),
+            None => {
+                return Ok(HostCallResult::General(
+                    HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+                ))
+            }
         };
 
         // Encode account fields with JAM Codec
@@ -340,15 +368,19 @@ impl HostFunction {
         account.item_counts_footprint.encode_to(&mut info)?; // i
 
         if !memory.is_range_writable(buffer_offset, info.len())? {
-            return Ok(HostCallResult::General(oob_change(BASE_GAS_CHARGE)));
+            return Ok(HostCallResult::General(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
-        Ok(HostCallResult::General(HostCallVMStateChange {
-            gas_charge: BASE_GAS_CHARGE,
-            r7_write: Some(HostCallResultConstant::OK as RegValue),
-            memory_write: (buffer_offset, info.len() as u32, info.clone()),
-            ..Default::default()
-        }))
+        Ok(HostCallResult::General(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(HostCallResultConstant::OK as RegValue),
+                memory_write: (buffer_offset, info.len() as u32, info.clone()),
+                ..Default::default()
+            }),
+        ))
     }
 
     //
@@ -373,9 +405,9 @@ impl HostFunction {
             },
         )?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: HostCallVMStateChange::default(),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange::default()),
+        ))
     }
 
     #[allow(clippy::needless_range_loop)]
@@ -388,15 +420,15 @@ impl HostFunction {
         let offset = regs[8].as_mem_address()?;
 
         if !memory.is_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         if core_index >= CORE_COUNT {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: core_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(core_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let mut queue_assignment = [HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE];
@@ -411,9 +443,9 @@ impl HostFunction {
             auth_queue.0[core_index] = queue_assignment;
         })?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_CHARGE),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_designate(
@@ -426,9 +458,9 @@ impl HostFunction {
         // FIXME: check the public key blob length - the PVM spec describes as 176 but public key blob is 336 bytes in general
         const PUBLIC_KEY_SIZE: usize = 336;
         if !memory.is_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let mut new_staging_set = StagingSet::default();
@@ -446,9 +478,9 @@ impl HostFunction {
             *staging_set = new_staging_set;
         })?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_CHARGE),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_checkpoint(
@@ -465,14 +497,14 @@ impl HostFunction {
 
         let post_gas = gas.saturating_sub(BASE_GAS_CHARGE); // TODO: gas management
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(post_gas as RegValue),
                 r8_write: Some((post_gas >> 32) as RegValue),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
     pub fn host_new(
         creator_address: Address,
@@ -495,9 +527,9 @@ impl HostFunction {
         let gas_limit_m_high = regs[12].value();
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -519,9 +551,9 @@ impl HostFunction {
             .saturating_sub(new_threshold_balance);
 
         if creator_subtracted_balance < creator_account_threshold_balance {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: cash_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(cash_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         state_manager.with_mut_account_metadata(
@@ -556,13 +588,13 @@ impl HostFunction {
 
         x.rotate_new_account_address(state_manager)?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(new_account_address as RegValue),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub fn host_upgrade(
@@ -578,9 +610,9 @@ impl HostFunction {
         let gas_limit_m_high = regs[11].value();
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -597,9 +629,9 @@ impl HostFunction {
             },
         )?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_CHARGE),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_transfer(
@@ -627,9 +659,9 @@ impl HostFunction {
         let gas_limit = gas_limit_high << 32 | gas_limit_low;
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let transfer_memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -650,9 +682,9 @@ impl HostFunction {
 
         // State cache lookup also detects new accounts added during accumulation
         if !state_manager.account_exists(dest)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
 
         let dest_gas_limit_m = state_manager
@@ -662,21 +694,21 @@ impl HostFunction {
             .gas_limit_on_transfer;
 
         if gas_limit < dest_gas_limit_m {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: low_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(low_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
 
         if gas < gas_limit {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: high_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(high_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
 
         if sender_post_balance < sender_account_metadata.get_threshold_balance() {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: cash_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(cash_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
 
         x.add_to_deferred_transfers(transfer);
@@ -688,9 +720,9 @@ impl HostFunction {
             },
         )?;
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: oob_change(BASE_GAS_CHARGE + amount),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE + amount)),
+        ))
     }
 
     pub fn host_quit(
@@ -719,13 +751,15 @@ impl HostFunction {
             + B_S;
 
         if dest == u32::MAX || dest == target_address {
-            return Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_CHARGE))); // TODO: check gas usage from the GP
+            return Ok(HostCallResult::VMHalt(
+                HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+            )); // TODO: check gas usage from the GP
         }
 
         if !memory.is_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let transfer_memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -742,9 +776,9 @@ impl HostFunction {
 
         // State cache lookup also detects new accounts added during accumulation
         if !state_manager.account_exists(dest)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
 
         let dest_gas_limit_m = state_manager
@@ -754,13 +788,15 @@ impl HostFunction {
             .gas_limit_on_transfer;
 
         if gas < dest_gas_limit_m {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: low_change(BASE_GAS_CHARGE + amount),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(low_change(BASE_GAS_CHARGE + amount)),
+            ));
         }
         x.add_to_deferred_transfers(transfer);
 
-        Ok(HostCallResult::VMHalt(ok_change(BASE_GAS_CHARGE)))
+        Ok(HostCallResult::VMHalt(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_solicit(
@@ -773,18 +809,18 @@ impl HostFunction {
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         let account = state_manager.get_account_metadata(target_address)?.unwrap();
         if account.account_info.balance < account.get_threshold_balance() {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: full_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(full_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         // Insert current timeslot if the entry exists.
@@ -807,9 +843,9 @@ impl HostFunction {
                         },
                     )?;
                 } else {
-                    return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                        vm_state_change: huh_change(BASE_GAS_CHARGE),
-                    }));
+                    return Ok(HostCallResult::Accumulation(
+                        HostCallChangeSet::continue_with_vm_change(huh_change(BASE_GAS_CHARGE)),
+                    ));
                 }
             }
             None => {
@@ -823,9 +859,9 @@ impl HostFunction {
             }
         }
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_CHARGE),
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_forget(
@@ -838,9 +874,9 @@ impl HostFunction {
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Accumulation(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -924,9 +960,9 @@ impl HostFunction {
             }
         };
 
-        Ok(HostCallResult::Accumulation(AccumulateHostCallResult {
-            vm_state_change,
-        }))
+        Ok(HostCallResult::Accumulation(
+            HostCallChangeSet::continue_with_vm_change(vm_state_change),
+        ))
     }
 
     //
@@ -953,15 +989,15 @@ impl HostFunction {
             } else if state_manager.account_exists(account_address_reg)? {
                 account_address_reg
             } else {
-                return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: none_change(BASE_GAS_CHARGE),
-                }));
+                return Ok(HostCallResult::Refinement(
+                    HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+                ));
             };
 
         if !memory.is_range_readable(lookup_hash_offset, HASH_SIZE)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let lookup_hash =
@@ -973,13 +1009,13 @@ impl HostFunction {
             let write_data_size = buffer_size.min(preimage.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: oob_change(BASE_GAS_CHARGE),
-                }));
+                return Ok(HostCallResult::Refinement(
+                    HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+                ));
             }
 
-            Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: HostCallVMStateChange {
+            Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage.len() as RegValue),
                     memory_write: (
@@ -988,12 +1024,12 @@ impl HostFunction {
                         preimage[..write_data_size].to_vec(),
                     ),
                     ..Default::default()
-                },
-            }))
+                }),
+            ))
         } else {
-            Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: none_change(BASE_GAS_CHARGE),
-            }))
+            Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+            ))
         }
     }
 
@@ -1007,28 +1043,28 @@ impl HostFunction {
         let segments_len = regs[9].as_usize()?;
 
         if segments_len >= DATA_SEGMENTS_SIZE {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: none_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(none_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let import_segment = import_segments[segment_index];
         let segment_len = segments_len.min(DATA_SEGMENTS_SIZE);
 
         if !memory.is_range_writable(offset, segment_len)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
                 memory_write: (offset, segment_len as u32, import_segment.to_vec()),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub fn host_export(
@@ -1048,9 +1084,9 @@ impl HostFunction {
         let size = size.min(DATA_SEGMENTS_SIZE);
 
         if !memory.is_range_readable(offset, size)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let data: ExportDataSegment =
@@ -1066,20 +1102,20 @@ impl HostFunction {
         let export_segment_limit = export_segment_offset + data.len();
         // TODO: check the size limit - definition of the constant `W_X` in the GP isn't clear
         if export_segment_limit >= DATA_SEGMENTS_SIZE {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: full_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(full_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         x.export_segments.extend(vec![data]);
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some((export_segment_limit) as RegValue),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub fn host_machine(
@@ -1097,22 +1133,22 @@ impl HostFunction {
         let initial_pc = regs[9].value();
 
         if !memory.is_range_readable(program_offset, program_size)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
         let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm);
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(inner_vm_id as RegValue),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub fn host_peek(
@@ -1130,27 +1166,27 @@ impl HostFunction {
         let data_len = regs[10].as_usize()?;
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE)),
+            ));
         }
         let inner_memory = &x.pvm_instances.get(&inner_vm_id).unwrap().memory;
 
         if !inner_memory.is_range_readable(inner_memory_offset, data_len)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_len)?;
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
                 memory_write: (memory_offset, data_len as u32, data),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub fn host_poke(
@@ -1169,24 +1205,24 @@ impl HostFunction {
         let data_len = regs[10].as_usize()?;
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE)),
+            ));
         }
         let inner_memory = &mut x.pvm_instances.get_mut(&inner_vm_id).unwrap().memory;
 
         if !memory.is_range_readable(memory_offset, data_len)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
         let data = memory.read_bytes(memory_offset, data_len)?;
 
         inner_memory.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: ok_change(BASE_GAS_CHARGE),
-        }))
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(ok_change(BASE_GAS_CHARGE)),
+        ))
     }
 
     pub fn host_invoke(
@@ -1203,15 +1239,15 @@ impl HostFunction {
         let memory_offset = regs[8].as_mem_address()?;
 
         if !memory.is_range_writable(memory_offset, 60)? {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: oob_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(oob_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let gas = UnsignedGas::decode_fixed(&mut &memory.read_bytes(memory_offset, 8)?[..], 8)?;
@@ -1259,44 +1295,42 @@ impl HostFunction {
             ExitReason::HostCall(host_call_type) => {
                 inner_vm_state.pc += 1;
 
-                Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: HostCallVMStateChange {
+                Ok(HostCallResult::Refinement(HostCallChangeSet {
+                    vm_change: HostCallVMStateChange {
                         gas_charge: BASE_GAS_CHARGE,
                         r7_write: Some(HOST as RegValue),
                         r8_write: Some(host_call_type.clone() as RegValue),
                         memory_write: (memory_offset, 60, buf),
-                        exit_reason: ExitReason::HostCall(host_call_type), // TODO: check if necessary
                     },
+                    exit_reason: ExitReason::HostCall(host_call_type),
                 }))
             }
-            ExitReason::PageFault(address) => {
-                Ok(HostCallResult::Refinement(RefineHostCallResult {
-                    vm_state_change: HostCallVMStateChange {
-                        gas_charge: BASE_GAS_CHARGE,
-                        r7_write: Some(FAULT as RegValue),
-                        r8_write: Some(address as RegValue),
-                        memory_write: (memory_offset, 60, buf),
-                        exit_reason: ExitReason::PageFault(address),
-                    },
-                }))
-            }
-            ExitReason::Panic => Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: HostCallVMStateChange {
+            ExitReason::PageFault(address) => Ok(HostCallResult::Refinement(HostCallChangeSet {
+                vm_change: HostCallVMStateChange {
+                    gas_charge: BASE_GAS_CHARGE,
+                    r7_write: Some(FAULT as RegValue),
+                    r8_write: Some(address as RegValue),
+                    memory_write: (memory_offset, 60, buf),
+                },
+                exit_reason: ExitReason::PageFault(address),
+            })),
+            ExitReason::Panic => Ok(HostCallResult::Refinement(HostCallChangeSet {
+                vm_change: HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(PANIC as RegValue),
                     r8_write: None,
                     memory_write: (memory_offset, 60, buf),
-                    exit_reason: ExitReason::Panic,
                 },
+                exit_reason: ExitReason::Panic,
             })),
-            ExitReason::RegularHalt => Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: HostCallVMStateChange {
+            ExitReason::RegularHalt => Ok(HostCallResult::Refinement(HostCallChangeSet {
+                vm_change: HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(HALT as RegValue),
                     r8_write: None,
                     memory_write: (memory_offset, 60, buf),
-                    exit_reason: ExitReason::RegularHalt,
                 },
+                exit_reason: ExitReason::RegularHalt,
             })),
             _ => Err(PVMError::HostCallError(InvalidExitReason)),
         }
@@ -1314,20 +1348,20 @@ impl HostFunction {
         let inner_vm_id = regs[7].as_usize()?;
 
         if !x.pvm_instances.contains_key(&inner_vm_id) {
-            return Ok(HostCallResult::Refinement(RefineHostCallResult {
-                vm_state_change: who_change(BASE_GAS_CHARGE),
-            }));
+            return Ok(HostCallResult::Refinement(
+                HostCallChangeSet::continue_with_vm_change(who_change(BASE_GAS_CHARGE)),
+            ));
         }
 
         let final_pc = x.pvm_instances.get(&inner_vm_id).unwrap().pc;
         x.remove_pvm_instance(inner_vm_id);
 
-        Ok(HostCallResult::Refinement(RefineHostCallResult {
-            vm_state_change: HostCallVMStateChange {
+        Ok(HostCallResult::Refinement(
+            HostCallChangeSet::continue_with_vm_change(HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(final_pc),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }

@@ -3,7 +3,9 @@ use crate::{
 };
 
 /// PVM Invocation Exit Reasons
+#[derive(Default)]
 pub enum ExitReason {
+    #[default]
     Continue,
     RegularHalt,
     Panic,

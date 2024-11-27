@@ -67,6 +67,8 @@ pub enum HostCallError {
     InvalidContext,
     #[error("Invalid register indices")]
     InvalidRegisters,
+    #[error("Invalid memory write request as a result of host function execution")]
+    InvalidMemoryWrite,
     #[error("Account not found from the global account state")]
     AccountNotFound,
     #[error("Exit reason of the inner PVM invocation is invalid")]
