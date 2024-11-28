@@ -293,7 +293,6 @@ impl PVM {
             //
             // General Functions
             //
-            // TODO: better gas handling
             HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
             HostCallType::LOOKUP => HostFunction::host_lookup(
                 target_address,
@@ -323,18 +322,23 @@ impl PVM {
             //
             // Accumulate Functions
             //
-            HostCallType::BLESS => {
-                HostFunction::host_bless(self.get_host_call_registers(), state_manager)?
-            }
+            HostCallType::BLESS => HostFunction::host_bless(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                state_manager,
+                context,
+            )?,
             HostCallType::ASSIGN => HostFunction::host_assign(
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
+                context,
             )?,
             HostCallType::DESIGNATE => HostFunction::host_designate(
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
+                context,
             )?,
             HostCallType::CHECKPOINT => {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
@@ -351,6 +355,7 @@ impl PVM {
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
+                context,
             )?,
             HostCallType::TRANSFER => HostFunction::host_transfer(
                 target_address,
@@ -373,12 +378,14 @@ impl PVM {
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
+                context,
             )?,
             HostCallType::FORGET => HostFunction::host_forget(
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
+                context,
             )?,
 
             //

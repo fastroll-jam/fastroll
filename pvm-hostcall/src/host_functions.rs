@@ -368,14 +368,30 @@ impl HostFunction {
     // Accumulate Functions
     //
 
-    // Accumulation host functions mutate: gas, regs, contexts
+    /// Assigns new privileged services: manager (m), assign (a), designate (v) and always-accumulates (g).
     pub fn host_bless(
         regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let manager = regs[7].as_account_address()?;
         let assign = regs[8].as_account_address()?;
         let designate = regs[9].as_account_address()?;
+        let offset = regs[10].as_mem_address()?;
+        let always_accumulates_count = regs[11].as_usize()?;
+
+        if !memory.is_range_readable(offset, 12 * always_accumulates_count)? {
+            return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
 
         state_manager.with_mut_privileged_services(
             StateWriteOp::Update,
@@ -396,7 +412,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let core_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?;
 
@@ -433,7 +456,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let offset = regs[7].as_mem_address()?;
 
         // FIXME: check the public key blob length - the PVM spec describes as 176 but public key blob is 336 bytes in general
@@ -583,7 +613,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let offset = regs[7].as_mem_address()?;
         let gas_limit_g_low = regs[8].value();
         let gas_limit_g_high = regs[9].value();
@@ -795,7 +832,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
 
@@ -860,7 +904,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = match context.as_accumulate_context_mut() {
+            Some(pair) => pair,
+            None => return Err(PVMError::HostCallError(InvalidContext)),
+        };
+        let _x = acc_pair.get_mut_x();
+
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
 

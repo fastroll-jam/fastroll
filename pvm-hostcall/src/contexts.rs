@@ -57,6 +57,7 @@ impl AccumulateContextPair {
     }
 }
 
+// FIXME
 #[derive(Default, Clone)]
 pub struct AccumulateContext {
     pub deferred_transfers: Vec<DeferredTransfer>,
