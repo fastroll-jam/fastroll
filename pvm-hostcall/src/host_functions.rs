@@ -2,7 +2,7 @@ use crate::{
     contexts::InvocationContext, host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM,
     utils::*,
 };
-use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
+use rjam_codec::{JamDecode, JamDecodeFixed, JamEncodeFixed};
 use rjam_common::*;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
@@ -124,13 +124,12 @@ impl HostFunction {
         let buffer_offset = regs[9].as_mem_address()?;
         let buffer_size = regs[10].as_usize()?;
 
-        let account_address = if account_address_reg == u64::MAX
-            || account_address_reg as Address == target_address
-        {
-            target_address
-        } else {
-            account_address_reg as Address
-        };
+        let account_address =
+            if account_address_reg == u64::MAX || account_address_reg == target_address as u64 {
+                target_address
+            } else {
+                account_address_reg as Address
+            };
 
         if !memory.is_range_readable(hash_offset, 32)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -183,13 +182,12 @@ impl HostFunction {
         let buffer_offset = regs[10].as_mem_address()?;
         let buffer_size = regs[11].as_usize()?;
 
-        let account_address = if account_address_reg == u64::MAX
-            || account_address_reg as Address == target_address
-        {
-            target_address
-        } else {
-            account_address_reg as Address
-        };
+        let account_address =
+            if account_address_reg == u64::MAX || account_address_reg == target_address as u64 {
+                target_address
+            } else {
+                account_address_reg as Address
+            };
 
         if !memory.is_range_readable(key_offset, key_size)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -321,23 +319,24 @@ impl HostFunction {
         ))
     }
 
+    /// Retrieves the metadata of the specified account in a serialized format.
     pub fn host_info(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let account_address_reg = regs[7].as_account_address()?;
+        let account_address_reg = regs[7].as_u64()?;
         let buffer_offset = regs[8].as_mem_address()?;
 
         let account_address =
-            if account_address_reg == u32::MAX || account_address_reg == target_address {
+            if account_address_reg == u64::MAX || account_address_reg == target_address as u64 {
                 target_address
             } else {
-                account_address_reg
+                account_address_reg as Address
             };
 
-        let account = match state_manager.get_account_metadata(account_address)? {
+        let account_metadata = match state_manager.get_account_metadata(account_address)? {
             Some(metadata) => metadata,
             None => {
                 return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
@@ -346,21 +345,8 @@ impl HostFunction {
             }
         };
 
-        // Encode account fields with JAM Codec
-        let mut info = vec![];
-        account.account_info.code_hash.encode_to(&mut info)?; // c
-        account.account_info.balance.encode_to(&mut info)?; // b
-        account.get_threshold_balance().encode_to(&mut info)?; // t
-        account
-            .account_info
-            .gas_limit_accumulate
-            .encode_to(&mut info)?; // g
-        account
-            .account_info
-            .gas_limit_on_transfer
-            .encode_to(&mut info)?; // m
-        account.total_octets_footprint().encode_to(&mut info)?; // l
-        account.item_counts_footprint().encode_to(&mut info)?; // i
+        // Encode account metadata with JAM Codec
+        let info = account_metadata.encode_for_info_hostcall()?;
 
         if !memory.is_range_writable(buffer_offset, info.len())? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -372,7 +358,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
-                memory_write: (buffer_offset, info.len() as u32, info.clone()),
+                memory_write: (buffer_offset, info.len() as u32, info),
                 ..Default::default()
             },
         ))
@@ -539,7 +525,7 @@ impl HostFunction {
             .get_account_metadata(creator_address)?
             .unwrap();
         let creator_account_threshold_balance =
-            creator_account_account_metadata.get_threshold_balance();
+            creator_account_account_metadata.threshold_balance();
         let creator_subtracted_balance = creator_account_account_metadata
             .account_info
             .balance
@@ -700,7 +686,7 @@ impl HostFunction {
             )));
         }
 
-        if sender_post_balance < sender_account_metadata.get_threshold_balance() {
+        if sender_post_balance < sender_account_metadata.threshold_balance() {
             return Ok(HostCallChangeSet::continue_with_vm_change(cash_change(
                 BASE_GAS_CHARGE + amount,
             )));
@@ -742,7 +728,7 @@ impl HostFunction {
         let amount = context_account
             .account_info
             .balance
-            .wrapping_sub(context_account.get_threshold_balance())
+            .wrapping_sub(context_account.threshold_balance())
             + B_S;
 
         if dest == u32::MAX || dest == target_address {
@@ -822,7 +808,7 @@ impl HostFunction {
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         let account = state_manager.get_account_metadata(target_address)?.unwrap();
-        if account.account_info.balance < account.get_threshold_balance() {
+        if account.account_info.balance < account.threshold_balance() {
             return Ok(HostCallChangeSet::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));

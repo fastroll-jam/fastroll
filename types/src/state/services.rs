@@ -48,7 +48,7 @@ impl AccountMetadata {
     }
 
     /// Get the account threshold balance (t)
-    pub fn get_threshold_balance(&self) -> Balance {
+    pub fn threshold_balance(&self) -> Balance {
         let i = self.item_counts_footprint() as Balance;
         let l = self.total_octets_footprint();
 
@@ -71,7 +71,7 @@ impl AccountMetadata {
         simulated.update_lookups_total_octets(lookups_octets_delta);
         simulated.update_storage_total_octets(storage_octets_delta);
 
-        simulated.get_threshold_balance()
+        simulated.threshold_balance()
     }
 
     pub const fn get_initial_threshold_balance() -> Balance {
@@ -92,6 +92,22 @@ impl AccountMetadata {
 
     pub fn update_storage_total_octets(&mut self, delta: i128) {
         self.storage_total_octets += delta as u64;
+    }
+
+    /// Used by the PVM `host_info` execution.
+    pub fn encode_for_info_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
+        let mut buf = vec![];
+        self.account_info.code_hash.encode_to(&mut buf)?; // c
+        self.account_info.balance.encode_to(&mut buf)?; // b
+        self.threshold_balance().encode_to(&mut buf)?; // t
+        self.account_info.gas_limit_accumulate.encode_to(&mut buf)?; // g
+        self.account_info
+            .gas_limit_on_transfer
+            .encode_to(&mut buf)?; // m
+        self.total_octets_footprint().encode_to(&mut buf)?; // l
+        self.item_counts_footprint().encode_to(&mut buf)?; // i
+
+        Ok(buf)
     }
 }
 
