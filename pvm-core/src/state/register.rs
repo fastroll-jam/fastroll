@@ -37,6 +37,11 @@ impl Register {
         u32::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 
+    #[allow(clippy::useless_conversion)]
+    pub fn as_u64(&self) -> Result<u64, PVMError> {
+        u64::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+    }
+
     pub fn as_mem_address(&self) -> Result<MemAddress, PVMError> {
         self.as_u32()
     }

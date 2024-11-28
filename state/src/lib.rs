@@ -14,7 +14,7 @@ use rjam_types::state::{
     safrole::SafroleState,
     services::{
         AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
-        PrivilegedServices,
+        PrivilegedServices, StorageFootprint,
     },
     statistics::ValidatorStats,
     timeslot::Timeslot,
@@ -53,6 +53,12 @@ pub enum StateManagerError {
     CacheEntryNotFound,
     #[error("Unexpected entry type")]
     UnexpectedEntryType,
+    #[error("Account not found")]
+    AccountNotFound,
+    #[error("Account storage dictionary entry not found")]
+    StorageEntryNotFound,
+    #[error("Account lookups dictionary entry not found")]
+    LookupsEntryNotFound,
     #[error("Merkle error: {0}")]
     StateMerkleError(#[from] StateMerkleError),
     #[error("KeyValueDB error: {0}")]
@@ -163,6 +169,7 @@ fn construct_account_lookups_state_key(
 #[derive(Clone)]
 pub enum StateWriteOp {
     Update,
+    Upsert,
     Add,
     Remove,
 }
@@ -1116,6 +1123,92 @@ impl StateManager {
         }
     }
 
+    /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
+    /// to the storage.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (storage items count delta, storage octets count delta, state write operation type).
+    pub fn calculate_storage_footprint_delta<T>(
+        &self,
+        prev_entry: Option<&T>,
+        new_entry: &T,
+    ) -> Result<(i32, i128, StateWriteOp), StateManagerError>
+    where
+        T: StorageFootprint,
+    {
+        match (prev_entry, new_entry.is_empty()) {
+            (Some(entry), true) => {
+                // Case 1: Deleting the existing lookups entry
+                Ok((
+                    -1,
+                    -(entry.storage_octets_usage() as i128),
+                    StateWriteOp::Remove,
+                ))
+            }
+            (Some(entry), false) => {
+                // Case 2: Updating the existing lookups entry
+                Ok((
+                    0,
+                    new_entry.storage_octets_usage() as i128 - entry.storage_octets_usage() as i128,
+                    StateWriteOp::Update,
+                ))
+            }
+            (None, true) => {
+                // Case 3: Error - attempted to delete a storage entry that doesn't exist.
+                Err(StateManagerError::StorageEntryNotFound)
+            }
+            (None, false) => {
+                // Case 4: Adding a new lookups entry
+                Ok((
+                    1,
+                    new_entry.storage_octets_usage() as i128,
+                    StateWriteOp::Add,
+                ))
+            }
+        }
+    }
+
+    /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
+    /// when there is a change in the storage entries.
+    pub fn update_account_storage_footprint(
+        &self,
+        address: Address,
+        storage_key: &Hash32,
+        new_storage_entry: &AccountStorageEntry,
+    ) -> Result<(), StateManagerError> {
+        let prev_storage_entry = self.get_account_storage_entry(address, storage_key)?;
+        let (item_count_delta, octets_count_delta, write_op) =
+            self.calculate_storage_footprint_delta(prev_storage_entry.as_ref(), new_storage_entry)?;
+
+        // Update the footprints
+        self.with_mut_account_metadata(write_op, address, |metadata| {
+            metadata.update_storage_items_count(item_count_delta);
+            metadata.update_storage_total_octets(octets_count_delta);
+        })
+    }
+
+    /// Wrapper function of the `with_mut_account_metadata` to update lookups footprints of the
+    /// account metadata when there is a change in the lookups entries.
+    pub fn update_account_lookups_footprint(
+        &self,
+        address: Address,
+        lookups_key: (&Hash32, u32),
+        new_lookups_entry: &AccountLookupsEntry,
+    ) -> Result<(), StateManagerError> {
+        let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key)?;
+        let (item_count_delta, octets_count_delta, write_op) =
+            self.calculate_storage_footprint_delta(prev_lookups_entry.as_ref(), new_lookups_entry)?;
+
+        // Update the footprints
+        self.with_mut_account_metadata(write_op, address, |metadata| {
+            metadata.update_lookups_items_count(item_count_delta);
+            metadata.update_lookups_total_octets(octets_count_delta);
+        })?;
+
+        Ok(())
+    }
+
     pub fn get_account_storage_entry(
         &self,
         address: Address,
@@ -1132,7 +1225,7 @@ impl StateManager {
 
         // Retrieve the state from the DB
         let storage_entry = AccountStorageEntry {
-            // key: storage_key.clone(),
+            key: *storage_key,
             value: match self.retrieve_state_encoded(&state_key)? {
                 Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),
@@ -1193,7 +1286,7 @@ impl StateManager {
 
         // Retrieve the state from the DB
         let preimages_entry = AccountPreimagesEntry {
-            // key: preimages_key.clone(),
+            key: *preimages_key,
             value: match self.retrieve_state_encoded(&state_key)? {
                 Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),

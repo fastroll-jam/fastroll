@@ -22,7 +22,7 @@ use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
     common::transfers::DeferredTransfer,
     state::{
-        services::{AccountMetadata, B_S},
+        services::{AccountMetadata, AccountStorageEntry, B_S},
         validators::StagingSet,
     },
 };
@@ -71,6 +71,7 @@ impl HostCallChangeSet {
     }
 }
 
+/// Represents the state changes in the PVM resulting from a single host function execution.
 pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
@@ -89,10 +90,6 @@ impl Default for HostCallVMStateChange {
     }
 }
 
-//
-// Host Functions
-//
-
 pub struct HostFunction;
 
 impl HostFunction {
@@ -100,47 +97,50 @@ impl HostFunction {
     // General Functions
     //
 
+    /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
+    /// for executing this instruction.
     pub fn host_gas(gas: UnsignedGas) -> Result<HostCallChangeSet, PVMError> {
-        let gas_remaining = gas.wrapping_sub(10);
+        let gas_remaining = gas.wrapping_sub(BASE_GAS_CHARGE);
 
         Ok(HostCallChangeSet::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some((gas_remaining & 0xFFFF_FFFF) as RegValue),
-                r8_write: Some((gas_remaining >> 32) as RegValue),
+                r7_write: Some(gas_remaining as RegValue),
                 ..Default::default()
             },
         ))
     }
 
+    /// Fetches the preimage of the specified hash from the given service account's preimage storage
+    /// and writes it to memory.
     pub fn host_lookup(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let account_address_reg = regs[7].as_account_address()?;
+        let account_address_reg = regs[7].as_u64()?;
         let hash_offset = regs[8].as_mem_address()?;
         let buffer_offset = regs[9].as_mem_address()?;
         let buffer_size = regs[10].as_usize()?;
 
-        let account_address =
-            if account_address_reg == u32::MAX || account_address_reg == target_address {
-                target_address
-            } else {
-                account_address_reg
-            };
+        let account_address = if account_address_reg == u64::MAX
+            || account_address_reg as Address == target_address
+        {
+            target_address
+        } else {
+            account_address_reg as Address
+        };
 
-        if !memory.is_range_readable(hash_offset, 32).unwrap() {
+        if !memory.is_range_readable(hash_offset, 32)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
         let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
-        let preimage_entry = state_manager.get_account_preimages_entry(account_address, &hash)?;
 
-        match preimage_entry {
+        match state_manager.get_account_preimages_entry(account_address, &hash)? {
             Some(entry) => {
                 let write_data_size = buffer_size.min(entry.value.len());
 
@@ -169,24 +169,27 @@ impl HostFunction {
         }
     }
 
+    /// Fetches the storage entry value of the specified storage key from the given service account's
+    /// storage and writes it to memory.
     pub fn host_read(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let account_address_reg = regs[7].as_account_address()?;
+        let account_address_reg = regs[7].as_u64()?;
         let key_offset = regs[8].as_mem_address()?;
         let key_size = regs[9].as_usize()?;
         let buffer_offset = regs[10].as_mem_address()?;
         let buffer_size = regs[11].as_usize()?;
 
-        let account_address =
-            if account_address_reg == u32::MAX || account_address_reg == target_address {
-                target_address
-            } else {
-                account_address_reg
-            };
+        let account_address = if account_address_reg == u64::MAX
+            || account_address_reg as Address == target_address
+        {
+            target_address
+        } else {
+            account_address_reg as Address
+        };
 
         if !memory.is_range_readable(key_offset, key_size)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -194,15 +197,13 @@ impl HostFunction {
             )));
         }
 
-        let mut key = vec![];
-        key.extend(target_address.encode_fixed(4)?);
+        let mut key = target_address.encode_fixed(4)?;
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
-        let storage_entry =
-            state_manager.get_account_storage_entry(account_address, &storage_key)?;
-
-        if let Some(entry) = storage_entry {
+        if let Some(entry) =
+            state_manager.get_account_storage_entry(account_address, &storage_key)?
+        {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_range_writable(buffer_offset, buffer_size)? {
@@ -230,7 +231,10 @@ impl HostFunction {
         }
     }
 
-    // TODO: check if `target_address` is provided as an arg - not specified in the GP
+    /// Writes an entry to the storage of the service account hosting the code being executed,
+    /// using a key and value loaded from memory.
+    /// If the value size is zero, the entry corresponding to the key is removed.
+    /// The size of the previous value, if any, is returned via the register.
     pub fn host_write(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
@@ -250,19 +254,45 @@ impl HostFunction {
             )));
         }
 
-        let mut key = vec![];
-        key.extend(target_address.encode_fixed(4)?);
+        let mut key = target_address.encode_fixed(4)?;
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
-        let storage_entry =
-            state_manager.get_account_storage_entry(target_address, &storage_key)?;
+        // Threshold balance change simulation
 
-        let previous_size = if let Some(entry) = storage_entry {
+        let prev_storage_entry =
+            state_manager.get_account_storage_entry(target_address, &storage_key)?;
+        let prev_value_size = if let Some(entry) = &prev_storage_entry {
             entry.value.len() as u64
         } else {
             HostCallResultConstant::NONE as u64
         };
+
+        let new_storage_entry_data = memory.read_bytes(value_offset, value_size)?;
+        let new_storage_entry = AccountStorageEntry {
+            key: storage_key,
+            value: Octets::from_vec(new_storage_entry_data.clone()),
+        };
+
+        let (storage_items_count_delta, storage_octets_count_delta, _write_op) = state_manager
+            .calculate_storage_footprint_delta(prev_storage_entry.as_ref(), &new_storage_entry)?;
+
+        let target_account_metadata = state_manager
+            .get_account_metadata(target_address)?
+            .ok_or(PVMError::HostCallError(AccountNotFound))?;
+        let simulated_threshold_balance = target_account_metadata
+            .simulate_threshold_balance_after_mutation(
+                0,
+                storage_items_count_delta,
+                0,
+                storage_octets_count_delta,
+            );
+
+        if simulated_threshold_balance > target_account_metadata.account_info.balance {
+            return Ok(HostCallChangeSet::continue_with_vm_change(full_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
 
         if value_size == 0 {
             state_manager.with_mut_account_storage_entry(
@@ -272,48 +302,23 @@ impl HostFunction {
                 |_| {},
             )?;
         } else {
-            let data = memory.read_bytes(value_offset, value_size)?;
-
-            if previous_size == HostCallResultConstant::NONE as u64 {
-                state_manager.with_mut_account_storage_entry(
-                    StateWriteOp::Add,
-                    target_address,
-                    &storage_key,
-                    |entry| {
-                        entry.value = Octets::from_vec(data);
-                    },
-                )?;
-            } else {
-                state_manager.with_mut_account_storage_entry(
-                    StateWriteOp::Update,
-                    target_address,
-                    &storage_key,
-                    |entry| {
-                        entry.value = Octets::from_vec(data);
-                    },
-                )?;
-            }
-        }
-
-        let target_account_metadata = state_manager
-            .get_account_metadata(target_address)?
-            .ok_or(PVMError::HostCallError(AccountNotFound))?;
-
-        if target_account_metadata.get_threshold_balance()
-            > target_account_metadata.account_info.balance
-        {
-            Ok(HostCallChangeSet::continue_with_vm_change(full_change(
-                BASE_GAS_CHARGE,
-            )))
-        } else {
-            Ok(HostCallChangeSet::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(previous_size as RegValue),
-                    ..Default::default()
+            state_manager.with_mut_account_storage_entry(
+                StateWriteOp::Upsert,
+                target_address,
+                &storage_key,
+                |entry| {
+                    entry.value = Octets::from_vec(new_storage_entry_data);
                 },
-            ))
+            )?;
         }
+
+        Ok(HostCallChangeSet::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(prev_value_size as RegValue),
+                ..Default::default()
+            },
+        ))
     }
 
     pub fn host_info(
@@ -354,8 +359,8 @@ impl HostFunction {
             .account_info
             .gas_limit_on_transfer
             .encode_to(&mut info)?; // m
-        account.total_octets_footprint.encode_to(&mut info)?; // l
-        account.item_counts_footprint.encode_to(&mut info)?; // i
+        account.total_octets_footprint().encode_to(&mut info)?; // l
+        account.item_counts_footprint().encode_to(&mut info)?; // i
 
         if !memory.is_range_writable(buffer_offset, info.len())? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
