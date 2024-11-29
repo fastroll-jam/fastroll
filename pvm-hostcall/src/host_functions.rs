@@ -22,10 +22,12 @@ use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
     common::transfers::DeferredTransfer,
     state::{
+        authorizer::AuthQueue,
         services::{AccountMetadata, AccountStorageEntry, B_S},
         validators::StagingSet,
     },
 };
+use std::collections::HashMap;
 
 #[repr(u64)]
 pub enum HostCallResultConstant {
@@ -368,18 +370,18 @@ impl HostFunction {
     // Accumulate Functions
     //
 
-    /// Assigns new privileged services: manager (m), assign (a), designate (v) and always-accumulates (g).
+    /// Assigns new privileged services: manager (m), assign (a), designate (v) and
+    /// always-accumulates (g) to the accumulation context partial state.
     pub fn host_bless(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
         };
-        let _x = acc_pair.get_mut_x();
+        let x = acc_pair.get_mut_x();
 
         let manager = regs[7].as_account_address()?;
         let assign = regs[8].as_account_address()?;
@@ -393,32 +395,35 @@ impl HostFunction {
             )));
         }
 
-        state_manager.with_mut_privileged_services(
-            StateWriteOp::Update,
-            |privileged_services| {
-                privileged_services.manager_service = manager;
-                privileged_services.assign_service = assign;
-                privileged_services.designate_service = designate;
-            },
-        )?;
+        let mut always_accumulate_services = HashMap::new();
 
-        Ok(HostCallChangeSet::continue_with_vm_change(
-            HostCallVMStateChange::default(),
-        ))
+        for i in 0..always_accumulates_count {
+            let always_accumulate_serialized =
+                memory.read_bytes(offset + 12 * i as MemAddress, 12)?;
+            let address = u32::decode_fixed(&mut &always_accumulate_serialized[..], 4)?;
+            let basic_gas = u64::decode_fixed(&mut &always_accumulate_serialized[..], 8)?;
+            always_accumulate_services.insert(address, basic_gas);
+        }
+
+        x.update_privileged_services(manager, assign, designate, always_accumulate_services)?;
+
+        Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
+            BASE_GAS_CHARGE,
+        )))
     }
 
-    #[allow(clippy::needless_range_loop)]
+    /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
+    /// in the accumulation context partial state.
     pub fn host_assign(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
         };
-        let _x = acc_pair.get_mut_x();
+        let x = acc_pair.get_mut_x();
 
         let core_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?;
@@ -435,39 +440,33 @@ impl HostFunction {
             )));
         }
 
-        let mut queue_assignment = [HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE];
+        let mut queue_assignment = AuthQueue::default();
         for i in 0..MAX_AUTH_QUEUE_SIZE {
-            if let Ok(slice) = memory.read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
-            {
-                queue_assignment[i] = Hash32::decode(&mut &slice[..])?;
-            }
+            let slice = memory.read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)?;
+            queue_assignment.0[core_index][i] = Hash32::decode(&mut &slice[..])?;
         }
 
-        state_manager.with_mut_auth_queue(StateWriteOp::Update, |auth_queue| {
-            auth_queue.0[core_index] = queue_assignment;
-        })?;
+        x.update_auth_queue(queue_assignment)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
         )))
     }
 
+    /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulation context partial state.
     pub fn host_designate(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
         };
-        let _x = acc_pair.get_mut_x();
+        let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
 
-        // FIXME: check the public key blob length - the PVM spec describes as 176 but public key blob is 336 bytes in general
-        const PUBLIC_KEY_SIZE: usize = 336;
         if !memory.is_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
@@ -476,24 +475,23 @@ impl HostFunction {
 
         let mut new_staging_set = StagingSet::default();
         for i in 0..VALIDATOR_COUNT {
-            if let Ok(slice) = memory.read_bytes(
+            let slice = memory.read_bytes(
                 offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
                 PUBLIC_KEY_SIZE,
-            ) {
-                let validator_key = ValidatorKey::decode(&mut &slice[..])?;
-                new_staging_set.0[i] = validator_key;
-            }
+            )?;
+            let validator_key = ValidatorKey::decode(&mut &slice[..])?;
+            new_staging_set.0[i] = validator_key;
         }
 
-        state_manager.with_mut_staging_set(StateWriteOp::Update, |staging_set| {
-            *staging_set = new_staging_set;
-        })?;
+        x.update_staging_set(new_staging_set)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
         )))
     }
 
+    /// Copies a snapshot of the current accumulate context state into
+    /// the checkpoint context of the context pair.
     pub fn host_checkpoint(
         gas: UnsignedGas,
         context: &mut InvocationContext,
@@ -506,17 +504,17 @@ impl HostFunction {
         let x_clone = acc_pair.get_x().clone();
         *acc_pair.get_mut_y() = x_clone; // assign the cloned `x` context to the `y` context
 
-        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE); // TODO: gas management
+        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE); // FIXME: gas management (OutOfGas)
 
         Ok(HostCallChangeSet::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(post_gas as RegValue),
-                r8_write: Some((post_gas >> 32) as RegValue),
                 ..Default::default()
             },
         ))
     }
+
     pub fn host_new(
         creator_address: Address,
         regs: &[Register; REGISTERS_COUNT],

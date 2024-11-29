@@ -325,19 +325,16 @@ impl PVM {
             HostCallType::BLESS => HostFunction::host_bless(
                 self.get_host_call_registers(),
                 &self.state.memory,
-                state_manager,
                 context,
             )?,
             HostCallType::ASSIGN => HostFunction::host_assign(
                 self.get_host_call_registers(),
                 &self.state.memory,
-                state_manager,
                 context,
             )?,
             HostCallType::DESIGNATE => HostFunction::host_designate(
                 self.get_host_call_registers(),
                 &self.state.memory,
-                state_manager,
                 context,
             )?,
             HostCallType::CHECKPOINT => {

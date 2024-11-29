@@ -171,6 +171,32 @@ impl AccumulateContext {
     pub fn add_to_deferred_transfers(&mut self, transfer: DeferredTransfer) {
         self.deferred_transfers.push(transfer);
     }
+
+    pub fn update_privileged_services(
+        &mut self,
+        manager_service: Address,
+        assign_service: Address,
+        designate_service: Address,
+        always_accumulate_services: HashMap<Address, UnsignedGas>,
+    ) -> Result<(), PVMError> {
+        self.partial_state.privileges = PrivilegedServices {
+            manager_service,
+            assign_service,
+            designate_service,
+            always_accumulate_services,
+        };
+        Ok(())
+    }
+
+    pub fn update_auth_queue(&mut self, auth_queue: AuthQueue) -> Result<(), PVMError> {
+        self.partial_state.auth_queue = auth_queue;
+        Ok(())
+    }
+
+    pub fn update_staging_set(&mut self, staging_set: StagingSet) -> Result<(), PVMError> {
+        self.partial_state.staging_set = staging_set;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Default)]

@@ -1,4 +1,4 @@
-use crate::{HASH_SIZE, VALIDATOR_COUNT};
+use crate::{HASH_SIZE, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
     cmp::Ordering,
@@ -179,8 +179,8 @@ impl Display for ValidatorKey {
 }
 
 impl ValidatorKey {
-    pub fn to_bytes(self) -> ByteArray<336> {
-        let mut result = [0u8; 336];
+    pub fn to_bytes(self) -> ByteArray<PUBLIC_KEY_SIZE> {
+        let mut result = [0u8; PUBLIC_KEY_SIZE];
 
         result[0..32].copy_from_slice(&self.bandersnatch_key.0);
         result[32..64].copy_from_slice(&self.ed25519_key.0);
