@@ -347,10 +347,8 @@ impl PVM {
                 context,
             )?,
             HostCallType::UPGRADE => HostFunction::host_upgrade(
-                target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
-                state_manager,
                 context,
             )?,
             HostCallType::TRANSFER => HostFunction::host_transfer(

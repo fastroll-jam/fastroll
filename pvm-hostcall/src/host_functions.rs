@@ -561,7 +561,7 @@ impl HostFunction {
             )));
         }
 
-        x.subtract_account_balance(x.accumulate_host, new_threshold_balance)?;
+        x.subtract_accumulator_balance(new_threshold_balance)?;
 
         // Add a new account to the partial state
         let new_account_address = x.add_new_account(
@@ -586,24 +586,22 @@ impl HostFunction {
         ))
     }
 
+    /// Upgrades three metadata fields of the accumulating service account:
+    /// code hash, accumulate gas limit and on-transfer gas limit.
     pub fn host_upgrade(
-        target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
         let acc_pair = match context.as_accumulate_context_mut() {
             Some(pair) => pair,
             None => return Err(PVMError::HostCallError(InvalidContext)),
         };
-        let _x = acc_pair.get_mut_x();
+        let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
-        let gas_limit_g_low = regs[8].value();
-        let gas_limit_g_high = regs[9].value();
-        let gas_limit_m_low = regs[10].value();
-        let gas_limit_m_high = regs[11].value();
+        let gas_limit_g = regs[8].value();
+        let gas_limit_m = regs[9].value();
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -612,18 +610,8 @@ impl HostFunction {
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let gas_limit_g = gas_limit_g_high << 32 | gas_limit_g_low;
-        let gas_limit_m = gas_limit_m_high << 32 | gas_limit_m_low;
 
-        state_manager.with_mut_account_metadata(
-            StateWriteOp::Update,
-            target_address,
-            |account_metadata| {
-                account_metadata.account_info.code_hash = code_hash;
-                account_metadata.account_info.gas_limit_accumulate = gas_limit_g;
-                account_metadata.account_info.gas_limit_on_transfer = gas_limit_m;
-            },
-        )?;
+        x.update_accumulator_metadata(code_hash, gas_limit_g, gas_limit_m)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,

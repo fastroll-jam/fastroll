@@ -215,15 +215,11 @@ impl AccumulateContext {
         Ok(())
     }
 
-    pub fn subtract_account_balance(
-        &mut self,
-        address: Address,
-        amount: Balance,
-    ) -> Result<(), PVMError> {
+    pub fn subtract_accumulator_balance(&mut self, amount: Balance) -> Result<(), PVMError> {
         let account = self
             .partial_state
             .service_accounts
-            .get_mut(&address)
+            .get_mut(&self.accumulate_host)
             .ok_or(PVMError::HostCallError(AccountNotFoundInPartialState))?;
         account.metadata.account_info.balance -= amount;
         Ok(())
@@ -256,6 +252,23 @@ impl AccumulateContext {
             .service_accounts
             .insert(new_account_address, new_account);
         Ok(new_account_address)
+    }
+
+    pub fn update_accumulator_metadata(
+        &mut self,
+        code_hash: Hash32,
+        gas_limit_accumulate: UnsignedGas,
+        gas_limit_on_transfer: UnsignedGas,
+    ) -> Result<(), PVMError> {
+        let account = self
+            .partial_state
+            .service_accounts
+            .get_mut(&self.accumulate_host)
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+        account.metadata.account_info.code_hash = code_hash;
+        account.metadata.account_info.gas_limit_accumulate = gas_limit_accumulate;
+        account.metadata.account_info.gas_limit_on_transfer = gas_limit_on_transfer;
+        Ok(())
     }
 }
 
