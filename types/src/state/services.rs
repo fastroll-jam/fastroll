@@ -30,6 +30,13 @@ pub struct AccountMetadata {
 }
 
 impl AccountMetadata {
+    pub fn new(account_info: AccountInfo) -> Self {
+        Self {
+            account_info,
+            ..Default::default()
+        }
+    }
+
     /// The number of items in the service storages (i)
     ///
     /// 2 * `lookups_items_count` + `storage_items_count`

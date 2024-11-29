@@ -65,6 +65,10 @@ pub enum HostCallError {
     DataSegmentLengthMismatch { expected: usize, actual: usize },
     #[error("Invalid host call invocation context")]
     InvalidContext,
+    #[error("Account not found in the service account partial state")]
+    AccountNotFoundInPartialState,
+    #[error("Accumulator account is not initialized in the service accounts partial state")]
+    AccumulatorAccountNotInitialized,
     #[error("Invalid register indices")]
     InvalidRegisters,
     #[error("Invalid memory write request as a result of host function execution")]

@@ -23,7 +23,7 @@ use rjam_types::{
     common::transfers::DeferredTransfer,
     state::{
         authorizer::AuthQueue,
-        services::{AccountMetadata, AccountStorageEntry, B_S},
+        services::{AccountInfo, AccountMetadata, AccountStorageEntry, B_S},
         validators::StagingSet,
     },
 };
@@ -517,8 +517,13 @@ impl HostFunction {
         ))
     }
 
+    /// Creates a new service account with an address derived from the hash of the accumulator address,
+    /// the current epochal entropy, and the block timeslot index.
+    ///
+    /// The code hash is loaded into memory, and the two gas limits are provided as arguments in registers.
+    ///
+    /// The account storage and lookup dictionary are initialized as empty.
     pub fn host_new(
-        creator_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -531,11 +536,9 @@ impl HostFunction {
         let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
-        let lookup_len = regs[8].value();
-        let gas_limit_g_low = regs[9].value();
-        let gas_limit_g_high = regs[10].value();
-        let gas_limit_m_low = regs[11].value();
-        let gas_limit_m_high = regs[12].value();
+        let code_lookup_len = regs[8].as_u32()?;
+        let gas_limit_g = regs[9].value();
+        let gas_limit_m = regs[10].value();
 
         if !memory.is_range_readable(offset, HASH_SIZE)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -544,59 +547,34 @@ impl HostFunction {
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let gas_limit_g = gas_limit_g_high << 32 | gas_limit_g_low;
-        let gas_limit_m = gas_limit_m_high << 32 | gas_limit_m_low;
-
         let new_threshold_balance = AccountMetadata::get_initial_threshold_balance();
 
-        // Check the creator account's balance and subtract by the initial threshold balance
-        // to be transferred to the new account.
-        let creator_account_account_metadata = state_manager
-            .get_account_metadata(creator_address)?
-            .unwrap();
-        let creator_account_threshold_balance =
-            creator_account_account_metadata.threshold_balance();
-        let creator_subtracted_balance = creator_account_account_metadata
-            .account_info
-            .balance
-            .saturating_sub(new_threshold_balance);
-
-        if creator_subtracted_balance < creator_account_threshold_balance {
+        // Check if the accumulator's balance if sufficient and subtract by
+        // the initial threshold balance to be transferred to the new account.
+        let accumulator_account_metadata = x.accumulator_account()?.metadata;
+        let accumulator_balance = accumulator_account_metadata.account_info.balance;
+        if accumulator_balance
+            < accumulator_account_metadata.threshold_balance() + new_threshold_balance
+        {
             return Ok(HostCallChangeSet::continue_with_vm_change(cash_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        state_manager.with_mut_account_metadata(
-            StateWriteOp::Update,
-            creator_address,
-            |account_metadata| account_metadata.account_info.balance = creator_subtracted_balance,
-        )?;
+        x.subtract_account_balance(x.accumulate_host, new_threshold_balance)?;
 
-        // Add a new account.
-        // State of new accounts is also maintained in the state cache, marked as `Dirty(StateWriteOp::Add)`
-        let new_account_address = x.get_next_new_account_address();
-        state_manager.with_mut_account_metadata(
-            StateWriteOp::Add,
-            new_account_address,
-            |account_metadata| {
-                account_metadata.account_info.code_hash = code_hash;
-                account_metadata.account_info.balance = new_threshold_balance;
-                account_metadata.account_info.gas_limit_accumulate = gas_limit_g;
-                account_metadata.account_info.gas_limit_on_transfer = gas_limit_m;
+        // Add a new account to the partial state
+        let new_account_address = x.add_new_account(
+            AccountInfo {
+                code_hash,
+                balance: new_threshold_balance,
+                gas_limit_accumulate: gas_limit_g,
+                gas_limit_on_transfer: gas_limit_m,
             },
+            (code_hash, code_lookup_len),
         )?;
 
-        // Add an empty lookups storage entry to the new account.
-        state_manager.with_mut_account_lookups_entry(
-            StateWriteOp::Add,
-            new_account_address,
-            (&code_hash, lookup_len as u32), // FIXME: conversion
-            |lookup_entry| {
-                lookup_entry.value = vec![];
-            },
-        )?;
-
+        // Update the next new account address in the partial state
         x.rotate_new_account_address(state_manager)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(

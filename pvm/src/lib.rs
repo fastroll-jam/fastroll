@@ -341,7 +341,6 @@ impl PVM {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
             }
             HostCallType::NEW => HostFunction::host_new(
-                target_address, // creator_address
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
