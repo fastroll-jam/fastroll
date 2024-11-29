@@ -152,7 +152,7 @@ impl PVM {
     fn apply_host_call_state_change(
         &mut self,
         change: HostCallVMStateChange,
-    ) -> Result<(), PVMError> {
+    ) -> Result<SignedGas, PVMError> {
         // Apply register changes (register index 7 & 8)
         if let Some(r7) = change.r7_write {
             self.state.registers[7].value = r7;
@@ -175,14 +175,9 @@ impl PVM {
         // Apply gas change
         self.state.gas_counter -= change.gas_charge;
 
-        // TODO: add a separate gas check logic outside this function
-        // if self.state.gas_counter >= change.gas_charge {
-        //     self.state.gas_counter -= change.gas_charge;
-        // } else {
-        //     return ExitReason::OutOfGas;
-        // }
-
-        Ok(())
+        // Check gas counter and apply gas change
+        let post_gas = PVMCore::apply_gas_cost(&mut self.state, change.gas_charge)?;
+        Ok(post_gas)
     }
 
     //
@@ -277,7 +272,12 @@ impl PVM {
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            self.apply_host_call_state_change(host_call_change_set.vm_change)?; // update the vm states
+            let post_gas = self.apply_host_call_state_change(host_call_change_set.vm_change)?; // update the vm states
+            if post_gas < 0 {
+                return Ok(ExtendedInvocationResult {
+                    exit_reason: ExitReason::OutOfGas,
+                });
+            }
             self.state.pc = PVMCore::next_pc(&self.state, &self.program_state); // increment the pc on host call success
         }
     }

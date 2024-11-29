@@ -103,7 +103,6 @@ pub struct AccumulatePartialState {
 /// to retrieve their states. Any newly created or mutated accounts during the accumulation process
 /// must first be copied into the `service_accounts` field of the `AccumulatePartialState` to ensure
 /// proper isolation.
-#[allow(dead_code)] // FIXME: remove
 #[derive(Clone, Default)]
 pub struct AccumulateContext {
     pub accumulate_host: Address,              // s

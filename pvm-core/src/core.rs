@@ -135,7 +135,7 @@ impl PVMCore {
         Ok(())
     }
 
-    fn apply_gas_cost(
+    pub fn apply_gas_cost(
         vm_state: &mut VMState,
         gas_charge: UnsignedGas,
     ) -> Result<SignedGas, PVMError> {
@@ -210,6 +210,7 @@ impl PVMCore {
         program_state: &mut ProgramState, // no data loaded at this point
         program_code: &[u8],
     ) -> Result<ExitReason, PVMError> {
+        // FIXME: This is called in a loop in the `extended_invocation`. One-time initialization will be desirable.
         // Decode program blob and set the program state to be referenced in each single-step invocation function.
         Self::set_program_state(program_code, program_state)?;
 

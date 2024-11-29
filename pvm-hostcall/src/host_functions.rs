@@ -504,7 +504,9 @@ impl HostFunction {
         let x_clone = acc_pair.get_x().clone();
         *acc_pair.get_mut_y() = x_clone; // assign the cloned `x` context to the `y` context
 
-        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE); // FIXME: gas management (OutOfGas)
+        // If execution of this function results in `ExitReason::OutOfGas`,
+        // returns zero value for the remaining gas limit.
+        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE);
 
         Ok(HostCallChangeSet::continue_with_vm_change(
             HostCallVMStateChange {
