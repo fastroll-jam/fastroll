@@ -38,7 +38,7 @@ pub struct RefineResult {
 
 pub enum AccumulateResult {
     Unchanged,
-    Result(AccumulateContext, Option<Hash32>), // (mutated context, optional result hash)
+    Result(Box<AccumulateContext>, Option<Hash32>), // (mutated context, optional result hash)
 }
 
 pub struct PVMInvocation;
@@ -216,8 +216,8 @@ impl PVMInvocation {
         )?;
 
         let context_pair = AccumulateContextPair {
-            x: accumulate_context.clone(),
-            y: accumulate_context,
+            x: Box::new(accumulate_context.clone()),
+            y: Box::new(accumulate_context),
         };
 
         let mut context = InvocationContext::X_A(context_pair);

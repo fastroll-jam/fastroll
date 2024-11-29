@@ -7,7 +7,7 @@ pub const B_S: Balance = 100; // The basic minimum balance which all services re
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
 pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccountInfo {
     pub code_hash: Hash32,                  // c
     pub balance: Balance,                   // b
@@ -15,7 +15,7 @@ pub struct AccountInfo {
     pub gas_limit_on_transfer: UnsignedGas, // m
 }
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccountMetadata {
     pub account_info: AccountInfo,
     /// The number of entries of the account lookups dictionary
@@ -158,7 +158,7 @@ impl StorageFootprint for AccountLookupsEntry {
     }
 }
 
-#[derive(Debug, Clone, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, JamEncode, JamDecode)]
 pub struct PrivilegedServices {
     pub manager_service: Address, // m; Alters state privileged services (`chi`).
     pub assign_service: Address,  // a; Alters auth queue (`phi`).

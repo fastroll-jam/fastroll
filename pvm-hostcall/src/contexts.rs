@@ -4,7 +4,15 @@ use rjam_common::{Address, Hash32, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::types::{common::ExportDataSegment, error::PVMError};
 use rjam_state::StateManager;
-use rjam_types::{common::transfers::DeferredTransfer, state::timeslot::Timeslot};
+use rjam_types::{
+    common::transfers::DeferredTransfer,
+    state::{
+        authorizer::AuthQueue,
+        services::{AccountLookupsEntry, AccountMetadata, AccountStorageEntry, PrivilegedServices},
+        timeslot::Timeslot,
+        validators::StagingSet,
+    },
+};
 use std::collections::HashMap;
 
 /// Host context for different invocation types
@@ -35,8 +43,8 @@ impl InvocationContext {
 }
 
 pub struct AccumulateContextPair {
-    pub x: AccumulateContext,
-    pub y: AccumulateContext,
+    pub x: Box<AccumulateContext>,
+    pub y: Box<AccumulateContext>,
 }
 
 impl AccumulateContextPair {
@@ -57,12 +65,53 @@ impl AccumulateContextPair {
     }
 }
 
-// FIXME
-#[derive(Default, Clone)]
+/// Represents a service account, including its metadata and associated storage entries.
+///
+/// This type is primarily used in the accumulation context for state mutations involving service accounts.
+/// The global state serialization doesn't require the service metadata and storage entries to be
+/// stored together, which makes this type to be specific to the accumulation process.
+///
+/// Represents type `A` of the GP.
+#[allow(dead_code)] // FIXME: remove
+#[derive(Clone, Default)]
+pub struct ServiceAccountCopy {
+    metadata: AccountMetadata,
+    storage: HashMap<Hash32, AccountStorageEntry>,
+    lookups: HashMap<Hash32, AccountLookupsEntry>,
+}
+
+/// Represents a mutable copy of a subset of the global state used during the accumulation process.
+///
+/// This provides a sandboxed environment for performing state mutations safely, yielding the final
+/// change set of the state on success and discarding the mutations on failure.
+#[allow(dead_code)] // FIXME: remove
+#[derive(Clone, Default)]
+pub struct AccumulatePartialState {
+    service_accounts: HashMap<Address, ServiceAccountCopy>, // d; mutated service accounts
+    staging_set: StagingSet,                                // i
+    auth_queue: AuthQueue,                                  // q
+    privileges: PrivilegedServices,                         // x
+}
+
+/// Represents the contextual state maintained throughout the accumulation process.
+///
+/// This provides the necessary state to manage mutations and track changes during the accumulation.
+/// The context ensures that state changes are sandboxed and isolated from the global state until
+/// they are committed upon successful completion of the accumulation.
+///
+/// When accessing service accounts that are not subject to mutation, the `StateManager` can be used
+/// to retrieve their states. Any newly created or mutated accounts during the accumulation process
+/// must first be copied into the `service_accounts` field of the `AccumulatePartialState` to ensure
+/// proper isolation.
+#[allow(dead_code)] // FIXME: remove
+#[derive(Clone, Default)]
 pub struct AccumulateContext {
-    pub deferred_transfers: Vec<DeferredTransfer>,
+    pub accumulate_host: Address,              // s
+    pub partial_state: AccumulatePartialState, // u
+    /// TODO: Check how to manage this context in the parallelized accumulation.
+    pub next_new_account_address: Address, // i; used for allocating unique address to a new service
+    pub deferred_transfers: Vec<DeferredTransfer>, // t
     pub gas_used: UnsignedGas,
-    next_new_account_address: Address, // TODO: Check how to manage this context in the parallelized accumulation.
 }
 
 impl AccumulateContext {
