@@ -14,13 +14,13 @@ use rjam_types::state::{
     safrole::SafroleState,
     services::{
         AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
-        PrivilegedServices, StorageFootprint,
+        PrivilegedServices,
     },
     statistics::ValidatorStats,
     timeslot::Timeslot,
     validators::{ActiveSet, PastSet, StagingSet},
 };
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 use thiserror::Error;
 
 const STATE_KEYS: [Hash32; 15] = [
@@ -1120,52 +1120,6 @@ impl StateManager {
         }
     }
 
-    /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
-    /// to the storage.
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (storage items count delta, storage octets count delta, state write operation type).
-    pub fn calculate_storage_footprint_delta<T>(
-        &self,
-        prev_entry: Option<&T>,
-        new_entry: &T,
-    ) -> Result<(i32, i128, StateWriteOp), StateManagerError>
-    where
-        T: StorageFootprint,
-    {
-        match (prev_entry, new_entry.is_empty()) {
-            (Some(entry), true) => {
-                // Case 1: Deleting the existing lookups entry
-                Ok((
-                    -1,
-                    -(entry.storage_octets_usage() as i128),
-                    StateWriteOp::Remove,
-                ))
-            }
-            (Some(entry), false) => {
-                // Case 2: Updating the existing lookups entry
-                Ok((
-                    0,
-                    new_entry.storage_octets_usage() as i128 - entry.storage_octets_usage() as i128,
-                    StateWriteOp::Update,
-                ))
-            }
-            (None, true) => {
-                // Case 3: Error - attempted to delete a storage entry that doesn't exist.
-                Err(StateManagerError::StorageEntryNotFound)
-            }
-            (None, false) => {
-                // Case 4: Adding a new lookups entry
-                Ok((
-                    1,
-                    new_entry.storage_octets_usage() as i128,
-                    StateWriteOp::Add,
-                ))
-            }
-        }
-    }
-
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
     /// when there is a change in the storage entries.
     pub fn update_account_storage_footprint(
@@ -1175,8 +1129,18 @@ impl StateManager {
         new_storage_entry: &AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
         let prev_storage_entry = self.get_account_storage_entry(address, storage_key)?;
-        let (item_count_delta, octets_count_delta, write_op) =
-            self.calculate_storage_footprint_delta(prev_storage_entry.as_ref(), new_storage_entry)?;
+        let (item_count_delta, octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_storage_entry.as_ref(),
+                new_storage_entry,
+            )
+            .ok_or(StateManagerError::StorageEntryNotFound)?;
+
+        let write_op = match item_count_delta.cmp(&0) {
+            Ordering::Greater => StateWriteOp::Add,
+            Ordering::Less => StateWriteOp::Remove,
+            Ordering::Equal => StateWriteOp::Update,
+        };
 
         // Update the footprints
         self.with_mut_account_metadata(write_op, address, |metadata| {
@@ -1194,8 +1158,18 @@ impl StateManager {
         new_lookups_entry: &AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
         let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key)?;
-        let (item_count_delta, octets_count_delta, write_op) =
-            self.calculate_storage_footprint_delta(prev_lookups_entry.as_ref(), new_lookups_entry)?;
+        let (item_count_delta, octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_lookups_entry.as_ref(),
+                new_lookups_entry,
+            )
+            .ok_or(StateManagerError::StorageEntryNotFound)?;
+
+        let write_op = match item_count_delta.cmp(&0) {
+            Ordering::Greater => StateWriteOp::Add,
+            Ordering::Less => StateWriteOp::Remove,
+            Ordering::Equal => StateWriteOp::Update,
+        };
 
         // Update the footprints
         self.with_mut_account_metadata(write_op, address, |metadata| {

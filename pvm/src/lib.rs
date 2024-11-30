@@ -367,14 +367,12 @@ impl PVM {
                 context,
             )?,
             HostCallType::SOLICIT => HostFunction::host_solicit(
-                target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,
                 context,
             )?,
             HostCallType::FORGET => HostFunction::host_forget(
-                target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
                 state_manager,

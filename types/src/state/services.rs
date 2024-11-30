@@ -66,6 +66,42 @@ impl AccountMetadata {
         B_S + B_I * i + B_L * l
     }
 
+    /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
+    /// to the storage.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (storage items count delta, storage octets count delta).
+    pub fn calculate_storage_footprint_delta<T>(
+        prev_entry: Option<&T>,
+        new_entry: &T,
+    ) -> Option<(i32, i128)>
+    where
+        T: StorageFootprint,
+    {
+        match (prev_entry, new_entry.is_empty()) {
+            (Some(entry), true) => {
+                // Case 1: Deleting the existing lookups entry
+                Some((-1, -(entry.storage_octets_usage() as i128)))
+            }
+            (Some(entry), false) => {
+                // Case 2: Updating the existing lookups entry
+                Some((
+                    0,
+                    new_entry.storage_octets_usage() as i128 - entry.storage_octets_usage() as i128,
+                ))
+            }
+            (None, true) => {
+                // Case 3: Attempted to delete a storage entry that doesn't exist.
+                None
+            }
+            (None, false) => {
+                // Case 4: Adding a new lookups entry
+                Some((1, new_entry.storage_octets_usage() as i128))
+            }
+        }
+    }
+
     /// Simulates mutating account storages to get the estimated threshold balance required after
     /// the mutation. Used to evaluate validity of such mutation in host functions that update the
     /// account storages.

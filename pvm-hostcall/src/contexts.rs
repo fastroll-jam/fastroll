@@ -15,8 +15,8 @@ use rjam_types::{
     state::{
         authorizer::AuthQueue,
         services::{
-            AccountInfo, AccountLookupsEntry, AccountMetadata, AccountStorageEntry,
-            PrivilegedServices,
+            AccountInfo, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
+            AccountStorageEntry, PrivilegedServices,
         },
         timeslot::Timeslot,
         validators::StagingSet,
@@ -88,6 +88,7 @@ impl AccumulateContextPair {
 pub struct ServiceAccountCopy {
     pub metadata: AccountMetadata,
     pub storage: HashMap<Hash32, AccountStorageEntry>,
+    pub preimages: HashMap<Hash32, AccountPreimagesEntry>,
     pub lookups: HashMap<(Hash32, u32), AccountLookupsEntry>,
 }
 
@@ -147,6 +148,13 @@ impl AccumulateContext {
             .service_accounts
             .get(&self.accumulate_host)
             .cloned()
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
+    }
+
+    pub fn accumulator_account_mut(&mut self) -> Result<&mut ServiceAccountCopy, PVMError> {
+        self.partial_state
+            .service_accounts
+            .get_mut(&self.accumulate_host)
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 

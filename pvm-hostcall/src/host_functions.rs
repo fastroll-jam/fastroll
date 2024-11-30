@@ -18,12 +18,16 @@ use rjam_pvm_core::{
         error::{HostCallError::*, PVMError, VMCoreError::InvalidRegVal},
     },
 };
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{
+    StateManager,
+    StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
+    StateWriteOp,
+};
 use rjam_types::{
     common::transfers::DeferredTransfer,
     state::{
         authorizer::AuthQueue,
-        services::{AccountInfo, AccountMetadata, AccountStorageEntry, B_S},
+        services::{AccountInfo, AccountLookupsEntry, AccountMetadata, AccountStorageEntry, B_S},
         validators::StagingSet,
     },
 };
@@ -274,8 +278,12 @@ impl HostFunction {
             value: Octets::from_vec(new_storage_entry_data.clone()),
         };
 
-        let (storage_items_count_delta, storage_octets_count_delta, _write_op) = state_manager
-            .calculate_storage_footprint_delta(prev_storage_entry.as_ref(), &new_storage_entry)?;
+        let (storage_items_count_delta, storage_octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_storage_entry.as_ref(),
+                &new_storage_entry,
+            )
+            .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
         let target_account_metadata = state_manager
             .get_account_metadata(target_address)?
@@ -377,10 +385,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let manager = regs[7].as_account_address()?;
@@ -419,10 +426,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let core_index = regs[7].as_usize()?;
@@ -460,10 +466,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
@@ -496,10 +501,9 @@ impl HostFunction {
         gas: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let x_clone = acc_pair.get_x().clone();
         *acc_pair.get_mut_y() = x_clone; // assign the cloned `x` context to the `y` context
@@ -529,10 +533,9 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
@@ -593,10 +596,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
@@ -626,10 +628,9 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let dest = regs[7].as_account_address()?;
@@ -715,10 +716,9 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
         let x = acc_pair.get_mut_x();
 
         let dest = regs[7].value();
@@ -792,18 +792,22 @@ impl HostFunction {
         })
     }
 
+    /// Marks the accumulating account's lookup dictionary entry, which references a preimage entry
+    /// that was previously available but is currently unavailable, as available again starting
+    /// from the current timeslot.
+    ///
+    /// This is done by appending the current timeslot index to the timeslots vector of the
+    /// lookup dictionary entry. It is asserted that the previous length of the vector is 2.
     pub fn host_solicit(
-        target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let _x = acc_pair.get_mut_x();
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
@@ -815,47 +819,72 @@ impl HostFunction {
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let lookups_key = (lookup_hash, lookup_len);
 
-        let account = state_manager.get_account_metadata(target_address)?.unwrap();
-        if account.account_info.balance < account.threshold_balance() {
+        let prev_lookups_entry = x.accumulator_account()?.lookups.get(&lookups_key).cloned();
+
+        let timeslot = state_manager.get_timeslot()?;
+
+        // Insert current timeslot if the entry exists and the timeslot vector length is 2.
+        // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
+        // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
+        let new_lookups_entry = match prev_lookups_entry.clone() {
+            Some(mut entry) => {
+                if entry.value.len() != 2 {
+                    return Ok(HostCallChangeSet::continue_with_vm_change(huh_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+                // Add current timeslot.
+                entry.value.push(timeslot);
+                entry
+            }
+            None => {
+                // Add a new entry.
+                let (key, preimage_length) = lookups_key;
+                AccountLookupsEntry {
+                    key,
+                    preimage_length,
+                    value: vec![],
+                }
+            }
+        };
+
+        // Simulate the threshold balance change
+        let (lookups_items_count_delta, lookups_octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_lookups_entry.as_ref(),
+                &new_lookups_entry,
+            )
+            .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
+
+        let accumulator_metadata = x.accumulator_account()?.metadata;
+        let simulated_threshold_balance = accumulator_metadata
+            .simulate_threshold_balance_after_mutation(
+                lookups_items_count_delta,
+                0,
+                lookups_octets_count_delta,
+                0,
+            );
+
+        if simulated_threshold_balance > accumulator_metadata.balance() {
             return Ok(HostCallChangeSet::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        // Insert current timeslot if the entry exists.
-        // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
-        // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
-        let current_timeslot = state_manager.get_timeslot()?;
-        let lookups_key = (&lookup_hash, lookup_len);
-        let account_lookups_entry =
-            state_manager.get_account_lookups_entry(target_address, lookups_key)?;
-        match account_lookups_entry {
+        // Apply the state change
+        let accumulator_account_mut = x.accumulator_account_mut()?;
+        let lookups_entry_mut = accumulator_account_mut.lookups.get_mut(&lookups_key);
+        match lookups_entry_mut {
             Some(entry) => {
-                // Add current timeslot.
-                if entry.value.len() == 2 {
-                    state_manager.with_mut_account_lookups_entry(
-                        StateWriteOp::Update,
-                        target_address,
-                        lookups_key,
-                        |entry| {
-                            entry.value.push(current_timeslot);
-                        },
-                    )?;
-                } else {
-                    return Ok(HostCallChangeSet::continue_with_vm_change(huh_change(
-                        BASE_GAS_CHARGE,
-                    )));
-                }
+                // At this point, it is already checked that the entry's timeslot vector length equals 2.
+                entry.value.push(timeslot);
             }
             None => {
-                // Add a new entry.
-                state_manager.with_mut_account_lookups_entry(
-                    StateWriteOp::Add,
-                    target_address,
-                    (&lookup_hash, lookup_len),
-                    |entry| entry.value = vec![],
-                )?;
+                accumulator_account_mut
+                    .lookups
+                    .insert(lookups_key, new_lookups_entry);
             }
         }
 
@@ -864,18 +893,22 @@ impl HostFunction {
         )))
     }
 
+    /// Removes a preimage from the accumulating account's preimage and lookups storage,
+    /// or marks a lookups entry as unavailable by updating its timeslot vector.
+    ///
+    /// If the timeslot vector indicates the preimage is unavailable, remove the corresponding entries
+    /// from both storages. Otherwise, mark the preimage as unavailable by appending the current timeslot
+    /// to the timeslot vector.
     pub fn host_forget(
-        target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = match context.as_accumulate_context_mut() {
-            Some(pair) => pair,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
-        let _x = acc_pair.get_mut_x();
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = acc_pair.get_mut_x();
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
@@ -887,78 +920,45 @@ impl HostFunction {
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let lookups_key = (lookup_hash, lookup_len);
+        let lookups_entry = x.accumulator_account()?.lookups.get(&lookups_key).cloned();
 
-        let current_timeslot = state_manager.get_timeslot()?;
-        let lookups_key = (&lookup_hash, lookup_len);
-        let account_lookups_entry =
-            state_manager.get_account_lookups_entry(target_address, lookups_key)?;
-
-        let vm_state_change = match account_lookups_entry {
+        let timeslot = state_manager.get_timeslot()?;
+        let vm_state_change = match lookups_entry {
             None => huh_change(BASE_GAS_CHARGE),
             Some(entry) => {
                 let lookups_timeslots = entry.value;
-                // Length of the timeslots vector
 
                 match lookups_timeslots.len() {
                     0 => {
-                        // Remove the lookups table entry
-                        state_manager.with_mut_account_lookups_entry(
-                            StateWriteOp::Remove,
-                            target_address,
-                            lookups_key,
-                            |_| {},
-                        )?;
-                        // Remove the preimages table entry
-                        state_manager.with_mut_account_preimages_entry(
-                            StateWriteOp::Remove,
-                            target_address,
-                            &lookup_hash,
-                            |_| {},
-                        )?;
+                        // Remove preimage and lookups storage entry
+                        x.accumulator_account_mut()?.preimages.remove(&lookup_hash);
+                        x.accumulator_account_mut()?.lookups.remove(&lookups_key);
                         ok_change(BASE_GAS_CHARGE)
                     }
                     1 => {
-                        state_manager.with_mut_account_lookups_entry(
-                            StateWriteOp::Update,
-                            target_address,
-                            lookups_key,
-                            |entry_mut| {
-                                entry_mut.value.push(current_timeslot);
-                            },
-                        )?;
+                        // Add current timeslot to the lookups entry timeslot vector
+                        if let Some(entry) =
+                            x.accumulator_account_mut()?.lookups.get_mut(&lookups_key)
+                        {
+                            entry.value.push(timeslot);
+                        }
                         ok_change(BASE_GAS_CHARGE)
                     }
-                    2 | 3
-                        if lookups_timeslots[1].0
-                            < current_timeslot.0 - PREIMAGE_EXPIRATION_PERIOD =>
-                    {
-                        if lookups_timeslots.len() == 2 {
-                            // Remove the lookups table entry
-                            state_manager.with_mut_account_lookups_entry(
-                                StateWriteOp::Remove,
-                                target_address,
-                                lookups_key,
-                                |_| {},
-                            )?;
-                            // Remove the preimages table entry
-                            state_manager.with_mut_account_preimages_entry(
-                                StateWriteOp::Remove,
-                                target_address,
-                                &lookup_hash,
-                                |_| {},
-                            )?;
-                        } else {
-                            state_manager.with_mut_account_lookups_entry(
-                                StateWriteOp::Update,
-                                target_address,
-                                lookups_key,
-                                |entry_mut| {
-                                    entry_mut.value.clear();
-                                    entry_mut
-                                        .value
-                                        .extend(vec![lookups_timeslots[2], current_timeslot]);
-                                },
-                            )?
+                    len if len == 2 || len == 3 => {
+                        let is_expired = lookups_timeslots[1].slot()
+                            < timeslot.slot() - PREIMAGE_EXPIRATION_PERIOD;
+                        if is_expired {
+                            if len == 2 {
+                                // Remove preimage and lookups storage entry
+                                x.accumulator_account_mut()?.preimages.remove(&lookup_hash);
+                                x.accumulator_account_mut()?.lookups.remove(&lookups_key);
+                            } else if let Some(entry) =
+                                x.accumulator_account_mut()?.lookups.get_mut(&lookups_key)
+                            {
+                                entry.value.push(timeslot);
+                                entry.value.drain(..2);
+                            }
                         }
                         ok_change(BASE_GAS_CHARGE)
                     }
