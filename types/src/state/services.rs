@@ -54,6 +54,10 @@ impl AccountMetadata {
             + self.storage_total_octets
     }
 
+    pub fn balance(&self) -> Balance {
+        self.account_info.balance
+    }
+
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
         let i = self.item_counts_footprint() as Balance;

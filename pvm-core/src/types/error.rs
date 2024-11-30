@@ -77,4 +77,6 @@ pub enum HostCallError {
     AccountNotFound,
     #[error("Exit reason of the inner PVM invocation is invalid")]
     InvalidExitReason,
+    #[error("State manager holding polluted data")]
+    StateManagerPollution,
 }

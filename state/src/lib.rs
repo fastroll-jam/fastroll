@@ -241,10 +241,7 @@ impl StateManager {
     }
 
     pub fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
-        match self.get_account_metadata(address)? {
-            Some(_) => Ok(true),
-            None => Ok(false),
-        }
+        Ok(self.get_account_metadata(address)?.is_some())
     }
 
     pub fn check(&self, address: Address) -> Result<Address, StateManagerError> {

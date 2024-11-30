@@ -76,7 +76,7 @@ impl AccumulateContextPair {
 
 /// Represents a service account, including its metadata and associated storage entries.
 ///
-/// This type is primarily used in the accumulation context for state mutations involving service accounts.
+/// This type is primarily used in the accumulate context for state mutations involving service accounts.
 /// The global state serialization doesn't require the service metadata and storage entries to be
 /// stored together, which makes this type to be specific to the accumulation process.
 ///
@@ -148,6 +148,27 @@ impl AccumulateContext {
             .get(&self.accumulate_host)
             .cloned()
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
+    }
+
+    pub fn remove_accumulator_account(&mut self) -> Result<(), PVMError> {
+        self.partial_state
+            .service_accounts
+            .remove(&self.accumulate_host);
+        Ok(())
+    }
+
+    pub fn account_exists(&self, address: Address) -> Result<bool, PVMError> {
+        Ok(self.partial_state.service_accounts.contains_key(&address))
+    }
+
+    pub fn get_account_metadata(&self, address: Address) -> Result<AccountMetadata, PVMError> {
+        Ok(self
+            .partial_state
+            .service_accounts
+            .get(&address)
+            .cloned()
+            .ok_or(PVMError::HostCallError(AccountNotFoundInPartialState))?
+            .metadata)
     }
 
     fn initialize_new_account_address(

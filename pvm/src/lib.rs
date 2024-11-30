@@ -352,7 +352,6 @@ impl PVM {
                 context,
             )?,
             HostCallType::TRANSFER => HostFunction::host_transfer(
-                target_address,
                 self.state.gas_counter,
                 self.get_host_call_registers(),
                 &self.state.memory,
