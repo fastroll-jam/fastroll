@@ -91,8 +91,8 @@ impl PVMInvocation {
             CommonInvocationResult::Failure(_) => Ok(WorkExecutionOutput::Error(
                 WorkExecutionError::UnexpectedTermination,
             )),
-            CommonInvocationResult::Result((_gas, output))
-            | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
+            CommonInvocationResult::Result(output)
+            | CommonInvocationResult::ResultUnavailable(output) => {
                 Ok(WorkExecutionOutput::Output(Octets::from_vec(output)))
             }
         }
@@ -171,8 +171,8 @@ impl PVMInvocation {
         };
 
         match common_invocation_result {
-            CommonInvocationResult::Result((_gas, output))
-            | CommonInvocationResult::ResultUnavailable((_gas, output)) => Ok(RefineResult {
+            CommonInvocationResult::Result(output)
+            | CommonInvocationResult::ResultUnavailable(output) => Ok(RefineResult {
                 output: WorkExecutionOutput::Output(Octets::from_vec(output)),
                 export_segments,
             }),
@@ -246,8 +246,8 @@ impl PVMInvocation {
         };
 
         match common_invocation_result {
-            CommonInvocationResult::Result((_gas, output))
-            | CommonInvocationResult::ResultUnavailable((_gas, output)) => {
+            CommonInvocationResult::Result(output)
+            | CommonInvocationResult::ResultUnavailable(output) => {
                 Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
             }
 

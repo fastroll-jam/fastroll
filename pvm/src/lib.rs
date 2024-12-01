@@ -30,12 +30,11 @@ enum ExecutionResult {
     HostCall(HostCallType),
 }
 
-// TODO: check the GP - `InvocationContext` elided for `Result` and `ResultUnavailable`
 pub enum CommonInvocationResult {
+    Result(Vec<u8>),            // return value
+    ResultUnavailable(Vec<u8>), // empty vector
     OutOfGas(ExitReason),
-    Result((UnsignedGas, Vec<u8>)), // (posterior_gas, return_value)
-    ResultUnavailable((UnsignedGas, Vec<u8>)), // (posterior_gas, [])
-    Failure(ExitReason),            // panic
+    Failure(ExitReason), // panic
 }
 
 struct ExtendedInvocationResult {
@@ -214,7 +213,10 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<CommonInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
-        let mut pvm = Self::init_with_standard_program(standard_program, args)?;
+        let mut pvm = match Self::init_with_standard_program(standard_program, args) {
+            Ok(pvm) => pvm,
+            Err(_) => return Ok(CommonInvocationResult::Failure(ExitReason::Panic)),
+        };
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
@@ -230,10 +232,8 @@ impl PVM {
                 );
 
                 Ok(match result {
-                    Ok(bytes) => CommonInvocationResult::Result((pvm.state.gas_counter, bytes)),
-                    Err(_) => {
-                        CommonInvocationResult::ResultUnavailable((pvm.state.gas_counter, vec![]))
-                    }
+                    Ok(bytes) => CommonInvocationResult::Result(bytes),
+                    Err(_) => CommonInvocationResult::ResultUnavailable(vec![]),
                 })
             }
             _ => Ok(CommonInvocationResult::Failure(ExitReason::Panic)),
