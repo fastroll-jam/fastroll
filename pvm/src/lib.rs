@@ -9,7 +9,11 @@ use rjam_pvm_core::{
     },
     types::{
         common::{ExitReason, RegValue},
-        error::{HostCallError::InvalidMemoryWrite, PVMError, VMCoreError::*},
+        error::{
+            HostCallError::{InvalidExitReason, InvalidMemoryWrite},
+            PVMError,
+            VMCoreError::*,
+        },
         hostcall::HostCallType,
     },
     utils::VMUtils,
@@ -34,7 +38,6 @@ pub enum CommonInvocationResult {
     Failure(ExitReason),            // panic
 }
 
-// TODO: add other posterior VM states?
 struct ExtendedInvocationResult {
     exit_reason: ExitReason,
 }
@@ -126,9 +129,14 @@ impl PVM {
     // PVM helper function
     //
 
-    /// Get a reference to registers for host call function arguments
-    pub fn get_host_call_registers(&self) -> &[Register; REGISTERS_COUNT] {
+    /// Get a reference to the registers. Used as a host call function argument.
+    pub fn get_registers(&self) -> &[Register; REGISTERS_COUNT] {
         &self.state.registers
+    }
+
+    /// Get a reference to the memory. Used as a host call function argument.
+    pub fn get_memory(&self) -> &Memory {
+        &self.state.memory
     }
 
     //
@@ -152,7 +160,7 @@ impl PVM {
 
     fn apply_host_call_state_change(
         &mut self,
-        change: HostCallVMStateChange,
+        change: &HostCallVMStateChange,
     ) -> Result<SignedGas, PVMError> {
         // Apply register changes (register index 7 & 8)
         if let Some(r7) = change.r7_write {
@@ -163,7 +171,7 @@ impl PVM {
         }
 
         // Apply memory change
-        let (start_address, data_len, data) = change.memory_write;
+        let (start_address, data_len, data) = change.memory_write.clone();
         if data_len as usize > data.len() {
             return Err(PVMError::HostCallError(InvalidMemoryWrite));
         }
@@ -179,20 +187,6 @@ impl PVM {
         // Check gas counter and apply gas change
         let post_gas = PVMCore::apply_gas_cost(&mut self.state, change.gas_charge)?;
         Ok(post_gas)
-    }
-
-    //
-    // Gas operations
-    //
-
-    #[allow(dead_code)]
-    fn charge_gas(&mut self, amount: UnsignedGas) -> Result<(), PVMError> {
-        if self.state.gas_counter < amount {
-            Err(PVMError::VMCoreError(OutOfGas))
-        } else {
-            self.state.gas_counter -= amount;
-            Ok(())
-        }
     }
 
     //
@@ -246,8 +240,8 @@ impl PVM {
         }
     }
 
-    /// Invoke the PVM general functions including host calls with arguments injected by the `Psi_M`
-    /// common invocation function
+    /// Invokes the PVM general functions including host calls with arguments injected by the `Ψ_M`
+    /// common invocation function.
     ///
     /// # Input Program
     /// This function utilizes the program component of the `PVM` state.
@@ -269,18 +263,31 @@ impl PVM {
             let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
                     self.execute_host_function(state_manager, target_address, context, &h)?
-                    // TODO: we need to pass "context time" here
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            let post_gas = self.apply_host_call_state_change(host_call_change_set.vm_change)?; // update the vm states
+            match host_call_change_set.exit_reason {
+                exit_reason @ ExitReason::PageFault(_) => {
+                    return Ok(ExtendedInvocationResult { exit_reason });
+                }
+                ExitReason::Continue => {}
+                exit_reason @ (ExitReason::Panic | ExitReason::RegularHalt) => {
+                    self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
+                    return Ok(ExtendedInvocationResult { exit_reason });
+                }
+                _ => return Err(PVMError::HostCallError(InvalidExitReason)),
+            }
+
+            // update the vm states
+            let post_gas = self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
             if post_gas < 0 {
                 return Ok(ExtendedInvocationResult {
                     exit_reason: ExitReason::OutOfGas,
                 });
             }
-            self.state.pc = PVMCore::next_pc(&self.state, &self.program_state); // increment the pc on host call success
+            // increment the pc if the host call completes successfully
+            self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
         }
     }
 
@@ -298,134 +305,110 @@ impl PVM {
             HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
             HostCallType::LOOKUP => HostFunction::host_lookup(
                 target_address,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
             )?,
             HostCallType::READ => HostFunction::host_read(
                 target_address,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
             )?,
             HostCallType::WRITE => HostFunction::host_write(
                 target_address,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
             )?,
             HostCallType::INFO => HostFunction::host_info(
                 target_address,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
             )?,
-
             //
             // Accumulate Functions
             //
-            HostCallType::BLESS => HostFunction::host_bless(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::ASSIGN => HostFunction::host_assign(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::DESIGNATE => HostFunction::host_designate(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
+            HostCallType::BLESS => {
+                HostFunction::host_bless(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::ASSIGN => {
+                HostFunction::host_assign(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::DESIGNATE => {
+                HostFunction::host_designate(self.get_registers(), self.get_memory(), context)?
+            }
             HostCallType::CHECKPOINT => {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
             }
             HostCallType::NEW => HostFunction::host_new(
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
                 context,
             )?,
-            HostCallType::UPGRADE => HostFunction::host_upgrade(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
+            HostCallType::UPGRADE => {
+                HostFunction::host_upgrade(self.get_registers(), self.get_memory(), context)?
+            }
             HostCallType::TRANSFER => HostFunction::host_transfer(
                 self.state.gas_counter,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
                 context,
             )?,
             HostCallType::QUIT => HostFunction::host_quit(
                 target_address,
                 self.state.gas_counter,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
                 context,
             )?,
             HostCallType::SOLICIT => HostFunction::host_solicit(
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
                 context,
             )?,
             HostCallType::FORGET => HostFunction::host_forget(
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 state_manager,
                 context,
             )?,
-
             //
             // Refine Functions
             //
             HostCallType::HISTORICAL_LOOKUP => HostFunction::host_historical_lookup(
                 target_address,
-                self.get_host_call_registers(),
-                &self.state.memory,
+                self.get_registers(),
+                self.get_memory(),
                 context,
                 state_manager,
             )?,
-            HostCallType::IMPORT => HostFunction::host_import(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::EXPORT => HostFunction::host_export(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::MACHINE => HostFunction::host_machine(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::PEEK => HostFunction::host_peek(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::POKE => HostFunction::host_poke(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::ZERO => HostFunction::host_zero(self.get_host_call_registers(), context)?,
-            HostCallType::VOID => HostFunction::host_void(self.get_host_call_registers(), context)?,
-            HostCallType::INVOKE => HostFunction::host_invoke(
-                self.get_host_call_registers(),
-                &self.state.memory,
-                context,
-            )?,
-            HostCallType::EXPUNGE => {
-                HostFunction::host_expunge(self.get_host_call_registers(), context)?
-            } // TODO: host call type validation and handling `WHAT` host call result
+            HostCallType::IMPORT => {
+                HostFunction::host_import(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::EXPORT => {
+                HostFunction::host_export(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::MACHINE => {
+                HostFunction::host_machine(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::PEEK => {
+                HostFunction::host_peek(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::POKE => {
+                HostFunction::host_poke(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::ZERO => HostFunction::host_zero(self.get_registers(), context)?,
+            HostCallType::VOID => HostFunction::host_void(self.get_registers(), context)?,
+            HostCallType::INVOKE => {
+                HostFunction::host_invoke(self.get_registers(), self.get_memory(), context)?
+            }
+            HostCallType::EXPUNGE => HostFunction::host_expunge(self.get_registers(), context)?, // TODO: host call type validation and handling `WHAT` host call result
         };
 
         Ok(result)
