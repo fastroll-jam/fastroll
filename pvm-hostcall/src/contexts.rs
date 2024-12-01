@@ -2,11 +2,14 @@ use crate::inner_vm::InnerPVM;
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, Balance, Hash32, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_core::types::{
-    common::ExportDataSegment,
-    error::{
-        HostCallError::{AccountNotFoundInPartialState, AccumulatorAccountNotInitialized},
-        PVMError,
+use rjam_pvm_core::{
+    state::memory::Memory,
+    types::{
+        common::ExportDataSegment,
+        error::{
+            HostCallError::{AccountNotFoundInPartialState, AccumulatorAccountNotInitialized},
+            PVMError,
+        },
     },
 };
 use rjam_state::StateManager;
@@ -325,6 +328,16 @@ impl RefineContext {
         }
     }
 
+    pub fn get_inner_vm_memory(&self, vm_instance_id: usize) -> Option<&Memory> {
+        self.pvm_instances.get(&vm_instance_id).map(|vm| &vm.memory)
+    }
+
+    pub fn get_mut_inner_vm_memory(&mut self, vm_instance_id: usize) -> Option<&mut Memory> {
+        self.pvm_instances
+            .get_mut(&vm_instance_id)
+            .map(|vm| &mut vm.memory)
+    }
+
     pub(crate) fn add_pvm_instance(&mut self, pvm: InnerPVM) -> usize {
         let id = self.next_instance_id;
         self.pvm_instances.insert(id, pvm);
@@ -332,7 +345,6 @@ impl RefineContext {
         id
     }
 
-    // TODO: finer-grained instance id management if necessary
     pub(crate) fn remove_pvm_instance(&mut self, id: usize) {
         self.pvm_instances.remove(&id);
     }

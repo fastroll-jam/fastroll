@@ -94,7 +94,6 @@ impl MemoryPage {
 #[derive(Clone)]
 pub struct Memory {
     pages: HashMap<usize, MemoryPage>, // (page index, page)
-    #[allow(dead_code)]
     page_size: usize,
     total_pages: usize,
     pub heap_start: MemAddress,
@@ -102,8 +101,12 @@ pub struct Memory {
 
 impl Default for Memory {
     fn default() -> Self {
+        let pages: HashMap<usize, MemoryPage> = (0..PAGE_SIZE)
+            .map(|index| (index, MemoryPage::default()))
+            .collect();
+
         Self {
-            pages: HashMap::new(),
+            pages,
             page_size: PAGE_SIZE,
             total_pages: 0,
             heap_start: 0,
@@ -135,7 +138,6 @@ impl Memory {
     fn get_page_and_offset(&self, address: MemAddress) -> Result<(usize, usize), MemoryError> {
         let page_index = (address as usize) / self.page_size;
         let offset = (address as usize) % self.page_size;
-
         Ok((page_index, offset))
     }
 
@@ -154,7 +156,7 @@ impl Memory {
     }
 
     /// Initializes and sets the access type for the memory page at the given index
-    fn init_page_access(
+    fn set_page_access(
         &mut self,
         page_index: usize,
         access: AccessType,
@@ -167,7 +169,6 @@ impl Memory {
             .entry(page_index)
             .or_insert(MemoryPage::new(page_index, access));
         page.set_access(access);
-
         Ok(())
     }
 
@@ -185,14 +186,25 @@ impl Memory {
     ) -> Result<(), MemoryError> {
         let end_page_index = start_page_index + (INIT_PAGE_SIZE / PAGE_SIZE);
         for page_index in start_page_index..end_page_index {
-            self.init_page_access(page_index, access)?;
+            self.set_page_access(page_index, access)?;
         }
+        Ok(())
+    }
 
+    /// Initializes and sets the access type for the memory pages for the given range
+    pub fn set_page_range_access(
+        &mut self,
+        page_range: Range<usize>,
+        access: AccessType,
+    ) -> Result<(), MemoryError> {
+        for page_index in page_range {
+            self.set_page_access(page_index, access)?;
+        }
         Ok(())
     }
 
     /// Initializes and sets the access type for the memory pages for the given address range
-    pub fn init_range_access(
+    pub fn set_address_range_access(
         &mut self,
         address_range: Range<MemAddress>,
         access: AccessType,
@@ -200,10 +212,7 @@ impl Memory {
         let (start_page_index, _) = self.get_page_and_offset(address_range.start)?;
         let (end_page_index, _) = self.get_page_and_offset(address_range.end)?;
 
-        for page_index in start_page_index..end_page_index {
-            self.init_page_access(page_index, access)?
-        }
-
+        self.set_page_range_access(start_page_index..end_page_index, access)?;
         Ok(())
     }
 
@@ -222,17 +231,27 @@ impl Memory {
         self.is_page_readable(page_index)
     }
 
+    /// Check if a range of memory pages is readable
+    pub fn is_page_range_readable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
+        for page_index in page_range {
+            if !self.is_page_readable(page_index)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     /// Check if a range of memory cells is readable
-    pub fn is_range_readable(&self, start: MemAddress, length: usize) -> Result<bool, MemoryError> {
+    pub fn is_address_range_readable(
+        &self,
+        start: MemAddress,
+        length: usize,
+    ) -> Result<bool, MemoryError> {
         let end = start + length as MemAddress;
         let (start_page_index, _) = self.get_page_and_offset(start)?;
         let (end_page_index, _) = self.get_page_and_offset(end)?;
 
-        for i in start_page_index..=end_page_index {
-            if !self.is_page_readable(i)? {
-                return Ok(false);
-            }
-        }
+        self.is_page_range_readable(start_page_index..end_page_index)?;
 
         Ok(true)
     }
@@ -241,7 +260,6 @@ impl Memory {
     fn is_page_writable(&self, page_index: usize) -> Result<bool, MemoryError> {
         self.validate_page_index(page_index)?;
         let page = self.get_page(page_index)?;
-
         Ok(page.access == AccessType::ReadWrite)
     }
 
@@ -252,18 +270,27 @@ impl Memory {
         self.is_page_writable(page_index)
     }
 
+    /// Check if a range of memory pages is writable
+    pub fn is_page_range_writable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
+        for page_index in page_range {
+            if !self.is_page_writable(page_index)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     /// Check if a range of memory cells is writable
-    pub fn is_range_writable(&self, start: MemAddress, length: usize) -> Result<bool, MemoryError> {
+    pub fn is_address_range_writable(
+        &self,
+        start: MemAddress,
+        length: usize,
+    ) -> Result<bool, MemoryError> {
         let end = start + length as MemAddress;
         let (start_page_index, _) = self.get_page_and_offset(start)?;
         let (end_page_index, _) = self.get_page_and_offset(end)?;
 
-        for i in start_page_index..=end_page_index {
-            if !self.is_page_writable(i)? {
-                return Ok(false);
-            }
-        }
-
+        self.is_page_range_writable(start_page_index..end_page_index)?;
         Ok(true)
     }
 

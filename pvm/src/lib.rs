@@ -77,7 +77,7 @@ impl PVM {
         // Program-specific read-only static data (o)
         let o_start = REGION_SIZE as MemAddress; // Z_Q
         let o_padding_end = o_start + VMUtils::page_align(fp.static_size as usize) as MemAddress;
-        memory.init_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
+        memory.set_address_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
         memory.write_bytes(o_start, &fp.static_data)?;
 
         // Read-write heap data (w)
@@ -86,7 +86,7 @@ impl PVM {
         let w_padding_end = w_start
             + VMUtils::page_align(fp.heap_size as usize) as MemAddress
             + fp.extra_heap_pages as MemAddress * PAGE_SIZE as MemAddress;
-        memory.init_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
+        memory.set_address_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
         memory.write_bytes(w_start, &fp.heap_data)?;
         memory.heap_start = w_start;
 
@@ -95,20 +95,21 @@ impl PVM {
             ((1 << 32) - 2 * REGION_SIZE - INIT_SIZE - VMUtils::page_align(fp.stack_size as usize))
                 as MemAddress;
         let s_end = ((1 << 32) - 2 * REGION_SIZE - INIT_SIZE) as MemAddress;
-        memory.init_range_access(s_start..s_end, AccessType::ReadWrite)?;
+        memory.set_address_range_access(s_start..s_end, AccessType::ReadWrite)?;
 
         // Arguments (a)
         let a_start = ((1 << 32) - REGION_SIZE - INIT_SIZE) as MemAddress;
         let a_padding_end = a_start + VMUtils::page_align(args.len()) as MemAddress;
-        memory.init_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
+        memory.set_address_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
         memory.write_bytes(a_start, args)?;
 
         // Other addresses are inaccessible
-        memory.init_range_access(0..o_start, AccessType::Inaccessible)?;
-        memory.init_range_access(o_padding_end..w_start, AccessType::Inaccessible)?;
-        memory.init_range_access(w_padding_end..s_start, AccessType::Inaccessible)?;
-        memory.init_range_access(s_end..a_start, AccessType::Inaccessible)?;
-        memory.init_range_access(a_padding_end..MemAddress::MAX, AccessType::Inaccessible)?;
+        memory.set_address_range_access(0..o_start, AccessType::Inaccessible)?;
+        memory.set_address_range_access(o_padding_end..w_start, AccessType::Inaccessible)?;
+        memory.set_address_range_access(w_padding_end..s_start, AccessType::Inaccessible)?;
+        memory.set_address_range_access(s_end..a_start, AccessType::Inaccessible)?;
+        memory
+            .set_address_range_access(a_padding_end..MemAddress::MAX, AccessType::Inaccessible)?;
 
         self.state.memory = memory;
         Ok(())
@@ -405,12 +406,18 @@ impl PVM {
                 &self.state.memory,
                 context,
             )?,
-            HostCallType::PEEK => HostFunction::host_peek(self.get_host_call_registers(), context)?,
+            HostCallType::PEEK => HostFunction::host_peek(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
             HostCallType::POKE => HostFunction::host_poke(
                 self.get_host_call_registers(),
                 &self.state.memory,
                 context,
             )?,
+            HostCallType::ZERO => HostFunction::host_zero(self.get_host_call_registers(), context)?,
+            HostCallType::VOID => HostFunction::host_void(self.get_host_call_registers(), context)?,
             HostCallType::INVOKE => HostFunction::host_invoke(
                 self.get_host_call_registers(),
                 &self.state.memory,
@@ -418,9 +425,7 @@ impl PVM {
             )?,
             HostCallType::EXPUNGE => {
                 HostFunction::host_expunge(self.get_host_call_registers(), context)?
-            }
-            // TODO: host call type validation and handling `WHAT` host call result
-            _ => return Err(PVMError::VMCoreError(InvalidHostCallType)),
+            } // TODO: host call type validation and handling `WHAT` host call result
         };
 
         Ok(result)
