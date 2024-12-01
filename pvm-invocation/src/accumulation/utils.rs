@@ -44,7 +44,7 @@ pub fn edit_queue(
             let lookup = report.segment_roots_lookup();
             lookup
                 .iter()
-                .all(|(k, v)| accumulated.get(k).map_or(true, |acc_v| acc_v == v))
+                .all(|(k, v)| accumulated.get(k).is_none_or(|acc_v| acc_v == v))
         })
         .collect()
 }
