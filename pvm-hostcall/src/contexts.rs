@@ -304,11 +304,27 @@ impl AccumulateContext {
 #[derive(Clone, Default)]
 pub struct RefineContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
+    pub next_instance_id: usize, // PVM instance ID to be assigned for the next instance
     pub export_segments: Vec<ExportDataSegment>,
-    next_instance_id: usize, // PVM instance ID to be assigned for the next instance
+    pub lookup_anchor_timeslot: u32, // Copy of `RefinementContext.t`
+    pub import_segments: Vec<ExportDataSegment>,
+    pub export_segments_offset: usize,
 }
 
 impl RefineContext {
+    pub fn new(
+        lookup_anchor_timeslot: u32,
+        import_segments: Vec<ExportDataSegment>,
+        export_segments_offset: usize,
+    ) -> Self {
+        Self {
+            lookup_anchor_timeslot,
+            import_segments,
+            export_segments_offset,
+            ..Default::default()
+        }
+    }
+
     pub(crate) fn add_pvm_instance(&mut self, pvm: InnerPVM) -> usize {
         let id = self.next_instance_id;
         self.pvm_instances.insert(id, pvm);

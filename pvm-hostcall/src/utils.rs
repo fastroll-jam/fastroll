@@ -3,10 +3,15 @@ use rjam_common::UnsignedGas;
 use rjam_pvm_core::types::common::RegValue;
 
 // Zero-padding function for octet sequences
-pub fn zero_pad(mut input: Vec<u8>, block_size: usize) -> Vec<u8> {
-    let padding_len = block_size - (((input.len() + block_size - 1) % block_size) + 1);
+pub fn zero_pad_as_array<const BLOCK_SIZE: usize>(
+    mut input: Vec<u8>,
+) -> Option<Box<[u8; BLOCK_SIZE]>> {
+    if input.len() > BLOCK_SIZE {
+        return None;
+    }
+    let padding_len = BLOCK_SIZE - input.len();
     input.extend(vec![0; padding_len]);
-    input
+    input.try_into().ok()
 }
 
 // Convenience function for `HostCallVMStateChange` construction

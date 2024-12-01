@@ -268,6 +268,7 @@ impl PVM {
             let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
                     self.execute_host_function(state_manager, target_address, context, &h)?
+                    // TODO: we need to pass "context time" here
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
@@ -386,17 +387,19 @@ impl PVM {
                 target_address,
                 self.get_host_call_registers(),
                 &self.state.memory,
+                context,
                 state_manager,
             )?,
-            // TODO: impl (DA interaction)
-            // HostCallType::IMPORT => HostFunction::host_import(
-            //     self.get_host_call_registers(),
-            //     &self.state.memory,
-            // )?,
-            // HostCallType::EXPORT => HostFunction::host_export(
-            //     self.get_host_call_registers(),
-            //     &self.state.memory,
-            // )?,
+            HostCallType::IMPORT => HostFunction::host_import(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
+            HostCallType::EXPORT => HostFunction::host_export(
+                self.get_host_call_registers(),
+                &self.state.memory,
+                context,
+            )?,
             HostCallType::MACHINE => HostFunction::host_machine(
                 self.get_host_call_registers(),
                 &self.state.memory,
@@ -413,7 +416,7 @@ impl PVM {
                 &self.state.memory,
                 context,
             )?,
-            HostCallType::EXPORT => {
+            HostCallType::EXPUNGE => {
                 HostFunction::host_expunge(self.get_host_call_registers(), context)?
             }
             // TODO: host call type validation and handling `WHAT` host call result

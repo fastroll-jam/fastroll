@@ -103,19 +103,19 @@ impl PVMInvocation {
         state_manager: &StateManager,
         code_hash: Hash32,
         gas_limit: UnsignedGas,
-        account_address: Address,
+        refine_account_address: Address,
         work_package_hash: Hash32,
         work_payload: Vec<u8>,
         refinement_context: RefinementContext,
         authorizer_hash: Hash32,
         authorization_output: Vec<u8>,
-        _import_segments: Vec<ExportDataSegment>, // FIXME
+        import_segments: Vec<ExportDataSegment>,
         extrinsic_data_blobs: Vec<Vec<u8>>,
-        _export_segment_offset: usize, // FIXME
+        export_segments_offset: usize,
     ) -> Result<RefineResult, PVMError> {
         // retrieve the service account code via the historical lookup function
         let code = match state_manager.lookup_preimage(
-            account_address,
+            refine_account_address,
             &Timeslot(refinement_context.lookup_anchor_timeslot),
             &code_hash,
         )? {
@@ -138,7 +138,7 @@ impl PVMInvocation {
 
         // encode arguments for the refinement process
         let mut args = vec![];
-        account_address.encode_to(&mut args)?;
+        refine_account_address.encode_to(&mut args)?;
         work_payload.encode_to(&mut args)?;
         work_package_hash.encode_to(&mut args)?;
         refinement_context.encode_to(&mut args)?;
@@ -146,11 +146,15 @@ impl PVMInvocation {
         authorization_output.encode_to(&mut args)?;
         extrinsic_data_blobs.encode_to(&mut args)?;
 
-        let mut context = InvocationContext::X_R(RefineContext::default());
+        let mut context = InvocationContext::X_R(RefineContext::new(
+            refinement_context.lookup_anchor_timeslot,
+            import_segments,
+            export_segments_offset,
+        ));
 
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            account_address,
+            refine_account_address,
             &code,
             REFINE_INITIAL_PC,
             gas_limit,

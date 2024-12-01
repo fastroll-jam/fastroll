@@ -13,3 +13,4 @@ pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 28_800;
 pub const ERASURE_CHUNK_SIZE: usize = 684; // W_C
 pub const DATA_SEGMENTS_CHUNKS: usize = 6; // W_S
 pub const DATA_SEGMENTS_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS; // W_C * W_S
+pub const IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT: usize = 1 << 11; // W_M; Work package manifest size limit

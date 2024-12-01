@@ -28,6 +28,7 @@ use rjam_types::{
     state::{
         authorizer::AuthQueue,
         services::{AccountInfo, AccountLookupsEntry, AccountMetadata, AccountStorageEntry, B_S},
+        timeslot::Timeslot,
         validators::StagingSet,
     },
 };
@@ -175,7 +176,7 @@ impl HostFunction {
     }
 
     /// Fetches the storage entry value of the specified storage key from the given service account's
-    /// storage and writes it to memory.
+    /// storage and writes it into memory.
     pub fn host_read(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
@@ -973,30 +974,38 @@ impl HostFunction {
     // Refine Functions
     //
 
+    /// Performs a historical preimage lookup for the specified account and hash,
+    /// retrieving the preimage data if available.
+    ///
+    /// This is the only stateful operation in the refinement process and allows auditors to access
+    /// states required for execution of the refinement through historical lookups.
     pub fn host_historical_lookup(
-        target_address: Address,
+        refine_account_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        context: &mut InvocationContext,
         state_manager: &StateManager,
     ) -> Result<HostCallChangeSet, PVMError> {
-        // FIXME: timeslot should come from the refinement context, not current timeslot
-        let timeslot = state_manager.get_timeslot()?;
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
-        let account_address_reg = regs[7].as_account_address()?;
+        let account_address_reg = regs[7].value();
         let lookup_hash_offset = regs[8].as_mem_address()?;
         let buffer_offset = regs[9].as_mem_address()?;
         let buffer_size = regs[10].as_usize()?;
 
-        let account_address =
-            if account_address_reg == u32::MAX || state_manager.account_exists(target_address)? {
-                target_address
-            } else if state_manager.account_exists(account_address_reg)? {
-                account_address_reg
-            } else {
-                return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
-                    BASE_GAS_CHARGE,
-                )));
-            };
+        let account_address = if account_address_reg == u64::MAX
+            || state_manager.account_exists(refine_account_address)?
+        {
+            refine_account_address
+        } else if state_manager.account_exists(regs[7].as_account_address()?)? {
+            regs[7].as_account_address()?
+        } else {
+            return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
+                BASE_GAS_CHARGE,
+            )));
+        };
 
         if !memory.is_range_readable(lookup_hash_offset, HASH_SIZE)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
@@ -1007,7 +1016,11 @@ impl HostFunction {
         let lookup_hash =
             Hash32::decode(&mut memory.read_bytes(lookup_hash_offset, HASH_SIZE)?.as_slice())?;
 
-        let preimage = state_manager.lookup_preimage(account_address, &timeslot, &lookup_hash)?;
+        let preimage = state_manager.lookup_preimage(
+            account_address,
+            &Timeslot::new(x.lookup_anchor_timeslot),
+            &lookup_hash,
+        )?;
 
         if let Some(preimage) = preimage {
             let write_data_size = buffer_size.min(preimage.len());
@@ -1037,25 +1050,31 @@ impl HostFunction {
         }
     }
 
+    /// Fetches the import segment of the specified index from the ImportDA common storage and
+    /// writes it into memory.
     pub fn host_import(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        import_segments: Vec<ExportDataSegment>,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let segment_index = regs[7].as_usize()?;
-        let offset = regs[8].as_mem_address()?;
-        let segments_len = regs[9].as_usize()?;
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
-        if segments_len >= DATA_SEGMENTS_SIZE {
+        let import_segment_index = regs[7].as_usize()?;
+        let offset = regs[8].as_mem_address()?;
+        let segment_len = regs[9].as_usize()?;
+
+        if x.import_segments.len() <= import_segment_index {
             return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
                 BASE_GAS_CHARGE,
             )));
         }
+        let import_segment = x.import_segments[import_segment_index].clone();
 
-        let import_segment = import_segments[segment_index];
-        let segment_len = segments_len.min(DATA_SEGMENTS_SIZE);
+        let segment_read_len = segment_len.min(DATA_SEGMENTS_SIZE);
 
-        if !memory.is_range_writable(offset, segment_len)? {
+        if !memory.is_range_writable(offset, segment_read_len)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1065,58 +1084,54 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallResultConstant::OK as RegValue),
-                memory_write: (offset, segment_len as u32, import_segment.to_vec()),
+                memory_write: (offset, segment_read_len as u32, import_segment.to_vec()),
                 ..Default::default()
             },
         ))
     }
 
+    /// Appends an entry to the export segments vector using the value loaded from memory.
+    /// This export segments vector will be written to the ImportDA after the successful execution
+    /// of the refinement process.
     pub fn host_export(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
-        export_segment_offset: usize,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context.as_refine_context_mut() {
-            Some(ctx) => ctx,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let offset = regs[7].as_mem_address()?;
         let size = regs[8].as_usize()?;
 
-        let size = size.min(DATA_SEGMENTS_SIZE);
+        let export_segment_size = size.min(DATA_SEGMENTS_SIZE);
 
-        if !memory.is_range_readable(offset, size)? {
+        if !memory.is_range_readable(offset, export_segment_size)? {
             return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        let data: ExportDataSegment =
-            zero_pad(memory.read_bytes(offset, size)?, DATA_SEGMENTS_SIZE)
-                .try_into()
-                .map_err(|v: Vec<u8>| {
-                    PVMError::HostCallError(DataSegmentLengthMismatch {
-                        expected: DATA_SEGMENTS_SIZE,
-                        actual: v.len(),
-                    })
-                })?;
-
-        let export_segment_limit = export_segment_offset + data.len();
-        // TODO: check the size limit - definition of the constant `W_X` in the GP isn't clear
-        if export_segment_limit >= DATA_SEGMENTS_SIZE {
+        let next_export_segments_offset = x.export_segments.len() + x.export_segments_offset;
+        if next_export_segments_offset >= IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT {
             return Ok(HostCallChangeSet::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        x.export_segments.extend(vec![data]);
+        let data_segment: ExportDataSegment = zero_pad_as_array::<DATA_SEGMENTS_SIZE>(
+            memory.read_bytes(offset, export_segment_size)?,
+        )
+        .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
+
+        x.export_segments.push(data_segment);
+        x.export_segments_offset = next_export_segments_offset;
 
         Ok(HostCallChangeSet::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some((export_segment_limit) as RegValue),
+                r7_write: Some(next_export_segments_offset as RegValue),
                 ..Default::default()
             },
         ))
@@ -1127,10 +1142,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context.as_refine_context_mut() {
-            Some(ctx) => ctx,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let program_offset = regs[7].as_mem_address()?;
         let program_size = regs[8].as_usize()?;
@@ -1159,10 +1173,9 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context.as_refine_context_mut() {
-            Some(ctx) => ctx,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1198,10 +1211,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context.as_refine_context_mut() {
-            Some(ctx) => ctx,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1234,10 +1246,9 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context.as_refine_context_mut() {
-            Some(ctx) => ctx,
-            None => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1343,10 +1354,9 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = match context {
-            InvocationContext::X_R(x) => x,
-            _ => return Err(PVMError::HostCallError(InvalidContext)),
-        };
+        let x = context
+            .as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
 
         let inner_vm_id = regs[7].as_usize()?;
 
