@@ -72,6 +72,7 @@ pub struct ProgramState {
     pub jump_table: Vec<MemAddress>, // j
     pub opcode_bitmask: BitVec, // k
     pub basic_block_start_indices: HashSet<usize>, // opcode indices that are beginning of basic-blocks
+    pub initialized: bool,                         // boolean flag indicating initialization status
 }
 
 impl JamDecode for ProgramState {
@@ -104,6 +105,7 @@ impl JamDecode for ProgramState {
             jump_table,
             opcode_bitmask,
             basic_block_start_indices: HashSet::from([0]),
+            initialized: false,
         })
     }
 }

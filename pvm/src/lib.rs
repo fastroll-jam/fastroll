@@ -226,15 +226,18 @@ impl PVM {
         match extended_invocation_result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
             ExitReason::RegularHalt => {
-                let result = pvm.read_memory_bytes(
-                    PVMCore::read_reg_as_mem_address(&pvm.state, 10)?,
-                    PVMCore::read_reg(&pvm.state, 11)? as usize,
-                );
+                let start_address = PVMCore::read_reg_as_mem_address(&pvm.state, 10)?;
+                let data_len = PVMCore::read_reg(&pvm.state, 11)? as usize;
+                if !pvm
+                    .state
+                    .memory
+                    .is_address_range_readable(start_address, data_len)?
+                {
+                    return Ok(CommonInvocationResult::ResultUnavailable(vec![]));
+                }
 
-                Ok(match result {
-                    Ok(bytes) => CommonInvocationResult::Result(bytes),
-                    Err(_) => CommonInvocationResult::ResultUnavailable(vec![]),
-                })
+                let bytes = pvm.read_memory_bytes(start_address, data_len)?;
+                Ok(CommonInvocationResult::Result(bytes))
             }
             _ => Ok(CommonInvocationResult::Failure(ExitReason::Panic)),
         }

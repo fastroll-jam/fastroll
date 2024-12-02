@@ -119,7 +119,7 @@ impl PVMCore {
 
     /// Decodes program code blob and load into program state components: instructions, an opcode bitmask,
     /// a dynamic jump table and a basic block bitmask.
-    fn set_program_state(
+    pub fn set_program_state(
         program_code: &[u8],
         program_state: &mut ProgramState,
     ) -> Result<(), PVMError> {
@@ -132,6 +132,7 @@ impl PVMCore {
         program_state.opcode_bitmask = opcode_bitmask;
         program_state.jump_table = jump_table;
         Self::set_basic_block_start_indices(program_state)?;
+        program_state.initialized = true;
         Ok(())
     }
 
@@ -207,12 +208,14 @@ impl PVMCore {
     /// Represents `Ψ` of the GP.
     pub fn general_invocation(
         vm_state: &mut VMState,
-        program_state: &mut ProgramState, // no data loaded at this point
+        program_state: &mut ProgramState, // program code loaded from the `extended_invocation`
         program_code: &[u8],
     ) -> Result<ExitReason, PVMError> {
-        // FIXME: This is called in a loop in the `extended_invocation`. One-time initialization will be desirable.
-        // Decode program blob and set the program state to be referenced in each single-step invocation function.
-        Self::set_program_state(program_code, program_state)?;
+        // Ensure the program state is initialized only once, as the general invocation
+        // is triggered within a loop during the extended invocation.
+        if !program_state.initialized {
+            Self::set_program_state(program_code, program_state)?;
+        }
 
         loop {
             let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
