@@ -8,11 +8,8 @@ use rjam_types::{
     },
     common::workloads::{
         Authorizer, AvailabilitySpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
-        SegmentRootLookupTable,
-        WorkExecutionError::{
-            CodeSizeExceeded, OutOfGas, ServiceCodeLookupError, UnexpectedTermination,
-        },
-        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
+        SegmentRootLookupTable, WorkExecutionError::*, WorkExecutionOutput, WorkItem,
+        WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
     extrinsics::{
         assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
@@ -190,9 +187,9 @@ impl From<WorkExecResult> for WorkExecutionOutput {
         match value {
             WorkExecResult::ok(bytes) => Self::Output(Octets::from_vec(bytes.0)),
             WorkExecResult::out_of_gas => Self::Error(OutOfGas),
-            WorkExecResult::panic => Self::Error(UnexpectedTermination),
-            WorkExecResult::bad_code => Self::Error(ServiceCodeLookupError),
-            WorkExecResult::code_oversize => Self::Error(CodeSizeExceeded),
+            WorkExecResult::panic => Self::Error(Panic),
+            WorkExecResult::bad_code => Self::Error(Bad),
+            WorkExecResult::code_oversize => Self::Error(Big),
         }
     }
 }
@@ -202,9 +199,9 @@ impl From<WorkExecutionOutput> for WorkExecResult {
         match value {
             WorkExecutionOutput::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
             WorkExecutionOutput::Error(OutOfGas) => Self::out_of_gas,
-            WorkExecutionOutput::Error(UnexpectedTermination) => Self::panic,
-            WorkExecutionOutput::Error(ServiceCodeLookupError) => Self::bad_code,
-            WorkExecutionOutput::Error(CodeSizeExceeded) => Self::code_oversize,
+            WorkExecutionOutput::Error(Panic) => Self::panic,
+            WorkExecutionOutput::Error(Bad) => Self::bad_code,
+            WorkExecutionOutput::Error(Big) => Self::code_oversize,
         }
     }
 }

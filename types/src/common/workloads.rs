@@ -466,12 +466,38 @@ pub enum WorkExecutionOutput {
     Error(WorkExecutionError), // J
 }
 
+impl WorkExecutionOutput {
+    pub fn ok(output: Vec<u8>) -> Self {
+        Self::Output(Octets::from_vec(output))
+    }
+
+    pub fn ok_empty() -> Self {
+        Self::Output(Octets::default())
+    }
+
+    pub fn out_of_gas() -> Self {
+        Self::Error(WorkExecutionError::OutOfGas)
+    }
+
+    pub fn panic() -> Self {
+        Self::Error(WorkExecutionError::Panic)
+    }
+
+    pub fn bad() -> Self {
+        Self::Error(WorkExecutionError::Bad)
+    }
+
+    pub fn big() -> Self {
+        Self::Error(WorkExecutionError::Big)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionError {
     OutOfGas,
-    UnexpectedTermination,  // Panic
-    ServiceCodeLookupError, // BAD
-    CodeSizeExceeded,       // BIG; exceeds MAX_SERVICE_CODE_SIZE
+    Panic, // Panic
+    Bad,   // BAD; code or account address not found
+    Big,   // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
 }
 
 impl JamEncode for WorkExecutionOutput {
@@ -493,9 +519,9 @@ impl JamEncode for WorkExecutionOutput {
             }
             WorkExecutionOutput::Error(error) => match error {
                 WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
-                WorkExecutionError::UnexpectedTermination => 2u8.encode_to(dest),
-                WorkExecutionError::ServiceCodeLookupError => 3u8.encode_to(dest),
-                WorkExecutionError::CodeSizeExceeded => 4u8.encode_to(dest),
+                WorkExecutionError::Panic => 2u8.encode_to(dest),
+                WorkExecutionError::Bad => 3u8.encode_to(dest),
+                WorkExecutionError::Big => 4u8.encode_to(dest),
             },
         }
     }
@@ -509,15 +535,9 @@ impl JamDecode for WorkExecutionOutput {
                 Ok(WorkExecutionOutput::Output(data))
             }
             1 => Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas)),
-            2 => Ok(WorkExecutionOutput::Error(
-                WorkExecutionError::UnexpectedTermination,
-            )),
-            3 => Ok(WorkExecutionOutput::Error(
-                WorkExecutionError::ServiceCodeLookupError,
-            )),
-            4 => Ok(WorkExecutionOutput::Error(
-                WorkExecutionError::CodeSizeExceeded,
-            )),
+            2 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Panic)),
+            3 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Bad)),
+            4 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Big)),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionOutput prefix".into(),
             )),
@@ -529,9 +549,9 @@ impl JamDecode for WorkExecutionError {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         match u8::decode(input)? {
             1 => Ok(WorkExecutionError::OutOfGas),
-            2 => Ok(WorkExecutionError::UnexpectedTermination),
-            3 => Ok(WorkExecutionError::ServiceCodeLookupError),
-            4 => Ok(WorkExecutionError::CodeSizeExceeded),
+            2 => Ok(WorkExecutionError::Panic),
+            3 => Ok(WorkExecutionError::Bad),
+            4 => Ok(WorkExecutionError::Big),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionError prefix".into(),
             )),

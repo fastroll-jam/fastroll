@@ -30,14 +30,14 @@ use std::collections::HashMap;
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_I,                        // IsAuthorized
-    X_R(RefineContext),         // Refine
-    X_A(AccumulateContextPair), // Accumulate
-    X_T,                        // OnTransfer
+    X_I,                            // IsAuthorized
+    X_R(RefineHostContext),         // Refine
+    X_A(AccumulateHostContextPair), // Accumulate
+    X_T,                            // OnTransfer
 }
 
 impl InvocationContext {
-    pub fn as_refine_context_mut(&mut self) -> Option<&mut RefineContext> {
+    pub fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
         } else {
@@ -45,7 +45,7 @@ impl InvocationContext {
         }
     }
 
-    pub fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateContextPair> {
+    pub fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateHostContextPair> {
         if let InvocationContext::X_A(ref mut pair) = self {
             Some(pair)
         } else {
@@ -54,25 +54,25 @@ impl InvocationContext {
     }
 }
 
-pub struct AccumulateContextPair {
-    pub x: Box<AccumulateContext>,
-    pub y: Box<AccumulateContext>,
+pub struct AccumulateHostContextPair {
+    pub x: Box<AccumulateHostContext>,
+    pub y: Box<AccumulateHostContext>,
 }
 
-impl AccumulateContextPair {
-    pub fn get_x(&self) -> &AccumulateContext {
+impl AccumulateHostContextPair {
+    pub fn get_x(&self) -> &AccumulateHostContext {
         &self.x
     }
 
-    pub fn get_mut_x(&mut self) -> &mut AccumulateContext {
+    pub fn get_mut_x(&mut self) -> &mut AccumulateHostContext {
         &mut self.x
     }
 
-    pub fn get_y(&self) -> &AccumulateContext {
+    pub fn get_y(&self) -> &AccumulateHostContext {
         &self.y
     }
 
-    pub fn get_mut_y(&mut self) -> &mut AccumulateContext {
+    pub fn get_mut_y(&mut self) -> &mut AccumulateHostContext {
         &mut self.y
     }
 }
@@ -119,7 +119,7 @@ pub struct AccumulatePartialState {
 /// must first be copied into the `service_accounts` field of the `AccumulatePartialState` to ensure
 /// proper isolation.
 #[derive(Clone, Default)]
-pub struct AccumulateContext {
+pub struct AccumulateHostContext {
     pub accumulate_host: Address,              // s
     pub partial_state: AccumulatePartialState, // u
     /// TODO: Check how to manage this context in the parallelized accumulation.
@@ -128,7 +128,7 @@ pub struct AccumulateContext {
     pub gas_used: UnsignedGas,
 }
 
-impl AccumulateContext {
+impl AccumulateHostContext {
     pub fn new(
         state_manager: &StateManager,
         target_address: Address,
@@ -136,7 +136,7 @@ impl AccumulateContext {
         timeslot: &Timeslot,
     ) -> Result<Self, PVMError> {
         Ok(Self {
-            next_new_account_address: AccumulateContext::initialize_new_account_address(
+            next_new_account_address: AccumulateHostContext::initialize_new_account_address(
                 state_manager,
                 target_address,
                 entropy,
@@ -305,7 +305,7 @@ impl AccumulateContext {
 }
 
 #[derive(Clone, Default)]
-pub struct RefineContext {
+pub struct RefineHostContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     pub next_instance_id: usize, // PVM instance ID to be assigned for the next instance
     pub export_segments: Vec<ExportDataSegment>,
@@ -314,7 +314,7 @@ pub struct RefineContext {
     pub export_segments_offset: usize,
 }
 
-impl RefineContext {
+impl RefineHostContext {
     pub fn new(
         lookup_anchor_timeslot: u32,
         import_segments: Vec<ExportDataSegment>,

@@ -1,6 +1,6 @@
 pub mod accumulation;
 
-use rjam_codec::JamEncode;
+use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::*;
 use rjam_crypto::octets_to_hash32;
 use rjam_pvm::{CommonInvocationResult, PVM};
@@ -14,7 +14,7 @@ use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
     common::{
         transfers::DeferredTransfer,
-        workloads::{RefinementContext, WorkExecutionError, WorkExecutionOutput, WorkPackage},
+        workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
     },
     state::timeslot::Timeslot,
 };
@@ -31,14 +31,75 @@ pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 341_000_000; // G_T
 pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 1_000_000; // G_I
 pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 500_000_000; // G_R
 
+#[derive(JamEncode)]
+pub struct IsAuthorizedArgs {
+    work_package: WorkPackage, // p
+    core_index: CoreIndex,     // c
+}
+
+#[derive(JamEncode)]
+pub struct RefineArgs {
+    refine_address: Address,               // s
+    work_payload: Vec<u8>,                 // y
+    work_package_hash: Hash32,             // p
+    refinement_context: RefinementContext, // c
+    authorizer_hash: Hash32,               // a
+    authorization_output: Vec<u8>,         // o
+    extrinsic_data_blobs: Vec<Vec<u8>>,    // x_bar
+}
+
 pub struct RefineResult {
     pub output: WorkExecutionOutput,
     pub export_segments: Vec<ExportDataSegment>,
 }
 
+impl RefineResult {
+    pub fn ok(output: Vec<u8>, export_segments: Vec<ExportDataSegment>) -> Self {
+        Self {
+            output: WorkExecutionOutput::Output(Octets::from_vec(output)),
+            export_segments,
+        }
+    }
+
+    pub fn ok_empty(export_segments: Vec<ExportDataSegment>) -> Self {
+        Self {
+            output: WorkExecutionOutput::ok_empty(),
+            export_segments,
+        }
+    }
+
+    pub fn bad() -> Self {
+        Self {
+            output: WorkExecutionOutput::bad(),
+            export_segments: vec![],
+        }
+    }
+
+    pub fn big() -> Self {
+        Self {
+            output: WorkExecutionOutput::big(),
+            export_segments: vec![],
+        }
+    }
+
+    pub fn out_of_gas() -> Self {
+        Self {
+            output: WorkExecutionOutput::out_of_gas(),
+            export_segments: vec![],
+        }
+    }
+
+    pub fn panic() -> Self {
+        Self {
+            output: WorkExecutionOutput::panic(),
+            export_segments: vec![],
+        }
+    }
+}
+
 pub enum AccumulateResult {
     Unchanged,
-    Result(Box<AccumulateContext>, Option<Hash32>), // (mutated context, optional result hash)
+    Result(Box<AccumulateHostContext>, Option<Hash32>), // (mutated context, optional result hash)
 }
 
 pub struct PVMInvocation;
@@ -48,121 +109,106 @@ impl PVMInvocation {
     // PVM invocation entry-points
     //
 
+    /// IsAuthorized invocation function
+    ///
+    /// # Arguments
+    ///
+    /// * `state_manager` - State manager to access to the state cache values. This is only used for the code data lookup.
+    /// * `args` - IsAuthorized arguments
+    ///
+    /// Represents `Ψ_I` of the GP
     pub fn is_authorized(
         state_manager: &StateManager,
-        work_package: WorkPackage,
-        core_index: CoreIndex,
+        args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via the historical lookup function
         let code = match state_manager.lookup_preimage(
-            work_package.authorizer_address,
-            &Timeslot(work_package.context.lookup_anchor_timeslot),
-            &work_package.authorizer.auth_code_hash,
+            args.work_package.authorizer_address,
+            &Timeslot::new(args.work_package.context.lookup_anchor_timeslot),
+            &args.work_package.authorizer.auth_code_hash,
         )? {
             Some(code) => code,
             None => {
-                // TODO: check return type for this case
-                return Ok(WorkExecutionOutput::Error(
-                    WorkExecutionError::ServiceCodeLookupError,
-                ));
+                // failed to get the is_authorized code from the service account
+                return Ok(WorkExecutionOutput::bad());
             }
         };
 
-        let is_authorized_gas_limit = 0; // FIXME: not specified in the GP
-
-        let mut args = vec![];
-        work_package.encode_to(&mut args)?;
-        core_index.encode_to(&mut args)?;
-
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            work_package.authorizer_address,
+            args.work_package.authorizer_address,
             &code,
             IS_AUTHORIZED_INITIAL_PC,
-            is_authorized_gas_limit,
-            &args,
+            IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
+            &args.encode()?,
             &mut InvocationContext::X_I, // not used
         )?;
 
         match common_invocation_result {
-            CommonInvocationResult::OutOfGas(_) => {
-                Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas))
-            }
-            CommonInvocationResult::Failure(_) => Ok(WorkExecutionOutput::Error(
-                WorkExecutionError::UnexpectedTermination,
-            )),
-            CommonInvocationResult::Result(output)
-            | CommonInvocationResult::ResultUnavailable(output) => {
-                Ok(WorkExecutionOutput::Output(Octets::from_vec(output)))
-            }
+            CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
+            CommonInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
+            CommonInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
+            CommonInvocationResult::ResultUnavailable(_) => Ok(WorkExecutionOutput::ok_empty()),
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Refine invocation function
+    ///
+    /// # Arguments
+    ///
+    /// * `state_manager` - State manager to access to the state cache values. The only allowed access is the historical lookup.
+    /// * `code_hash` - Prediction of the refinement service code hash at the time of reporting
+    /// * `args` - Refinement arguments
+    /// * `gas_limit` - The maximum amount of gas allowed for the refinement process
+    /// * `import_segments` - Fixed-length data segments imported from the import DA
+    /// * `export_segments_offset` - Initial offset index of the export segments array
+    ///
+    /// Represents `Ψ_R` of the GP
     pub fn refine(
         state_manager: &StateManager,
         code_hash: Hash32,
         gas_limit: UnsignedGas,
-        refine_account_address: Address,
-        work_package_hash: Hash32,
-        work_payload: Vec<u8>,
-        refinement_context: RefinementContext,
-        authorizer_hash: Hash32,
-        authorization_output: Vec<u8>,
+        args: &RefineArgs,
         import_segments: Vec<ExportDataSegment>,
-        extrinsic_data_blobs: Vec<Vec<u8>>,
         export_segments_offset: usize,
     ) -> Result<RefineResult, PVMError> {
-        // retrieve the service account code via the historical lookup function
-        let code = match state_manager.lookup_preimage(
-            refine_account_address,
-            &Timeslot(refinement_context.lookup_anchor_timeslot),
-            &code_hash,
-        )? {
-            Some(code) => code,
-            None => {
-                // TODO: check return type for this case
-                return Ok(RefineResult {
-                    output: WorkExecutionOutput::Error(WorkExecutionError::ServiceCodeLookupError),
-                    export_segments: vec![],
-                });
-            }
-        };
+        // check the refine target account address exists in the global state
+        let refine_account_exists = !state_manager.account_exists(args.refine_address)?;
 
-        if code.len() > MAX_SERVICE_CODE_SIZE {
-            return Ok(RefineResult {
-                output: WorkExecutionOutput::Error(WorkExecutionError::CodeSizeExceeded),
-                export_segments: vec![],
-            });
+        // retrieve the service account code via the historical lookup function
+        let maybe_code = state_manager.lookup_preimage(
+            args.refine_address,
+            &Timeslot(args.refinement_context.lookup_anchor_timeslot),
+            &code_hash,
+        )?;
+
+        if !refine_account_exists || maybe_code.is_none() {
+            return Ok(RefineResult::bad());
         }
 
-        // encode arguments for the refinement process
-        let mut args = vec![];
-        refine_account_address.encode_to(&mut args)?;
-        work_payload.encode_to(&mut args)?;
-        work_package_hash.encode_to(&mut args)?;
-        refinement_context.encode_to(&mut args)?;
-        authorizer_hash.encode_to(&mut args)?;
-        authorization_output.encode_to(&mut args)?;
-        extrinsic_data_blobs.encode_to(&mut args)?;
+        let code = maybe_code.unwrap();
 
-        let mut context = InvocationContext::X_R(RefineContext::new(
-            refinement_context.lookup_anchor_timeslot,
+        if code.len() > MAX_SERVICE_CODE_SIZE {
+            return Ok(RefineResult::big());
+        }
+
+        let mut context = InvocationContext::X_R(RefineHostContext::new(
+            args.refinement_context.lookup_anchor_timeslot,
             import_segments,
             export_segments_offset,
         ));
 
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            refine_account_address,
+            args.refine_address,
             &code,
             REFINE_INITIAL_PC,
             gas_limit,
-            &args,
+            &args.encode()?,
             &mut context,
         )?;
 
-        let RefineContext {
+        let RefineHostContext {
             export_segments, ..
         } = if let InvocationContext::X_R(context) = context {
             context
@@ -171,19 +217,12 @@ impl PVMInvocation {
         };
 
         match common_invocation_result {
-            CommonInvocationResult::Result(output)
-            | CommonInvocationResult::ResultUnavailable(output) => Ok(RefineResult {
-                output: WorkExecutionOutput::Output(Octets::from_vec(output)),
-                export_segments,
-            }),
-            CommonInvocationResult::OutOfGas(_) => Ok(RefineResult {
-                output: WorkExecutionOutput::Error(WorkExecutionError::OutOfGas),
-                export_segments: vec![],
-            }),
-            CommonInvocationResult::Failure(_) => Ok(RefineResult {
-                output: WorkExecutionOutput::Error(WorkExecutionError::UnexpectedTermination),
-                export_segments: vec![],
-            }),
+            CommonInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
+            CommonInvocationResult::ResultUnavailable(_) => {
+                Ok(RefineResult::ok_empty(export_segments))
+            }
+            CommonInvocationResult::OutOfGas(_) => Ok(RefineResult::out_of_gas()),
+            CommonInvocationResult::Panic(_) => Ok(RefineResult::panic()),
         }
     }
 
@@ -191,19 +230,19 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `service_manager` - State manager to access to the state cache values
-    /// * `target_address` - The address of the target service account to run the accumulation process
-    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation operation
+    /// * `state_manager` - State manager to access to the state cache values
+    /// * `accumulate_address` - The address of the target service account to run the accumulation process
+    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation process
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     ///
     /// Represents `Ψ_A` of the GP
     pub fn accumulate(
         state_manager: &StateManager,
-        target_address: Address,
+        accumulate_address: Address,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulateOperand>,
     ) -> Result<AccumulateResult, PVMError> {
-        let code = state_manager.get_account_code(target_address)?;
+        let code = state_manager.get_account_code(accumulate_address)?;
 
         if operands.is_empty() || code.is_none() {
             return Ok(AccumulateResult::Unchanged);
@@ -212,14 +251,14 @@ impl PVMInvocation {
 
         let current_entropy = state_manager.get_entropy_accumulator()?.current();
         let current_timeslot = state_manager.get_timeslot()?;
-        let accumulate_context = AccumulateContext::new(
+        let accumulate_context = AccumulateHostContext::new(
             state_manager,
-            target_address,
+            accumulate_address,
             current_entropy,
             &current_timeslot,
         )?;
 
-        let context_pair = AccumulateContextPair {
+        let context_pair = AccumulateHostContextPair {
             x: Box::new(accumulate_context.clone()),
             y: Box::new(accumulate_context),
         };
@@ -231,7 +270,7 @@ impl PVMInvocation {
         // TODO: Used gas accumulation handling
         let common_invocation_result = PVM::common_invocation(
             state_manager,
-            target_address,
+            accumulate_address,
             &code,
             ACCUMULATE_INITIAL_PC,
             gas_limit,
@@ -239,7 +278,7 @@ impl PVMInvocation {
             &mut context,
         )?;
 
-        let AccumulateContextPair { x, y } = if let InvocationContext::X_A(pair) = context {
+        let AccumulateHostContextPair { x, y } = if let InvocationContext::X_A(pair) = context {
             pair
         } else {
             return Err(PVMError::HostCallError(InvalidContext));
@@ -251,12 +290,21 @@ impl PVMInvocation {
                 Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
             }
 
-            CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Failure(_) => {
+            CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
                 Ok(AccumulateResult::Result(y, None))
             }
         }
     }
 
+    /// OnTransfer invocation function
+    ///
+    /// # Arguments
+    ///
+    /// * `state_manager` - State manager to access to the state cache values
+    /// * `destination` - The recipient address of the transfers
+    /// * `transfers` - The deferred transfers
+    ///
+    /// Represents `Ψ_T` of the GP
     pub fn on_transfer(
         state_manager: &StateManager,
         destination: Address,
