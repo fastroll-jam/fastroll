@@ -95,6 +95,22 @@ pub struct ServiceAccountCopy {
     pub lookups: HashMap<(Hash32, u32), AccountLookupsEntry>,
 }
 
+impl ServiceAccountCopy {
+    fn from_address(state_manager: &StateManager, address: Address) -> Result<Self, PVMError> {
+        let metadata = state_manager
+            .get_account_metadata(address)?
+            .ok_or(PVMError::AccountNotFound)?;
+
+        // FIXME: efficiently copy the storage states of the account
+        Ok(Self {
+            metadata,
+            storage: HashMap::new(),
+            preimages: HashMap::new(),
+            lookups: HashMap::new(),
+        })
+    }
+}
+
 /// Represents a mutable copy of a subset of the global state used during the accumulation process.
 ///
 /// This provides a sandboxed environment for performing state mutations safely, yielding the final
@@ -106,6 +122,18 @@ pub struct AccumulatePartialState {
     pub staging_set: StagingSet,                                // i
     pub auth_queue: AuthQueue,                                  // q
     pub privileges: PrivilegedServices,                         // x
+}
+
+impl AccumulatePartialState {
+    fn new_from_address(state_manager: &StateManager, address: Address) -> Result<Self, PVMError> {
+        let mut service_accounts = HashMap::new();
+        let account_copy = ServiceAccountCopy::from_address(state_manager, address)?;
+        service_accounts.insert(address, account_copy);
+        Ok(Self {
+            service_accounts,
+            ..Default::default()
+        })
+    }
 }
 
 /// Represents the contextual state maintained throughout the accumulation process.
@@ -131,19 +159,55 @@ pub struct AccumulateHostContext {
 impl AccumulateHostContext {
     pub fn new(
         state_manager: &StateManager,
-        target_address: Address,
+        accumulate_address: Address,
         entropy: Hash32,
         timeslot: &Timeslot,
     ) -> Result<Self, PVMError> {
         Ok(Self {
-            next_new_account_address: AccumulateHostContext::initialize_new_account_address(
+            next_new_account_address: Self::initialize_new_account_address(
                 state_manager,
-                target_address,
+                accumulate_address,
                 entropy,
                 timeslot,
             )?,
+            partial_state: AccumulatePartialState::new_from_address(
+                state_manager,
+                accumulate_address,
+            )?,
             ..Default::default()
         })
+    }
+
+    fn initialize_new_account_address(
+        state_manager: &StateManager,
+        accumulate_address: Address,
+        entropy: Hash32,
+        timeslot: &Timeslot,
+    ) -> Result<Address, PVMError> {
+        let mut buf = vec![];
+        accumulate_address.encode_to(&mut buf)?;
+        entropy.encode_to(&mut buf)?;
+        timeslot.0.encode_to(&mut buf)?;
+
+        let source_hash = hash::<Blake2b256>(&buf[..])?;
+        let initial_check_address = u32::decode_fixed(&mut &source_hash[..], 4)? as u64
+            & (((1 << 32) - (1 << 9)) + (1 << 8));
+        let new_account_address = state_manager.check(initial_check_address as Address)?;
+
+        Ok(new_account_address)
+    }
+
+    pub fn copy_account_to_partial_state(
+        &mut self,
+        state_manager: &StateManager,
+        address: Address,
+    ) -> Result<(), PVMError> {
+        let account_copy = ServiceAccountCopy::from_address(state_manager, address)?;
+        self.partial_state
+            .service_accounts
+            .insert(address, account_copy);
+
+        Ok(())
     }
 
     pub fn accumulator_account(&self) -> Result<ServiceAccountCopy, PVMError> {
@@ -180,25 +244,6 @@ impl AccumulateHostContext {
             .cloned()
             .ok_or(PVMError::HostCallError(AccountNotFoundInPartialState))?
             .metadata)
-    }
-
-    fn initialize_new_account_address(
-        state_manager: &StateManager,
-        target_address: Address,
-        entropy: Hash32,
-        timeslot: &Timeslot,
-    ) -> Result<Address, PVMError> {
-        let mut buf = vec![];
-        target_address.encode_to(&mut buf)?;
-        entropy.encode_to(&mut buf)?;
-        timeslot.0.encode_to(&mut buf)?;
-
-        let source_hash = hash::<Blake2b256>(&buf[..])?;
-        let initial_check_address = u32::decode_fixed(&mut &source_hash[..], 4)? as u64
-            & (((1 << 32) - (1 << 9)) + (1 << 8));
-        let new_account_address = state_manager.check(initial_check_address as Address)?;
-
-        Ok(new_account_address)
     }
 
     pub fn get_next_new_account_address(&self) -> Address {
