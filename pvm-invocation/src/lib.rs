@@ -10,7 +10,7 @@ use rjam_pvm_core::types::{
     error::{HostCallError::InvalidContext, PVMError},
 };
 use rjam_pvm_hostcall::contexts::*;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::StateManager;
 use rjam_types::{
     common::{
         transfers::DeferredTransfer,
@@ -98,8 +98,40 @@ impl RefineResult {
 }
 
 pub enum AccumulateResult {
-    Unchanged,
     Result(Box<AccumulateHostContext>, Option<Hash32>), // (mutated context, optional result hash)
+    Unchanged,
+}
+
+#[allow(dead_code)]
+struct BalanceChangeSet {
+    recipient: Address,
+    added_amount: Balance,
+}
+
+// TODO: impl
+pub struct DestinationStorageChangeSet {}
+
+#[allow(dead_code)]
+#[derive(Default)]
+pub struct OnTransferResult {
+    balance_change_set: Option<BalanceChangeSet>,
+    storage_change_set: Option<DestinationStorageChangeSet>,
+}
+
+impl OnTransferResult {
+    pub fn new(
+        recipient: Address,
+        added_amount: Balance,
+        storage_change_set: DestinationStorageChangeSet,
+    ) -> Self {
+        Self {
+            balance_change_set: Some(BalanceChangeSet {
+                recipient,
+                added_amount,
+            }),
+            storage_change_set: Some(storage_change_set),
+        }
+    }
 }
 
 pub struct PVMInvocation;
@@ -113,7 +145,7 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the state cache values. This is only used for the code data lookup.
+    /// * `state_manager` - State manager to access to the global state. This is only used for the code data lookup.
     /// * `args` - IsAuthorized arguments
     ///
     /// Represents `Ψ_I` of the GP
@@ -156,7 +188,7 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the state cache values. The only allowed access is the historical lookup.
+    /// * `state_manager` - State manager to access to the global state. The only allowed access is the historical lookup.
     /// * `code_hash` - Prediction of the refinement service code hash at the time of reporting
     /// * `args` - Refinement arguments
     /// * `gas_limit` - The maximum amount of gas allowed for the refinement process
@@ -230,7 +262,7 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the state cache values
+    /// * `state_manager` - State manager to access to the global state
     /// * `accumulate_address` - The address of the target service account to run the accumulation process
     /// * `gas_limit` - The maximum amount of gas allowed for the accumulation process
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
@@ -244,7 +276,7 @@ impl PVMInvocation {
     ) -> Result<AccumulateResult, PVMError> {
         let code = state_manager.get_account_code(accumulate_address)?;
 
-        if operands.is_empty() || code.is_none() {
+        if code.is_none() {
             return Ok(AccumulateResult::Unchanged);
         }
         let code = code.unwrap();
@@ -265,9 +297,8 @@ impl PVMInvocation {
 
         let mut context = InvocationContext::X_A(context_pair);
 
-        // initialize the new account address in-memory state (part of Accumulate context)
-
-        // TODO: Used gas accumulation handling
+        // TODO: Accounts subject to mutation due to `read`, `write` and `lookup` host functions must be copied into the partial state (Function G)
+        // TODO: use `AccumulateHostContext::copy_account_to_partial_state`, and host functions must return the subject account addresses.
         let common_invocation_result = PVM::common_invocation(
             state_manager,
             accumulate_address,
@@ -289,7 +320,6 @@ impl PVMInvocation {
             | CommonInvocationResult::ResultUnavailable(output) => {
                 Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
             }
-
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
                 Ok(AccumulateResult::Result(y, None))
             }
@@ -300,7 +330,7 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the state cache values
+    /// * `state_manager` - State manager to access to the global state
     /// * `destination` - The recipient address of the transfers
     /// * `transfers` - The deferred transfers
     ///
@@ -309,23 +339,17 @@ impl PVMInvocation {
         state_manager: &StateManager,
         destination: Address,
         transfers: Vec<DeferredTransfer>,
-    ) -> Result<(), PVMError> {
-        let total_amount: Balance = transfers.iter().map(|t| t.amount).sum();
-
-        state_manager.with_mut_account_metadata(StateWriteOp::Update, destination, |account| {
-            account.account_info.balance += total_amount;
-        })?;
+    ) -> Result<OnTransferResult, PVMError> {
+        let total_amount = transfers.iter().map(|t| t.amount).sum();
+        let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
 
         let code = state_manager.get_account_code(destination)?;
         if code.is_none() || transfers.is_empty() {
-            return Ok(());
+            return Ok(OnTransferResult::default());
         }
         let code = code.unwrap();
 
-        let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
-
-        // TODO: check the return type
-        PVM::common_invocation(
+        let _common_invocation_result = PVM::common_invocation(
             state_manager,
             destination,
             &code,
@@ -335,7 +359,11 @@ impl PVMInvocation {
             &mut InvocationContext::X_T, // not used
         )?;
 
-        // TODO: check return type (service account context)
-        Ok(())
+        // TODO: return the recipient account storage changeset
+        Ok(OnTransferResult::new(
+            destination,
+            total_amount,
+            DestinationStorageChangeSet {},
+        ))
     }
 }

@@ -1,5 +1,9 @@
 use crate::{
-    contexts::InvocationContext, host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM,
+    contexts::{
+        AccountLookupsEntryCopy, AccountStorageEntryCopy, InvocationContext, StorageEntryOp::Add,
+    },
+    host_functions::InnerPVMResultConstant::*,
+    inner_vm::InnerPVM,
     utils::*,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncodeFixed};
@@ -21,7 +25,6 @@ use rjam_pvm_core::{
 use rjam_state::{
     StateManager,
     StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
-    StateWriteOp,
 };
 use rjam_types::{
     common::transfers::DeferredTransfer,
@@ -245,7 +248,13 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let acc_pair = context
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = acc_pair.get_mut_x();
+
         let key_offset = regs[7].as_mem_address()?;
         let key_size = regs[8].as_usize()?;
         let value_offset = regs[9].as_mem_address()?;
@@ -264,7 +273,7 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
-
+        // FIXME: read from the partial state copy
         let prev_storage_entry =
             state_manager.get_account_storage_entry(target_address, &storage_key)?;
         let prev_value_size = if let Some(entry) = &prev_storage_entry {
@@ -303,22 +312,21 @@ impl HostFunction {
             )));
         }
 
+        // Apply the state change
+        let accumulator_account_mut = x.accumulator_account_mut()?;
+
         if value_size == 0 {
-            state_manager.with_mut_account_storage_entry(
-                StateWriteOp::Remove,
-                target_address,
-                &storage_key,
-                |_| {},
-            )?;
+            // Remove the entry if the size of the new entry value is zero
+            accumulator_account_mut.storage.remove(&storage_key);
         } else {
-            state_manager.with_mut_account_storage_entry(
-                StateWriteOp::Upsert,
-                target_address,
-                &storage_key,
-                |entry| {
-                    entry.value = Octets::from_vec(new_storage_entry_data);
+            // FIXME: get prev_value here
+            accumulator_account_mut.storage.insert(
+                storage_key,
+                AccountStorageEntryCopy {
+                    entry: new_storage_entry,
+                    op: Add,
                 },
-            )?;
+            );
         }
 
         Ok(HostCallChangeSet::continue_with_vm_change(
@@ -843,10 +851,13 @@ impl HostFunction {
             None => {
                 // Add a new entry.
                 let (key, preimage_length) = lookups_key;
-                AccountLookupsEntry {
-                    key,
-                    preimage_length,
-                    value: vec![],
+                AccountLookupsEntryCopy {
+                    op: Add,
+                    entry: AccountLookupsEntry {
+                        key,
+                        preimage_length,
+                        value: vec![],
+                    },
                 }
             }
         };
@@ -928,7 +939,7 @@ impl HostFunction {
         let vm_state_change = match lookups_entry {
             None => huh_change(BASE_GAS_CHARGE),
             Some(entry) => {
-                let lookups_timeslots = entry.value;
+                let lookups_timeslots = entry.value.clone();
 
                 match lookups_timeslots.len() {
                     0 => {

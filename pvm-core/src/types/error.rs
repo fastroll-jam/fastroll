@@ -11,6 +11,8 @@ pub enum PVMError {
     NewAccountAddressNotInitialized,
     #[error("Account code not found")]
     AccountCodeNotFound,
+    #[error("Account not found")]
+    AccountNotFound,
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]
