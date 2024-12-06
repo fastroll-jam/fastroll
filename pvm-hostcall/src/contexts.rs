@@ -1,4 +1,4 @@
-use crate::inner_vm::InnerPVM;
+use crate::{contexts::StorageEntryOp::Add, inner_vm::InnerPVM};
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, Balance, Hash32, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
@@ -6,10 +6,7 @@ use rjam_pvm_core::{
     state::memory::Memory,
     types::{
         common::ExportDataSegment,
-        error::{
-            HostCallError::{AccountNotFoundInPartialState, AccumulatorAccountNotInitialized},
-            PVMError,
-        },
+        error::{HostCallError::*, PVMError},
     },
 };
 use rjam_state::StateManager;
@@ -19,13 +16,16 @@ use rjam_types::{
         authorizer::AuthQueue,
         services::{
             AccountInfo, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
-            AccountStorageEntry, PrivilegedServices,
+            AccountStorageEntry, PrivilegedServices, StorageFootprint,
         },
         timeslot::Timeslot,
         validators::StagingSet,
     },
 };
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
@@ -77,22 +77,110 @@ impl AccumulateHostContextPair {
     }
 }
 
+#[derive(Clone)]
+pub enum StorageEntryOp {
+    ReadOnly,
+    Add,
+    Update,
+    Remove,
+}
+
+#[derive(Clone)]
+pub struct AccountStorageEntryCopy {
+    pub entry: AccountStorageEntry,
+    pub op: StorageEntryOp,
+}
+
+impl Deref for AccountStorageEntryCopy {
+    type Target = AccountStorageEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+impl DerefMut for AccountStorageEntryCopy {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+impl StorageFootprint for AccountStorageEntryCopy {
+    fn storage_octets_usage(&self) -> usize {
+        self.entry.value.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entry.value.is_empty()
+    }
+}
+
+#[derive(Clone)]
+pub struct AccountPreimagesEntryCopy {
+    pub entry: AccountPreimagesEntry,
+    pub op: StorageEntryOp,
+}
+
+impl Deref for AccountPreimagesEntryCopy {
+    type Target = AccountPreimagesEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+impl DerefMut for AccountPreimagesEntryCopy {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+#[derive(Clone)]
+pub struct AccountLookupsEntryCopy {
+    pub entry: AccountLookupsEntry,
+    pub op: StorageEntryOp,
+}
+
+impl Deref for AccountLookupsEntryCopy {
+    type Target = AccountLookupsEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+impl DerefMut for AccountLookupsEntryCopy {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+impl StorageFootprint for AccountLookupsEntryCopy {
+    /// Note: Storage octets usage of lookups storage is counted by the preimage data size,
+    /// not the size of the timeslots vector.
+    fn storage_octets_usage(&self) -> usize {
+        self.entry.preimage_length as usize
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entry.value.is_empty()
+    }
+}
+
 /// Represents a service account, including its metadata and associated storage entries.
 ///
 /// This type is primarily used in the accumulate context for state mutations involving service accounts.
 /// The global state serialization doesn't require the service metadata and storage entries to be
 /// stored together, which makes this type to be specific to the accumulation process.
 ///
-/// TODO: properly manage memory usage for the `HashMap` fields
-///
 /// Represents type `A` of the GP.
 #[allow(dead_code)]
 #[derive(Clone, Default)]
 pub struct ServiceAccountCopy {
     pub metadata: AccountMetadata,
-    pub storage: HashMap<Hash32, AccountStorageEntry>,
-    pub preimages: HashMap<Hash32, AccountPreimagesEntry>,
-    pub lookups: HashMap<(Hash32, u32), AccountLookupsEntry>,
+    pub storage: HashMap<Hash32, AccountStorageEntryCopy>,
+    pub preimages: HashMap<Hash32, AccountPreimagesEntryCopy>,
+    pub lookups: HashMap<(Hash32, u32), AccountLookupsEntryCopy>,
 }
 
 impl ServiceAccountCopy {
@@ -316,10 +404,13 @@ impl AccumulateHostContext {
         // Lookups dictionary entry for the code hash preimage entry
         new_account.lookups.insert(
             code_lookups_key,
-            AccountLookupsEntry {
-                key: code_lookups_key.0,
-                preimage_length: code_lookups_key.1,
-                value: vec![],
+            AccountLookupsEntryCopy {
+                op: Add,
+                entry: AccountLookupsEntry {
+                    key: code_lookups_key.0,
+                    preimage_length: code_lookups_key.1,
+                    value: vec![],
+                },
             },
         );
 

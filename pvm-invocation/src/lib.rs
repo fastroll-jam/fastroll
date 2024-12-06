@@ -360,7 +360,6 @@ impl PVMInvocation {
         )?;
 
         // TODO: return the recipient account storage changeset
-
         Ok(OnTransferResult::new(
             destination,
             total_amount,

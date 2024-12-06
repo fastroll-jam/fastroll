@@ -168,9 +168,9 @@ fn construct_account_lookups_state_key(
 
 #[derive(Clone)]
 pub enum StateWriteOp {
+    Add,
     Update,
     Upsert,
-    Add,
     Remove,
 }
 

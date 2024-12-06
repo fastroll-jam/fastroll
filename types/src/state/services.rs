@@ -170,6 +170,7 @@ pub struct AccountStorageEntry {
     pub value: Octets,
 }
 
+// TODO: check usage
 impl StorageFootprint for AccountStorageEntry {
     fn storage_octets_usage(&self) -> usize {
         self.value.len()
@@ -193,6 +194,7 @@ pub struct AccountLookupsEntry {
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }
 
+// TODO: check usage
 impl StorageFootprint for AccountLookupsEntry {
     /// Note: Storage octets usage of lookups storage is counted by the preimage data size,
     /// not the size of the timeslots vector.

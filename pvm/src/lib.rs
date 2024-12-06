@@ -323,6 +323,7 @@ impl PVM {
                 self.get_registers(),
                 self.get_memory(),
                 state_manager,
+                context,
             )?,
             HostCallType::INFO => HostFunction::host_info(
                 target_address,
