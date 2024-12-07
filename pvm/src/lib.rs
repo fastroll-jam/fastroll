@@ -19,7 +19,7 @@ use rjam_pvm_core::{
     utils::VMUtils,
 };
 use rjam_pvm_hostcall::{
-    contexts::InvocationContext,
+    context::types::InvocationContext,
     host_functions::{HostCallChangeSet, HostCallVMStateChange, HostFunction},
 };
 use rjam_state::StateManager;

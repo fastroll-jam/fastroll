@@ -9,7 +9,7 @@ use rjam_pvm_core::types::{
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
 };
-use rjam_pvm_hostcall::contexts::*;
+use rjam_pvm_hostcall::context::types::*;
 use rjam_state::StateManager;
 use rjam_types::{
     common::{

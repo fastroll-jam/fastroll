@@ -59,7 +59,7 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
         let service_index = entry.service_index;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
-        let lookups_key = (&preimage_data_hash, preimage_data_len as u32);
+        let lookups_key = &(preimage_data_hash, preimage_data_len as u32);
 
         if self
             .state_manager

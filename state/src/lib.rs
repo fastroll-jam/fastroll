@@ -294,7 +294,7 @@ impl StateManager {
         };
         let preimage_length = preimage.len() as u32;
         let lookup_timeslots =
-            match self.get_account_lookups_entry(address, (preimage_hash, preimage_length))? {
+            match self.get_account_lookups_entry(address, &(*preimage_hash, preimage_length))? {
                 Some(lookup_timeslots) => lookup_timeslots.value,
                 None => return Ok(None),
             };
@@ -1154,7 +1154,7 @@ impl StateManager {
     pub fn update_account_lookups_footprint(
         &self,
         address: Address,
-        lookups_key: (&Hash32, u32),
+        lookups_key: &(Hash32, u32),
         new_lookups_entry: &AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
         let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key)?;
@@ -1305,10 +1305,10 @@ impl StateManager {
     pub fn get_account_lookups_entry(
         &self,
         address: Address,
-        lookups_key: (&Hash32, u32),
+        lookups_key: &(Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         let (h, l) = lookups_key;
-        let state_key = construct_account_lookups_state_key(address, h, l)?;
+        let state_key = construct_account_lookups_state_key(address, h, *l)?;
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {

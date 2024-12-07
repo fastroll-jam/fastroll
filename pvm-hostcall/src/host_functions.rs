@@ -1,6 +1,6 @@
 use crate::{
-    contexts::{
-        AccountLookupsEntryCopy, AccountStorageEntryCopy, InvocationContext, StorageEntryOp::Add,
+    context::types::{
+        AccountLookupsEntryCopy, AccountStorageEntryCopy, EntryStatus::Added, InvocationContext,
     },
     host_functions::InnerPVMResultConstant::*,
     inner_vm::InnerPVM,
@@ -324,7 +324,7 @@ impl HostFunction {
                 storage_key,
                 AccountStorageEntryCopy {
                     entry: new_storage_entry,
-                    op: Add,
+                    status: Added,
                 },
             );
         }
@@ -421,7 +421,7 @@ impl HostFunction {
             always_accumulate_services.insert(address, basic_gas);
         }
 
-        x.update_privileged_services(manager, assign, designate, always_accumulate_services)?;
+        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -462,7 +462,7 @@ impl HostFunction {
             queue_assignment.0[core_index][i] = Hash32::decode(&mut authorizer.as_slice())?;
         }
 
-        x.update_auth_queue(queue_assignment)?;
+        x.assign_new_auth_queue(queue_assignment)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -497,7 +497,7 @@ impl HostFunction {
             new_staging_set.0[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
         }
 
-        x.update_staging_set(new_staging_set)?;
+        x.assign_new_staging_set(new_staging_set)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -852,7 +852,7 @@ impl HostFunction {
                 // Add a new entry.
                 let (key, preimage_length) = lookups_key;
                 AccountLookupsEntryCopy {
-                    op: Add,
+                    status: Added,
                     entry: AccountLookupsEntry {
                         key,
                         preimage_length,

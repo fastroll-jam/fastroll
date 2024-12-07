@@ -164,6 +164,16 @@ pub trait StorageFootprint {
     fn is_empty(&self) -> bool;
 }
 
+/// A marker trait for types that represent account state components used in PVM invocation contexts.
+///
+/// This is used to group types that are part of an account's state and are eligible for
+/// manipulation or evaluation in a sandboxed PVM hostcall execution context.
+pub trait PVMContextState {}
+impl PVMContextState for AccountMetadata {}
+impl PVMContextState for AccountStorageEntry {}
+impl PVMContextState for AccountPreimagesEntry {}
+impl PVMContextState for AccountLookupsEntry {}
+
 #[derive(Clone)]
 pub struct AccountStorageEntry {
     pub key: Hash32, // constructed with the account address and the storage key
