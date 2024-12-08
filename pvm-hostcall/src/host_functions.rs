@@ -1,7 +1,5 @@
 use crate::{
-    context::types::{
-        AccountLookupsEntryCopy, AccountStorageEntryCopy, EntryStatus::Added, InvocationContext,
-    },
+    context::{partial_state::StateView, types::InvocationContext},
     host_functions::InnerPVMResultConstant::*,
     inner_vm::InnerPVM,
     utils::*,
@@ -320,13 +318,9 @@ impl HostFunction {
             accumulator_account_mut.storage.remove(&storage_key);
         } else {
             // FIXME: get prev_value here
-            accumulator_account_mut.storage.insert(
-                storage_key,
-                AccountStorageEntryCopy {
-                    entry: new_storage_entry,
-                    status: Added,
-                },
-            );
+            accumulator_account_mut
+                .storage
+                .insert(storage_key, StateView::Entry(new_storage_entry));
         }
 
         Ok(HostCallChangeSet::continue_with_vm_change(
@@ -563,20 +557,21 @@ impl HostFunction {
 
         // Check if the accumulator's balance if sufficient and subtract by
         // the initial threshold balance to be transferred to the new account.
-        let accumulator_account_metadata = x.accumulator_account()?.metadata;
-        let accumulator_balance = accumulator_account_metadata.balance();
-        if accumulator_balance
-            < accumulator_account_metadata.threshold_balance() + new_threshold_balance
-        {
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
+        let accumulator_balance = accumulator_metadata.balance();
+        let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
+
+        if accumulator_balance < accumulator_threshold_balance + new_threshold_balance {
             return Ok(HostCallChangeSet::continue_with_vm_change(cash_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        x.subtract_accumulator_balance(new_threshold_balance)?;
+        x.subtract_accumulator_balance(state_manager, new_threshold_balance)?;
 
         // Add a new account to the partial state
         let new_account_address = x.add_new_account(
+            state_manager,
             AccountInfo {
                 code_hash,
                 balance: new_threshold_balance,
@@ -603,6 +598,7 @@ impl HostFunction {
     pub fn host_upgrade(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
         let acc_pair = context
@@ -622,7 +618,7 @@ impl HostFunction {
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
-        x.update_accumulator_metadata(code_hash, gas_limit_g, gas_limit_m)?;
+        x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -666,25 +662,22 @@ impl HostFunction {
             gas_limit,
         };
 
-        let accumulator_balance = x.accumulator_account()?.metadata.balance();
+        let accumulator_balance = x.get_accumulator_metadata(state_manager)?.balance();
+        let accumulator_threshold_balance = x
+            .get_accumulator_metadata(state_manager)?
+            .threshold_balance();
 
         // Check the state manager and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_on_transfer_gas_limit = if state_manager.account_exists(dest)? {
-            state_manager
-                .get_account_metadata(dest)?
-                .ok_or(PVMError::HostCallError(StateManagerPollution))?
-                .account_info
-                .gas_limit_on_transfer
-        } else if x.account_exists(dest)? {
-            x.get_account_metadata(dest)?
-                .account_info
-                .gas_limit_on_transfer
-        } else {
-            return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
-                gas_charge,
-            )));
-        };
+        let dest_on_transfer_gas_limit =
+            match x.partial_state.get_account_metadata(state_manager, dest)? {
+                Some(metadata) => metadata.account_info.gas_limit_on_transfer,
+                None => {
+                    return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
+                        gas_charge,
+                    )));
+                }
+            };
 
         if gas_limit < dest_on_transfer_gas_limit {
             return Ok(HostCallChangeSet::continue_with_vm_change(low_change(
@@ -698,13 +691,13 @@ impl HostFunction {
             )));
         }
 
-        if accumulator_balance < amount + x.accumulator_account()?.metadata.threshold_balance() {
+        if accumulator_balance < amount + accumulator_threshold_balance {
             return Ok(HostCallChangeSet::continue_with_vm_change(cash_change(
                 gas_charge,
             )));
         }
 
-        x.subtract_accumulator_balance(amount)?;
+        x.subtract_accumulator_balance(state_manager, amount)?;
         x.add_to_deferred_transfers(transfer);
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
@@ -752,9 +745,9 @@ impl HostFunction {
             &mut memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
         )?;
 
-        let amount = x.accumulator_account()?.metadata.balance()
-            - x.accumulator_account()?.metadata.threshold_balance()
-            + B_S;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
+        let amount =
+            accumulator_metadata.balance() - accumulator_metadata.threshold_balance() + B_S;
 
         let transfer = DeferredTransfer {
             from: target_address,
@@ -766,21 +759,15 @@ impl HostFunction {
 
         // Check the state manager and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_on_transfer_gas_limit = if state_manager.account_exists(dest)? {
-            state_manager
-                .get_account_metadata(dest)?
-                .ok_or(PVMError::HostCallError(StateManagerPollution))?
-                .account_info
-                .gas_limit_on_transfer
-        } else if x.account_exists(dest)? {
-            x.get_account_metadata(dest)?
-                .account_info
-                .gas_limit_on_transfer
-        } else {
-            return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
-        };
+        let dest_on_transfer_gas_limit =
+            match x.partial_state.get_account_metadata(state_manager, dest)? {
+                Some(metadata) => metadata.account_info.gas_limit_on_transfer,
+                None => {
+                    return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            };
 
         if gas < dest_on_transfer_gas_limit {
             return Ok(HostCallChangeSet::continue_with_vm_change(low_change(
@@ -830,7 +817,11 @@ impl HostFunction {
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
         let lookups_key = (lookup_hash, lookup_len);
 
-        let prev_lookups_entry = x.accumulator_account()?.lookups.get(&lookups_key).cloned();
+        let prev_lookups_entry = x.partial_state.get_or_load_account_lookups_entry(
+            state_manager,
+            x.accumulate_host,
+            &lookups_key,
+        )?;
 
         let timeslot = state_manager.get_timeslot()?;
 
@@ -844,20 +835,17 @@ impl HostFunction {
                         BASE_GAS_CHARGE,
                     )));
                 }
-                // Add current timeslot.
+                // Add current timeslot to the timeslot vector.
                 entry.value.push(timeslot);
                 entry
             }
             None => {
-                // Add a new entry.
+                // Add a new entry with an empty timeslot vector.
                 let (key, preimage_length) = lookups_key;
-                AccountLookupsEntryCopy {
-                    status: Added,
-                    entry: AccountLookupsEntry {
-                        key,
-                        preimage_length,
-                        value: vec![],
-                    },
+                AccountLookupsEntry {
+                    key,
+                    preimage_length,
+                    value: vec![],
                 }
             }
         };
@@ -870,7 +858,7 @@ impl HostFunction {
             )
             .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
 
-        let accumulator_metadata = x.accumulator_account()?.metadata;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
         let simulated_threshold_balance = accumulator_metadata
             .simulate_threshold_balance_after_mutation(
                 lookups_items_count_delta,
@@ -886,19 +874,12 @@ impl HostFunction {
         }
 
         // Apply the state change
-        let accumulator_account_mut = x.accumulator_account_mut()?;
-        let lookups_entry_mut = accumulator_account_mut.lookups.get_mut(&lookups_key);
-        match lookups_entry_mut {
-            Some(entry) => {
-                // At this point, it is already checked that the entry's timeslot vector length equals 2.
-                entry.value.push(timeslot);
-            }
-            None => {
-                accumulator_account_mut
-                    .lookups
-                    .insert(lookups_key, new_lookups_entry);
-            }
-        }
+        x.partial_state.insert_account_lookups_entry(
+            state_manager,
+            x.accumulate_host,
+            lookups_key,
+            new_lookups_entry,
+        )?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -933,7 +914,11 @@ impl HostFunction {
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
         let lookups_key = (lookup_hash, lookup_len);
-        let lookups_entry = x.accumulator_account()?.lookups.get(&lookups_key).cloned();
+        let lookups_entry = x.partial_state.get_or_load_account_lookups_entry(
+            state_manager,
+            x.accumulate_host,
+            &lookups_key,
+        )?;
 
         let timeslot = state_manager.get_timeslot()?;
         let vm_state_change = match lookups_entry {
@@ -944,17 +929,26 @@ impl HostFunction {
                 match lookups_timeslots.len() {
                     0 => {
                         // Remove preimage and lookups storage entry
-                        x.accumulator_account_mut()?.preimages.remove(&lookup_hash);
-                        x.accumulator_account_mut()?.lookups.remove(&lookups_key);
+                        x.partial_state.remove_account_preimages_entry(
+                            state_manager,
+                            x.accumulate_host,
+                            lookup_hash,
+                        )?;
+                        x.partial_state.remove_account_lookups_entry(
+                            state_manager,
+                            x.accumulate_host,
+                            lookups_key,
+                        )?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
-                        if let Some(entry) =
-                            x.accumulator_account_mut()?.lookups.get_mut(&lookups_key)
-                        {
-                            entry.value.push(timeslot);
-                        }
+                        x.partial_state.push_timeslot_to_account_lookups_entry(
+                            state_manager,
+                            x.accumulate_host,
+                            lookups_key,
+                            timeslot,
+                        )?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     len if len == 2 || len == 3 => {
@@ -963,13 +957,29 @@ impl HostFunction {
                         if is_expired {
                             if len == 2 {
                                 // Remove preimage and lookups storage entry
-                                x.accumulator_account_mut()?.preimages.remove(&lookup_hash);
-                                x.accumulator_account_mut()?.lookups.remove(&lookups_key);
-                            } else if let Some(entry) =
-                                x.accumulator_account_mut()?.lookups.get_mut(&lookups_key)
-                            {
-                                entry.value.push(timeslot);
-                                entry.value.drain(..2);
+                                x.partial_state.remove_account_preimages_entry(
+                                    state_manager,
+                                    x.accumulate_host,
+                                    lookup_hash,
+                                )?;
+                                x.partial_state.remove_account_lookups_entry(
+                                    state_manager,
+                                    x.accumulate_host,
+                                    lookups_key,
+                                )?;
+                            } else {
+                                let prev_last_timeslot = lookups_timeslots.last().cloned().unwrap(); // Not empty at this point
+                                x.partial_state.drain_account_lookups_entry_timeslots(
+                                    state_manager,
+                                    x.accumulate_host,
+                                    lookups_key,
+                                )?;
+                                x.partial_state.extend_timeslots_to_account_lookups_entry(
+                                    state_manager,
+                                    x.accumulate_host,
+                                    lookups_key,
+                                    vec![prev_last_timeslot, timeslot],
+                                )?;
                             }
                         }
                         ok_change(BASE_GAS_CHARGE)

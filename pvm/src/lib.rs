@@ -352,9 +352,12 @@ impl PVM {
                 state_manager,
                 context,
             )?,
-            HostCallType::UPGRADE => {
-                HostFunction::host_upgrade(self.get_registers(), self.get_memory(), context)?
-            }
+            HostCallType::UPGRADE => HostFunction::host_upgrade(
+                self.get_registers(),
+                self.get_memory(),
+                state_manager,
+                context,
+            )?,
             HostCallType::TRANSFER => HostFunction::host_transfer(
                 self.state.gas_counter,
                 self.get_registers(),

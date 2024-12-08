@@ -25,6 +25,8 @@ pub enum PVMError {
     CryptoError(#[from] CryptoError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("PartialStateError: {0}")]
+    PartialStateError(#[from] PartialStateError),
 }
 
 /// PVM Core Error Codes
@@ -81,4 +83,13 @@ pub enum HostCallError {
     InvalidExitReason,
     #[error("State manager holding polluted data")]
     StateManagerPollution,
+}
+
+/// PVM Host Call Partial State Error Codes
+#[derive(Debug, Error)]
+pub enum PartialStateError {
+    #[error("Account not found from the global state")]
+    AccountNotFoundFromGlobalState,
+    #[error("StateManagerError: {0}")]
+    StateManagerError(#[from] StateManagerError),
 }

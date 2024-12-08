@@ -1,4 +1,7 @@
-use crate::{context::types::EntryStatus::Added, inner_vm::InnerPVM};
+use crate::{
+    context::partial_state::{AccumulatePartialState, ServiceAccountSandbox, StateView},
+    inner_vm::InnerPVM,
+};
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Address, Balance, Hash32, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
@@ -14,18 +17,12 @@ use rjam_types::{
     common::transfers::DeferredTransfer,
     state::{
         authorizer::AuthQueue,
-        services::{
-            AccountInfo, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
-            AccountStorageEntry, PrivilegedServices, StorageFootprint,
-        },
+        services::{AccountInfo, AccountLookupsEntry, AccountMetadata, PrivilegedServices},
         timeslot::Timeslot,
         validators::StagingSet,
     },
 };
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
 
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
@@ -77,155 +74,6 @@ impl AccumulateHostContextPair {
     }
 }
 
-// TODO: Delete Below ----------
-#[derive(Clone)]
-pub enum EntryStatus {
-    ReadOnly,
-    Added,
-    Updated,
-    Removed,
-    Nothing,
-}
-
-#[derive(Clone)]
-pub struct AccountStorageEntryCopy {
-    pub entry: AccountStorageEntry,
-    pub status: EntryStatus,
-}
-
-impl Deref for AccountStorageEntryCopy {
-    type Target = AccountStorageEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
-    }
-}
-
-impl DerefMut for AccountStorageEntryCopy {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.entry
-    }
-}
-
-impl StorageFootprint for AccountStorageEntryCopy {
-    fn storage_octets_usage(&self) -> usize {
-        self.entry.value.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.entry.value.is_empty()
-    }
-}
-
-#[derive(Clone)]
-pub struct AccountPreimagesEntryCopy {
-    pub entry: AccountPreimagesEntry,
-    pub status: EntryStatus,
-}
-
-impl Deref for AccountPreimagesEntryCopy {
-    type Target = AccountPreimagesEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
-    }
-}
-
-impl DerefMut for AccountPreimagesEntryCopy {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.entry
-    }
-}
-
-#[derive(Clone)]
-pub struct AccountLookupsEntryCopy {
-    pub entry: AccountLookupsEntry,
-    pub status: EntryStatus,
-}
-
-impl Deref for AccountLookupsEntryCopy {
-    type Target = AccountLookupsEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
-    }
-}
-
-impl DerefMut for AccountLookupsEntryCopy {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.entry
-    }
-}
-
-impl StorageFootprint for AccountLookupsEntryCopy {
-    /// Note: Storage octets usage of lookups storage is counted by the preimage data size,
-    /// not the size of the timeslots vector.
-    fn storage_octets_usage(&self) -> usize {
-        self.entry.preimage_length as usize
-    }
-
-    fn is_empty(&self) -> bool {
-        self.entry.value.is_empty()
-    }
-}
-
-// TODO: Delete Above ----------
-
-/// Represents a service account, including its metadata and associated storage entries.
-///
-/// This type is primarily used in the accumulate context for state mutations involving service accounts.
-/// The global state serialization doesn't require the service metadata and storage entries to be
-/// stored together, which makes this type to be specific to the accumulation process.
-///
-/// Represents type `A` of the GP.
-#[derive(Clone, Default)]
-pub struct ServiceAccountCopy {
-    pub metadata: AccountMetadata,
-    pub storage: HashMap<Hash32, AccountStorageEntryCopy>,
-    pub preimages: HashMap<Hash32, AccountPreimagesEntryCopy>,
-    pub lookups: HashMap<(Hash32, u32), AccountLookupsEntryCopy>,
-}
-
-impl ServiceAccountCopy {
-    fn from_address(state_manager: &StateManager, address: Address) -> Result<Self, PVMError> {
-        let metadata = state_manager
-            .get_account_metadata(address)?
-            .ok_or(PVMError::AccountNotFound)?;
-
-        // FIXME: efficiently copy the storage states of the account
-        Ok(Self {
-            metadata,
-            storage: HashMap::new(),
-            preimages: HashMap::new(),
-            lookups: HashMap::new(),
-        })
-    }
-}
-
-/// Represents a mutable copy of a subset of the global state used during the accumulation process.
-///
-/// This provides a sandboxed environment for performing state mutations safely, yielding the final
-/// change set of the state on success and discarding the mutations on failure.
-#[derive(Clone, Default)]
-pub struct AccumulatePartialState {
-    pub service_accounts_change_set: HashMap<Address, ServiceAccountCopy>, // d; mutated service accounts
-    pub new_staging_set: Option<StagingSet>,                               // i
-    pub new_auth_queue: Option<AuthQueue>,                                 // q
-    pub new_privileges: Option<PrivilegedServices>,                        // x
-}
-
-impl AccumulatePartialState {
-    fn new_from_address(state_manager: &StateManager, address: Address) -> Result<Self, PVMError> {
-        let mut service_accounts_change_set = HashMap::new();
-        let account_copy = ServiceAccountCopy::from_address(state_manager, address)?;
-        service_accounts_change_set.insert(address, account_copy);
-        Ok(Self {
-            service_accounts_change_set,
-            ..Default::default()
-        })
-    }
-}
-
 /// Represents the contextual state maintained throughout the accumulation process.
 ///
 /// This provides the necessary state to manage mutations and track changes during the accumulation.
@@ -234,7 +82,7 @@ impl AccumulatePartialState {
 ///
 /// When accessing service accounts that are not subject to mutation, the `StateManager` can be used
 /// to retrieve their states. Any newly created or mutated accounts during the accumulation process
-/// must first be copied into the `service_accounts_change_set` field of the `AccumulatePartialState` to ensure
+/// must first be copied into the `service_accounts_sandbox` field of the `AccumulatePartialState` to ensure
 /// proper isolation.
 #[derive(Clone, Default)]
 pub struct AccumulateHostContext {
@@ -287,56 +135,67 @@ impl AccumulateHostContext {
         Ok(new_account_address)
     }
 
-    pub fn copy_account_to_partial_state(
+    pub fn copy_account_to_partial_state_sandbox(
         &mut self,
         state_manager: &StateManager,
         address: Address,
     ) -> Result<(), PVMError> {
-        let account_copy = ServiceAccountCopy::from_address(state_manager, address)?;
+        let account_copy = ServiceAccountSandbox::from_address(state_manager, address)?;
         self.partial_state
-            .service_accounts_change_set
+            .service_accounts_sandbox
             .insert(address, account_copy);
 
         Ok(())
     }
 
-    pub fn accumulator_account(&self) -> Result<ServiceAccountCopy, PVMError> {
+    pub fn get_accumulator_metadata(
+        &mut self,
+        state_manager: &StateManager,
+    ) -> Result<&AccountMetadata, PVMError> {
         self.partial_state
-            .service_accounts_change_set
+            .get_account_metadata(state_manager, self.accumulate_host)?
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
+    }
+
+    pub fn get_mut_accumulator_metadata(
+        &mut self,
+        state_manager: &StateManager,
+    ) -> Result<&mut AccountMetadata, PVMError> {
+        self.partial_state
+            .get_mut_account_metadata(state_manager, self.accumulate_host)?
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
+    }
+
+    // TODO: should return reference?
+    pub fn accumulator_account(&self) -> Result<ServiceAccountSandbox, PVMError> {
+        self.partial_state
+            .service_accounts_sandbox
             .get(&self.accumulate_host)
             .cloned()
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
-    pub fn accumulator_account_mut(&mut self) -> Result<&mut ServiceAccountCopy, PVMError> {
+    pub fn accumulator_account_mut(&mut self) -> Result<&mut ServiceAccountSandbox, PVMError> {
         self.partial_state
-            .service_accounts_change_set
+            .service_accounts_sandbox
             .get_mut(&self.accumulate_host)
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
     pub fn remove_accumulator_account(&mut self) -> Result<(), PVMError> {
         self.partial_state
-            .service_accounts_change_set
+            .service_accounts_sandbox
             .remove(&self.accumulate_host);
         Ok(())
     }
 
+    // FIXME: check usages and handle Option return value of `get_account_metadata` method
+    // FIXME: delete this
     pub fn account_exists(&self, address: Address) -> Result<bool, PVMError> {
         Ok(self
             .partial_state
-            .service_accounts_change_set
+            .service_accounts_sandbox
             .contains_key(&address))
-    }
-
-    pub fn get_account_metadata(&self, address: Address) -> Result<AccountMetadata, PVMError> {
-        Ok(self
-            .partial_state
-            .service_accounts_change_set
-            .get(&address)
-            .cloned()
-            .ok_or(PVMError::HostCallError(AccountNotFoundInPartialState))?
-            .metadata)
     }
 
     pub fn get_next_new_account_address(&self) -> Address {
@@ -385,62 +244,70 @@ impl AccumulateHostContext {
         Ok(())
     }
 
-    pub fn subtract_accumulator_balance(&mut self, amount: Balance) -> Result<(), PVMError> {
-        let account = self
+    pub fn subtract_accumulator_balance(
+        &mut self,
+        state_manager: &StateManager,
+        amount: Balance,
+    ) -> Result<(), PVMError> {
+        let account_metadata = self
             .partial_state
-            .service_accounts_change_set
-            .get_mut(&self.accumulate_host)
-            .ok_or(PVMError::HostCallError(AccountNotFoundInPartialState))?;
-        account.metadata.account_info.balance -= amount;
+            .get_mut_account_metadata(state_manager, self.accumulate_host)?
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+
+        account_metadata.account_info.balance -= amount;
         Ok(())
     }
 
     pub fn add_new_account(
         &mut self,
+        state_manager: &StateManager,
         account_info: AccountInfo,
         code_lookups_key: (Hash32, u32),
     ) -> Result<Address, PVMError> {
-        let mut new_account = ServiceAccountCopy {
-            metadata: AccountMetadata::new(account_info),
+        let new_account = ServiceAccountSandbox {
+            metadata: StateView::Entry(AccountMetadata::new(account_info)),
+            storage: HashMap::new(),
+            preimages: HashMap::new(),
             lookups: HashMap::new(),
-            ..Default::default()
         };
 
-        // Lookups dictionary entry for the code hash preimage entry
-        new_account.lookups.insert(
-            code_lookups_key,
-            AccountLookupsEntryCopy {
-                status: Added,
-                entry: AccountLookupsEntry {
-                    key: code_lookups_key.0,
-                    preimage_length: code_lookups_key.1,
-                    value: vec![],
-                },
-            },
-        );
-
         let new_account_address = self.next_new_account_address;
-
         self.partial_state
-            .service_accounts_change_set
+            .service_accounts_sandbox
             .insert(new_account_address, new_account);
+
+        // Lookups dictionary entry for the code hash preimage entry
+        let code_lookups_entry = AccountLookupsEntry {
+            key: code_lookups_key.0,
+            preimage_length: code_lookups_key.1,
+            value: vec![],
+        };
+
+        self.partial_state.insert_account_lookups_entry(
+            state_manager,
+            new_account_address,
+            code_lookups_key,
+            code_lookups_entry,
+        )?;
+
         Ok(new_account_address)
     }
 
     pub fn update_accumulator_metadata(
         &mut self,
+        state_manager: &StateManager,
         code_hash: Hash32,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
     ) -> Result<(), PVMError> {
-        let account = self
+        let accumulator_metadata = self
             .partial_state
-            .service_accounts_change_set
-            .get_mut(&self.accumulate_host)
+            .get_mut_account_metadata(state_manager, self.accumulate_host)?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
-        account.metadata.account_info.code_hash = code_hash;
-        account.metadata.account_info.gas_limit_accumulate = gas_limit_accumulate;
-        account.metadata.account_info.gas_limit_on_transfer = gas_limit_on_transfer;
+
+        accumulator_metadata.account_info.code_hash = code_hash;
+        accumulator_metadata.account_info.gas_limit_accumulate = gas_limit_accumulate;
+        accumulator_metadata.account_info.gas_limit_on_transfer = gas_limit_on_transfer;
         Ok(())
     }
 }

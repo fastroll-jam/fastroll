@@ -298,7 +298,7 @@ impl PVMInvocation {
         let mut context = InvocationContext::X_A(context_pair);
 
         // TODO: Accounts subject to mutation due to `read`, `write` and `lookup` host functions must be copied into the partial state (Function G)
-        // TODO: use `AccumulateHostContext::copy_account_to_partial_state`, and host functions must return the subject account addresses.
+        // TODO: use `AccumulateHostContext::copy_account_to_partial_state_sandbox`, and host functions must return the subject account addresses.
         let common_invocation_result = PVM::common_invocation(
             state_manager,
             accumulate_address,
