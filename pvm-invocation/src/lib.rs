@@ -349,6 +349,8 @@ impl PVMInvocation {
         }
         let code = code.unwrap();
 
+        let on_transfer_context = OnTransferHostContext::new(state_manager, destination)?;
+
         let _common_invocation_result = PVM::common_invocation(
             state_manager,
             destination,
@@ -356,7 +358,7 @@ impl PVMInvocation {
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
             &transfers.encode()?,
-            &mut InvocationContext::X_T, // not used
+            &mut InvocationContext::X_T(on_transfer_context), // not used
         )?;
 
         // TODO: return the recipient account storage changeset

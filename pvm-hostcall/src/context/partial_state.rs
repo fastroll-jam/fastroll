@@ -10,7 +10,11 @@ use rjam_types::state::{
     timeslot::Timeslot,
     validators::StagingSet,
 };
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    ops::{Deref, DerefMut},
+};
 
 /// Represents a sandboxed copy of an account state for use in hostcall execution contexts.
 /// The account state may originate from the global state or be created/removed within the
@@ -88,34 +92,27 @@ impl ServiceAccountSandbox {
     }
 }
 
-/// Represents a mutable copy of a subset of the global state used during the accumulation process.
-///
-/// This provides a sandboxed environment for performing state mutations safely, yielding the final
-/// change set of the state on success and discarding the mutations on failure.
+/// Represents a collection of service account sandboxes
 #[derive(Clone, Default)]
-pub struct AccumulatePartialState {
-    pub service_accounts_sandbox: HashMap<Address, ServiceAccountSandbox>, // d
-    pub new_staging_set: Option<StagingSet>,                               // i
-    pub new_auth_queue: Option<AuthQueue>,                                 // q
-    pub new_privileges: Option<PrivilegedServices>,                        // x
+pub struct ServiceAccountsSandboxMap {
+    pub accounts: HashMap<Address, ServiceAccountSandbox>,
 }
 
-impl AccumulatePartialState {
-    /// Initialize `AccumulatePartialState` with one account sandbox entry, which is supposed to be
-    /// the accumulator service account.
-    pub fn new_from_address(
-        state_manager: &StateManager,
-        address: Address,
-    ) -> Result<Self, PartialStateError> {
-        let mut accounts_sandbox = HashMap::new();
-        let account_sandbox = ServiceAccountSandbox::from_address(state_manager, address)?;
-        accounts_sandbox.insert(address, account_sandbox);
-        Ok(Self {
-            service_accounts_sandbox: accounts_sandbox,
-            ..Default::default()
-        })
-    }
+impl Deref for ServiceAccountsSandboxMap {
+    type Target = HashMap<Address, ServiceAccountSandbox>;
 
+    fn deref(&self) -> &Self::Target {
+        &self.accounts
+    }
+}
+
+impl DerefMut for ServiceAccountsSandboxMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.accounts
+    }
+}
+
+impl ServiceAccountsSandboxMap {
     /// Initializes the service account sandbox state by copying the account metadata from the
     /// global state and initializing empty HashMap types for storage types.
     #[allow(clippy::map_entry)]
@@ -124,10 +121,8 @@ impl AccumulatePartialState {
         state_manager: &StateManager,
         address: Address,
     ) -> Result<(), PartialStateError> {
-        if !self.service_accounts_sandbox.contains_key(&address)
-            && state_manager.account_exists(address)?
-        {
-            self.service_accounts_sandbox.insert(
+        if !self.contains_key(&address) && state_manager.account_exists(address)? {
+            self.insert(
                 address,
                 ServiceAccountSandbox::from_address(state_manager, address)?,
             );
@@ -141,7 +136,7 @@ impl AccumulatePartialState {
         address: Address,
     ) -> Result<Option<&ServiceAccountSandbox>, PartialStateError> {
         self.ensure_account_sandbox_initialized(state_manager, address)?;
-        Ok(self.service_accounts_sandbox.get(&address))
+        Ok(self.get(&address))
     }
 
     fn get_mut_account_sandbox(
@@ -150,7 +145,7 @@ impl AccumulatePartialState {
         address: Address,
     ) -> Result<Option<&mut ServiceAccountSandbox>, PartialStateError> {
         self.ensure_account_sandbox_initialized(state_manager, address)?;
-        Ok(self.service_accounts_sandbox.get_mut(&address))
+        Ok(self.get_mut(&address))
     }
 
     pub fn get_account_metadata(
@@ -435,5 +430,36 @@ impl AccumulatePartialState {
         lookups_entry.value = vec![];
         self.insert_account_lookups_entry(state_manager, address, lookups_key, lookups_entry)?;
         Ok(true)
+    }
+}
+
+/// Represents a mutable copy of a subset of the global state used during the accumulation process.
+///
+/// This provides a sandboxed environment for performing state mutations safely, yielding the final
+/// change set of the state on success and discarding the mutations on failure.
+#[derive(Clone, Default)]
+pub struct AccumulatePartialState {
+    pub service_accounts_sandbox: ServiceAccountsSandboxMap, // d
+    pub new_staging_set: Option<StagingSet>,                 // i
+    pub new_auth_queue: Option<AuthQueue>,                   // q
+    pub new_privileges: Option<PrivilegedServices>,          // x
+}
+
+impl AccumulatePartialState {
+    /// Initialize `AccumulatePartialState` with one account sandbox entry, which is supposed to be
+    /// the accumulator service account.
+    pub fn new_from_address(
+        state_manager: &StateManager,
+        address: Address,
+    ) -> Result<Self, PartialStateError> {
+        let mut accounts_sandbox = HashMap::new();
+        let account_sandbox = ServiceAccountSandbox::from_address(state_manager, address)?;
+        accounts_sandbox.insert(address, account_sandbox);
+        Ok(Self {
+            service_accounts_sandbox: ServiceAccountsSandboxMap {
+                accounts: accounts_sandbox,
+            },
+            ..Default::default()
+        })
     }
 }

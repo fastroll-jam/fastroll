@@ -669,15 +669,18 @@ impl HostFunction {
 
         // Check the state manager and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_on_transfer_gas_limit =
-            match x.partial_state.get_account_metadata(state_manager, dest)? {
-                Some(metadata) => metadata.account_info.gas_limit_on_transfer,
-                None => {
-                    return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
-                        gas_charge,
-                    )));
-                }
-            };
+        let dest_on_transfer_gas_limit = match x
+            .partial_state
+            .service_accounts_sandbox
+            .get_account_metadata(state_manager, dest)?
+        {
+            Some(metadata) => metadata.account_info.gas_limit_on_transfer,
+            None => {
+                return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
+                    gas_charge,
+                )));
+            }
+        };
 
         if gas_limit < dest_on_transfer_gas_limit {
             return Ok(HostCallChangeSet::continue_with_vm_change(low_change(
@@ -759,15 +762,18 @@ impl HostFunction {
 
         // Check the state manager and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_on_transfer_gas_limit =
-            match x.partial_state.get_account_metadata(state_manager, dest)? {
-                Some(metadata) => metadata.account_info.gas_limit_on_transfer,
-                None => {
-                    return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
-                        BASE_GAS_CHARGE,
-                    )));
-                }
-            };
+        let dest_on_transfer_gas_limit = match x
+            .partial_state
+            .service_accounts_sandbox
+            .get_account_metadata(state_manager, dest)?
+        {
+            Some(metadata) => metadata.account_info.gas_limit_on_transfer,
+            None => {
+                return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
+                    BASE_GAS_CHARGE,
+                )));
+            }
+        };
 
         if gas < dest_on_transfer_gas_limit {
             return Ok(HostCallChangeSet::continue_with_vm_change(low_change(
@@ -817,11 +823,10 @@ impl HostFunction {
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
         let lookups_key = (lookup_hash, lookup_len);
 
-        let prev_lookups_entry = x.partial_state.get_or_load_account_lookups_entry(
-            state_manager,
-            x.accumulate_host,
-            &lookups_key,
-        )?;
+        let prev_lookups_entry = x
+            .partial_state
+            .service_accounts_sandbox
+            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
 
         let timeslot = state_manager.get_timeslot()?;
 
@@ -874,12 +879,14 @@ impl HostFunction {
         }
 
         // Apply the state change
-        x.partial_state.insert_account_lookups_entry(
-            state_manager,
-            x.accumulate_host,
-            lookups_key,
-            new_lookups_entry,
-        )?;
+        x.partial_state
+            .service_accounts_sandbox
+            .insert_account_lookups_entry(
+                state_manager,
+                x.accumulate_host,
+                lookups_key,
+                new_lookups_entry,
+            )?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -914,11 +921,10 @@ impl HostFunction {
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
         let lookups_key = (lookup_hash, lookup_len);
-        let lookups_entry = x.partial_state.get_or_load_account_lookups_entry(
-            state_manager,
-            x.accumulate_host,
-            &lookups_key,
-        )?;
+        let lookups_entry = x
+            .partial_state
+            .service_accounts_sandbox
+            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
 
         let timeslot = state_manager.get_timeslot()?;
         let vm_state_change = match lookups_entry {
@@ -929,26 +935,32 @@ impl HostFunction {
                 match lookups_timeslots.len() {
                     0 => {
                         // Remove preimage and lookups storage entry
-                        x.partial_state.remove_account_preimages_entry(
-                            state_manager,
-                            x.accumulate_host,
-                            lookup_hash,
-                        )?;
-                        x.partial_state.remove_account_lookups_entry(
-                            state_manager,
-                            x.accumulate_host,
-                            lookups_key,
-                        )?;
+                        x.partial_state
+                            .service_accounts_sandbox
+                            .remove_account_preimages_entry(
+                                state_manager,
+                                x.accumulate_host,
+                                lookup_hash,
+                            )?;
+                        x.partial_state
+                            .service_accounts_sandbox
+                            .remove_account_lookups_entry(
+                                state_manager,
+                                x.accumulate_host,
+                                lookups_key,
+                            )?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
-                        x.partial_state.push_timeslot_to_account_lookups_entry(
-                            state_manager,
-                            x.accumulate_host,
-                            lookups_key,
-                            timeslot,
-                        )?;
+                        x.partial_state
+                            .service_accounts_sandbox
+                            .push_timeslot_to_account_lookups_entry(
+                                state_manager,
+                                x.accumulate_host,
+                                lookups_key,
+                                timeslot,
+                            )?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     len if len == 2 || len == 3 => {
@@ -957,29 +969,37 @@ impl HostFunction {
                         if is_expired {
                             if len == 2 {
                                 // Remove preimage and lookups storage entry
-                                x.partial_state.remove_account_preimages_entry(
-                                    state_manager,
-                                    x.accumulate_host,
-                                    lookup_hash,
-                                )?;
-                                x.partial_state.remove_account_lookups_entry(
-                                    state_manager,
-                                    x.accumulate_host,
-                                    lookups_key,
-                                )?;
+                                x.partial_state
+                                    .service_accounts_sandbox
+                                    .remove_account_preimages_entry(
+                                        state_manager,
+                                        x.accumulate_host,
+                                        lookup_hash,
+                                    )?;
+                                x.partial_state
+                                    .service_accounts_sandbox
+                                    .remove_account_lookups_entry(
+                                        state_manager,
+                                        x.accumulate_host,
+                                        lookups_key,
+                                    )?;
                             } else {
                                 let prev_last_timeslot = lookups_timeslots.last().cloned().unwrap(); // Not empty at this point
-                                x.partial_state.drain_account_lookups_entry_timeslots(
-                                    state_manager,
-                                    x.accumulate_host,
-                                    lookups_key,
-                                )?;
-                                x.partial_state.extend_timeslots_to_account_lookups_entry(
-                                    state_manager,
-                                    x.accumulate_host,
-                                    lookups_key,
-                                    vec![prev_last_timeslot, timeslot],
-                                )?;
+                                x.partial_state
+                                    .service_accounts_sandbox
+                                    .drain_account_lookups_entry_timeslots(
+                                        state_manager,
+                                        x.accumulate_host,
+                                        lookups_key,
+                                    )?;
+                                x.partial_state
+                                    .service_accounts_sandbox
+                                    .extend_timeslots_to_account_lookups_entry(
+                                        state_manager,
+                                        x.accumulate_host,
+                                        lookups_key,
+                                        vec![prev_last_timeslot, timeslot],
+                                    )?;
                             }
                         }
                         ok_change(BASE_GAS_CHARGE)
