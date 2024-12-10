@@ -68,14 +68,14 @@ where
 ///
 /// Represents type `A` of the GP.
 #[derive(Clone)]
-pub struct ServiceAccountSandbox {
+pub struct AccountSandbox {
     pub metadata: StateView<AccountMetadata>,
     pub storage: HashMap<Hash32, StateView<AccountStorageEntry>>,
     pub preimages: HashMap<Hash32, StateView<AccountPreimagesEntry>>,
     pub lookups: HashMap<(Hash32, u32), StateView<AccountLookupsEntry>>,
 }
 
-impl ServiceAccountSandbox {
+impl AccountSandbox {
     pub fn from_address(
         state_manager: &StateManager,
         address: Address,
@@ -94,25 +94,25 @@ impl ServiceAccountSandbox {
 
 /// Represents a collection of service account sandboxes
 #[derive(Clone, Default)]
-pub struct ServiceAccountsSandboxMap {
-    pub accounts: HashMap<Address, ServiceAccountSandbox>,
+pub struct AccountsSandboxMap {
+    pub accounts: HashMap<Address, AccountSandbox>,
 }
 
-impl Deref for ServiceAccountsSandboxMap {
-    type Target = HashMap<Address, ServiceAccountSandbox>;
+impl Deref for AccountsSandboxMap {
+    type Target = HashMap<Address, AccountSandbox>;
 
     fn deref(&self) -> &Self::Target {
         &self.accounts
     }
 }
 
-impl DerefMut for ServiceAccountsSandboxMap {
+impl DerefMut for AccountsSandboxMap {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.accounts
     }
 }
 
-impl ServiceAccountsSandboxMap {
+impl AccountsSandboxMap {
     /// Initializes the service account sandbox state by copying the account metadata from the
     /// global state and initializing empty HashMap types for storage types.
     #[allow(clippy::map_entry)]
@@ -124,7 +124,7 @@ impl ServiceAccountsSandboxMap {
         if !self.contains_key(&address) && state_manager.account_exists(address)? {
             self.insert(
                 address,
-                ServiceAccountSandbox::from_address(state_manager, address)?,
+                AccountSandbox::from_address(state_manager, address)?,
             );
         }
         Ok(())
@@ -134,7 +134,7 @@ impl ServiceAccountsSandboxMap {
         &mut self,
         state_manager: &StateManager,
         address: Address,
-    ) -> Result<Option<&ServiceAccountSandbox>, PartialStateError> {
+    ) -> Result<Option<&AccountSandbox>, PartialStateError> {
         self.ensure_account_sandbox_initialized(state_manager, address)?;
         Ok(self.get(&address))
     }
@@ -143,7 +143,7 @@ impl ServiceAccountsSandboxMap {
         &mut self,
         state_manager: &StateManager,
         address: Address,
-    ) -> Result<Option<&mut ServiceAccountSandbox>, PartialStateError> {
+    ) -> Result<Option<&mut AccountSandbox>, PartialStateError> {
         self.ensure_account_sandbox_initialized(state_manager, address)?;
         Ok(self.get_mut(&address))
     }
@@ -439,10 +439,10 @@ impl ServiceAccountsSandboxMap {
 /// change set of the state on success and discarding the mutations on failure.
 #[derive(Clone, Default)]
 pub struct AccumulatePartialState {
-    pub service_accounts_sandbox: ServiceAccountsSandboxMap, // d
-    pub new_staging_set: Option<StagingSet>,                 // i
-    pub new_auth_queue: Option<AuthQueue>,                   // q
-    pub new_privileges: Option<PrivilegedServices>,          // x
+    pub accounts_sandbox: AccountsSandboxMap,       // d
+    pub new_staging_set: Option<StagingSet>,        // i
+    pub new_auth_queue: Option<AuthQueue>,          // q
+    pub new_privileges: Option<PrivilegedServices>, // x
 }
 
 impl AccumulatePartialState {
@@ -453,10 +453,10 @@ impl AccumulatePartialState {
         address: Address,
     ) -> Result<Self, PartialStateError> {
         let mut accounts_sandbox = HashMap::new();
-        let account_sandbox = ServiceAccountSandbox::from_address(state_manager, address)?;
+        let account_sandbox = AccountSandbox::from_address(state_manager, address)?;
         accounts_sandbox.insert(address, account_sandbox);
         Ok(Self {
-            service_accounts_sandbox: ServiceAccountsSandboxMap {
+            accounts_sandbox: AccountsSandboxMap {
                 accounts: accounts_sandbox,
             },
             ..Default::default()

@@ -1,6 +1,6 @@
 use crate::{
     context::partial_state::{
-        AccumulatePartialState, ServiceAccountSandbox, ServiceAccountsSandboxMap, StateView,
+        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, StateView,
     },
     inner_vm::InnerPVM,
 };
@@ -64,17 +64,16 @@ impl InvocationContext {
 /// Represents the contextual state maintained throughout the accumulation process.
 #[derive(Clone, Default)]
 pub struct OnTransferHostContext {
-    pub service_accounts_sandbox: ServiceAccountsSandboxMap,
+    pub accounts_sandbox: AccountsSandboxMap,
 }
 
 impl OnTransferHostContext {
     pub fn new(state_manager: &StateManager, recipient: Address) -> Result<Self, PVMError> {
         let mut accounts_sandbox = HashMap::new();
-        let recipient_account_sandbox =
-            ServiceAccountSandbox::from_address(state_manager, recipient)?;
+        let recipient_account_sandbox = AccountSandbox::from_address(state_manager, recipient)?;
         accounts_sandbox.insert(recipient, recipient_account_sandbox);
         Ok(Self {
-            service_accounts_sandbox: ServiceAccountsSandboxMap {
+            accounts_sandbox: AccountsSandboxMap {
                 accounts: accounts_sandbox,
             },
         })
@@ -112,7 +111,7 @@ impl AccumulateHostContextPair {
 ///
 /// When accessing service accounts that are not subject to mutation, the `StateManager` can be used
 /// to retrieve their states. Any newly created or mutated accounts during the accumulation process
-/// must first be copied into the `service_accounts_sandbox` field of the `AccumulatePartialState` to ensure
+/// must first be copied into the `accounts_sandbox` field of the `AccumulatePartialState` to ensure
 /// proper isolation.
 #[derive(Clone, Default)]
 pub struct AccumulateHostContext {
@@ -170,9 +169,9 @@ impl AccumulateHostContext {
         state_manager: &StateManager,
         address: Address,
     ) -> Result<(), PVMError> {
-        let account_copy = ServiceAccountSandbox::from_address(state_manager, address)?;
+        let account_copy = AccountSandbox::from_address(state_manager, address)?;
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .insert(address, account_copy);
 
         Ok(())
@@ -183,7 +182,7 @@ impl AccumulateHostContext {
         state_manager: &StateManager,
     ) -> Result<&AccountMetadata, PVMError> {
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_account_metadata(state_manager, self.accumulate_host)?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
@@ -193,30 +192,30 @@ impl AccumulateHostContext {
         state_manager: &StateManager,
     ) -> Result<&mut AccountMetadata, PVMError> {
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_mut_account_metadata(state_manager, self.accumulate_host)?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
     // TODO: should return reference?
-    pub fn accumulator_account(&self) -> Result<ServiceAccountSandbox, PVMError> {
+    pub fn accumulator_account(&self) -> Result<AccountSandbox, PVMError> {
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get(&self.accumulate_host)
             .cloned()
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
-    pub fn accumulator_account_mut(&mut self) -> Result<&mut ServiceAccountSandbox, PVMError> {
+    pub fn accumulator_account_mut(&mut self) -> Result<&mut AccountSandbox, PVMError> {
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_mut(&self.accumulate_host)
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
     pub fn remove_accumulator_account(&mut self) -> Result<(), PVMError> {
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .remove(&self.accumulate_host);
         Ok(())
     }
@@ -274,7 +273,7 @@ impl AccumulateHostContext {
     ) -> Result<(), PVMError> {
         let account_metadata = self
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_mut_account_metadata(state_manager, self.accumulate_host)?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
@@ -288,7 +287,7 @@ impl AccumulateHostContext {
         account_info: AccountInfo,
         code_lookups_key: (Hash32, u32),
     ) -> Result<Address, PVMError> {
-        let new_account = ServiceAccountSandbox {
+        let new_account = AccountSandbox {
             metadata: StateView::Entry(AccountMetadata::new(account_info)),
             storage: HashMap::new(),
             preimages: HashMap::new(),
@@ -297,7 +296,7 @@ impl AccumulateHostContext {
 
         let new_account_address = self.next_new_account_address;
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .insert(new_account_address, new_account);
 
         // Lookups dictionary entry for the code hash preimage entry
@@ -308,7 +307,7 @@ impl AccumulateHostContext {
         };
 
         self.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .insert_account_lookups_entry(
                 state_manager,
                 new_account_address,
@@ -328,7 +327,7 @@ impl AccumulateHostContext {
     ) -> Result<(), PVMError> {
         let accumulator_metadata = self
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_mut_account_metadata(state_manager, self.accumulate_host)?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 

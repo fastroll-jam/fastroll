@@ -671,7 +671,7 @@ impl HostFunction {
         // destination account exists.
         let dest_on_transfer_gas_limit = match x
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_account_metadata(state_manager, dest)?
         {
             Some(metadata) => metadata.account_info.gas_limit_on_transfer,
@@ -764,7 +764,7 @@ impl HostFunction {
         // destination account exists.
         let dest_on_transfer_gas_limit = match x
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_account_metadata(state_manager, dest)?
         {
             Some(metadata) => metadata.account_info.gas_limit_on_transfer,
@@ -825,7 +825,7 @@ impl HostFunction {
 
         let prev_lookups_entry = x
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
 
         let timeslot = state_manager.get_timeslot()?;
@@ -880,7 +880,7 @@ impl HostFunction {
 
         // Apply the state change
         x.partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .insert_account_lookups_entry(
                 state_manager,
                 x.accumulate_host,
@@ -923,7 +923,7 @@ impl HostFunction {
         let lookups_key = (lookup_hash, lookup_len);
         let lookups_entry = x
             .partial_state
-            .service_accounts_sandbox
+            .accounts_sandbox
             .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
 
         let timeslot = state_manager.get_timeslot()?;
@@ -936,14 +936,14 @@ impl HostFunction {
                     0 => {
                         // Remove preimage and lookups storage entry
                         x.partial_state
-                            .service_accounts_sandbox
+                            .accounts_sandbox
                             .remove_account_preimages_entry(
                                 state_manager,
                                 x.accumulate_host,
                                 lookup_hash,
                             )?;
                         x.partial_state
-                            .service_accounts_sandbox
+                            .accounts_sandbox
                             .remove_account_lookups_entry(
                                 state_manager,
                                 x.accumulate_host,
@@ -954,7 +954,7 @@ impl HostFunction {
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
                         x.partial_state
-                            .service_accounts_sandbox
+                            .accounts_sandbox
                             .push_timeslot_to_account_lookups_entry(
                                 state_manager,
                                 x.accumulate_host,
@@ -970,14 +970,14 @@ impl HostFunction {
                             if len == 2 {
                                 // Remove preimage and lookups storage entry
                                 x.partial_state
-                                    .service_accounts_sandbox
+                                    .accounts_sandbox
                                     .remove_account_preimages_entry(
                                         state_manager,
                                         x.accumulate_host,
                                         lookup_hash,
                                     )?;
                                 x.partial_state
-                                    .service_accounts_sandbox
+                                    .accounts_sandbox
                                     .remove_account_lookups_entry(
                                         state_manager,
                                         x.accumulate_host,
@@ -986,14 +986,14 @@ impl HostFunction {
                             } else {
                                 let prev_last_timeslot = lookups_timeslots.last().cloned().unwrap(); // Not empty at this point
                                 x.partial_state
-                                    .service_accounts_sandbox
+                                    .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
                                         state_manager,
                                         x.accumulate_host,
                                         lookups_key,
                                     )?;
                                 x.partial_state
-                                    .service_accounts_sandbox
+                                    .accounts_sandbox
                                     .extend_timeslots_to_account_lookups_entry(
                                         state_manager,
                                         x.accumulate_host,
