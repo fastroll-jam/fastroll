@@ -722,9 +722,9 @@ mod tests {
     use super::*;
 
     // Helper function to encode and then decode an integer value
-    fn encode_decode<T: JamEncode + JamDecode + PartialEq + Debug + Copy>(value: T) -> T
+    fn encode_decode<T>(value: T) -> T
     where
-        T: TryFrom<u64> + TryInto<u64>,
+        T: JamEncode + JamDecode + PartialEq + Debug + Copy + TryFrom<u64> + TryInto<u64>,
         <T as TryFrom<u64>>::Error: Display,
         <T as TryInto<u64>>::Error: Debug,
     {
@@ -831,7 +831,7 @@ mod tests {
 
     #[test]
     fn test_decode_fixed() {
-        let encoded = vec![0x78, 0x56, 0x34, 0x12];
+        let encoded = [0x78, 0x56, 0x34, 0x12];
         let mut slice = &encoded[..];
         let decoded = u32::decode_fixed(&mut slice, 4).unwrap();
         assert_eq!(decoded, 0x12345678);
@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn test_decode_fixed_invalid_size() {
-        let encoded = vec![0x78, 0x56, 0x34, 0x12];
+        let encoded = [0x78, 0x56, 0x34, 0x12];
         let mut slice = &encoded[..];
         assert!(matches!(
             u16::decode_fixed(&mut slice, 4),
@@ -874,7 +874,7 @@ mod tests {
         assert_eq!(some_large, decoded_some_large);
 
         // Test invalid encoding
-        let invalid_encoding = vec![2]; // 2 is not a valid presence marker
+        let invalid_encoding = [2]; // 2 is not a valid presence marker
         let mut slice_invalid = &invalid_encoding[..];
         assert!(matches!(
             Option::<u32>::decode(&mut slice_invalid),
@@ -930,7 +930,7 @@ mod tests {
         assert_eq!(arr_opt, decoded_arr_opt);
 
         // Test decoding with insufficient input
-        let insufficient_data = vec![1, 2, 3];
+        let insufficient_data = [1, 2, 3];
         let mut slice_insufficient = &insufficient_data[..];
         assert!(matches!(
             <[u8; 4]>::decode(&mut slice_insufficient),
@@ -973,7 +973,7 @@ mod tests {
         assert_eq!(opt_vec, decoded_opt);
 
         // Test decoding with insufficient input
-        let insufficient_data = vec![3, 1, 2]; // Claims to have 3 elements but only has 2
+        let insufficient_data = [3, 1, 2]; // Claims to have 3 elements but only has 2
         let mut slice_insufficient = &insufficient_data[..];
         assert!(matches!(
             Vec::<u8>::decode(&mut slice_insufficient),
