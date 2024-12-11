@@ -26,6 +26,13 @@ use rjam_types::{
 };
 use std::collections::HashMap;
 
+pub trait AccountsSandboxHolder {
+    // TODO: check if needed
+    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap;
+
+    fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap;
+}
+
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
@@ -59,12 +66,39 @@ impl InvocationContext {
             None
         }
     }
+
+    #[allow(dead_code)]
+    pub fn get_accounts_sandbox(&self) -> Result<&AccountsSandboxMap, PVMError> {
+        match self {
+            Self::X_A(ctx_pair) => Ok(ctx_pair.get_accounts_sandbox()),
+            Self::X_T(ctx) => Ok(ctx.get_accounts_sandbox()),
+            _ => Err(PVMError::HostCallError(InvalidContext)),
+        }
+    }
+
+    pub fn get_mut_accounts_sandbox(&mut self) -> Result<&mut AccountsSandboxMap, PVMError> {
+        match self {
+            Self::X_A(ctx_pair) => Ok(ctx_pair.get_mut_accounts_sandbox()),
+            Self::X_T(ctx) => Ok(ctx.get_mut_accounts_sandbox()),
+            _ => Err(PVMError::HostCallError(InvalidContext)),
+        }
+    }
 }
 
 /// Represents the contextual state maintained throughout the accumulation process.
 #[derive(Clone, Default)]
 pub struct OnTransferHostContext {
     pub accounts_sandbox: AccountsSandboxMap,
+}
+
+impl AccountsSandboxHolder for OnTransferHostContext {
+    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap {
+        &self.accounts_sandbox
+    }
+
+    fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap {
+        &mut self.accounts_sandbox
+    }
 }
 
 impl OnTransferHostContext {
@@ -83,6 +117,16 @@ impl OnTransferHostContext {
 pub struct AccumulateHostContextPair {
     pub x: Box<AccumulateHostContext>,
     pub y: Box<AccumulateHostContext>,
+}
+
+impl AccountsSandboxHolder for AccumulateHostContextPair {
+    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap {
+        &self.x.partial_state.accounts_sandbox
+    }
+
+    fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap {
+        &mut self.x.partial_state.accounts_sandbox
+    }
 }
 
 impl AccumulateHostContextPair {

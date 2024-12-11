@@ -311,12 +311,14 @@ impl PVM {
                 self.get_registers(),
                 self.get_memory(),
                 state_manager,
+                context,
             )?,
             HostCallType::READ => HostFunction::host_read(
                 target_address,
                 self.get_registers(),
                 self.get_memory(),
                 state_manager,
+                context,
             )?,
             HostCallType::WRITE => HostFunction::host_write(
                 target_address,
@@ -330,6 +332,7 @@ impl PVM {
                 self.get_registers(),
                 self.get_memory(),
                 state_manager,
+                context,
             )?,
             //
             // Accumulate Functions

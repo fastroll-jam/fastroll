@@ -1,8 +1,6 @@
 use crate::{
-    context::{partial_state::StateView, types::InvocationContext},
-    host_functions::InnerPVMResultConstant::*,
-    inner_vm::InnerPVM,
-    utils::*,
+    context::types::InvocationContext, host_functions::InnerPVMResultConstant::*,
+    inner_vm::InnerPVM, utils::*,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncodeFixed};
 use rjam_common::*;
@@ -126,7 +124,10 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+
         let account_address_reg = regs[7].as_u64()?;
         let hash_offset = regs[8].as_mem_address()?;
         let buffer_offset = regs[9].as_mem_address()?;
@@ -147,32 +148,35 @@ impl HostFunction {
 
         let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
 
-        match state_manager.get_account_preimages_entry(account_address, &hash)? {
-            Some(entry) => {
-                let write_data_size = buffer_size.min(entry.value.len());
+        if let Some(entry) = accounts_sandbox.get_or_load_account_preimages_entry(
+            state_manager,
+            account_address,
+            &hash,
+        )? {
+            let write_data_size = buffer_size.min(entry.value.len());
 
-                if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
-                    return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
-                        BASE_GAS_CHARGE,
-                    )));
-                }
-
-                Ok(HostCallChangeSet::continue_with_vm_change(
-                    HostCallVMStateChange {
-                        gas_charge: BASE_GAS_CHARGE,
-                        r7_write: Some(entry.value.len() as RegValue),
-                        memory_write: (
-                            buffer_offset,
-                            write_data_size as u32,
-                            entry.value[..write_data_size].to_vec(),
-                        ),
-                        ..Default::default()
-                    },
-                ))
+            if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
+                return Ok(HostCallChangeSet::continue_with_vm_change(oob_change(
+                    BASE_GAS_CHARGE,
+                )));
             }
-            None => Ok(HostCallChangeSet::continue_with_vm_change(none_change(
+
+            Ok(HostCallChangeSet::continue_with_vm_change(
+                HostCallVMStateChange {
+                    gas_charge: BASE_GAS_CHARGE,
+                    r7_write: Some(entry.value.len() as RegValue),
+                    memory_write: (
+                        buffer_offset,
+                        write_data_size as u32,
+                        entry.value[..write_data_size].to_vec(),
+                    ),
+                    ..Default::default()
+                },
+            ))
+        } else {
+            Ok(HostCallChangeSet::continue_with_vm_change(none_change(
                 BASE_GAS_CHARGE,
-            ))),
+            )))
         }
     }
 
@@ -183,7 +187,10 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+
         let account_address_reg = regs[7].as_u64()?;
         let key_offset = regs[8].as_mem_address()?;
         let key_size = regs[9].as_usize()?;
@@ -207,9 +214,11 @@ impl HostFunction {
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
-        if let Some(entry) =
-            state_manager.get_account_storage_entry(account_address, &storage_key)?
-        {
+        if let Some(entry) = accounts_sandbox.get_or_load_account_storage_entry(
+            state_manager,
+            account_address,
+            &storage_key,
+        )? {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
@@ -248,10 +257,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
         let key_offset = regs[7].as_mem_address()?;
         let key_size = regs[8].as_usize()?;
@@ -271,9 +277,12 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
-        // FIXME: read from the partial state copy
-        let prev_storage_entry =
-            state_manager.get_account_storage_entry(target_address, &storage_key)?;
+        let prev_storage_entry = accounts_sandbox.get_or_load_account_storage_entry(
+            state_manager,
+            target_address,
+            &storage_key,
+        )?;
+
         let prev_value_size = if let Some(entry) = &prev_storage_entry {
             entry.value.len() as u64
         } else {
@@ -293,9 +302,10 @@ impl HostFunction {
             )
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
-        let target_account_metadata = state_manager
-            .get_account_metadata(target_address)?
+        let target_account_metadata = accounts_sandbox
+            .get_account_metadata(state_manager, target_address)?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
+
         let simulated_threshold_balance = target_account_metadata
             .simulate_threshold_balance_after_mutation(
                 0,
@@ -311,16 +321,21 @@ impl HostFunction {
         }
 
         // Apply the state change
-        let accumulator_account_mut = x.accumulator_account_mut()?;
-
         if value_size == 0 {
             // Remove the entry if the size of the new entry value is zero
-            accumulator_account_mut.storage.remove(&storage_key);
+            accounts_sandbox.remove_account_storage_entry(
+                state_manager,
+                target_address,
+                storage_key,
+            )?;
         } else {
             // FIXME: get prev_value here
-            accumulator_account_mut
-                .storage
-                .insert(storage_key, StateView::Entry(new_storage_entry));
+            accounts_sandbox.insert_account_storage_entry(
+                state_manager,
+                target_address,
+                storage_key,
+                new_storage_entry,
+            )?;
         }
 
         Ok(HostCallChangeSet::continue_with_vm_change(
@@ -338,7 +353,10 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
+        context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
+        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+
         let account_address_reg = regs[7].as_u64()?;
         let buffer_offset = regs[8].as_mem_address()?;
 
@@ -349,13 +367,14 @@ impl HostFunction {
                 account_address_reg as Address
             };
 
-        let account_metadata = match state_manager.get_account_metadata(account_address)? {
-            Some(metadata) => metadata,
-            None => {
-                return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+        let account_metadata = if let Some(metadata) =
+            accounts_sandbox.get_account_metadata(state_manager, account_address)?
+        {
+            metadata
+        } else {
+            return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
+                BASE_GAS_CHARGE,
+            )));
         };
 
         // Encode account metadata with JAM Codec
