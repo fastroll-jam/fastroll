@@ -43,7 +43,7 @@ pub enum InvocationContext {
 }
 
 impl InvocationContext {
-    pub fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
+    fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
         } else {
@@ -51,12 +51,47 @@ impl InvocationContext {
         }
     }
 
-    pub fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateHostContextPair> {
+    pub fn get_mut_refine_x(&mut self) -> Result<&mut RefineHostContext, PVMError> {
+        self.as_refine_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))
+    }
+
+    // TODO: merge methods?
+    fn as_accumulate_context(&self) -> Option<&AccumulateHostContextPair> {
+        if let InvocationContext::X_A(ref pair) = self {
+            Some(pair)
+        } else {
+            None
+        }
+    }
+
+    fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateHostContextPair> {
         if let InvocationContext::X_A(ref mut pair) = self {
             Some(pair)
         } else {
             None
         }
+    }
+
+    pub fn get_accumulate_x(&self) -> Result<&AccumulateHostContext, PVMError> {
+        Ok(self
+            .as_accumulate_context()
+            .ok_or(PVMError::HostCallError(InvalidContext))?
+            .get_x())
+    }
+
+    pub fn get_mut_accumulate_x(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
+        Ok(self
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?
+            .get_mut_x())
+    }
+
+    pub fn get_mut_accumulate_y(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
+        Ok(self
+            .as_accumulate_context_mut()
+            .ok_or(PVMError::HostCallError(InvalidContext))?
+            .get_mut_y())
     }
 
     pub fn as_on_transfer_context_mut(&mut self) -> Option<&mut OnTransferHostContext> {

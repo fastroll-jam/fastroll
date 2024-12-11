@@ -407,10 +407,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let manager = regs[7].as_account_address()?;
         let assign = regs[8].as_account_address()?;
@@ -448,10 +445,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let core_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?;
@@ -488,10 +482,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let offset = regs[7].as_mem_address()?;
 
@@ -523,12 +514,10 @@ impl HostFunction {
         gas: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x_clone = context.get_accumulate_x()?.clone();
+        let y_mut = context.get_mut_accumulate_y()?;
 
-        let x_clone = acc_pair.get_x().clone();
-        *acc_pair.get_mut_y() = x_clone; // assign the cloned `x` context to the `y` context
+        *y_mut = x_clone; // assign the cloned `x` context to the `y` context
 
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
@@ -555,10 +544,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let offset = regs[7].as_mem_address()?;
         let code_lookup_len = regs[8].as_u32()?;
@@ -620,10 +606,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let offset = regs[7].as_mem_address()?;
         let gas_limit_g = regs[8].value();
@@ -652,10 +635,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let dest = regs[7].as_account_address()?;
         let amount = regs[8].value();
@@ -740,10 +720,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let dest = regs[7].value();
         let offset = regs[8].as_mem_address()?;
@@ -825,10 +802,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
@@ -924,10 +898,7 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let acc_pair = context
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
-        let x = acc_pair.get_mut_x();
+        let x = context.get_mut_accumulate_x()?;
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
@@ -1046,9 +1017,7 @@ impl HostFunction {
         context: &mut InvocationContext,
         state_manager: &StateManager,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let account_address_reg = regs[7].value();
         let lookup_hash_offset = regs[8].as_mem_address()?;
@@ -1117,9 +1086,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let import_segment_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?;
@@ -1158,9 +1125,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let offset = regs[7].as_mem_address()?;
         let size = regs[8].as_usize()?;
@@ -1206,9 +1171,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let program_offset = regs[7].as_mem_address()?;
         let program_size = regs[8].as_usize()?;
@@ -1242,9 +1205,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1287,9 +1248,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1327,9 +1286,7 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let inner_memory_page_offset = regs[8].as_usize()?;
@@ -1374,9 +1331,7 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let inner_memory_page_offset = regs[8].as_usize()?;
@@ -1428,9 +1383,7 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
         let memory_offset = regs[8].as_mem_address()?;
@@ -1544,9 +1497,7 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallChangeSet, PVMError> {
-        let x = context
-            .as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?;
+        let x = context.get_mut_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?;
 
