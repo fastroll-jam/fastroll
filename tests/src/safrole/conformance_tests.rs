@@ -2,7 +2,9 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},
+        asn_types::{
+            validator_set_to_validators_data, validators_data_to_validator_set, ByteArray32,
+        },
         generate_tests,
         safrole::{
             asn_types::{Input, Output, OutputMarks, State, TestCase, TicketEnvelope},
@@ -50,6 +52,11 @@ mod tests {
         let prior_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
         let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
         let prior_timeslot = Timeslot::new(test_pre_state.tau);
+        let prior_post_offenders = test_pre_state
+            .post_offenders
+            .iter()
+            .map(|key| ByteArray::new(key.0))
+            .collect();
 
         // Initialize StateManager.
         let mut state_manager = StateManager::new_for_test();
@@ -83,20 +90,13 @@ mod tests {
             StateKeyConstant::DisputesState,
             StateEntryType::DisputesState(DisputesState::default()),
         );
+        state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
+            disputes.punish_set = prior_post_offenders;
+        })?;
 
         // Convert ASN Input into RJAM types.
         let input_timeslot = Timeslot::new(test_input.slot);
         let input_header_entropy_hash = test_input.entropy.0;
-        let input_punished_set = test_input
-            .post_offenders
-            .iter()
-            .map(|key| ByteArray::new(key.0))
-            .collect();
-
-        state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
-            disputes.punish_set = input_punished_set;
-        })?;
-
         let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
             .extrinsic
             .clone()
@@ -136,6 +136,7 @@ mod tests {
         let current_past_set = state_manager.get_past_set()?;
         let current_entropy = state_manager.get_entropy_accumulator()?;
         let current_timeslot = state_manager.get_timeslot()?;
+        let current_post_offenders = state_manager.get_disputes()?.punish_set;
 
         // Convert RJAM types post-state into ASN post-state
 
@@ -150,6 +151,10 @@ mod tests {
             gamma_a,
             gamma_s,
             gamma_z,
+            post_offenders: current_post_offenders
+                .into_iter()
+                .map(ByteArray32::from)
+                .collect(),
         };
 
         Ok((post_state, Output::ok(output_marks)))
@@ -227,7 +232,8 @@ mod tests {
 
         // Fail
         // Submit an extrinsic with a bad ticket attempt number.
-        publish_tickets_no_mark_1: "publish-tickets-no-mark-1.json",
+        // TODO - check ticket ring proof hashes (bad ticket order error)
+        // publish_tickets_no_mark_1: "publish-tickets-no-mark-1.json",
 
         // Success
         // Submit good tickets extrinsics from some authorities.

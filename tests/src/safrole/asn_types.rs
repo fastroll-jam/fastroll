@@ -176,6 +176,7 @@ pub struct State {
         deserialize_with = "deserialize_hex_array"
     )]
     pub gamma_z: [u8; 144], // Bandersnatch ring commitment
+    pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
 }
 
 impl From<&State> for SafroleState {
@@ -207,10 +208,9 @@ impl From<&State> for EntropyAccumulator {
 // Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub slot: u32,                       // Current slot
+    pub slot: u32,                      // Current slot
     pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
     pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
-    pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
 }
 
 // Output from Safrole protocol

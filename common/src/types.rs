@@ -105,6 +105,12 @@ impl<const N: usize> DerefMut for ByteArray<N> {
     }
 }
 
+impl<const N: usize> Display for ByteArray<N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
         Self([0u8; N])

@@ -49,14 +49,13 @@ dependencies = [
  "hashbrown 0.13.2",
  "itertools 0.10.5",
  "num-traits",
- "rayon",
  "zeroize",
 ]
 
 [[package]]
 name = "ark-ec-vrfs"
 version = "0.1.0"
-source = "git+https://github.com/davxy/ark-ec-vrfs?rev=ea35e22#ea35e224f79c6f920e3816ae2e3cfdb02e2e8448"
+source = "git+https://github.com/davxy/ark-ec-vrfs?rev=d90e180#d90e1800d571f32163e6f7b5d956d065668c899f"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -66,7 +65,6 @@ dependencies = [
  "ark-std",
  "digest",
  "rand_chacha",
- "rayon",
  "ring",
  "sha2",
  "zeroize",
@@ -100,7 +98,6 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "paste",
- "rayon",
  "rustc_version",
  "zeroize",
 ]
@@ -139,7 +136,6 @@ dependencies = [
  "ark-std",
  "derivative",
  "hashbrown 0.13.2",
- "rayon",
 ]
 
 [[package]]
@@ -173,14 +169,12 @@ checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
 dependencies = [
  "num-traits",
  "rand",
- "rayon",
 ]
 
 [[package]]
 name = "ark-transcript"
 version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "563084372d89271122bd743ef0a608179726f5fad0566008ba55bd0f756489b8"
+source = "git+https://github.com/w3f/ark-transcript?rev=288e49d#288e49ddba6f8f8e67be6822715afe36b11c4e65"
 dependencies = [
  "ark-ff",
  "ark-serialize",
@@ -315,7 +309,7 @@ dependencies = [
 [[package]]
 name = "common"
 version = "0.1.0"
-source = "git+https://github.com/davxy/ring-proof?rev=86e3ce0#86e3ce052c1598a4c4bfac246fb5af6bfa5b8a94"
+source = "git+https://github.com/davxy/ring-proof?rev=db13482#db1348254177325ef849ed87fb87e5ec9184080f"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -324,7 +318,6 @@ dependencies = [
  "ark-std",
  "fflonk",
  "getrandom_or_panic",
- "rayon",
 ]
 
 [[package]]
@@ -340,25 +333,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e852e6dc9a5bed1fae92dd2375037bf2b768725bf3be87811edee3249d09ad"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "crossbeam-deque"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "613f8cc01fe9cf1a3eb3d7f488fd2fa8388403e97039e2f73692932e291a770d"
-dependencies = [
- "crossbeam-epoch",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-epoch"
-version = "0.9.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
-dependencies = [
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -505,7 +479,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "fflonk"
 version = "0.1.0"
-source = "git+https://github.com/w3f/fflonk#1e854f35e9a65d08b11a86291405cdc95baa0a35"
+source = "git+https://github.com/w3f/fflonk?rev=1e854f3#1e854f35e9a65d08b11a86291405cdc95baa0a35"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -513,7 +487,6 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "merlin",
- "rayon",
 ]
 
 [[package]]
@@ -916,26 +889,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayon"
-version = "1.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b418a60154510ca1a002a752ca9714984e21e4241e804d32555251faf8b78ffa"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -976,7 +929,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "ring"
 version = "0.1.0"
-source = "git+https://github.com/davxy/ring-proof?rev=86e3ce0#86e3ce052c1598a4c4bfac246fb5af6bfa5b8a94"
+source = "git+https://github.com/davxy/ring-proof?rev=db13482#db1348254177325ef849ed87fb87e5ec9184080f"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -988,7 +941,6 @@ dependencies = [
  "blake2",
  "common",
  "fflonk",
- "rayon",
 ]
 
 [[package]]

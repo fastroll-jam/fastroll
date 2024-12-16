@@ -43,7 +43,7 @@ rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }
 rjam-types = { path = "types" }
 # External dependencies
-ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "ea35e22", features = ["bandersnatch", "ring", "parallel", "test-vectors"] }
+ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "d90e180", features = ["bandersnatch", "ring"] }
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
 dashmap = "6.1.0"

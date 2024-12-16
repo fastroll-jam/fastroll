@@ -1,5 +1,8 @@
 use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
-use rjam_common::{Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKET_SUBMISSION_DEADLINE_SLOT, X_T};
+use rjam_common::{
+    Hash32, MAX_TICKETS_PER_EXTRINSIC, MAX_TICKETS_PER_VALIDATOR, TICKET_SUBMISSION_DEADLINE_SLOT,
+    X_T,
+};
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
 use rjam_types::extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry};
@@ -74,8 +77,8 @@ impl<'a> TicketsExtrinsicValidator<'a> {
         verifier: &Verifier,
         entropy_2: &Hash32,
     ) -> Result<(), ExtrinsicValidationError> {
-        // Check if the ticket attempt number is correct (0 or 1)
-        if entry.entry_index > 1 {
+        // Check if the ticket attempt number is correct
+        if entry.entry_index > MAX_TICKETS_PER_VALIDATOR - 1 {
             return Err(InvalidTicketAttemptNumber(entry.entry_index));
         }
 

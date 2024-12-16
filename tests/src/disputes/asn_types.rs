@@ -212,32 +212,32 @@ impl From<OffendersHeaderMarker> for DisputesOutputMarks {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct DisputesRecords {
-    pub psi_g: Vec<WorkReportHash>, // Good verdicts
-    pub psi_b: Vec<WorkReportHash>, // Bad verdicts
-    pub psi_w: Vec<WorkReportHash>, // Wonky verdicts
-    pub psi_o: Vec<Ed25519Key>,     // Offenders
+    pub good: Vec<WorkReportHash>,  // Good verdicts
+    pub bad: Vec<WorkReportHash>,   // Bad verdicts
+    pub wonky: Vec<WorkReportHash>, // Wonky verdicts
+    pub offenders: Vec<Ed25519Key>, // Offenders
 }
 
 impl From<DisputesRecords> for DisputesState {
     fn from(value: DisputesRecords) -> Self {
         Self {
             good_set: value
-                .psi_g
+                .good
                 .into_iter()
                 .map(|hash| ByteArray::new(hash.0))
                 .collect(),
             bad_set: value
-                .psi_b
+                .bad
                 .into_iter()
                 .map(|hash| ByteArray::new(hash.0))
                 .collect(),
             wonky_set: value
-                .psi_w
+                .wonky
                 .into_iter()
                 .map(|hash| ByteArray::new(hash.0))
                 .collect(),
             punish_set: value
-                .psi_o
+                .offenders
                 .into_iter()
                 .map(|key| ByteArray::new(key.0))
                 .collect(),
@@ -248,10 +248,10 @@ impl From<DisputesRecords> for DisputesState {
 impl From<DisputesState> for DisputesRecords {
     fn from(value: DisputesState) -> Self {
         Self {
-            psi_g: value.good_set.into_iter().map(ByteArray32::from).collect(),
-            psi_b: value.bad_set.into_iter().map(ByteArray32::from).collect(),
-            psi_w: value.wonky_set.into_iter().map(ByteArray32::from).collect(),
-            psi_o: value
+            good: value.good_set.into_iter().map(ByteArray32::from).collect(),
+            bad: value.bad_set.into_iter().map(ByteArray32::from).collect(),
+            wonky: value.wonky_set.into_iter().map(ByteArray32::from).collect(),
+            offenders: value
                 .punish_set
                 .into_iter()
                 .map(ByteArray32::from)
