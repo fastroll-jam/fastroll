@@ -1,6 +1,6 @@
 use crate::utils::shuffle::shuffle_with_hash;
 use rjam_common::{
-    CoreIndex, Ed25519PubKey, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD,
+    CoreIndex, Hash32, ValidatorKeySet, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD,
     VALIDATOR_COUNT,
 };
 use rjam_state::{StateManager, StateManagerError};
@@ -17,8 +17,8 @@ pub enum GuarantorAssignmentError {
 
 #[allow(dead_code)]
 pub struct GuarantorAssignment {
-    core_indices: Box<[CoreIndex; VALIDATOR_COUNT]>,
-    validator_keys: Box<[Ed25519PubKey; VALIDATOR_COUNT]>,
+    pub core_indices: Box<[CoreIndex; VALIDATOR_COUNT]>, // c
+    pub validator_keys: ValidatorKeySet,                 // k
 }
 
 impl GuarantorAssignment {
@@ -55,10 +55,7 @@ impl GuarantorAssignment {
             core_indices: Self::permute_validator_indices(entropy_2, current_timeslot)
                 .try_into()
                 .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
-            validator_keys: active_set
-                .ed25519_keys()
-                .try_into()
-                .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
+            validator_keys: active_set.0,
         })
     }
 
@@ -87,10 +84,7 @@ impl GuarantorAssignment {
             )
             .try_into()
             .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
-            validator_keys: validator_set
-                .ed25519_keys()
-                .try_into()
-                .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
+            validator_keys: validator_set.clone(),
         })
     }
 }

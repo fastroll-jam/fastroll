@@ -1,9 +1,12 @@
-use crate::{common::workloads::WorkReport, extrinsics::ExtrinsicsError};
+use crate::{
+    common::workloads::WorkReport, extrinsics::ExtrinsicsError,
+    state::validators::get_validator_ed25519_key_by_index,
+};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519Signature, ValidatorIndex};
-use std::{cmp::Ordering, ops::Deref};
+use rjam_common::{Ed25519PubKey, Ed25519Signature, ValidatorIndex, ValidatorKeySet};
+use std::{cmp::Ordering, collections::HashSet, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
@@ -20,10 +23,27 @@ impl Deref for GuaranteesExtrinsic {
     }
 }
 
+impl GuaranteesExtrinsic {
+    /// Extracts Ed25519 keys of `reporters`, who are the validators whose signatures are placed
+    /// in the guarantees extrinsic credentials.
+    ///
+    /// This set is utilized for tracking validator activity statistics.
+    pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> HashSet<Ed25519PubKey> {
+        self.iter()
+            .flat_map(|entry| {
+                entry
+                    .credentials
+                    .iter()
+                    .map(|c| get_validator_ed25519_key_by_index(validator_set, c.validator_index))
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
-    pub validator_index: ValidatorIndex,
-    pub signature: Ed25519Signature,
+    pub validator_index: ValidatorIndex, // v
+    pub signature: Ed25519Signature,     // s
 }
 
 impl JamEncode for GuaranteesCredential {

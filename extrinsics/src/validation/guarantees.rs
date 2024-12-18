@@ -1,14 +1,21 @@
-use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use crate::{
+    utils::guarantor_rotation::GuarantorAssignment,
+    validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*},
+};
 use rjam_codec::JamEncode;
 use rjam_common::{
-    CoreIndex, Hash32, CORE_COUNT, MAX_LOOKUP_ANCHOR_AGE, PENDING_REPORT_TIMEOUT, X_G,
+    CoreIndex, Hash32, CORE_COUNT, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
+    PENDING_REPORT_TIMEOUT, X_G,
 };
-use rjam_crypto::{hash, Keccak256};
+use rjam_crypto::{hash, verify_signature, Keccak256};
 use rjam_state::StateManager;
 use rjam_types::{
     common::workloads::{RefinementContext, WorkReport},
     extrinsics::guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
-    state::{authorizer::AuthPool, history::BlockHistory, reports::PendingReports},
+    state::{
+        authorizer::AuthPool, history::BlockHistory, reports::PendingReports,
+        validators::get_validator_ed25519_key_by_index,
+    },
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.
@@ -47,10 +54,8 @@ use std::collections::HashSet;
 ///   - The length of the `credentials` array for each work-report must be either 2 or 3
 ///     (representing the number of guarantors for the core).
 ///   - Entries in `credentials` must be sorted by the validator index in ascending order.
-///     // TODO
 ///   - Each credential's signature must be a valid Ed25519 signature of a message that consists of
 ///     the hash of the work-report, signed by the public key corresponding to the validator index.
-///     // TODO
 ///   - The validator who signs the credential must be assigned to the core in question, either in
 ///     the current guarantor assignment rotation or in the previous rotation.
 pub struct GuaranteesExtrinsicValidator<'a> {
@@ -320,7 +325,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
         // Validate each credential
         for credential in credentials {
-            self.validate_credential(&entry.work_report, credential)?;
+            self.validate_credential(&entry.work_report, entry.timeslot_index, credential)?;
         }
 
         Ok(())
@@ -329,7 +334,8 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
     fn validate_credential(
         &self,
         work_report: &WorkReport,
-        _credential: &GuaranteesCredential,
+        entry_timeslot_index: u32,
+        credential: &GuaranteesCredential,
     ) -> Result<(), ExtrinsicValidationError> {
         // Verify the signature
         let hash = work_report.hash()?;
@@ -337,6 +343,45 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         message.extend_from_slice(X_G);
         message.extend_from_slice(hash.as_slice());
 
-        unimplemented!();
+        // Get core indices and validator keys
+        let current_timeslot = self.state_manager.get_timeslot()?.slot();
+        let within_same_rotation = current_timeslot / GUARANTOR_ROTATION_PERIOD as u32
+            == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
+
+        let guarantor_assignment = if within_same_rotation {
+            GuarantorAssignment::current_guarantor_assignments(self.state_manager)?
+        } else {
+            GuarantorAssignment::previous_guarantor_assignments(self.state_manager)?
+        };
+
+        let guarantor_public_key = get_validator_ed25519_key_by_index(
+            &guarantor_assignment.validator_keys,
+            credential.validator_index,
+        );
+
+        if !verify_signature(&message, &guarantor_public_key, &credential.signature) {
+            return Err(InvalidGuaranteesSignature(credential.validator_index));
+        }
+
+        // Verify if the guarantor is assigned to the core index specified in the work report
+        let assigned_core = guarantor_assignment.core_indices[credential.validator_index as usize];
+        if assigned_core != work_report.core_index {
+            return Err(GuarantorNotAssignedForCore(
+                credential.validator_index,
+                assigned_core,
+                work_report.core_index,
+            ));
+        }
+
+        // Verify the timeslot of the work report is within a valid range (not older than the previous guarantor rotation)
+        if entry_timeslot_index > current_timeslot
+            || entry_timeslot_index
+                < GUARANTOR_ROTATION_PERIOD as u32
+                    * ((current_timeslot / GUARANTOR_ROTATION_PERIOD as u32) - 1)
+        {
+            return Err(InvalidWorkReportTimeslot);
+        }
+
+        Ok(())
     }
 }

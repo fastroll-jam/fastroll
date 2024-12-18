@@ -1,3 +1,4 @@
+use crate::utils::guarantor_rotation::GuarantorAssignmentError;
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_codec::JamCodecError;
 use rjam_common::{Address, CoreIndex, ValidatorIndex};
@@ -106,6 +107,12 @@ pub enum ExtrinsicValidationError {
     InvalidGuarantorCount(usize, CoreIndex),
     #[error("Credentials in guarantee must be sorted by the validator index. Core index: {0}")]
     CredentialsNotSorted(CoreIndex),
+    #[error("Invalid guarantees signature. Guarantor: {0}")]
+    InvalidGuaranteesSignature(ValidatorIndex),
+    #[error("Invalid core index for the guarantor. Guarantor: {0}, assigned core: {1}, work report core: {2}")]
+    GuarantorNotAssignedForCore(ValidatorIndex, CoreIndex, CoreIndex),
+    #[error("Invalid work report timeslot")]
+    InvalidWorkReportTimeslot,
 
     // Preimages validation errors
     #[error("Preimage lookups must be sorted by service index")]
@@ -140,4 +147,6 @@ pub enum ExtrinsicValidationError {
     WorkReportError(#[from] WorkReportError),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
+    #[error("GuarantorAssignmentError: {0}")]
+    GuarantorAssignmentError(#[from] GuarantorAssignmentError),
 }
