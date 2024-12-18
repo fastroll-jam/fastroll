@@ -14,6 +14,7 @@ pub const EPOCH_LENGTH: usize = 12; // 12 timeslots per epoch (for tiny test vec
 pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
 pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3; // 682 validators
 pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
+pub const GUARANTOR_ROTATION_PERIOD: usize = 10; // 10 timeslots
 
 #[cfg(not(feature = "testing"))]
 pub const CORE_COUNT: usize = 341; // C

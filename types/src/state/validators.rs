@@ -22,7 +22,11 @@ pub trait ValidatorSet {
 
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
 
-    fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
+    fn ed25519_keys_set(&self) -> HashSet<Ed25519PubKey> {
+        self.iter().map(|validator| validator.ed25519_key).collect()
+    }
+
+    fn ed25519_keys(&self) -> Vec<Ed25519PubKey> {
         self.iter().map(|validator| validator.ed25519_key).collect()
     }
 

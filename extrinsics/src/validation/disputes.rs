@@ -118,8 +118,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         past_set: &PastSet,
         punish_set: &[Ed25519PubKey],
     ) -> HashSet<Ed25519PubKey> {
-        let active_keys = active_set.ed25519_keys();
-        let past_keys = past_set.ed25519_keys();
+        let active_keys = active_set.ed25519_keys_set();
+        let past_keys = past_set.ed25519_keys_set();
 
         let mut active_and_past_keys: HashSet<Ed25519PubKey> =
             active_keys.union(&past_keys).cloned().collect();
