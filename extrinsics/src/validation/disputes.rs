@@ -6,7 +6,7 @@ use rjam_types::{
     extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict, VerdictEvaluation},
     state::{
         timeslot::Timeslot,
-        validators::{get_validator_ed25519_key_by_index, ActiveSet, PastSet},
+        validators::{get_validator_ed25519_key_by_index, ActiveSet, PastSet, ValidatorSet},
     },
 };
 use std::collections::HashSet;
@@ -238,7 +238,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             .ok_or(InvalidCulpritReportHash(entry.validator_key.encode_hex()))?;
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet(entry.validator_key.encode_hex()));
+            return Err(InvalidValidatorKeySet(entry.validator_key.encode_hex()));
         }
 
         // Validate the signature
@@ -282,7 +282,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorSet(entry.validator_key.encode_hex()));
+            return Err(InvalidValidatorKeySet(entry.validator_key.encode_hex()));
         }
 
         // Validate the signature

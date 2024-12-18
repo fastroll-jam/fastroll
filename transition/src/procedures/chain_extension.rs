@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use rjam_common::{
-    BandersnatchPubKey, ValidatorSet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT,
+    BandersnatchPubKey, ValidatorKeySet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT,
 };
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
@@ -104,7 +104,7 @@ pub fn mark_safrole_header_markers(
 }
 
 fn extract_bandersnatch_keys(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
 ) -> Box<[BandersnatchPubKey; VALIDATOR_COUNT]> {
     let mut result = Box::new([BandersnatchPubKey::default(); VALIDATOR_COUNT]);
 

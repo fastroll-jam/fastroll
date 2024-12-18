@@ -100,8 +100,8 @@ mod tests {
             psi: current_disputes_state.into(),
             rho: current_pending_reports.into(),
             tau: current_timeslot.0,
-            kappa: validator_set_to_validators_data(&current_active_set.0),
-            lambda: validator_set_to_validators_data(&current_past_set.0),
+            kappa: validator_set_to_validators_data(&current_active_set),
+            lambda: validator_set_to_validators_data(&current_past_set),
         };
 
         Ok((post_state, Output::ok(disputes_output_marks)))

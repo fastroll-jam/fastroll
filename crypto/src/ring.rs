@@ -3,11 +3,11 @@ use ark_ec_vrfs::{
     codec::point_decode, prelude::ark_serialize::CanonicalSerialize,
     suites::bandersnatch::edwards::BandersnatchSha512Ell2, Public,
 };
-use rjam_common::{BandersnatchRingRoot, ByteArray, ValidatorSet};
+use rjam_common::{BandersnatchRingRoot, ByteArray, ValidatorKeySet};
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
 ) -> Result<BandersnatchRingRoot, CryptoError> {
     let commitment = generate_ring_root_internal(validator_set)?;
     let mut bytes: Vec<u8> = vec![];
@@ -21,16 +21,16 @@ pub fn generate_ring_root(
 }
 
 fn generate_ring_root_internal(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
 ) -> Result<RingCommitment, CryptoError> {
     let ring = validator_set_to_bandersnatch_ring(validator_set)?;
     let verifier = Verifier::new(ring);
     Ok(verifier.commitment)
 }
 
-/// Converts JAM ValidatorSet type into Vec<Public> type.
+/// Converts JAM ValidatorKeySet type into Vec<Public> type.
 pub fn validator_set_to_bandersnatch_ring(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
 ) -> Result<Vec<Public<BandersnatchSha512Ell2>>, CryptoError> {
     let mut public_keys = vec![];
     validator_set.iter().for_each(|validator_key| {

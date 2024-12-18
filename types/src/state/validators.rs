@@ -1,37 +1,110 @@
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519PubKey, ValidatorIndex, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{Ed25519PubKey, ValidatorIndex, ValidatorKey, ValidatorKeySet, VALIDATOR_COUNT};
 use std::{
     collections::HashSet,
     fmt::{Display, Formatter},
+    ops::{Deref, DerefMut},
+    slice::{Iter, IterMut},
 };
 
-/// Represents a ValidatorSet that will become active in a future epoch.
+pub trait ValidatorSet {
+    type Iter<'a>: Iterator<Item = &'a ValidatorKey>
+    where
+        Self: 'a;
+
+    type IterMut<'a>: Iterator<Item = &'a mut ValidatorKey>
+    where
+        Self: 'a;
+
+    fn iter(&self) -> Self::Iter<'_>;
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_>;
+
+    fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
+        self.iter().map(|validator| validator.ed25519_key).collect()
+    }
+
+    fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
+        for validator in self.iter_mut() {
+            if punish_set.contains(&validator.ed25519_key) {
+                *validator = ValidatorKey::default();
+            }
+        }
+    }
+}
+
+impl<T> ValidatorSet for T
+where
+    T: AsRef<[ValidatorKey]> + AsMut<[ValidatorKey]>,
+{
+    type Iter<'a>
+        = Iter<'a, ValidatorKey>
+    where
+        T: 'a;
+
+    type IterMut<'a>
+        = IterMut<'a, ValidatorKey>
+    where
+        Self: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.as_ref().iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.as_mut().iter_mut()
+    }
+}
+
+fn fmt_validator_set(
+    f: &mut Formatter<'_>,
+    name: &str,
+    validators: &[ValidatorKey],
+) -> std::fmt::Result {
+    writeln!(f, "{{")?;
+    writeln!(f, "\t\"{}\": {{", name)?;
+    for (i, validator) in validators.iter().enumerate() {
+        writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
+        write!(f, "{}", validator.to_json_like(6))?;
+        if i < validators.len() - 1 {
+            writeln!(f, "\t\t}},")?;
+        } else {
+            writeln!(f, "\t\t}}")?;
+        }
+    }
+    writeln!(f, "\t}}")?;
+    write!(f, "}}")
+}
+
+/// Represents a validator set that will become active in a future epoch.
 ///
 /// At the beginning of each epoch, this set is loaded into the Safrole state `gamma_k`
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// This is denoted by the Greek letter `iota` in the Graypaper.
 #[derive(Clone)]
-pub struct StagingSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(StagingSet, ValidatorSet);
+pub struct StagingSet(pub ValidatorKeySet);
+impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
+
+impl Deref for StagingSet {
+    type Target = ValidatorKeySet;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for StagingSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl Display for StagingSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{{")?;
-        writeln!(f, "\t\"StagingSet\": {{")?;
-        for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
-            write!(f, "{}", validator.to_json_like(6))?;
-            if i < self.0.len() - 1 {
-                writeln!(f, "\t\t}},")?;
-            } else {
-                writeln!(f, "\t\t}}")?;
-            }
-        }
-        writeln!(f, "\t}}")?;
-        write!(f, "}}")
+        fmt_validator_set(f, "StagingSet", self.as_ref())
     }
 }
 
@@ -41,94 +114,70 @@ impl Default for StagingSet {
     }
 }
 
-impl StagingSet {
-    pub fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
-        for validator in self.0.iter_mut() {
-            if punish_set.contains(&validator.ed25519_key) {
-                *validator = ValidatorKey::default();
-            }
-        }
-    }
-}
-
-/// Represents a ValidatorSet that is active in the current epoch and determines the authorized
+/// Represents a validator set that is active in the current epoch and determines the authorized
 /// block authors of the current epoch.
 ///
 /// This is denoted by the Greek letter `kappa` in the Graypaper.
 #[derive(Clone)]
-pub struct ActiveSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(ActiveSet, ValidatorSet);
+pub struct ActiveSet(pub ValidatorKeySet);
+impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
+
+impl Deref for ActiveSet {
+    type Target = ValidatorKeySet;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ActiveSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl Display for ActiveSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{{")?;
-        writeln!(f, "\t\"ActiveSet\": {{")?;
-        for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
-            write!(f, "{}", validator.to_json_like(6))?;
-            if i < self.0.len() - 1 {
-                writeln!(f, "\t\t}},")?;
-            } else {
-                writeln!(f, "\t\t}}")?;
-            }
-        }
-        writeln!(f, "\t}}")?;
-        write!(f, "}}")
+        fmt_validator_set(f, "ActiveSet", self.as_ref())
     }
 }
 
-impl ActiveSet {
-    pub fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
-        self.0
-            .iter()
-            .map(|validator| validator.ed25519_key)
-            .collect()
-    }
-}
-
-/// Represents the ValidatorSet that was active in the previous epoch.
+/// Represents the validator set that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
 #[derive(Clone)]
-pub struct PastSet(pub ValidatorSet);
-impl_jam_codec_for_newtype!(PastSet, ValidatorSet);
+pub struct PastSet(pub ValidatorKeySet);
+impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
 
 impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{{")?;
-        writeln!(f, "\t\"PastSet\": {{")?;
-        for (i, validator) in self.0.iter().enumerate() {
-            writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
-            write!(f, "{}", validator.to_json_like(6))?;
-            if i < self.0.len() - 1 {
-                writeln!(f, "\t\t}},")?;
-            } else {
-                writeln!(f, "\t\t}}")?;
-            }
-        }
-        writeln!(f, "  }}")?;
-        write!(f, "}}")
+        fmt_validator_set(f, "PastSet", self.as_ref())
     }
 }
 
-impl PastSet {
-    pub fn ed25519_keys(&self) -> HashSet<Ed25519PubKey> {
-        self.0
-            .iter()
-            .map(|validator| validator.ed25519_key)
-            .collect()
+impl Deref for PastSet {
+    type Target = ValidatorKeySet;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PastSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
 // Util Functions
 pub fn get_validator_key_by_index(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
     validator_index: ValidatorIndex,
 ) -> ValidatorKey {
     validator_set[validator_index as usize]
 }
 
 pub fn get_validator_ed25519_key_by_index(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
     validator_index: ValidatorIndex,
 ) -> Ed25519PubKey {
     get_validator_key_by_index(validator_set, validator_index).ed25519_key

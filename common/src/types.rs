@@ -23,7 +23,7 @@ pub type Ed25519Signature = ByteArray<64>;
 pub type BlsPubKey = ByteArray<144>;
 pub type SignedGas = i64;
 pub type UnsignedGas = u64;
-pub type ValidatorSet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
+pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
 // Default values
 pub const HASH32_EMPTY: Hash32 = ByteArray([0u8; 32]);

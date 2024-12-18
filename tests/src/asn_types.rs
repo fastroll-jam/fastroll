@@ -1,7 +1,7 @@
 use crate::test_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
-use rjam_common::{ByteArray, ValidatorKey, ValidatorSet, VALIDATOR_COUNT};
+use rjam_common::{ByteArray, ValidatorKey, ValidatorKeySet, VALIDATOR_COUNT};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
@@ -237,7 +237,7 @@ impl From<ValidatorData> for ValidatorKey {
 
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
-pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorSet {
+pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorKeySet {
     let mut validator_keys = [ValidatorKey::default(); VALIDATOR_COUNT];
     for (i, validator_data) in data.iter().enumerate() {
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
@@ -246,7 +246,7 @@ pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorSet {
     Box::new(validator_keys)
 }
 
-pub fn validator_set_to_validators_data(data: &ValidatorSet) -> ValidatorsData {
+pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> ValidatorsData {
     let mut validators_data = ValidatorsData::default();
     for (i, key) in data.into_iter().enumerate() {
         validators_data[i] = ValidatorData::from(key);

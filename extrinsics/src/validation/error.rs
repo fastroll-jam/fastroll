@@ -57,7 +57,7 @@ pub enum ExtrinsicValidationError {
     )]
     FaultAlreadyReported(String),
     #[error("Validator is not part of the active or past set. Validator Ed25519 key: {0}")]
-    InvalidValidatorSet(String),
+    InvalidValidatorKeySet(String),
     #[error("Epoch index of the verdict is older than the previous epoch. Epoch index: {0}, Current epoch index: {1}")]
     InvalidJudgmentsAge(u32, u32),
     #[error("Report hash of culprit entry is not found in the extrinsic verdicts. Validator Ed25519 key: {0}")]

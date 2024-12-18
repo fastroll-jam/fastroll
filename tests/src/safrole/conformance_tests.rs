@@ -144,10 +144,10 @@ mod tests {
         let post_state = State {
             tau: current_timeslot.slot(),
             eta: entropy_accumulator_to_eta(&current_entropy),
-            lambda: validator_set_to_validators_data(&current_past_set.0),
-            kappa: validator_set_to_validators_data(&current_active_set.0),
+            lambda: validator_set_to_validators_data(&current_past_set),
+            kappa: validator_set_to_validators_data(&current_active_set),
             gamma_k,
-            iota: validator_set_to_validators_data(&current_staging_set.0),
+            iota: validator_set_to_validators_data(&current_staging_set),
             gamma_a,
             gamma_s,
             gamma_z,

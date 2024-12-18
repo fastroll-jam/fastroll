@@ -76,7 +76,7 @@ fn handle_stats_accumulation(
             // Update `guarantees_count` if the current validator's Ed25519 public key is in `reporters`.
             if reporters.iter().any(|reporter| {
                 reporter
-                    == &get_validator_ed25519_key_by_index(&current_active_set.0, validator_index)
+                    == &get_validator_ed25519_key_by_index(&current_active_set, validator_index)
             }) {
                 validator_stats.guarantees_count += 1;
             }

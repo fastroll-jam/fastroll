@@ -13,7 +13,7 @@ use rjam_types::{
             generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType, TicketAccumulator,
         },
         timeslot::Timeslot,
-        validators::ActiveSet,
+        validators::{ActiveSet, ValidatorSet},
     },
 };
 
@@ -61,7 +61,7 @@ fn handle_new_epoch_transition(
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
-    let current_ring_root = generate_ring_root(&prior_staging_set.0)?;
+    let current_ring_root = generate_ring_root(&prior_staging_set)?;
     let current_active_set = state_manager.get_active_set()?;
     let current_entropy = state_manager.get_entropy_accumulator()?;
 
@@ -100,8 +100,7 @@ fn update_slot_sealers(
 
     if is_fallback {
         safrole.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
-            generate_fallback_keys(&current_active_set.0, current_entropy.second_history())
-                .unwrap(),
+            generate_fallback_keys(current_active_set, current_entropy.second_history()).unwrap(),
         ));
     } else {
         let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =

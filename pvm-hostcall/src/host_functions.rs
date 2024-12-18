@@ -498,7 +498,7 @@ impl HostFunction {
                 offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
                 PUBLIC_KEY_SIZE,
             )?;
-            new_staging_set.0[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
+            new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
         }
 
         x.assign_new_staging_set(new_staging_set)?;

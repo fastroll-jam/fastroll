@@ -2,7 +2,7 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    BandersnatchPubKey, BandersnatchRingRoot, Hash32, Ticket, ValidatorKey, ValidatorSet,
+    BandersnatchPubKey, BandersnatchRingRoot, Hash32, Ticket, ValidatorKey, ValidatorKeySet,
     BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
@@ -24,7 +24,7 @@ pub enum FallbackKeyError {
 
 #[derive(Debug, Clone, JamEncode)]
 pub struct SafroleState {
-    pub pending_set: ValidatorSet,             // gamma_k
+    pub pending_set: ValidatorKeySet,          // gamma_k
     pub ring_root: BandersnatchRingRoot,       // gamma_z
     pub slot_sealers: SlotSealerType,          // gamma_s
     pub ticket_accumulator: TicketAccumulator, // gamma_a
@@ -172,7 +172,7 @@ pub fn outside_in_vec<T: Clone>(vec: Vec<T>) -> Vec<T> {
 }
 
 pub fn generate_fallback_keys(
-    validator_set: &ValidatorSet,
+    validator_set: &ValidatorKeySet,
     entropy: Hash32,
 ) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], FallbackKeyError> {
     let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
