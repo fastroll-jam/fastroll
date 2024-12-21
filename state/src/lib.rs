@@ -6,8 +6,9 @@ use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::Lea
 use rjam_types::{
     state::*,
     state_utils::{
-        construct_account_lookups_state_key, construct_account_metadata_state_key,
-        construct_account_storage_state_key, get_state_key, StateEntryType, StateKeyConstant,
+        get_account_lookups_state_key, get_account_metadata_state_key,
+        get_account_storage_state_key, get_simple_state_key, StateComponent, StateEntryType,
+        StateKeyConstant,
     },
 };
 use std::{cmp::Ordering, sync::Arc};
@@ -96,7 +97,7 @@ impl StateManager {
         state_key_constant: StateKeyConstant,
         state_entry_type: StateEntryType,
     ) {
-        let state_key = get_state_key(state_key_constant);
+        let state_key = get_simple_state_key(state_key_constant);
         self.cache
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
@@ -216,18 +217,16 @@ impl StateManager {
     // Immutable/mutable references to state components and account storage entries
     //
 
-    #[allow(dead_code)]
-    fn get_state_entry<T>(&self) -> Result<T, StateManagerError> {
-        todo!()
-    }
-
-    pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::AuthPool);
+    fn get_state_entry<T>(&self) -> Result<T, StateManagerError>
+    where
+        T: StateComponent,
+    {
+        let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::AuthPool(auth_pool) = entry_ref.value.clone() {
-                return Ok(auth_pool);
+            if let Some(state_entry) = T::from_entry_type(&entry_ref.value) {
+                return Ok(state_entry.clone());
             }
         }
 
@@ -235,13 +234,43 @@ impl StateManager {
         let state_data = self
             .retrieve_state_encoded(&state_key)?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let auth_pool = AuthPool::decode(&mut state_data.as_slice())?;
+        let state_entry = T::decode(&mut state_data.as_slice())?;
 
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::AuthPool(auth_pool.clone()));
+        // Insert the entry into the cache
+        let cache_entry = CacheEntry::new(T::into_entry_type(state_entry.clone()));
         self.cache.insert(state_key, cache_entry);
 
-        Ok(auth_pool)
+        Ok(state_entry)
+    }
+
+    fn with_mut_state_entry<T, F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        T: StateComponent,
+        F: FnOnce(&mut T),
+    {
+        let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
+
+        // FIXME: Load data from DB if cache not found
+        let mut cache_entry = self
+            .cache
+            .get_mut(&state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let Some(state_entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
+            f(state_entry_mut); // Call the closure to apply the state mutation
+            cache_entry.mark_dirty(write_op);
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub fn get_auth_pool(&self) -> Result<AuthPool, StateManagerError> {
+        self.get_state_entry()
     }
 
     pub fn with_mut_auth_pool<F>(
@@ -252,44 +281,11 @@ impl StateManager {
     where
         F: FnOnce(&mut AuthPool),
     {
-        let state_key = get_state_key(StateKeyConstant::AuthPool);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::AuthPool(ref mut auth_pool) = cache_entry.value {
-            f(auth_pool); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::AuthQueue);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::AuthQueue(auth_queue) = entry_ref.value.clone() {
-                return Ok(auth_queue);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let auth_queue = AuthQueue::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::AuthQueue(auth_queue.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(auth_queue)
+        self.get_state_entry()
     }
 
     pub fn with_mut_auth_queue<F>(
@@ -300,44 +296,11 @@ impl StateManager {
     where
         F: FnOnce(&mut AuthQueue),
     {
-        let state_key = get_state_key(StateKeyConstant::AuthQueue);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::AuthQueue(ref mut auth_queue) = cache_entry.value {
-            f(auth_queue); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_block_history(&self) -> Result<BlockHistory, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::BlockHistory);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::BlockHistory(block_history) = entry_ref.value.clone() {
-                return Ok(block_history);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let block_history = BlockHistory::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::BlockHistory(block_history.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(block_history)
+        self.get_state_entry()
     }
 
     pub fn with_mut_block_history<F>(
@@ -348,88 +311,22 @@ impl StateManager {
     where
         F: FnOnce(&mut BlockHistory),
     {
-        let state_key = get_state_key(StateKeyConstant::BlockHistory);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::BlockHistory(ref mut block_history) = cache_entry.value {
-            f(block_history); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_safrole(&self) -> Result<SafroleState, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::SafroleState);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::SafroleState(safrole) = entry_ref.value.clone() {
-                return Ok(safrole);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let safrole = SafroleState::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::SafroleState(safrole.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(safrole)
+        self.get_state_entry()
     }
 
     pub fn with_mut_safrole<F>(&self, write_op: StateWriteOp, f: F) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut SafroleState),
     {
-        let state_key = get_state_key(StateKeyConstant::SafroleState);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::SafroleState(ref mut safrole) = cache_entry.value {
-            f(safrole); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_disputes(&self) -> Result<DisputesState, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::DisputesState);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::DisputesState(dispute_state) = entry_ref.value.clone() {
-                return Ok(dispute_state);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let dispute_state = DisputesState::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::DisputesState(dispute_state.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(dispute_state)
+        self.get_state_entry()
     }
 
     pub fn with_mut_disputes<F>(
@@ -440,44 +337,11 @@ impl StateManager {
     where
         F: FnOnce(&mut DisputesState),
     {
-        let state_key = get_state_key(StateKeyConstant::DisputesState);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::DisputesState(ref mut disputes) = cache_entry.value {
-            f(disputes); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_entropy_accumulator(&self) -> Result<EntropyAccumulator, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::EntropyAccumulator);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::EntropyAccumulator(entropy_acc) = entry_ref.value.clone() {
-                return Ok(entropy_acc);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let entropy_acc = EntropyAccumulator::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::EntropyAccumulator(entropy_acc.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(entropy_acc)
+        self.get_state_entry()
     }
 
     pub fn with_mut_entropy_accumulator<F>(
@@ -488,44 +352,11 @@ impl StateManager {
     where
         F: FnOnce(&mut EntropyAccumulator),
     {
-        let state_key = get_state_key(StateKeyConstant::EntropyAccumulator);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::EntropyAccumulator(ref mut entropy_accumulator) = cache_entry.value {
-            f(entropy_accumulator); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_staging_set(&self) -> Result<StagingSet, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::StagingSet);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::StagingSet(staging_set) = entry_ref.value.clone() {
-                return Ok(staging_set);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let staging_set = StagingSet::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::StagingSet(staging_set.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(staging_set)
+        self.get_state_entry()
     }
 
     pub fn with_mut_staging_set<F>(
@@ -536,44 +367,11 @@ impl StateManager {
     where
         F: FnOnce(&mut StagingSet),
     {
-        let state_key = get_state_key(StateKeyConstant::StagingSet);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::StagingSet(ref mut staging_set) = cache_entry.value {
-            f(staging_set); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_active_set(&self) -> Result<ActiveSet, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::ActiveSet);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::ActiveSet(active_set) = entry_ref.value.clone() {
-                return Ok(active_set);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let active_set = ActiveSet::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::ActiveSet(active_set.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(active_set)
+        self.get_state_entry()
     }
 
     pub fn with_mut_active_set<F>(
@@ -584,44 +382,11 @@ impl StateManager {
     where
         F: FnOnce(&mut ActiveSet),
     {
-        let state_key = get_state_key(StateKeyConstant::ActiveSet);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::ActiveSet(ref mut active_set) = cache_entry.value {
-            f(active_set); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_past_set(&self) -> Result<PastSet, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::PastSet);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::PastSet(past_set) = entry_ref.value.clone() {
-                return Ok(past_set);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let past_set = PastSet::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::PastSet(past_set.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(past_set)
+        self.get_state_entry()
     }
 
     pub fn with_mut_past_set<F>(
@@ -632,44 +397,11 @@ impl StateManager {
     where
         F: FnOnce(&mut PastSet),
     {
-        let state_key = get_state_key(StateKeyConstant::PastSet);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::PastSet(ref mut past_set) = cache_entry.value {
-            f(past_set); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_pending_reports(&self) -> Result<PendingReports, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::PendingReports);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::PendingReports(pending_reports) = entry_ref.value.clone() {
-                return Ok(pending_reports);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let pending_reports = PendingReports::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::PendingReports(pending_reports.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(pending_reports)
+        self.get_state_entry()
     }
 
     pub fn with_mut_pending_reports<F>(
@@ -680,44 +412,11 @@ impl StateManager {
     where
         F: FnOnce(&mut PendingReports),
     {
-        let state_key = get_state_key(StateKeyConstant::PendingReports);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::PendingReports(ref mut pending_reports) = cache_entry.value {
-            f(pending_reports); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_timeslot(&self) -> Result<Timeslot, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::Timeslot);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::Timeslot(timeslot) = entry_ref.value.clone() {
-                return Ok(timeslot);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let timeslot = Timeslot::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::Timeslot(timeslot));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(timeslot)
+        self.get_state_entry()
     }
 
     pub fn with_mut_timeslot<F>(
@@ -728,47 +427,11 @@ impl StateManager {
     where
         F: FnOnce(&mut Timeslot),
     {
-        let state_key = get_state_key(StateKeyConstant::Timeslot);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::Timeslot(ref mut timeslot) = cache_entry.value {
-            f(timeslot); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::PrivilegedServices);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::PrivilegedServices(privileged_services) = entry_ref.value.clone()
-            {
-                return Ok(privileged_services);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let privileged_services = PrivilegedServices::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::PrivilegedServices(
-            privileged_services.clone(),
-        ));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(privileged_services)
+        self.get_state_entry()
     }
 
     pub fn with_mut_privileged_services<F>(
@@ -779,44 +442,11 @@ impl StateManager {
     where
         F: FnOnce(&mut PrivilegedServices),
     {
-        let state_key = get_state_key(StateKeyConstant::PrivilegedServices);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::PrivilegedServices(ref mut privileged_services) = cache_entry.value {
-            f(privileged_services); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_validator_stats(&self) -> Result<ValidatorStats, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::ValidatorStats);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::ValidatorStats(validator_stats) = entry_ref.value.clone() {
-                return Ok(validator_stats);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let validator_stats = ValidatorStats::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::ValidatorStats(validator_stats.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(validator_stats)
+        self.get_state_entry()
     }
 
     pub fn with_mut_validator_stats<F>(
@@ -827,45 +457,11 @@ impl StateManager {
     where
         F: FnOnce(&mut ValidatorStats),
     {
-        let state_key = get_state_key(StateKeyConstant::ValidatorStats);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::ValidatorStats(ref mut validator_stats) = cache_entry.value {
-            f(validator_stats); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_accumulate_queue(&self) -> Result<AccumulateQueue, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::AccumulateQueue);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::AccumulateQueue(accumulate_queue) = entry_ref.value.clone() {
-                return Ok(accumulate_queue);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let accumulate_queue = AccumulateQueue::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry =
-            CacheEntry::new(StateEntryType::AccumulateQueue(accumulate_queue.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(accumulate_queue)
+        self.get_state_entry()
     }
 
     pub fn with_mut_accumulate_queue<F>(
@@ -876,46 +472,11 @@ impl StateManager {
     where
         F: FnOnce(&mut AccumulateQueue),
     {
-        let state_key = get_state_key(StateKeyConstant::AccumulateQueue);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::AccumulateQueue(ref mut accumulate_queue) = cache_entry.value {
-            f(accumulate_queue); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_accumulate_history(&self) -> Result<AccumulateHistory, StateManagerError> {
-        let state_key = get_state_key(StateKeyConstant::AccumulateHistory);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let StateEntryType::AccumulateHistory(accumulate_history) = entry_ref.value.clone() {
-                return Ok(accumulate_history);
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let accumulate_history = AccumulateHistory::decode(&mut state_data.as_slice())?;
-
-        // Insert into the cache
-        let cache_entry = CacheEntry::new(StateEntryType::AccumulateHistory(
-            accumulate_history.clone(),
-        ));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(accumulate_history)
+        self.get_state_entry()
     }
 
     pub fn with_mut_accumulate_history<F>(
@@ -926,29 +487,14 @@ impl StateManager {
     where
         F: FnOnce(&mut AccumulateHistory),
     {
-        let state_key = get_state_key(StateKeyConstant::AccumulateHistory);
-
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let StateEntryType::AccumulateHistory(ref mut accumulate_history) = cache_entry.value {
-            f(accumulate_history); // call the closure to mutate the state
-            cache_entry.mark_dirty(write_op);
-
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
+        self.with_mut_state_entry(write_op, f)
     }
 
     pub fn get_account_metadata(
         &self,
         address: Address,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
-        let state_key =
-            construct_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
+        let state_key = get_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -981,8 +527,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccountMetadata),
     {
-        let state_key =
-            construct_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
+        let state_key = get_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
 
         let mut cache_entry = self
             .cache
@@ -1064,7 +609,7 @@ impl StateManager {
         address: Address,
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
-        let state_key = construct_account_storage_state_key(address, storage_key);
+        let state_key = get_account_storage_state_key(address, storage_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -1100,7 +645,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccountStorageEntry),
     {
-        let state_key = construct_account_storage_state_key(address, storage_key);
+        let state_key = get_account_storage_state_key(address, storage_key);
 
         let mut cache_entry = self
             .cache
@@ -1124,7 +669,7 @@ impl StateManager {
         address: Address,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = construct_account_storage_state_key(address, preimages_key);
+        let state_key = get_account_storage_state_key(address, preimages_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -1162,7 +707,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccountPreimagesEntry),
     {
-        let state_key = construct_account_storage_state_key(address, preimages_key);
+        let state_key = get_account_storage_state_key(address, preimages_key);
 
         let mut cache_entry = self
             .cache
@@ -1187,7 +732,7 @@ impl StateManager {
         lookups_key: &(Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         let (h, l) = lookups_key;
-        let state_key = construct_account_lookups_state_key(address, h, *l)?;
+        let state_key = get_account_lookups_state_key(address, h, *l)?;
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -1222,7 +767,7 @@ impl StateManager {
         F: FnOnce(&mut AccountLookupsEntry),
     {
         let (h, l) = lookups_key;
-        let state_key = construct_account_lookups_state_key(address, h, l)?;
+        let state_key = get_account_lookups_state_key(address, h, l)?;
 
         let mut cache_entry = self
             .cache

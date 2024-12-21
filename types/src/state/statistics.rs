@@ -1,3 +1,4 @@
+use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
@@ -79,6 +80,30 @@ impl EpochValidatorStats {
 #[derive(Clone)]
 pub struct ValidatorStats(pub [EpochValidatorStats; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [EpochValidatorStats; 2]);
+
+impl StateComponent for ValidatorStats {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::ValidatorStats;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::ValidatorStats(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::ValidatorStats(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::ValidatorStats(self)
+    }
+}
 
 impl ValidatorStats {
     pub fn current_epoch_stats(&self) -> &EpochValidatorStats {

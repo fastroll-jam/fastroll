@@ -1,3 +1,4 @@
+use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
@@ -7,6 +8,30 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
+
+impl StateComponent for EntropyAccumulator {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::EntropyAccumulator;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::EntropyAccumulator(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::EntropyAccumulator(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::EntropyAccumulator(self)
+    }
+}
 
 impl Display for EntropyAccumulator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

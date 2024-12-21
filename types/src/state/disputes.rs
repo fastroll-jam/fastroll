@@ -1,3 +1,4 @@
+use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
 
@@ -7,6 +8,30 @@ pub struct DisputesState {
     pub bad_set: Vec<Hash32>,           // psi_b; hash of incorrect work-reports
     pub wonky_set: Vec<Hash32>,         // psi_w; hash of work-reports that cannot be judged
     pub punish_set: Vec<Ed25519PubKey>, // psi_o; Ed25519 public keys of validators which have misjudged.
+}
+
+impl StateComponent for DisputesState {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::DisputesState;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::DisputesState(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::DisputesState(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::DisputesState(self)
+    }
 }
 
 // Note: No duplication check is conducted here.

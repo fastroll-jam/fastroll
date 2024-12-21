@@ -1,4 +1,7 @@
-use crate::state::timeslot::Timeslot;
+use crate::{
+    state::timeslot::Timeslot,
+    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
 use std::collections::HashMap;
@@ -27,6 +30,30 @@ pub struct AccountMetadata {
     pub lookups_total_octets: u64,
     /// The number of total octets used by the account storage
     pub storage_total_octets: u64,
+}
+
+impl StateComponent for AccountMetadata {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::AccountMetadata; // not used
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::AccountMetadata(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::AccountMetadata(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::AccountMetadata(self)
+    }
 }
 
 impl AccountMetadata {
@@ -223,4 +250,28 @@ pub struct PrivilegedServices {
     pub assign_service: Address,  // a; Alters auth queue (`phi`).
     pub designate_service: Address, // v; Alters staging validator set (`iota`).
     pub always_accumulate_services: HashMap<Address, UnsignedGas>, // g; Basic gas usage of always-accumulate services.
+}
+
+impl StateComponent for PrivilegedServices {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::PrivilegedServices;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::PrivilegedServices(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::PrivilegedServices(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::PrivilegedServices(self)
+    }
 }

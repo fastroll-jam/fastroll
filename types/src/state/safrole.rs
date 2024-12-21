@@ -1,3 +1,4 @@
+use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -28,6 +29,30 @@ pub struct SafroleState {
     pub ring_root: BandersnatchRingRoot,       // gamma_z
     pub slot_sealers: SlotSealerType,          // gamma_s
     pub ticket_accumulator: TicketAccumulator, // gamma_a
+}
+
+impl StateComponent for SafroleState {
+    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::SafroleState;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+        if let StateEntryType::SafroleState(ref entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+        if let StateEntryType::SafroleState(ref mut entry) = entry {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    fn into_entry_type(self) -> StateEntryType {
+        StateEntryType::SafroleState(self)
+    }
 }
 
 impl Display for SafroleState {

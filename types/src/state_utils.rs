@@ -5,6 +5,12 @@ use rjam_crypto::octets_to_hash32;
 
 pub trait StateComponent: Clone + JamDecode {
     const STATE_KEY_CONSTANT: StateKeyConstant;
+
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;
+
+    fn into_entry_type(self) -> StateEntryType;
 }
 
 #[derive(Clone)]
@@ -57,6 +63,12 @@ impl From<StateKeyConstant> for u8 {
     }
 }
 
+const fn construct_state_key(i: u8) -> Hash32 {
+    let mut key = [0u8; HASH_SIZE];
+    key[0] = i;
+    ByteArray(key)
+}
+
 pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::AuthPool as u8),
     construct_state_key(StateKeyConstant::AuthQueue as u8),
@@ -75,26 +87,18 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
 ];
 
-pub const fn get_state_key(key: StateKeyConstant) -> Hash32 {
+pub const fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
     STATE_KEYS[key as usize - 1]
 }
 
-// State key constructors
-
-pub const fn construct_state_key(i: u8) -> Hash32 {
-    let mut key = [0u8; HASH_SIZE];
-    key[0] = i;
-    ByteArray(key)
-}
-
-pub fn construct_account_metadata_state_key<T: Into<u8>>(i: T, s: Address) -> Hash32 {
+pub fn get_account_metadata_state_key(i: StateKeyConstant, s: Address) -> Hash32 {
     let mut key = HASH32_EMPTY;
     key[0] = i.into();
     key[1..5].copy_from_slice(&s.to_be_bytes());
     key
 }
 
-pub fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
+pub fn get_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
     let mut key = HASH32_EMPTY;
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
@@ -106,16 +110,7 @@ pub fn construct_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
     key
 }
 
-/// Applies logical NOT operation on a Hash32 type
-fn not_hash_slice(h: &Hash32) -> [u8; 28] {
-    let mut result = [0u8; 28];
-    for (i, &byte) in h[4..].iter().enumerate() {
-        result[i] = !byte;
-    }
-    result
-}
-
-pub fn construct_account_lookups_state_key(
+pub fn get_account_lookups_state_key(
     s: Address,
     h: &Hash32,
     l: u32,
@@ -124,8 +119,17 @@ pub fn construct_account_lookups_state_key(
     l.encode_to_fixed(&mut lookups_key_encoded, 4)?;
     lookups_key_encoded.extend(not_hash_slice(h).to_vec());
 
-    Ok(construct_account_storage_state_key(
+    Ok(get_account_storage_state_key(
         s,
         octets_to_hash32(&lookups_key_encoded).as_ref().unwrap(),
     ))
+}
+
+/// Applies logical NOT operation on a Hash32 type
+fn not_hash_slice(h: &Hash32) -> [u8; 28] {
+    let mut result = [0u8; 28];
+    for (i, &byte) in h[4..].iter().enumerate() {
+        result[i] = !byte;
+    }
+    result
 }
