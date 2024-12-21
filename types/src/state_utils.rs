@@ -1,7 +1,7 @@
 use crate::state::*;
-use rjam_codec::{JamCodecError, JamDecode, JamEncodeFixed};
+use rjam_codec::{JamDecode, JamEncodeFixed};
 use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
-use rjam_crypto::octets_to_hash32;
+use rjam_crypto::{hash, Blake2b256, CryptoError};
 
 pub trait StateComponent: Clone + JamDecode {
     const STATE_KEY_CONSTANT: StateKeyConstant;
@@ -120,14 +120,20 @@ pub const fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
     STATE_KEYS[key as usize - 1]
 }
 
-pub fn get_account_metadata_state_key(i: StateKeyConstant, s: Address) -> Hash32 {
+pub fn get_account_metadata_state_key(s: Address) -> Hash32 {
     let mut key = HASH32_EMPTY;
-    key[0] = i.into();
-    key[1..5].copy_from_slice(&s.to_be_bytes());
+    key[0] = StateKeyConstant::AccountMetadata as u8;
+    let encoded = s
+        .encode_fixed(4)
+        .expect("encoding u32 should always be successful");
+    key[1] = encoded[0];
+    key[3] = encoded[1];
+    key[5] = encoded[2];
+    key[7] = encoded[3];
     key
 }
 
-pub fn get_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
+fn construct_storage_state_key(s: Address, h: &[u8]) -> Hash32 {
     let mut key = HASH32_EMPTY;
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
@@ -139,26 +145,40 @@ pub fn get_account_storage_state_key(s: Address, h: &Hash32) -> Hash32 {
     key
 }
 
+pub fn get_account_storage_state_key(s: Address, key: &Hash32) -> Hash32 {
+    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    key_with_prefix[0..4].copy_from_slice(
+        &u32::MAX
+            .encode_fixed(4)
+            .expect("encoding u32 should always be successful"),
+    );
+    key_with_prefix[4..].copy_from_slice(&key[0..28]);
+    construct_storage_state_key(s, &key_with_prefix)
+}
+
+pub fn get_account_preimage_state_key(s: Address, key: &Hash32) -> Hash32 {
+    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    key_with_prefix[0..4].copy_from_slice(
+        &(u32::MAX - 1)
+            .encode_fixed(4)
+            .expect("encoding u32 should always be successful"),
+    );
+    key_with_prefix[4..].copy_from_slice(&key[1..29]);
+    construct_storage_state_key(s, &key_with_prefix)
+}
+
 pub fn get_account_lookups_state_key(
     s: Address,
     h: &Hash32,
     l: u32,
-) -> Result<Hash32, JamCodecError> {
-    let mut lookups_key_encoded = vec![];
-    l.encode_to_fixed(&mut lookups_key_encoded, 4)?;
-    lookups_key_encoded.extend(not_hash_slice(h).to_vec());
+) -> Result<Hash32, CryptoError> {
+    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    key_with_prefix[0..4].copy_from_slice(
+        &l.encode_fixed(4)
+            .expect("encoding u32 should always be successful"),
+    );
+    let hash_slice = &hash::<Blake2b256>(h.as_slice())?[2..30];
+    key_with_prefix[4..].copy_from_slice(hash_slice);
 
-    Ok(get_account_storage_state_key(
-        s,
-        octets_to_hash32(&lookups_key_encoded).as_ref().unwrap(),
-    ))
-}
-
-/// Applies logical NOT operation on a Hash32 type
-fn not_hash_slice(h: &Hash32) -> [u8; 28] {
-    let mut result = [0u8; 28];
-    for (i, &byte) in h[4..].iter().enumerate() {
-        result[i] = !byte;
-    }
-    result
+    Ok(construct_storage_state_key(s, &key_with_prefix))
 }

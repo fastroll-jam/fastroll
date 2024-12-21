@@ -1,14 +1,15 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode};
 use rjam_common::{Address, Hash32, Octets};
+use rjam_crypto::CryptoError;
 use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
 use rjam_types::{
     state::*,
     state_utils::{
         get_account_lookups_state_key, get_account_metadata_state_key,
-        get_account_storage_state_key, get_simple_state_key, StateComponent, StateEntryType,
-        StateKeyConstant,
+        get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
+        StateComponent, StateEntryType, StateKeyConstant,
     },
 };
 use std::{cmp::Ordering, sync::Arc};
@@ -28,6 +29,8 @@ pub enum StateManagerError {
     StorageEntryNotFound,
     #[error("Account lookups dictionary entry not found")]
     LookupsEntryNotFound,
+    #[error("Crypto error: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("Merkle error: {0}")]
     StateMerkleError(#[from] StateMerkleError),
     #[error("KeyValueDB error: {0}")]
@@ -494,7 +497,7 @@ impl StateManager {
         &self,
         address: Address,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
-        let state_key = get_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
+        let state_key = get_account_metadata_state_key(address);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -527,7 +530,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccountMetadata),
     {
-        let state_key = get_account_metadata_state_key(StateKeyConstant::AccountMetadata, address);
+        let state_key = get_account_metadata_state_key(address);
 
         let mut cache_entry = self
             .cache
@@ -669,7 +672,7 @@ impl StateManager {
         address: Address,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = get_account_storage_state_key(address, preimages_key);
+        let state_key = get_account_preimage_state_key(address, preimages_key);
 
         // Check the cache
         if let Some(entry_ref) = self.cache.get(&state_key) {
@@ -707,7 +710,7 @@ impl StateManager {
     where
         F: FnOnce(&mut AccountPreimagesEntry),
     {
-        let state_key = get_account_storage_state_key(address, preimages_key);
+        let state_key = get_account_preimage_state_key(address, preimages_key);
 
         let mut cache_entry = self
             .cache
