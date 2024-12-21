@@ -1,4 +1,7 @@
-use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
+use crate::{
+    impl_state_component,
+    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+};
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
@@ -92,30 +95,7 @@ fn fmt_validator_set(
 #[derive(Clone)]
 pub struct StagingSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
-
-impl StateComponent for StagingSet {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::StagingSet;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::StagingSet(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::StagingSet(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::StagingSet(self)
-    }
-}
+impl_state_component!(StagingSet, StagingSet);
 
 impl Deref for StagingSet {
     type Target = ValidatorKeySet;
@@ -150,30 +130,7 @@ impl Default for StagingSet {
 #[derive(Clone)]
 pub struct ActiveSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
-
-impl StateComponent for ActiveSet {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::ActiveSet;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::ActiveSet(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::ActiveSet(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::ActiveSet(self)
-    }
-}
+impl_state_component!(ActiveSet, ActiveSet);
 
 impl Deref for ActiveSet {
     type Target = ValidatorKeySet;
@@ -200,30 +157,7 @@ impl Display for ActiveSet {
 #[derive(Clone)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
-
-impl StateComponent for PastSet {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::PastSet;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::PastSet(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::PastSet(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::PastSet(self)
-    }
-}
+impl_state_component!(PastSet, PastSet);
 
 impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

@@ -13,6 +13,35 @@ pub trait StateComponent: Clone + JamDecode {
     fn into_entry_type(self) -> StateEntryType;
 }
 
+#[macro_export]
+macro_rules! impl_state_component {
+    ($state_type:ty, $type_name:ident) => {
+        impl StateComponent for $state_type {
+            const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::$type_name;
+
+            fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+                if let StateEntryType::$type_name(ref entry) = entry {
+                    Some(entry)
+                } else {
+                    None
+                }
+            }
+
+            fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+                if let StateEntryType::$type_name(ref mut entry) = entry {
+                    Some(entry)
+                } else {
+                    None
+                }
+            }
+
+            fn into_entry_type(self) -> StateEntryType {
+                StateEntryType::$type_name(self)
+            }
+        }
+    };
+}
+
 #[derive(Clone)]
 pub enum StateEntryType {
     AuthPool(AuthPool),                     // alpha

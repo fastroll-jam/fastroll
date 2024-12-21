@@ -1,5 +1,6 @@
 use crate::{
     common::workloads::WorkReport,
+    impl_state_component,
     state_utils::{StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
@@ -20,30 +21,7 @@ pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
 pub struct AccumulateQueue {
     items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
 }
-
-impl StateComponent for AccumulateQueue {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::AccumulateQueue;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::AccumulateQueue(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::AccumulateQueue(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::AccumulateQueue(self)
-    }
-}
+impl_state_component!(AccumulateQueue, AccumulateQueue);
 
 impl Default for AccumulateQueue {
     fn default() -> Self {
@@ -113,30 +91,7 @@ impl AccumulateQueue {
 pub struct AccumulateHistory {
     items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
 }
-
-impl StateComponent for AccumulateHistory {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::AccumulateHistory;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::AccumulateHistory(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::AccumulateHistory(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::AccumulateHistory(self)
-    }
-}
+impl_state_component!(AccumulateHistory, AccumulateHistory);
 
 impl AccumulateHistory {
     /// Returns a union of all HashMaps in the one-epoch worth of history.

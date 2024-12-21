@@ -1,5 +1,6 @@
 use crate::{
     common::workloads::{WorkReport, WorkReportError},
+    impl_state_component,
     state::timeslot::Timeslot,
     state_utils::{StateComponent, StateEntryType, StateKeyConstant},
 };
@@ -20,30 +21,7 @@ pub enum PendingReportsError {
 #[derive(Clone)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
-
-impl StateComponent for PendingReports {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::PendingReports;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::PendingReports(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::PendingReports(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::PendingReports(self)
-    }
-}
+impl_state_component!(PendingReports, PendingReports);
 
 impl PendingReports {
     pub fn get_by_core_index(&self, core_index: CoreIndex) -> &Option<PendingReport> {

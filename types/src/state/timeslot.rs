@@ -1,4 +1,7 @@
-use crate::state_utils::{StateComponent, StateEntryType, StateKeyConstant};
+use crate::{
+    impl_state_component,
+    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+};
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
@@ -15,30 +18,7 @@ pub enum TimeslotError {
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
 pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);
-
-impl StateComponent for Timeslot {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::Timeslot;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::Timeslot(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::Timeslot(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::Timeslot(self)
-    }
-}
+impl_state_component!(Timeslot, Timeslot);
 
 impl Timeslot {
     pub fn new(slot: u32) -> Self {

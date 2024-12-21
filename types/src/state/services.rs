@@ -1,4 +1,5 @@
 use crate::{
+    impl_state_component,
     state::timeslot::Timeslot,
     state_utils::{StateComponent, StateEntryType, StateKeyConstant},
 };
@@ -31,30 +32,7 @@ pub struct AccountMetadata {
     /// The number of total octets used by the account storage
     pub storage_total_octets: u64,
 }
-
-impl StateComponent for AccountMetadata {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::AccountMetadata; // not used
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::AccountMetadata(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::AccountMetadata(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::AccountMetadata(self)
-    }
-}
+impl_state_component!(AccountMetadata, AccountMetadata);
 
 impl AccountMetadata {
     pub fn new(account_info: AccountInfo) -> Self {
@@ -251,27 +229,4 @@ pub struct PrivilegedServices {
     pub designate_service: Address, // v; Alters staging validator set (`iota`).
     pub always_accumulate_services: HashMap<Address, UnsignedGas>, // g; Basic gas usage of always-accumulate services.
 }
-
-impl StateComponent for PrivilegedServices {
-    const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::PrivilegedServices;
-
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-        if let StateEntryType::PrivilegedServices(ref entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-        if let StateEntryType::PrivilegedServices(ref mut entry) = entry {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    fn into_entry_type(self) -> StateEntryType {
-        StateEntryType::PrivilegedServices(self)
-    }
-}
+impl_state_component!(PrivilegedServices, PrivilegedServices);
