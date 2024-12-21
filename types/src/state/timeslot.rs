@@ -3,7 +3,8 @@ use crate::{
     state_utils::{StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
+    impl_jam_codec_for_newtype, impl_jam_fixed_codec_for_newtype, JamCodecError, JamDecode,
+    JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput, SizeUnit,
 };
 use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 use thiserror::Error;
@@ -18,6 +19,7 @@ pub enum TimeslotError {
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
 pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);
+impl_jam_fixed_codec_for_newtype!(Timeslot, u32);
 impl_state_component!(Timeslot, Timeslot);
 
 impl Timeslot {
