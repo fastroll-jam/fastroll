@@ -7,14 +7,7 @@ use rjam_extrinsics::validation::{
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
     extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
-    state::{
-        entropy::EntropyAccumulator,
-        safrole::{
-            generate_fallback_keys, outside_in_vec, SafroleState, SlotSealerType, TicketAccumulator,
-        },
-        timeslot::Timeslot,
-        validators::{ActiveSet, ValidatorSet},
-    },
+    state::*,
 };
 
 /// State transition function of `SafroleState`.

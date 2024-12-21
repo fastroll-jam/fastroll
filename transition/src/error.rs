@@ -5,9 +5,7 @@ use rjam_extrinsics::validation::error::ExtrinsicValidationError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;
-use rjam_types::state::{
-    reports::PendingReportsError, safrole::FallbackKeyError, timeslot::TimeslotError,
-};
+use rjam_types::state::*;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

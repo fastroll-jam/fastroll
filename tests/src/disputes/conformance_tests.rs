@@ -11,7 +11,7 @@ mod tests {
         test_utils::load_test_case,
     };
     use rjam_db::BlockHeaderDB;
-    use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
+    use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
         header::set_header_offenders_marker,
@@ -19,12 +19,8 @@ mod tests {
     };
     use rjam_types::{
         extrinsics::disputes::{DisputesExtrinsic, OffendersHeaderMarker},
-        state::{
-            disputes::DisputesState,
-            reports::PendingReports,
-            timeslot::Timeslot,
-            validators::{ActiveSet, PastSet},
-        },
+        state::*,
+        state_utils::{StateEntryType, StateKeyConstant},
     };
     use std::path::PathBuf;
 

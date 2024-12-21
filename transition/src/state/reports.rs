@@ -3,9 +3,7 @@ use rjam_common::CoreIndex;
 use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
-    common::workloads::WorkReport,
-    extrinsics::disputes::DisputesExtrinsic,
-    state::{reports::PendingReport, timeslot::Timeslot},
+    common::workloads::WorkReport, extrinsics::disputes::DisputesExtrinsic, state::*,
 };
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming

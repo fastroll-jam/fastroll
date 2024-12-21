@@ -15,7 +15,7 @@ mod tests {
         test_utils::load_test_case,
     };
     use rjam_common::ByteArray;
-    use rjam_state::{StateEntryType, StateKeyConstant, StateManager, StateWriteOp};
+    use rjam_state::{StateManager, StateWriteOp};
     use rjam_transition::{
         error::TransitionError,
         procedures::chain_extension::mark_safrole_header_markers,
@@ -28,13 +28,8 @@ mod tests {
     };
     use rjam_types::{
         extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
-        state::{
-            disputes::DisputesState,
-            entropy::EntropyAccumulator,
-            safrole::SafroleState,
-            timeslot::Timeslot,
-            validators::{ActiveSet, PastSet, StagingSet},
-        },
+        state::*,
+        state_utils::{StateEntryType, StateKeyConstant},
     };
     use std::path::PathBuf;
 

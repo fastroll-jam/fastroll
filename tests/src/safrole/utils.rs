@@ -4,7 +4,7 @@ use crate::{
 };
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
-use rjam_types::state::{entropy::EntropyAccumulator, safrole::SafroleState};
+use rjam_types::state::*;
 
 pub fn safrole_state_to_gammas(
     safrole: &SafroleState,

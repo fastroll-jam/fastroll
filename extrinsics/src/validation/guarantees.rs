@@ -12,10 +12,7 @@ use rjam_state::StateManager;
 use rjam_types::{
     common::workloads::{RefinementContext, WorkReport},
     extrinsics::guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
-    state::{
-        authorizer::AuthPool, history::BlockHistory, reports::PendingReports,
-        validators::get_validator_ed25519_key_by_index,
-    },
+    state::*,
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.

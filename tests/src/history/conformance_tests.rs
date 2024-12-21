@@ -7,12 +7,15 @@ mod tests {
         test_utils::load_test_case,
     };
     use rjam_common::ByteArray;
-    use rjam_state::{StateEntryType, StateKeyConstant, StateManager};
+    use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
-    use rjam_types::state::history::ReportedWorkPackage;
+    use rjam_types::{
+        state::history::ReportedWorkPackage,
+        state_utils::{StateEntryType, StateKeyConstant},
+    };
     use std::path::PathBuf;
 
     const PATH_PREFIX: &str = "jamtestvectors-history/history/data";

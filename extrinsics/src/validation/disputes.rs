@@ -4,10 +4,7 @@ use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
     extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict, VerdictEvaluation},
-    state::{
-        timeslot::Timeslot,
-        validators::{get_validator_ed25519_key_by_index, ActiveSet, PastSet, ValidatorSet},
-    },
+    state::*,
 };
 use std::collections::HashSet;
 

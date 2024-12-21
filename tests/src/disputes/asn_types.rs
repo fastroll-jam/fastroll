@@ -10,11 +10,7 @@ use rjam_types::{
     extrinsics::disputes::{
         Culprit, DisputesExtrinsic, Fault, Judgment, OffendersHeaderMarker, Verdict,
     },
-    state::{
-        disputes::DisputesState,
-        reports::{PendingReport, PendingReports},
-        timeslot::Timeslot,
-    },
+    state::*,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

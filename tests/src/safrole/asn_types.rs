@@ -8,12 +8,7 @@ use crate::{
 use rjam_common::{BandersnatchPubKey, ByteArray, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{
-    block::header::EpochMarker,
-    extrinsics::tickets::TicketsExtrinsicEntry,
-    state::{
-        entropy::EntropyAccumulator,
-        safrole::{SafroleState, SlotSealerType, TicketAccumulator},
-    },
+    block::header::EpochMarker, extrinsics::tickets::TicketsExtrinsicEntry, state::*,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

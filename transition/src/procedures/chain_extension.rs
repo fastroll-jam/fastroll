@@ -15,7 +15,7 @@ use rjam_state::StateManager;
 use rjam_types::{
     block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},
     extrinsics::tickets::TicketsExtrinsic,
-    state::{safrole::outside_in_vec, timeslot::Timeslot},
+    state::*,
 };
 
 pub struct SafroleHeaderMarkers {

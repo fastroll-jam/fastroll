@@ -4,7 +4,7 @@ use rjam_common::{
     VALIDATOR_COUNT,
 };
 use rjam_state::{StateManager, StateManagerError};
-use rjam_types::state::{timeslot::Timeslot, validators::ValidatorSet};
+use rjam_types::state::*;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
