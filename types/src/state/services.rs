@@ -1,7 +1,7 @@
 use crate::{
-    impl_state_component,
+    impl_account_state_component, impl_state_component,
     state::timeslot::Timeslot,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    state_utils::{AccountStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
@@ -34,7 +34,7 @@ pub struct AccountMetadata {
     /// The number of total octets used by the account storage
     pub storage_total_octets: u64,
 }
-impl_state_component!(AccountMetadata, AccountMetadata);
+impl_account_state_component!(AccountMetadata, AccountMetadata);
 
 impl AccountMetadata {
     pub fn new(account_info: AccountInfo) -> Self {
@@ -185,6 +185,7 @@ impl PVMContextState for AccountLookupsEntry {}
 pub struct AccountStorageEntry {
     pub value: Octets,
 }
+impl_account_state_component!(AccountStorageEntry, AccountStorageEntry);
 
 impl StorageFootprint for AccountStorageEntry {
     fn storage_octets_usage(&self) -> usize {
@@ -200,11 +201,13 @@ impl StorageFootprint for AccountStorageEntry {
 pub struct AccountPreimagesEntry {
     pub value: Octets,
 }
+impl_account_state_component!(AccountPreimagesEntry, AccountPreimagesEntry);
 
 #[derive(Clone)]
 pub struct AccountLookupsEntry {
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }
+impl_account_state_component!(AccountLookupsEntry, AccountLookupsEntry);
 
 impl JamEncode for AccountLookupsEntry {
     fn size_hint(&self) -> usize {

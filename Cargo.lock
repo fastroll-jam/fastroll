@@ -1101,6 +1101,7 @@ dependencies = [
  "blake2",
  "dashmap",
  "lazy_static",
+ "paste",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",

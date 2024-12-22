@@ -3,9 +3,19 @@ use rjam_codec::{JamDecode, JamEncodeFixed};
 use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 
+/// Represents global state types with simple fixed state keys
 pub trait StateComponent: Clone + JamDecode {
     const STATE_KEY_CONSTANT: StateKeyConstant;
 
+    fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
+
+    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;
+
+    fn into_entry_type(self) -> StateEntryType;
+}
+
+/// Represents global state types associated with account state with dynamically-derived state keys
+pub trait AccountStateComponent: Clone + JamDecode {
     fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
 
     fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;
@@ -19,6 +29,33 @@ macro_rules! impl_state_component {
         impl StateComponent for $state_type {
             const STATE_KEY_CONSTANT: StateKeyConstant = StateKeyConstant::$type_name;
 
+            fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
+                if let StateEntryType::$type_name(ref entry) = entry {
+                    Some(entry)
+                } else {
+                    None
+                }
+            }
+
+            fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
+                if let StateEntryType::$type_name(ref mut entry) = entry {
+                    Some(entry)
+                } else {
+                    None
+                }
+            }
+
+            fn into_entry_type(self) -> StateEntryType {
+                StateEntryType::$type_name(self)
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_account_state_component {
+    ($state_type:ty, $type_name:ident) => {
+        impl AccountStateComponent for $state_type {
             fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
                 if let StateEntryType::$type_name(ref entry) = entry {
                     Some(entry)
