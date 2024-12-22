@@ -371,11 +371,7 @@ impl AccumulateHostContext {
             .insert(new_account_address, new_account);
 
         // Lookups dictionary entry for the code hash preimage entry
-        let code_lookups_entry = AccountLookupsEntry {
-            key: code_lookups_key.0,
-            preimage_length: code_lookups_key.1,
-            value: vec![],
-        };
+        let code_lookups_entry = AccountLookupsEntry { value: vec![] };
 
         self.partial_state
             .accounts_sandbox

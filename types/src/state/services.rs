@@ -3,7 +3,9 @@ use crate::{
     state::timeslot::Timeslot,
     state_utils::{StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::{
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+};
 use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
 use std::collections::HashMap;
 
@@ -72,7 +74,7 @@ impl AccountMetadata {
     }
 
     /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
-    /// to the storage.
+    /// to the account storages.
     ///
     /// # Returns
     ///
@@ -86,22 +88,22 @@ impl AccountMetadata {
     {
         match (prev_entry, new_entry.is_empty()) {
             (Some(entry), true) => {
-                // Case 1: Deleting the existing lookups entry
+                // Case 1: Deleting the existing storage or lookups entry
                 Some((-1, -(entry.storage_octets_usage() as i128)))
             }
             (Some(entry), false) => {
-                // Case 2: Updating the existing lookups entry
+                // Case 2: Updating the existing storage or lookups entry
                 Some((
                     0,
                     new_entry.storage_octets_usage() as i128 - entry.storage_octets_usage() as i128,
                 ))
             }
             (None, true) => {
-                // Case 3: Attempted to delete a storage entry that doesn't exist.
+                // Case 3: Attempted to delete a storage or lookups entry that doesn't exist.
                 None
             }
             (None, false) => {
-                // Case 4: Adding a new lookups entry
+                // Case 4: Adding a new storage or lookups entry
                 Some((1, new_entry.storage_octets_usage() as i128))
             }
         }
@@ -179,13 +181,11 @@ impl PVMContextState for AccountStorageEntry {}
 impl PVMContextState for AccountPreimagesEntry {}
 impl PVMContextState for AccountLookupsEntry {}
 
-#[derive(Clone)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountStorageEntry {
-    pub key: Hash32, // constructed with the account address and the storage key
     pub value: Octets,
 }
 
-// TODO: check usage
 impl StorageFootprint for AccountStorageEntry {
     fn storage_octets_usage(&self) -> usize {
         self.value.len()
@@ -196,21 +196,55 @@ impl StorageFootprint for AccountStorageEntry {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, JamEncode, JamDecode)]
 pub struct AccountPreimagesEntry {
-    pub key: Hash32, // constructed with the account address and the preimages dictionary key
     pub value: Octets,
 }
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone)]
 pub struct AccountLookupsEntry {
-    pub key: Hash32, // constructed with the account address and the lookup dictionary key (h)
-    pub preimage_length: u32, // serialized preimage length (l)
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }
 
-// TODO: check usage
-impl StorageFootprint for AccountLookupsEntry {
+impl JamEncode for AccountLookupsEntry {
+    fn size_hint(&self) -> usize {
+        self.value.len().size_hint() + 4 * self.value.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.value.len().encode_to(dest)?;
+        for timeslot in &self.value {
+            timeslot.encode_to_fixed(dest, 4)?;
+        }
+        Ok(())
+    }
+}
+
+impl JamDecode for AccountLookupsEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let len = usize::decode(input)?;
+        let mut timeslots = Vec::with_capacity(len);
+        for _ in 0..len {
+            let timeslot = Timeslot::decode_fixed(input, 4)?;
+            timeslots.push(timeslot)
+        }
+
+        Ok(Self { value: timeslots })
+    }
+}
+
+/// An extended type of `AccountLookupsEntry` that include additional metadata about the preimage
+/// entry size in octets. This is useful for tracking storage usage and calculating threshold balance
+/// of an account. This is NOT serialized as part of the global state.
+pub struct AccountLookupsOctetsUsage {
+    pub preimage_length: u32, // serialized preimage length (l)
+    pub entry: AccountLookupsEntry,
+}
+
+impl StorageFootprint for AccountLookupsOctetsUsage {
     /// Note: Storage octets usage of lookups storage is counted by the preimage data size,
     /// not the size of the timeslots vector.
     fn storage_octets_usage(&self) -> usize {
@@ -218,7 +252,7 @@ impl StorageFootprint for AccountLookupsEntry {
     }
 
     fn is_empty(&self) -> bool {
-        self.value.is_empty()
+        self.entry.value.is_empty()
     }
 }
 

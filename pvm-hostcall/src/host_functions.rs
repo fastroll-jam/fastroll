@@ -283,7 +283,6 @@ impl HostFunction {
 
         let new_storage_entry_data = memory.read_bytes(value_offset, value_size)?;
         let new_storage_entry = AccountStorageEntry {
-            key: storage_key,
             value: Octets::from_vec(new_storage_entry_data.clone()),
         };
 
@@ -831,20 +830,25 @@ impl HostFunction {
             }
             None => {
                 // Add a new entry with an empty timeslot vector.
-                let (key, preimage_length) = lookups_key;
-                AccountLookupsEntry {
-                    key,
-                    preimage_length,
-                    value: vec![],
-                }
+                AccountLookupsEntry { value: vec![] }
             }
+        };
+
+        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
+        let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
+            preimage_length: lookup_len,
+            entry: p,
+        });
+        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
+            preimage_length: lookup_len,
+            entry: new_lookups_entry.clone(),
         };
 
         // Simulate the threshold balance change
         let (lookups_items_count_delta, lookups_octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_entry.as_ref(),
-                &new_lookups_entry,
+                prev_lookups_octets_usage.as_ref(),
+                &new_lookups_octets_usage,
             )
             .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
 

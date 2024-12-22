@@ -585,10 +585,21 @@ impl StateManager {
         new_lookups_entry: &AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
         let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key)?;
+
+        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
+        let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
+            preimage_length: lookups_key.1,
+            entry: p,
+        });
+        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
+            preimage_length: lookups_key.1,
+            entry: new_lookups_entry.clone(),
+        };
+
         let (item_count_delta, octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_entry.as_ref(),
-                new_lookups_entry,
+                prev_lookups_octets_usage.as_ref(),
+                &new_lookups_octets_usage,
             )
             .ok_or(StateManagerError::StorageEntryNotFound)?;
 
@@ -623,7 +634,6 @@ impl StateManager {
 
         // Retrieve the state from the DB
         let storage_entry = AccountStorageEntry {
-            key: *storage_key,
             value: match self.retrieve_state_encoded(&state_key)? {
                 Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),
@@ -684,7 +694,6 @@ impl StateManager {
 
         // Retrieve the state from the DB
         let preimages_entry = AccountPreimagesEntry {
-            key: *preimages_key,
             value: match self.retrieve_state_encoded(&state_key)? {
                 Some(state_data) => Octets::from_vec(state_data),
                 None => return Ok(None),
