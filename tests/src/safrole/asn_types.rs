@@ -123,6 +123,7 @@ impl From<TicketEnvelope> for TicketsExtrinsicEntry {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct EpochMark {
     entropy: OpaqueHash,
+    tickets_entropy: OpaqueHash,
     validators: [BandersnatchKey; VALIDATORS_COUNT],
 }
 
@@ -130,6 +131,7 @@ impl From<EpochMarker> for EpochMark {
     fn from(marker: EpochMarker) -> Self {
         EpochMark {
             entropy: ByteArray32(marker.entropy.0),
+            tickets_entropy: ByteArray32(marker.tickets_entropy.0),
             validators: marker.validators.map(|key| ByteArray32(key.0)),
         }
     }

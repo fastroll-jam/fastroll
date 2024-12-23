@@ -22,6 +22,7 @@ pub enum BlockHeaderError {
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct EpochMarker {
     pub entropy: Hash32,
+    pub tickets_entropy: Hash32,
     pub validators: Box<[BandersnatchPubKey; VALIDATOR_COUNT]>,
 }
 

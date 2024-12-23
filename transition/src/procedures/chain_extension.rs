@@ -79,7 +79,8 @@ pub fn mark_safrole_header_markers(
         let current_entropy = state_manager.get_entropy_accumulator()?;
         let current_pending_set = current_safrole.pending_set;
         Some(EpochMarker {
-            entropy: current_entropy.first_history(),
+            entropy: current_entropy.first_history(), // FIXME: update to `current()`
+            tickets_entropy: current_entropy.second_history(), // FIXME: update to `first_history()`
             validators: extract_bandersnatch_keys(&current_pending_set),
         })
     } else {

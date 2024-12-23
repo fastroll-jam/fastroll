@@ -18,7 +18,7 @@ mod tests {
     };
     use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-history/history/data";
+    const PATH_PREFIX: &str = "jamtestvectors-polkajam/history/data";
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(

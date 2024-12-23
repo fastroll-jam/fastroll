@@ -33,7 +33,7 @@ mod tests {
     };
     use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-new-safrole/safrole/tiny";
+    const PATH_PREFIX: &str = "jamtestvectors-polkajam/safrole/tiny";
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(

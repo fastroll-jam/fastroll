@@ -23,7 +23,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    const PATH_PREFIX: &str = "jamtestvectors-new-codec/codec/data";
+    const PATH_PREFIX: &str = "jamtestvectors/codec/data";
 
     #[allow(dead_code)]
     pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {

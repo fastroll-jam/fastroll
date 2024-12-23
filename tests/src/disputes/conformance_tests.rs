@@ -24,7 +24,7 @@ mod tests {
     };
     use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-disputes/disputes/tiny";
+    const PATH_PREFIX: &str = "jamtestvectors-polkajam/disputes/tiny";
 
     // Returns the actual post state, to be compared with the test post state.
     fn run_state_transition(

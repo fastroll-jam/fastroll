@@ -157,7 +157,8 @@ pub struct WorkItem {
     pub service_index: Address,                  // s
     pub service_code_hash: Hash32,               // c
     pub payload_blob: Octets,                    // y
-    pub gas_limit: UnsignedGas,                  // g
+    pub refine_gas_limit: UnsignedGas,           // g
+    pub accumulate_gas_limit: UnsignedGas,       // a
     pub import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
     pub extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
     pub export_segment_count: usize,             // e; max 2^11
@@ -168,6 +169,7 @@ impl JamEncode for WorkItem {
         4 + self.service_code_hash.size_hint()
             + self.payload_blob.size_hint()
             + 8
+            + 8
             + self.import_segment_ids.size_hint()
             + self.extrinsic_data_info.size_hint()
             + 2
@@ -177,7 +179,8 @@ impl JamEncode for WorkItem {
         self.service_index.encode_to_fixed(dest, 4)?;
         self.service_code_hash.encode_to(dest)?;
         self.payload_blob.encode_to(dest)?;
-        self.gas_limit.encode_to_fixed(dest, 8)?;
+        self.refine_gas_limit.encode_to_fixed(dest, 8)?;
+        self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
         self.import_segment_ids.encode_to(dest)?;
         self.extrinsic_data_info.encode_to(dest)?;
         self.export_segment_count.encode_to_fixed(dest, 2)?;
@@ -194,7 +197,8 @@ impl JamDecode for WorkItem {
             service_index: Address::decode_fixed(input, 4)?,
             service_code_hash: Hash32::decode(input)?,
             payload_blob: Octets::decode(input)?,
-            gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
             import_segment_ids: Vec::<ImportInfo>::decode(input)?,
             extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
             export_segment_count: usize::decode_fixed(input, 2)?,

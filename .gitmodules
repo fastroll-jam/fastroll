@@ -1,19 +1,7 @@
 [submodule "tests/jamtestvectors"]
 	path = tests/jamtestvectors
 	url = https://github.com/w3f/jamtestvectors.git
-[submodule "tests/jamtestvectors-new-safrole"]
-	path = tests/jamtestvectors-new-safrole
+[submodule "tests/jamtestvectors-polkajam"]
+	path = tests/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
-	branch = safrole-ring-signatures-update
-[submodule "tests/jamtestvectors-history"]
-	path = tests/jamtestvectors-history
-	url = https://github.com/davxy/jam-test-vectors.git
-	branch = blocks-history
-[submodule "tests/jamtestvectors-disputes"]
-	path = tests/jamtestvectors-disputes
-	url = https://github.com/davxy/jam-test-vectors.git
-	branch = disputes
-[submodule "tests/jamtestvectors-new-codec"]
-	path = tests/jamtestvectors-new-codec
-	url = https://github.com/davxy/jam-test-vectors.git
-	branch = codec-vectors-update
+	branch = polkajam-vectors

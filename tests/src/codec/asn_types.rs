@@ -123,7 +123,8 @@ pub struct AsnWorkItem {
     pub service: u32,
     pub code_hash: OpaqueHash,
     pub payload: AsnByteSequence,
-    pub gas_limit: u64,
+    pub refine_gas_limit: u64,
+    pub accumulate_gas_limit: u64,
     pub import_segments: Vec<ImportSpec>,
     pub extrinsic: Vec<ExtrinsicSpec>,
     pub export_count: u16,
@@ -135,7 +136,8 @@ impl From<AsnWorkItem> for WorkItem {
             service_index: value.service,
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_blob: ByteSequence::from_vec(value.payload.0),
-            gas_limit: value.gas_limit,
+            refine_gas_limit: value.refine_gas_limit,
+            accumulate_gas_limit: value.accumulate_gas_limit,
             import_segment_ids: value
                 .import_segments
                 .into_iter()
@@ -211,7 +213,7 @@ pub struct WorkResult {
     pub service_id: u32,
     pub code_hash: OpaqueHash,
     pub payload_hash: OpaqueHash,
-    pub gas: u64,
+    pub accumulate_gas: u64,
     pub result: WorkExecResult,
 }
 
@@ -221,7 +223,7 @@ impl From<WorkResult> for WorkItemResult {
             service_index: value.service_id,
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_hash: ByteArray::new(value.payload_hash.0),
-            gas_prioritization_ratio: value.gas,
+            gas_prioritization_ratio: value.accumulate_gas,
             refinement_output: value.result.into(),
         }
     }
@@ -233,7 +235,7 @@ impl From<WorkItemResult> for WorkResult {
             service_id: value.service_index,
             code_hash: ByteArray32(value.service_code_hash.0),
             payload_hash: ByteArray32(value.payload_hash.0),
-            gas: value.gas_prioritization_ratio,
+            accumulate_gas: value.gas_prioritization_ratio,
             result: value.refinement_output.into(),
         }
     }
@@ -366,6 +368,7 @@ impl From<WorkReport> for AsnWorkReport {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EpochMark {
     pub entropy: OpaqueHash,
+    pub tickets_entropy: OpaqueHash,
     pub validators: Vec<BandersnatchKey>, // SIZE(validators-count)
 }
 
@@ -377,6 +380,7 @@ impl From<EpochMark> for EpochMarker {
         }
         Self {
             entropy: ByteArray::new(value.entropy.0),
+            tickets_entropy: ByteArray::new(value.tickets_entropy.0),
             validators: Box::new(validators_array),
         }
     }
