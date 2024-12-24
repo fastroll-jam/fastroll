@@ -1,82 +1,19 @@
 use crate::{
     asn_types::{
-        validators_data_to_validator_set, BandersnatchKey, ByteArray32, Ed25519Key, OpaqueHash,
-        ValidatorsData, EPOCH_LENGTH, VALIDATORS_COUNT,
+        validators_data_to_validator_set, Ed25519Key, EpochMark, OpaqueHash, TicketBody,
+        TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
     },
     test_utils::{deserialize_hex_array, serialize_hex_array},
 };
-use rjam_common::{BandersnatchPubKey, ByteArray, Ticket};
+use rjam_common::{ByteArray, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
-use rjam_types::{
-    block::header::EpochMarker, extrinsics::tickets::TicketsExtrinsicEntry, state::*,
-};
+use rjam_types::state::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-pub type EpochKeys = [BandersnatchKey; EPOCH_LENGTH];
-pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];
-
-// Define enumerations
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum TicketsOrKeys {
-    tickets(TicketsBodies),
-    keys(EpochKeys),
-}
-
-impl From<TicketsOrKeys> for SlotSealerType {
-    fn from(value: TicketsOrKeys) -> Self {
-        match value {
-            TicketsOrKeys::tickets(ticket_bodies) => {
-                let mut tickets: [Ticket; EPOCH_LENGTH] = Default::default();
-                for (i, ticket_body) in ticket_bodies.into_iter().enumerate() {
-                    tickets[i] = Ticket {
-                        id: ByteArray::new(ticket_body.id.0),
-                        attempt: ticket_body.attempt,
-                    };
-                }
-                SlotSealerType::Tickets(Box::new(tickets))
-            }
-            TicketsOrKeys::keys(epoch_keys) => {
-                let mut keys: [BandersnatchPubKey; EPOCH_LENGTH] = Default::default();
-                for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = ByteArray::new(key.0)
-                }
-                SlotSealerType::BandersnatchPubKeys(Box::new(keys))
-            }
-        }
-    }
-}
-
-impl From<SlotSealerType> for TicketsOrKeys {
-    fn from(value: SlotSealerType) -> Self {
-        match value {
-            SlotSealerType::Tickets(tickets) => {
-                let mut ticket_bodies: TicketsBodies = Default::default();
-                for (i, ticket) in tickets.into_iter().enumerate() {
-                    ticket_bodies[i] = TicketBody {
-                        id: ByteArray32(ticket.id.0),
-                        attempt: ticket.attempt,
-                    };
-                }
-                TicketsOrKeys::tickets(ticket_bodies)
-            }
-            SlotSealerType::BandersnatchPubKeys(keys) => {
-                let mut epoch_keys: EpochKeys = Default::default();
-                for (i, key) in keys.into_iter().enumerate() {
-                    epoch_keys[i] = ByteArray32(key.0);
-                }
-                TicketsOrKeys::keys(epoch_keys)
-            }
-        }
-    }
-}
-
-// State transition function execution error.
-// Error codes are not specified in the Graypaper.
-#[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum CustomErrorCode {
+pub enum SafroleErrorCode {
     bad_slot,           // Timeslot value must be strictly monotonic
     unexpected_ticket,  // Received a ticket while in epoch's tail
     bad_ticket_order,   // Tickets must be sorted
@@ -86,60 +23,6 @@ pub enum CustomErrorCode {
     duplicate_ticket,   // Found a ticket duplicate
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq)]
-pub struct TicketBody {
-    pub id: OpaqueHash,
-    pub attempt: u8,
-}
-
-impl From<Ticket> for TicketBody {
-    fn from(ticket: Ticket) -> Self {
-        TicketBody {
-            id: ByteArray32(ticket.id.0),
-            attempt: ticket.attempt,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct TicketEnvelope {
-    attempt: u8,
-    #[serde(
-        serialize_with = "serialize_hex_array",
-        deserialize_with = "deserialize_hex_array"
-    )]
-    signature: [u8; 784],
-}
-
-impl From<TicketEnvelope> for TicketsExtrinsicEntry {
-    fn from(envelope: TicketEnvelope) -> Self {
-        TicketsExtrinsicEntry {
-            ticket_proof: Box::new(ByteArray::new(envelope.signature)),
-            entry_index: envelope.attempt,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct EpochMark {
-    entropy: OpaqueHash,
-    tickets_entropy: OpaqueHash,
-    validators: [BandersnatchKey; VALIDATORS_COUNT],
-}
-
-impl From<EpochMarker> for EpochMark {
-    fn from(marker: EpochMarker) -> Self {
-        EpochMark {
-            entropy: ByteArray32(marker.entropy.0),
-            tickets_entropy: ByteArray32(marker.tickets_entropy.0),
-            validators: marker.validators.map(|key| ByteArray32(key.0)),
-        }
-    }
-}
-
-pub type TicketsMark = [TicketBody; EPOCH_LENGTH];
-
-// Output markers
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct OutputMarks {
     epoch_mark: Option<EpochMark>,     // New epoch signal
@@ -157,7 +40,6 @@ impl From<SafroleHeaderMarkers> for OutputMarks {
     }
 }
 
-// State relevant to Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     pub tau: u32,                 // Most recent block's timeslot
@@ -202,7 +84,6 @@ impl From<&State> for EntropyAccumulator {
     }
 }
 
-// Input for Safrole protocol
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
     pub slot: u32,                      // Current slot
@@ -210,15 +91,13 @@ pub struct Input {
     pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
 }
 
-// Output from Safrole protocol
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Output {
-    ok(OutputMarks),      // Markers
-    err(CustomErrorCode), // Error code (not specified in the Graypaper)
+    ok(OutputMarks),       // Markers
+    err(SafroleErrorCode), // Error code (not specified in the Graypaper)
 }
 
-// Safrole state transition function execution dump
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase {
     pub input: Input,      // Input

@@ -1,6 +1,8 @@
 use crate::{
-    asn_types::{ByteArray32, OpaqueHash, ValidatorData, ValidatorsData},
-    safrole::asn_types::{CustomErrorCode, TicketBody, TicketsOrKeys},
+    asn_types::{
+        ByteArray32, OpaqueHash, TicketBody, TicketsOrKeys, ValidatorData, ValidatorsData,
+    },
+    safrole::asn_types::SafroleErrorCode,
 };
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::*;
 use rjam_transition::error::TransitionError;
@@ -30,24 +32,24 @@ pub fn entropy_accumulator_to_eta(entropy_accumulator: &EntropyAccumulator) -> [
 }
 
 /// Converts RJAM error types into test vector error code output
-pub(crate) fn map_error_to_custom_code(e: TransitionError) -> CustomErrorCode {
+pub(crate) fn map_error_to_custom_code(e: TransitionError) -> SafroleErrorCode {
     match e {
-        TransitionError::InvalidTimeslot { .. } => CustomErrorCode::bad_slot,
+        TransitionError::InvalidTimeslot { .. } => SafroleErrorCode::bad_slot,
         TransitionError::ExtrinsicValidationError(TicketSubmissionClosed(_)) => {
-            CustomErrorCode::unexpected_ticket
+            SafroleErrorCode::unexpected_ticket
         }
         TransitionError::ExtrinsicValidationError(TicketsNotSorted) => {
-            CustomErrorCode::bad_ticket_order
+            SafroleErrorCode::bad_ticket_order
         }
         TransitionError::ExtrinsicValidationError(InvalidTicketProof(_)) => {
-            CustomErrorCode::bad_ticket_proof
+            SafroleErrorCode::bad_ticket_proof
         }
         TransitionError::ExtrinsicValidationError(InvalidTicketAttemptNumber(_)) => {
-            CustomErrorCode::bad_ticket_attempt
+            SafroleErrorCode::bad_ticket_attempt
         }
         TransitionError::ExtrinsicValidationError(DuplicateTicket) => {
-            CustomErrorCode::duplicate_ticket
+            SafroleErrorCode::duplicate_ticket
         }
-        _ => CustomErrorCode::reserved,
+        _ => SafroleErrorCode::reserved,
     }
 }

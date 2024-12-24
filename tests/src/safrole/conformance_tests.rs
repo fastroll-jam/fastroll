@@ -4,10 +4,11 @@ mod tests {
     use crate::{
         asn_types::{
             validator_set_to_validators_data, validators_data_to_validator_set, ByteArray32,
+            TicketEnvelope,
         },
         generate_tests,
         safrole::{
-            asn_types::{Input, Output, OutputMarks, State, TestCase, TicketEnvelope},
+            asn_types::{Input, Output, OutputMarks, State, TestCase},
             utils::{
                 entropy_accumulator_to_eta, map_error_to_custom_code, safrole_state_to_gammas,
             },

@@ -2,7 +2,11 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::asn_types::*;
+    use crate::asn_types::{
+        AsnAssurancesExtrinsic, AsnBlock, AsnDisputesExtrinsic, AsnExtrinsic,
+        AsnGuaranteesExtrinsic, AsnHeader, AsnPreimageLookupsExtrinsic, AsnTicketsExtrinsic,
+        AsnWorkItem, AsnWorkPackage, AsnWorkReport, RefineContext, WorkResult,
+    };
     use rjam_codec::{JamDecode, JamEncode};
     use rjam_types::{
         block::{header::BlockHeader, Block},
