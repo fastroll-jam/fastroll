@@ -4,7 +4,8 @@ use crate::test_utils::{
 use bit_vec::BitVec;
 use rjam_common::{
     BandersnatchPubKey, ByteArray, ByteSequence, Hash32, Octets, Ticket, ValidatorKey,
-    ValidatorKeySet, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
+    ValidatorKeySet, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, HASH32_EMPTY, MAX_AUTH_QUEUE_SIZE,
+    VALIDATOR_COUNT,
 };
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
@@ -28,8 +29,8 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        BlockHistoryEntry, DisputesState, PendingReport, PendingReports, ReportedWorkPackage,
-        SlotSealerType, Timeslot,
+        AuthPool, AuthQueue, BlockHistoryEntry, DisputesState, PendingReport, PendingReports,
+        ReportedWorkPackage, SlotSealerType, Timeslot,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -54,6 +55,7 @@ pub const CORE_COUNT: usize = 2;
 // ----------------------------------------------------
 
 pub type TimeSlot = u32;
+pub type CoreIndex = u16;
 pub type OpaqueHash = ByteArray32;
 pub type BandersnatchKey = ByteArray32;
 pub type Ed25519Key = ByteArray32;
@@ -423,6 +425,8 @@ impl From<RefinementContext> for RefineContext {
 // -- Authorizations
 // ----------------------------------------------------
 
+type AuthorizerHash = OpaqueHash;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnAuthorizer {
     pub code_hash: OpaqueHash,
@@ -435,6 +439,60 @@ impl From<AsnAuthorizer> for Authorizer {
             auth_code_hash: ByteArray::new(value.code_hash.0),
             param_blob: ByteSequence::from_vec(value.params.0),
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AsnAuthPool(Vec<AuthorizerHash>);
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AsnAuthPools([AsnAuthPool; CORE_COUNT]);
+
+impl From<AsnAuthPools> for AuthPool {
+    fn from(value: AsnAuthPools) -> Self {
+        let pool = value
+            .0
+            .map(|p| p.0.iter().map(|h| ByteArray::new(h.0)).collect::<Vec<_>>());
+        Self(Box::new(pool))
+    }
+}
+
+impl From<AuthPool> for AsnAuthPools {
+    fn from(value: AuthPool) -> Self {
+        let asn_pool = value.0.map(|hashes| {
+            let asn_hashes = hashes.iter().map(|h| ByteArray32(h.0)).collect::<Vec<_>>();
+            AsnAuthPool(asn_hashes)
+        });
+        Self(asn_pool)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AsnAuthQueue(Vec<AuthorizerHash>);
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AsnAuthQueues([AsnAuthQueue; CORE_COUNT]);
+
+impl From<AsnAuthQueues> for AuthQueue {
+    fn from(value: AsnAuthQueues) -> Self {
+        let queue = value.0.map(|q| {
+            let mut hashes = [HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE];
+            for (i, h) in q.0.iter().enumerate() {
+                hashes[i] = ByteArray::new(h.0);
+            }
+            hashes
+        });
+        Self(Box::new(queue))
+    }
+}
+
+impl From<AuthQueue> for AsnAuthQueues {
+    fn from(value: AuthQueue) -> Self {
+        let asn_queue = value.0.map(|q| {
+            let asn_hashes = q.iter().map(|h| ByteArray32(h.0)).collect::<Vec<_>>();
+            AsnAuthQueue(asn_hashes)
+        });
+        Self(asn_queue)
     }
 }
 

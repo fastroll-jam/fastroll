@@ -206,7 +206,7 @@ impl JamDecode for WorkItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct SegmentRootLookupTable {
     items: HashMap<Hash32, Hash32>,
 }
@@ -228,7 +228,7 @@ impl SegmentRootLookupTable {
 /// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
 ///
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkReport {
     pub specs: AvailabilitySpecs,                     // s
     pub refinement_context: RefinementContext,        // x
@@ -335,7 +335,7 @@ impl WorkReport {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RefinementContext {
     pub anchor_header_hash: Hash32,                   // a
     pub anchor_state_root: Hash32,                    // s; posterior state root of the anchor block
@@ -382,7 +382,7 @@ impl JamDecode for RefinementContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AvailabilitySpecs {
     pub work_package_hash: Hash32, // h
     pub work_package_length: u32,  // l

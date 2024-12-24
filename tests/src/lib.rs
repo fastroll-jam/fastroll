@@ -1,6 +1,8 @@
 #[cfg(test)]
 pub(crate) mod asn_types;
 #[cfg(test)]
+mod authorizations;
+#[cfg(test)]
 mod codec;
 #[cfg(test)]
 mod disputes;
