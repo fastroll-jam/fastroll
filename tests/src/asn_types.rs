@@ -1,4 +1,4 @@
-use crate::test_utils::{
+use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;

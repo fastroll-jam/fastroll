@@ -4,11 +4,13 @@ mod tests {
     use crate::{
         authorizations::asn_types::{Input, Output, State},
         generate_typed_tests,
-        test_trait::{run_test_case, StateTransitionTest},
     };
     use rjam_db::BlockHeaderDB;
 
-    use crate::authorizations::asn_types::JamInput;
+    use crate::{
+        authorizations::asn_types::JamInput,
+        state_transition::state_transition_test::{run_test_case, StateTransitionTest},
+    };
     use rjam_state::StateManager;
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use rjam_types::{

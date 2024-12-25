@@ -10,7 +10,7 @@ mod tests {
             utils::map_error_to_custom_code,
         },
         generate_typed_tests,
-        test_trait::{run_test_case, StateTransitionTest},
+        state_transition::state_transition_test::{run_test_case, StateTransitionTest},
     };
     use rjam_db::BlockHeaderDB;
     use rjam_state::StateManager;

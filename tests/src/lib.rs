@@ -1,16 +1,11 @@
 #[cfg(test)]
 pub(crate) mod asn_types;
 #[cfg(test)]
-mod authorizations;
-#[cfg(test)]
 mod codec;
 #[cfg(test)]
-mod disputes;
+pub(crate) mod serde_utils;
 #[cfg(test)]
-mod history;
+pub(crate) mod state_transition;
+
 #[cfg(test)]
-mod safrole;
-#[cfg(test)]
-mod test_trait;
-#[cfg(test)]
-pub(crate) mod test_utils;
+pub(crate) use state_transition::*;

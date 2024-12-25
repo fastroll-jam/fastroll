@@ -13,7 +13,7 @@ mod tests {
                 entropy_accumulator_to_eta, map_error_to_custom_code, safrole_state_to_gammas,
             },
         },
-        test_trait::{run_test_case, StateTransitionTest},
+        state_transition::state_transition_test::{run_test_case, StateTransitionTest},
     };
     use rjam_common::ByteArray;
     use rjam_db::BlockHeaderDB;

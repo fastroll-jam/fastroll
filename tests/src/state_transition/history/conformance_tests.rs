@@ -4,7 +4,7 @@ mod tests {
     use crate::{
         generate_typed_tests,
         history::asn_types::{Input, JamInput, Output, State},
-        test_trait::{run_test_case, StateTransitionTest},
+        state_transition::state_transition_test::{run_test_case, StateTransitionTest},
     };
     use rjam_common::ByteArray;
     use rjam_db::BlockHeaderDB;
