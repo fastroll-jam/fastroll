@@ -2,7 +2,9 @@ use bit_vec::BitVec;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT};
+use rjam_common::{
+    CoreIndex, Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
+};
 use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator assurances regarding the availability of work-reports
@@ -24,6 +26,29 @@ impl AssurancesExtrinsic {
     pub fn contains_assurance_for_validator(&self, validator_index: ValidatorIndex) -> bool {
         self.iter()
             .any(|entry| entry.validator_index == validator_index)
+    }
+
+    /// Aggregates core indices whose availability is assured by more than two-thirds of the
+    /// total validators.
+    pub fn available_core_indices(&self) -> Vec<CoreIndex> {
+        let mut available_core_indices = vec![];
+        let mut assurance_counts = vec![0; CORE_COUNT];
+
+        for entry in self.iter() {
+            for (i, bool) in entry.assuring_cores_bitvec.iter().enumerate() {
+                if bool {
+                    assurance_counts[i] += 1;
+                }
+            }
+        }
+
+        for (i, assurance_count) in assurance_counts.into_iter().enumerate() {
+            if assurance_count >= (VALIDATORS_SUPER_MAJORITY as u32) {
+                available_core_indices.push(i as CoreIndex);
+            }
+        }
+
+        available_core_indices
     }
 }
 

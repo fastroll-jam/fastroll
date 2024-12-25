@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::{CoreIndex, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsicEntry, state::timeslot::Timeslot};
+use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsic, state::timeslot::Timeslot};
 
 /// State transition function of `AuthPool`.
 ///
@@ -14,7 +14,7 @@ use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsicEntry, state::timesl
 /// added to the pool, discarding the oldest entry from the pool if it is full.
 pub fn transition_auth_pool(
     state_manager: &StateManager,
-    guarantees: &[GuaranteesExtrinsicEntry],
+    guarantees: &GuaranteesExtrinsic,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Get the current auth queue state, after its mutation via the accumulation process.

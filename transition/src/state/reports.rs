@@ -1,9 +1,16 @@
 use crate::error::TransitionError;
-use rjam_common::CoreIndex;
-use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
+use rjam_common::Hash32;
+use rjam_extrinsics::validation::{
+    assurances::AssurancesExtrinsicValidator, disputes::DisputesExtrinsicValidator,
+    guarantees::GuaranteesExtrinsicValidator,
+};
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
-    common::workloads::WorkReport, extrinsics::disputes::DisputesExtrinsic, state::*,
+    extrinsics::{
+        assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic,
+        guarantees::GuaranteesExtrinsic,
+    },
+    state::*,
 };
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming
@@ -22,6 +29,7 @@ pub fn transition_reports_eliminate_invalid(
     disputes: &DisputesExtrinsic,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
+    // Validate disputes extrinsic data.
     let disputes_validator = DisputesExtrinsicValidator::new(state_manager);
     disputes_validator.validate(disputes, prior_timeslot)?;
 
@@ -37,7 +45,7 @@ pub fn transition_reports_eliminate_invalid(
 }
 
 /// State transition function of `PendingReports`, removing work reports that are now available for
-/// the accumulation by consuming the `AssurancesExtrinsic`.
+/// the accumulation by consuming the `AssurancesExtrinsic`. It also removes timed-out entries.
 ///
 /// # Transitions
 ///
@@ -47,11 +55,19 @@ pub fn transition_reports_eliminate_invalid(
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
 pub fn transition_reports_clear_availables(
     state_manager: &StateManager,
-    available_reports_core_indices: &[CoreIndex],
+    assurances: &AssurancesExtrinsic,
+    header_parent_hash: Hash32,
 ) -> Result<(), TransitionError> {
+    // Validate assurances extrinsic data.
+    let assurances_validator = AssurancesExtrinsicValidator::new(state_manager);
+    assurances_validator.validate(assurances, header_parent_hash)?;
+
+    // Get core indices which have been available by introducing the assurances extrinsic.
+    let available_reports_core_indices = assurances.available_core_indices();
+
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
         for core_index in available_reports_core_indices {
-            pending_reports.remove_by_core_index(*core_index).unwrap()
+            pending_reports.remove_by_core_index(core_index).unwrap()
         }
     })?;
 
@@ -69,11 +85,17 @@ pub fn transition_reports_clear_availables(
 /// entry is replaced only if more than `U = 5` timeslots have passed since the report was submitted.
 pub fn transition_reports_replace_entries(
     state_manager: &StateManager,
-    new_valid_reports: &[WorkReport],
+    guarantees: &GuaranteesExtrinsic,
+    header_timeslot_index: u32,
     current_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
+    // Validate guarantees extrinsic data.
+    let guarantees_validator = GuaranteesExtrinsicValidator::new(state_manager);
+    guarantees_validator.validate(guarantees, header_timeslot_index)?;
+
+    let new_valid_reports = guarantees.extract_work_reports();
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
-        for report in new_valid_reports {
+        for report in &new_valid_reports {
             pending_reports.0[report.core_index() as usize] = Some(PendingReport {
                 work_report: report.clone(),
                 timeslot: *current_timeslot,

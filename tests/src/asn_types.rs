@@ -242,6 +242,7 @@ impl Display for ByteArray64 {
 // -- Application Specific Core
 // ----------------------------------------------------
 
+pub type Gas = u64;
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -305,6 +306,22 @@ pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> ValidatorsDat
     }
 
     validators_data
+}
+
+// ----------------------------------------------------
+// -- Service
+// ----------------------------------------------------
+
+pub type ServiceId = u32;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ServiceInfo {
+    pub code_hash: OpaqueHash,
+    pub balance: u64,
+    pub min_item_gas: Gas,
+    pub min_memo_gas: Gas,
+    bytes: u64,
+    items: u32,
 }
 
 // ----------------------------------------------------

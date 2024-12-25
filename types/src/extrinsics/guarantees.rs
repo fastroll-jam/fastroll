@@ -38,6 +38,14 @@ impl GuaranteesExtrinsic {
             })
             .collect()
     }
+
+    /// Extracts work reports from the extrinsic.
+    ///
+    /// This is used for aggregating all work reports that are introduced in the current guarantees
+    /// extrinsic, and expected to be validated by `GuaranteesExtrinsicValidator`.
+    pub fn extract_work_reports(&self) -> Vec<WorkReport> {
+        self.iter().map(|entry| entry.work_report.clone()).collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
