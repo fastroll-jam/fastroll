@@ -23,6 +23,7 @@ pub struct AccountInfo {
 
 #[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccountMetadata {
+    pub address: Address,
     pub account_info: AccountInfo,
     /// The number of entries of the account lookups dictionary
     pub lookups_items_count: u32,

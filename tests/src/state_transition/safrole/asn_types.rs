@@ -1,6 +1,6 @@
 use crate::asn_types::{
-    validators_data_to_validator_set, BandersnatchRingRoot, Ed25519Key, EpochMark, OpaqueHash,
-    TicketBody, TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
+    validators_data_to_validator_set, BandersnatchRingRoot, Ed25519Key, EntropyBuffer, EpochMark,
+    OpaqueHash, TicketBody, TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
 };
 use rjam_common::{ByteArray, Hash32, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
@@ -40,7 +40,7 @@ impl From<SafroleHeaderMarkers> for OutputMarks {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     pub tau: u32,                        // Most recent block's timeslot
-    pub eta: [OpaqueHash; 4],            // Entropy accumulator and epochal randomness
+    pub eta: EntropyBuffer,              // Entropy accumulator and epochal randomness
     pub lambda: ValidatorsData, // Validator keys and metadata which were active in the prior epoch
     pub kappa: ValidatorsData,  // Validator keys and metadata currently active
     pub gamma_k: ValidatorsData, // Validator keys for the following epoch
@@ -68,12 +68,6 @@ impl From<&State> for SafroleState {
                     .collect(),
             ),
         }
-    }
-}
-
-impl From<&State> for EntropyAccumulator {
-    fn from(value: &State) -> Self {
-        EntropyAccumulator(value.eta.clone().map(|entropy| ByteArray::new(entropy.0)))
     }
 }
 

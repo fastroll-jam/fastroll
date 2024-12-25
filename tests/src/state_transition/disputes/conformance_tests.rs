@@ -33,6 +33,7 @@ mod tests {
         type Input = Input;
         type JamInput = JamInput;
         type State = State;
+        type JamTransitionOutput = ();
         type Output = Output;
         type ErrorCode = DisputesErrorCode;
 
@@ -86,7 +87,7 @@ mod tests {
             state_manager: &StateManager,
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
-        ) -> Result<(), TransitionError> {
+        ) -> Result<Self::JamTransitionOutput, TransitionError> {
             let prior_timeslot = state_manager.get_timeslot()?;
             let disputes = &jam_input.extrinsic;
             let offenders_marker = disputes.collect_offender_keys();
@@ -105,6 +106,7 @@ mod tests {
 
         fn extract_output(
             header_db: &BlockHeaderDB,
+            _transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
             if let Some(error_code) = error_code {

@@ -26,6 +26,7 @@ mod tests {
         type Input = Input;
         type JamInput = JamInput;
         type State = State;
+        type JamTransitionOutput = ();
         type Output = Output;
         type ErrorCode = ();
 
@@ -72,7 +73,7 @@ mod tests {
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
-        ) -> Result<(), TransitionError> {
+        ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
             transition_block_history_parent_root(&state_manager, jam_input.parent_state_root)?;
 
@@ -93,6 +94,7 @@ mod tests {
 
         fn extract_output(
             _header_db: &BlockHeaderDB,
+            _transition_output: Option<&Self::JamTransitionOutput>,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
             Output

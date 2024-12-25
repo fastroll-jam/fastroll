@@ -27,6 +27,7 @@ mod tests {
         type Input = Input;
         type JamInput = JamInput;
         type State = State;
+        type JamTransitionOutput = ();
         type Output = Output;
         type ErrorCode = ();
 
@@ -68,7 +69,7 @@ mod tests {
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
-        ) -> Result<(), TransitionError> {
+        ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
             transition_auth_pool(&state_manager, &jam_input.extrinsic, &jam_input.slot)?;
             Ok(())
@@ -80,6 +81,7 @@ mod tests {
 
         fn extract_output(
             _header_db: &BlockHeaderDB,
+            _transition_output: Option<&Self::JamTransitionOutput>,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
             Output

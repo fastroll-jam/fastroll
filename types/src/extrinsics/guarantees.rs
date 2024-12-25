@@ -6,7 +6,7 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{Ed25519PubKey, Ed25519Signature, ValidatorIndex, ValidatorKeySet};
-use std::{cmp::Ordering, collections::HashSet, ops::Deref};
+use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
@@ -28,7 +28,7 @@ impl GuaranteesExtrinsic {
     /// in the guarantees extrinsic credentials.
     ///
     /// This set is utilized for tracking validator activity statistics.
-    pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> HashSet<Ed25519PubKey> {
+    pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> Vec<Ed25519PubKey> {
         self.iter()
             .flat_map(|entry| {
                 entry

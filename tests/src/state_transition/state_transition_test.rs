@@ -22,6 +22,7 @@ pub trait StateTransitionTest {
     type Input: Serialize + DeserializeOwned + Debug + Clone;
     type JamInput;
     type State: Serialize + DeserializeOwned + Debug + Clone + PartialEq;
+    type JamTransitionOutput;
     type Output: Serialize + DeserializeOwned + Debug + Clone + PartialEq;
     type ErrorCode;
 
@@ -46,12 +47,13 @@ pub trait StateTransitionTest {
         state_manager: &StateManager,
         header_db: &mut BlockHeaderDB,
         jam_input: &Self::JamInput,
-    ) -> Result<(), TransitionError>;
+    ) -> Result<Self::JamTransitionOutput, TransitionError>;
 
     fn map_error_code(e: TransitionError) -> Self::ErrorCode;
 
     fn extract_output(
         header_db: &BlockHeaderDB,
+        transition_output: Option<&Self::JamTransitionOutput>,
         error_code: &Option<Self::ErrorCode>,
     ) -> Self::Output;
 
@@ -77,16 +79,23 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     let jam_input = T::convert_input_type(&test_case.input)?;
 
     // run state transitions
-    let result = T::run_state_transition(&state_manager, &mut header_db, &jam_input);
+    let transition_result = T::run_state_transition(&state_manager, &mut header_db, &jam_input);
 
-    let maybe_error_code = result.err().map(T::map_error_code);
+    let (maybe_transition_output, maybe_error_code) = match transition_result {
+        Ok(transition_output) => (Some(transition_output), None),
+        Err(e) => (None, Some(T::map_error_code(e))),
+    };
 
     // compare the actual and the expected post state
     let post_state = T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code); // TODO: dliver may_eror_code too
     assert_eq!(post_state, test_case.post_state);
 
     // compare the output
-    let output = T::extract_output(&header_db, &maybe_error_code);
+    let output = T::extract_output(
+        &header_db,
+        maybe_transition_output.as_ref(),
+        &maybe_error_code,
+    );
     assert_eq!(output, test_case.output);
 
     Ok(())

@@ -29,8 +29,9 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AuthPool, AuthQueue, BlockHistoryEntry, DisputesState, PendingReport, PendingReports,
-        ReportedWorkPackage, SlotSealerType, Timeslot,
+        AccountInfo, AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
+        DisputesState, EntropyAccumulator, PendingReport, PendingReports, ReportedWorkPackage,
+        SlotSealerType, Timeslot,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -243,7 +244,25 @@ impl Display for ByteArray64 {
 // ----------------------------------------------------
 
 pub type Gas = u64;
+pub type Entropy = OpaqueHash;
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
+pub type WorkPackageHash = OpaqueHash;
+pub type WorkReportHash = OpaqueHash;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct EntropyBuffer(pub [Entropy; 4]);
+
+impl From<EntropyAccumulator> for EntropyBuffer {
+    fn from(value: EntropyAccumulator) -> Self {
+        Self(value.0.map(|entropy| ByteArray32(entropy.0)))
+    }
+}
+
+impl From<EntropyBuffer> for EntropyAccumulator {
+    fn from(value: EntropyBuffer) -> Self {
+        Self(value.0.map(|entropy| ByteArray::new(entropy.0)))
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ValidatorData {
@@ -314,7 +333,7 @@ pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> ValidatorsDat
 
 pub type ServiceId = u32;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ServiceInfo {
     pub code_hash: OpaqueHash,
     pub balance: u64,
@@ -323,6 +342,54 @@ pub struct ServiceInfo {
     bytes: u64,
     items: u32,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ServiceItem {
+    pub id: ServiceId,
+    pub info: ServiceInfo,
+}
+
+impl From<AccountMetadata> for ServiceItem {
+    fn from(value: AccountMetadata) -> Self {
+        let info = ServiceInfo {
+            code_hash: ByteArray32(value.account_info.code_hash.0),
+            balance: value.account_info.balance,
+            min_item_gas: value.account_info.gas_limit_accumulate,
+            min_memo_gas: value.account_info.gas_limit_on_transfer,
+            bytes: value.lookups_total_octets + value.storage_total_octets,
+            items: value.lookups_items_count + value.storage_items_count,
+        };
+
+        Self {
+            id: value.address,
+            info,
+        }
+    }
+}
+
+impl From<ServiceItem> for AccountMetadata {
+    // Note: assigning all `bytes` and `items` to storage since `ServiceInfo` doesn't track those
+    // for the storage and lookups separately.
+    fn from(value: ServiceItem) -> Self {
+        let account_info = AccountInfo {
+            code_hash: ByteArray::new(value.info.code_hash.0),
+            balance: value.info.balance,
+            gas_limit_accumulate: value.info.min_item_gas,
+            gas_limit_on_transfer: value.info.min_memo_gas,
+        };
+
+        Self {
+            address: value.id,
+            account_info,
+            lookups_items_count: 0,
+            storage_items_count: value.info.items,
+            lookups_total_octets: 0,
+            storage_total_octets: value.info.bytes,
+        }
+    }
+}
+
+pub type Services = Vec<ServiceItem>;
 
 // ----------------------------------------------------
 // -- Availability Assignments
@@ -902,6 +969,21 @@ impl From<BlockHistoryEntry> for BlockInfo {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnBlocksHistory(pub Vec<BlockInfo>);
+
+impl From<AsnBlocksHistory> for BlockHistory {
+    fn from(value: AsnBlocksHistory) -> Self {
+        Self(value.0.into_iter().map(BlockHistoryEntry::from).collect())
+    }
+}
+
+impl From<BlockHistory> for AsnBlocksHistory {
+    fn from(value: BlockHistory) -> Self {
+        Self(value.0.into_iter().map(BlockInfo::from).collect())
+    }
+}
+
 // ----------------------------------------------------
 // -- Tickets
 // ----------------------------------------------------
@@ -1022,7 +1104,6 @@ impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
 // -- Disputes
 // ----------------------------------------------------
 
-pub type WorkReportHash = ByteArray32;
 pub type EpochIndex = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

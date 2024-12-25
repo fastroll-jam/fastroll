@@ -1,7 +1,6 @@
 use crate::{
     asn_types::{
-        BandersnatchRingRoot, ByteArray32, OpaqueHash, TicketBody, TicketsOrKeys, ValidatorData,
-        ValidatorsData,
+        BandersnatchRingRoot, ByteArray32, TicketBody, TicketsOrKeys, ValidatorData, ValidatorsData,
     },
     safrole::asn_types::SafroleErrorCode,
 };
@@ -31,10 +30,6 @@ pub fn safrole_state_to_gammas(
     let gamma_s = safrole.slot_sealers.clone().into();
     let gamma_z = BandersnatchRingRoot(safrole.ring_root.0);
     (gamma_k, gamma_a, gamma_s, gamma_z)
-}
-
-pub fn entropy_accumulator_to_eta(entropy_accumulator: &EntropyAccumulator) -> [OpaqueHash; 4] {
-    entropy_accumulator.0.map(|entropy| ByteArray32(entropy.0))
 }
 
 /// Converts RJAM error types into test vector error code output

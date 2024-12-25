@@ -1,4 +1,4 @@
-use crate::asn_types::{BlockInfo, OpaqueHash, Reports};
+use crate::asn_types::{AsnBlocksHistory, BlockInfo, OpaqueHash, Reports};
 use rjam_common::Hash32;
 use rjam_types::state::{
     history::{BlockHistory, BlockHistoryEntry},
@@ -10,7 +10,7 @@ use std::fmt::Debug;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     /// Blocks history
-    pub beta: Vec<BlockInfo>,
+    pub beta: AsnBlocksHistory,
 }
 
 impl From<State> for BlockHistory {
@@ -18,6 +18,7 @@ impl From<State> for BlockHistory {
         BlockHistory(
             value
                 .beta
+                .0
                 .into_iter()
                 .map(BlockHistoryEntry::from)
                 .collect(),
@@ -28,7 +29,7 @@ impl From<State> for BlockHistory {
 impl From<BlockHistory> for State {
     fn from(value: BlockHistory) -> Self {
         Self {
-            beta: value.0.into_iter().map(BlockInfo::from).collect(),
+            beta: AsnBlocksHistory(value.0.into_iter().map(BlockInfo::from).collect()),
         }
     }
 }

@@ -9,9 +9,7 @@ mod tests {
         generate_typed_tests,
         safrole::{
             asn_types::{Input, JamInput, Output, SafroleErrorCode, State},
-            utils::{
-                entropy_accumulator_to_eta, map_error_to_custom_code, safrole_state_to_gammas,
-            },
+            utils::{map_error_to_custom_code, safrole_state_to_gammas},
         },
         state_transition::state_transition_test::{run_test_case, StateTransitionTest},
     };
@@ -43,6 +41,7 @@ mod tests {
         type Input = Input;
         type JamInput = JamInput;
         type State = State;
+        type JamTransitionOutput = ();
         type Output = Output;
         type ErrorCode = SafroleErrorCode;
 
@@ -51,7 +50,7 @@ mod tests {
         ) -> Result<StateManager, TransitionError> {
             // Convert ASN pre-state into RJAM types.
             let prior_safrole = SafroleState::from(test_pre_state);
-            let prior_entropy = EntropyAccumulator::from(test_pre_state);
+            let prior_entropy = EntropyAccumulator::from(test_pre_state.eta.clone());
             let prior_staging_set =
                 StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
             let prior_active_set =
@@ -127,7 +126,7 @@ mod tests {
             state_manager: &StateManager,
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
-        ) -> Result<(), TransitionError> {
+        ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // let (input_timeslot, input_header_entropy_hash, input_extrinsic) = jam_input;
 
             // Run the chain extension procedure.
@@ -166,6 +165,7 @@ mod tests {
 
         fn extract_output(
             header_db: &BlockHeaderDB,
+            _transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
             if let Some(error_code) = error_code {
@@ -209,7 +209,7 @@ mod tests {
 
             State {
                 tau: current_timeslot.slot(),
-                eta: entropy_accumulator_to_eta(&current_entropy),
+                eta: current_entropy.into(),
                 lambda: validator_set_to_validators_data(&current_past_set),
                 kappa: validator_set_to_validators_data(&current_active_set),
                 gamma_k,

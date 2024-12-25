@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::Hash32;
+use rjam_common::{Ed25519PubKey, Hash32};
 use rjam_extrinsics::validation::{
     assurances::AssurancesExtrinsicValidator, disputes::DisputesExtrinsicValidator,
     guarantees::GuaranteesExtrinsicValidator,
@@ -74,8 +74,8 @@ pub fn transition_reports_clear_availables(
     Ok(())
 }
 
-/// State transition function of `PendingReports`, replacing timed-out entries with new reports
-/// introduced in this block by consuming the `GuaranteesExtrinsic`.
+/// State transition function of `PendingReports`, adding new reports or replacing those that
+/// have timed out, based on reports introduced in this block’s `GuaranteesExtrinsic`.
 ///
 /// # Transitions
 ///
@@ -83,12 +83,16 @@ pub fn transition_reports_clear_availables(
 /// New work reports from the guarantees extrinsic can be added to `PendingReports`.
 /// If a core's slot is empty, the new report fills it. If the slot is occupied, the existing
 /// entry is replaced only if more than `U = 5` timeslots have passed since the report was submitted.
-pub fn transition_reports_replace_entries(
+///
+/// # Return
+/// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
+#[allow(clippy::type_complexity)]
+pub fn transition_reports_update_entries(
     state_manager: &StateManager,
     guarantees: &GuaranteesExtrinsic,
     header_timeslot_index: u32,
     current_timeslot: &Timeslot,
-) -> Result<(), TransitionError> {
+) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesExtrinsicValidator::new(state_manager);
     guarantees_validator.validate(guarantees, header_timeslot_index)?;
@@ -103,5 +107,13 @@ pub fn transition_reports_replace_entries(
         }
     })?;
 
-    Ok(())
+    let reported_packages: Vec<(Hash32, Hash32)> = new_valid_reports
+        .into_iter()
+        .map(|report| (report.specs.work_package_hash, report.specs.segment_root))
+        .collect();
+
+    let active_set = state_manager.get_active_set()?;
+    let reporters = guarantees.extract_reporters(&active_set);
+
+    Ok((reported_packages, reporters))
 }

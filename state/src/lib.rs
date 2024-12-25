@@ -126,6 +126,16 @@ impl StateManager {
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
 
+    pub fn load_account_metadata_for_test(
+        &mut self,
+        address: Address,
+        state_entry_type: StateEntryType,
+    ) {
+        let state_key = get_account_metadata_state_key(address);
+        self.cache
+            .insert(state_key, CacheEntry::new(state_entry_type));
+    }
+
     pub fn new(state_db: Arc<StateDB>, merkle_db: Arc<MerkleDB>) -> Self {
         Self {
             state_db: Some(state_db),
