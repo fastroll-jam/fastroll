@@ -1,13 +1,10 @@
-use crate::{
-    asn_types::{
-        validators_data_to_validator_set, Ed25519Key, EpochMark, OpaqueHash, TicketBody,
-        TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
-    },
-    test_utils::{deserialize_hex_array, serialize_hex_array},
+use crate::asn_types::{
+    validators_data_to_validator_set, BandersnatchRingRoot, Ed25519Key, EpochMark, OpaqueHash,
+    TicketBody, TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
 };
-use rjam_common::{ByteArray, Ticket};
+use rjam_common::{ByteArray, Hash32, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
-use rjam_types::state::*;
+use rjam_types::{extrinsics::tickets::TicketsExtrinsic, state::*};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -25,8 +22,8 @@ pub enum SafroleErrorCode {
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct OutputMarks {
-    epoch_mark: Option<EpochMark>,     // New epoch signal
-    tickets_mark: Option<TicketsMark>, // Tickets signal
+    pub epoch_mark: Option<EpochMark>,     // New epoch signal
+    pub tickets_mark: Option<TicketsMark>, // Tickets signal
 }
 
 impl From<SafroleHeaderMarkers> for OutputMarks {
@@ -42,19 +39,15 @@ impl From<SafroleHeaderMarkers> for OutputMarks {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub tau: u32,                 // Most recent block's timeslot
-    pub eta: [OpaqueHash; 4],     // Entropy accumulator and epochal randomness
+    pub tau: u32,                        // Most recent block's timeslot
+    pub eta: [OpaqueHash; 4],            // Entropy accumulator and epochal randomness
     pub lambda: ValidatorsData, // Validator keys and metadata which were active in the prior epoch
     pub kappa: ValidatorsData,  // Validator keys and metadata currently active
     pub gamma_k: ValidatorsData, // Validator keys for the following epoch
     pub iota: ValidatorsData,   // Validator keys and metadata to be drawn from next
     pub gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
     pub gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
-    #[serde(
-        serialize_with = "serialize_hex_array",
-        deserialize_with = "deserialize_hex_array"
-    )]
-    pub gamma_z: [u8; 144], // Bandersnatch ring commitment
+    pub gamma_z: BandersnatchRingRoot, // Bandersnatch ring commitment
     pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
 }
 
@@ -62,7 +55,7 @@ impl From<&State> for SafroleState {
     fn from(value: &State) -> Self {
         SafroleState {
             pending_set: validators_data_to_validator_set(&value.gamma_k),
-            ring_root: ByteArray::new(value.gamma_z),
+            ring_root: ByteArray::new(value.gamma_z.0),
             slot_sealers: SlotSealerType::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
                 value
@@ -89,6 +82,12 @@ pub struct Input {
     pub slot: u32,                      // Current slot
     pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
     pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
+}
+
+pub struct JamInput {
+    pub slot: Timeslot,
+    pub entropy: Hash32,
+    pub extrinsic: TicketsExtrinsic,
 }
 
 #[allow(non_camel_case_types)]

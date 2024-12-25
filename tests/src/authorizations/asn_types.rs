@@ -1,8 +1,9 @@
-use crate::asn_types::{AsnAuthPools, AsnAuthQueues, CoreIndex, OpaqueHash, TimeSlot};
+use crate::asn_types::{AsnAuthPools, AsnAuthQueues, AsnCoreIndex, AsnTimeSlot, OpaqueHash};
 use rjam_common::ByteArray;
 use rjam_types::{
     common::workloads::WorkReport,
     extrinsics::guarantees::{GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
+    state::Timeslot,
 };
 use serde::{Deserialize, Serialize};
 
@@ -14,13 +15,13 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoreAuthorizer {
-    pub core: CoreIndex,
+    pub core: AsnCoreIndex,
     pub auth_hash: OpaqueHash,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub slot: TimeSlot,
+    pub slot: AsnTimeSlot,
     pub auths: Vec<CoreAuthorizer>,
 }
 
@@ -39,7 +40,12 @@ impl From<Input> for GuaranteesExtrinsic {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JamInput {
+    pub slot: Timeslot,
+    pub extrinsic: GuaranteesExtrinsic,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Output;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

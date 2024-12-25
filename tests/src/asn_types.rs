@@ -54,12 +54,21 @@ pub const CORE_COUNT: usize = 2;
 // -- Simple Types
 // ----------------------------------------------------
 
-pub type TimeSlot = u32;
-pub type CoreIndex = u16;
+pub type AsnTimeSlot = u32;
+pub type AsnCoreIndex = u16;
 pub type OpaqueHash = ByteArray32;
 pub type BandersnatchKey = ByteArray32;
 pub type Ed25519Key = ByteArray32;
 pub type Ed25519Signature = ByteArray64;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BandersnatchRingRoot(
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; 144],
+);
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct BandersnatchVrfSignature(
@@ -383,7 +392,7 @@ pub struct RefineContext {
     pub state_root: OpaqueHash,
     pub beefy_root: OpaqueHash,
     pub lookup_anchor: OpaqueHash,
-    pub lookup_anchor_slot: TimeSlot,
+    pub lookup_anchor_slot: AsnTimeSlot,
     pub prerequisites: Vec<OpaqueHash>,
 }
 

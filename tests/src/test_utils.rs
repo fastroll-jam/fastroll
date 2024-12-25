@@ -1,47 +1,35 @@
 use serde::{
-    de::{DeserializeOwned, Error, Visitor},
-    Deserializer, Serialize, Serializer,
+    de::{Error, Visitor},
+    Deserializer, Serializer,
 };
-use std::{
-    fmt,
-    fmt::Formatter,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fmt, fmt::Formatter};
 
-/// Generates test functions from provided test cases.
+/// Generates typed test functions from provided test cases.
 ///
 /// # Usage
 /// ```text
-/// generate_tests! {
+/// generate_typed_tests! {
+///     TestType,
 ///     test_name1: "path/to/case1",
 ///     test_name2: "path/to/case2",
 /// }
 /// ```
 ///
-/// Each entry generates a test function that calls `run_test_case("path/to/case")`.
-/// Ensure `run_test_case` is in scope and returns `Result<(), Box<dyn Error>>`.
+/// The first entry represents type of the stat transition test.
+/// For the following entries, each entry generates a test function
+/// that calls `run_test_case::<TestType>("path/to/case")`.
+///
+/// Ensure `run_test_case` is in scope and returns `Result<(), TransitionError>`.
 #[macro_export]
-macro_rules! generate_tests {
-    ($($name:ident: $path:expr,)*) => {
+macro_rules! generate_typed_tests {
+    ($test_type:ty, $($name:ident: $path:expr,)*) => {
         $(
             #[test]
             fn $name() -> Result<(), TransitionError> {
-                run_test_case($path)
+                run_test_case::<$test_type>($path)
             }
         )*
     }
-}
-
-/// Loads a test case from the path to the test vectors.
-pub(crate) fn load_test_case<T>(path: &Path) -> Result<T, ()>
-where
-    T: Serialize + DeserializeOwned,
-{
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-    let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
-    let test_case = serde_json::from_str(&json_str).expect("Failed to parse JSON");
-    Ok(test_case)
 }
 
 // Helper deserializers to manage `0x` prefix

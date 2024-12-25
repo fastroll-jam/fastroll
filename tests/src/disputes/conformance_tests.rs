@@ -6,11 +6,11 @@ mod tests {
             validator_set_to_validators_data, validators_data_to_validator_set, DisputesOutputMarks,
         },
         disputes::{
-            asn_types::{Input, Output, State, TestCase},
+            asn_types::{DisputesErrorCode, Input, JamInput, Output, State},
             utils::map_error_to_custom_code,
         },
-        generate_tests,
-        test_utils::load_test_case,
+        generate_typed_tests,
+        test_trait::{run_test_case, StateTransitionTest},
     };
     use rjam_db::BlockHeaderDB;
     use rjam_state::StateManager;
@@ -20,126 +20,141 @@ mod tests {
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
     };
     use rjam_types::{
-        extrinsics::disputes::{DisputesExtrinsic, OffendersHeaderMarker},
+        extrinsics::disputes::OffendersHeaderMarker,
         state::*,
         state_utils::{StateEntryType, StateKeyConstant},
     };
-    use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-polkajam/disputes/tiny";
+    struct DisputesTest;
 
-    // Returns the actual post state, to be compared with the test post state.
-    fn run_state_transition(
-        test_input: &Input,
-        test_pre_state: &State,
-    ) -> Result<(State, Output), TransitionError> {
-        // Convert ASN pre-state into RJAM types.
-        let prior_disputes_state = DisputesState::from(test_pre_state.psi.clone());
-        let prior_pending_reports = PendingReports::from(test_pre_state.rho.clone());
-        let prior_timeslot = Timeslot::new(test_pre_state.tau);
-        let prior_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-        let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+    impl StateTransitionTest for DisputesTest {
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/disputes/tiny";
 
-        // Initialize StateManager.
-        let mut state_manager = StateManager::new_for_test();
-        // Initialize HeaderDB.
-        let mut header_db = BlockHeaderDB::initialize_for_test();
+        type Input = Input;
+        type JamInput = JamInput;
+        type State = State;
+        type Output = Output;
+        type ErrorCode = DisputesErrorCode;
 
-        // Load pre-state info the state cache.
-        state_manager.load_state_for_test(
-            StateKeyConstant::DisputesState,
-            StateEntryType::DisputesState(prior_disputes_state),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::PendingReports,
-            StateEntryType::PendingReports(prior_pending_reports),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::Timeslot,
-            StateEntryType::Timeslot(prior_timeslot),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::ActiveSet,
-            StateEntryType::ActiveSet(prior_active_set),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::PastSet,
-            StateEntryType::PastSet(prior_past_set),
-        );
+        fn setup_state_manager(
+            test_pre_state: &Self::State,
+        ) -> Result<StateManager, TransitionError> {
+            // Convert ASN pre-state into RJAM types.
+            let prior_disputes_state = DisputesState::from(test_pre_state.psi.clone());
+            let prior_pending_reports = PendingReports::from(test_pre_state.rho.clone());
+            let prior_timeslot = Timeslot::new(test_pre_state.tau);
+            let prior_active_set =
+                ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+            let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
 
-        // Convert ASN Input into RJAM types.
-        let input_extrinsic: DisputesExtrinsic = test_input.disputes.clone().into();
+            // Initialize StateManager.
+            let mut state_manager = StateManager::new_for_test();
 
-        // Run state transitions.
-        let offenders_marker = input_extrinsic.collect_offender_keys();
-        transition_reports_eliminate_invalid(&state_manager, &input_extrinsic, &prior_timeslot)?;
-        transition_disputes(&state_manager, &input_extrinsic, &prior_timeslot)?;
-        set_header_offenders_marker(&mut header_db, &offenders_marker.items)?;
+            // Load pre-state info the state cache.
+            state_manager.load_state_for_test(
+                StateKeyConstant::DisputesState,
+                StateEntryType::DisputesState(prior_disputes_state),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::PendingReports,
+                StateEntryType::PendingReports(prior_pending_reports),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::Timeslot,
+                StateEntryType::Timeslot(prior_timeslot),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::ActiveSet,
+                StateEntryType::ActiveSet(prior_active_set),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::PastSet,
+                StateEntryType::PastSet(prior_past_set),
+            );
 
-        // Convert RJAM output into ASN Output.
-        let current_header_offenders_marker = header_db
-            .get_staging_header()
-            .cloned()
-            .unwrap()
-            .offenders_marker;
-        let current_offenders_marker = OffendersHeaderMarker {
-            items: current_header_offenders_marker,
-        };
-        let disputes_output_marks: DisputesOutputMarks = current_offenders_marker.into();
+            Ok(state_manager)
+        }
 
-        // Get the posterior state from the state cache.
-        let current_disputes_state = state_manager.get_disputes()?;
-        let current_pending_reports = state_manager.get_pending_reports()?;
-        let current_timeslot = state_manager.get_timeslot()?;
-        let current_active_set = state_manager.get_active_set()?;
-        let current_past_set = state_manager.get_past_set()?;
+        fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
+            // Convert ASN Input into RJAM types.
+            Ok(JamInput {
+                extrinsic: test_input.disputes.clone().into(),
+            })
+        }
 
-        let post_state = State {
-            psi: current_disputes_state.into(),
-            rho: current_pending_reports.into(),
-            tau: current_timeslot.0,
-            kappa: validator_set_to_validators_data(&current_active_set),
-            lambda: validator_set_to_validators_data(&current_past_set),
-        };
+        fn run_state_transition(
+            state_manager: &StateManager,
+            header_db: &mut BlockHeaderDB,
+            jam_input: &Self::JamInput,
+        ) -> Result<(), TransitionError> {
+            let prior_timeslot = state_manager.get_timeslot()?;
+            let disputes = &jam_input.extrinsic;
+            let offenders_marker = disputes.collect_offender_keys();
 
-        Ok((post_state, Output::ok(disputes_output_marks)))
+            // Run state transitions.
+            transition_reports_eliminate_invalid(&state_manager, disputes, &prior_timeslot)?;
+            transition_disputes(&state_manager, disputes, &prior_timeslot)?;
+            set_header_offenders_marker(header_db, &offenders_marker.items)?;
+
+            Ok(())
+        }
+
+        fn map_error_code(e: TransitionError) -> Self::ErrorCode {
+            map_error_to_custom_code(e)
+        }
+
+        fn extract_output(
+            header_db: &BlockHeaderDB,
+            error_code: &Option<Self::ErrorCode>,
+        ) -> Self::Output {
+            if let Some(error_code) = error_code {
+                return Output::err(error_code.clone());
+            }
+
+            // Convert RJAM output into ASN Output.
+            let current_header_offenders_marker = header_db
+                .get_staging_header()
+                .cloned()
+                .unwrap()
+                .offenders_marker;
+            let current_offenders_marker = OffendersHeaderMarker {
+                items: current_header_offenders_marker,
+            };
+            let disputes_output_marks: DisputesOutputMarks = current_offenders_marker.into();
+
+            Output::ok(disputes_output_marks)
+        }
+
+        fn extract_post_state(
+            state_manager: &StateManager,
+            pre_state: &Self::State,
+            error_code: &Option<Self::ErrorCode>,
+        ) -> Self::State {
+            if error_code.is_some() {
+                // Rollback state transition
+                return pre_state.clone();
+            }
+
+            // Get the posterior state from the state cache.
+            let current_disputes_state = state_manager.get_disputes().unwrap();
+            let current_pending_reports = state_manager.get_pending_reports().unwrap();
+            let current_timeslot = state_manager.get_timeslot().unwrap();
+            let current_active_set = state_manager.get_active_set().unwrap();
+            let current_past_set = state_manager.get_past_set().unwrap();
+
+            State {
+                psi: current_disputes_state.into(),
+                rho: current_pending_reports.into(),
+                tau: current_timeslot.0,
+                kappa: validator_set_to_validators_data(&current_active_set),
+                lambda: validator_set_to_validators_data(&current_past_set),
+            }
+        }
     }
 
-    fn run_state_transition_with_error_mapping(
-        test_input: &Input,
-        test_pre_state: &State,
-    ) -> Result<(State, Output), TransitionError> {
-        run_state_transition(test_input, test_pre_state).or_else(|e| {
-            // Rollback on failure
-            Ok((
-                test_pre_state.clone(),
-                Output::err(map_error_to_custom_code(e)),
-            ))
-        })
-    }
+    generate_typed_tests! {
+        DisputesTest,
 
-    fn run_test_case(filename: &str) -> Result<(), TransitionError> {
-        let path = PathBuf::from(PATH_PREFIX).join(filename);
-        let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
-        let expected_post_state = test_case.post_state;
-
-        let (post_state, output) =
-            run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
-
-        // Assertion on the post state
-        // assert_eq!(post_state, expected_post_state);
-        assert_eq!(post_state.psi, expected_post_state.psi);
-        assert_eq!(post_state.rho, expected_post_state.rho);
-        assert_eq!(post_state.tau, expected_post_state.tau);
-        assert_eq!(post_state.kappa, expected_post_state.kappa);
-        assert_eq!(post_state.lambda, expected_post_state.lambda);
-
-        // Assertion on the state transition output
-        assert_eq!(output, test_case.output);
-        Ok(())
-    }
-
-    generate_tests! {
         // Success
         // No verdicts, nothing special happens.
         progress_with_no_verdicts_1: "progress_with_no_verdicts-1.json",

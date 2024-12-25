@@ -6,20 +6,22 @@ mod tests {
             validator_set_to_validators_data, validators_data_to_validator_set, ByteArray32,
             TicketEnvelope,
         },
-        generate_tests,
+        generate_typed_tests,
         safrole::{
-            asn_types::{Input, Output, OutputMarks, State, TestCase},
+            asn_types::{Input, JamInput, Output, SafroleErrorCode, State},
             utils::{
                 entropy_accumulator_to_eta, map_error_to_custom_code, safrole_state_to_gammas,
             },
         },
-        test_utils::load_test_case,
+        test_trait::{run_test_case, StateTransitionTest},
     };
     use rjam_common::ByteArray;
+    use rjam_db::BlockHeaderDB;
     use rjam_state::{StateManager, StateWriteOp};
     use rjam_transition::{
         error::TransitionError,
-        procedures::chain_extension::mark_safrole_header_markers,
+        header::{set_header_epoch_marker, set_header_winning_tickets_marker},
+        procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
             entropy::transition_entropy_accumulator,
             safrole::transition_safrole,
@@ -32,169 +34,200 @@ mod tests {
         state::*,
         state_utils::{StateEntryType, StateKeyConstant},
     };
-    use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-polkajam/safrole/tiny";
+    struct SafroleTest;
 
-    // Returns the actual post state, to be compared with the test post state.
-    fn run_state_transition(
-        test_input: &Input,
-        test_pre_state: &State,
-    ) -> Result<(State, Output), TransitionError> {
-        // Convert ASN pre-state into RJAM types.
-        let prior_safrole = SafroleState::from(test_pre_state);
-        let prior_entropy = EntropyAccumulator::from(test_pre_state);
-        let prior_staging_set = StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
-        let prior_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-        let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
-        let prior_timeslot = Timeslot::new(test_pre_state.tau);
-        let prior_post_offenders = test_pre_state
-            .post_offenders
-            .iter()
-            .map(|key| ByteArray::new(key.0))
-            .collect();
+    impl StateTransitionTest for SafroleTest {
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/safrole/tiny";
 
-        // Initialize StateManager.
-        let mut state_manager = StateManager::new_for_test();
+        type Input = Input;
+        type JamInput = JamInput;
+        type State = State;
+        type Output = Output;
+        type ErrorCode = SafroleErrorCode;
 
-        // Load pre-state into the state cache.
-        state_manager.load_state_for_test(
-            StateKeyConstant::SafroleState,
-            StateEntryType::SafroleState(prior_safrole),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::StagingSet,
-            StateEntryType::StagingSet(prior_staging_set),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::ActiveSet,
-            StateEntryType::ActiveSet(prior_active_set),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::PastSet,
-            StateEntryType::PastSet(prior_past_set),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::EntropyAccumulator,
-            StateEntryType::EntropyAccumulator(prior_entropy),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::Timeslot,
-            StateEntryType::Timeslot(prior_timeslot),
-        );
-        state_manager.load_state_for_test(
-            StateKeyConstant::DisputesState,
-            StateEntryType::DisputesState(DisputesState::default()),
-        );
-        state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
-            disputes.punish_set = prior_post_offenders;
-        })?;
+        fn setup_state_manager(
+            test_pre_state: &Self::State,
+        ) -> Result<StateManager, TransitionError> {
+            // Convert ASN pre-state into RJAM types.
+            let prior_safrole = SafroleState::from(test_pre_state);
+            let prior_entropy = EntropyAccumulator::from(test_pre_state);
+            let prior_staging_set =
+                StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
+            let prior_active_set =
+                ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+            let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+            let prior_timeslot = Timeslot::new(test_pre_state.tau);
+            let prior_post_offenders = test_pre_state
+                .post_offenders
+                .iter()
+                .map(|key| ByteArray::new(key.0))
+                .collect();
 
-        // Convert ASN Input into RJAM types.
-        let input_timeslot = Timeslot::new(test_input.slot);
-        let input_header_entropy_hash = test_input.entropy.0;
-        let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
-            .extrinsic
-            .clone()
-            .into_iter()
-            .map(TicketEnvelope::into)
-            .collect();
-        let input_ticket_extrinsic = TicketsExtrinsic {
-            items: input_ticket_entries,
-        };
+            // Initialize StateManager.
+            let mut state_manager = StateManager::new_for_test();
 
-        // Run the chain extension procedure.
-        transition_timeslot(&state_manager, &input_timeslot)?;
-        let current_timeslot = state_manager.get_timeslot()?;
-        let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
-        transition_entropy_accumulator(
-            &state_manager,
-            epoch_progressed,
-            ByteArray::new(input_header_entropy_hash),
-        )?;
-        transition_past_set(&state_manager, epoch_progressed)?;
-        transition_active_set(&state_manager, epoch_progressed)?;
-        transition_safrole(
-            &state_manager,
-            &prior_timeslot,
-            epoch_progressed,
-            &input_ticket_extrinsic,
-        )?;
+            // Load pre-state into the state cache.
+            state_manager.load_state_for_test(
+                StateKeyConstant::SafroleState,
+                StateEntryType::SafroleState(prior_safrole),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::StagingSet,
+                StateEntryType::StagingSet(prior_staging_set),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::ActiveSet,
+                StateEntryType::ActiveSet(prior_active_set),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::PastSet,
+                StateEntryType::PastSet(prior_past_set),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::EntropyAccumulator,
+                StateEntryType::EntropyAccumulator(prior_entropy),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::Timeslot,
+                StateEntryType::Timeslot(prior_timeslot),
+            );
+            state_manager.load_state_for_test(
+                StateKeyConstant::DisputesState,
+                StateEntryType::DisputesState(DisputesState::default()),
+            );
+            state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
+                disputes.punish_set = prior_post_offenders;
+            })?;
 
-        // Convert RJAM output into ASN Output.
-        let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
-        let output_marks = OutputMarks::from(markers);
+            Ok(state_manager)
+        }
 
-        // Get the posterior state from the state cache.
-        let current_safrole = state_manager.get_safrole()?;
-        let current_staging_set = state_manager.get_staging_set()?;
-        let current_active_set = state_manager.get_active_set()?;
-        let current_past_set = state_manager.get_past_set()?;
-        let current_entropy = state_manager.get_entropy_accumulator()?;
-        let current_timeslot = state_manager.get_timeslot()?;
-        let current_post_offenders = state_manager.get_disputes()?.punish_set;
-
-        // Convert RJAM types post-state into ASN post-state
-
-        let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&current_safrole);
-        let post_state = State {
-            tau: current_timeslot.slot(),
-            eta: entropy_accumulator_to_eta(&current_entropy),
-            lambda: validator_set_to_validators_data(&current_past_set),
-            kappa: validator_set_to_validators_data(&current_active_set),
-            gamma_k,
-            iota: validator_set_to_validators_data(&current_staging_set),
-            gamma_a,
-            gamma_s,
-            gamma_z,
-            post_offenders: current_post_offenders
+        fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
+            // Convert ASN Input into RJAM types.
+            let input_timeslot = Timeslot::new(test_input.slot);
+            let input_header_entropy_hash = test_input.entropy.0;
+            let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
+                .extrinsic
+                .clone()
                 .into_iter()
-                .map(ByteArray32::from)
-                .collect(),
-        };
+                .map(TicketEnvelope::into)
+                .collect();
 
-        Ok((post_state, Output::ok(output_marks)))
+            Ok(JamInput {
+                slot: input_timeslot,
+                entropy: ByteArray::new(input_header_entropy_hash),
+                extrinsic: TicketsExtrinsic {
+                    items: input_ticket_entries,
+                },
+            })
+        }
+
+        fn run_state_transition(
+            state_manager: &StateManager,
+            header_db: &mut BlockHeaderDB,
+            jam_input: &Self::JamInput,
+        ) -> Result<(), TransitionError> {
+            // let (input_timeslot, input_header_entropy_hash, input_extrinsic) = jam_input;
+
+            // Run the chain extension procedure.
+            let prior_timeslot = state_manager.get_timeslot()?;
+            transition_timeslot(&state_manager, &jam_input.slot)?;
+            let current_timeslot = state_manager.get_timeslot()?;
+            let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
+            transition_entropy_accumulator(
+                &state_manager,
+                epoch_progressed,
+                jam_input.entropy.clone(),
+            )?;
+            transition_past_set(&state_manager, epoch_progressed)?;
+            transition_active_set(&state_manager, epoch_progressed)?;
+            transition_safrole(
+                &state_manager,
+                &prior_timeslot,
+                epoch_progressed,
+                &jam_input.extrinsic,
+            )?;
+
+            let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
+            if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
+                set_header_epoch_marker(header_db, epoch_marker)?;
+            }
+            if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
+                set_header_winning_tickets_marker(header_db, winning_tickets_marker)?;
+            }
+
+            Ok(())
+        }
+
+        fn map_error_code(e: TransitionError) -> Self::ErrorCode {
+            map_error_to_custom_code(e)
+        }
+
+        fn extract_output(
+            header_db: &BlockHeaderDB,
+            error_code: &Option<Self::ErrorCode>,
+        ) -> Self::Output {
+            if let Some(error_code) = error_code {
+                return Output::err(error_code.clone());
+            }
+
+            // Convert RJAM output into ASN Output.
+            let staging_header = header_db.get_staging_header().cloned().unwrap();
+            let current_header_epoch_marker = staging_header.epoch_marker;
+            let current_header_winning_tickets_marker = staging_header.winning_tickets_marker;
+
+            let output_marks = SafroleHeaderMarkers {
+                epoch_marker: current_header_epoch_marker,
+                winning_tickets_marker: current_header_winning_tickets_marker,
+            };
+
+            Output::ok(output_marks.into())
+        }
+
+        fn extract_post_state(
+            state_manager: &StateManager,
+            pre_state: &Self::State,
+            error_code: &Option<Self::ErrorCode>,
+        ) -> Self::State {
+            if error_code.is_some() {
+                // Rollback state transition
+                return pre_state.clone();
+            }
+
+            // Get the posterior state from the state cache.
+            let current_safrole = state_manager.get_safrole().unwrap();
+            let current_staging_set = state_manager.get_staging_set().unwrap();
+            let current_active_set = state_manager.get_active_set().unwrap();
+            let current_past_set = state_manager.get_past_set().unwrap();
+            let current_entropy = state_manager.get_entropy_accumulator().unwrap();
+            let current_timeslot = state_manager.get_timeslot().unwrap();
+            let current_post_offenders = state_manager.get_disputes().unwrap().punish_set;
+
+            // Convert RJAM types post-state into ASN post-state
+            let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&current_safrole);
+
+            State {
+                tau: current_timeslot.slot(),
+                eta: entropy_accumulator_to_eta(&current_entropy),
+                lambda: validator_set_to_validators_data(&current_past_set),
+                kappa: validator_set_to_validators_data(&current_active_set),
+                gamma_k,
+                iota: validator_set_to_validators_data(&current_staging_set),
+                gamma_a,
+                gamma_s,
+                gamma_z,
+                post_offenders: current_post_offenders
+                    .into_iter()
+                    .map(ByteArray32::from)
+                    .collect(),
+            }
+        }
     }
 
-    fn run_state_transition_with_error_mapping(
-        test_input: &Input,
-        test_pre_state: &State,
-    ) -> Result<(State, Output), TransitionError> {
-        run_state_transition(test_input, test_pre_state).or_else(|e| {
-            // Rollback on failure
-            Ok((
-                test_pre_state.clone(),
-                Output::err(map_error_to_custom_code(e)),
-            ))
-        })
-    }
+    generate_typed_tests! {
+        SafroleTest,
 
-    fn run_test_case(filename: &str) -> Result<(), TransitionError> {
-        let path = PathBuf::from(PATH_PREFIX).join(filename);
-        let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
-        let expected_post_state = test_case.post_state;
-
-        let (post_state, output) =
-            run_state_transition_with_error_mapping(&test_case.input, &test_case.pre_state)?;
-
-        // Assertion on the post state
-        // assert_eq!(post_state, expected_post_state);
-        assert_eq!(post_state.tau, expected_post_state.tau);
-        assert_eq!(post_state.eta, expected_post_state.eta);
-        assert_eq!(post_state.lambda, expected_post_state.lambda);
-        assert_eq!(post_state.kappa, expected_post_state.kappa);
-        assert_eq!(post_state.gamma_k, expected_post_state.gamma_k);
-        assert_eq!(post_state.iota, expected_post_state.iota);
-        assert_eq!(post_state.gamma_a, expected_post_state.gamma_a);
-        assert_eq!(post_state.gamma_s, expected_post_state.gamma_s);
-        assert_eq!(post_state.gamma_z, expected_post_state.gamma_z);
-
-        // Assertion on the state transition output
-        assert_eq!(output, test_case.output);
-        Ok(())
-    }
-
-    generate_tests! {
         // Success
         // Progress by one slot.
         // Randomness accumulator is updated.

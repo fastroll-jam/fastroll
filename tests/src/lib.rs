@@ -11,4 +11,6 @@ mod history;
 #[cfg(test)]
 mod safrole;
 #[cfg(test)]
+mod test_trait;
+#[cfg(test)]
 pub(crate) mod test_utils;

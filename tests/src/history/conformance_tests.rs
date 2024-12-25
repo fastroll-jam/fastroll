@@ -2,11 +2,12 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        generate_tests,
-        history::asn_types::{Input, Output, State, TestCase},
-        test_utils::load_test_case,
+        generate_typed_tests,
+        history::asn_types::{Input, JamInput, Output, State},
+        test_trait::{run_test_case, StateTransitionTest},
     };
     use rjam_common::ByteArray;
+    use rjam_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
@@ -16,73 +17,99 @@ mod tests {
         state::history::ReportedWorkPackage,
         state_utils::{StateEntryType, StateKeyConstant},
     };
-    use std::path::PathBuf;
 
-    const PATH_PREFIX: &str = "jamtestvectors-polkajam/history/data";
+    struct HistoryTest;
 
-    // Returns the actual post state, to be compared with the test post state.
-    fn run_state_transition(
-        test_input: &Input,
-        test_pre_state: &State,
-    ) -> Result<(State, Output), TransitionError> {
-        // Convert ASN pre-state into RJAM types.
-        let prior_block_history = test_pre_state.clone().into();
+    impl StateTransitionTest for HistoryTest {
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/history/data";
 
-        // Initialize StateManager.
-        let mut state_manager = StateManager::new_for_test();
+        type Input = Input;
+        type JamInput = JamInput;
+        type State = State;
+        type Output = Output;
+        type ErrorCode = ();
 
-        // Load pre-state into the state cache.
-        state_manager.load_state_for_test(
-            StateKeyConstant::BlockHistory,
-            StateEntryType::BlockHistory(prior_block_history),
-        );
+        fn setup_state_manager(
+            test_pre_state: &Self::State,
+        ) -> Result<StateManager, TransitionError> {
+            // Convert ASN pre-state into RJAM types.
+            let prior_block_history = test_pre_state.clone().into();
 
-        // Run BlockHistory state transitions.
+            // Initialize StateManager.
+            let mut state_manager = StateManager::new_for_test();
 
-        // First transition: Prior state root integration.
-        transition_block_history_parent_root(
-            &state_manager,
-            ByteArray::new(test_input.parent_state_root.0),
-        )?;
+            // Load pre-state into the state cache.
+            state_manager.load_state_for_test(
+                StateKeyConstant::BlockHistory,
+                StateEntryType::BlockHistory(prior_block_history),
+            );
 
-        // Second transition: Append new history entry.
-        let reported_packages: Vec<ReportedWorkPackage> = test_input
-            .work_packages
-            .iter()
-            .map(|reported| ReportedWorkPackage {
-                work_package_hash: ByteArray::new(reported.hash.0),
-                segment_root: ByteArray::new(reported.exports_root.0),
+            Ok(state_manager)
+        }
+
+        fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
+            let header_hash = ByteArray::new(test_input.header_hash.0);
+            let parent_state_root = ByteArray::new(test_input.parent_state_root.0);
+            let accumulate_root = ByteArray::new(test_input.accumulate_root.0);
+            let reported_packages: Vec<ReportedWorkPackage> = test_input
+                .work_packages
+                .iter()
+                .map(|reported| ReportedWorkPackage {
+                    work_package_hash: ByteArray::new(reported.hash.0),
+                    segment_root: ByteArray::new(reported.exports_root.0),
+                })
+                .collect();
+
+            Ok(JamInput {
+                header_hash,
+                parent_state_root,
+                accumulate_root,
+                reported_packages,
             })
-            .collect();
-        transition_block_history_append(
-            &state_manager,
-            ByteArray::new(test_input.header_hash.0),
-            ByteArray::new(test_input.accumulate_root.0),
-            &reported_packages,
-        )?;
+        }
 
-        // Get the posterior state from the state cache.
-        let current_block_history = state_manager.get_block_history()?;
+        fn run_state_transition(
+            state_manager: &StateManager,
+            _header_db: &mut BlockHeaderDB,
+            jam_input: &Self::JamInput,
+        ) -> Result<(), TransitionError> {
+            // First transition: Prior state root integration.
+            transition_block_history_parent_root(&state_manager, jam_input.parent_state_root)?;
 
-        // Convert RJAM types post-state into ASN post-state
-        let post_state = current_block_history.into();
-        Ok((post_state, Output))
+            // Second transition: Append new history entry.
+            transition_block_history_append(
+                &state_manager,
+                jam_input.header_hash,
+                jam_input.accumulate_root,
+                &jam_input.reported_packages,
+            )?;
+
+            Ok(())
+        }
+
+        fn map_error_code(_e: TransitionError) -> Self::ErrorCode {
+            // No custom error code
+        }
+
+        fn extract_output(
+            _header_db: &BlockHeaderDB,
+            _error_code: &Option<Self::ErrorCode>,
+        ) -> Self::Output {
+            Output
+        }
+
+        fn extract_post_state(
+            state_manager: &StateManager,
+            _pre_state: &Self::State,
+            _error_code: &Option<Self::ErrorCode>,
+        ) -> Self::State {
+            state_manager.get_block_history().unwrap().into()
+        }
     }
 
-    fn run_test_case(filename: &str) -> Result<(), TransitionError> {
-        let path = PathBuf::from(PATH_PREFIX).join(filename);
-        let test_case: TestCase = load_test_case(&path).expect("Failed to load test vector.");
-        let expected_post_state = test_case.post_state;
+    generate_typed_tests! {
+        HistoryTest,
 
-        let (post_state, _output) = run_state_transition(&test_case.input, &test_case.pre_state)?;
-
-        // Assertion on the post state
-        assert_eq!(post_state.beta, expected_post_state.beta);
-
-        Ok(())
-    }
-
-    generate_tests! {
         // Success
         // Empty history queue.
         progress_blocks_history_1: "progress_blocks_history-1.json",

@@ -1,5 +1,9 @@
 use crate::asn_types::{BlockInfo, OpaqueHash, Reports};
-use rjam_types::state::history::{BlockHistory, BlockHistoryEntry};
+use rjam_common::Hash32;
+use rjam_types::state::{
+    history::{BlockHistory, BlockHistoryEntry},
+    ReportedWorkPackage,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -38,7 +42,14 @@ pub struct Input {
     pub work_packages: Reports,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JamInput {
+    pub header_hash: Hash32,
+    pub parent_state_root: Hash32,
+    pub accumulate_root: Hash32,
+    pub reported_packages: Vec<ReportedWorkPackage>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Output;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
