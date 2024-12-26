@@ -420,10 +420,10 @@ impl From<AvailabilityAssignment> for PendingReport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AvailabilityAssignments([Option<AvailabilityAssignment>; CORE_COUNT]);
+pub struct AvailAssignments([Option<AvailabilityAssignment>; CORE_COUNT]);
 
-impl From<AvailabilityAssignments> for PendingReports {
-    fn from(value: AvailabilityAssignments) -> Self {
+impl From<AvailAssignments> for PendingReports {
+    fn from(value: AvailAssignments) -> Self {
         let mut reports: [Option<PendingReport>; CORE_COUNT] = Default::default();
 
         for (i, item) in value.0.iter().enumerate() {
@@ -444,7 +444,7 @@ impl From<AvailabilityAssignments> for PendingReports {
     }
 }
 
-impl From<PendingReports> for AvailabilityAssignments {
+impl From<PendingReports> for AvailAssignments {
     fn from(value: PendingReports) -> Self {
         let mut assignments: [Option<AvailabilityAssignment>; CORE_COUNT] = Default::default();
 
@@ -462,7 +462,7 @@ impl From<PendingReports> for AvailabilityAssignments {
             };
         }
 
-        AvailabilityAssignments(assignments)
+        AvailAssignments(assignments)
     }
 }
 

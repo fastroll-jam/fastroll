@@ -1,5 +1,5 @@
 use crate::asn_types::{
-    AsnAuthPools, AsnBlocksHistory, AsnGuaranteesExtrinsic, AsnTimeSlot, AvailabilityAssignments,
+    AsnAuthPools, AsnBlocksHistory, AsnGuaranteesExtrinsic, AsnTimeSlot, AvailAssignments,
     ByteArray32, Ed25519Key, EntropyBuffer, OpaqueHash, Services, ValidatorsData, WorkPackageHash,
 };
 use rjam_common::{Ed25519PubKey, Hash32};
@@ -32,11 +32,12 @@ pub enum ReportsErrorCode {
     segment_root_lookup_invalid,
     bad_signature,
     work_report_too_big,
+    reserved,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub avail_assignments: AvailabilityAssignments,
+    pub avail_assignments: AvailAssignments,
     pub curr_validators: ValidatorsData,
     pub prev_validators: ValidatorsData,
     pub entropy: EntropyBuffer,

@@ -1,7 +1,7 @@
 use crate::common::MerkleError;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::Hash32;
-use rjam_crypto::{hash, Hasher};
+use rjam_common::{Hash32, HASH32_EMPTY, HASH_SIZE};
+use rjam_crypto::{hash, Hasher, Keccak256};
 use std::marker::PhantomData;
 
 /// Merkle Mountain Range representation.
@@ -109,6 +109,26 @@ impl<H: Hasher> MerkleMountainRange<H> {
             // Recursive call
             self.append_recursive(new_root, index + 1)
         }
+    }
+
+    /// MMR super-peak function that yields a single hash value committing to all the peaks.
+    pub fn super_peak(&self) -> Result<Hash32, MerkleError> {
+        let mut peaks = self.peaks.iter().filter_map(|p| *p);
+
+        let Some(mut result) = peaks.next() else {
+            return Ok(HASH32_EMPTY);
+        };
+
+        let prefix: &[u8] = b"node"; // FIXME: update to "peak" (GP 0.5.3)
+        for peak in peaks {
+            let mut buf = Vec::with_capacity(prefix.len() + 2 * HASH_SIZE);
+            buf.extend_from_slice(prefix);
+            buf.extend_from_slice(result.as_slice());
+            buf.extend_from_slice(peak.as_slice());
+            result = hash::<Keccak256>(&buf)?;
+        }
+
+        Ok(result)
     }
 }
 

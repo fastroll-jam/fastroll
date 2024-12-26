@@ -2,12 +2,11 @@ use crate::{
     utils::guarantor_rotation::GuarantorAssignment,
     validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*},
 };
-use rjam_codec::JamEncode;
 use rjam_common::{
     CoreIndex, Hash32, CORE_COUNT, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
     PENDING_REPORT_TIMEOUT, X_G,
 };
-use rjam_crypto::{hash, verify_signature, Keccak256};
+use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
     common::workloads::{RefinementContext, WorkReport},
@@ -227,11 +226,12 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
         // Validate contents of the anchor block if it exists in the recent block history
         if let Some(entry) = anchor_in_block_history {
-            if (entry.state_root != anchor_state_root)
-                || (hash::<Keccak256>(&entry.accumulation_result_mmr.encode()?)?
-                    != anchor_beefy_root)
-            {
-                return Err(InvalidAnchorBlock(core_index, anchor_hash.encode_hex()));
+            if entry.state_root != anchor_state_root {
+                return Err(InvalidAnchorStateRoot(core_index, anchor_hash.encode_hex()));
+            }
+
+            if entry.accumulation_result_mmr.super_peak()? != anchor_beefy_root {
+                return Err(InvalidAnchorBeefyRoot(core_index, anchor_hash.encode_hex()));
             }
         } else {
             return Err(AnchorBlockNotFound(core_index, anchor_hash.encode_hex()));

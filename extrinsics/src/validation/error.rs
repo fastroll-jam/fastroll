@@ -3,6 +3,7 @@ use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_codec::JamCodecError;
 use rjam_common::{Address, CoreIndex, ValidatorIndex};
 use rjam_crypto::CryptoError;
+use rjam_merkle::common::MerkleError;
 use rjam_state::StateManagerError;
 use rjam_types::common::workloads::WorkReportError;
 use thiserror::Error;
@@ -99,8 +100,10 @@ pub enum ExtrinsicValidationError {
     CodeHashNotFound(CoreIndex, Address, String),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
-    #[error("Invalid anchor block. Core index: {0}, Provided anchor hash: {1}")]
-    InvalidAnchorBlock(CoreIndex, String),
+    #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
+    InvalidAnchorStateRoot(CoreIndex, String),
+    #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block hash: {1}")]
+    InvalidAnchorBeefyRoot(CoreIndex, String),
     #[error("Lookup anchor block timed out. Core index: {0}, Provided lookup anchor hash: {1}")]
     LookupAnchorBlockTimeout(CoreIndex, String),
     #[error("Invalid number of guarantors ({0}), must be 2 or 3. Core index: {1}")]
@@ -143,6 +146,8 @@ pub enum ExtrinsicValidationError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("MerkleError: {0}")]
+    MerkleError(#[from] MerkleError),
     #[error("WorkReportError: {0}")]
     WorkReportError(#[from] WorkReportError),
     #[error("Serialization error: {0}")]
