@@ -14,8 +14,8 @@ use thiserror::Error;
 pub enum PendingReportsError {
     #[error("WorkReport error: {0}")]
     WorkReportError(#[from] WorkReportError),
-    #[error("Invalid Core Index: {core_index}")]
-    InvalidCoreIndex { core_index: CoreIndex },
+    #[error("Invalid Core Index: {0}")]
+    InvalidCoreIndex(CoreIndex),
 }
 
 #[derive(Clone)]
@@ -24,8 +24,14 @@ impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COU
 impl_state_component!(PendingReports, PendingReports);
 
 impl PendingReports {
-    pub fn get_by_core_index(&self, core_index: CoreIndex) -> &Option<PendingReport> {
-        &self.0[core_index as usize]
+    pub fn get_by_core_index(
+        &self,
+        core_index: CoreIndex,
+    ) -> Result<&Option<PendingReport>, PendingReportsError> {
+        if core_index as usize >= CORE_COUNT {
+            return Err(PendingReportsError::InvalidCoreIndex(core_index));
+        }
+        Ok(&self.0[core_index as usize])
     }
 
     /// Checks if any entry holds `Some(PendingReport)` with the given hash.
@@ -50,7 +56,7 @@ impl PendingReports {
             self.0[core_index as usize] = None;
             Ok(())
         } else {
-            Err(PendingReportsError::InvalidCoreIndex { core_index })
+            Err(PendingReportsError::InvalidCoreIndex(core_index))
         }
     }
 }

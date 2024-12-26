@@ -90,7 +90,8 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
 
         let current_active_set = self.state_manager.get_active_set()?;
         let assurer_public_key =
-            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index);
+            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
+                .map_err(|_| InvalidValidatorIndex)?;
 
         if !verify_signature(&message, &assurer_public_key, &entry.signature) {
             return Err(InvalidAssuranceSignature(entry.validator_index));

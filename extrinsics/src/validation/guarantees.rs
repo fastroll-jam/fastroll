@@ -3,8 +3,9 @@ use crate::{
     validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*},
 };
 use rjam_common::{
-    CoreIndex, Hash32, CORE_COUNT, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
-    PENDING_REPORT_TIMEOUT, X_G,
+    CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
+    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
+    PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
@@ -64,11 +65,13 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
     }
 
     /// Validates the entire `GuaranteesExtrinsic`.
+    ///
+    /// Returns `Ed25519PubKey`s of guarantors of all report entries.
     pub fn validate(
         &self,
         extrinsic: &GuaranteesExtrinsic,
         header_timeslot_index: u32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
             return Err(GuaranteesEntryLimitExceeded(extrinsic.len(), CORE_COUNT));
@@ -102,37 +105,51 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             return Err(DuplicateWorkPackageHash);
         }
 
+        // Extract exports manifests from the guarantee extrinsics
+        let exports_manifests: Vec<ReportedWorkPackage> = extrinsic
+            .iter()
+            .map(|e| e.work_report.extract_exports_manifest())
+            .collect();
+
         // Validate each entry
         let pending_reports = self.state_manager.get_pending_reports()?;
         let auth_pool = self.state_manager.get_auth_pool()?;
         let block_history = self.state_manager.get_block_history()?;
 
+        let mut all_guarantor_keys = vec![];
         for entry in extrinsic.iter() {
-            self.validate_entry(
+            let guarantor_keys = self.validate_entry(
                 entry,
+                &exports_manifests,
                 &pending_reports,
                 &auth_pool,
                 &block_history,
                 &work_package_hashes,
                 header_timeslot_index,
             )?;
+            all_guarantor_keys.extend(guarantor_keys);
         }
 
-        Ok(())
+        Ok(all_guarantor_keys)
     }
 
     /// Validates each `GuaranteesExtrinsicEntry`.
+    ///
+    /// Returns `Ed25519PubKey`s of guarantors of the report entry.
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_entry(
         &self,
         entry: &GuaranteesExtrinsicEntry,
+        exports_manifests: &[ReportedWorkPackage],
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
         self.validate_work_report(
             &entry.work_report,
+            exports_manifests,
             pending_reports,
             auth_pool,
             block_history,
@@ -140,22 +157,49 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             header_timeslot_index,
         )?;
 
-        self.validate_credentials(entry)?;
-
-        Ok(())
+        self.validate_credentials(entry)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn validate_work_report(
         &self,
         work_report: &WorkReport,
+        exports_manifests: &[ReportedWorkPackage],
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
     ) -> Result<(), ExtrinsicValidationError> {
+        // Check work report output size limit
+        if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
+            return Err(WorkReportOutputSizeLimitExceeded);
+        }
+
+        // Check gas limit of the work report
+        if work_report.total_accumulation_gas_allotted() > ACCUMULATION_GAS_PER_CORE {
+            return Err(WorkReportTotalGasTooHigh);
+        }
+        for result_item in &work_report.results {
+            // TODO: error handling for target account being not found?
+            let target_service_account_metadata = self
+                .state_manager
+                .get_account_metadata(result_item.service_index)?;
+
+            let target_service_account_min_item_gas = match target_service_account_metadata {
+                Some(account) => account.account_info.gas_limit_accumulate,
+                None => continue,
+            };
+
+            if result_item.gas_prioritization_ratio < target_service_account_min_item_gas {
+                return Err(ServiceAccountGasLimitTooLow);
+            }
+        }
+
         let core_index = work_report.core_index();
-        let core_pending_report = pending_reports.get_by_core_index(core_index).clone();
+        let core_pending_report = pending_reports
+            .get_by_core_index(core_index)
+            .map_err(|_| InvalidCoreIndex)?;
 
         // Check if there is any work reported in this extrinsic while there is pending report
         // assigned to the core which is not timed-out.
@@ -169,6 +213,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         // Check the authorizer hash
         if !auth_pool
             .get_by_core_index(core_index)
+            .map_err(|_| InvalidCoreIndex)?
             .contains(&work_report.authorizer_hash())
         {
             return Err(InvalidAuthorizerHash(core_index));
@@ -192,6 +237,35 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             ));
         }
 
+        // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
+        // and the number of prerequisites must not exceed `MAX_REPORT_DEPENDENCIES`
+        let prerequisites_count = work_report
+            .refinement_context()
+            .prerequisite_work_packages
+            .len();
+        let segment_root_lookup_entries_count = work_report.segment_roots_lookup().len();
+        if prerequisites_count + segment_root_lookup_entries_count > MAX_REPORT_DEPENDENCIES {
+            return Err(TooManyDependencies(core_index));
+        }
+
+        // Check the segment root lookup dictionary entries can be found either in the same extrinsic
+        // or in the block history
+        let mut exports_manifests_merged = block_history.get_reported_packages_flattened();
+        exports_manifests_merged.extend_from_slice(exports_manifests);
+
+        for (package_hash, segments_root) in work_report.segment_roots_lookup() {
+            if let Some(observed_segment_root) = Self::find_segments_root_from_work_package_hash(
+                &exports_manifests_merged,
+                package_hash,
+            ) {
+                if &observed_segment_root != segments_root {
+                    return Err(SegmentsRoofLookupEntryInvalidValue);
+                }
+            } else {
+                return Err(SegmentsRootLookupEntryNotFound);
+            }
+        }
+
         // Check prerequisite work-packages exist either in the current extrinsic or in the recent
         // block history
         for prerequisite_hash in work_report.prerequisite().iter() {
@@ -209,6 +283,21 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         self.validate_work_results(work_report)?;
 
         Ok(())
+    }
+
+    /// Helper method to find segments root by work package hash from a vector of `ReportedWorkPackage` type.
+    ///
+    /// A vector of flattened `ReportedWorkPackage`s found from the recent block history
+    /// and the same guarantees extrinsic should be provided as the argument `reported_packages`.
+    fn find_segments_root_from_work_package_hash(
+        reported_packages: &[ReportedWorkPackage],
+        work_package_hash: &Hash32,
+    ) -> Option<Hash32> {
+        let reported_package = reported_packages
+            .iter()
+            .find(|r| r.work_package_hash == *work_package_hash);
+
+        reported_package.map(|r| r.segment_root)
     }
 
     fn validate_anchor_block(
@@ -281,11 +370,10 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
                     ));
                 }
             } else {
-                // code hash doesn't exist for the service account
-                return Err(CodeHashNotFound(
+                // service account not found
+                return Err(AccountOfWorkResultNotFound(
                     work_report.core_index(),
                     result.service_index,
-                    result.service_code_hash.encode_hex(),
                 ));
             }
         }
@@ -296,7 +384,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
     fn validate_credentials(
         &self,
         entry: &GuaranteesExtrinsicEntry,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
@@ -321,11 +409,14 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         }
 
         // Validate each credential
+        let mut guarantor_keys = Vec::with_capacity(credentials.len());
         for credential in credentials {
-            self.validate_credential(&entry.work_report, entry.timeslot_index, credential)?;
+            let guarantor =
+                self.validate_credential(&entry.work_report, entry.timeslot_index, credential)?;
+            guarantor_keys.push(guarantor);
         }
 
-        Ok(())
+        Ok(guarantor_keys)
     }
 
     fn validate_credential(
@@ -333,7 +424,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         work_report: &WorkReport,
         entry_timeslot_index: u32,
         credential: &GuaranteesCredential,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<Ed25519PubKey, ExtrinsicValidationError> {
         // Verify the signature
         let hash = work_report.hash()?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
@@ -341,23 +432,30 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         message.extend_from_slice(hash.as_slice());
 
         // Get core indices and validator keys
-        let current_timeslot = self.state_manager.get_timeslot()?.slot();
-        let within_same_rotation = current_timeslot / GUARANTOR_ROTATION_PERIOD as u32
-            == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
-
-        let guarantor_assignment = if within_same_rotation {
-            GuarantorAssignment::current_guarantor_assignments(self.state_manager)?
-        } else {
-            GuarantorAssignment::previous_guarantor_assignments(self.state_manager)?
-        };
-
+        let current_timeslot_index = self.state_manager.get_timeslot()?.slot();
+        let guarantor_assignment =
+            self.get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)?;
         let guarantor_public_key = get_validator_ed25519_key_by_index(
             &guarantor_assignment.validator_keys,
             credential.validator_index,
-        );
+        )
+        .map_err(|_| InvalidValidatorIndex)?;
 
         if !verify_signature(&message, &guarantor_public_key, &credential.signature) {
             return Err(InvalidGuaranteesSignature(credential.validator_index));
+        }
+
+        // Verify the timeslot of the work report is within a valid range (not in the future)
+        if entry_timeslot_index > current_timeslot_index {
+            return Err(WorkReportTimeslotInFuture);
+        }
+
+        // Verify the timeslot of the work report is within a valid range (not older than the previous guarantor rotation)
+        if entry_timeslot_index
+            < GUARANTOR_ROTATION_PERIOD as u32
+                * ((current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32) - 1)
+        {
+            return Err(WorkReportTimeslotTooOld);
         }
 
         // Verify if the guarantor is assigned to the core index specified in the work report
@@ -370,15 +468,24 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
             ));
         }
 
-        // Verify the timeslot of the work report is within a valid range (not older than the previous guarantor rotation)
-        if entry_timeslot_index > current_timeslot
-            || entry_timeslot_index
-                < GUARANTOR_ROTATION_PERIOD as u32
-                    * ((current_timeslot / GUARANTOR_ROTATION_PERIOD as u32) - 1)
-        {
-            return Err(InvalidWorkReportTimeslot);
-        }
+        Ok(guarantor_public_key)
+    }
 
-        Ok(())
+    pub fn get_guarantor_assignment(
+        &self,
+        entry_timeslot_index: u32,
+        current_timeslot_index: u32,
+    ) -> Result<GuarantorAssignment, ExtrinsicValidationError> {
+        let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
+            == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
+        if within_same_rotation {
+            Ok(GuarantorAssignment::current_guarantor_assignments(
+                self.state_manager,
+            )?)
+        } else {
+            Ok(GuarantorAssignment::previous_guarantor_assignments(
+                self.state_manager,
+            )?)
+        }
     }
 }

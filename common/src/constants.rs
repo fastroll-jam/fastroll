@@ -1,3 +1,5 @@
+use crate::UnsignedGas;
+
 pub const HASH_SIZE: usize = 32; // 32-byte hash
 pub const PUBLIC_KEY_SIZE: usize = 336; // 336-byte validator public key
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_704_110_400; // 1200 UTC on January 1, 2024
@@ -39,6 +41,14 @@ pub const BLOCK_HISTORY_LENGTH: usize = 8; // H
 pub const PENDING_REPORT_TIMEOUT: usize = 5; // U
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400; // L
 pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16; // K
+pub const MAX_REPORT_DEPENDENCIES: usize = 8; // J
+pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+
+// PVM Gas Allocations
+pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 10_000_000; // G_A
+pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000; // G_T
+pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 50_000_000; // G_I
+pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 5_000_000_000; // G_R
 
 // Signing Contexts or Domain Specifiers
 pub const X_A: &[u8] = b"jam_available"; // Ed25519 Availability assurances

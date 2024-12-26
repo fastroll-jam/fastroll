@@ -207,7 +207,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             };
 
             let voter_public_key =
-                get_validator_ed25519_key_by_index(&validator_set, judgment.voter);
+                get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
+                    .map_err(|_| InvalidValidatorIndex)?;
 
             if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
                 return Err(InvalidJudgmentSignature(judgment.voter));
@@ -238,6 +239,7 @@ impl<'a> DisputesExtrinsicValidator<'a> {
             return Err(InvalidValidatorKeySet(entry.validator_key.encode_hex()));
         }
 
+        // FIXME: check the message (X_G?)
         // Validate the signature
         let hash = &entry.report_hash;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());

@@ -8,6 +8,7 @@ use rjam_codec::{
 use rjam_common::{Hash32, BLOCK_HISTORY_LENGTH};
 use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
@@ -56,12 +57,26 @@ impl BlockHistory {
                 .contains(work_package_hash)
         })
     }
+
+    pub fn get_reported_packages_flattened(&self) -> Vec<ReportedWorkPackage> {
+        self.0
+            .iter()
+            .flat_map(|entry| entry.reported_packages.clone())
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
     pub work_package_hash: Hash32,
     pub segment_root: Hash32, // exports root
+}
+
+impl Display for ReportedWorkPackage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "package_hash: {}", self.work_package_hash)?;
+        write!(f, "segment_root: {}", self.segment_root)
+    }
 }
 
 #[derive(Debug, Clone)]

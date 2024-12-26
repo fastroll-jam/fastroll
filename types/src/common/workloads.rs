@@ -1,3 +1,4 @@
+use crate::state::ReportedWorkPackage;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -293,9 +294,7 @@ impl Ord for WorkReport {
 
 impl WorkReport {
     pub fn hash(&self) -> Result<Hash32, WorkReportError> {
-        let mut buf = vec![];
-        self.encode_to(&mut buf)?;
-        Ok(hash::<Blake2b256>(&buf[..])?)
+        Ok(hash::<Blake2b256>(self.encode()?.as_slice())?)
     }
 
     pub fn refinement_context(&self) -> &RefinementContext {
@@ -332,6 +331,29 @@ impl WorkReport {
 
     pub fn authorizer_hash(&self) -> Hash32 {
         self.authorizer_hash
+    }
+
+    pub fn total_output_size(&self) -> usize {
+        self.authorization_output.len()
+            + self
+                .results
+                .iter()
+                .map(|result| result.output_bytes())
+                .sum::<usize>()
+    }
+
+    pub fn total_accumulation_gas_allotted(&self) -> UnsignedGas {
+        self.results
+            .iter()
+            .map(|result| result.gas_prioritization_ratio)
+            .sum()
+    }
+
+    pub fn extract_exports_manifest(&self) -> ReportedWorkPackage {
+        ReportedWorkPackage {
+            work_package_hash: self.specs.work_package_hash,
+            segment_root: self.specs.segment_root,
+        }
     }
 }
 
@@ -461,6 +483,15 @@ impl JamDecode for WorkItemResult {
             gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,
             refinement_output: WorkExecutionOutput::decode(input)?,
         })
+    }
+}
+
+impl WorkItemResult {
+    fn output_bytes(&self) -> usize {
+        match &self.refinement_output {
+            WorkExecutionOutput::Output(bytes) => bytes.len(),
+            WorkExecutionOutput::Error(_) => 0,
+        }
     }
 }
 

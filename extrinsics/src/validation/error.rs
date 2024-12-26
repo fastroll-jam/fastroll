@@ -11,6 +11,10 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum ExtrinsicValidationError {
+    // Common validation errors
+    #[error("Invalid validator index (out of range)")]
+    InvalidValidatorIndex,
+
     // Assurances validation errors
     #[error("The number of assurance entries ({0}) exceeds the allowed validator count ({1})")]
     AssurancesEntryLimitExceeded(usize, usize),
@@ -82,6 +86,8 @@ pub enum ExtrinsicValidationError {
     GuaranteesNotSorted,
     #[error("Duplicate core index found in guarantees")]
     DuplicateCoreIndex,
+    #[error("Invalid core index (out of range)")]
+    InvalidCoreIndex,
     #[error("Duplicate work package hashes found in guarantees")]
     DuplicateWorkPackageHash,
     #[error("Duplicate guarantor entry found")]
@@ -94,10 +100,12 @@ pub enum ExtrinsicValidationError {
     WorkPackageAlreadyInHistory(CoreIndex, String),
     #[error("Prerequisite work package not found. Core index: {0}, Work package hash: {1}")]
     PrerequisiteNotFound(CoreIndex, String),
+    #[error("Work report has too many dependencies (prerequisites and segment-root lookup dictionary items). Core index: {0}")]
+    TooManyDependencies(CoreIndex),
     #[error("Invalid code hash in work result. Core index: {0}, Service index: {1}, Provided code hash: {2}")]
     InvalidCodeHash(CoreIndex, Address, String),
-    #[error("Code hash not found for the service account. Core index: {0}, Service index: {1}, Provided code hash: {2}")]
-    CodeHashNotFound(CoreIndex, Address, String),
+    #[error("Subject service account of work result is not found in the global state. Core index: {0}, Service index: {1}")]
+    AccountOfWorkResultNotFound(CoreIndex, Address),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
     #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
@@ -114,8 +122,20 @@ pub enum ExtrinsicValidationError {
     InvalidGuaranteesSignature(ValidatorIndex),
     #[error("Invalid core index for the guarantor. Guarantor: {0}, assigned core: {1}, work report core: {2}")]
     GuarantorNotAssignedForCore(ValidatorIndex, CoreIndex, CoreIndex),
-    #[error("Invalid work report timeslot")]
-    InvalidWorkReportTimeslot,
+    #[error("Timeslot of the work report is later than the current timeslot")]
+    WorkReportTimeslotInFuture,
+    #[error("Timeslot of the work report is older than the previous guarantor rotation")]
+    WorkReportTimeslotTooOld,
+    #[error("Segments root lookup dictionary entry of the work report was not found in the recent history")]
+    SegmentsRootLookupEntryNotFound,
+    #[error("Segments root lookup dictionary entry of the work report was found in the recent history but has an invalid value")]
+    SegmentsRoofLookupEntryInvalidValue,
+    #[error("Work report output size limit exceeded")]
+    WorkReportOutputSizeLimitExceeded,
+    #[error("Work report's total gas allotted for accumulation exceeds its limit")]
+    WorkReportTotalGasTooHigh,
+    #[error("Service account's accumulate gas limit is too low to process work result item")]
+    ServiceAccountGasLimitTooLow,
 
     // Preimages validation errors
     #[error("Preimage lookups must be sorted by service index")]

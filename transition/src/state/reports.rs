@@ -94,7 +94,7 @@ pub fn transition_reports_update_entries(
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesExtrinsicValidator::new(state_manager);
-    guarantees_validator.validate(guarantees, current_timeslot.slot())?;
+    let all_guarantor_keys = guarantees_validator.validate(guarantees, current_timeslot.slot())?;
 
     let new_valid_reports = guarantees.extract_work_reports();
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
@@ -111,8 +111,5 @@ pub fn transition_reports_update_entries(
         .map(|report| (report.specs.work_package_hash, report.specs.segment_root))
         .collect();
 
-    let active_set = state_manager.get_active_set()?;
-    let reporters = guarantees.extract_reporters(&active_set);
-
-    Ok((reported_packages, reporters))
+    Ok((reported_packages, all_guarantor_keys))
 }

@@ -6,6 +6,13 @@ use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, HASH32_EMPTY, MAX_AUTH_QUEUE_SIZE};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum AuthPoolError {
+    #[error("Invalid Core Index: {0}")]
+    InvalidCoreIndex(CoreIndex),
+}
 
 #[derive(Clone)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
@@ -13,8 +20,11 @@ impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
 impl_state_component!(AuthPool, AuthPool);
 
 impl AuthPool {
-    pub fn get_by_core_index(&self, core_index: CoreIndex) -> &[Hash32] {
-        &self.0[core_index as usize]
+    pub fn get_by_core_index(&self, core_index: CoreIndex) -> Result<&[Hash32], AuthPoolError> {
+        if core_index as usize >= CORE_COUNT {
+            return Err(AuthPoolError::InvalidCoreIndex(core_index));
+        }
+        Ok(&self.0[core_index as usize])
     }
 }
 

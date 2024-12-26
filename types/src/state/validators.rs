@@ -12,6 +12,13 @@ use std::{
     ops::{Deref, DerefMut},
     slice::{Iter, IterMut},
 };
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ValidatorsError {
+    #[error("Invalid validator index: {0}")]
+    InvalidValidatorIndex(ValidatorIndex),
+}
 
 pub trait ValidatorSet {
     type Iter<'a>: Iterator<Item = &'a ValidatorKey>
@@ -183,13 +190,21 @@ impl DerefMut for PastSet {
 pub fn get_validator_key_by_index(
     validator_set: &ValidatorKeySet,
     validator_index: ValidatorIndex,
-) -> ValidatorKey {
-    validator_set[validator_index as usize]
+) -> Result<ValidatorKey, ValidatorsError> {
+    if validator_index as usize >= VALIDATOR_COUNT {
+        return Err(ValidatorsError::InvalidValidatorIndex(validator_index));
+    }
+
+    Ok(validator_set[validator_index as usize])
 }
 
 pub fn get_validator_ed25519_key_by_index(
     validator_set: &ValidatorKeySet,
     validator_index: ValidatorIndex,
-) -> Ed25519PubKey {
-    get_validator_key_by_index(validator_set, validator_index).ed25519_key
+) -> Result<Ed25519PubKey, ValidatorsError> {
+    if validator_index as usize >= VALIDATOR_COUNT {
+        return Err(ValidatorsError::InvalidValidatorIndex(validator_index));
+    }
+
+    Ok(get_validator_key_by_index(validator_set, validator_index)?.ed25519_key)
 }

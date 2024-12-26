@@ -87,7 +87,7 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     };
 
     // compare the actual and the expected post state
-    let post_state = T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code); // TODO: dliver may_eror_code too
+    let post_state = T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code);
     assert_eq!(post_state, test_case.post_state);
 
     // compare the output

@@ -25,12 +25,6 @@ const REFINE_INITIAL_PC: RegValue = 0;
 const ACCUMULATE_INITIAL_PC: RegValue = 5;
 const ON_TRANSFER_INITIAL_PC: RegValue = 10;
 
-// Gas Allocations
-pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 100_000; // G_A
-pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 341_000_000; // G_T
-pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 1_000_000; // G_I
-pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 500_000_000; // G_R
-
 #[derive(JamEncode)]
 pub struct IsAuthorizedArgs {
     work_package: WorkPackage, // p

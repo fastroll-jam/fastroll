@@ -28,13 +28,13 @@ impl GuaranteesExtrinsic {
     /// in the guarantees extrinsic credentials.
     ///
     /// This set is utilized for tracking validator activity statistics.
+    #[allow(dead_code)]
     pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> Vec<Ed25519PubKey> {
         self.iter()
             .flat_map(|entry| {
-                entry
-                    .credentials
-                    .iter()
-                    .map(|c| get_validator_ed25519_key_by_index(validator_set, c.validator_index))
+                entry.credentials.iter().map(|c| {
+                    get_validator_ed25519_key_by_index(validator_set, c.validator_index).unwrap()
+                }) // assuming already passed validations - TODO: revisit
             })
             .collect()
     }
