@@ -21,7 +21,8 @@ mod tests {
     use rjam_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{
-        error::TransitionError, state::reports::transition_reports_update_entries,
+        error::TransitionError,
+        state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
     use rjam_types::{
         state::{
@@ -111,6 +112,12 @@ mod tests {
                 );
             }
 
+            // Additionally, initialize the timeslot state cache
+            state_manager.load_state_for_test(
+                StateKeyConstant::Timeslot,
+                StateEntryType::Timeslot(Timeslot::new(0)),
+            );
+
             Ok(state_manager)
         }
 
@@ -124,17 +131,15 @@ mod tests {
 
         fn run_state_transition(
             state_manager: &StateManager,
-            header_db: &mut BlockHeaderDB,
+            _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
-            // FIXME: check two different timeslot types
-            let header_timeslot_index = header_db.get_staging_header().unwrap().timeslot_index;
-
             // Run state transitions.
+            transition_timeslot(state_manager, &jam_input.timeslot)?;
+
             let (reported, reporters) = transition_reports_update_entries(
                 state_manager,
                 &jam_input.extrinsic,
-                header_timeslot_index,
                 &jam_input.timeslot,
             )?;
 

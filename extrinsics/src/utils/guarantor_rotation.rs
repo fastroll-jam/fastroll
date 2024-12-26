@@ -15,7 +15,6 @@ pub enum GuarantorAssignmentError {
     StateManagerError(#[from] StateManagerError),
 }
 
-#[allow(dead_code)]
 pub struct GuarantorAssignment {
     pub core_indices: Box<[CoreIndex; VALIDATOR_COUNT]>, // c
     pub validator_keys: ValidatorKeySet,                 // k

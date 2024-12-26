@@ -90,12 +90,11 @@ pub fn transition_reports_clear_availables(
 pub fn transition_reports_update_entries(
     state_manager: &StateManager,
     guarantees: &GuaranteesExtrinsic,
-    header_timeslot_index: u32,
     current_timeslot: &Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesExtrinsicValidator::new(state_manager);
-    guarantees_validator.validate(guarantees, header_timeslot_index)?;
+    guarantees_validator.validate(guarantees, current_timeslot.slot())?;
 
     let new_valid_reports = guarantees.extract_work_reports();
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {

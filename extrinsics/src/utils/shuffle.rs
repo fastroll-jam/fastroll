@@ -3,7 +3,7 @@ use rjam_common::Hash32;
 use rjam_crypto::Blake2b256;
 
 /// Fisher-Yates shuffle function.
-pub fn shuffle(mut elems: Vec<u16>, randoms: Vec<u16>) -> Vec<u16> {
+pub fn shuffle(mut elems: Vec<u16>, randoms: Vec<u32>) -> Vec<u16> {
     let elems_len = elems.len();
     if elems_len == 0 {
         return vec![];
@@ -35,14 +35,14 @@ pub fn shuffle_with_hash(elems: Vec<u16>, hash: &Hash32) -> Vec<u16> {
     shuffle(elems, randoms)
 }
 
-fn hash_to_randoms_vec(hash: &Hash32, output_len: usize) -> Vec<u16> {
+fn hash_to_randoms_vec(hash: &Hash32, output_len: usize) -> Vec<u32> {
     let mut output = Vec::with_capacity(output_len);
 
-    for i in 0..(output_len as u16) {
+    for i in 0..(output_len as u32) {
         let mut buf = vec![];
         buf.extend_from_slice(&hash.0);
 
-        let hash_input_val: u16 = i / 8;
+        let hash_input_val: u32 = i / 8;
         let hash_input_bytes = hash_input_val.encode_fixed(4).unwrap();
         buf.extend_from_slice(&hash_input_bytes);
         let new_hash = rjam_crypto::hash::<Blake2b256>(&buf).unwrap();
@@ -50,7 +50,7 @@ fn hash_to_randoms_vec(hash: &Hash32, output_len: usize) -> Vec<u16> {
         let hash_slice_start_idx: usize = (4 * i as usize) % 32;
         let hash_slice_end_idx: usize = hash_slice_start_idx + 4;
 
-        let vec_elem = u16::decode_fixed(
+        let vec_elem = u32::decode_fixed(
             &mut &new_hash.0[hash_slice_start_idx..hash_slice_end_idx],
             4,
         )
