@@ -49,11 +49,3 @@ pub enum Output {
     ok(DisputesOutputMarks),
     err(DisputesErrorCode),
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestCase {
-    pub input: Input,
-    pub pre_state: State,
-    pub output: Output,
-    pub post_state: State,
-}

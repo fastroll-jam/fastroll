@@ -90,11 +90,3 @@ pub enum Output {
     ok(OutputMarks),       // Markers
     err(SafroleErrorCode), // Error code (not specified in the Graypaper)
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestCase {
-    pub input: Input,      // Input
-    pub pre_state: State,  // Pre-execution state
-    pub output: Output,    // Output
-    pub post_state: State, // Post-execution state
-}

@@ -245,6 +245,7 @@ impl Display for ByteArray64 {
 
 pub type Gas = u64;
 pub type Entropy = OpaqueHash;
+pub type HeaderHash = OpaqueHash;
 pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
 pub type WorkPackageHash = OpaqueHash;
 pub type WorkReportHash = OpaqueHash;
@@ -396,31 +397,31 @@ pub type Services = Vec<ServiceItem>;
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AvailabilityAssignment {
+pub struct AvailAssignment {
     pub report: AsnWorkReport,
     pub timeout: u32,
 }
 
-impl From<PendingReport> for AvailabilityAssignment {
+impl From<PendingReport> for AvailAssignment {
     fn from(value: PendingReport) -> Self {
         Self {
             report: value.work_report.into(),
-            timeout: value.timeslot.0,
+            timeout: value.reported_timeslot.0,
         }
     }
 }
 
-impl From<AvailabilityAssignment> for PendingReport {
-    fn from(value: AvailabilityAssignment) -> Self {
+impl From<AvailAssignment> for PendingReport {
+    fn from(value: AvailAssignment) -> Self {
         Self {
             work_report: value.report.into(),
-            timeslot: Timeslot::new(value.timeout),
+            reported_timeslot: Timeslot::new(value.timeout),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AvailAssignments([Option<AvailabilityAssignment>; CORE_COUNT]);
+pub struct AvailAssignments([Option<AvailAssignment>; CORE_COUNT]);
 
 impl From<AvailAssignments> for PendingReports {
     fn from(value: AvailAssignments) -> Self {
@@ -432,7 +433,7 @@ impl From<AvailAssignments> for PendingReports {
                     let work_report = assignment.clone().report.into();
                     let pending_report = PendingReport {
                         work_report,
-                        timeslot: Timeslot::new(assignment.timeout),
+                        reported_timeslot: Timeslot::new(assignment.timeout),
                     };
                     Some(pending_report)
                 }
@@ -446,15 +447,15 @@ impl From<AvailAssignments> for PendingReports {
 
 impl From<PendingReports> for AvailAssignments {
     fn from(value: PendingReports) -> Self {
-        let mut assignments: [Option<AvailabilityAssignment>; CORE_COUNT] = Default::default();
+        let mut assignments: [Option<AvailAssignment>; CORE_COUNT] = Default::default();
 
         for (i, report_option) in value.0.iter().enumerate() {
             assignments[i] = match report_option {
                 Some(pending_report) => {
                     let report = pending_report.clone().work_report.into();
-                    let assignment = AvailabilityAssignment {
+                    let assignment = AvailAssignment {
                         report,
-                        timeout: pending_report.timeslot.0,
+                        timeout: pending_report.reported_timeslot.0,
                     };
                     Some(assignment)
                 }

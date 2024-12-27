@@ -18,6 +18,8 @@ pub enum ExtrinsicValidationError {
     // Assurances validation errors
     #[error("The number of assurance entries ({0}) exceeds the allowed validator count ({1})")]
     AssurancesEntryLimitExceeded(usize, usize),
+    #[error("Duplicate assurer.")]
+    DuplicateAssurer,
     #[error("Assurance entries must be sorted by validator index")]
     AssurancesNotSorted,
     #[error("Invalid parent hash for assurance entry submitted: Extrinsic: {0}, Header: {1}. Assurer: {2}")]

@@ -1,3 +1,4 @@
+pub(crate) mod assurances;
 pub(crate) mod authorizations;
 pub(crate) mod disputes;
 pub(crate) mod history;

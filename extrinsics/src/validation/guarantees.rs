@@ -204,7 +204,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         // Check if there is any work reported in this extrinsic while there is pending report
         // assigned to the core which is not timed-out.
         if let Some(core_report) = core_pending_report {
-            let expiration = core_report.timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
+            let expiration = core_report.reported_timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
             if header_timeslot_index < expiration {
                 return Err(PendingReportExists(core_index));
             }

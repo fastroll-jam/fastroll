@@ -7,6 +7,7 @@ use rjam_types::{
     extrinsics::assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
     state::validators::get_validator_ed25519_key_by_index,
 };
+use std::collections::HashSet;
 
 /// Validates contents of `AssurancesExtrinsic` type.
 ///
@@ -40,7 +41,7 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     pub fn validate(
         &self,
         extrinsic: &AssurancesExtrinsic,
-        header_parent_hash: Hash32,
+        header_parent_hash: &Hash32,
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
@@ -55,6 +56,15 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
             return Err(AssurancesNotSorted);
         }
 
+        // Duplicate validation of assurers' validator indices
+        let mut assurers = HashSet::new();
+        let no_duplicate_assurer = extrinsic
+            .iter()
+            .all(|entry| assurers.insert(entry.validator_index));
+        if !no_duplicate_assurer {
+            return Err(DuplicateAssurer);
+        }
+
         // Validate each entry
         for entry in extrinsic.iter() {
             self.validate_entry(entry, header_parent_hash)?;
@@ -67,10 +77,10 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
     pub fn validate_entry(
         &self,
         entry: &AssurancesExtrinsicEntry,
-        header_parent_hash: Hash32,
+        header_parent_hash: &Hash32,
     ) -> Result<(), ExtrinsicValidationError> {
         // Check the anchored parent hash
-        if entry.anchor_parent_hash != header_parent_hash {
+        if &entry.anchor_parent_hash != header_parent_hash {
             return Err(InvalidAssuranceParentHash(
                 entry.anchor_parent_hash.encode_hex(),
                 header_parent_hash.encode_hex(),

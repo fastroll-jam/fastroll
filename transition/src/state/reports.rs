@@ -6,6 +6,7 @@ use rjam_extrinsics::validation::{
 };
 use rjam_state::{StateManager, StateWriteOp};
 use rjam_types::{
+    common::workloads::WorkReport,
     extrinsics::{
         assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic,
         guarantees::GuaranteesExtrinsic,
@@ -56,8 +57,8 @@ pub fn transition_reports_eliminate_invalid(
 pub fn transition_reports_clear_availables(
     state_manager: &StateManager,
     assurances: &AssurancesExtrinsic,
-    header_parent_hash: Hash32,
-) -> Result<(), TransitionError> {
+    header_parent_hash: &Hash32,
+) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesExtrinsicValidator::new(state_manager);
     assurances_validator.validate(assurances, header_parent_hash)?;
@@ -65,13 +66,35 @@ pub fn transition_reports_clear_availables(
     // Get core indices which have been available by introducing the assurances extrinsic.
     let available_reports_core_indices = assurances.available_core_indices();
 
+    // Aggregate work reports to be removed for being available.
+    let mut available_reports = Vec::with_capacity(available_reports_core_indices.len());
+
+    let prior_pending_reports = state_manager.get_pending_reports()?;
+    for core_index in &available_reports_core_indices {
+        let report: WorkReport = prior_pending_reports
+            .get_by_core_index(*core_index)?
+            .clone()
+            .expect("Core index verified to have pending report")
+            .work_report;
+        available_reports.push(report);
+    }
+
+    // Aggregate the core indices of any timed-out reports so they can be removed silently.
+    let current_timeslot = state_manager.get_timeslot()?;
+    let timed_out_core_indices =
+        prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
+
     state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
-        for core_index in available_reports_core_indices {
-            pending_reports.remove_by_core_index(core_index).unwrap()
+        // Remove now-available reports and timed-out reports
+        for core_index in available_reports_core_indices
+            .iter()
+            .chain(timed_out_core_indices.iter())
+        {
+            pending_reports.remove_by_core_index(*core_index).unwrap()
         }
     })?;
 
-    Ok(())
+    Ok(available_reports)
 }
 
 /// State transition function of `PendingReports`, adding new reports or replacing those that
@@ -101,7 +124,7 @@ pub fn transition_reports_update_entries(
         for report in &new_valid_reports {
             pending_reports.0[report.core_index() as usize] = Some(PendingReport {
                 work_report: report.clone(),
-                timeslot: *current_timeslot,
+                reported_timeslot: *current_timeslot,
             })
         }
     })?;

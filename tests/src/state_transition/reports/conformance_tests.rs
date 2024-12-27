@@ -154,7 +154,6 @@ mod tests {
         }
 
         fn map_error_code(e: TransitionError) -> Self::ErrorCode {
-            println!(">>> error type: {:?}", e);
             map_error_to_custom_code(e)
         }
 

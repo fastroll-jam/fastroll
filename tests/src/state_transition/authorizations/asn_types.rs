@@ -47,15 +47,3 @@ pub struct JamInput {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Output;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestCase {
-    /// Input.
-    pub input: Input,
-    /// Pre-execution state.
-    pub pre_state: State,
-    /// Output.
-    pub output: Output,
-    /// Post-execution state.
-    pub post_state: State,
-}

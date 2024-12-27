@@ -7,7 +7,7 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT};
+use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -32,6 +32,25 @@ impl PendingReports {
             return Err(PendingReportsError::InvalidCoreIndex(core_index));
         }
         Ok(&self.0[core_index as usize])
+    }
+
+    pub fn get_timed_out_core_indices(
+        &self,
+        current_timeslot: &Timeslot,
+    ) -> Result<Vec<CoreIndex>, PendingReportsError> {
+        let mut timed_out_core_indices = vec![];
+
+        for (i, maybe_report) in self.0.iter().enumerate() {
+            if let Some(report) = maybe_report {
+                if current_timeslot.slot() as usize
+                    >= report.reported_timeslot.slot() as usize + PENDING_REPORT_TIMEOUT
+                {
+                    timed_out_core_indices.push(i as CoreIndex);
+                }
+            }
+        }
+
+        Ok(timed_out_core_indices)
     }
 
     /// Checks if any entry holds `Some(PendingReport)` with the given hash.
@@ -64,5 +83,5 @@ impl PendingReports {
 #[derive(Clone, JamEncode, JamDecode)]
 pub struct PendingReport {
     pub work_report: WorkReport,
-    pub timeslot: Timeslot,
+    pub reported_timeslot: Timeslot,
 }
