@@ -51,8 +51,8 @@ impl Default for EpochValidatorStats {
 }
 
 impl EpochValidatorStats {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(items: Box<[ValidatorStatEntry; VALIDATOR_COUNT]>) -> Self {
+        Self { items }
     }
 
     pub fn validator_stats(&self, validator_index: ValidatorIndex) -> &ValidatorStatEntry {
@@ -111,6 +111,6 @@ impl ValidatorStats {
     }
 
     pub fn clear_current_epoch_stats(&mut self) {
-        self.0[0] = EpochValidatorStats::new()
+        self.0[0] = EpochValidatorStats::default()
     }
 }

@@ -1,38 +1,22 @@
 use crate::error::TransitionError;
-use rjam_common::{Ed25519PubKey, ValidatorIndex};
+use rjam_common::ValidatorIndex;
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::InvalidValidatorIndex;
 use rjam_state::{StateManager, StateWriteOp};
-use rjam_types::{
-    extrinsics::{
-        assurances::AssurancesExtrinsic, preimages::PreimageLookupsExtrinsic,
-        tickets::TicketsExtrinsic,
-    },
-    state::validators::get_validator_ed25519_key_by_index,
-};
+use rjam_types::{extrinsics::Extrinsics, state::validators::get_validator_ed25519_key_by_index};
 
 /// State transition function of `ValidatorStats`
 pub fn transition_validator_stats(
     state_manager: &StateManager,
     epoch_progressed: bool,
     header_block_author_index: ValidatorIndex,
-    tickets_extrinsic: &TicketsExtrinsic,
-    preimage_lookups_extrinsic: &PreimageLookupsExtrinsic,
-    assurances_extrinsic: &AssurancesExtrinsic,
-    reporters: &[Ed25519PubKey],
+    extrinsics: &Extrinsics,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager)?;
     }
 
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
-    handle_stats_accumulation(
-        state_manager,
-        header_block_author_index,
-        tickets_extrinsic,
-        preimage_lookups_extrinsic,
-        assurances_extrinsic,
-        reporters,
-    )?;
+    handle_stats_accumulation(state_manager, header_block_author_index, extrinsics)?;
 
     Ok(())
 }
@@ -52,10 +36,7 @@ fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), Trans
 fn handle_stats_accumulation(
     state_manager: &StateManager,
     header_block_author_index: ValidatorIndex,
-    tickets_extrinsic: &TicketsExtrinsic,
-    preimage_lookups_extrinsic: &PreimageLookupsExtrinsic,
-    assurances_extrinsic: &AssurancesExtrinsic,
-    reporters: &[Ed25519PubKey],
+    extrinsics: &Extrinsics,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set()?;
 
@@ -64,10 +45,10 @@ fn handle_stats_accumulation(
             stats.current_epoch_validator_stats_mut(header_block_author_index);
 
         current_epoch_author_stats.blocks_produced_count += 1;
-        current_epoch_author_stats.tickets_count += tickets_extrinsic.len() as u32;
-        current_epoch_author_stats.preimages_count += preimage_lookups_extrinsic.len() as u32;
+        current_epoch_author_stats.tickets_count += extrinsics.tickets.len() as u32;
+        current_epoch_author_stats.preimages_count += extrinsics.preimage_lookups.len() as u32;
         current_epoch_author_stats.preimage_data_octets_count +=
-            preimage_lookups_extrinsic.total_preimage_data_len() as u32;
+            extrinsics.preimage_lookups.total_preimage_data_len() as u32;
 
         for (validator_index, validator_stats) in
             stats.current_epoch_stats_mut().iter_mut().enumerate()
@@ -78,8 +59,10 @@ fn handle_stats_accumulation(
                     .map_err(|_| TransitionError::ExtrinsicValidationError(InvalidValidatorIndex))
                     .unwrap(); // TODO: proper validation error handling
 
-            // Update `guarantees_count` if the current validator's Ed25519 public key is in `reporters`.
-            if reporters
+            // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
+            if extrinsics
+                .guarantees
+                .extract_reporters(&current_active_set)
                 .iter()
                 .any(|reporter| reporter == &validator_ed25519_key)
             {
@@ -87,7 +70,10 @@ fn handle_stats_accumulation(
             }
 
             // Update `assurances_count` if the current validator submitted assurances extrinsic entry.
-            if assurances_extrinsic.contains_assurance_for_validator(validator_index) {
+            if extrinsics
+                .assurances
+                .contains_assurance_for_validator(validator_index)
+            {
                 validator_stats.assurances_count += 1;
             }
         }

@@ -30,12 +30,13 @@ use rjam_types::{
     },
     state::{
         AccountInfo, AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
-        DisputesState, EntropyAccumulator, PendingReport, PendingReports, ReportedWorkPackage,
-        SlotSealerType, Timeslot,
+        DisputesState, EntropyAccumulator, EpochValidatorStats, PendingReport, PendingReports,
+        ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    array::from_fn,
     collections::HashMap,
     fmt,
     fmt::{Debug, Display},
@@ -243,6 +244,7 @@ impl Display for ByteArray64 {
 // -- Application Specific Core
 // ----------------------------------------------------
 
+pub type AsnValidatorIndex = u16;
 pub type Gas = u64;
 pub type Entropy = OpaqueHash;
 pub type HeaderHash = OpaqueHash;
@@ -982,6 +984,94 @@ impl From<AsnBlocksHistory> for BlockHistory {
 impl From<BlockHistory> for AsnBlocksHistory {
     fn from(value: BlockHistory) -> Self {
         Self(value.0.into_iter().map(BlockInfo::from).collect())
+    }
+}
+
+// ----------------------------------------------------
+// -- Statistics
+// ----------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+pub struct ActivityRecord {
+    pub blocks: u32,
+    pub tickets: u32,
+    pub pre_images: u32,
+    pub pre_images_size: u32,
+    pub guarantees: u32,
+    pub assurances: u32,
+}
+
+impl From<ValidatorStatEntry> for ActivityRecord {
+    fn from(value: ValidatorStatEntry) -> Self {
+        Self {
+            blocks: value.blocks_produced_count,
+            tickets: value.tickets_count,
+            pre_images: value.preimages_count,
+            pre_images_size: value.preimage_data_octets_count,
+            guarantees: value.guarantees_count,
+            assurances: value.assurances_count,
+        }
+    }
+}
+
+impl From<ActivityRecord> for ValidatorStatEntry {
+    fn from(value: ActivityRecord) -> Self {
+        Self {
+            blocks_produced_count: value.blocks,
+            tickets_count: value.tickets,
+            preimages_count: value.pre_images,
+            preimage_data_octets_count: value.pre_images_size,
+            guarantees_count: value.guarantees,
+            assurances_count: value.assurances,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ActivityRecords([ActivityRecord; VALIDATORS_COUNT]);
+
+impl From<EpochValidatorStats> for ActivityRecords {
+    fn from(value: EpochValidatorStats) -> Self {
+        let mut records = from_fn(|_| ActivityRecord::default());
+        for (i, entry) in value.into_iter().enumerate() {
+            records[i] = ActivityRecord::from(*entry);
+        }
+        Self(records)
+    }
+}
+
+impl From<ActivityRecords> for EpochValidatorStats {
+    fn from(value: ActivityRecords) -> Self {
+        let mut stats = from_fn(|_| ValidatorStatEntry::default());
+        for (i, record) in value.0.into_iter().enumerate() {
+            stats[i] = ValidatorStatEntry::from(record);
+        }
+        Self::new(Box::new(stats))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnStatistics {
+    current: ActivityRecords,
+    last: ActivityRecords,
+}
+
+impl From<ValidatorStats> for AsnStatistics {
+    fn from(value: ValidatorStats) -> Self {
+        Self {
+            current: ActivityRecords::from(value.0[0].clone()),
+            last: ActivityRecords::from(value.0[1].clone()),
+        }
+    }
+}
+
+impl From<AsnStatistics> for ValidatorStats {
+    fn from(value: AsnStatistics) -> Self {
+        let mut array = from_fn(|_| EpochValidatorStats::default());
+        array[0] = EpochValidatorStats::from(value.current);
+        array[1] = EpochValidatorStats::from(value.last);
+
+        Self(array)
     }
 }
 
