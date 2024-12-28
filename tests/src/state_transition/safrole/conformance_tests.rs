@@ -8,8 +8,10 @@ mod tests {
         },
         generate_typed_tests,
         safrole::{
-            asn_types::{Input, JamInput, Output, SafroleErrorCode, State},
-            utils::{map_error_to_custom_code, safrole_state_to_gammas},
+            asn_types::{
+                safrole_state_to_gammas, Input, JamInput, Output, SafroleErrorCode, State,
+            },
+            utils::map_error_to_custom_code,
         },
         state_transition::state_transition_test::{run_test_case, StateTransitionTest},
     };

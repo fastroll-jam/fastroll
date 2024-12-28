@@ -1,9 +1,6 @@
-use crate::asn_types::{AsnBlockInfo, AsnBlocksHistory, AsnOpaqueHash, Reports};
+use crate::asn_types::{AsnBlocksHistory, AsnOpaqueHash, Reports};
 use rjam_common::Hash32;
-use rjam_types::state::{
-    history::{BlockHistory, BlockHistoryEntry},
-    ReportedWorkPackage,
-};
+use rjam_types::state::ReportedWorkPackage;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -11,27 +8,6 @@ use std::fmt::Debug;
 pub struct State {
     /// Blocks history
     pub beta: AsnBlocksHistory,
-}
-
-impl From<State> for BlockHistory {
-    fn from(value: State) -> Self {
-        BlockHistory(
-            value
-                .beta
-                .0
-                .into_iter()
-                .map(BlockHistoryEntry::from)
-                .collect(),
-        )
-    }
-}
-
-impl From<BlockHistory> for State {
-    fn from(value: BlockHistory) -> Self {
-        Self {
-            beta: AsnBlocksHistory(value.0.into_iter().map(AsnBlockInfo::from).collect()),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

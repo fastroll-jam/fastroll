@@ -1,7 +1,7 @@
 use crate::asn_types::{
-    validators_data_to_validator_set, AsnBandersnatchRingRoot, AsnEd25519Key, AsnEntropyBuffer,
-    AsnEpochMark, AsnOpaqueHash, AsnTicketBody, AsnTicketEnvelope, AsnTicketsMark,
-    AsnTicketsOrKeys, AsnValidatorsData,
+    validators_data_to_validator_set, AsnBandersnatchRingRoot, AsnByteArray32, AsnEd25519Key,
+    AsnEntropyBuffer, AsnEpochMark, AsnOpaqueHash, AsnTicketBody, AsnTicketEnvelope,
+    AsnTicketsMark, AsnTicketsOrKeys, AsnValidatorData, AsnValidatorsData,
 };
 use rjam_common::{ByteArray, Hash32, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
@@ -70,6 +70,30 @@ impl From<&State> for SafroleState {
             ),
         }
     }
+}
+
+pub fn safrole_state_to_gammas(
+    safrole: &SafroleState,
+) -> (
+    AsnValidatorsData,
+    Vec<AsnTicketBody>,
+    AsnTicketsOrKeys,
+    AsnBandersnatchRingRoot,
+) {
+    let gamma_k = safrole.pending_set.clone().map(AsnValidatorData::from);
+    let gamma_a = safrole
+        .ticket_accumulator
+        .clone()
+        .into_vec()
+        .into_iter()
+        .map(|ticket| AsnTicketBody {
+            id: AsnByteArray32(*ticket.id),
+            attempt: ticket.attempt,
+        })
+        .collect();
+    let gamma_s = safrole.slot_sealers.clone().into();
+    let gamma_z = AsnBandersnatchRingRoot(safrole.ring_root.0);
+    (gamma_k, gamma_a, gamma_s, gamma_z)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
