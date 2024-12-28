@@ -1,4 +1,4 @@
-use crate::asn_types::{AsnBlocksHistory, BlockInfo, OpaqueHash, Reports};
+use crate::asn_types::{AsnBlockInfo, AsnBlocksHistory, AsnOpaqueHash, Reports};
 use rjam_common::Hash32;
 use rjam_types::state::{
     history::{BlockHistory, BlockHistoryEntry},
@@ -29,7 +29,7 @@ impl From<State> for BlockHistory {
 impl From<BlockHistory> for State {
     fn from(value: BlockHistory) -> Self {
         Self {
-            beta: AsnBlocksHistory(value.0.into_iter().map(BlockInfo::from).collect()),
+            beta: AsnBlocksHistory(value.0.into_iter().map(AsnBlockInfo::from).collect()),
         }
     }
 }
@@ -37,9 +37,9 @@ impl From<BlockHistory> for State {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
     /// Current block's header hash
-    pub header_hash: OpaqueHash,
-    pub parent_state_root: OpaqueHash,
-    pub accumulate_root: OpaqueHash,
+    pub header_hash: AsnOpaqueHash,
+    pub parent_state_root: AsnOpaqueHash,
+    pub accumulate_root: AsnOpaqueHash,
     pub work_packages: Reports,
 }
 

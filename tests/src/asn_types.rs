@@ -46,11 +46,10 @@ use std::{
 // -- Constants
 // ----------------------------------------------------
 
-pub const VALIDATORS_COUNT: usize = 6;
-pub const VALIDATORS_SUPER_MAJORITY: usize = 5;
-pub const EPOCH_LENGTH: usize = 12;
-pub const CORE_COUNT: usize = 2;
-// pub const AVAIL_BITFIELD_BYTES: usize = 1; // (CORE_COUNT + 7) / 8
+pub const ASN_VALIDATORS_COUNT: usize = 6;
+pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = 5;
+pub const ASN_EPOCH_LENGTH: usize = 12;
+pub const ASN_CORE_COUNT: usize = 2;
 
 // ----------------------------------------------------
 // -- Simple Types
@@ -58,13 +57,13 @@ pub const CORE_COUNT: usize = 2;
 
 pub type AsnTimeSlot = u32;
 pub type AsnCoreIndex = u16;
-pub type OpaqueHash = ByteArray32;
-pub type BandersnatchKey = ByteArray32;
-pub type Ed25519Key = ByteArray32;
-pub type Ed25519Signature = ByteArray64;
+pub type AsnOpaqueHash = AsnByteArray32;
+pub type AsnBandersnatchKey = AsnByteArray32;
+pub type AsnEd25519Key = AsnByteArray32;
+pub type AsnEd25519Signature = AsnByteArray64;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct BandersnatchRingRoot(
+pub struct AsnBandersnatchRingRoot(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -73,7 +72,7 @@ pub struct BandersnatchRingRoot(
 );
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct BandersnatchVrfSignature(
+pub struct AsnBandersnatchVrfSignature(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -81,26 +80,26 @@ pub struct BandersnatchVrfSignature(
     pub [u8; 96],
 );
 
-impl From<ByteArray<96>> for BandersnatchVrfSignature {
+impl From<ByteArray<96>> for AsnBandersnatchVrfSignature {
     fn from(value: ByteArray<96>) -> Self {
         Self(value.0)
     }
 }
 
-impl Debug for BandersnatchVrfSignature {
+impl Debug for AsnBandersnatchVrfSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
-impl Display for BandersnatchVrfSignature {
+impl Display for AsnBandersnatchVrfSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct BandersnatchRingSignature(
+pub struct AsnBandersnatchRingSignature(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -108,26 +107,26 @@ pub struct BandersnatchRingSignature(
     pub [u8; 784],
 );
 
-impl From<ByteArray<784>> for BandersnatchRingSignature {
+impl From<ByteArray<784>> for AsnBandersnatchRingSignature {
     fn from(value: ByteArray<784>) -> Self {
         Self(value.0)
     }
 }
 
-impl Debug for BandersnatchRingSignature {
+impl Debug for AsnBandersnatchRingSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
-impl Display for BandersnatchRingSignature {
+impl Display for AsnBandersnatchRingSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct BlsKey(
+pub struct AsnBlsKey(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -135,19 +134,19 @@ pub struct BlsKey(
     pub [u8; 144],
 );
 
-impl From<ByteArray<144>> for BlsKey {
+impl From<ByteArray<144>> for AsnBlsKey {
     fn from(value: ByteArray<144>) -> Self {
         Self(value.0)
     }
 }
 
-impl Debug for BlsKey {
+impl Debug for AsnBlsKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
-impl Display for BlsKey {
+impl Display for AsnBlsKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
@@ -181,7 +180,7 @@ impl From<Vec<u8>> for AsnByteSequence {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
-pub struct ByteArray32(
+pub struct AsnByteArray32(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -189,32 +188,32 @@ pub struct ByteArray32(
     pub [u8; 32],
 );
 
-impl From<ByteArray<32>> for ByteArray32 {
+impl From<ByteArray<32>> for AsnByteArray32 {
     fn from(value: ByteArray<32>) -> Self {
         Self(value.0)
     }
 }
 
-impl From<[u8; 32]> for ByteArray32 {
+impl From<[u8; 32]> for AsnByteArray32 {
     fn from(value: [u8; 32]) -> Self {
         Self(value)
     }
 }
 
-impl Debug for ByteArray32 {
+impl Debug for AsnByteArray32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
-impl Display for ByteArray32 {
+impl Display for AsnByteArray32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
-pub struct ByteArray64(
+pub struct AsnByteArray64(
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -222,19 +221,19 @@ pub struct ByteArray64(
     pub [u8; 64],
 );
 
-impl From<ByteArray<64>> for ByteArray64 {
+impl From<ByteArray<64>> for AsnByteArray64 {
     fn from(value: ByteArray<64>) -> Self {
         Self(value.0)
     }
 }
 
-impl Debug for ByteArray64 {
+impl Debug for AsnByteArray64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
 
-impl Display for ByteArray64 {
+impl Display for AsnByteArray64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
@@ -245,33 +244,33 @@ impl Display for ByteArray64 {
 // ----------------------------------------------------
 
 pub type AsnValidatorIndex = u16;
-pub type Gas = u64;
-pub type Entropy = OpaqueHash;
-pub type HeaderHash = OpaqueHash;
-pub type ValidatorsData = [ValidatorData; VALIDATORS_COUNT];
-pub type WorkPackageHash = OpaqueHash;
-pub type WorkReportHash = OpaqueHash;
+pub type AsnGas = u64;
+pub type AsnEntropy = AsnOpaqueHash;
+pub type AsnHeaderHash = AsnOpaqueHash;
+pub type AsnValidatorsData = [AsnValidatorData; ASN_VALIDATORS_COUNT];
+pub type AsnWorkPackageHash = AsnOpaqueHash;
+pub type AsnWorkReportHash = AsnOpaqueHash;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct EntropyBuffer(pub [Entropy; 4]);
+pub struct AsnEntropyBuffer(pub [AsnEntropy; 4]);
 
-impl From<EntropyAccumulator> for EntropyBuffer {
+impl From<EntropyAccumulator> for AsnEntropyBuffer {
     fn from(value: EntropyAccumulator) -> Self {
-        Self(value.0.map(|entropy| ByteArray32(entropy.0)))
+        Self(value.0.map(|entropy| AsnByteArray32(entropy.0)))
     }
 }
 
-impl From<EntropyBuffer> for EntropyAccumulator {
-    fn from(value: EntropyBuffer) -> Self {
+impl From<AsnEntropyBuffer> for EntropyAccumulator {
+    fn from(value: AsnEntropyBuffer) -> Self {
         Self(value.0.map(|entropy| ByteArray::new(entropy.0)))
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ValidatorData {
-    pub bandersnatch: BandersnatchKey,
-    pub ed25519: Ed25519Key,
-    pub bls: BlsKey,
+pub struct AsnValidatorData {
+    pub bandersnatch: AsnBandersnatchKey,
+    pub ed25519: AsnEd25519Key,
+    pub bls: AsnBlsKey,
     #[serde(
         serialize_with = "serialize_hex_array",
         deserialize_with = "deserialize_hex_array"
@@ -279,30 +278,30 @@ pub struct ValidatorData {
     pub metadata: [u8; 128],
 }
 
-impl Default for ValidatorData {
+impl Default for AsnValidatorData {
     fn default() -> Self {
         Self {
-            bandersnatch: ByteArray32::default(),
-            ed25519: ByteArray32::default(),
-            bls: BlsKey([0u8; 144]),
+            bandersnatch: AsnByteArray32::default(),
+            ed25519: AsnByteArray32::default(),
+            bls: AsnBlsKey([0u8; 144]),
             metadata: [0u8; 128],
         }
     }
 }
 
-impl From<ValidatorKey> for ValidatorData {
+impl From<ValidatorKey> for AsnValidatorData {
     fn from(value: ValidatorKey) -> Self {
         Self {
-            bandersnatch: ByteArray32(value.bandersnatch_key.0),
-            ed25519: ByteArray32(value.ed25519_key.0),
-            bls: BlsKey(value.bls_key.0),
+            bandersnatch: AsnByteArray32(value.bandersnatch_key.0),
+            ed25519: AsnByteArray32(value.ed25519_key.0),
+            bls: AsnBlsKey(value.bls_key.0),
             metadata: value.metadata.0,
         }
     }
 }
 
-impl From<ValidatorData> for ValidatorKey {
-    fn from(value: ValidatorData) -> Self {
+impl From<AsnValidatorData> for ValidatorKey {
+    fn from(value: AsnValidatorData) -> Self {
         Self {
             bandersnatch_key: ByteArray::new(value.bandersnatch.0),
             ed25519_key: ByteArray::new(value.ed25519.0),
@@ -312,7 +311,7 @@ impl From<ValidatorData> for ValidatorKey {
     }
 }
 
-pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorKeySet {
+pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
     let mut validator_keys = [ValidatorKey::default(); VALIDATOR_COUNT];
     for (i, validator_data) in data.iter().enumerate() {
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
@@ -321,10 +320,10 @@ pub fn validators_data_to_validator_set(data: &ValidatorsData) -> ValidatorKeySe
     Box::new(validator_keys)
 }
 
-pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> ValidatorsData {
-    let mut validators_data = ValidatorsData::default();
+pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
+    let mut validators_data = AsnValidatorsData::default();
     for (i, key) in data.into_iter().enumerate() {
-        validators_data[i] = ValidatorData::from(key);
+        validators_data[i] = AsnValidatorData::from(key);
     }
 
     validators_data
@@ -334,28 +333,28 @@ pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> ValidatorsDat
 // -- Service
 // ----------------------------------------------------
 
-pub type ServiceId = u32;
+pub type AsnServiceId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ServiceInfo {
-    pub code_hash: OpaqueHash,
+pub struct AsnServiceInfo {
+    pub code_hash: AsnOpaqueHash,
     pub balance: u64,
-    pub min_item_gas: Gas,
-    pub min_memo_gas: Gas,
+    pub min_item_gas: AsnGas,
+    pub min_memo_gas: AsnGas,
     bytes: u64,
     items: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ServiceItem {
-    pub id: ServiceId,
-    pub info: ServiceInfo,
+pub struct AsnServiceItem {
+    pub id: AsnServiceId,
+    pub info: AsnServiceInfo,
 }
 
-impl From<AccountMetadata> for ServiceItem {
+impl From<AccountMetadata> for AsnServiceItem {
     fn from(value: AccountMetadata) -> Self {
-        let info = ServiceInfo {
-            code_hash: ByteArray32(value.account_info.code_hash.0),
+        let info = AsnServiceInfo {
+            code_hash: AsnByteArray32(value.account_info.code_hash.0),
             balance: value.account_info.balance,
             min_item_gas: value.account_info.gas_limit_accumulate,
             min_memo_gas: value.account_info.gas_limit_on_transfer,
@@ -370,10 +369,10 @@ impl From<AccountMetadata> for ServiceItem {
     }
 }
 
-impl From<ServiceItem> for AccountMetadata {
+impl From<AsnServiceItem> for AccountMetadata {
     // Note: assigning all `bytes` and `items` to storage since `ServiceInfo` doesn't track those
     // for the storage and lookups separately.
-    fn from(value: ServiceItem) -> Self {
+    fn from(value: AsnServiceItem) -> Self {
         let account_info = AccountInfo {
             code_hash: ByteArray::new(value.info.code_hash.0),
             balance: value.info.balance,
@@ -392,19 +391,19 @@ impl From<ServiceItem> for AccountMetadata {
     }
 }
 
-pub type Services = Vec<ServiceItem>;
+pub type AsnServices = Vec<AsnServiceItem>;
 
 // ----------------------------------------------------
 // -- Availability Assignments
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AvailAssignment {
+pub struct AsnAvailAssignment {
     pub report: AsnWorkReport,
     pub timeout: u32,
 }
 
-impl From<PendingReport> for AvailAssignment {
+impl From<PendingReport> for AsnAvailAssignment {
     fn from(value: PendingReport) -> Self {
         Self {
             report: value.work_report.into(),
@@ -413,8 +412,8 @@ impl From<PendingReport> for AvailAssignment {
     }
 }
 
-impl From<AvailAssignment> for PendingReport {
-    fn from(value: AvailAssignment) -> Self {
+impl From<AsnAvailAssignment> for PendingReport {
+    fn from(value: AsnAvailAssignment) -> Self {
         Self {
             work_report: value.report.into(),
             reported_timeslot: Timeslot::new(value.timeout),
@@ -423,11 +422,11 @@ impl From<AvailAssignment> for PendingReport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AvailAssignments([Option<AvailAssignment>; CORE_COUNT]);
+pub struct AsnAvailAssignments([Option<AsnAvailAssignment>; ASN_CORE_COUNT]);
 
-impl From<AvailAssignments> for PendingReports {
-    fn from(value: AvailAssignments) -> Self {
-        let mut reports: [Option<PendingReport>; CORE_COUNT] = Default::default();
+impl From<AsnAvailAssignments> for PendingReports {
+    fn from(value: AsnAvailAssignments) -> Self {
+        let mut reports: [Option<PendingReport>; ASN_CORE_COUNT] = Default::default();
 
         for (i, item) in value.0.iter().enumerate() {
             reports[i] = match item {
@@ -447,15 +446,15 @@ impl From<AvailAssignments> for PendingReports {
     }
 }
 
-impl From<PendingReports> for AvailAssignments {
+impl From<PendingReports> for AsnAvailAssignments {
     fn from(value: PendingReports) -> Self {
-        let mut assignments: [Option<AvailAssignment>; CORE_COUNT] = Default::default();
+        let mut assignments: [Option<AsnAvailAssignment>; ASN_CORE_COUNT] = Default::default();
 
         for (i, report_option) in value.0.iter().enumerate() {
             assignments[i] = match report_option {
                 Some(pending_report) => {
                     let report = pending_report.clone().work_report.into();
-                    let assignment = AvailAssignment {
+                    let assignment = AsnAvailAssignment {
                         report,
                         timeout: pending_report.reported_timeslot.0,
                     };
@@ -465,7 +464,7 @@ impl From<PendingReports> for AvailAssignments {
             };
         }
 
-        AvailAssignments(assignments)
+        AsnAvailAssignments(assignments)
     }
 }
 
@@ -474,17 +473,17 @@ impl From<PendingReports> for AvailAssignments {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct RefineContext {
-    pub anchor: OpaqueHash,
-    pub state_root: OpaqueHash,
-    pub beefy_root: OpaqueHash,
-    pub lookup_anchor: OpaqueHash,
+pub struct AsnRefineContext {
+    pub anchor: AsnOpaqueHash,
+    pub state_root: AsnOpaqueHash,
+    pub beefy_root: AsnOpaqueHash,
+    pub lookup_anchor: AsnOpaqueHash,
     pub lookup_anchor_slot: AsnTimeSlot,
-    pub prerequisites: Vec<OpaqueHash>,
+    pub prerequisites: Vec<AsnOpaqueHash>,
 }
 
-impl From<RefineContext> for RefinementContext {
-    fn from(value: RefineContext) -> Self {
+impl From<AsnRefineContext> for RefinementContext {
+    fn from(value: AsnRefineContext) -> Self {
         Self {
             anchor_header_hash: ByteArray::new(value.anchor.0),
             anchor_state_root: ByteArray::new(value.state_root.0),
@@ -500,18 +499,18 @@ impl From<RefineContext> for RefinementContext {
     }
 }
 
-impl From<RefinementContext> for RefineContext {
+impl From<RefinementContext> for AsnRefineContext {
     fn from(value: RefinementContext) -> Self {
         Self {
-            anchor: ByteArray32(value.anchor_header_hash.0),
-            state_root: ByteArray32(value.anchor_state_root.0),
-            beefy_root: ByteArray32(value.beefy_root.0),
-            lookup_anchor: ByteArray32(value.lookup_anchor_header_hash.0),
+            anchor: AsnByteArray32(value.anchor_header_hash.0),
+            state_root: AsnByteArray32(value.anchor_state_root.0),
+            beefy_root: AsnByteArray32(value.beefy_root.0),
+            lookup_anchor: AsnByteArray32(value.lookup_anchor_header_hash.0),
             lookup_anchor_slot: value.lookup_anchor_timeslot,
             prerequisites: value
                 .prerequisite_work_packages
                 .into_iter()
-                .map(|h| ByteArray32(h.0))
+                .map(|h| AsnByteArray32(h.0))
                 .collect(),
         }
     }
@@ -521,11 +520,11 @@ impl From<RefinementContext> for RefineContext {
 // -- Authorizations
 // ----------------------------------------------------
 
-type AuthorizerHash = OpaqueHash;
+type AsnAuthorizerHash = AsnOpaqueHash;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnAuthorizer {
-    pub code_hash: OpaqueHash,
+    pub code_hash: AsnOpaqueHash,
     pub params: AsnByteSequence,
 }
 
@@ -539,10 +538,10 @@ impl From<AsnAuthorizer> for Authorizer {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthPool(Vec<AuthorizerHash>);
+pub struct AsnAuthPool(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthPools([AsnAuthPool; CORE_COUNT]);
+pub struct AsnAuthPools([AsnAuthPool; ASN_CORE_COUNT]);
 
 impl From<AsnAuthPools> for AuthPool {
     fn from(value: AsnAuthPools) -> Self {
@@ -556,7 +555,10 @@ impl From<AsnAuthPools> for AuthPool {
 impl From<AuthPool> for AsnAuthPools {
     fn from(value: AuthPool) -> Self {
         let asn_pool = value.0.map(|hashes| {
-            let asn_hashes = hashes.iter().map(|h| ByteArray32(h.0)).collect::<Vec<_>>();
+            let asn_hashes = hashes
+                .iter()
+                .map(|h| AsnByteArray32(h.0))
+                .collect::<Vec<_>>();
             AsnAuthPool(asn_hashes)
         });
         Self(asn_pool)
@@ -564,10 +566,10 @@ impl From<AuthPool> for AsnAuthPools {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthQueue(Vec<AuthorizerHash>);
+pub struct AsnAuthQueue(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthQueues([AsnAuthQueue; CORE_COUNT]);
+pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
@@ -585,7 +587,7 @@ impl From<AsnAuthQueues> for AuthQueue {
 impl From<AuthQueue> for AsnAuthQueues {
     fn from(value: AuthQueue) -> Self {
         let asn_queue = value.0.map(|q| {
-            let asn_hashes = q.iter().map(|h| ByteArray32(h.0)).collect::<Vec<_>>();
+            let asn_hashes = q.iter().map(|h| AsnByteArray32(h.0)).collect::<Vec<_>>();
             AsnAuthQueue(asn_hashes)
         });
         Self(asn_queue)
@@ -597,13 +599,13 @@ impl From<AuthQueue> for AsnAuthQueues {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ImportSpec {
-    pub tree_root: OpaqueHash,
+pub struct AsnImportSpec {
+    pub tree_root: AsnOpaqueHash,
     pub index: u16,
 }
 
-impl From<ImportSpec> for ImportInfo {
-    fn from(value: ImportSpec) -> Self {
+impl From<AsnImportSpec> for ImportInfo {
+    fn from(value: AsnImportSpec) -> Self {
         let hash = ByteArray::new(value.tree_root.0);
         let work_package_id = if value.index >= (1 << 15) {
             WorkPackageId::WorkPackageHash(hash)
@@ -619,13 +621,13 @@ impl From<ImportSpec> for ImportInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ExtrinsicSpec {
-    pub hash: OpaqueHash,
+pub struct AsnExtrinsicSpec {
+    pub hash: AsnOpaqueHash,
     pub len: u32,
 }
 
-impl From<ExtrinsicSpec> for ExtrinsicInfo {
-    fn from(value: ExtrinsicSpec) -> Self {
+impl From<AsnExtrinsicSpec> for ExtrinsicInfo {
+    fn from(value: AsnExtrinsicSpec) -> Self {
         Self {
             blob_hash: ByteArray::new(value.hash.0),
             blob_length: value.len as usize,
@@ -636,12 +638,12 @@ impl From<ExtrinsicSpec> for ExtrinsicInfo {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnWorkItem {
     pub service: u32,
-    pub code_hash: OpaqueHash,
+    pub code_hash: AsnOpaqueHash,
     pub payload: AsnByteSequence,
     pub refine_gas_limit: u64,
     pub accumulate_gas_limit: u64,
-    pub import_segments: Vec<ImportSpec>,
-    pub extrinsic: Vec<ExtrinsicSpec>,
+    pub import_segments: Vec<AsnImportSpec>,
+    pub extrinsic: Vec<AsnExtrinsicSpec>,
     pub export_count: u16,
 }
 
@@ -673,7 +675,7 @@ pub struct AsnWorkPackage {
     pub authorization: AsnByteSequence,
     pub auth_code_host: u32,
     pub authorizer: AsnAuthorizer,
-    pub context: RefineContext,
+    pub context: AsnRefineContext,
     pub items: Vec<AsnWorkItem>,
 }
 
@@ -695,7 +697,7 @@ impl From<AsnWorkPackage> for WorkPackage {
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum WorkExecResult {
+pub enum AsnWorkExecResult {
     ok(AsnByteSequence),
     out_of_gas,
     panic,
@@ -703,19 +705,19 @@ pub enum WorkExecResult {
     code_oversize,
 }
 
-impl From<WorkExecResult> for WorkExecutionOutput {
-    fn from(value: WorkExecResult) -> Self {
+impl From<AsnWorkExecResult> for WorkExecutionOutput {
+    fn from(value: AsnWorkExecResult) -> Self {
         match value {
-            WorkExecResult::ok(bytes) => Self::Output(Octets::from_vec(bytes.0)),
-            WorkExecResult::out_of_gas => Self::Error(OutOfGas),
-            WorkExecResult::panic => Self::Error(Panic),
-            WorkExecResult::bad_code => Self::Error(Bad),
-            WorkExecResult::code_oversize => Self::Error(Big),
+            AsnWorkExecResult::ok(bytes) => Self::Output(Octets::from_vec(bytes.0)),
+            AsnWorkExecResult::out_of_gas => Self::Error(OutOfGas),
+            AsnWorkExecResult::panic => Self::Error(Panic),
+            AsnWorkExecResult::bad_code => Self::Error(Bad),
+            AsnWorkExecResult::code_oversize => Self::Error(Big),
         }
     }
 }
 
-impl From<WorkExecutionOutput> for WorkExecResult {
+impl From<WorkExecutionOutput> for AsnWorkExecResult {
     fn from(value: WorkExecutionOutput) -> Self {
         match value {
             WorkExecutionOutput::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
@@ -728,16 +730,16 @@ impl From<WorkExecutionOutput> for WorkExecResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct WorkResult {
+pub struct AsnWorkResult {
     pub service_id: u32,
-    pub code_hash: OpaqueHash,
-    pub payload_hash: OpaqueHash,
+    pub code_hash: AsnOpaqueHash,
+    pub payload_hash: AsnOpaqueHash,
     pub accumulate_gas: u64,
-    pub result: WorkExecResult,
+    pub result: AsnWorkExecResult,
 }
 
-impl From<WorkResult> for WorkItemResult {
-    fn from(value: WorkResult) -> Self {
+impl From<AsnWorkResult> for WorkItemResult {
+    fn from(value: AsnWorkResult) -> Self {
         Self {
             service_index: value.service_id,
             service_code_hash: ByteArray::new(value.code_hash.0),
@@ -748,12 +750,12 @@ impl From<WorkResult> for WorkItemResult {
     }
 }
 
-impl From<WorkItemResult> for WorkResult {
+impl From<WorkItemResult> for AsnWorkResult {
     fn from(value: WorkItemResult) -> Self {
         Self {
             service_id: value.service_index,
-            code_hash: ByteArray32(value.service_code_hash.0),
-            payload_hash: ByteArray32(value.payload_hash.0),
+            code_hash: AsnByteArray32(value.service_code_hash.0),
+            payload_hash: AsnByteArray32(value.payload_hash.0),
             accumulate_gas: value.gas_prioritization_ratio,
             result: value.refinement_output.into(),
         }
@@ -761,16 +763,16 @@ impl From<WorkItemResult> for WorkResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct WorkPackageSpec {
-    pub hash: OpaqueHash,
+pub struct AsnWorkPackageSpec {
+    pub hash: AsnOpaqueHash,
     pub length: u32,
-    pub erasure_root: OpaqueHash,
-    pub exports_root: OpaqueHash,
+    pub erasure_root: AsnOpaqueHash,
+    pub exports_root: AsnOpaqueHash,
     pub exports_count: u16,
 }
 
-impl From<WorkPackageSpec> for AvailabilitySpecs {
-    fn from(value: WorkPackageSpec) -> Self {
+impl From<AsnWorkPackageSpec> for AvailabilitySpecs {
+    fn from(value: AsnWorkPackageSpec) -> Self {
         Self {
             work_package_hash: ByteArray::new(value.hash.0),
             work_package_length: value.length,
@@ -781,32 +783,32 @@ impl From<WorkPackageSpec> for AvailabilitySpecs {
     }
 }
 
-impl From<AvailabilitySpecs> for WorkPackageSpec {
+impl From<AvailabilitySpecs> for AsnWorkPackageSpec {
     fn from(value: AvailabilitySpecs) -> Self {
         Self {
-            hash: ByteArray32(value.work_package_hash.0),
+            hash: AsnByteArray32(value.work_package_hash.0),
             length: value.work_package_length,
-            erasure_root: ByteArray32(value.erasure_root.0),
-            exports_root: ByteArray32(value.segment_root.0),
+            erasure_root: AsnByteArray32(value.erasure_root.0),
+            exports_root: AsnByteArray32(value.segment_root.0),
             exports_count: value.segment_count as u16,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct SegmentRootLookupItem {
-    pub work_package_hash: OpaqueHash,
-    pub segment_tree_root: OpaqueHash,
+pub struct AsnSegmentRootLookupItem {
+    pub work_package_hash: AsnOpaqueHash,
+    pub segment_tree_root: AsnOpaqueHash,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(transparent)]
 pub struct AsnSegmentRootLookupTable {
-    pub items: Vec<SegmentRootLookupItem>,
+    pub items: Vec<AsnSegmentRootLookupItem>,
 }
 
 impl Deref for AsnSegmentRootLookupTable {
-    type Target = Vec<SegmentRootLookupItem>;
+    type Target = Vec<AsnSegmentRootLookupItem>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -829,11 +831,11 @@ impl From<AsnSegmentRootLookupTable> for SegmentRootLookupTable {
 
 impl From<SegmentRootLookupTable> for AsnSegmentRootLookupTable {
     fn from(value: SegmentRootLookupTable) -> Self {
-        let mut items: Vec<SegmentRootLookupItem> = Vec::with_capacity(value.len());
+        let mut items: Vec<AsnSegmentRootLookupItem> = Vec::with_capacity(value.len());
         for (key, value) in value.iter() {
-            items.push(SegmentRootLookupItem {
-                work_package_hash: ByteArray32(key.0),
-                segment_tree_root: ByteArray32(value.0),
+            items.push(AsnSegmentRootLookupItem {
+                work_package_hash: AsnByteArray32(key.0),
+                segment_tree_root: AsnByteArray32(value.0),
             })
         }
 
@@ -843,13 +845,13 @@ impl From<SegmentRootLookupTable> for AsnSegmentRootLookupTable {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnWorkReport {
-    pub package_spec: WorkPackageSpec,
-    pub context: RefineContext,
+    pub package_spec: AsnWorkPackageSpec,
+    pub context: AsnRefineContext,
     pub core_index: u16,
-    pub authorizer_hash: OpaqueHash,
+    pub authorizer_hash: AsnOpaqueHash,
     pub auth_output: AsnByteSequence,
     pub segment_root_lookup: AsnSegmentRootLookupTable,
-    pub results: Vec<WorkResult>, // SIZE(1..4)
+    pub results: Vec<AsnWorkResult>, // SIZE(1..4)
 }
 
 impl From<AsnWorkReport> for WorkReport {
@@ -876,10 +878,10 @@ impl From<WorkReport> for AsnWorkReport {
             package_spec: value.specs.into(),
             context: value.refinement_context.into(),
             core_index: value.core_index,
-            authorizer_hash: ByteArray32(value.authorizer_hash.0),
+            authorizer_hash: AsnByteArray32(value.authorizer_hash.0),
             auth_output: AsnByteSequence(value.authorization_output.0),
             segment_root_lookup: value.segment_roots_lookup.into(),
-            results: value.results.into_iter().map(WorkResult::from).collect(),
+            results: value.results.into_iter().map(AsnWorkResult::from).collect(),
         }
     }
 }
@@ -888,15 +890,15 @@ impl From<WorkReport> for AsnWorkReport {
 // -- Block History
 // ----------------------------------------------------
 
-pub type MmrPeak = Option<OpaqueHash>;
+pub type AsnMmrPeak = Option<AsnOpaqueHash>;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Mmr {
-    peaks: Vec<MmrPeak>,
+pub struct AsnMmr {
+    peaks: Vec<AsnMmrPeak>,
 }
 
-impl<H: Hasher> From<Mmr> for MerkleMountainRange<H> {
-    fn from(value: Mmr) -> Self {
+impl<H: Hasher> From<AsnMmr> for MerkleMountainRange<H> {
+    fn from(value: AsnMmr) -> Self {
         let peaks = value
             .peaks
             .into_iter()
@@ -907,37 +909,37 @@ impl<H: Hasher> From<Mmr> for MerkleMountainRange<H> {
     }
 }
 
-impl<H: Hasher> From<MerkleMountainRange<H>> for Mmr {
+impl<H: Hasher> From<MerkleMountainRange<H>> for AsnMmr {
     fn from(value: MerkleMountainRange<H>) -> Self {
         let peaks = value
             .peaks
             .into_iter()
-            .map(|peak| peak.map(|hash| ByteArray32(hash.0)))
+            .map(|peak| peak.map(|hash| AsnByteArray32(hash.0)))
             .collect();
 
-        Mmr { peaks }
+        AsnMmr { peaks }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Reported {
-    pub hash: OpaqueHash,
-    pub exports_root: OpaqueHash,
+pub struct AsnReported {
+    pub hash: AsnOpaqueHash,
+    pub exports_root: AsnOpaqueHash,
 }
 
-pub type Reports = Vec<Reported>;
+pub type Reports = Vec<AsnReported>;
 
 // Recorded disputes sequences and offenders
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct BlockInfo {
-    header_hash: OpaqueHash,
-    mmr: Mmr,
-    state_root: OpaqueHash,
+pub struct AsnBlockInfo {
+    header_hash: AsnOpaqueHash,
+    mmr: AsnMmr,
+    state_root: AsnOpaqueHash,
     reported: Reports,
 }
 
-impl From<BlockInfo> for BlockHistoryEntry {
-    fn from(value: BlockInfo) -> Self {
+impl From<AsnBlockInfo> for BlockHistoryEntry {
+    fn from(value: AsnBlockInfo) -> Self {
         Self {
             header_hash: ByteArray::new(value.header_hash.0),
             accumulation_result_mmr: value.mmr.into(),
@@ -954,18 +956,18 @@ impl From<BlockInfo> for BlockHistoryEntry {
     }
 }
 
-impl From<BlockHistoryEntry> for BlockInfo {
+impl From<BlockHistoryEntry> for AsnBlockInfo {
     fn from(value: BlockHistoryEntry) -> Self {
         Self {
-            header_hash: ByteArray32(value.header_hash.0),
+            header_hash: AsnByteArray32(value.header_hash.0),
             mmr: value.accumulation_result_mmr.into(),
-            state_root: ByteArray32(value.state_root.0),
+            state_root: AsnByteArray32(value.state_root.0),
             reported: value
                 .reported_packages
                 .into_iter()
-                .map(|package| Reported {
-                    hash: ByteArray32(package.work_package_hash.0),
-                    exports_root: ByteArray32(package.segment_root.0),
+                .map(|package| AsnReported {
+                    hash: AsnByteArray32(package.work_package_hash.0),
+                    exports_root: AsnByteArray32(package.segment_root.0),
                 })
                 .collect(),
         }
@@ -973,7 +975,7 @@ impl From<BlockHistoryEntry> for BlockInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnBlocksHistory(pub Vec<BlockInfo>);
+pub struct AsnBlocksHistory(pub Vec<AsnBlockInfo>);
 
 impl From<AsnBlocksHistory> for BlockHistory {
     fn from(value: AsnBlocksHistory) -> Self {
@@ -983,7 +985,7 @@ impl From<AsnBlocksHistory> for BlockHistory {
 
 impl From<BlockHistory> for AsnBlocksHistory {
     fn from(value: BlockHistory) -> Self {
-        Self(value.0.into_iter().map(BlockInfo::from).collect())
+        Self(value.0.into_iter().map(AsnBlockInfo::from).collect())
     }
 }
 
@@ -992,7 +994,7 @@ impl From<BlockHistory> for AsnBlocksHistory {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
-pub struct ActivityRecord {
+pub struct AsnActivityRecord {
     pub blocks: u32,
     pub tickets: u32,
     pub pre_images: u32,
@@ -1001,7 +1003,7 @@ pub struct ActivityRecord {
     pub assurances: u32,
 }
 
-impl From<ValidatorStatEntry> for ActivityRecord {
+impl From<ValidatorStatEntry> for AsnActivityRecord {
     fn from(value: ValidatorStatEntry) -> Self {
         Self {
             blocks: value.blocks_produced_count,
@@ -1014,8 +1016,8 @@ impl From<ValidatorStatEntry> for ActivityRecord {
     }
 }
 
-impl From<ActivityRecord> for ValidatorStatEntry {
-    fn from(value: ActivityRecord) -> Self {
+impl From<AsnActivityRecord> for ValidatorStatEntry {
+    fn from(value: AsnActivityRecord) -> Self {
         Self {
             blocks_produced_count: value.blocks,
             tickets_count: value.tickets,
@@ -1028,20 +1030,20 @@ impl From<ActivityRecord> for ValidatorStatEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ActivityRecords([ActivityRecord; VALIDATORS_COUNT]);
+pub struct AsnActivityRecords([AsnActivityRecord; ASN_VALIDATORS_COUNT]);
 
-impl From<EpochValidatorStats> for ActivityRecords {
+impl From<EpochValidatorStats> for AsnActivityRecords {
     fn from(value: EpochValidatorStats) -> Self {
-        let mut records = from_fn(|_| ActivityRecord::default());
+        let mut records = from_fn(|_| AsnActivityRecord::default());
         for (i, entry) in value.into_iter().enumerate() {
-            records[i] = ActivityRecord::from(*entry);
+            records[i] = AsnActivityRecord::from(*entry);
         }
         Self(records)
     }
 }
 
-impl From<ActivityRecords> for EpochValidatorStats {
-    fn from(value: ActivityRecords) -> Self {
+impl From<AsnActivityRecords> for EpochValidatorStats {
+    fn from(value: AsnActivityRecords) -> Self {
         let mut stats = from_fn(|_| ValidatorStatEntry::default());
         for (i, record) in value.0.into_iter().enumerate() {
             stats[i] = ValidatorStatEntry::from(record);
@@ -1052,15 +1054,15 @@ impl From<ActivityRecords> for EpochValidatorStats {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnStatistics {
-    current: ActivityRecords,
-    last: ActivityRecords,
+    current: AsnActivityRecords,
+    last: AsnActivityRecords,
 }
 
 impl From<ValidatorStats> for AsnStatistics {
     fn from(value: ValidatorStats) -> Self {
         Self {
-            current: ActivityRecords::from(value.0[0].clone()),
-            last: ActivityRecords::from(value.0[1].clone()),
+            current: AsnActivityRecords::from(value.0[0].clone()),
+            last: AsnActivityRecords::from(value.0[1].clone()),
         }
     }
 }
@@ -1080,13 +1082,13 @@ impl From<AsnStatistics> for ValidatorStats {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy, PartialEq)]
-pub struct TicketBody {
+pub struct AsnTicketBody {
     pub attempt: u8,
-    pub id: OpaqueHash,
+    pub id: AsnOpaqueHash,
 }
 
-impl From<TicketBody> for Ticket {
-    fn from(value: TicketBody) -> Self {
+impl From<AsnTicketBody> for Ticket {
+    fn from(value: AsnTicketBody) -> Self {
         Self {
             attempt: value.attempt,
             id: ByteArray::new(value.id.0),
@@ -1094,30 +1096,30 @@ impl From<TicketBody> for Ticket {
     }
 }
 
-impl From<Ticket> for TicketBody {
+impl From<Ticket> for AsnTicketBody {
     fn from(ticket: Ticket) -> Self {
-        TicketBody {
-            id: ByteArray32(ticket.id.0),
+        AsnTicketBody {
+            id: AsnByteArray32(ticket.id.0),
             attempt: ticket.attempt,
         }
     }
 }
 
-pub type TicketsBodies = [TicketBody; EPOCH_LENGTH];
-pub type EpochKeys = [BandersnatchKey; EPOCH_LENGTH];
+pub type AsnTicketsBodies = [AsnTicketBody; ASN_EPOCH_LENGTH];
+pub type AsnEpochKeys = [AsnBandersnatchKey; ASN_EPOCH_LENGTH];
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum TicketsOrKeys {
-    tickets(TicketsBodies),
-    keys(EpochKeys),
+pub enum AsnTicketsOrKeys {
+    tickets(AsnTicketsBodies),
+    keys(AsnEpochKeys),
 }
 
-impl From<TicketsOrKeys> for SlotSealerType {
-    fn from(value: TicketsOrKeys) -> Self {
+impl From<AsnTicketsOrKeys> for SlotSealerType {
+    fn from(value: AsnTicketsOrKeys) -> Self {
         match value {
-            TicketsOrKeys::tickets(ticket_bodies) => {
-                let mut tickets: [Ticket; EPOCH_LENGTH] = Default::default();
+            AsnTicketsOrKeys::tickets(ticket_bodies) => {
+                let mut tickets: [Ticket; ASN_EPOCH_LENGTH] = Default::default();
                 for (i, ticket_body) in ticket_bodies.into_iter().enumerate() {
                     tickets[i] = Ticket {
                         id: ByteArray::new(ticket_body.id.0),
@@ -1126,8 +1128,8 @@ impl From<TicketsOrKeys> for SlotSealerType {
                 }
                 SlotSealerType::Tickets(Box::new(tickets))
             }
-            TicketsOrKeys::keys(epoch_keys) => {
-                let mut keys: [BandersnatchPubKey; EPOCH_LENGTH] = Default::default();
+            AsnTicketsOrKeys::keys(epoch_keys) => {
+                let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
                 for (i, key) in epoch_keys.into_iter().enumerate() {
                     keys[i] = ByteArray::new(key.0)
                 }
@@ -1137,38 +1139,38 @@ impl From<TicketsOrKeys> for SlotSealerType {
     }
 }
 
-impl From<SlotSealerType> for TicketsOrKeys {
+impl From<SlotSealerType> for AsnTicketsOrKeys {
     fn from(value: SlotSealerType) -> Self {
         match value {
             SlotSealerType::Tickets(tickets) => {
-                let mut ticket_bodies: TicketsBodies = Default::default();
+                let mut ticket_bodies: AsnTicketsBodies = Default::default();
                 for (i, ticket) in tickets.into_iter().enumerate() {
-                    ticket_bodies[i] = TicketBody {
-                        id: ByteArray32(ticket.id.0),
+                    ticket_bodies[i] = AsnTicketBody {
+                        id: AsnByteArray32(ticket.id.0),
                         attempt: ticket.attempt,
                     };
                 }
-                TicketsOrKeys::tickets(ticket_bodies)
+                AsnTicketsOrKeys::tickets(ticket_bodies)
             }
             SlotSealerType::BandersnatchPubKeys(keys) => {
-                let mut epoch_keys: EpochKeys = Default::default();
+                let mut epoch_keys: AsnEpochKeys = Default::default();
                 for (i, key) in keys.into_iter().enumerate() {
-                    epoch_keys[i] = ByteArray32(key.0);
+                    epoch_keys[i] = AsnByteArray32(key.0);
                 }
-                TicketsOrKeys::keys(epoch_keys)
+                AsnTicketsOrKeys::keys(epoch_keys)
             }
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TicketEnvelope {
+pub struct AsnTicketEnvelope {
     pub attempt: u8,
-    pub signature: BandersnatchRingSignature,
+    pub signature: AsnBandersnatchRingSignature,
 }
 
-impl From<TicketEnvelope> for TicketsExtrinsicEntry {
-    fn from(value: TicketEnvelope) -> Self {
+impl From<AsnTicketEnvelope> for TicketsExtrinsicEntry {
+    fn from(value: AsnTicketEnvelope) -> Self {
         Self {
             ticket_proof: Box::new(ByteArray::new(value.signature.0)),
             entry_index: value.attempt,
@@ -1177,7 +1179,7 @@ impl From<TicketEnvelope> for TicketsExtrinsicEntry {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnTicketsExtrinsic(pub Vec<TicketEnvelope>);
+pub struct AsnTicketsExtrinsic(pub Vec<AsnTicketEnvelope>);
 
 impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
     fn from(value: AsnTicketsExtrinsic) -> Self {
@@ -1195,17 +1197,17 @@ impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
 // -- Disputes
 // ----------------------------------------------------
 
-pub type EpochIndex = u32;
+pub type AsnEpochIndex = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DisputeJudgement {
+pub struct AsnDisputeJudgement {
     pub vote: bool,
     pub index: u16,
-    pub signature: Ed25519Signature,
+    pub signature: AsnEd25519Signature,
 }
 
-impl From<DisputeJudgement> for Judgment {
-    fn from(value: DisputeJudgement) -> Self {
+impl From<AsnDisputeJudgement> for Judgment {
+    fn from(value: AsnDisputeJudgement) -> Self {
         Self {
             is_report_valid: value.vote,
             voter: value.index,
@@ -1214,27 +1216,27 @@ impl From<DisputeJudgement> for Judgment {
     }
 }
 
-impl From<Judgment> for DisputeJudgement {
+impl From<Judgment> for AsnDisputeJudgement {
     fn from(value: Judgment) -> Self {
         Self {
             vote: value.is_report_valid,
             index: value.voter,
-            signature: ByteArray64(value.voter_signature.0),
+            signature: AsnByteArray64(value.voter_signature.0),
         }
     }
 }
 
-pub type DisputeJudgements = [DisputeJudgement; VALIDATORS_SUPER_MAJORITY];
+pub type DisputeJudgements = [AsnDisputeJudgement; ASN_VALIDATORS_SUPER_MAJORITY];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DisputeVerdict {
-    pub target: WorkReportHash,
-    pub age: EpochIndex,
+pub struct AsnDisputeVerdict {
+    pub target: AsnWorkReportHash,
+    pub age: AsnEpochIndex,
     pub votes: DisputeJudgements,
 }
 
-impl From<DisputeVerdict> for Verdict {
-    fn from(value: DisputeVerdict) -> Self {
+impl From<AsnDisputeVerdict> for Verdict {
+    fn from(value: AsnDisputeVerdict) -> Self {
         let mut judgments: [Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1] = Default::default();
 
         for (i, vote) in value.votes.into_iter().enumerate() {
@@ -1250,14 +1252,14 @@ impl From<DisputeVerdict> for Verdict {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DisputeCulpritProof {
-    pub target: WorkReportHash,
-    pub key: Ed25519Key,
-    pub signature: Ed25519Signature,
+pub struct AsnDisputeCulpritProof {
+    pub target: AsnWorkReportHash,
+    pub key: AsnEd25519Key,
+    pub signature: AsnEd25519Signature,
 }
 
-impl From<DisputeCulpritProof> for Culprit {
-    fn from(value: DisputeCulpritProof) -> Self {
+impl From<AsnDisputeCulpritProof> for Culprit {
+    fn from(value: AsnDisputeCulpritProof) -> Self {
         Self {
             report_hash: ByteArray::new(value.target.0),
             validator_key: ByteArray::new(value.key.0),
@@ -1267,15 +1269,15 @@ impl From<DisputeCulpritProof> for Culprit {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DisputeFaultProof {
-    pub target: WorkReportHash,
+pub struct AsnDisputeFaultProof {
+    pub target: AsnWorkReportHash,
     pub vote: bool,
-    pub key: Ed25519Key,
-    pub signature: Ed25519Signature,
+    pub key: AsnEd25519Key,
+    pub signature: AsnEd25519Signature,
 }
 
-impl From<DisputeFaultProof> for Fault {
-    fn from(value: DisputeFaultProof) -> Self {
+impl From<AsnDisputeFaultProof> for Fault {
+    fn from(value: AsnDisputeFaultProof) -> Self {
         Self {
             report_hash: ByteArray::new(value.target.0),
             is_report_valid: value.vote,
@@ -1286,27 +1288,27 @@ impl From<DisputeFaultProof> for Fault {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct DisputesOutputMarks {
-    pub offenders_mark: Vec<Ed25519Key>,
+pub struct AsnDisputesOutputMarks {
+    pub offenders_mark: Vec<AsnEd25519Key>,
 }
 
-impl From<OffendersHeaderMarker> for DisputesOutputMarks {
+impl From<OffendersHeaderMarker> for AsnDisputesOutputMarks {
     fn from(value: OffendersHeaderMarker) -> Self {
-        let offenders_mark = value.items.into_iter().map(ByteArray32::from).collect();
+        let offenders_mark = value.items.into_iter().map(AsnByteArray32::from).collect();
         Self { offenders_mark }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct DisputesRecords {
-    pub good: Vec<WorkReportHash>,  // Good verdicts
-    pub bad: Vec<WorkReportHash>,   // Bad verdicts
-    pub wonky: Vec<WorkReportHash>, // Wonky verdicts
-    pub offenders: Vec<Ed25519Key>, // Offenders
+pub struct AsnDisputesRecords {
+    pub good: Vec<AsnWorkReportHash>,  // Good verdicts
+    pub bad: Vec<AsnWorkReportHash>,   // Bad verdicts
+    pub wonky: Vec<AsnWorkReportHash>, // Wonky verdicts
+    pub offenders: Vec<AsnEd25519Key>, // Offenders
 }
 
-impl From<DisputesRecords> for DisputesState {
-    fn from(value: DisputesRecords) -> Self {
+impl From<AsnDisputesRecords> for DisputesState {
+    fn from(value: AsnDisputesRecords) -> Self {
         Self {
             good_set: value
                 .good
@@ -1332,16 +1334,28 @@ impl From<DisputesRecords> for DisputesState {
     }
 }
 
-impl From<DisputesState> for DisputesRecords {
+impl From<DisputesState> for AsnDisputesRecords {
     fn from(value: DisputesState) -> Self {
         Self {
-            good: value.good_set.into_iter().map(ByteArray32::from).collect(),
-            bad: value.bad_set.into_iter().map(ByteArray32::from).collect(),
-            wonky: value.wonky_set.into_iter().map(ByteArray32::from).collect(),
+            good: value
+                .good_set
+                .into_iter()
+                .map(AsnByteArray32::from)
+                .collect(),
+            bad: value
+                .bad_set
+                .into_iter()
+                .map(AsnByteArray32::from)
+                .collect(),
+            wonky: value
+                .wonky_set
+                .into_iter()
+                .map(AsnByteArray32::from)
+                .collect(),
             offenders: value
                 .punish_set
                 .into_iter()
-                .map(ByteArray32::from)
+                .map(AsnByteArray32::from)
                 .collect(),
         }
     }
@@ -1349,9 +1363,9 @@ impl From<DisputesState> for DisputesRecords {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AsnDisputesExtrinsic {
-    pub verdicts: Vec<DisputeVerdict>,
-    pub culprits: Vec<DisputeCulpritProof>,
-    pub faults: Vec<DisputeFaultProof>,
+    pub verdicts: Vec<AsnDisputeVerdict>,
+    pub culprits: Vec<AsnDisputeCulpritProof>,
+    pub faults: Vec<AsnDisputeFaultProof>,
 }
 
 impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
@@ -1369,13 +1383,13 @@ impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Preimage {
+pub struct AsnPreimage {
     pub requester: u32,
     pub blob: AsnByteSequence,
 }
 
-impl From<Preimage> for PreimageLookupsExtrinsicEntry {
-    fn from(value: Preimage) -> Self {
+impl From<AsnPreimage> for PreimageLookupsExtrinsicEntry {
+    fn from(value: AsnPreimage) -> Self {
         Self {
             service_index: value.requester,
             preimage_data: ByteSequence::from_vec(value.blob.0),
@@ -1384,7 +1398,7 @@ impl From<Preimage> for PreimageLookupsExtrinsicEntry {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnPreimageLookupsExtrinsic(pub Vec<Preimage>);
+pub struct AsnPreimageLookupsExtrinsic(pub Vec<AsnPreimage>);
 
 impl From<AsnPreimageLookupsExtrinsic> for PreimageLookupsExtrinsic {
     fn from(value: AsnPreimageLookupsExtrinsic) -> Self {
@@ -1403,11 +1417,11 @@ impl From<AsnPreimageLookupsExtrinsic> for PreimageLookupsExtrinsic {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AvailAssurance {
-    pub anchor: OpaqueHash,
+pub struct AsnAvailAssurance {
+    pub anchor: AsnOpaqueHash,
     pub bitfield: AsnByteSequence, // SIZE(AVAIL_BITFIELD_BYTES)
     pub validator_index: u16,
-    pub signature: Ed25519Signature,
+    pub signature: AsnEd25519Signature,
 }
 
 // Example: 0x01 => 0b0000_0001 => (truncate num_bits) => 0b01 => BitVec([1, 0])
@@ -1422,11 +1436,11 @@ fn bytes_to_bitvec(bytes: &[u8], num_bits: usize) -> BitVec {
     bitvec_rev
 }
 
-impl From<AvailAssurance> for AssurancesExtrinsicEntry {
-    fn from(value: AvailAssurance) -> Self {
+impl From<AsnAvailAssurance> for AssurancesExtrinsicEntry {
+    fn from(value: AsnAvailAssurance) -> Self {
         Self {
             anchor_parent_hash: ByteArray::new(value.anchor.0),
-            assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, CORE_COUNT),
+            assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, ASN_CORE_COUNT),
             validator_index: value.validator_index,
             signature: ByteArray::new(value.signature.0),
         }
@@ -1434,7 +1448,7 @@ impl From<AvailAssurance> for AssurancesExtrinsicEntry {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnAssurancesExtrinsic(pub Vec<AvailAssurance>);
+pub struct AsnAssurancesExtrinsic(pub Vec<AsnAvailAssurance>);
 
 impl From<AsnAssurancesExtrinsic> for AssurancesExtrinsic {
     fn from(value: AsnAssurancesExtrinsic) -> Self {
@@ -1453,13 +1467,13 @@ impl From<AsnAssurancesExtrinsic> for AssurancesExtrinsic {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ValidatorSignature {
+pub struct AsnValidatorSignature {
     pub validator_index: u16,
-    pub signature: Ed25519Signature,
+    pub signature: AsnEd25519Signature,
 }
 
-impl From<ValidatorSignature> for GuaranteesCredential {
-    fn from(value: ValidatorSignature) -> Self {
+impl From<AsnValidatorSignature> for GuaranteesCredential {
+    fn from(value: AsnValidatorSignature) -> Self {
         Self {
             validator_index: value.validator_index,
             signature: ByteArray::new(value.signature.0),
@@ -1468,14 +1482,14 @@ impl From<ValidatorSignature> for GuaranteesCredential {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ReportGuarantee {
+pub struct AsnReportGuarantee {
     pub report: AsnWorkReport,
     pub slot: u32,
-    pub signatures: Vec<ValidatorSignature>,
+    pub signatures: Vec<AsnValidatorSignature>,
 }
 
-impl From<ReportGuarantee> for GuaranteesExtrinsicEntry {
-    fn from(value: ReportGuarantee) -> Self {
+impl From<AsnReportGuarantee> for GuaranteesExtrinsicEntry {
+    fn from(value: AsnReportGuarantee) -> Self {
         Self {
             work_report: value.report.into(),
             timeslot_index: value.slot,
@@ -1489,7 +1503,7 @@ impl From<ReportGuarantee> for GuaranteesExtrinsicEntry {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnGuaranteesExtrinsic(pub Vec<ReportGuarantee>);
+pub struct AsnGuaranteesExtrinsic(pub Vec<AsnReportGuarantee>);
 
 impl From<AsnGuaranteesExtrinsic> for GuaranteesExtrinsic {
     fn from(value: AsnGuaranteesExtrinsic) -> Self {
@@ -1508,14 +1522,14 @@ impl From<AsnGuaranteesExtrinsic> for GuaranteesExtrinsic {
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct EpochMark {
-    pub entropy: OpaqueHash,
-    pub tickets_entropy: OpaqueHash,
-    pub validators: Vec<BandersnatchKey>, // SIZE(validators-count)
+pub struct AsnEpochMark {
+    pub entropy: AsnOpaqueHash,
+    pub tickets_entropy: AsnOpaqueHash,
+    pub validators: Vec<AsnBandersnatchKey>, // SIZE(validators-count)
 }
 
-impl From<EpochMark> for EpochMarker {
-    fn from(value: EpochMark) -> Self {
+impl From<AsnEpochMark> for EpochMarker {
+    fn from(value: AsnEpochMark) -> Self {
         let mut validators_array = [ByteArray::default(); VALIDATOR_COUNT];
         for (i, key) in value.validators.into_iter().enumerate() {
             validators_array[i] = ByteArray::new(key.0);
@@ -1528,34 +1542,34 @@ impl From<EpochMark> for EpochMarker {
     }
 }
 
-impl From<EpochMarker> for EpochMark {
+impl From<EpochMarker> for AsnEpochMark {
     fn from(marker: EpochMarker) -> Self {
-        EpochMark {
-            entropy: ByteArray32(marker.entropy.0),
-            tickets_entropy: ByteArray32(marker.tickets_entropy.0),
+        AsnEpochMark {
+            entropy: AsnByteArray32(marker.entropy.0),
+            tickets_entropy: AsnByteArray32(marker.tickets_entropy.0),
             validators: marker
                 .validators
                 .into_iter()
-                .map(ByteArray32::from)
+                .map(AsnByteArray32::from)
                 .collect(),
         }
     }
 }
 
-pub type TicketsMark = [TicketBody; EPOCH_LENGTH];
+pub type AsnTicketsMark = [AsnTicketBody; ASN_EPOCH_LENGTH];
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnHeader {
-    pub parent: OpaqueHash,
-    pub parent_state_root: OpaqueHash,
-    pub extrinsic_hash: OpaqueHash,
+    pub parent: AsnOpaqueHash,
+    pub parent_state_root: AsnOpaqueHash,
+    pub extrinsic_hash: AsnOpaqueHash,
     pub slot: u32,
-    pub epoch_mark: Option<EpochMark>,
-    pub tickets_mark: Option<Vec<TicketBody>>,
-    pub offenders_mark: Vec<Ed25519Key>,
+    pub epoch_mark: Option<AsnEpochMark>,
+    pub tickets_mark: Option<Vec<AsnTicketBody>>,
+    pub offenders_mark: Vec<AsnEd25519Key>,
     pub author_index: u16,
-    pub entropy_source: BandersnatchVrfSignature,
-    pub seal: BandersnatchVrfSignature,
+    pub entropy_source: AsnBandersnatchVrfSignature,
+    pub seal: AsnBandersnatchVrfSignature,
 }
 
 impl From<AsnHeader> for BlockHeader {
@@ -1567,7 +1581,7 @@ impl From<AsnHeader> for BlockHeader {
             timeslot_index: value.slot,
             epoch_marker: value.epoch_mark.map(EpochMarker::from),
             winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                let mut tickets_array = [Ticket::default(); EPOCH_LENGTH];
+                let mut tickets_array = [Ticket::default(); ASN_EPOCH_LENGTH];
                 for (i, ticket) in tickets.into_iter().enumerate() {
                     tickets_array[i] = ticket.into();
                 }

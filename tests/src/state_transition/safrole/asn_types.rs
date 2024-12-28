@@ -1,6 +1,7 @@
 use crate::asn_types::{
-    validators_data_to_validator_set, BandersnatchRingRoot, Ed25519Key, EntropyBuffer, EpochMark,
-    OpaqueHash, TicketBody, TicketEnvelope, TicketsMark, TicketsOrKeys, ValidatorsData,
+    validators_data_to_validator_set, AsnBandersnatchRingRoot, AsnEd25519Key, AsnEntropyBuffer,
+    AsnEpochMark, AsnOpaqueHash, AsnTicketBody, AsnTicketEnvelope, AsnTicketsMark,
+    AsnTicketsOrKeys, AsnValidatorsData,
 };
 use rjam_common::{ByteArray, Hash32, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
@@ -21,34 +22,34 @@ pub enum SafroleErrorCode {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
-pub struct OutputMarks {
-    pub epoch_mark: Option<EpochMark>,     // New epoch signal
-    pub tickets_mark: Option<TicketsMark>, // Tickets signal
+pub struct AsnOutputMarks {
+    pub epoch_mark: Option<AsnEpochMark>,     // New epoch signal
+    pub tickets_mark: Option<AsnTicketsMark>, // Tickets signal
 }
 
-impl From<SafroleHeaderMarkers> for OutputMarks {
+impl From<SafroleHeaderMarkers> for AsnOutputMarks {
     fn from(value: SafroleHeaderMarkers) -> Self {
         Self {
-            epoch_mark: value.epoch_marker.map(EpochMark::from),
+            epoch_mark: value.epoch_marker.map(AsnEpochMark::from),
             tickets_mark: value
                 .winning_tickets_marker
-                .map(|tickets| tickets.map(TicketBody::from)),
+                .map(|tickets| tickets.map(AsnTicketBody::from)),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub tau: u32,                        // Most recent block's timeslot
-    pub eta: EntropyBuffer,              // Entropy accumulator and epochal randomness
-    pub lambda: ValidatorsData, // Validator keys and metadata which were active in the prior epoch
-    pub kappa: ValidatorsData,  // Validator keys and metadata currently active
-    pub gamma_k: ValidatorsData, // Validator keys for the following epoch
-    pub iota: ValidatorsData,   // Validator keys and metadata to be drawn from next
-    pub gamma_a: Vec<TicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
-    pub gamma_s: TicketsOrKeys,   // Sealing-key series of the current epoch
-    pub gamma_z: BandersnatchRingRoot, // Bandersnatch ring commitment
-    pub post_offenders: Vec<Ed25519Key>, // Offenders sequence
+    pub tau: u32,                           // Most recent block's timeslot
+    pub eta: AsnEntropyBuffer,              // Entropy accumulator and epochal randomness
+    pub lambda: AsnValidatorsData, // Validator keys and metadata which were active in the prior epoch
+    pub kappa: AsnValidatorsData,  // Validator keys and metadata currently active
+    pub gamma_k: AsnValidatorsData, // Validator keys for the following epoch
+    pub iota: AsnValidatorsData,   // Validator keys and metadata to be drawn from next
+    pub gamma_a: Vec<AsnTicketBody>, // Sealing-key contest ticket accumulator; size up to `EPOCH_LENGTH`
+    pub gamma_s: AsnTicketsOrKeys,   // Sealing-key series of the current epoch
+    pub gamma_z: AsnBandersnatchRingRoot, // Bandersnatch ring commitment
+    pub post_offenders: Vec<AsnEd25519Key>, // Offenders sequence
 }
 
 impl From<&State> for SafroleState {
@@ -73,9 +74,9 @@ impl From<&State> for SafroleState {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub slot: u32,                      // Current slot
-    pub entropy: OpaqueHash, // Per block entropy (originated from block entropy source VRF)
-    pub extrinsic: Vec<TicketEnvelope>, // Safrole extrinsic; size up to 16
+    pub slot: u32,                         // Current slot
+    pub entropy: AsnOpaqueHash, // Per block entropy (originated from block entropy source VRF)
+    pub extrinsic: Vec<AsnTicketEnvelope>, // Safrole extrinsic; size up to 16
 }
 
 pub struct JamInput {
@@ -87,6 +88,6 @@ pub struct JamInput {
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Output {
-    ok(OutputMarks),       // Markers
+    ok(AsnOutputMarks),    // Markers
     err(SafroleErrorCode), // Error code (not specified in the Graypaper)
 }

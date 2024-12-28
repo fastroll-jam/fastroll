@@ -3,8 +3,8 @@
 mod tests {
     use crate::{
         asn_types::{
-            validator_set_to_validators_data, validators_data_to_validator_set, ByteArray32,
-            ServiceItem,
+            validator_set_to_validators_data, validators_data_to_validator_set, AsnByteArray32,
+            AsnServiceItem,
         },
         generate_typed_tests,
         state_transition::{
@@ -202,13 +202,13 @@ mod tests {
                 offenders: current_disputes
                     .punish_set
                     .iter()
-                    .map(|k| ByteArray32(k.0))
+                    .map(|k| AsnByteArray32(k.0))
                     .collect(),
                 recent_blocks: current_blocks_history.into(),
                 auth_pools: current_auth_pool.into(),
                 services: current_account_metadata_vec
                     .into_iter()
-                    .map(ServiceItem::from)
+                    .map(AsnServiceItem::from)
                     .collect(),
             }
         }

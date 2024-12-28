@@ -1,6 +1,6 @@
 use crate::asn_types::{
-    AsnAssurancesExtrinsic, AsnTimeSlot, AsnWorkReport, AvailAssignments, HeaderHash,
-    ValidatorsData,
+    AsnAssurancesExtrinsic, AsnAvailAssignments, AsnHeaderHash, AsnTimeSlot, AsnValidatorsData,
+    AsnWorkReport,
 };
 use rjam_common::Hash32;
 use rjam_types::{
@@ -21,15 +21,15 @@ pub enum AssurancesErrorCode {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub avail_assignments: AvailAssignments,
-    pub curr_validators: ValidatorsData,
+    pub avail_assignments: AsnAvailAssignments,
+    pub curr_validators: AsnValidatorsData,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
     pub assurances: AsnAssurancesExtrinsic,
     pub slot: AsnTimeSlot,
-    pub parent: HeaderHash,
+    pub parent: AsnHeaderHash,
 }
 
 pub struct JamInput {

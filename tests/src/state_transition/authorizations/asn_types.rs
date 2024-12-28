@@ -1,4 +1,4 @@
-use crate::asn_types::{AsnAuthPools, AsnAuthQueues, AsnCoreIndex, AsnTimeSlot, OpaqueHash};
+use crate::asn_types::{AsnAuthPools, AsnAuthQueues, AsnCoreIndex, AsnOpaqueHash, AsnTimeSlot};
 use rjam_common::ByteArray;
 use rjam_types::{
     common::workloads::WorkReport,
@@ -14,15 +14,15 @@ pub struct State {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CoreAuthorizer {
+pub struct AsnCoreAuthorizer {
     pub core: AsnCoreIndex,
-    pub auth_hash: OpaqueHash,
+    pub auth_hash: AsnOpaqueHash,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
     pub slot: AsnTimeSlot,
-    pub auths: Vec<CoreAuthorizer>,
+    pub auths: Vec<AsnCoreAuthorizer>,
 }
 
 /// Converts `Input` into `GuaranteesExtrinsic` type.

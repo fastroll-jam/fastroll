@@ -3,8 +3,8 @@
 mod tests {
     use crate::{
         asn_types::{
-            validator_set_to_validators_data, validators_data_to_validator_set, ByteArray32,
-            TicketEnvelope,
+            validator_set_to_validators_data, validators_data_to_validator_set, AsnByteArray32,
+            AsnTicketEnvelope,
         },
         generate_typed_tests,
         safrole::{
@@ -110,7 +110,7 @@ mod tests {
                 .extrinsic
                 .clone()
                 .into_iter()
-                .map(TicketEnvelope::into)
+                .map(AsnTicketEnvelope::into)
                 .collect();
 
             Ok(JamInput {
@@ -219,7 +219,7 @@ mod tests {
                 gamma_z,
                 post_offenders: current_post_offenders
                     .into_iter()
-                    .map(ByteArray32::from)
+                    .map(AsnByteArray32::from)
                     .collect(),
             }
         }

@@ -4,8 +4,8 @@
 mod tests {
     use crate::asn_types::{
         AsnAssurancesExtrinsic, AsnBlock, AsnDisputesExtrinsic, AsnExtrinsic,
-        AsnGuaranteesExtrinsic, AsnHeader, AsnPreimageLookupsExtrinsic, AsnTicketsExtrinsic,
-        AsnWorkItem, AsnWorkPackage, AsnWorkReport, RefineContext, WorkResult,
+        AsnGuaranteesExtrinsic, AsnHeader, AsnPreimageLookupsExtrinsic, AsnRefineContext,
+        AsnTicketsExtrinsic, AsnWorkItem, AsnWorkPackage, AsnWorkReport, AsnWorkResult,
     };
     use rjam_codec::{JamDecode, JamEncode};
     use rjam_types::{
@@ -97,12 +97,12 @@ mod tests {
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
         preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
-        refine_context: ("refine_context", RefinementContext, RefineContext),
+        refine_context: ("refine_context", RefinementContext, AsnRefineContext),
         tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic),
         work_item: ("work_item", WorkItem, AsnWorkItem),
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
         work_report: ("work_report", WorkReport, AsnWorkReport),
-        work_result_0: ("work_result_0", WorkItemResult, WorkResult),
-        work_result_1: ("work_result_1", WorkItemResult, WorkResult),
+        work_result_0: ("work_result_0", WorkItemResult, AsnWorkResult),
+        work_result_1: ("work_result_1", WorkItemResult, AsnWorkResult),
     }
 }

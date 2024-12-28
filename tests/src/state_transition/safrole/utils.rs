@@ -1,6 +1,7 @@
 use crate::{
     asn_types::{
-        BandersnatchRingRoot, ByteArray32, TicketBody, TicketsOrKeys, ValidatorData, ValidatorsData,
+        AsnBandersnatchRingRoot, AsnByteArray32, AsnTicketBody, AsnTicketsOrKeys, AsnValidatorData,
+        AsnValidatorsData,
     },
     safrole::asn_types::SafroleErrorCode,
 };
@@ -11,24 +12,24 @@ use rjam_types::state::*;
 pub fn safrole_state_to_gammas(
     safrole: &SafroleState,
 ) -> (
-    ValidatorsData,
-    Vec<TicketBody>,
-    TicketsOrKeys,
-    BandersnatchRingRoot,
+    AsnValidatorsData,
+    Vec<AsnTicketBody>,
+    AsnTicketsOrKeys,
+    AsnBandersnatchRingRoot,
 ) {
-    let gamma_k = safrole.pending_set.clone().map(ValidatorData::from);
+    let gamma_k = safrole.pending_set.clone().map(AsnValidatorData::from);
     let gamma_a = safrole
         .ticket_accumulator
         .clone()
         .into_vec()
         .into_iter()
-        .map(|ticket| TicketBody {
-            id: ByteArray32(*ticket.id),
+        .map(|ticket| AsnTicketBody {
+            id: AsnByteArray32(*ticket.id),
             attempt: ticket.attempt,
         })
         .collect();
     let gamma_s = safrole.slot_sealers.clone().into();
-    let gamma_z = BandersnatchRingRoot(safrole.ring_root.0);
+    let gamma_z = AsnBandersnatchRingRoot(safrole.ring_root.0);
     (gamma_k, gamma_a, gamma_s, gamma_z)
 }
 

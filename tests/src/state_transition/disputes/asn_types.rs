@@ -1,6 +1,6 @@
 use crate::asn_types::{
-    AsnDisputesExtrinsic, AsnTimeSlot, AvailAssignments, DisputesOutputMarks, DisputesRecords,
-    ValidatorsData,
+    AsnAvailAssignments, AsnDisputesExtrinsic, AsnDisputesOutputMarks, AsnDisputesRecords,
+    AsnTimeSlot, AsnValidatorsData,
 };
 use rjam_types::extrinsics::disputes::DisputesExtrinsic;
 use serde::{Deserialize, Serialize};
@@ -27,11 +27,11 @@ pub enum DisputesErrorCode {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub psi: DisputesRecords,   // Disputes verdicts and offenders
-    pub rho: AvailAssignments,  // Availability cores assignments
-    pub tau: AsnTimeSlot,       // Timeslot
-    pub kappa: ValidatorsData,  // Validators active in the current epoch
-    pub lambda: ValidatorsData, // Validators active in the previous epoch
+    pub psi: AsnDisputesRecords,   // Disputes verdicts and offenders
+    pub rho: AsnAvailAssignments,  // Availability cores assignments
+    pub tau: AsnTimeSlot,          // Timeslot
+    pub kappa: AsnValidatorsData,  // Validators active in the current epoch
+    pub lambda: AsnValidatorsData, // Validators active in the previous epoch
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -46,6 +46,6 @@ pub struct JamInput {
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Output {
-    ok(DisputesOutputMarks),
+    ok(AsnDisputesOutputMarks),
     err(DisputesErrorCode),
 }

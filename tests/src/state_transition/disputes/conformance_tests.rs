@@ -3,7 +3,8 @@
 mod tests {
     use crate::{
         asn_types::{
-            validator_set_to_validators_data, validators_data_to_validator_set, DisputesOutputMarks,
+            validator_set_to_validators_data, validators_data_to_validator_set,
+            AsnDisputesOutputMarks,
         },
         disputes::{
             asn_types::{DisputesErrorCode, Input, JamInput, Output, State},
@@ -122,7 +123,7 @@ mod tests {
             let current_offenders_marker = OffendersHeaderMarker {
                 items: current_header_offenders_marker,
             };
-            let disputes_output_marks: DisputesOutputMarks = current_offenders_marker.into();
+            let disputes_output_marks: AsnDisputesOutputMarks = current_offenders_marker.into();
 
             Output::ok(disputes_output_marks)
         }

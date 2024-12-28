@@ -1,5 +1,5 @@
 use crate::asn_types::{
-    AsnExtrinsic, AsnStatistics, AsnTimeSlot, AsnValidatorIndex, ValidatorsData,
+    AsnExtrinsic, AsnStatistics, AsnTimeSlot, AsnValidatorIndex, AsnValidatorsData,
 };
 use rjam_common::ValidatorIndex;
 use rjam_types::{extrinsics::Extrinsics, state::Timeslot};
@@ -12,7 +12,7 @@ pub struct State {
     /// Prior timeslot
     pub tau: AsnTimeSlot,
     /// Posterior active validators
-    pub kappa_prime: ValidatorsData,
+    pub kappa_prime: AsnValidatorsData,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

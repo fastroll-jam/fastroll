@@ -1,6 +1,7 @@
 use crate::asn_types::{
-    AsnAuthPools, AsnBlocksHistory, AsnGuaranteesExtrinsic, AsnTimeSlot, AvailAssignments,
-    ByteArray32, Ed25519Key, EntropyBuffer, OpaqueHash, Services, ValidatorsData, WorkPackageHash,
+    AsnAuthPools, AsnAvailAssignments, AsnBlocksHistory, AsnByteArray32, AsnEd25519Key,
+    AsnEntropyBuffer, AsnGuaranteesExtrinsic, AsnOpaqueHash, AsnServices, AsnTimeSlot,
+    AsnValidatorsData, AsnWorkPackageHash,
 };
 use rjam_common::{Ed25519PubKey, Hash32};
 use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsic, state::Timeslot};
@@ -37,14 +38,14 @@ pub enum ReportsErrorCode {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub avail_assignments: AvailAssignments,
-    pub curr_validators: ValidatorsData,
-    pub prev_validators: ValidatorsData,
-    pub entropy: EntropyBuffer,
-    pub offenders: Vec<Ed25519Key>,
+    pub avail_assignments: AsnAvailAssignments,
+    pub curr_validators: AsnValidatorsData,
+    pub prev_validators: AsnValidatorsData,
+    pub entropy: AsnEntropyBuffer,
+    pub offenders: Vec<AsnEd25519Key>,
     pub recent_blocks: AsnBlocksHistory,
     pub auth_pools: AsnAuthPools,
-    pub services: Services,
+    pub services: AsnServices,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -65,15 +66,15 @@ pub struct JamTransitionOutput {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ReportedPackage {
-    pub work_package_hash: WorkPackageHash,
-    pub segment_tree_root: OpaqueHash,
+pub struct AsnReportedPackage {
+    pub work_package_hash: AsnWorkPackageHash,
+    pub segment_tree_root: AsnOpaqueHash,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct OutputData {
-    pub reported: Vec<ReportedPackage>,
-    pub reporters: Vec<Ed25519Key>,
+    pub reported: Vec<AsnReportedPackage>,
+    pub reporters: Vec<AsnEd25519Key>,
 }
 
 impl From<JamTransitionOutput> for OutputData {
@@ -82,15 +83,15 @@ impl From<JamTransitionOutput> for OutputData {
             reported: output
                 .reported
                 .iter()
-                .map(|(package_hash, segments_root)| ReportedPackage {
-                    work_package_hash: ByteArray32(package_hash.0),
-                    segment_tree_root: ByteArray32(segments_root.0),
+                .map(|(package_hash, segments_root)| AsnReportedPackage {
+                    work_package_hash: AsnByteArray32(package_hash.0),
+                    segment_tree_root: AsnByteArray32(segments_root.0),
                 })
                 .collect(),
             reporters: output
                 .reporters
                 .iter()
-                .map(|key| ByteArray32(key.0))
+                .map(|key| AsnByteArray32(key.0))
                 .collect(),
         }
     }
