@@ -39,7 +39,7 @@ mod tests {
             let prior_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
 
             // Initialize StateManager.
-            let mut state_manager = StateManager::new_for_test();
+            let mut state_manager = Self::init_state_manager();
 
             // Load pre-state info the state cache.
             state_manager.load_state_for_test(

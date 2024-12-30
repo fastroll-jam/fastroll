@@ -1,12 +1,15 @@
-use rjam_db::BlockHeaderDB;
+use rjam_db::{BlockHeaderDB, RocksDBConfig, StateDB};
 use rjam_state::StateManager;
+use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use tempfile::tempdir;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase<I, O, S> {
@@ -33,6 +36,15 @@ pub trait StateTransitionTest {
         let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
         let test_case = serde_json::from_str(&json_str).expect("Failed to parse JSON");
         test_case
+    }
+
+    fn init_state_manager() -> StateManager {
+        let tmp_path = tempdir().unwrap().into_path();
+        let state_db_config = RocksDBConfig::from_path(tmp_path.join("state_db"));
+        let merkle_db_config = RocksDBConfig::from_path(tmp_path.join("merkle_db"));
+        let state_db = StateDB::open(&state_db_config).unwrap();
+        let merkle_db = MerkleDB::open(&merkle_db_config, 1000).unwrap();
+        StateManager::new(Arc::new(state_db), Arc::new(merkle_db))
     }
 
     fn setup_state_manager(test_pre_state: &Self::State) -> Result<StateManager, TransitionError>;

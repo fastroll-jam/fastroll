@@ -4,7 +4,7 @@ use rjam_extrinsics::pool::EXTRINSICS_POOL;
 use rjam_state::StateManager;
 use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_types::block::Block;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Explicitly initialize the extrinsics pool
@@ -14,9 +14,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
     const HEADER_DB_CACHE_SIZE: usize = 1000;
 
-    let state_db_config = RocksDBConfig::from_path("./.rocksdb/state");
-    let header_db_config = RocksDBConfig::from_path("./.rocksdb/header");
-    let merkle_db_config = RocksDBConfig::from_path("./.rocksdb/merkle");
+    let state_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/state"));
+    let header_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/header"));
+    let merkle_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/merkle"));
 
     let merkle_db = MerkleDB::open(&merkle_db_config, MERKLE_DB_CACHE_SIZE)?;
     let state_db = StateDB::open(&state_db_config)?;

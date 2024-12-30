@@ -12,7 +12,11 @@ use rjam_types::{
         AccountStateComponent, StateComponent, StateEntryType, StateKeyConstant,
     },
 };
-use std::{cmp::Ordering, sync::Arc};
+use std::{
+    cmp::Ordering,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -47,11 +51,13 @@ pub enum StateWriteOp {
     Remove,
 }
 
+#[derive(Clone)]
 pub enum CacheEntryStatus {
     Clean,
     Dirty(StateWriteOp),
 }
 
+#[derive(Clone)]
 struct CacheEntry {
     value: StateEntryType,
     status: CacheEntryStatus,
@@ -80,10 +86,48 @@ impl CacheEntry {
     }
 }
 
+struct StateCache {
+    inner: Arc<DashMap<Hash32, CacheEntry>>,
+}
+
+impl Deref for StateCache {
+    type Target = Arc<DashMap<Hash32, CacheEntry>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for StateCache {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl StateCache {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(DashMap::new()),
+        }
+    }
+
+    #[allow(dead_code)]
+    fn collect_dirty(&self) -> Result<Vec<(Hash32, CacheEntry)>, StateManagerError> {
+        Ok(self
+            .inner
+            .iter()
+            .filter_map(|entry_ref| match entry_ref.value().status {
+                CacheEntryStatus::Clean => None,
+                CacheEntryStatus::Dirty(_) => Some((*entry_ref.key(), entry_ref.value().clone())),
+            })
+            .collect())
+    }
+}
+
 pub struct StateManager {
-    state_db: Option<Arc<StateDB>>,
-    merkle_db: Option<Arc<MerkleDB>>,
-    cache: Arc<DashMap<Hash32, CacheEntry>>,
+    state_db: Arc<StateDB>,
+    merkle_db: Arc<MerkleDB>,
+    cache: StateCache,
 }
 
 macro_rules! impl_state_accessors {
@@ -108,14 +152,6 @@ macro_rules! impl_state_accessors {
 }
 
 impl StateManager {
-    pub fn new_for_test() -> Self {
-        Self {
-            state_db: None,
-            merkle_db: None,
-            cache: Arc::new(DashMap::new()),
-        }
-    }
-
     pub fn load_state_for_test(
         &mut self,
         state_key_constant: StateKeyConstant,
@@ -138,10 +174,18 @@ impl StateManager {
 
     pub fn new(state_db: Arc<StateDB>, merkle_db: Arc<MerkleDB>) -> Self {
         Self {
-            state_db: Some(state_db),
-            merkle_db: Some(merkle_db),
-            cache: Arc::new(DashMap::new()),
+            state_db,
+            merkle_db,
+            cache: StateCache::new(),
         }
+    }
+
+    fn get_merkle_db(&self) -> Arc<MerkleDB> {
+        self.merkle_db.clone()
+    }
+
+    fn get_state_db(&self) -> Arc<StateDB> {
+        self.state_db.clone()
     }
 
     pub fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
@@ -225,21 +269,22 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        if let Some(merkle_db) = &self.merkle_db {
-            let (leaf_type, state_data) = match merkle_db.retrieve(state_key.as_slice())? {
-                Some((leaf_type, state_data)) => (leaf_type, state_data),
-                None => return Ok(None),
-            };
+        let Some((leaf_type, state_data)) = self.get_merkle_db().retrieve(state_key.as_slice())?
+        else {
+            return Ok(None);
+        };
 
-            if let Some(state_db) = &self.state_db {
-                let state_data = match leaf_type {
-                    LeafType::Embedded => state_data,
-                    LeafType::Regular => state_db.get_entry(&state_data)?.unwrap(),
+        let state_data = match leaf_type {
+            LeafType::Embedded => state_data,
+            LeafType::Regular => {
+                let Some(entry) = self.get_state_db().get_entry(&state_data)? else {
+                    return Ok(None);
                 };
-                return Ok(Some(state_data));
+                entry
             }
-        }
-        Ok(None)
+        };
+
+        Ok(Some(state_data))
     }
 
     #[allow(dead_code)]

@@ -74,7 +74,7 @@ mod tests {
                 .collect();
 
             // Initialize StateManager.
-            let mut state_manager = StateManager::new_for_test();
+            let mut state_manager = Self::init_state_manager();
 
             // Load pre-state info the state cache.
             state_manager.load_state_for_test(

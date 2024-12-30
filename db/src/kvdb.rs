@@ -29,9 +29,9 @@ impl Default for RocksDBConfig {
 }
 
 impl RocksDBConfig {
-    pub fn from_path(path: &str) -> Self {
+    pub fn from_path(path: PathBuf) -> Self {
         Self {
-            path: PathBuf::from(path),
+            path,
             ..Default::default()
         }
     }
