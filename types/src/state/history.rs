@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -13,7 +13,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
 impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
-impl_state_component!(BlockHistory, BlockHistory);
+impl_simple_state_component!(BlockHistory, BlockHistory);
 
 impl BlockHistory {
     /// Appends a new block history entry to the `BlockHistory` vector.

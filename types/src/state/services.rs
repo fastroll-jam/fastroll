@@ -1,7 +1,10 @@
 use crate::{
-    impl_account_state_component, impl_state_component,
+    impl_account_state_component, impl_simple_state_component,
     state::timeslot::Timeslot,
-    state_utils::{AccountStateComponent, StateComponent, StateEntryType, StateKeyConstant},
+    state_utils::{
+        AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
+        StateKeyConstant,
+    },
 };
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
@@ -267,4 +270,4 @@ pub struct PrivilegedServices {
     pub designate_service: Address, // v; Alters staging validator set (`iota`).
     pub always_accumulate_services: HashMap<Address, UnsignedGas>, // g; Basic gas usage of always-accumulate services.
 }
-impl_state_component!(PrivilegedServices, PrivilegedServices);
+impl_simple_state_component!(PrivilegedServices, PrivilegedServices);

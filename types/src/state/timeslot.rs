@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, impl_jam_fixed_codec_for_newtype, JamCodecError, JamDecode,
@@ -20,7 +20,7 @@ pub enum TimeslotError {
 pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);
 impl_jam_fixed_codec_for_newtype!(Timeslot, u32);
-impl_state_component!(Timeslot, Timeslot);
+impl_simple_state_component!(Timeslot, Timeslot);
 
 impl Timeslot {
     pub fn new(slot: u32) -> Self {

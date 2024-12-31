@@ -1,8 +1,8 @@
 use crate::{
     common::workloads::{WorkReport, WorkReportError},
-    impl_state_component,
+    impl_simple_state_component,
     state::timeslot::Timeslot,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -21,7 +21,7 @@ pub enum PendingReportsError {
 #[derive(Clone)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
-impl_state_component!(PendingReports, PendingReports);
+impl_simple_state_component!(PendingReports, PendingReports);
 
 impl PendingReports {
     pub fn get_by_core_index(

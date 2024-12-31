@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -17,7 +17,7 @@ pub enum AuthPoolError {
 #[derive(Clone)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
 impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
-impl_state_component!(AuthPool, AuthPool);
+impl_simple_state_component!(AuthPool, AuthPool);
 
 impl AuthPool {
     pub fn get_by_core_index(&self, core_index: CoreIndex) -> Result<&[Hash32], AuthPoolError> {
@@ -31,7 +31,7 @@ impl AuthPool {
 #[derive(Clone)]
 pub struct AuthQueue(pub Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(AuthQueue, Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);
-impl_state_component!(AuthQueue, AuthQueue);
+impl_simple_state_component!(AuthQueue, AuthQueue);
 
 impl Default for AuthQueue {
     fn default() -> Self {

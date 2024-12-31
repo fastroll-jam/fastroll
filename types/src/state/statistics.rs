@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -83,7 +83,7 @@ impl EpochValidatorStats {
 #[derive(Clone)]
 pub struct ValidatorStats(pub [EpochValidatorStats; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [EpochValidatorStats; 2]);
-impl_state_component!(ValidatorStats, ValidatorStats);
+impl_simple_state_component!(ValidatorStats, ValidatorStats);
 
 impl ValidatorStats {
     pub fn current_epoch_stats(&self) -> &EpochValidatorStats {

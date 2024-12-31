@@ -1,7 +1,7 @@
 use crate::{
     common::workloads::WorkReport,
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Hash32, EPOCH_LENGTH};
@@ -21,7 +21,7 @@ pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
 pub struct AccumulateQueue {
     items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
 }
-impl_state_component!(AccumulateQueue, AccumulateQueue);
+impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
 
 impl Default for AccumulateQueue {
     fn default() -> Self {
@@ -91,7 +91,7 @@ impl AccumulateQueue {
 pub struct AccumulateHistory {
     items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
 }
-impl_state_component!(AccumulateHistory, AccumulateHistory);
+impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
 impl AccumulateHistory {
     /// Returns a union of all HashMaps in the one-epoch worth of history.

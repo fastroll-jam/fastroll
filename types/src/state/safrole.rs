@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
@@ -33,7 +33,7 @@ pub struct SafroleState {
     pub slot_sealers: SlotSealerType,          // gamma_s
     pub ticket_accumulator: TicketAccumulator, // gamma_a
 }
-impl_state_component!(SafroleState, SafroleState);
+impl_simple_state_component!(SafroleState, SafroleState);
 
 impl Display for SafroleState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

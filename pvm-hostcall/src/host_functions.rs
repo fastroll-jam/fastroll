@@ -1208,9 +1208,7 @@ impl HostFunction {
         let inner_memory_offset = regs[9].as_mem_address()?;
         let data_len = regs[10].as_usize()?;
 
-        let inner_memory = if let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) {
-            inner_memory
-        } else {
+        let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
             return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1390,9 +1388,7 @@ impl HostFunction {
             )));
         }
 
-        let inner_vm_mut = if let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) {
-            inner_vm_mut
-        } else {
+        let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
             return Ok(HostCallChangeSet::continue_with_vm_change(who_change(
                 BASE_GAS_CHARGE,
             )));

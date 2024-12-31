@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -102,7 +102,7 @@ fn fmt_validator_set(
 #[derive(Clone)]
 pub struct StagingSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
-impl_state_component!(StagingSet, StagingSet);
+impl_simple_state_component!(StagingSet, StagingSet);
 
 impl Deref for StagingSet {
     type Target = ValidatorKeySet;
@@ -137,7 +137,7 @@ impl Default for StagingSet {
 #[derive(Clone)]
 pub struct ActiveSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
-impl_state_component!(ActiveSet, ActiveSet);
+impl_simple_state_component!(ActiveSet, ActiveSet);
 
 impl Deref for ActiveSet {
     type Target = ValidatorKeySet;
@@ -164,7 +164,7 @@ impl Display for ActiveSet {
 #[derive(Clone)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
-impl_state_component!(PastSet, PastSet);
+impl_simple_state_component!(PastSet, PastSet);
 
 impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

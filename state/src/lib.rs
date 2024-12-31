@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use rjam_codec::JamCodecError;
-use rjam_common::{Address, Hash32, Octets};
+use rjam_common::{Address, Hash32};
 use rjam_crypto::CryptoError;
 use rjam_db::{KeyValueDBError, StateDB};
 use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
@@ -9,7 +9,8 @@ use rjam_types::{
     state_utils::{
         get_account_lookups_state_key, get_account_metadata_state_key,
         get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
-        AccountStateComponent, StateComponent, StateEntryType, StateKeyConstant,
+        AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
+        StateKeyConstant,
     },
 };
 use std::{
@@ -130,11 +131,11 @@ pub struct StateManager {
     cache: StateCache,
 }
 
-macro_rules! impl_state_accessors {
+macro_rules! impl_simple_state_accessors {
     ($state_type:ty, $fn_type:ident) => {
         paste::paste! {
             pub fn [<get_ $fn_type>](&self) -> Result<$state_type, StateManagerError> {
-                self.get_state_entry()
+                self.get_simple_state_entry()
             }
 
             pub fn [<with_mut_ $fn_type>]<F>(
@@ -145,7 +146,7 @@ macro_rules! impl_state_accessors {
             where
                 F: FnOnce(&mut $state_type),
             {
-                self.with_mut_state_entry(write_op, f)
+                self.with_mut_simple_state_entry(write_op, f)
             }
         }
     };
@@ -287,106 +288,68 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
-    #[allow(dead_code)]
-    fn insert_cache_entry() {
-        todo!()
+    fn insert_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
+    where
+        T: StateComponent,
+    {
+        let cache_entry = CacheEntry::new(T::into_entry_type(state_entry));
+        self.cache.insert(*state_key, cache_entry);
     }
 
     //
     // Immutable/mutable references to state components and account storage entries
     //
 
-    fn get_state_entry<T>(&self) -> Result<T, StateManagerError>
-    where
-        T: StateComponent,
-    {
-        let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
-
-        // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let Some(state_entry) = T::from_entry_type(&entry_ref.value) {
-                return Ok(state_entry.clone());
-            }
-        }
-
-        // Retrieve the state from the DB
-        let state_data = self
-            .retrieve_state_encoded(&state_key)?
-            .ok_or(StateManagerError::StateKeyNotInitialized)?;
-        let state_entry = T::decode(&mut state_data.as_slice())?;
-
-        // Insert the entry into the cache
-        let cache_entry = CacheEntry::new(T::into_entry_type(state_entry.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(state_entry)
-    }
-
-    fn with_mut_state_entry<T, F>(
+    fn get_state_entry_internal<T>(
         &self,
-        write_op: StateWriteOp,
-        f: F,
-    ) -> Result<(), StateManagerError>
+        state_key: &Hash32,
+    ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
-        F: FnOnce(&mut T),
-    {
-        let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
-
-        // FIXME: Load data from DB if cache not found
-        let mut cache_entry = self
-            .cache
-            .get_mut(&state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-
-        if let Some(state_entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
-            f(state_entry_mut); // Call the closure to apply the state mutation
-            cache_entry.mark_dirty(write_op);
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
-        }
-    }
-
-    fn get_account_state_entry<T>(&self, state_key: Hash32) -> Result<Option<T>, StateManagerError>
-    where
-        T: AccountStateComponent,
     {
         // Check the cache
-        if let Some(entry_ref) = self.cache.get(&state_key) {
-            if let Some(state_entry) = T::from_entry_type(&entry_ref.value) {
+        if let Some(entry) = self.cache.get(state_key) {
+            if let Some(state_entry) = T::from_entry_type(&entry.value) {
                 return Ok(Some(state_entry.clone()));
             }
         }
 
         // Retrieve the state from the DB
-        let state_data = match self.retrieve_state_encoded(&state_key)? {
-            Some(state_data) => Octets::from_vec(state_data),
-            None => return Ok(None),
+        let Some(state_data) = self.retrieve_state_encoded(state_key)? else {
+            return Ok(None);
         };
-        let entry = T::decode(&mut state_data.as_slice())?;
 
+        let state_entry = T::decode(&mut state_data.as_slice())?;
         // Insert the entry into the cache
-        let cache_entry = CacheEntry::new(T::into_entry_type(entry.clone()));
-        self.cache.insert(state_key, cache_entry);
-
-        Ok(Some(entry))
+        self.insert_cache_entry(state_key, state_entry.clone());
+        Ok(Some(state_entry))
     }
 
-    fn with_mut_account_state_entry<T, F>(
+    fn with_mut_state_entry_internal<T, F>(
         &self,
-        state_key: Hash32,
+        state_key: &Hash32,
         write_op: StateWriteOp,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        T: AccountStateComponent,
+        T: StateComponent,
         F: FnOnce(&mut T),
     {
-        // FIXME: Load data from DB if cache not found
+        // Check if the cache entry exists. If not found, attempt to load it from the DB.
+        if self.cache.get(state_key).is_none() {
+            match self.get_state_entry_internal::<T>(state_key)? {
+                Some(state_entry) => {
+                    self.insert_cache_entry(state_key, state_entry);
+                }
+                None => {
+                    return Err(StateManagerError::StateKeyNotInitialized);
+                }
+            }
+        }
+
         let mut cache_entry = self
             .cache
-            .get_mut(&state_key)
+            .get_mut(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
@@ -398,28 +361,72 @@ impl StateManager {
         }
     }
 
-    impl_state_accessors!(AuthPool, auth_pool);
-    impl_state_accessors!(AuthQueue, auth_queue);
-    impl_state_accessors!(BlockHistory, block_history);
-    impl_state_accessors!(SafroleState, safrole);
-    impl_state_accessors!(DisputesState, disputes);
-    impl_state_accessors!(EntropyAccumulator, entropy_accumulator);
-    impl_state_accessors!(StagingSet, staging_set);
-    impl_state_accessors!(ActiveSet, active_set);
-    impl_state_accessors!(PastSet, past_set);
-    impl_state_accessors!(PendingReports, pending_reports);
-    impl_state_accessors!(Timeslot, timeslot);
-    impl_state_accessors!(PrivilegedServices, privileged_services);
-    impl_state_accessors!(ValidatorStats, validator_stats);
-    impl_state_accessors!(AccumulateQueue, accumulate_queue);
-    impl_state_accessors!(AccumulateHistory, accumulate_history);
+    fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
+    where
+        T: SimpleStateComponent,
+    {
+        self.get_state_entry_internal::<T>(&get_simple_state_key(T::STATE_KEY_CONSTANT))?
+            .ok_or(StateManagerError::StateKeyNotInitialized)
+    }
+
+    fn with_mut_simple_state_entry<T, F>(
+        &self,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        T: SimpleStateComponent,
+        F: FnOnce(&mut T),
+    {
+        self.with_mut_state_entry_internal(
+            &get_simple_state_key(T::STATE_KEY_CONSTANT),
+            write_op,
+            f,
+        )
+    }
+
+    fn get_account_state_entry<T>(&self, state_key: &Hash32) -> Result<Option<T>, StateManagerError>
+    where
+        T: AccountStateComponent,
+    {
+        self.get_state_entry_internal::<T>(state_key)
+    }
+
+    fn with_mut_account_state_entry<T, F>(
+        &self,
+        state_key: &Hash32,
+        write_op: StateWriteOp,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        T: AccountStateComponent,
+        F: FnOnce(&mut T),
+    {
+        self.with_mut_state_entry_internal(state_key, write_op, f)
+    }
+
+    impl_simple_state_accessors!(AuthPool, auth_pool);
+    impl_simple_state_accessors!(AuthQueue, auth_queue);
+    impl_simple_state_accessors!(BlockHistory, block_history);
+    impl_simple_state_accessors!(SafroleState, safrole);
+    impl_simple_state_accessors!(DisputesState, disputes);
+    impl_simple_state_accessors!(EntropyAccumulator, entropy_accumulator);
+    impl_simple_state_accessors!(StagingSet, staging_set);
+    impl_simple_state_accessors!(ActiveSet, active_set);
+    impl_simple_state_accessors!(PastSet, past_set);
+    impl_simple_state_accessors!(PendingReports, pending_reports);
+    impl_simple_state_accessors!(Timeslot, timeslot);
+    impl_simple_state_accessors!(PrivilegedServices, privileged_services);
+    impl_simple_state_accessors!(ValidatorStats, validator_stats);
+    impl_simple_state_accessors!(AccumulateQueue, accumulate_queue);
+    impl_simple_state_accessors!(AccumulateHistory, accumulate_history);
 
     pub fn get_account_metadata(
         &self,
         address: Address,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
         let state_key = get_account_metadata_state_key(address);
-        self.get_account_state_entry(state_key)
+        self.get_account_state_entry(&state_key)
     }
 
     pub fn with_mut_account_metadata<F>(
@@ -432,7 +439,7 @@ impl StateManager {
         F: FnOnce(&mut AccountMetadata),
     {
         let state_key = get_account_metadata_state_key(address);
-        self.with_mut_account_state_entry(state_key, write_op, f)
+        self.with_mut_account_state_entry(&state_key, write_op, f)
     }
 
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
@@ -512,7 +519,7 @@ impl StateManager {
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = get_account_storage_state_key(address, storage_key);
-        self.get_account_state_entry(state_key)
+        self.get_account_state_entry(&state_key)
     }
 
     pub fn with_mut_account_storage_entry<F>(
@@ -526,7 +533,7 @@ impl StateManager {
         F: FnOnce(&mut AccountStorageEntry),
     {
         let state_key = get_account_storage_state_key(address, storage_key);
-        self.with_mut_account_state_entry(state_key, write_op, f)
+        self.with_mut_account_state_entry(&state_key, write_op, f)
     }
 
     pub fn get_account_preimages_entry(
@@ -535,7 +542,7 @@ impl StateManager {
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         let state_key = get_account_preimage_state_key(address, preimages_key);
-        self.get_account_state_entry(state_key)
+        self.get_account_state_entry(&state_key)
     }
 
     pub fn with_mut_account_preimages_entry<F>(
@@ -549,7 +556,7 @@ impl StateManager {
         F: FnOnce(&mut AccountPreimagesEntry),
     {
         let state_key = get_account_preimage_state_key(address, preimages_key);
-        self.with_mut_account_state_entry(state_key, write_op, f)
+        self.with_mut_account_state_entry(&state_key, write_op, f)
     }
 
     pub fn get_account_lookups_entry(
@@ -559,7 +566,7 @@ impl StateManager {
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, *l)?;
-        self.get_account_state_entry(state_key)
+        self.get_account_state_entry(&state_key)
     }
 
     pub fn with_mut_account_lookups_entry<F>(
@@ -574,6 +581,6 @@ impl StateManager {
     {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, l)?;
-        self.with_mut_account_state_entry(state_key, write_op, f)
+        self.with_mut_account_state_entry(&state_key, write_op, f)
     }
 }

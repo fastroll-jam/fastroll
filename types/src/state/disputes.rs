@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
@@ -12,7 +12,7 @@ pub struct DisputesState {
     pub wonky_set: Vec<Hash32>,         // psi_w; hash of work-reports that cannot be judged
     pub punish_set: Vec<Ed25519PubKey>, // psi_o; Ed25519 public keys of validators which have misjudged.
 }
-impl_state_component!(DisputesState, DisputesState);
+impl_simple_state_component!(DisputesState, DisputesState);
 
 // Note: No duplication check is conducted here.
 impl DisputesState {

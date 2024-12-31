@@ -1,6 +1,6 @@
 use crate::{
-    impl_state_component,
-    state_utils::{StateComponent, StateEntryType, StateKeyConstant},
+    impl_simple_state_component,
+    state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
@@ -11,7 +11,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
-impl_state_component!(EntropyAccumulator, EntropyAccumulator);
+impl_simple_state_component!(EntropyAccumulator, EntropyAccumulator);
 
 impl Display for EntropyAccumulator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
