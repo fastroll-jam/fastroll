@@ -11,6 +11,5 @@ rjam-types = { workspace = true }
 dashmap = { workspace = true }
 dotenv = { workspace = true }
 hex = { workspace = true }
-lazy_static = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }

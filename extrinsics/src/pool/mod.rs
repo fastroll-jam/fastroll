@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use rjam_common::Hash32;
 use rjam_types::extrinsics::disputes::{Culprit, Fault, Verdict};
 use std::{
@@ -34,12 +33,6 @@ pub enum ExtrinsicType {
     Fault,
 }
 
-const EXTRINSICS_POOL_MAX_SIZE: usize = 1000; // TODO: config
-lazy_static! {
-    pub static ref EXTRINSICS_POOL: RwLock<ExtrinsicsPool> =
-        RwLock::new(ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE));
-}
-
 // Extrinsics entry stored to the main `ExtrinsicsPool` in-memory pool
 #[derive(Clone)]
 pub struct ExtrinsicEntry {
@@ -52,7 +45,7 @@ pub struct ExtrinsicEntry {
 /// Main in-memory data structure for storing unprocessed extrinsics
 pub struct ExtrinsicsPool {
     /// Main storage
-    extrinsics: ExtrinsicsMap,
+    pub extrinsics: ExtrinsicsMap,
     /// Index for type and timeslot lookups
     type_timeslot_index: TypeTimeslotIndex,
     /// Maximum size of the pool

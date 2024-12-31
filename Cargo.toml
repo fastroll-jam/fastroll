@@ -1,6 +1,7 @@
 [workspace]
+resolver = "2"
+
 members = [
-    ".",
     "codec/rjam-codec",
     "codec/rjam-codec-derive",
     "common",
@@ -9,6 +10,7 @@ members = [
     "extrinsics",
     "pvm-hostcall",
     "merkle",
+    "node",
     "pvm",
     "pvm-core",
     "pvm-invocation",
@@ -19,10 +21,7 @@ members = [
     "types",
 ]
 
-[package]
-name = "rjam"
-description = "JAM Rust implementation"
-version = "0.1.0"
+[workspace.package]
 edition = "2021"
 
 [workspace.dependencies]
@@ -34,6 +33,7 @@ rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-merkle = { path = "merkle" }
+rjam-node = { path = "node" }
 rjam-pvm = { path = "pvm" }
 rjam-pvm-core = { path = "pvm-core" }
 rjam-pvm-invocation = { path = "pvm-invocation" }
@@ -50,7 +50,6 @@ dashmap = "6.1.0"
 dotenv = "0.15.0"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 hex = "0.4.3"
-lazy_static = "1.5.0"
 num_enum = "0.7.3"
 paste = "1.0.15"
 proc-macro2 = "1.0.86"
@@ -62,16 +61,4 @@ sha3 = "0.10.8"
 syn = { version = "2.0.79", features = ["full", "extra-traits"] }
 thiserror = "1.0.65"
 time = "0.3.36"
-
-[dependencies]
-rjam-common = { workspace = true }
-rjam-db = { workspace = true }
-rjam-extrinsics = { workspace = true }
-rjam-state = { workspace = true }
-rjam-state-merkle = { workspace = true }
-rjam-transition = { workspace = true }
-rjam-types = { workspace = true }
-lazy_static = { workspace = true }
-
-[features]
-testing = ["rjam-common/testing"]
+tokio = { version = "1.42.0", features = ["full"] }

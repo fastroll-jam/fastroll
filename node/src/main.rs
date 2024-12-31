@@ -1,16 +1,16 @@
-use rjam_common::{Hash32, HASH32_EMPTY};
+pub(crate) mod config;
+pub(crate) mod timeslot_scheduler;
+
+use rjam_common::HASH32_EMPTY;
 use rjam_db::{BlockHeaderDB, RocksDBConfig, StateDB};
-use rjam_extrinsics::pool::EXTRINSICS_POOL;
+use rjam_extrinsics::pool::ExtrinsicsPool;
 use rjam_state::StateManager;
 use rjam_state_merkle::merkle_db::MerkleDB;
-use rjam_types::block::Block;
-use std::{path::PathBuf, sync::Arc};
+use std::{error::Error, path::PathBuf, sync::Arc};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Explicitly initialize the extrinsics pool
-    lazy_static::initialize(&EXTRINSICS_POOL);
-    println!("extrinsic pool initialized successfully");
-
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    const EXTRINSICS_POOL_MAX_SIZE: usize = 1000;
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
     const HEADER_DB_CACHE_SIZE: usize = 1000;
 
@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merkle_db = MerkleDB::open(&merkle_db_config, MERKLE_DB_CACHE_SIZE)?;
     let state_db = StateDB::open(&state_db_config)?;
     let _state_manager = StateManager::new(Arc::new(state_db), Arc::new(merkle_db));
+    let _extrinsic_pool = ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE);
     let mut header_db = BlockHeaderDB::open(&header_db_config, HEADER_DB_CACHE_SIZE)?;
 
     println!("DB initialized successfully");
@@ -36,13 +37,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", header_1);
 
     Ok(())
-}
-
-#[allow(dead_code)]
-fn validate_block(
-    _state_manager: &StateManager,
-    _block: &Block,
-    _posterior_state_root: &Hash32,
-) -> Result<bool, Box<dyn std::error::Error>> {
-    unimplemented!();
 }
