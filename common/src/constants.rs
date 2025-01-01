@@ -2,7 +2,7 @@ use crate::UnsignedGas;
 
 pub const HASH_SIZE: usize = 32; // 32-byte hash
 pub const PUBLIC_KEY_SIZE: usize = 336; // 336-byte validator public key
-pub const COMMON_ERA_TIMESTAMP: u64 = 1_704_110_400; // 1200 UTC on January 1, 2024
+pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800; // 1200 UTC on January 1, 2025
 pub const SLOT_DURATION: u64 = 6; // P; 6 seconds per timeslot
 
 #[cfg(not(feature = "testing"))]
