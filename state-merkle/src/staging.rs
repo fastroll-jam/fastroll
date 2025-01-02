@@ -1,7 +1,4 @@
-use crate::{
-    codec::MerkleNodeCodec as NodeCodec, error::StateMerkleError, types::*,
-    utils::lsb_bits_to_bytes,
-};
+use crate::{codec::NodeCodec, error::StateMerkleError, types::*, utils::lsb_bits_to_bytes};
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rocksdb::WriteBatch;

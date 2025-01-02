@@ -1,5 +1,5 @@
 use crate::{
-    codec::MerkleNodeCodec as NodeCodec,
+    codec::NodeCodec,
     error::StateMerkleError,
     staging::AffectedNodesByDepth,
     types::*,
@@ -8,6 +8,7 @@ use crate::{
 use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_crypto::octets_to_hash32;
 use rjam_db::RocksDBConfig;
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use std::sync::Arc;
@@ -16,9 +17,12 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct MerkleNode {
     /// Identity of the node, which is Blake2b-256 hash of the `data` field.
+    ///
     /// Used as key to node entry of the `MerkleDB`.
     hash: Hash32,
     /// 512-bit encoded node data.
+    ///
+    /// Represents a value stored in the `MerkleDB`.
     ///
     /// The node type is encoded in the first two bits of the `data` field.
     ///
@@ -40,6 +44,51 @@ impl MerkleNode {
             (Some(true), Some(false)) => Ok(NodeType::Leaf(LeafType::Embedded)),
             (Some(true), Some(true)) => Ok(NodeType::Leaf(LeafType::Regular)),
             _ => Err(StateMerkleError::InvalidNodeType),
+        }
+    }
+
+    fn parse_branch(&self) -> Result<BranchParsed, StateMerkleError> {
+        let left_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Left)?; // 255 bits (1 bit missing)
+        let right_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Right)?; // 256 bits (full-length Hash32 representation)
+
+        Ok(BranchParsed {
+            node_hash: self.hash,
+            left_child: bitvec_to_hash32(&left_child_bv)?, // FIXME: return the restored left child hash
+            right_child: bitvec_to_hash32(&right_child_bv)?,
+        })
+    }
+
+    fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
+        let node_data_bv = bytes_to_lsb_bits(&self.data);
+        let embedded_data = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Embedded)?;
+
+        Ok(EmbeddedLeafParsed {
+            node_hash: self.hash,
+            value: embedded_data,
+        })
+    }
+
+    fn parse_regular_leaf(&self) -> Result<RegularLeafParsed, StateMerkleError> {
+        let node_data_bv = bytes_to_lsb_bits(&self.data);
+        let state_data_hash = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Regular)?;
+
+        Ok(RegularLeafParsed {
+            node_hash: self.hash,
+            value_hash: octets_to_hash32(&state_data_hash)
+                .ok_or(StateMerkleError::InvalidHash32Input)?,
+        })
+    }
+
+    pub fn parse_node_data(&self) -> Result<NodeDataParsed, StateMerkleError> {
+        match self.check_node_type()? {
+            NodeType::Branch => Ok(NodeDataParsed::Branch(self.parse_branch()?)),
+            NodeType::Leaf(LeafType::Embedded) => {
+                Ok(NodeDataParsed::EmbeddedLeaf(self.parse_embedded_leaf()?))
+            }
+            NodeType::Leaf(LeafType::Regular) => {
+                Ok(NodeDataParsed::RegularLeaf(self.parse_regular_leaf()?))
+            }
+            NodeType::Empty => Ok(NodeDataParsed::Empty(HASH32_EMPTY)),
         }
     }
 }
@@ -72,19 +121,19 @@ impl MerkleDB {
     }
 
     /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
-    /// For 511-bit input, try both 0 and 1 as the first bit.
+    /// For 255-bit input, try both 0 and 1 as the first bit.
     fn get_node_from_hash_bits(
         &self,
         bits: &BitVec,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
         match bits.len() {
-            512 => {
-                // for 512-bit input, construct Hash32 type and get the node
+            256 => {
+                // for 256-bit input, construct Hash32 type and get the node
                 let hash = bitvec_to_hash32(bits)?;
                 self.get_node(&hash)
             }
-            511 => {
-                // for 511-bit input, try both 0 and 1 as the first bit
+            255 => {
+                // for 255-bit input, try both 0 and 1 as the first bit
                 let mut full_bits = bits.clone();
                 full_bits.insert(0, false); // try 0 bit
 

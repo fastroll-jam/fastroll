@@ -8,9 +8,9 @@ use rjam_codec::JamDecodeFixed;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 
-pub struct MerkleNodeCodec;
+pub struct NodeCodec;
 
-impl MerkleNodeCodec {
+impl NodeCodec {
     //
     // Node encoding functions
     //
@@ -78,24 +78,24 @@ impl MerkleNodeCodec {
     /// Extracts the hash identity of one of the two child nodes from a branch node data.
     ///
     /// This function takes the raw data of a branch node and returns the hash of the specified child
-    /// (left or right) in `BitVec` type. For the left child, it returns 511 bits (missing the first bit),
-    /// while for the right child, it returns the full 512 bits.
+    /// (left or right) in `BitVec` type. For the left child, it returns 255 bits (missing the first bit),
+    /// while for the right child, it returns the full 256 bits.
     ///
     /// The returned `BitVec` allows for efficient prediction and confirmation of the left child's full hash
     /// by trying both 0 and 1 for the missing first bit when retrieving the actual node.
     ///
     /// `get_node_from_hash_bits` method of `MerkleDB` handles the both cases and fetch node with the hash bits key.
     pub(crate) fn get_child_hash_bits(
-        node_data: &[u8],
+        branch_node_data: &[u8],
         child_type: &ChildType,
     ) -> Result<BitVec, StateMerkleError> {
         // check node data length
-        let len = node_data.len();
+        let len = branch_node_data.len();
         if len != 64 {
             return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
-        let bv = bytes_to_lsb_bits(node_data);
+        let bv = bytes_to_lsb_bits(branch_node_data);
         let first_bit = bv.get(0).unwrap();
 
         // ensure the node data represents a branch node
@@ -104,47 +104,61 @@ impl MerkleNodeCodec {
         }
 
         match child_type {
-            ChildType::Left => Ok(slice_bitvec(&bv, 1..=511)?),
-            ChildType::Right => Ok(slice_bitvec(&bv, 512..)?),
+            ChildType::Left => Ok(slice_bitvec(&bv, 1..=255)?),
+            ChildType::Right => Ok(slice_bitvec(&bv, 256..)?),
         }
     }
 
     /// Extracts state data or hash of the state data from a leaf node data, depending on the `leaf_type`.
     ///
-    /// This function takes the raw data and type (embedded or regular) of a leaf node and returns the state data encoded with `JamCodec`.
+    /// This function takes encoded raw node data and type (embedded or regular) of a leaf node
+    /// and returns the state data encoded with `JamCodec`.
     ///
-    /// For regular leaf nodes, the leaf node data is the Blake2b-256 hash of the encoded state data.
-    /// For embedded leaf nodes, the leaf node data is the encoded state data itself.
+    /// For regular leaf nodes, Blake2b-256 hash of the encoded state data is returned.
+    /// For embedded leaf nodes,the encoded state data itself is returned.
     pub(crate) fn get_leaf_value(
         state_key: &BitVec,
         node_data: &[u8],
         leaf_type: &LeafType,
     ) -> Result<Vec<u8>, StateMerkleError> {
+        let bv = bytes_to_lsb_bits(node_data);
+        Self::validate_node_data(&bv, state_key)?;
+        Self::decode_leaf(&bv, leaf_type)
+    }
+
+    fn validate_node_data(
+        node_data_bv: &BitVec,
+        state_key_bv: &BitVec,
+    ) -> Result<(), StateMerkleError> {
         // check node data length
-        let len = node_data.len();
-        if len != 64 {
-            return Err(StateMerkleError::InvalidNodeDataLength(len));
+        if node_data_bv.len() != NODE_SIZE_BITS {
+            return Err(StateMerkleError::InvalidNodeDataLength(node_data_bv.len()));
         }
 
-        let bv = bytes_to_lsb_bits(node_data);
-        let first_bit = bv.get(0).unwrap();
-
         // ensure the node data represents a leaf node
+        let first_bit = node_data_bv.get(0).unwrap();
         if !first_bit {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
         // compare the state key with the encoded state key
-        Self::compare_state_keys(&bv, state_key)?;
+        Self::compare_state_keys(node_data_bv, state_key_bv)?;
 
+        Ok(())
+    }
+
+    pub(crate) fn decode_leaf(
+        node_data_bv: &BitVec,
+        leaf_type: &LeafType,
+    ) -> Result<Vec<u8>, StateMerkleError> {
         match leaf_type {
             LeafType::Embedded => {
-                let value_len = slice_bitvec(&bv, 2..8)?.to_bytes();
+                let value_len = slice_bitvec(node_data_bv, 2..8)?.to_bytes();
                 let value_len_in_bits = usize::decode_fixed(&mut &value_len[..], 1)? * 8;
 
-                Ok(slice_bitvec(&bv, 256..value_len_in_bits)?.to_bytes())
+                Ok(slice_bitvec(node_data_bv, 256..value_len_in_bits)?.to_bytes())
             }
-            LeafType::Regular => Ok(slice_bitvec(&bv, 256..)?.to_bytes()),
+            LeafType::Regular => Ok(slice_bitvec(node_data_bv, 256..)?.to_bytes()),
         }
     }
 

@@ -10,5 +10,6 @@ rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
+hex = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }

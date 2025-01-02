@@ -1,6 +1,79 @@
 use rjam_common::Hash32;
+use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
+
+//
+// Parsed Merkle Node Types (for debugging)
+//
+
+pub enum NodeDataParsed {
+    Branch(BranchParsed),
+    EmbeddedLeaf(EmbeddedLeafParsed),
+    RegularLeaf(RegularLeafParsed),
+    Empty(Hash32), // HASH32_EMPTY
+}
+
+#[derive(Debug)]
+pub struct BranchParsed {
+    pub node_hash: Hash32, // Node hash identifier
+    pub left_child: Hash32,
+    pub right_child: Hash32,
+}
+
+impl Display for BranchParsed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Branch ({}) {{\n\
+            \tleft: {},\n\
+            \tright: {}\n\
+            }}",
+            self.node_hash, self.left_child, self.right_child,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct EmbeddedLeafParsed {
+    pub node_hash: Hash32, // Node hash identifier
+    pub value: Vec<u8>,
+}
+
+impl Display for EmbeddedLeafParsed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Embedded Leaf ({}) {{\n\
+            \tvalue: 0x{},\n\
+            }}",
+            self.node_hash,
+            hex::encode(&self.value),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct RegularLeafParsed {
+    pub node_hash: Hash32,  // Node hash identifier
+    pub value_hash: Hash32, // Used as a key for the `StateDB` to retrieve the full encoded state value.
+}
+
+impl Display for RegularLeafParsed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Regular Leaf ({}) {{\n\
+            \tvalue_hash: {},\n\
+            }}",
+            self.node_hash, self.value_hash
+        )
+    }
+}
+
+//
+// Merkle Node Types
+//
 
 /// Merkle trie node type.
 pub enum NodeType {
@@ -34,7 +107,7 @@ impl ChildType {
 }
 
 //
-// Affected Node types
+// Affected Node Types
 //
 
 /// Leaf node write operations.

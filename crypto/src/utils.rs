@@ -52,8 +52,8 @@ pub fn hash_prefix_4<H: Hasher>(value: &[u8]) -> Result<[u8; 4], CryptoError> {
     H::hash_prefix_4(value)
 }
 
-pub fn octets_to_hash32(value: &Vec<u8>) -> Option<Hash32> {
-    value.as_slice().try_into().map(ByteArray::new).ok()
+pub fn octets_to_hash32(value: &[u8]) -> Option<Hash32> {
+    value.try_into().map(ByteArray::new).ok()
 }
 
 // `Y` hash function for a VRF signature

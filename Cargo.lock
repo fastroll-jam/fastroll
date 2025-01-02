@@ -1223,6 +1223,7 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "dashmap",
+ "hex",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
