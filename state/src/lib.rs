@@ -1,9 +1,14 @@
 use dashmap::DashMap;
-use rjam_codec::JamCodecError;
+use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32};
 use rjam_crypto::CryptoError;
 use rjam_db::{KeyValueDBError, StateDB};
-use rjam_state_merkle::{error::StateMerkleError, merkle_db::MerkleDB, types::LeafType};
+use rjam_state_merkle::{
+    error::StateMerkleError,
+    merkle_db::MerkleDB,
+    staging::AffectedNodesByDepth,
+    types::{LeafType, MerkleWriteOp},
+};
 use rjam_types::{
     state::*,
     state_utils::{
@@ -26,6 +31,8 @@ pub enum StateManagerError {
     StateKeyNotInitialized,
     #[error("Cache entry not found")]
     CacheEntryNotFound,
+    #[error("Cache entry is clean")]
+    NotDirtyCache,
     #[error("Unexpected entry type")]
     UnexpectedEntryType,
     #[error("Account not found")]
@@ -45,17 +52,16 @@ pub enum StateManagerError {
 }
 
 #[derive(Clone)]
-pub enum StateWriteOp {
+pub enum StateMut {
     Add,
     Update,
-    Upsert,
     Remove,
 }
 
 #[derive(Clone)]
 pub enum CacheEntryStatus {
     Clean,
-    Dirty(StateWriteOp),
+    Dirty(StateMut),
 }
 
 #[derive(Clone)]
@@ -77,18 +83,17 @@ impl CacheEntry {
         matches!(self.status, CacheEntryStatus::Dirty(_))
     }
 
-    fn mark_dirty(&mut self, write_op: StateWriteOp) {
+    fn mark_dirty(&mut self, write_op: StateMut) {
         self.status = CacheEntryStatus::Dirty(write_op);
     }
 
-    #[allow(dead_code)]
     fn mark_clean(&mut self) {
         self.status = CacheEntryStatus::Clean;
     }
 }
 
 struct StateCache {
-    inner: Arc<DashMap<Hash32, CacheEntry>>,
+    inner: Arc<DashMap<Hash32, CacheEntry>>, // (state_key, cache_entry)
 }
 
 impl Deref for StateCache {
@@ -112,16 +117,22 @@ impl StateCache {
         }
     }
 
-    #[allow(dead_code)]
-    fn collect_dirty(&self) -> Result<Vec<(Hash32, CacheEntry)>, StateManagerError> {
-        Ok(self
-            .inner
+    fn collect_dirty(&self) -> Vec<(Hash32, CacheEntry)> {
+        self.inner
             .iter()
             .filter_map(|entry_ref| match entry_ref.value().status {
                 CacheEntryStatus::Clean => None,
                 CacheEntryStatus::Dirty(_) => Some((*entry_ref.key(), entry_ref.value().clone())),
             })
-            .collect())
+            .collect()
+    }
+
+    fn mark_entries_clean(&self, dirty_entries: &[(Hash32, CacheEntry)]) {
+        for (key, _) in dirty_entries.iter() {
+            if let Some(mut entry_mut) = self.inner.get_mut(key) {
+                entry_mut.value_mut().mark_clean();
+            }
+        }
     }
 }
 
@@ -140,13 +151,13 @@ macro_rules! impl_simple_state_accessors {
 
             pub fn [<with_mut_ $fn_type>]<F>(
                 &self,
-                write_op: StateWriteOp,
+                state_mut: StateMut,
                 f: F,
             ) -> Result<(), StateManagerError>
             where
                 F: FnOnce(&mut $state_type),
             {
-                self.with_mut_simple_state_entry(write_op, f)
+                self.with_mut_simple_state_entry(state_mut, f)
             }
         }
     };
@@ -270,15 +281,15 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let Some((leaf_type, state_data)) = self.get_merkle_db().retrieve(state_key.as_slice())?
-        else {
+        let Some((leaf_type, state_data_hash)) = self.get_merkle_db().retrieve(state_key)? else {
             return Ok(None);
         };
 
         let state_data = match leaf_type {
-            LeafType::Embedded => state_data,
+            LeafType::Embedded => state_data_hash,
             LeafType::Regular => {
-                let Some(entry) = self.get_state_db().get_entry(&state_data)? else {
+                // The state data hash is used as the key in the StateDB
+                let Some(entry) = self.get_state_db().get_entry(&state_data_hash)? else {
                     return Ok(None);
                 };
                 entry
@@ -286,6 +297,64 @@ impl StateManager {
         };
 
         Ok(Some(state_data))
+    }
+
+    /// Collects all dirty cache entries after state transition, then commit them into
+    /// `MerkleDB` as a single synchronous batch write operation.
+    /// After commiting to the `MerkleDB`, marks the committed cache entries as clean.
+    pub fn commit_dirty_cache(&mut self) -> Result<(), StateManagerError> {
+        let dirty_entries = self.cache.collect_dirty();
+        if dirty_entries.is_empty() {
+            return Ok(());
+        }
+
+        let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
+
+        for (state_key, entry) in &dirty_entries {
+            let op = if let CacheEntryStatus::Dirty(op) = &entry.status {
+                op
+            } else {
+                return Err(StateManagerError::NotDirtyCache);
+            };
+
+            let encoded = entry.value.encode()?;
+            let write_op = match op {
+                StateMut::Add => MerkleWriteOp::Add(*state_key, encoded),
+                StateMut::Update => MerkleWriteOp::Update(*state_key, encoded),
+                StateMut::Remove => MerkleWriteOp::Remove(*state_key),
+            };
+
+            self.merkle_db.extract_path_nodes_to_leaf(
+                state_key,
+                write_op,
+                &mut affected_nodes_by_depth,
+            )?;
+        }
+
+        // Convert dirty cache entries into write batch and commit to the MerkleDB
+        self.merkle_db.commit_nodes_write_batch(
+            affected_nodes_by_depth
+                .generate_staging_set()?
+                .generate_write_batch()?,
+        )?;
+
+        // Mark committed entries as clean
+        self.cache.mark_entries_clean(&dirty_entries);
+
+        // TODO: update the state root of Merkle Trie
+        // TODO: commit regular leaves to the StateDB
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    fn commit_to_merkle_db() {
+        unimplemented!()
+    }
+
+    #[allow(dead_code)]
+    fn commit_to_state_db() {
+        unimplemented!()
     }
 
     fn insert_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
@@ -328,7 +397,7 @@ impl StateManager {
     fn with_mut_state_entry_internal<T, F>(
         &self,
         state_key: &Hash32,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -371,7 +440,7 @@ impl StateManager {
 
     fn with_mut_simple_state_entry<T, F>(
         &self,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -395,7 +464,7 @@ impl StateManager {
     fn with_mut_account_state_entry<T, F>(
         &self,
         state_key: &Hash32,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -431,7 +500,7 @@ impl StateManager {
 
     pub fn with_mut_account_metadata<F>(
         &self,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         address: Address,
         f: F,
     ) -> Result<(), StateManagerError>
@@ -459,9 +528,9 @@ impl StateManager {
             .ok_or(StateManagerError::StorageEntryNotFound)?;
 
         let write_op = match item_count_delta.cmp(&0) {
-            Ordering::Greater => StateWriteOp::Add,
-            Ordering::Less => StateWriteOp::Remove,
-            Ordering::Equal => StateWriteOp::Update,
+            Ordering::Greater => StateMut::Add,
+            Ordering::Less => StateMut::Remove,
+            Ordering::Equal => StateMut::Update,
         };
 
         // Update the footprints
@@ -499,9 +568,9 @@ impl StateManager {
             .ok_or(StateManagerError::StorageEntryNotFound)?;
 
         let write_op = match item_count_delta.cmp(&0) {
-            Ordering::Greater => StateWriteOp::Add,
-            Ordering::Less => StateWriteOp::Remove,
-            Ordering::Equal => StateWriteOp::Update,
+            Ordering::Greater => StateMut::Add,
+            Ordering::Less => StateMut::Remove,
+            Ordering::Equal => StateMut::Update,
         };
 
         // Update the footprints
@@ -524,7 +593,7 @@ impl StateManager {
 
     pub fn with_mut_account_storage_entry<F>(
         &self,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         address: Address,
         storage_key: &Hash32,
         f: F,
@@ -547,7 +616,7 @@ impl StateManager {
 
     pub fn with_mut_account_preimages_entry<F>(
         &self,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         address: Address,
         preimages_key: &Hash32,
         f: F,
@@ -571,7 +640,7 @@ impl StateManager {
 
     pub fn with_mut_account_lookups_entry<F>(
         &self,
-        write_op: StateWriteOp,
+        write_op: StateMut,
         address: Address,
         lookups_key: (&Hash32, u32),
         f: F,

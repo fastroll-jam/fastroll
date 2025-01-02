@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::state::timeslot::Timeslot;
 
 /// State transition function of `Timeslot`.
@@ -15,7 +15,7 @@ pub fn transition_timeslot(
     let prior_timeslot = state_manager.get_timeslot()?; // Timeslot of the parent block.
     validate_timeslot(&prior_timeslot, header_timeslot)?;
 
-    state_manager.with_mut_timeslot(StateWriteOp::Update, |timeslot| {
+    state_manager.with_mut_timeslot(StateMut::Update, |timeslot| {
         *timeslot = *header_timeslot;
     })?;
     Ok(())

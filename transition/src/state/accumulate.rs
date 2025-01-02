@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::EPOCH_LENGTH;
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, map_segment_roots};
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{common::workloads::WorkReport, state::*};
 
 /// State transition function of `AccumulateQueue`.
@@ -21,7 +21,7 @@ pub fn transition_accumulate_queue(
     // Represents the current slot phase `m`.
     let slot_phase = (current_timeslot.slot() as usize % EPOCH_LENGTH) as isize;
 
-    state_manager.with_mut_accumulate_queue(StateWriteOp::Update, |queue| {
+    state_manager.with_mut_accumulate_queue(StateMut::Update, |queue| {
         // Update ready queue for the current timeslot (i = 0).
         let current_slot_entry = queue.get_circular_mut(slot_phase);
         let current_slot_entry_updated =
@@ -56,7 +56,7 @@ pub fn transition_accumulate_history(
 ) -> Result<(), TransitionError> {
     assert!(accumulated_reports <= accumulatable_reports.len());
     let last_history = map_segment_roots(&accumulatable_reports[..accumulated_reports]);
-    state_manager.with_mut_accumulate_history(StateWriteOp::Update, |history| {
+    state_manager.with_mut_accumulate_history(StateMut::Update, |history| {
         // Add the latest history entry, shifting by one entry if the list is full.
         history.add(last_history);
     })?;

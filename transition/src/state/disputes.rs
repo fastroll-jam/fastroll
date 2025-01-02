@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::Ed25519PubKey;
 use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::disputes::DisputesExtrinsic, state::timeslot::Timeslot};
 
 /// State transition function of `Disputes`.
@@ -25,7 +25,7 @@ pub fn transition_disputes(
     let faults_keys = disputes.faults_keys();
     let offenders_keys: Vec<Ed25519PubKey> = culprits_keys.into_iter().chain(faults_keys).collect();
 
-    state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
+    state_manager.with_mut_disputes(StateMut::Update, |disputes| {
         disputes.sort_extend_good_set(good_set);
         disputes.sort_extend_bad_set(bad_set);
         disputes.sort_extend_wonky_set(wonky_set);

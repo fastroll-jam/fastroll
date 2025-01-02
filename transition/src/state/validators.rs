@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 
 /// State transition function of `ActiveSet`.
 ///
@@ -16,7 +16,7 @@ pub fn transition_active_set(
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         let prior_pending_set = state_manager.get_safrole()?.pending_set;
-        state_manager.with_mut_active_set(StateWriteOp::Update, |active_set| {
+        state_manager.with_mut_active_set(StateMut::Update, |active_set| {
             active_set.0 = prior_pending_set;
         })?;
     }
@@ -38,7 +38,7 @@ pub fn transition_past_set(
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         let prior_active_set = state_manager.get_active_set()?;
-        state_manager.with_mut_past_set(StateWriteOp::Update, |past_set| {
+        state_manager.with_mut_past_set(StateMut::Update, |past_set| {
             past_set.0 = prior_active_set.0;
         })?;
     }

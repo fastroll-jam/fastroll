@@ -4,7 +4,7 @@ use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{
     error::ExtrinsicValidationError::*, tickets::TicketsExtrinsicValidator,
 };
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{
     extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
     state::*,
@@ -58,7 +58,7 @@ fn handle_new_epoch_transition(
     let current_active_set = state_manager.get_active_set()?;
     let current_entropy = state_manager.get_entropy_accumulator()?;
 
-    state_manager.with_mut_safrole(StateWriteOp::Update, |safrole| {
+    state_manager.with_mut_safrole(StateMut::Update, |safrole| {
         // pending set transition (gamma_k)
         safrole.pending_set = prior_staging_set.0;
 
@@ -137,7 +137,7 @@ fn handle_ticket_accumulation(
         curr_ticket_accumulator.add(ticket);
     }
 
-    state_manager.with_mut_safrole(StateWriteOp::Update, |safrole| {
+    state_manager.with_mut_safrole(StateMut::Update, |safrole| {
         safrole.ticket_accumulator = curr_ticket_accumulator;
     })?;
 

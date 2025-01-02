@@ -18,7 +18,7 @@ pub enum LeafType {
 }
 
 /// Branch node child type.
-#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub enum ChildType {
     Left,
     Right,
@@ -38,33 +38,33 @@ impl ChildType {
 //
 
 /// Leaf node write operations.
-#[derive(Eq, Hash, PartialEq)]
-pub enum WriteOp {
-    Update(Hash32, Vec<u8>),
-    Add(Hash32, Vec<u8>),
-    Remove(Hash32),
+#[derive(Hash, PartialEq, Eq)]
+pub enum MerkleWriteOp {
+    Add(Hash32, Vec<u8>),    // (state_key, state_value)
+    Update(Hash32, Vec<u8>), // (state_key, state_value)
+    Remove(Hash32),          // state_key
 }
 
 /// Snapshot of the current state of the nodes to be affected by the state transition.
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub enum AffectedNode {
     Branch(AffectedBranch),
     Leaf(AffectedLeaf),
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct AffectedBranch {
     /// Hash identifier of the current node.
     pub hash: Hash32,
     /// Depth of the current node in the trie.
     pub depth: usize,
-    /// Hash of the left child. Used as a lookup key in the collection of `StagingNode`s.
+    /// Hash of the left child. Used as a lookup key in the collection of `StagingMerkleNode`s.
     pub left: Hash32,
-    /// Hash of the right child. Used as a lookup key in the collection of `StagingNode`s.
+    /// Hash of the right child. Used as a lookup key in the collection of `StagingMerkleNode`s.
     pub right: Hash32,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct AffectedLeaf {
     /// Depth of the current node in the trie.
     pub depth: usize,
@@ -72,14 +72,14 @@ pub struct AffectedLeaf {
     pub leaf_write_op_context: LeafWriteOpContext,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub enum LeafWriteOpContext {
     Update(LeafUpdateContext),
     Add(LeafAddContext),
     Remove(LeafRemoveContext),
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
     pub leaf_state_key: Hash32,
@@ -89,7 +89,7 @@ pub struct LeafUpdateContext {
     pub leaf_prior_hash: Hash32,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct LeafAddContext {
     /// State key of the leaf node to be added.
     pub leaf_state_key: Hash32,
@@ -101,7 +101,7 @@ pub struct LeafAddContext {
     pub added_leaf_child_side: ChildType,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct LeafRemoveContext {
     /// Hash of the parent node of the leaf node to be removed.
     pub parent_hash: Hash32,

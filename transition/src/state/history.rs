@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_merkle::mmr::MerkleMountainRange;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
 
 /// State transition function of `BlockHistory`, updating the parent block's state root.
@@ -22,7 +22,7 @@ pub fn transition_block_history_parent_root(
         return Ok(());
     }
 
-    state_manager.with_mut_block_history(StateWriteOp::Update, |history| {
+    state_manager.with_mut_block_history(StateMut::Update, |history| {
         let last_index = history.0.len() - 1;
         history.0[last_index].set_state_root(root);
     })?;
@@ -53,7 +53,7 @@ pub fn transition_block_history_append(
     };
     mmr.append(accumulate_root)?;
 
-    state_manager.with_mut_block_history(StateWriteOp::Update, |history| {
+    state_manager.with_mut_block_history(StateMut::Update, |history| {
         history.append(BlockHistoryEntry {
             header_hash,
             accumulation_result_mmr: mmr,

@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 
 /// State transition function of `EntropyAccumulator`.
 ///
@@ -17,7 +17,7 @@ pub fn transition_entropy_accumulator(
     epoch_progressed: bool,
     source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {
-    state_manager.with_mut_entropy_accumulator(StateWriteOp::Update, |entropy| {
+    state_manager.with_mut_entropy_accumulator(StateMut::Update, |entropy| {
         if epoch_progressed {
             // Rotate entropy history.
             // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below

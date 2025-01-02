@@ -4,7 +4,7 @@ use rjam_extrinsics::validation::{
     assurances::AssurancesExtrinsicValidator, disputes::DisputesExtrinsicValidator,
     guarantees::GuaranteesExtrinsicValidator,
 };
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{
     common::workloads::WorkReport,
     extrinsics::{
@@ -36,7 +36,7 @@ pub fn transition_reports_eliminate_invalid(
 
     let (_good_set, bad_set, wonky_set) = disputes.split_report_set();
 
-    state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
+    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
         for report_hash in bad_set.iter().chain(wonky_set.iter()) {
             pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
         }
@@ -84,7 +84,7 @@ pub fn transition_reports_clear_availables(
     let timed_out_core_indices =
         prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
 
-    state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
+    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
         // Remove now-available reports and timed-out reports
         for core_index in available_reports_core_indices
             .iter()
@@ -120,7 +120,7 @@ pub fn transition_reports_update_entries(
     let all_guarantor_keys = guarantees_validator.validate(guarantees, current_timeslot.slot())?;
 
     let new_valid_reports = guarantees.extract_work_reports();
-    state_manager.with_mut_pending_reports(StateWriteOp::Update, |pending_reports| {
+    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
         for report in &new_valid_reports {
             pending_reports.0[report.core_index() as usize] = Some(PendingReport {
                 work_report: report.clone(),

@@ -1,6 +1,6 @@
 use crate::error::TransitionError;
 use rjam_common::{CoreIndex, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsic, state::timeslot::Timeslot};
 
 /// State transition function of `AuthPool`.
@@ -20,7 +20,7 @@ pub fn transition_auth_pool(
     // Get the current auth queue state, after its mutation via the accumulation process.
     let auth_queue = state_manager.get_auth_queue()?;
 
-    state_manager.with_mut_auth_pool(StateWriteOp::Update, |pool| {
+    state_manager.with_mut_auth_pool(StateMut::Update, |pool| {
         for (core, core_pool) in pool.0.iter_mut().enumerate() {
             // Find a guarantees extrinsics entry that utilized the current core, if there is any.
             let report_used_core = guarantees

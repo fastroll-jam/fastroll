@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::ValidatorIndex;
 use rjam_extrinsics::validation::error::ExtrinsicValidationError::InvalidValidatorIndex;
-use rjam_state::{StateManager, StateWriteOp};
+use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::Extrinsics, state::validators::get_validator_ed25519_key_by_index};
 
 /// State transition function of `ValidatorStats`
@@ -25,7 +25,7 @@ fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), Trans
     let prior_validator_stats = state_manager.get_validator_stats()?;
     let prior_current_epoch_stats = prior_validator_stats.current_epoch_stats();
 
-    state_manager.with_mut_validator_stats(StateWriteOp::Update, |stats| {
+    state_manager.with_mut_validator_stats(StateMut::Update, |stats| {
         stats.replace_previous_epoch_stats(prior_current_epoch_stats.clone());
         stats.clear_current_epoch_stats();
     })?;
@@ -40,7 +40,7 @@ fn handle_stats_accumulation(
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set()?;
 
-    state_manager.with_mut_validator_stats(StateWriteOp::Update, |stats| {
+    state_manager.with_mut_validator_stats(StateMut::Update, |stats| {
         let current_epoch_author_stats =
             stats.current_epoch_validator_stats_mut(header_block_author_index);
 

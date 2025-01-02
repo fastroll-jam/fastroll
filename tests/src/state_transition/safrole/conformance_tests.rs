@@ -17,7 +17,7 @@ mod tests {
     };
     use rjam_common::ByteArray;
     use rjam_db::BlockHeaderDB;
-    use rjam_state::{StateManager, StateWriteOp};
+    use rjam_state::{StateManager, StateMut};
     use rjam_transition::{
         error::TransitionError,
         header::{set_header_epoch_marker, set_header_winning_tickets_marker},
@@ -97,7 +97,7 @@ mod tests {
                 StateKeyConstant::DisputesState,
                 StateEntryType::DisputesState(DisputesState::default()),
             );
-            state_manager.with_mut_disputes(StateWriteOp::Update, |disputes| {
+            state_manager.with_mut_disputes(StateMut::Update, |disputes| {
                 disputes.punish_set = prior_post_offenders;
             })?;
 

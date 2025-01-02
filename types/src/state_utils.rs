@@ -1,5 +1,5 @@
 use crate::state::*;
-use rjam_codec::{JamDecode, JamEncodeFixed};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 
@@ -100,6 +100,57 @@ pub enum StateEntryType {
     AccountStorageEntry(AccountStorageEntry),
     AccountLookupsEntry(AccountLookupsEntry),
     AccountPreimagesEntry(AccountPreimagesEntry),
+}
+
+impl JamEncode for StateEntryType {
+    fn size_hint(&self) -> usize {
+        match self {
+            StateEntryType::AuthPool(inner) => inner.size_hint(),
+            StateEntryType::AuthQueue(inner) => inner.size_hint(),
+            StateEntryType::BlockHistory(inner) => inner.size_hint(),
+            StateEntryType::SafroleState(inner) => inner.size_hint(),
+            StateEntryType::DisputesState(inner) => inner.size_hint(),
+            StateEntryType::EntropyAccumulator(inner) => inner.size_hint(),
+            StateEntryType::StagingSet(inner) => inner.size_hint(),
+            StateEntryType::ActiveSet(inner) => inner.size_hint(),
+            StateEntryType::PastSet(inner) => inner.size_hint(),
+            StateEntryType::PendingReports(inner) => inner.size_hint(),
+            StateEntryType::Timeslot(inner) => inner.size_hint(),
+            StateEntryType::PrivilegedServices(inner) => inner.size_hint(),
+            StateEntryType::ValidatorStats(inner) => inner.size_hint(),
+            StateEntryType::AccumulateQueue(inner) => inner.size_hint(),
+            StateEntryType::AccumulateHistory(inner) => inner.size_hint(),
+            StateEntryType::AccountMetadata(inner) => inner.size_hint(),
+            StateEntryType::AccountStorageEntry(inner) => inner.size_hint(),
+            StateEntryType::AccountLookupsEntry(inner) => inner.size_hint(),
+            StateEntryType::AccountPreimagesEntry(inner) => inner.size_hint(),
+        }
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        match self {
+            StateEntryType::AuthPool(inner) => inner.encode_to(dest)?,
+            StateEntryType::AuthQueue(inner) => inner.encode_to(dest)?,
+            StateEntryType::BlockHistory(inner) => inner.encode_to(dest)?,
+            StateEntryType::SafroleState(inner) => inner.encode_to(dest)?,
+            StateEntryType::DisputesState(inner) => inner.encode_to(dest)?,
+            StateEntryType::EntropyAccumulator(inner) => inner.encode_to(dest)?,
+            StateEntryType::StagingSet(inner) => inner.encode_to(dest)?,
+            StateEntryType::ActiveSet(inner) => inner.encode_to(dest)?,
+            StateEntryType::PastSet(inner) => inner.encode_to(dest)?,
+            StateEntryType::PendingReports(inner) => inner.encode_to(dest)?,
+            StateEntryType::Timeslot(inner) => inner.encode_to(dest)?,
+            StateEntryType::PrivilegedServices(inner) => inner.encode_to(dest)?,
+            StateEntryType::ValidatorStats(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccumulateQueue(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccumulateHistory(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccountMetadata(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccountStorageEntry(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccountLookupsEntry(inner) => inner.encode_to(dest)?,
+            StateEntryType::AccountPreimagesEntry(inner) => inner.encode_to(dest)?,
+        }
+        Ok(())
+    }
 }
 
 /// Index of each state component used for state-key (Merkle path) construction

@@ -1,6 +1,7 @@
 use crate::{
     codec::MerkleNodeCodec as NodeCodec,
     error::StateMerkleError,
+    staging::AffectedNodesByDepth,
     types::*,
     utils::{bitvec_to_hash32, bytes_to_lsb_bits, slice_bitvec},
 };
@@ -9,15 +10,13 @@ use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_db::RocksDBConfig;
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 /// Merkle trie node representation.
 #[derive(Clone, Debug)]
-pub struct Node {
-    /// Identity of the node, which is Blake2b-256 hash of the `data` field. Used as key to node entry of the MerkleDB.
+pub struct MerkleNode {
+    /// Identity of the node, which is Blake2b-256 hash of the `data` field.
+    /// Used as key to node entry of the `MerkleDB`.
     hash: Hash32,
     /// 512-bit encoded node data.
     ///
@@ -30,7 +29,7 @@ pub struct Node {
     data: Vec<u8>,
 }
 
-impl Node {
+impl MerkleNode {
     /// Determines the type of the node based on its binary representation.
     fn check_node_type(&self) -> Result<NodeType, StateMerkleError> {
         match (
@@ -50,7 +49,7 @@ pub struct MerkleDB {
     /// RocksDB instance.
     db: Arc<DB>,
     /// Cache for storing Merkle trie nodes.
-    cache: Arc<DashMap<Hash32, Node>>,
+    cache: Arc<DashMap<Hash32, MerkleNode>>,
     /// Root hash of the Merkle trie.
     root: Hash32,
 }
@@ -74,7 +73,10 @@ impl MerkleDB {
 
     /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
     /// For 511-bit input, try both 0 and 1 as the first bit.
-    fn get_node_from_hash_bits(&self, bits: &BitVec) -> Result<Option<Node>, StateMerkleError> {
+    fn get_node_from_hash_bits(
+        &self,
+        bits: &BitVec,
+    ) -> Result<Option<MerkleNode>, StateMerkleError> {
         match bits.len() {
             512 => {
                 // for 512-bit input, construct Hash32 type and get the node
@@ -102,17 +104,20 @@ impl MerkleDB {
     }
 
     /// Get a node entry from the MerkleDB.
-    fn get_node(&self, hash: &Hash32) -> Result<Option<Node>, StateMerkleError> {
+    fn get_node(&self, node_hash: &Hash32) -> Result<Option<MerkleNode>, StateMerkleError> {
         // lookup the cache
-        if let Some(node) = self.cache.get(hash) {
+        if let Some(node) = self.cache.get(node_hash) {
             return Ok(Some(node.clone()));
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.db.get(hash.as_slice()) {
+        match self.db.get(node_hash.as_slice()) {
             Ok(Some(data)) => {
-                let node = Node { hash: *hash, data };
-                self.cache.insert(*hash, node.clone());
+                let node = MerkleNode {
+                    hash: *node_hash,
+                    data,
+                };
+                self.cache.insert(*node_hash, node.clone());
                 Ok(Some(node))
             }
             Ok(None) => Ok(None),
@@ -122,7 +127,7 @@ impl MerkleDB {
 
     /// Commit a write batch for node entries into the MerkleDB.
     pub fn commit_nodes_write_batch(
-        &mut self,
+        &self,
         write_batch: WriteBatch,
     ) -> Result<(), StateMerkleError> {
         let write_options = WriteOptions::default();
@@ -149,7 +154,7 @@ impl MerkleDB {
     /// - Used for larger state values (> 32 bytes), with no size limit on the encoded data in the `StateDB`.
     ///
     /// # Arguments
-    /// * `state_key`: [`Hash32`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
+    /// * `state_key`: [`&Hash32`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
     ///
     /// # Returns
     /// * `Ok((LeafType, Vec<u8>))` - A tuple containing:
@@ -162,12 +167,11 @@ impl MerkleDB {
     /// from the `StateDB` using the returned hash.
     pub fn retrieve(
         &self,
-        state_key: &[u8],
+        state_key: &Hash32,
     ) -> Result<Option<(LeafType, Vec<u8>)>, StateMerkleError> {
-        let state_key_bv = bytes_to_lsb_bits(state_key);
-        let root_hash = self.root;
+        let state_key_bv = bytes_to_lsb_bits(state_key.as_slice());
 
-        let mut current_node = match self.get_node(&root_hash)? {
+        let mut current_node = match self.get_node(&self.root)? {
             Some(node) => node,
             None => return Ok(None),
         }; // initialize with the root node
@@ -285,9 +289,9 @@ impl MerkleDB {
     /// ```
     ///
     /// # Arguments
-    /// * `state_key`: [`Hash32`] - The state key representing the Merkle path to the target leaf node.
-    /// * `write_op`: [`WriteOp`] - The write operation to be applied to the leaf node.
-    /// * `affected_nodes_by_depth`: [`&mut BTreeMap<usize, HashSet<AffectedNode>>`] - A mutable reference
+    /// * `state_key`: [`&Hash32`] - The state key representing the Merkle path to the target leaf node.
+    /// * `write_op`: [`MerkleWriteOp`] - The write operation to be applied to the leaf node.
+    /// * `affected_nodes_by_depth`: [`&mut AffectedNodesByDepth`] - A mutable reference
     ///   to a collection that will store all `AffectedNode`s encountered, sorted by their depth in the trie.
     ///
     /// # Returns
@@ -306,18 +310,17 @@ impl MerkleDB {
     /// typically corresponding to all state cache entries marked as `Dirty`.
     pub fn extract_path_nodes_to_leaf(
         &self,
-        state_key: &[u8],
-        write_op: WriteOp,
-        affected_nodes_by_depth: &mut BTreeMap<usize, HashSet<AffectedNode>>, // u8 for depth of the node in the trie
+        state_key: &Hash32,
+        write_op: MerkleWriteOp,
+        affected_nodes_by_depth: &mut AffectedNodesByDepth,
     ) -> Result<(), StateMerkleError> {
-        let state_key_bv = bytes_to_lsb_bits(state_key);
-        let root_hash = self.root;
+        let state_key_bv = bytes_to_lsb_bits(state_key.as_slice());
         let mut parent_hash = self.root;
-        let mut current_node = match self.get_node(&root_hash)? {
+        let mut current_node = match self.get_node(&self.root)? {
             Some(node) => node,
             None => return Ok(()),
-        };
-        // initialize with the root node
+        }; // initialize with the root node
+
         let mut current_child_side = None; // ChildType (Left or Right) of the current node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
@@ -341,15 +344,13 @@ impl MerkleDB {
                     } else {
                         (&left_hash, ChildType::Left)
                     };
+
                     current_child_side = Some(child_type); // update the current child side
-
                     parent_hash = current_node.hash;
-
                     current_node = match self.get_node_from_hash_bits(child_hash)? {
                         Some(node) => node,
-                        None => return Ok(()),
-                    };
-                    // update to the child node on the path
+                        None => return Ok(()), // TODO: This implies pollution
+                    }; // update to the child node on the path
 
                     affected_nodes_by_depth
                         .entry(depth)
@@ -358,7 +359,7 @@ impl MerkleDB {
                 }
                 NodeType::Leaf(_leaf_type) => {
                     match write_op {
-                        WriteOp::Update(_, _) | WriteOp::Remove(_) => {
+                        MerkleWriteOp::Update(_, _) | MerkleWriteOp::Remove(_) => {
                             // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
                             // data matches to `state_key` argument value.
                             let node_data_bv = bytes_to_lsb_bits(&current_node.data);
@@ -376,7 +377,7 @@ impl MerkleDB {
                     }
 
                     return match &write_op {
-                        WriteOp::Update(state_key, state_value) => {
+                        MerkleWriteOp::Update(state_key, state_value) => {
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
                                 depth,
                                 leaf_write_op_context: LeafWriteOpContext::Update(
@@ -393,7 +394,7 @@ impl MerkleDB {
                                 .insert(affected_node);
                             Ok(())
                         }
-                        WriteOp::Add(state_key, state_value) => {
+                        MerkleWriteOp::Add(state_key, state_value) => {
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
                                 depth,
                                 leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
@@ -403,14 +404,13 @@ impl MerkleDB {
                                     added_leaf_child_side: current_child_side.unwrap(),
                                 }),
                             });
-
                             affected_nodes_by_depth
                                 .entry(depth)
                                 .or_default()
                                 .insert(affected_node);
                             Ok(())
                         }
-                        WriteOp::Remove(_state_key) => {
+                        MerkleWriteOp::Remove(_state_key) => {
                             // extract the sibling hash from the parent node data
                             let parent_node_data = match self.get_node(&parent_hash)? {
                                 Some(node) => node.data,
@@ -437,7 +437,6 @@ impl MerkleDB {
                                     },
                                 ),
                             });
-
                             affected_nodes_by_depth
                                 .entry(depth)
                                 .or_default()
