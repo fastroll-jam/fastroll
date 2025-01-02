@@ -334,7 +334,7 @@ impl MerkleDB {
 
                     let affected_node = AffectedNode::Branch(AffectedBranch {
                         hash: current_node.hash,
-                        depth,
+                        depth: depth + 1,
                         left: bitvec_to_hash32(&left_hash)?,
                         right: bitvec_to_hash32(&right_hash)?,
                     });
@@ -353,7 +353,7 @@ impl MerkleDB {
                     }; // update to the child node on the path
 
                     affected_nodes_by_depth
-                        .entry(depth)
+                        .entry(depth + 1)
                         .or_default()
                         .insert(affected_node);
                 }
@@ -379,7 +379,7 @@ impl MerkleDB {
                     return match &write_op {
                         MerkleWriteOp::Update(state_key, state_value) => {
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth,
+                                depth: depth + 1,
                                 leaf_write_op_context: LeafWriteOpContext::Update(
                                     LeafUpdateContext {
                                         leaf_state_key: *state_key,
@@ -389,14 +389,14 @@ impl MerkleDB {
                                 ),
                             });
                             affected_nodes_by_depth
-                                .entry(depth)
+                                .entry(depth + 1)
                                 .or_default()
                                 .insert(affected_node);
                             Ok(())
                         }
                         MerkleWriteOp::Add(state_key, state_value) => {
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth,
+                                depth: depth + 1,
                                 leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
                                     leaf_state_key: *state_key,
                                     leaf_state_value: state_value.clone(),
@@ -405,7 +405,7 @@ impl MerkleDB {
                                 }),
                             });
                             affected_nodes_by_depth
-                                .entry(depth)
+                                .entry(depth + 1)
                                 .or_default()
                                 .insert(affected_node);
                             Ok(())
@@ -429,7 +429,7 @@ impl MerkleDB {
                             };
 
                             let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth,
+                                depth: depth + 1,
                                 leaf_write_op_context: LeafWriteOpContext::Remove(
                                     LeafRemoveContext {
                                         parent_hash,
@@ -438,7 +438,7 @@ impl MerkleDB {
                                 ),
                             });
                             affected_nodes_by_depth
-                                .entry(depth)
+                                .entry(depth + 1)
                                 .or_default()
                                 .insert(affected_node);
                             Ok(())

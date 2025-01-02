@@ -26,6 +26,7 @@ impl StagingMerkleNode {
     }
 }
 
+#[derive(Default)]
 pub struct StagingSet {
     inner: HashMap<Hash32, StagingMerkleNode>,
 }
@@ -35,6 +36,12 @@ impl Deref for StagingSet {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl DerefMut for StagingSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 
@@ -103,7 +110,11 @@ impl AffectedNodesByDepth {
     /// - For leaf additions, two new nodes are created: a leaf and a branch.
     /// - For leaf removals, only the parent node is updated to point to the sibling.
     pub fn generate_staging_set(&self) -> Result<StagingSet, StateMerkleError> {
-        let mut staging_set: HashMap<Hash32, StagingMerkleNode> = HashMap::new();
+        let mut staging_set = StagingSet::default();
+
+        if self.is_empty() {
+            return Ok(staging_set);
+        }
 
         for (_depth, affected_nodes) in self.iter().rev() {
             for affected_node in affected_nodes {
@@ -210,6 +221,6 @@ impl AffectedNodesByDepth {
             }
         }
 
-        Ok(StagingSet::new(staging_set))
+        Ok(staging_set)
     }
 }

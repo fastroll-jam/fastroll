@@ -90,6 +90,26 @@ impl CacheEntry {
     fn mark_clean(&mut self) {
         self.status = CacheEntryStatus::Clean;
     }
+
+    pub fn as_merkle_write_op(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<MerkleWriteOp, StateManagerError> {
+        let op = if let CacheEntryStatus::Dirty(op) = &self.status {
+            op
+        } else {
+            return Err(StateManagerError::NotDirtyCache);
+        };
+
+        let encoded = self.value.encode()?;
+        let merkle_write_op = match op {
+            StateMut::Add => MerkleWriteOp::Add(*state_key, encoded),
+            StateMut::Update => MerkleWriteOp::Update(*state_key, encoded),
+            StateMut::Remove => MerkleWriteOp::Remove(*state_key),
+        };
+
+        Ok(merkle_write_op)
+    }
 }
 
 struct StateCache {
@@ -311,22 +331,9 @@ impl StateManager {
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
 
         for (state_key, entry) in &dirty_entries {
-            let op = if let CacheEntryStatus::Dirty(op) = &entry.status {
-                op
-            } else {
-                return Err(StateManagerError::NotDirtyCache);
-            };
-
-            let encoded = entry.value.encode()?;
-            let write_op = match op {
-                StateMut::Add => MerkleWriteOp::Add(*state_key, encoded),
-                StateMut::Update => MerkleWriteOp::Update(*state_key, encoded),
-                StateMut::Remove => MerkleWriteOp::Remove(*state_key),
-            };
-
             self.merkle_db.extract_path_nodes_to_leaf(
                 state_key,
-                write_op,
+                entry.as_merkle_write_op(state_key)?,
                 &mut affected_nodes_by_depth,
             )?;
         }
