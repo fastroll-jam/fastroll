@@ -1,5 +1,4 @@
 //! Block history state transition conformance tests
-#[cfg(test)]
 mod tests {
     use crate::{
         generate_typed_tests,

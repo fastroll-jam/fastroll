@@ -1,5 +1,4 @@
 //! Statistics state transition conformance tests
-#[cfg(test)]
 mod test {
     use crate::{
         asn_types::{validator_set_to_validators_data, validators_data_to_validator_set},

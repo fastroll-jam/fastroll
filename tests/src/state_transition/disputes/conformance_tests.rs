@@ -1,5 +1,4 @@
 //! Disputes state transition conformance tests
-#[cfg(test)]
 mod tests {
     use crate::{
         asn_types::{

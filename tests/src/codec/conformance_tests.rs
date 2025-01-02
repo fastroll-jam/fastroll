@@ -1,6 +1,5 @@
 //! JAM Codec conformance tests
 
-#[cfg(test)]
 mod tests {
     use crate::asn_types::{
         AsnAssurancesExtrinsic, AsnBlock, AsnDisputesExtrinsic, AsnExtrinsic,

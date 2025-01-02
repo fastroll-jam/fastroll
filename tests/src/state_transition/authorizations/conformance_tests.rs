@@ -1,5 +1,4 @@
 //! Authorizers state transition conformance tests
-#[cfg(test)]
 mod tests {
     use crate::{
         authorizations::asn_types::{Input, Output, State},
