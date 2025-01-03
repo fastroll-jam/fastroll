@@ -1229,6 +1229,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "rocksdb",
+ "tempfile",
  "thiserror",
 ]
 

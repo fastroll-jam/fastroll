@@ -1,7 +1,134 @@
-use rjam_common::Hash32;
+use crate::{
+    codec::NodeCodec,
+    error::StateMerkleError,
+    utils::{bits_encode_msb, bitvec_to_hash32},
+};
+use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_crypto::octets_to_hash32;
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
+
+//
+// Merkle Node Types
+//
+
+/// Merkle trie node representation.
+#[derive(Clone, Debug)]
+pub struct MerkleNode {
+    /// Identity of the node, which is Blake2b-256 hash of the `data` field.
+    ///
+    /// Used as key to node entry of the `MerkleDB`.
+    pub hash: Hash32,
+    /// 512-bit encoded node data.
+    ///
+    /// Represents a value stored in the `MerkleDB`.
+    ///
+    /// The node type is encoded in the first two bits of the `data` field.
+    ///
+    /// Full node structures:
+    /// - Branch node:        [0]  + [255-bit left child hash (partial)] + [256-bit right child hash]
+    /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key (partial)] + [encoded state value] + [zero padding]
+    /// - Regular leaf node:  [11] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
+    pub data: Vec<u8>,
+}
+
+impl MerkleNode {
+    pub fn new(hash: Hash32, data: Vec<u8>) -> Self {
+        Self { hash, data }
+    }
+
+    /// Determines the type of the node based on its binary representation.
+    pub(crate) fn check_node_type(&self) -> Result<NodeType, StateMerkleError> {
+        match (
+            NodeCodec::first_bit(&self.data),
+            NodeCodec::second_bit(&self.data),
+        ) {
+            (Some(false), _) => Ok(NodeType::Branch),
+            (Some(true), Some(false)) => Ok(NodeType::Leaf(LeafType::Embedded)),
+            (Some(true), Some(true)) => Ok(NodeType::Leaf(LeafType::Regular)),
+            _ => Err(StateMerkleError::InvalidNodeType),
+        }
+    }
+
+    fn parse_branch(&self) -> Result<BranchParsed, StateMerkleError> {
+        let left_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Left)?; // 255 bits (1 bit missing)
+        let right_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Right)?; // 256 bits (full-length Hash32 representation)
+
+        Ok(BranchParsed {
+            node_hash: self.hash,
+            left_child: bitvec_to_hash32(&left_child_bv)?, // FIXME: return the restored left child hash
+            right_child: bitvec_to_hash32(&right_child_bv)?,
+        })
+    }
+
+    fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
+        let node_data_bv = bits_encode_msb(&self.data);
+        let embedded_data = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Embedded)?;
+
+        Ok(EmbeddedLeafParsed {
+            node_hash: self.hash,
+            value: embedded_data,
+        })
+    }
+
+    fn parse_regular_leaf(&self) -> Result<RegularLeafParsed, StateMerkleError> {
+        let node_data_bv = bits_encode_msb(&self.data);
+        let state_data_hash = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Regular)?;
+
+        Ok(RegularLeafParsed {
+            node_hash: self.hash,
+            value_hash: octets_to_hash32(&state_data_hash)
+                .ok_or(StateMerkleError::InvalidHash32Input)?,
+        })
+    }
+
+    pub fn parse_node_data(&self) -> Result<NodeDataParsed, StateMerkleError> {
+        match self.check_node_type()? {
+            NodeType::Branch => Ok(NodeDataParsed::Branch(self.parse_branch()?)),
+            NodeType::Leaf(LeafType::Embedded) => {
+                Ok(NodeDataParsed::EmbeddedLeaf(self.parse_embedded_leaf()?))
+            }
+            NodeType::Leaf(LeafType::Regular) => {
+                Ok(NodeDataParsed::RegularLeaf(self.parse_regular_leaf()?))
+            }
+            NodeType::Empty => Ok(NodeDataParsed::Empty(HASH32_EMPTY)),
+        }
+    }
+}
+
+/// Merkle trie node type.
+#[derive(Debug)]
+pub enum NodeType {
+    Branch,
+    Leaf(LeafType),
+    Empty,
+}
+
+/// Leaf node type.
+#[derive(Debug)]
+pub enum LeafType {
+    /// Used for leaf nodes where the encoded state data is larger than 32 bytes.
+    Embedded,
+    /// Used for leaf nodes where the encoded state data length exceeds 32 bytes.
+    Regular,
+}
+
+/// Branch node child type.
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+pub enum ChildType {
+    Left,
+    Right,
+}
+
+impl ChildType {
+    pub fn opposite(&self) -> Self {
+        match self {
+            ChildType::Left => ChildType::Right,
+            ChildType::Right => ChildType::Left,
+        }
+    }
+}
 
 //
 // Parsed Merkle Node Types (for debugging)
@@ -12,6 +139,17 @@ pub enum NodeDataParsed {
     EmbeddedLeaf(EmbeddedLeafParsed),
     RegularLeaf(RegularLeafParsed),
     Empty(Hash32), // HASH32_EMPTY
+}
+
+impl Display for NodeDataParsed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Branch(branch) => write!(f, "{}", branch),
+            Self::EmbeddedLeaf(leaf) => write!(f, "{}", leaf),
+            Self::RegularLeaf(leaf) => write!(f, "{}", leaf),
+            Self::Empty(hash) => write!(f, "Empty({})", hash),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -68,41 +206,6 @@ impl Display for RegularLeafParsed {
             }}",
             self.node_hash, self.value_hash
         )
-    }
-}
-
-//
-// Merkle Node Types
-//
-
-/// Merkle trie node type.
-pub enum NodeType {
-    Branch,
-    Leaf(LeafType),
-    Empty,
-}
-
-/// Leaf node type.
-pub enum LeafType {
-    /// Used for leaf nodes where the encoded state data is larger than 32 bytes.
-    Embedded,
-    /// Used for leaf nodes where the encoded state data length exceeds 32 bytes.
-    Regular,
-}
-
-/// Branch node child type.
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
-pub enum ChildType {
-    Left,
-    Right,
-}
-
-impl ChildType {
-    pub fn opposite(&self) -> Self {
-        match self {
-            ChildType::Left => ChildType::Right,
-            ChildType::Right => ChildType::Left,
-        }
     }
 }
 

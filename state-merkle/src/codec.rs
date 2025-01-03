@@ -1,10 +1,10 @@
 use crate::{
     error::StateMerkleError,
     types::*,
-    utils::{bytes_to_lsb_bits, slice_bitvec},
+    utils::{bits_decode_msb, bits_encode_msb, slice_bitvec},
 };
 use bit_vec::BitVec;
-use rjam_codec::JamDecodeFixed;
+use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 
@@ -19,13 +19,15 @@ impl NodeCodec {
     ///
     /// Drops the first bit of the left child hash to fit node data in 512 bits.
     /// Uses the first bit as a node type indicator (0 for branch).
-    pub(crate) fn encode_branch(left: &Hash32, right: &Hash32) -> Result<BitVec, StateMerkleError> {
-        let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
-        node.set(0, false); // indicator for the branch node
-        node.extend(slice_bitvec(&bytes_to_lsb_bits(left.as_slice()), 1..)?);
-        node.extend(bytes_to_lsb_bits(right.as_slice()));
+    pub(crate) fn encode_branch(
+        left: &Hash32,
+        right: &Hash32,
+    ) -> Result<Vec<u8>, StateMerkleError> {
+        let mut node = BitVec::from_elem(1, false); // indicator for the branch node
+        node.extend(slice_bitvec(&bits_encode_msb(left.as_slice()), 1..)?);
+        node.extend(bits_encode_msb(right.as_slice()));
 
-        Ok(node)
+        Ok(bits_decode_msb(&node))
     }
 
     /// Encodes a leaf node from a state key and its value encoded with `JamCodec`.
@@ -38,37 +40,29 @@ impl NodeCodec {
     pub(crate) fn encode_leaf(
         state_key: &Hash32,
         state_value: &[u8],
-    ) -> Result<BitVec, StateMerkleError> {
-        let mut node = BitVec::from_elem(NODE_SIZE_BITS, false);
-        node.set(0, true); // indicator for the leaf node
+    ) -> Result<Vec<u8>, StateMerkleError> {
+        let mut node = BitVec::new();
         if state_value.len() <= 32 {
-            node.set(1, false); // indicator for the embedded leaf node
-            let length_bits = bytes_to_lsb_bits(&[state_value.len() as u8]);
+            // indicator for the embedded leaf node
+            node.extend(vec![true, false]);
+            let length_bits = bits_encode_msb(&state_value.len().encode_fixed(1)?); // 8 bits
 
-            for i in 0..6 {
-                node.set(2 + i, length_bits[i]); // 6 bits for the embedded value size
-            }
-            node.extend(slice_bitvec(
-                &bytes_to_lsb_bits(state_key.as_slice()),
-                0..248,
-            )?);
-            node.extend(bytes_to_lsb_bits(state_value));
+            node.extend(slice_bitvec(&length_bits, 2..)?);
+            node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
+            node.extend(bits_encode_msb(state_value));
 
             while node.len() < NODE_SIZE_BITS {
                 node.push(false); // zero padding for the remaining bits
             }
         } else {
-            node.set(1, true); // indicator for the regular leaf node
-            node.extend(BitVec::from_elem(6, false)); // fill the first byte with zeros
-            node.extend(slice_bitvec(
-                &bytes_to_lsb_bits(state_key.as_slice()),
-                0..248,
-            )?);
+            // indicator for the regular leaf node + zero padding
+            node.extend(vec![true, true, false, false, false, false, false, false]);
+            node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
             let value_hash = hash::<Blake2b256>(state_value)?;
-            node.extend(bytes_to_lsb_bits(value_hash.as_slice()));
+            node.extend(bits_encode_msb(value_hash.as_slice()));
         }
 
-        Ok(node)
+        Ok(bits_decode_msb(&node))
     }
 
     //
@@ -95,7 +89,7 @@ impl NodeCodec {
             return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
-        let bv = bytes_to_lsb_bits(branch_node_data);
+        let bv = bits_encode_msb(branch_node_data);
         let first_bit = bv.get(0).unwrap();
 
         // ensure the node data represents a branch node
@@ -121,7 +115,7 @@ impl NodeCodec {
         node_data: &[u8],
         leaf_type: &LeafType,
     ) -> Result<Vec<u8>, StateMerkleError> {
-        let bv = bytes_to_lsb_bits(node_data);
+        let bv = bits_encode_msb(node_data);
         Self::validate_node_data(&bv, state_key)?;
         Self::decode_leaf(&bv, leaf_type)
     }
@@ -153,12 +147,20 @@ impl NodeCodec {
     ) -> Result<Vec<u8>, StateMerkleError> {
         match leaf_type {
             LeafType::Embedded => {
-                let value_len = slice_bitvec(node_data_bv, 2..8)?.to_bytes();
-                let value_len_in_bits = usize::decode_fixed(&mut &value_len[..], 1)? * 8;
+                // Pad the leading 2 bits with zeros (which were dropped while encoding)
+                let mut length_bits_padded = BitVec::from_elem(2, false);
+                length_bits_padded.extend(slice_bitvec(node_data_bv, 2..8)?);
+                let value_len_decoded =
+                    u8::decode_fixed(&mut bits_decode_msb(&length_bits_padded).as_slice(), 1)?;
+                let value_len_in_bits = (value_len_decoded as usize) * 8;
+                let value_end_bit = 256 + value_len_in_bits;
 
-                Ok(slice_bitvec(node_data_bv, 256..value_len_in_bits)?.to_bytes())
+                Ok(bits_decode_msb(&slice_bitvec(
+                    node_data_bv,
+                    256..value_end_bit,
+                )?))
             }
-            LeafType::Regular => Ok(slice_bitvec(node_data_bv, 256..)?.to_bytes()),
+            LeafType::Regular => Ok(bits_decode_msb(&slice_bitvec(node_data_bv, 256..)?)),
         }
     }
 
@@ -183,10 +185,84 @@ impl NodeCodec {
     }
 
     pub(crate) fn first_bit(data: &[u8]) -> Option<bool> {
-        data.first().map(|&byte| (byte & 0b1000_0000) != 0)
+        bits_encode_msb(data).get(0)
     }
 
     pub(crate) fn second_bit(data: &[u8]) -> Option<bool> {
-        data.first().map(|&byte| (byte & 0b0100_0000) != 0)
+        bits_encode_msb(data).get(1)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    //
+    // Helper Functions
+    //
+
+    pub(crate) fn simple_hash(seed: &str) -> Hash32 {
+        hash::<Blake2b256>(seed.as_bytes()).unwrap()
+    }
+
+    /// Returns 10-byte blob
+    pub(crate) fn some_small_blob() -> Vec<u8> {
+        hex::decode("00112233445566778899").unwrap()
+    }
+
+    /// Returns 100-byte blob
+    pub(crate) fn some_large_blob() -> Vec<u8> {
+        hex::decode(
+            "00112233445566778899001122334455667788990011223344556677889900112233445566778899001122334455667788990011223344556677889900112233445566778899001122334455667788990011223344556677889900112233445566778899",
+        )
+            .unwrap()
+    }
+
+    pub(crate) fn generate_branch(left: Hash32, right: Hash32) -> MerkleNode {
+        let node_data = NodeCodec::encode_branch(&left, &right).unwrap();
+        let node_hash = hash::<Blake2b256>(&node_data).unwrap();
+        // println!(
+        //     "+++ Generated Branch: Hash({}), Left({}), Right({})",
+        //     &node_hash, &left_hash, &right_hash,
+        // );
+        MerkleNode::new(node_hash, node_data)
+    }
+
+    pub(crate) fn generate_embedded_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
+        if state_value.len() > 32 {
+            panic!("State data too large for embedded leaf")
+        }
+        let node_data = NodeCodec::encode_leaf(&state_key, state_value).unwrap();
+        let node_hash = hash::<Blake2b256>(&node_data).unwrap();
+        // println!(
+        //     "+++ Generated Embedded: Hash({}), EmbeddedStateValue({})",
+        //     &node_hash,
+        //     hex::encode(&state_value)
+        // );
+        MerkleNode::new(node_hash, node_data)
+    }
+
+    pub(crate) fn generate_regular_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
+        if state_value.len() <= 32 {
+            panic!("State data too small for regular leaf")
+        }
+
+        let node_data = NodeCodec::encode_leaf(&state_key, state_value).unwrap();
+        let node_hash = hash::<Blake2b256>(&node_data).unwrap();
+        // println!(
+        //     "+++ Generated Regular: Hash({}), StateValueHash({})",
+        //     &node_hash,
+        //     hash::<Blake2b256>(&state_value).unwrap(),
+        // );
+        MerkleNode::new(node_hash, node_data)
+    }
+
+    pub(crate) fn print_node(node: &Option<MerkleNode>) {
+        match node {
+            Some(node) => {
+                println!(">>> GET Node: {}", node.parse_node_data().unwrap());
+            }
+            None => println!(">>> None"),
+        }
     }
 }

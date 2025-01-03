@@ -3,24 +3,24 @@ use bit_vec::BitVec;
 use rjam_common::{ByteArray, Hash32};
 use std::{collections::Bound, ops::RangeBounds};
 
-/// The `bits` function of the GP.
-pub(crate) fn bytes_to_lsb_bits(data: &[u8]) -> BitVec {
+/// The `bits` function of the GP (MSB-first encoding for each byte)
+pub(crate) fn bits_encode_msb(data: &[u8]) -> BitVec {
     let mut bits = BitVec::with_capacity(data.len() * 8);
     for &byte in data {
         for i in 0..8 {
-            bits.push(byte & (1 << i) != 0);
+            bits.push(byte & (1 << (7 - i)) != 0);
         }
     }
     bits
 }
 
 /// The inverse function of `bits` of the GP.
-pub(crate) fn lsb_bits_to_bytes(bits: &BitVec) -> Vec<u8> {
+pub(crate) fn bits_decode_msb(bits: &BitVec) -> Vec<u8> {
     let mut bytes = Vec::with_capacity((bits.len() + 7) / 8);
     let mut current_byte = 0u8;
     for (i, bit) in bits.iter().enumerate() {
         if bit {
-            current_byte |= 1 << (i % 8);
+            current_byte |= 1 << (7 - (i % 8));
         }
         if i % 8 == 7 {
             bytes.push(current_byte);
@@ -35,7 +35,7 @@ pub(crate) fn lsb_bits_to_bytes(bits: &BitVec) -> Vec<u8> {
 }
 
 pub(crate) fn bitvec_to_hash32(data: &BitVec) -> Result<Hash32, StateMerkleError> {
-    let bytes = lsb_bits_to_bytes(data);
+    let bytes = bits_decode_msb(data);
     bytes
         .as_slice()
         .try_into()
@@ -68,4 +68,23 @@ where
         .skip(start)
         .take(end.saturating_sub(start))
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bits_encode_decode_msb() {
+        let input = vec![160, 0];
+        let encoded = bits_encode_msb(&input);
+        let mut expected = BitVec::from_elem(16, false); // 0b0000_0000
+        expected.set(0, true);
+        expected.set(2, true);
+        // expected = 0b1010_0000
+        assert_eq!(encoded, expected);
+
+        let decoded = bits_decode_msb(&encoded);
+        assert_eq!(input, decoded);
+    }
 }

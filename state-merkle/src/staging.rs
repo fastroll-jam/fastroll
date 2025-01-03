@@ -1,4 +1,4 @@
-use crate::{codec::NodeCodec, error::StateMerkleError, types::*, utils::lsb_bits_to_bytes};
+use crate::{codec::NodeCodec, error::StateMerkleError, types::*};
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rocksdb::WriteBatch;
@@ -130,8 +130,7 @@ impl AffectedNodesByDepth {
                             .map_or(branch.right, |staging_node| staging_node.hash);
 
                         // the branch node data after state transition
-                        let node_data =
-                            lsb_bits_to_bytes(&NodeCodec::encode_branch(&left_hash, &right_hash)?);
+                        let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
 
                         let staging_node = StagingMerkleNode {
                             hash: hash::<Blake2b256>(&node_data)?,
@@ -144,10 +143,10 @@ impl AffectedNodesByDepth {
                         match &leaf.leaf_write_op_context {
                             LeafWriteOpContext::Update(ctx) => {
                                 // the leaf node data after the state transition
-                                let node_data = lsb_bits_to_bytes(&NodeCodec::encode_leaf(
+                                let node_data = NodeCodec::encode_leaf(
                                     &ctx.leaf_state_key,
                                     &ctx.leaf_state_value,
-                                )?);
+                                )?;
                                 let staging_node = StagingMerkleNode {
                                     hash: hash::<Blake2b256>(&node_data)?,
                                     node_data,
@@ -162,11 +161,10 @@ impl AffectedNodesByDepth {
                                 // pointing to the new leaf node and its sibling node as child nodes.
 
                                 // create a new leaf node as a staging node
-                                let added_leaf_node_data =
-                                    lsb_bits_to_bytes(&NodeCodec::encode_leaf(
-                                        &ctx.leaf_state_key,
-                                        &ctx.leaf_state_value,
-                                    )?);
+                                let added_leaf_node_data = NodeCodec::encode_leaf(
+                                    &ctx.leaf_state_key,
+                                    &ctx.leaf_state_value,
+                                )?;
                                 let added_leaf_node_hash =
                                     hash::<Blake2b256>(&added_leaf_node_data)?;
 
@@ -188,11 +186,10 @@ impl AffectedNodesByDepth {
                                         }
                                     };
 
-                                let new_branch_node_data =
-                                    lsb_bits_to_bytes(&NodeCodec::encode_branch(
-                                        &new_branch_left_hash,
-                                        &new_branch_right_hash,
-                                    )?);
+                                let new_branch_node_data = NodeCodec::encode_branch(
+                                    &new_branch_left_hash,
+                                    &new_branch_right_hash,
+                                )?;
 
                                 let new_branch_staging_node = StagingMerkleNode {
                                     hash: hash::<Blake2b256>(&new_branch_node_data)?,
