@@ -2,10 +2,10 @@ pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
 use rjam_common::HASH32_EMPTY;
-use rjam_db::{BlockHeaderDB, RocksDBConfig, StateDB};
+use rjam_db::{BlockHeaderDB, RocksDBConfig};
 use rjam_extrinsics::pool::ExtrinsicsPool;
 use rjam_state::StateManager;
-use rjam_state_merkle::merkle_db::MerkleDB;
+use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use std::{
     error::Error,
     path::PathBuf,

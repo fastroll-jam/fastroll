@@ -179,6 +179,7 @@ impl MerkleDB {
         Ok(None)
     }
 
+    /// FIXME: move to `StateManager` impl block
     /// Commits a single leaf-level Merkle write operations (`Add`, `Update`, or `Remove`) to the
     /// Merkle trie. Returns the new merkle root.
     ///
@@ -195,7 +196,7 @@ impl MerkleDB {
 
                     self.put_node(&new_leaf)?;
                     self.cache.insert(node_hash, new_leaf); // optional
-                                                            // self.root = node_hash; // FIXME: requires `&mut`
+
                     Ok(node_hash)
                 }
                 MerkleWriteOp::Update(_, _) => Err(StateMerkleError::NodeNotFound),
@@ -212,7 +213,7 @@ impl MerkleDB {
 
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
         self.extract_path_nodes_to_leaf(state_key, write_op.clone(), &mut affected_nodes_by_depth)?;
-        let staging_set = affected_nodes_by_depth.generate_staging_set()?;
+        let (staging_set, _state_db_write_set) = affected_nodes_by_depth.generate_staging_set()?;
         self.commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
 
         let new_merkle_root = staging_set.get_new_root();

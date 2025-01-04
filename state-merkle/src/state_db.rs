@@ -1,4 +1,4 @@
-use crate::kvdb::{KeyValueDB, KeyValueDBError, RocksDBConfig};
+use rjam_db::kvdb::{KeyValueDB, KeyValueDBError, RocksDBConfig};
 use std::ops::Deref;
 use thiserror::Error;
 

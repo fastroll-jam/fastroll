@@ -1,6 +1,6 @@
-use rjam_db::{BlockHeaderDB, RocksDBConfig, StateDB};
+use rjam_db::{BlockHeaderDB, RocksDBConfig};
 use rjam_state::StateManager;
-use rjam_state_merkle::merkle_db::MerkleDB;
+use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{

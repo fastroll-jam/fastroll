@@ -88,6 +88,12 @@ impl KeyValueDB {
             .map_err(KeyValueDBError::RocksDBError)
     }
 
+    pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), KeyValueDBError> {
+        let write_options = WriteOptions::default();
+        self.db.write_opt(write_batch, &write_options)?;
+        Ok(())
+    }
+
     pub fn batch_operation<F>(&self, operations: F) -> Result<(), KeyValueDBError>
     where
         F: FnOnce(&mut WriteBatch),

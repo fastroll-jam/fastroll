@@ -23,6 +23,8 @@ impl StagingMerkleNode {
     }
 }
 
+/// A collection of merkle node entries to be written into the `MerkleDB`. Also includes the
+/// new merkle root that represents the posterior state of the merkle trie after commiting it.
 #[derive(Default)]
 pub struct StagingSet {
     new_root: Hash32,
@@ -59,13 +61,47 @@ impl StagingSet {
         self.new_root = new_root;
     }
 
-    /// Generates `WriteBatch` from `staging_set`, simply converting `StagingMerkleNode`s into `MerkleDB` entries.
+    /// Generates `WriteBatch` from `StagingSet`, converting `StagingMerkleNode`s into `MerkleDB` entries.
     pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
         let mut batch = WriteBatch::default();
         // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
         self.values().for_each(|node| {
             batch.put(node.hash.as_slice(), &node.node_data);
         });
+
+        Ok(batch)
+    }
+}
+
+/// A collection of raw state data entries for regular leaf nodes in `StateDB`.
+/// Each entry is identified by a `Hash32` and contains the associated octets generated from
+/// `Add` or `Update` operations.
+#[derive(Default)]
+pub struct StateDBWriteSet {
+    inner: HashMap<Hash32, Vec<u8>>,
+}
+
+impl Deref for StateDBWriteSet {
+    type Target = HashMap<Hash32, Vec<u8>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for StateDBWriteSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl StateDBWriteSet {
+    /// Generates `WriteBatch` from `StateDBWriteSet`.
+    pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
+        let mut batch = WriteBatch::default();
+        // `StateDB` entry format: (key: Hash32(value), value: raw state data)
+        self.iter()
+            .for_each(|(key, val)| batch.put(key.as_slice(), val));
 
         Ok(batch)
     }
@@ -95,11 +131,13 @@ impl AffectedNodesByDepth {
         Self { inner }
     }
 
-    /// Generates a collection of `StagingMerkleNode`s from `AffectedNode`s.
+    /// Generates a collection of `StagingMerkleNode`s and a collection of new entries to be added
+    /// to the `StateDB` by iterating `AffectedNode`s from `AffectedNodesByDepth`.
     ///
     /// # Purpose
     /// This function is crucial for:
-    /// * Transforming affected nodes into staging nodes ready for database (`MerkleDB`) insertion.
+    /// * Transforming affected nodes into staging nodes ready for `MerkleDB` insertion.
+    /// * Extracting a write set of the `StateDB` from the affected nodes.
     /// * Maintaining the integrity of the Merkle trie during updates.
     /// * Preparing the final state of nodes after all write operations are applied.
     ///
@@ -109,6 +147,8 @@ impl AffectedNodesByDepth {
     ///   - `Branch` nodes: Updates child hashes based on previous iterations.
     ///   - `Leaf` nodes: Handles updates, additions, and removals differently.
     /// - Creates new `StagingMerkleNode`s with updated data and hashes.
+    /// - For `Add` or `Update` operations of `Regular` `Leaf` nodes, creates new write set entries
+    ///   with the new state data and hashes.
     ///
     /// # Returns
     /// * `Ok(StagingSet)` - Staging nodes keyed by their prior hash in the trie.
@@ -118,11 +158,12 @@ impl AffectedNodesByDepth {
     /// - The `HashMap` allows efficient lookup of updated child hashes for branch nodes in each iteration.
     /// - For leaf additions, two new nodes are created: a leaf and a branch.
     /// - For leaf removals, only the parent node is updated to point to the sibling.
-    pub fn generate_staging_set(&self) -> Result<StagingSet, StateMerkleError> {
+    pub fn generate_staging_set(&self) -> Result<(StagingSet, StateDBWriteSet), StateMerkleError> {
         let mut staging_set = StagingSet::default();
+        let mut state_db_write_set = StateDBWriteSet::default();
 
         if self.is_empty() {
-            return Ok(staging_set);
+            return Ok((staging_set, state_db_write_set));
         }
 
         let mut iter_rev = self.iter().rev().peekable();
@@ -131,8 +172,12 @@ impl AffectedNodesByDepth {
             let is_root_node = iter_rev.peek().is_none(); // final iteration will handle the root node
 
             for affected_node in affected_nodes {
-                let maybe_new_root =
-                    Self::process_affected_node(affected_node, &mut staging_set, is_root_node)?;
+                let maybe_new_root = Self::process_affected_node(
+                    affected_node,
+                    &mut staging_set,
+                    &mut state_db_write_set,
+                    is_root_node,
+                )?;
                 if let Some(new_root) = maybe_new_root {
                     // Contain the new root hash to the `StagingSet` struct.
                     staging_set.set_new_root(new_root);
@@ -140,7 +185,7 @@ impl AffectedNodesByDepth {
             }
         }
 
-        Ok(staging_set)
+        Ok((staging_set, state_db_write_set))
     }
 
     /// Processes an affected node entry and inserts one or more `StagingMerkleNode` entries to the
@@ -153,6 +198,7 @@ impl AffectedNodesByDepth {
     fn process_affected_node(
         affected_node: &AffectedNode,
         staging_set: &mut StagingSet,
+        state_db_write_set: &mut StateDBWriteSet,
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
         let maybe_root = match affected_node {
@@ -187,8 +233,13 @@ impl AffectedNodesByDepth {
                 match &leaf.leaf_write_op_context {
                     LeafWriteOpContext::Update(ctx) => {
                         // the leaf node data after the state transition
+                        let state_value_slice = ctx.leaf_state_value.as_slice();
                         let node_data =
-                            NodeCodec::encode_leaf(&ctx.leaf_state_key, &ctx.leaf_state_value)?;
+                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+
+                        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
+                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
+
                         let hash = hash::<Blake2b256>(&node_data)?;
                         let staging_node = StagingMerkleNode { hash, node_data };
 
@@ -209,8 +260,12 @@ impl AffectedNodesByDepth {
                         // pointing to the new leaf node and its sibling node as child nodes.
 
                         // create a new leaf node as a staging node
+                        let state_value_slice = ctx.leaf_state_value.as_slice();
                         let added_leaf_node_data =
-                            NodeCodec::encode_leaf(&ctx.leaf_state_key, &ctx.leaf_state_value)?;
+                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+
+                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
+
                         let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
 
                         let added_leaf_staging_node = StagingMerkleNode {
@@ -267,5 +322,18 @@ impl AffectedNodesByDepth {
         };
 
         Ok(maybe_root)
+    }
+
+    /// Inserts an entry to the `StateDBWriteSet` if the state value is larger than 32 bytes, which
+    /// implies that its corresponding leaf node is a regular leaf type.
+    fn insert_to_state_db_write_set(
+        state_value: &[u8],
+        state_db_write_set: &mut StateDBWriteSet,
+    ) -> Result<(), StateMerkleError> {
+        // regular leaf
+        if state_value.len() > 32 {
+            state_db_write_set.insert(hash::<Blake2b256>(state_value)?, state_value.to_vec());
+        }
+        Ok(())
     }
 }

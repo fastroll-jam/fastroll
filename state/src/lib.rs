@@ -2,11 +2,12 @@ use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32};
 use rjam_crypto::CryptoError;
-use rjam_db::{KeyValueDBError, StateDB};
+use rjam_db::KeyValueDBError;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     staging::AffectedNodesByDepth,
+    state_db::StateDB,
     types::{LeafType, MerkleWriteOp},
 };
 use rjam_types::{
@@ -372,7 +373,7 @@ impl StateManager {
         }
 
         // Convert dirty cache entries into write batch and commit to the MerkleDB
-        let staging_set = affected_nodes_by_depth.generate_staging_set()?;
+        let (staging_set, state_db_write_set) = affected_nodes_by_depth.generate_staging_set()?;
         self.merkle_db_read()
             .commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
 
@@ -380,10 +381,12 @@ impl StateManager {
         self.merkle_db_write()
             .update_root(staging_set.get_new_root());
 
+        // Add new entries to the StateDB
+        self.state_db_read()
+            .commit_write_batch(state_db_write_set.generate_write_batch()?)?;
+
         // Mark committed entries as clean
         self.cache.mark_entries_clean(&dirty_entries);
-
-        // TODO: commit regular leaves to the StateDB
 
         Ok(())
     }
