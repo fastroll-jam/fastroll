@@ -44,6 +44,10 @@ impl MerkleDB {
         self.root
     }
 
+    pub fn update_root(&mut self, new_root: Hash32) {
+        self.root = new_root;
+    }
+
     /// Restore correct hash value from a 255-bit bitvec representation, by attempting to
     /// retrieve a node from the `MerkleDB`.
     pub(crate) fn restore_hash_bit(&self, hash_bv: &BitVec) -> Result<Hash32, StateMerkleError> {

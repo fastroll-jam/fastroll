@@ -335,6 +335,9 @@ impl StateManager {
             cache_entry.mark_clean();
         }
 
+        // TODO: update the state root of Merkle Trie
+        // TODO: commit regular leaves to the StateDB
+
         Ok(())
     }
 
@@ -358,16 +361,17 @@ impl StateManager {
         }
 
         // Convert dirty cache entries into write batch and commit to the MerkleDB
-        self.merkle_db.commit_nodes_write_batch(
-            affected_nodes_by_depth
-                .generate_staging_set()?
-                .generate_write_batch()?,
-        )?;
+        let staging_set = affected_nodes_by_depth.generate_staging_set()?;
+        self.merkle_db
+            .commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
+
+        // TODO: update the state root of Merkle Trie
+        // Update the merkle root of the MerkleDB
+        // self.merkle_db.update_root(staging_set.get_new_root());
 
         // Mark committed entries as clean
         self.cache.mark_entries_clean(&dirty_entries);
 
-        // TODO: update the state root of Merkle Trie
         // TODO: commit regular leaves to the StateDB
 
         Ok(())
