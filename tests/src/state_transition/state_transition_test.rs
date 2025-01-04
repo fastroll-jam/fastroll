@@ -7,7 +7,7 @@ use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 use tempfile::tempdir;
 
@@ -44,7 +44,10 @@ pub trait StateTransitionTest {
         let merkle_db_config = RocksDBConfig::from_path(tmp_path.join("merkle_db"));
         let state_db = StateDB::open(&state_db_config).unwrap();
         let merkle_db = MerkleDB::open(&merkle_db_config, 1000).unwrap();
-        StateManager::new(Arc::new(state_db), Arc::new(merkle_db))
+        StateManager::new(
+            Arc::new(RwLock::new(state_db)),
+            Arc::new(RwLock::new(merkle_db)),
+        )
     }
 
     fn setup_state_manager(test_pre_state: &Self::State) -> Result<StateManager, TransitionError>;

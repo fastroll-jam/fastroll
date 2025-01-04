@@ -21,7 +21,7 @@ use rjam_types::{
 use std::{
     cmp::Ordering,
     ops::{Deref, DerefMut},
-    sync::Arc,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use thiserror::Error;
 
@@ -157,8 +157,8 @@ impl StateCache {
 }
 
 pub struct StateManager {
-    state_db: Arc<StateDB>,
-    merkle_db: Arc<MerkleDB>,
+    state_db: Arc<RwLock<StateDB>>,
+    merkle_db: Arc<RwLock<MerkleDB>>,
     cache: StateCache,
 }
 
@@ -204,7 +204,7 @@ impl StateManager {
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
 
-    pub fn new(state_db: Arc<StateDB>, merkle_db: Arc<MerkleDB>) -> Self {
+    pub fn new(state_db: Arc<RwLock<StateDB>>, merkle_db: Arc<RwLock<MerkleDB>>) -> Self {
         Self {
             state_db,
             merkle_db,
@@ -212,12 +212,21 @@ impl StateManager {
         }
     }
 
-    fn get_merkle_db(&self) -> Arc<MerkleDB> {
-        self.merkle_db.clone()
+    fn merkle_db_read(&self) -> RwLockReadGuard<'_, MerkleDB> {
+        self.merkle_db.read().expect("RwLock poisoned")
     }
 
-    fn get_state_db(&self) -> Arc<StateDB> {
-        self.state_db.clone()
+    fn merkle_db_write(&self) -> RwLockWriteGuard<'_, MerkleDB> {
+        self.merkle_db.write().expect("RwLock poisoned")
+    }
+
+    fn state_db_read(&self) -> RwLockReadGuard<'_, StateDB> {
+        self.state_db.read().expect("RwLock poisoned")
+    }
+
+    #[allow(dead_code)]
+    fn state_db_write(&self) -> RwLockWriteGuard<'_, StateDB> {
+        self.state_db.write().expect("RwLock poisoned")
     }
 
     pub fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
@@ -301,7 +310,7 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let Some((leaf_type, state_data_hash)) = self.get_merkle_db().retrieve(state_key)? else {
+        let Some((leaf_type, state_data_hash)) = self.merkle_db_read().retrieve(state_key)? else {
             return Ok(None);
         };
 
@@ -309,7 +318,7 @@ impl StateManager {
             LeafType::Embedded => state_data_hash,
             LeafType::Regular => {
                 // The state data hash is used as the key in the StateDB
-                let Some(entry) = self.get_state_db().get_entry(&state_data_hash)? else {
+                let Some(entry) = self.state_db_read().get_entry(&state_data_hash)? else {
                     return Ok(None);
                 };
                 entry
@@ -320,22 +329,24 @@ impl StateManager {
     }
 
     /// Used for genesis or tests.
-    pub fn commit_single_dirty_cache(
-        &mut self,
-        state_key: &Hash32,
-    ) -> Result<(), StateManagerError> {
+    pub fn commit_single_dirty_cache(&self, state_key: &Hash32) -> Result<(), StateManagerError> {
         let mut cache_entry = self
             .cache
             .get_mut(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         if let CacheEntryStatus::Dirty(_) = &cache_entry.status {
-            self.get_merkle_db()
+            let new_root = self
+                .merkle_db_read()
                 .commit_single(&cache_entry.as_merkle_state_mut(state_key)?)?;
-            cache_entry.mark_clean();
+
+            // Update the merkle root of the MerkleDB
+            self.merkle_db_write().update_root(new_root);
+
+            // Mark committed entry as clean
+            cache_entry.value_mut().mark_clean();
         }
 
-        // TODO: update the state root of Merkle Trie
         // TODO: commit regular leaves to the StateDB
 
         Ok(())
@@ -344,7 +355,7 @@ impl StateManager {
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` as a single synchronous batch write operation.
     /// After commiting to the `MerkleDB`, marks the committed cache entries as clean.
-    pub fn commit_dirty_cache(&mut self) -> Result<(), StateManagerError> {
+    pub fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let dirty_entries = self.cache.collect_dirty();
         if dirty_entries.is_empty() {
             return Ok(());
@@ -353,7 +364,7 @@ impl StateManager {
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
 
         for (state_key, entry) in &dirty_entries {
-            self.merkle_db.extract_path_nodes_to_leaf(
+            self.merkle_db_read().extract_path_nodes_to_leaf(
                 state_key,
                 entry.as_merkle_state_mut(state_key)?,
                 &mut affected_nodes_by_depth,
@@ -362,12 +373,12 @@ impl StateManager {
 
         // Convert dirty cache entries into write batch and commit to the MerkleDB
         let staging_set = affected_nodes_by_depth.generate_staging_set()?;
-        self.merkle_db
+        self.merkle_db_read()
             .commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
 
-        // TODO: update the state root of Merkle Trie
         // Update the merkle root of the MerkleDB
-        // self.merkle_db.update_root(staging_set.get_new_root());
+        self.merkle_db_write()
+            .update_root(staging_set.get_new_root());
 
         // Mark committed entries as clean
         self.cache.mark_entries_clean(&dirty_entries);

@@ -180,10 +180,10 @@ impl MerkleDB {
     }
 
     /// Commits a single leaf-level Merkle write operations (`Add`, `Update`, or `Remove`) to the
-    /// Merkle trie.
+    /// Merkle trie. Returns the new merkle root.
     ///
     /// Used for genesis or tests.
-    pub fn commit_single(&self, write_op: &MerkleWriteOp) -> Result<(), StateMerkleError> {
+    pub fn commit_single(&self, write_op: &MerkleWriteOp) -> Result<Hash32, StateMerkleError> {
         // Case 1: Trie is empty
         if self.root == HASH32_EMPTY {
             return match &write_op {
@@ -196,10 +196,10 @@ impl MerkleDB {
                     self.put_node(&new_leaf)?;
                     self.cache.insert(node_hash, new_leaf); // optional
                                                             // self.root = node_hash; // FIXME: requires `&mut`
-                    Ok(())
+                    Ok(node_hash)
                 }
                 MerkleWriteOp::Update(_, _) => Err(StateMerkleError::NodeNotFound),
-                MerkleWriteOp::Remove(_) => Ok(()),
+                MerkleWriteOp::Remove(_) => Ok(HASH32_EMPTY),
             };
         }
 
@@ -212,13 +212,12 @@ impl MerkleDB {
 
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
         self.extract_path_nodes_to_leaf(state_key, write_op.clone(), &mut affected_nodes_by_depth)?;
-        self.commit_nodes_write_batch(
-            affected_nodes_by_depth
-                .generate_staging_set()?
-                .generate_write_batch()?,
-        )?;
+        let staging_set = affected_nodes_by_depth.generate_staging_set()?;
+        self.commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
 
-        Ok(())
+        let new_merkle_root = staging_set.get_new_root();
+
+        Ok(new_merkle_root)
     }
 
     /// Extracts all affected nodes on a path due to a write operation to be applied to a leaf node.
