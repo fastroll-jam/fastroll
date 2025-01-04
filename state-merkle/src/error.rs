@@ -16,6 +16,8 @@ pub enum StateMerkleError {
     NodeNotFound,
     #[error("Invalid byte length")]
     InvalidByteLength(usize),
+    #[error("Invalid bitvec length")]
+    InvalidBitVecLength(usize),
     #[error("Invalid BitVec slice range")]
     InvalidBitVecSliceRange,
     #[error("Invalid node data length")]

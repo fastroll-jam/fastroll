@@ -1,4 +1,4 @@
-use crate::{codec::NodeCodec, error::StateMerkleError, utils::bitvec_to_hash32};
+use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::octets_to_hash32;
 use std::fmt::{Display, Formatter};
@@ -47,14 +47,13 @@ impl MerkleNode {
         }
     }
 
-    fn parse_branch(&self) -> Result<BranchParsed, StateMerkleError> {
-        let left_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Left)?; // 255 bits (1 bit missing)
-        let right_child_bv = NodeCodec::get_child_hash_bits(&self.data, &ChildType::Right)?; // 256 bits (full-length Hash32 representation)
+    fn parse_branch(&self, merkle_db: &MerkleDB) -> Result<BranchParsed, StateMerkleError> {
+        let (left, right) = NodeCodec::decode_branch(self, merkle_db)?;
 
         Ok(BranchParsed {
             node_hash: self.hash,
-            left_child: bitvec_to_hash32(&left_child_bv)?, // FIXME: return the restored left child hash
-            right_child: bitvec_to_hash32(&right_child_bv)?,
+            left,
+            right,
         })
     }
 
@@ -77,9 +76,12 @@ impl MerkleNode {
         })
     }
 
-    pub fn parse_node_data(&self) -> Result<NodeDataParsed, StateMerkleError> {
+    pub fn parse_node_data(
+        &self,
+        merkle_db: &MerkleDB,
+    ) -> Result<NodeDataParsed, StateMerkleError> {
         match self.check_node_type()? {
-            NodeType::Branch => Ok(NodeDataParsed::Branch(self.parse_branch()?)),
+            NodeType::Branch => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db)?)),
             NodeType::Leaf(LeafType::Embedded) => {
                 Ok(NodeDataParsed::EmbeddedLeaf(self.parse_embedded_leaf()?))
             }
@@ -149,8 +151,8 @@ impl Display for NodeDataParsed {
 #[derive(Debug)]
 pub struct BranchParsed {
     pub node_hash: Hash32, // Node hash identifier
-    pub left_child: Hash32,
-    pub right_child: Hash32,
+    pub left: Hash32,
+    pub right: Hash32,
 }
 
 impl Display for BranchParsed {
@@ -161,7 +163,7 @@ impl Display for BranchParsed {
             \tleft: {},\n\
             \tright: {}\n\
             }}",
-            self.node_hash, self.left_child, self.right_child,
+            self.node_hash, self.left, self.right,
         )
     }
 }
@@ -208,7 +210,7 @@ impl Display for RegularLeafParsed {
 //
 
 /// Leaf node write operations.
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum MerkleWriteOp {
     Add(Hash32, Vec<u8>),    // (state_key, state_value)
     Update(Hash32, Vec<u8>), // (state_key, state_value)

@@ -124,10 +124,10 @@ impl AffectedNodesByDepth {
                         // For some branch nodes, both the left and right child might be affected.
                         let left_hash = staging_set
                             .get(&branch.left)
-                            .map_or(branch.left, |staging_node| staging_node.hash);
+                            .map_or(branch.left, |staging_left_child| staging_left_child.hash);
                         let right_hash = staging_set
                             .get(&branch.right)
-                            .map_or(branch.right, |staging_node| staging_node.hash);
+                            .map_or(branch.right, |staging_right_child| staging_right_child.hash);
 
                         // the branch node data after state transition
                         let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;

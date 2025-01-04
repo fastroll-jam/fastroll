@@ -17,17 +17,17 @@ mod tests {
     #[test]
     fn merkle_db_test() {
         let db = init_db();
-        let branch = generate_branch(simple_hash("0"), simple_hash("1"));
         let regular_leaf = generate_regular_leaf(simple_hash("0"), &some_large_blob());
         let embedded_leaf = generate_embedded_leaf(simple_hash("0"), &some_small_blob());
+        let branch = generate_branch(regular_leaf.hash, embedded_leaf.hash);
 
-        db.put_node(&branch).unwrap();
         db.put_node(&regular_leaf).unwrap();
         db.put_node(&embedded_leaf).unwrap();
+        db.put_node(&branch).unwrap();
         println!("PUT operation done.");
 
-        print_node(&db.get_node(&branch.hash).unwrap()); // FIXME: `parse_node_data` for branch node
-        print_node(&db.get_node(&regular_leaf.hash).unwrap());
-        print_node(&db.get_node(&embedded_leaf.hash).unwrap());
+        print_node(&db.get_node(&regular_leaf.hash).unwrap(), &db);
+        print_node(&db.get_node(&embedded_leaf.hash).unwrap(), &db);
+        print_node(&db.get_node(&branch.hash).unwrap(), &db);
     }
 }

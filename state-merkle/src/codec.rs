@@ -1,7 +1,8 @@
 use crate::{
     error::StateMerkleError,
+    merkle_db::MerkleDB,
     types::*,
-    utils::{bits_decode_msb, bits_encode_msb, slice_bitvec},
+    utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash32, slice_bitvec},
 };
 use bit_vec::BitVec;
 use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
@@ -69,27 +70,26 @@ impl NodeCodec {
     // Node decoding functions
     //
 
-    /// Extracts the hash identity of one of the two child nodes from a branch node data.
+    /// Extracts the `left` and `right` child node hashes from the data of a branch node.
     ///
-    /// This function takes the raw data of a branch node and returns the hash of the specified child
-    /// (left or right) in `BitVec` type. For the left child, it returns 255 bits (missing the first bit),
-    /// while for the right child, it returns the full 256 bits.
+    /// A branch node stores two child node hashes, but due to size constraints, the first bit of
+    /// the `left` hash is omitted so that both child hashes and the node type bit can fit within
+    /// 64 bytes.
     ///
-    /// The returned `BitVec` allows for efficient prediction and confirmation of the left child's full hash
-    /// by trying both 0 and 1 for the missing first bit when retrieving the actual node.
-    ///
-    /// `get_node_from_hash_bits` method of `MerkleDB` handles the both cases and fetch node with the hash bits key.
-    pub(crate) fn get_child_hash_bits(
-        branch_node_data: &[u8],
-        child_type: &ChildType,
-    ) -> Result<BitVec, StateMerkleError> {
+    /// Consequently, this function internally calls [`MerkleDB::restore_hash_bit`] to attempt
+    /// reconstructing the `left` hash by trying both `0` and `1` for the missing bit. It then
+    /// verifies which hash corresponds to an actual entry in the `MerkleDB`.
+    pub fn decode_branch(
+        node: &MerkleNode,
+        merkle_db: &MerkleDB,
+    ) -> Result<(Hash32, Hash32), StateMerkleError> {
         // check node data length
-        let len = branch_node_data.len();
+        let len = node.data.len();
         if len != 64 {
             return Err(StateMerkleError::InvalidNodeDataLength(len));
         }
 
-        let bv = bits_encode_msb(branch_node_data);
+        let bv = bits_encode_msb(&node.data);
         let first_bit = bv.get(0).unwrap();
 
         // ensure the node data represents a branch node
@@ -97,10 +97,13 @@ impl NodeCodec {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
-        match child_type {
-            ChildType::Left => Ok(slice_bitvec(&bv, 1..=255)?),
-            ChildType::Right => Ok(slice_bitvec(&bv, 256..)?),
-        }
+        let right_bv = slice_bitvec(&bv, 256..)?;
+        let right_hash = bitvec_to_hash32(&right_bv)?;
+
+        let left_bv = slice_bitvec(&bv, 1..=255)?;
+        let left_hash = merkle_db.restore_hash_bit(&left_bv)?;
+
+        Ok((left_hash, right_hash))
     }
 
     /// Extracts state data or hash of the state data from a leaf node data, depending on the `leaf_type`.
@@ -257,10 +260,10 @@ pub(crate) mod tests {
         MerkleNode::new(node_hash, node_data)
     }
 
-    pub(crate) fn print_node(node: &Option<MerkleNode>) {
+    pub(crate) fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
         match node {
             Some(node) => {
-                println!(">>> GET Node: {}", node.parse_node_data().unwrap());
+                println!(">>> GET Node: {}", node.parse_node_data(merkle_db).unwrap());
             }
             None => println!(">>> None"),
         }

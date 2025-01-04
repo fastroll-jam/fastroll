@@ -319,6 +319,25 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
+    /// Used for genesis or tests.
+    pub fn commit_single_dirty_cache(
+        &mut self,
+        state_key: &Hash32,
+    ) -> Result<(), StateManagerError> {
+        let mut cache_entry = self
+            .cache
+            .get_mut(state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let CacheEntryStatus::Dirty(_) = &cache_entry.status {
+            self.get_merkle_db()
+                .commit_single(&cache_entry.as_merkle_state_mut(state_key)?)?;
+            cache_entry.mark_clean();
+        }
+
+        Ok(())
+    }
+
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` as a single synchronous batch write operation.
     /// After commiting to the `MerkleDB`, marks the committed cache entries as clean.

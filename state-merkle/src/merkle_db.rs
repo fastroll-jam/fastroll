@@ -8,6 +8,7 @@ use crate::{
 use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_crypto::{hash, Blake2b256};
 use rjam_db::RocksDBConfig;
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use std::sync::Arc;
@@ -39,36 +40,32 @@ impl MerkleDB {
         })
     }
 
-    /// Get a node entry from the MerkleDB from a BitVec representing a Hash32 value.
-    /// For 255-bit input, try both 0 and 1 as the first bit.
-    fn get_node_from_hash_bits(
-        &self,
-        bits: &BitVec,
-    ) -> Result<Option<MerkleNode>, StateMerkleError> {
-        match bits.len() {
-            256 => {
-                // for 256-bit input, construct Hash32 type and get the node
-                let hash = bitvec_to_hash32(bits)?;
-                self.get_node(&hash)
-            }
-            255 => {
-                // for 255-bit input, try both 0 and 1 as the first bit
-                let mut full_bits = bits.clone();
-                full_bits.insert(0, false); // try 0 bit
+    pub fn root(&self) -> Hash32 {
+        self.root
+    }
 
-                let hash_0 = bitvec_to_hash32(&full_bits)?;
-
-                match self.get_node(&hash_0) {
-                    Ok(node) => Ok(node),
-                    Err(_) => {
-                        full_bits.set(0, true);
-                        let hash_1 = bitvec_to_hash32(&full_bits)?;
-                        self.get_node(&hash_1)
-                    }
-                }
-            }
-            _ => Err(StateMerkleError::InvalidHash32Input),
+    /// Restore correct hash value from a 255-bit bitvec representation, by attempting to
+    /// retrieve a node from the `MerkleDB`.
+    pub(crate) fn restore_hash_bit(&self, hash_bv: &BitVec) -> Result<Hash32, StateMerkleError> {
+        if hash_bv.len() != 255 {
+            return Err(StateMerkleError::InvalidBitVecLength(hash_bv.len()));
         }
+
+        let mut full_bits = hash_bv.clone();
+
+        // Try 0 bit
+        full_bits.insert(0, false);
+        if let Some(node_with_hash_0) = self.get_node(&bitvec_to_hash32(&full_bits)?)? {
+            return Ok(node_with_hash_0.hash);
+        }
+
+        // Try 1 bit
+        full_bits.set(0, true);
+        if let Some(node_with_hash_1) = self.get_node(&bitvec_to_hash32(&full_bits)?)? {
+            return Ok(node_with_hash_1.hash);
+        }
+
+        Err(StateMerkleError::InvalidHash32Input)
     }
 
     /// Get a node entry from the MerkleDB.
@@ -96,7 +93,6 @@ impl MerkleDB {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
         self.db
             .put(node.hash.as_slice(), &node.data)
@@ -159,13 +155,13 @@ impl MerkleDB {
             match current_node.check_node_type()? {
                 NodeType::Branch => {
                     // update the current node and proceed to the next node
-                    let child_type = if b { ChildType::Right } else { ChildType::Left };
-                    let child_hash =
-                        NodeCodec::get_child_hash_bits(&current_node.data, &child_type)?;
-                    current_node = match self.get_node_from_hash_bits(&child_hash)? {
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
+                    let child_hash = if b { right } else { left };
+
+                    current_node = match self.get_node(&child_hash)? {
                         Some(node) => node,
                         None => return Ok(None),
-                    }
+                    };
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
@@ -177,6 +173,48 @@ impl MerkleDB {
         }
 
         Ok(None)
+    }
+
+    /// Commits a single leaf-level Merkle write operations (`Add`, `Update`, or `Remove`) to the
+    /// Merkle trie.
+    ///
+    /// Used for genesis or tests.
+    pub fn commit_single(&self, write_op: &MerkleWriteOp) -> Result<(), StateMerkleError> {
+        // Case 1: Trie is empty
+        if self.root == HASH32_EMPTY {
+            return match &write_op {
+                MerkleWriteOp::Add(k, v) => {
+                    // Add a single leaf node as the root
+                    let node_data = NodeCodec::encode_leaf(k, v)?;
+                    let node_hash = hash::<Blake2b256>(&node_data)?;
+                    let new_leaf = MerkleNode::new(node_hash, node_data);
+
+                    self.put_node(&new_leaf)?;
+                    self.cache.insert(node_hash, new_leaf); // optional
+                                                            // self.root = node_hash; // FIXME: requires `&mut`
+                    Ok(())
+                }
+                MerkleWriteOp::Update(_, _) => Err(StateMerkleError::NodeNotFound),
+                MerkleWriteOp::Remove(_) => Ok(()),
+            };
+        }
+
+        // Case 2: Trie is not empty
+        let state_key = match &write_op {
+            MerkleWriteOp::Add(k, _) => k,
+            MerkleWriteOp::Update(k, _) => k,
+            MerkleWriteOp::Remove(k) => k,
+        };
+
+        let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
+        self.extract_path_nodes_to_leaf(state_key, write_op.clone(), &mut affected_nodes_by_depth)?;
+        self.commit_nodes_write_batch(
+            affected_nodes_by_depth
+                .generate_staging_set()?
+                .generate_write_batch()?,
+        )?;
+
+        Ok(())
     }
 
     /// Extracts all affected nodes on a path due to a write operation to be applied to a leaf node.
@@ -301,40 +339,38 @@ impl MerkleDB {
         let mut current_child_side = None; // ChildType (Left or Right) of the current node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
-        for (depth, b) in (&state_key_bv).into_iter().enumerate() {
+        for (depth, b) in state_key_bv.iter().enumerate() {
             match current_node.check_node_type()? {
                 NodeType::Branch => {
-                    let left_hash =
-                        NodeCodec::get_child_hash_bits(&current_node.data, &ChildType::Left)?;
-                    let right_hash =
-                        NodeCodec::get_child_hash_bits(&current_node.data, &ChildType::Right)?;
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
 
-                    let affected_node = AffectedNode::Branch(AffectedBranch {
-                        hash: current_node.hash,
-                        depth: depth + 1,
-                        left: bitvec_to_hash32(&left_hash)?,
-                        right: bitvec_to_hash32(&right_hash)?,
-                    });
+                    // Here, affected node stored at `depth = 0` is the root node
+                    affected_nodes_by_depth
+                        .entry(depth)
+                        .or_default()
+                        .insert(AffectedNode::Branch(AffectedBranch {
+                            hash: current_node.hash,
+                            depth,
+                            left,
+                            right,
+                        }));
 
+                    // move forward along the merkle path
                     let (child_hash, child_type) = if b {
-                        (&right_hash, ChildType::Right)
+                        (&right, ChildType::Right)
                     } else {
-                        (&left_hash, ChildType::Left)
+                        (&left, ChildType::Left)
                     };
 
-                    current_child_side = Some(child_type); // update the current child side
-                    parent_hash = current_node.hash;
-                    current_node = match self.get_node_from_hash_bits(child_hash)? {
+                    // mutate state variables for the next iteration
+                    current_node = match self.get_node(child_hash)? {
                         Some(node) => node,
                         None => return Ok(()), // TODO: This implies pollution
                     }; // update to the child node on the path
-
-                    affected_nodes_by_depth
-                        .entry(depth + 1)
-                        .or_default()
-                        .insert(affected_node);
+                    parent_hash = current_node.hash;
+                    current_child_side = Some(child_type); // update the current child side
                 }
-                NodeType::Leaf(_leaf_type) => {
+                NodeType::Leaf(_) => {
                     match write_op {
                         MerkleWriteOp::Update(_, _) | MerkleWriteOp::Remove(_) => {
                             // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
@@ -355,69 +391,62 @@ impl MerkleDB {
 
                     return match &write_op {
                         MerkleWriteOp::Update(state_key, state_value) => {
-                            let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth: depth + 1,
-                                leaf_write_op_context: LeafWriteOpContext::Update(
-                                    LeafUpdateContext {
-                                        leaf_state_key: *state_key,
-                                        leaf_state_value: state_value.clone(),
-                                        leaf_prior_hash: current_node.hash,
-                                    },
-                                ),
-                            });
-                            affected_nodes_by_depth
-                                .entry(depth + 1)
-                                .or_default()
-                                .insert(affected_node);
+                            affected_nodes_by_depth.entry(depth).or_default().insert(
+                                AffectedNode::Leaf(AffectedLeaf {
+                                    depth,
+                                    leaf_write_op_context: LeafWriteOpContext::Update(
+                                        LeafUpdateContext {
+                                            leaf_state_key: *state_key,
+                                            leaf_state_value: state_value.clone(),
+                                            leaf_prior_hash: current_node.hash,
+                                        },
+                                    ),
+                                }),
+                            );
                             Ok(())
                         }
                         MerkleWriteOp::Add(state_key, state_value) => {
-                            let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth: depth + 1,
-                                leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
-                                    leaf_state_key: *state_key,
-                                    leaf_state_value: state_value.clone(),
-                                    sibling_candidate_hash: current_node.hash, // note: `current_node` isn't the leaf node to be added
-                                    added_leaf_child_side: current_child_side.unwrap(),
+                            affected_nodes_by_depth.entry(depth).or_default().insert(
+                                AffectedNode::Leaf(AffectedLeaf {
+                                    depth,
+                                    leaf_write_op_context: LeafWriteOpContext::Add(
+                                        LeafAddContext {
+                                            leaf_state_key: *state_key,
+                                            leaf_state_value: state_value.clone(),
+                                            sibling_candidate_hash: current_node.hash, // note: `current_node` isn't the leaf node to be added
+                                            added_leaf_child_side: current_child_side.unwrap(),
+                                        },
+                                    ),
                                 }),
-                            });
-                            affected_nodes_by_depth
-                                .entry(depth + 1)
-                                .or_default()
-                                .insert(affected_node);
+                            );
                             Ok(())
                         }
                         MerkleWriteOp::Remove(_state_key) => {
                             // extract the sibling hash from the parent node data
-                            let parent_node_data = match self.get_node(&parent_hash)? {
-                                Some(node) => node.data,
+                            let parent_node = match self.get_node(&parent_hash)? {
+                                Some(node) => node,
                                 None => return Ok(()),
                             };
 
                             let sibling_child_side = current_child_side.unwrap().opposite();
-                            let sibling_hash = match self.get_node_from_hash_bits(
-                                &NodeCodec::get_child_hash_bits(
-                                    &parent_node_data,
-                                    &sibling_child_side,
-                                )?,
-                            )? {
-                                Some(node) => node.hash,
-                                None => return Ok(()),
+
+                            let (left, right) = NodeCodec::decode_branch(&parent_node, self)?;
+                            let sibling_hash = match sibling_child_side {
+                                ChildType::Left => left,
+                                ChildType::Right => right,
                             };
 
-                            let affected_node = AffectedNode::Leaf(AffectedLeaf {
-                                depth: depth + 1,
-                                leaf_write_op_context: LeafWriteOpContext::Remove(
-                                    LeafRemoveContext {
-                                        parent_hash,
-                                        sibling_hash,
-                                    },
-                                ),
-                            });
-                            affected_nodes_by_depth
-                                .entry(depth + 1)
-                                .or_default()
-                                .insert(affected_node);
+                            affected_nodes_by_depth.entry(depth).or_default().insert(
+                                AffectedNode::Leaf(AffectedLeaf {
+                                    depth,
+                                    leaf_write_op_context: LeafWriteOpContext::Remove(
+                                        LeafRemoveContext {
+                                            parent_hash,
+                                            sibling_hash,
+                                        },
+                                    ),
+                                }),
+                            );
                             Ok(())
                         }
                     };
