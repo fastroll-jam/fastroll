@@ -159,18 +159,18 @@ impl Display for ActiveSet {
     }
 }
 
+impl Default for ActiveSet {
+    fn default() -> Self {
+        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
+    }
+}
+
 /// Represents the validator set that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
 #[derive(Clone)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
 impl_simple_state_component!(PastSet, PastSet);
-
-impl Display for PastSet {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        fmt_validator_set(f, "PastSet", self.as_ref())
-    }
-}
 
 impl Deref for PastSet {
     type Target = ValidatorKeySet;
@@ -183,6 +183,18 @@ impl Deref for PastSet {
 impl DerefMut for PastSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl Display for PastSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        fmt_validator_set(f, "PastSet", self.as_ref())
+    }
+}
+
+impl Default for PastSet {
+    fn default() -> Self {
+        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
     }
 }
 

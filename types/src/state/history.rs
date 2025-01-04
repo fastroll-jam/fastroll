@@ -10,7 +10,7 @@ use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
 impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
 impl_simple_state_component!(BlockHistory, BlockHistory);

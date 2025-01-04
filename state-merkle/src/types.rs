@@ -1,8 +1,4 @@
-use crate::{
-    codec::NodeCodec,
-    error::StateMerkleError,
-    utils::{bits_encode_msb, bitvec_to_hash32},
-};
+use crate::{codec::NodeCodec, error::StateMerkleError, utils::bitvec_to_hash32};
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::octets_to_hash32;
 use std::fmt::{Display, Formatter};
@@ -63,8 +59,7 @@ impl MerkleNode {
     }
 
     fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
-        let node_data_bv = bits_encode_msb(&self.data);
-        let embedded_data = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Embedded)?;
+        let embedded_data = NodeCodec::decode_leaf(self)?;
 
         Ok(EmbeddedLeafParsed {
             node_hash: self.hash,
@@ -73,8 +68,7 @@ impl MerkleNode {
     }
 
     fn parse_regular_leaf(&self) -> Result<RegularLeafParsed, StateMerkleError> {
-        let node_data_bv = bits_encode_msb(&self.data);
-        let state_data_hash = NodeCodec::decode_leaf(&node_data_bv, &LeafType::Regular)?;
+        let state_data_hash = NodeCodec::decode_leaf(self)?;
 
         Ok(RegularLeafParsed {
             node_hash: self.hash,

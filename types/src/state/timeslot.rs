@@ -16,7 +16,7 @@ pub enum TimeslotError {
     InvalidTimestamp,
 }
 
-#[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq)]
 pub struct Timeslot(pub u32);
 impl_jam_codec_for_newtype!(Timeslot, u32);
 impl_jam_fixed_codec_for_newtype!(Timeslot, u32);

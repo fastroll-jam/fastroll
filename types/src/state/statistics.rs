@@ -80,7 +80,7 @@ impl EpochValidatorStats {
 /// `ValidatorStats` maintains two records:
 /// - The first entry accumulates statistics for the current epoch.
 /// - The second entry stores the statistics from the previous epoch.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ValidatorStats(pub [EpochValidatorStats; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [EpochValidatorStats; 2]);
 impl_simple_state_component!(ValidatorStats, ValidatorStats);

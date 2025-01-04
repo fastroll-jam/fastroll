@@ -169,8 +169,7 @@ impl MerkleDB {
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
-                    let value =
-                        NodeCodec::get_leaf_value(&state_key_bv, &current_node.data, &leaf_type)?;
+                    let value = NodeCodec::get_leaf_value(&state_key_bv, &current_node)?;
                     return Ok(Some((leaf_type, value)));
                 }
                 NodeType::Empty => return Err(StateMerkleError::EmptyState),

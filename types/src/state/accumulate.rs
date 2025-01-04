@@ -87,7 +87,7 @@ impl AccumulateQueue {
 /// sequence by one entry, as defined in the `add` method.
 ///
 /// Represents `ξ` of the GP.
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
     items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
 }

@@ -185,7 +185,7 @@ impl PVMContextState for AccountStorageEntry {}
 impl PVMContextState for AccountPreimagesEntry {}
 impl PVMContextState for AccountLookupsEntry {}
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccountStorageEntry {
     pub value: Octets,
 }
@@ -201,13 +201,13 @@ impl StorageFootprint for AccountStorageEntry {
     }
 }
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Default, JamEncode, JamDecode)]
 pub struct AccountPreimagesEntry {
     pub value: Octets,
 }
 impl_account_state_component!(AccountPreimagesEntry, AccountPreimagesEntry);
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AccountLookupsEntry {
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }

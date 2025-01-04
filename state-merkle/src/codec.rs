@@ -112,12 +112,11 @@ impl NodeCodec {
     /// For embedded leaf nodes,the encoded state data itself is returned.
     pub(crate) fn get_leaf_value(
         state_key: &BitVec,
-        node_data: &[u8],
-        leaf_type: &LeafType,
+        node: &MerkleNode,
     ) -> Result<Vec<u8>, StateMerkleError> {
-        let bv = bits_encode_msb(node_data);
+        let bv = bits_encode_msb(&node.data);
         Self::validate_node_data(&bv, state_key)?;
-        Self::decode_leaf(&bv, leaf_type)
+        Self::decode_leaf(node)
     }
 
     fn validate_node_data(
@@ -141,26 +140,27 @@ impl NodeCodec {
         Ok(())
     }
 
-    pub(crate) fn decode_leaf(
-        node_data_bv: &BitVec,
-        leaf_type: &LeafType,
-    ) -> Result<Vec<u8>, StateMerkleError> {
-        match leaf_type {
-            LeafType::Embedded => {
+    pub(crate) fn decode_leaf(node: &MerkleNode) -> Result<Vec<u8>, StateMerkleError> {
+        let node_data_bv = bits_encode_msb(&node.data);
+        match node.check_node_type()? {
+            NodeType::Leaf(LeafType::Embedded) => {
                 // Pad the leading 2 bits with zeros (which were dropped while encoding)
                 let mut length_bits_padded = BitVec::from_elem(2, false);
-                length_bits_padded.extend(slice_bitvec(node_data_bv, 2..8)?);
+                length_bits_padded.extend(slice_bitvec(&node_data_bv, 2..8)?);
                 let value_len_decoded =
                     u8::decode_fixed(&mut bits_decode_msb(&length_bits_padded).as_slice(), 1)?;
                 let value_len_in_bits = (value_len_decoded as usize) * 8;
                 let value_end_bit = 256 + value_len_in_bits;
 
                 Ok(bits_decode_msb(&slice_bitvec(
-                    node_data_bv,
+                    &node_data_bv,
                     256..value_end_bit,
                 )?))
             }
-            LeafType::Regular => Ok(bits_decode_msb(&slice_bitvec(node_data_bv, 256..)?)),
+            NodeType::Leaf(LeafType::Regular) => {
+                Ok(bits_decode_msb(&slice_bitvec(&node_data_bv, 256..)?))
+            }
+            _ => Err(StateMerkleError::InvalidNodeType),
         }
     }
 
