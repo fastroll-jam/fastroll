@@ -1,14 +1,14 @@
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
-use rjam_common::{Address, Hash32};
+use rjam_common::{Address, Hash32, HASH32_EMPTY};
 use rjam_crypto::CryptoError;
 use rjam_db::KeyValueDBError;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    staging::AffectedNodesByDepth,
     state_db::StateDB,
     types::{LeafType, MerkleWriteOp},
+    write_set::{AffectedNodesByDepth, MerkleWriteSet},
 };
 use rjam_types::{
     state::*,
@@ -329,33 +329,66 @@ impl StateManager {
         Ok(Some(state_data))
     }
 
-    /// Used for genesis or tests.
+    /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
     pub fn commit_single_dirty_cache(&self, state_key: &Hash32) -> Result<(), StateManagerError> {
         let mut cache_entry = self
             .cache
             .get_mut(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let CacheEntryStatus::Dirty(_) = &cache_entry.status {
-            let new_root = self
-                .merkle_db_read()
-                .commit_single(&cache_entry.as_merkle_state_mut(state_key)?)?;
-
-            // Update the merkle root of the MerkleDB
-            self.merkle_db_write().update_root(new_root);
-
-            // Mark committed entry as clean
-            cache_entry.value_mut().mark_clean();
+        if let CacheEntryStatus::Clean = &cache_entry.status {
+            return Err(StateManagerError::NotDirtyCache);
         }
 
-        // TODO: commit regular leaves to the StateDB
+        let write_op = cache_entry.as_merkle_state_mut(state_key)?;
+        let merkle_db_read = self.merkle_db_read();
+        let mut merkle_db_write = self.merkle_db_write();
+
+        // Case 1: Trie is empty
+        if merkle_db_read.root() == HASH32_EMPTY {
+            let new_root = merkle_db_read.commit_to_empty_trie(&write_op)?;
+            merkle_db_write.update_root(new_root);
+        }
+
+        // Case 2: Trie is not empty
+
+        let state_key = match &write_op {
+            MerkleWriteOp::Add(k, _) => k,
+            MerkleWriteOp::Update(k, _) => k,
+            MerkleWriteOp::Remove(k) => k,
+        };
+
+        let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
+        merkle_db_read.extract_path_nodes_to_leaf(
+            state_key,
+            write_op.clone(),
+            &mut affected_nodes_by_depth,
+        )?;
+
+        let MerkleWriteSet {
+            merkle_db_write_set,
+            state_db_write_set,
+        } = affected_nodes_by_depth.generate_merkle_write_set()?;
+
+        merkle_db_read.commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
+
+        // Update the merkle root of the MerkleDB
+        self.merkle_db_write()
+            .update_root(merkle_db_write_set.get_new_root());
+
+        // Add new entries to the StateDB
+        self.state_db_read()
+            .commit_write_batch(state_db_write_set.generate_write_batch()?)?;
+
+        // Mark committed entry as clean
+        cache_entry.value_mut().mark_clean();
 
         Ok(())
     }
 
     /// Collects all dirty cache entries after state transition, then commit them into
-    /// `MerkleDB` as a single synchronous batch write operation.
-    /// After commiting to the `MerkleDB`, marks the committed cache entries as clean.
+    /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
+    /// After commiting to the databases, marks the committed cache entries as clean.
     pub fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let dirty_entries = self.cache.collect_dirty();
         if dirty_entries.is_empty() {
@@ -373,13 +406,17 @@ impl StateManager {
         }
 
         // Convert dirty cache entries into write batch and commit to the MerkleDB
-        let (staging_set, state_db_write_set) = affected_nodes_by_depth.generate_staging_set()?;
+        let MerkleWriteSet {
+            merkle_db_write_set,
+            state_db_write_set,
+        } = affected_nodes_by_depth.generate_merkle_write_set()?;
+
         self.merkle_db_read()
-            .commit_nodes_write_batch(staging_set.generate_write_batch()?)?;
+            .commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()
-            .update_root(staging_set.get_new_root());
+            .update_root(merkle_db_write_set.get_new_root());
 
         // Add new entries to the StateDB
         self.state_db_read()

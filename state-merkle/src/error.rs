@@ -12,6 +12,8 @@ pub enum StateMerkleError {
     EmptyState,
     #[error("Node codec error")]
     NodeCodecError,
+    #[error("Not empty trie")]
+    NotEmptyTrie,
     #[error("Node not found")]
     NodeNotFound,
     #[error("Invalid byte length")]

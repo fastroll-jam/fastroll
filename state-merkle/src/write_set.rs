@@ -7,8 +7,22 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-/// Staging node struct to be added to `WriteBatch` of the `MerkleDB`.
-pub struct StagingMerkleNode {
+pub struct MerkleWriteSet {
+    pub merkle_db_write_set: MerkleDBWriteSet,
+    pub state_db_write_set: StateDBWriteSet,
+}
+
+impl MerkleWriteSet {
+    pub fn new(merkle_db_write_set: MerkleDBWriteSet, state_db_write_set: StateDBWriteSet) -> Self {
+        Self {
+            merkle_db_write_set,
+            state_db_write_set,
+        }
+    }
+}
+
+/// Representation of merkle node write operation which will be added to `WriteBatch` of the `MerkleDB`.
+pub struct MerkleNodeWrite {
     /// Blake2b-256 hash of the `node_data` field.
     /// Used as a key to a new entry to be added in the `MerkleDB`.
     hash: Hash32,
@@ -17,7 +31,7 @@ pub struct StagingMerkleNode {
     node_data: Vec<u8>,
 }
 
-impl StagingMerkleNode {
+impl MerkleNodeWrite {
     pub fn new(hash: Hash32, node_data: Vec<u8>) -> Self {
         Self { hash, node_data }
     }
@@ -26,27 +40,27 @@ impl StagingMerkleNode {
 /// A collection of merkle node entries to be written into the `MerkleDB`. Also includes the
 /// new merkle root that represents the posterior state of the merkle trie after commiting it.
 #[derive(Default)]
-pub struct StagingSet {
+pub struct MerkleDBWriteSet {
     new_root: Hash32,
-    map: HashMap<Hash32, StagingMerkleNode>,
+    map: HashMap<Hash32, MerkleNodeWrite>,
 }
 
-impl Deref for StagingSet {
-    type Target = HashMap<Hash32, StagingMerkleNode>;
+impl Deref for MerkleDBWriteSet {
+    type Target = HashMap<Hash32, MerkleNodeWrite>;
 
     fn deref(&self) -> &Self::Target {
         &self.map
     }
 }
 
-impl DerefMut for StagingSet {
+impl DerefMut for MerkleDBWriteSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
     }
 }
 
-impl StagingSet {
-    pub fn new(inner: HashMap<Hash32, StagingMerkleNode>) -> Self {
+impl MerkleDBWriteSet {
+    pub fn new(inner: HashMap<Hash32, MerkleNodeWrite>) -> Self {
         Self {
             new_root: HASH32_EMPTY,
             map: inner,
@@ -61,7 +75,7 @@ impl StagingSet {
         self.new_root = new_root;
     }
 
-    /// Generates `WriteBatch` from `StagingSet`, converting `StagingMerkleNode`s into `MerkleDB` entries.
+    /// Generates `WriteBatch` from `MerkleDBWriteSet`, converting `MerkleNodeWrite`s into `MerkleDB` entries.
     pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
         let mut batch = WriteBatch::default();
         // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
@@ -131,12 +145,11 @@ impl AffectedNodesByDepth {
         Self { inner }
     }
 
-    /// Generates a collection of `StagingMerkleNode`s and a collection of new entries to be added
-    /// to the `StateDB` by iterating `AffectedNode`s from `AffectedNodesByDepth`.
+    /// Generates `MerkleDBWriteSet` and `StateDBWriteSet` by iterating `AffectedNode`s from `AffectedNodesByDepth`.
     ///
     /// # Purpose
     /// This function is crucial for:
-    /// * Transforming affected nodes into staging nodes ready for `MerkleDB` insertion.
+    /// * Transforming affected nodes into `MerkleNodeWrite`s ready for `MerkleDB` insertion.
     /// * Extracting a write set of the `StateDB` from the affected nodes.
     /// * Maintaining the integrity of the Merkle trie during updates.
     /// * Preparing the final state of nodes after all write operations are applied.
@@ -146,24 +159,20 @@ impl AffectedNodesByDepth {
     /// - For each node:
     ///   - `Branch` nodes: Updates child hashes based on previous iterations.
     ///   - `Leaf` nodes: Handles updates, additions, and removals differently.
-    /// - Creates new `StagingMerkleNode`s with updated data and hashes.
+    /// - Creates new `MerkleNodeWrite`s with updated data and hashes.
     /// - For `Add` or `Update` operations of `Regular` `Leaf` nodes, creates new write set entries
     ///   with the new state data and hashes.
-    ///
-    /// # Returns
-    /// * `Ok(StagingSet)` - Staging nodes keyed by their prior hash in the trie.
-    /// * `Err(StateMerkleError)` - If an error occurs during node processing or encoding.
     ///
     /// # Notes
     /// - The `HashMap` allows efficient lookup of updated child hashes for branch nodes in each iteration.
     /// - For leaf additions, two new nodes are created: a leaf and a branch.
     /// - For leaf removals, only the parent node is updated to point to the sibling.
-    pub fn generate_staging_set(&self) -> Result<(StagingSet, StateDBWriteSet), StateMerkleError> {
-        let mut staging_set = StagingSet::default();
+    pub fn generate_merkle_write_set(&self) -> Result<MerkleWriteSet, StateMerkleError> {
+        let mut merkle_db_write_set = MerkleDBWriteSet::default();
         let mut state_db_write_set = StateDBWriteSet::default();
 
         if self.is_empty() {
-            return Ok((staging_set, state_db_write_set));
+            return Ok(MerkleWriteSet::new(merkle_db_write_set, state_db_write_set));
         }
 
         let mut iter_rev = self.iter().rev().peekable();
@@ -174,22 +183,21 @@ impl AffectedNodesByDepth {
             for affected_node in affected_nodes {
                 let maybe_new_root = Self::process_affected_node(
                     affected_node,
-                    &mut staging_set,
+                    &mut merkle_db_write_set,
                     &mut state_db_write_set,
                     is_root_node,
                 )?;
                 if let Some(new_root) = maybe_new_root {
-                    // Contain the new root hash to the `StagingSet` struct.
-                    staging_set.set_new_root(new_root);
+                    // Contain the new root hash to the `MerkleDBWriteSet` struct.
+                    merkle_db_write_set.set_new_root(new_root);
                 }
             }
         }
 
-        Ok((staging_set, state_db_write_set))
+        Ok(MerkleWriteSet::new(merkle_db_write_set, state_db_write_set))
     }
 
-    /// Processes an affected node entry and inserts one or more `StagingMerkleNode` entries to the
-    /// `staging_set`.
+    /// Processes an affected node entry and inserts one or more entries to the `MerkleWriteSet`.
     ///
     /// # Returns
     ///
@@ -197,7 +205,7 @@ impl AffectedNodesByDepth {
     /// the root node. Otherwise, returns `None`.
     fn process_affected_node(
         affected_node: &AffectedNode,
-        staging_set: &mut StagingSet,
+        merkle_db_write_set: &mut MerkleDBWriteSet,
         state_db_write_set: &mut StateDBWriteSet,
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
@@ -205,23 +213,28 @@ impl AffectedNodesByDepth {
             AffectedNode::Branch(branch) => {
                 let prior_hash = branch.hash;
 
-                // Lookup `staging_set` to check which side of its child hash was affected in the 1-level deeper depth.
+                // Lookup `merkle_db_write_set` to check which side of its child hash
+                // was affected in the 1-level deeper depth.
                 // If the child hash was not affected, use its original hash.
                 // For some branch nodes, both the left and right child might be affected.
-                let left_hash = staging_set
+                let left_hash = merkle_db_write_set
                     .get(&branch.left)
-                    .map_or(branch.left, |staging_left_child| staging_left_child.hash);
-                let right_hash = staging_set
+                    .map_or(branch.left, |write_set_left_child| {
+                        write_set_left_child.hash
+                    });
+                let right_hash = merkle_db_write_set
                     .get(&branch.right)
-                    .map_or(branch.right, |staging_right_child| staging_right_child.hash);
+                    .map_or(branch.right, |write_set_right_child| {
+                        write_set_right_child.hash
+                    });
 
                 // the branch node data after state transition
                 let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
                 let hash = hash::<Blake2b256>(&node_data)?;
 
-                let staging_node = StagingMerkleNode { hash, node_data };
+                let merkle_write = MerkleNodeWrite { hash, node_data };
 
-                staging_set.insert(prior_hash, staging_node);
+                merkle_db_write_set.insert(prior_hash, merkle_write);
 
                 if is_root_node {
                     Some(hash)
@@ -241,9 +254,9 @@ impl AffectedNodesByDepth {
                         Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
 
                         let hash = hash::<Blake2b256>(&node_data)?;
-                        let staging_node = StagingMerkleNode { hash, node_data };
+                        let merkle_write = MerkleNodeWrite { hash, node_data };
 
-                        staging_set.insert(ctx.leaf_prior_hash, staging_node);
+                        merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
 
                         if is_root_node {
                             Some(hash)
@@ -259,7 +272,7 @@ impl AffectedNodesByDepth {
                         // for the new branch node that will replace the position of the sibling leaf node of the new leaf node,
                         // pointing to the new leaf node and its sibling node as child nodes.
 
-                        // create a new leaf node as a staging node
+                        // create a new leaf node as a merkle write
                         let state_value_slice = ctx.leaf_state_value.as_slice();
                         let added_leaf_node_data =
                             NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
@@ -268,12 +281,12 @@ impl AffectedNodesByDepth {
 
                         let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
 
-                        let added_leaf_staging_node = StagingMerkleNode {
+                        let added_leaf_write = MerkleNodeWrite {
                             hash: added_leaf_node_hash,
                             node_data: added_leaf_node_data,
                         };
 
-                        // Create a new branch node as a staging node. This branch has the
+                        // Create a new branch node as a merkle write. This branch has the
                         // new leaf node and its sibling candidate node as child nodes.
 
                         let (new_branch_left_hash, new_branch_right_hash) = match ctx
@@ -288,13 +301,14 @@ impl AffectedNodesByDepth {
                             &new_branch_right_hash,
                         )?;
 
-                        let new_branch_staging_node = StagingMerkleNode {
+                        let new_branch_merkle_write = MerkleNodeWrite {
                             hash: hash::<Blake2b256>(&new_branch_node_data)?,
                             node_data: new_branch_node_data,
                         };
 
-                        staging_set.insert(added_leaf_node_hash, added_leaf_staging_node); // note: `new_leaf_node_hash`, key of this entry will not be used.
-                        staging_set.insert(ctx.sibling_candidate_hash, new_branch_staging_node);
+                        merkle_db_write_set.insert(added_leaf_node_hash, added_leaf_write); // note: `new_leaf_node_hash`, key of this entry will not be used.
+                        merkle_db_write_set
+                            .insert(ctx.sibling_candidate_hash, new_branch_merkle_write);
 
                         if is_root_node {
                             Some(added_leaf_node_hash)
@@ -304,12 +318,12 @@ impl AffectedNodesByDepth {
                     }
                     LeafWriteOpContext::Remove(ctx) => {
                         // by removing a state entry, only the new branch node will be added to the `MerkleDB`
-                        let sibling_staging_node = StagingMerkleNode {
+                        let sibling_merkle_write = MerkleNodeWrite {
                             hash: ctx.sibling_hash,
                             node_data: vec![], // not needed
-                        }; // TODO: check how the sibling stage node should be handled as a staging node
+                        }; // TODO: check how the sibling merkle write should be handled
 
-                        staging_set.insert(ctx.parent_hash, sibling_staging_node);
+                        merkle_db_write_set.insert(ctx.parent_hash, sibling_merkle_write);
 
                         if is_root_node {
                             Some(ctx.parent_hash) // Note: This implies removing the root node, which were the only node in the Merkle trie.

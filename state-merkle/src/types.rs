@@ -230,9 +230,9 @@ pub struct AffectedBranch {
     pub hash: Hash32,
     /// Depth of the current node in the trie.
     pub depth: usize,
-    /// Hash of the left child. Used as a lookup key in the collection of `StagingMerkleNode`s.
+    /// Hash of the left child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
     pub left: Hash32,
-    /// Hash of the right child. Used as a lookup key in the collection of `StagingMerkleNode`s.
+    /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
     pub right: Hash32,
 }
 
