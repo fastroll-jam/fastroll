@@ -1,3 +1,5 @@
+extern crate core;
+
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32, HASH32_EMPTY};
@@ -8,7 +10,7 @@ use rjam_state_merkle::{
     merkle_db::MerkleDB,
     state_db::StateDB,
     types::{LeafType, MerkleWriteOp},
-    write_set::{AffectedNodesByDepth, MerkleWriteSet},
+    write_set::{AffectedNodesByDepth, MerkleWriteSet, StateDBWriteSet},
 };
 use rjam_types::{
     state::*,
@@ -21,10 +23,13 @@ use rjam_types::{
 };
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use thiserror::Error;
+
+mod tests;
 
 #[derive(Debug, Error)]
 pub enum StateManagerError {
@@ -205,10 +210,10 @@ impl StateManager {
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
 
-    pub fn new(state_db: Arc<RwLock<StateDB>>, merkle_db: Arc<RwLock<MerkleDB>>) -> Self {
+    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
         Self {
-            state_db,
-            merkle_db,
+            state_db: Arc::new(RwLock::new(state_db)),
+            merkle_db: Arc::new(RwLock::new(merkle_db)),
             cache: StateCache::new(),
         }
     }
@@ -307,7 +312,8 @@ impl StateManager {
         }
     }
 
-    fn retrieve_state_encoded(
+    // TODO: mark as private
+    pub fn retrieve_state_encoded(
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
@@ -339,15 +345,30 @@ impl StateManager {
         if let CacheEntryStatus::Clean = &cache_entry.status {
             return Err(StateManagerError::NotDirtyCache);
         }
-
         let write_op = cache_entry.as_merkle_state_mut(state_key)?;
-        let merkle_db_read = self.merkle_db_read();
-        let mut merkle_db_write = self.merkle_db_write();
 
         // Case 1: Trie is empty
-        if merkle_db_read.root() == HASH32_EMPTY {
-            let new_root = merkle_db_read.commit_to_empty_trie(&write_op)?;
-            merkle_db_write.update_root(new_root);
+        if self.merkle_db_read().root() == HASH32_EMPTY {
+            // Initialize the empty merkle trie by committing the first entry.
+            // This adds the first entry to the `MerkleDB`.
+            // Additionally, it also adds the first entry to the `StateDB`
+            // if the first entry of the merkle trie is the regular leaf node type.
+            let (new_root, maybe_state_db_write) =
+                self.merkle_db_read().commit_to_empty_trie(&write_op)?;
+
+            // Update the merkle root of the MerkleDB
+            self.merkle_db_write().update_root(new_root);
+
+            // Add new entries to the StateDB (if exists)
+            if let Some(state_db_write) = maybe_state_db_write {
+                let state_db_write_batch_single =
+                    StateDBWriteSet::new(HashMap::from([state_db_write.clone()]))
+                        .generate_write_batch()?;
+                self.state_db_read()
+                    .commit_write_batch(state_db_write_batch_single)?;
+            }
+
+            return Ok(());
         }
 
         // Case 2: Trie is not empty
@@ -359,7 +380,7 @@ impl StateManager {
         };
 
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-        merkle_db_read.extract_path_nodes_to_leaf(
+        self.merkle_db_read().extract_path_nodes_to_leaf(
             state_key,
             write_op.clone(),
             &mut affected_nodes_by_depth,
@@ -370,7 +391,8 @@ impl StateManager {
             state_db_write_set,
         } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
-        merkle_db_read.commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
+        self.merkle_db_read()
+            .commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()

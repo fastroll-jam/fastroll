@@ -1,8 +1,7 @@
-mod codec;
+pub mod codec;
 pub mod error;
 pub mod merkle_db;
 pub mod state_db;
-mod tests;
 pub mod types;
 mod utils;
 pub mod write_set;

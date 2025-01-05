@@ -1214,6 +1214,7 @@ dependencies = [
  "rjam-db",
  "rjam-state-merkle",
  "rjam-types",
+ "tempfile",
  "thiserror",
 ]
 
@@ -1229,7 +1230,6 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "rocksdb",
- "tempfile",
  "thiserror",
 ]
 

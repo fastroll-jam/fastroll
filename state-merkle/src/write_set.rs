@@ -110,6 +110,10 @@ impl DerefMut for StateDBWriteSet {
 }
 
 impl StateDBWriteSet {
+    pub fn new(inner: HashMap<Hash32, Vec<u8>>) -> Self {
+        Self { inner }
+    }
+
     /// Generates `WriteBatch` from `StateDBWriteSet`.
     pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
         let mut batch = WriteBatch::default();

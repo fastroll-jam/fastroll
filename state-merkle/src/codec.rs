@@ -196,32 +196,31 @@ impl NodeCodec {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+pub mod test_utils {
     use super::*;
 
     //
     // Helper Functions
     //
 
-    pub(crate) fn simple_hash(seed: &str) -> Hash32 {
+    pub fn simple_hash(seed: &str) -> Hash32 {
         hash::<Blake2b256>(seed.as_bytes()).unwrap()
     }
 
     /// Returns 10-byte blob
-    pub(crate) fn some_small_blob() -> Vec<u8> {
+    pub fn some_small_blob() -> Vec<u8> {
         hex::decode("00112233445566778899").unwrap()
     }
 
     /// Returns 100-byte blob
-    pub(crate) fn some_large_blob() -> Vec<u8> {
+    pub fn some_large_blob() -> Vec<u8> {
         hex::decode(
             "00112233445566778899001122334455667788990011223344556677889900112233445566778899001122334455667788990011223344556677889900112233445566778899001122334455667788990011223344556677889900112233445566778899",
         )
             .unwrap()
     }
 
-    pub(crate) fn generate_branch(left: Hash32, right: Hash32) -> MerkleNode {
+    pub fn generate_branch(left: Hash32, right: Hash32) -> MerkleNode {
         let node_data = NodeCodec::encode_branch(&left, &right).unwrap();
         let node_hash = hash::<Blake2b256>(&node_data).unwrap();
         // println!(
@@ -231,7 +230,7 @@ pub(crate) mod tests {
         MerkleNode::new(node_hash, node_data)
     }
 
-    pub(crate) fn generate_embedded_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
+    pub fn generate_embedded_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
         if state_value.len() > 32 {
             panic!("State data too large for embedded leaf")
         }
@@ -245,7 +244,7 @@ pub(crate) mod tests {
         MerkleNode::new(node_hash, node_data)
     }
 
-    pub(crate) fn generate_regular_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
+    pub fn generate_regular_leaf(state_key: Hash32, state_value: &[u8]) -> MerkleNode {
         if state_value.len() <= 32 {
             panic!("State data too small for regular leaf")
         }
@@ -260,7 +259,7 @@ pub(crate) mod tests {
         MerkleNode::new(node_hash, node_data)
     }
 
-    pub(crate) fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
+    pub fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
         match node {
             Some(node) => {
                 println!(">>> GET Node: {}", node.parse_node_data(merkle_db).unwrap());

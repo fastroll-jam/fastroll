@@ -1,5 +1,5 @@
 use crate::{
-    codec::NodeCodec,
+    codec::{test_utils::print_node, NodeCodec},
     error::StateMerkleError,
     types::*,
     utils::{bits_encode_msb, bitvec_to_hash32, slice_bitvec},
@@ -154,6 +154,9 @@ impl MerkleDB {
             None => return Ok(None),
         }; // initialize with the root node
 
+        println!(">>> Root Node <<<");
+        print_node(&Some(current_node.clone()), self); // print the root node
+
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for b in &state_key_bv {
             match current_node.check_node_type()? {
@@ -166,10 +169,12 @@ impl MerkleDB {
                         Some(node) => node,
                         None => return Ok(None),
                     };
+                    print_node(&Some(current_node.clone()), self);
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
                     let value = NodeCodec::get_leaf_value(&state_key_bv, &current_node)?;
+                    print_node(&Some(current_node.clone()), self);
                     return Ok(Some((leaf_type, value)));
                 }
                 NodeType::Empty => return Err(StateMerkleError::EmptyState),
@@ -179,10 +184,14 @@ impl MerkleDB {
         Ok(None)
     }
 
+    /// Commits a single `MerkleWriteOp` into the `MerkleDB` when the merkle trie is empty.
+    /// Used only for the merkle trie initialization.
+    ///
+    /// Returns (new_root, Option<(state_key, state_val)>)
     pub fn commit_to_empty_trie(
         &self,
         write_op: &MerkleWriteOp,
-    ) -> Result<Hash32, StateMerkleError> {
+    ) -> Result<(Hash32, Option<(Hash32, Vec<u8>)>), StateMerkleError> {
         if self.root != HASH32_EMPTY {
             return Err(StateMerkleError::NotEmptyTrie);
         }
@@ -194,13 +203,20 @@ impl MerkleDB {
                 let node_hash = hash::<Blake2b256>(&node_data)?;
                 let new_leaf = MerkleNode::new(node_hash, node_data);
 
+                let maybe_state_db_write =
+                    if let NodeType::Leaf(LeafType::Regular) = new_leaf.check_node_type()? {
+                        Some((hash::<Blake2b256>(v)?, v.clone()))
+                    } else {
+                        None
+                    };
+
                 self.put_node(&new_leaf)?;
                 self.cache.insert(node_hash, new_leaf); // optional
 
-                Ok(node_hash)
+                Ok((node_hash, maybe_state_db_write))
             }
             MerkleWriteOp::Update(_, _) => Err(StateMerkleError::NodeNotFound),
-            MerkleWriteOp::Remove(_) => Ok(HASH32_EMPTY),
+            MerkleWriteOp::Remove(_) => Ok((HASH32_EMPTY, None)),
         }
     }
 
@@ -349,7 +365,7 @@ impl MerkleDB {
                         (&left, ChildType::Left)
                     };
 
-                    // mutate state variables for the next iteration
+                    // update state variables for the next iteration
                     current_node = match self.get_node(child_hash)? {
                         Some(node) => node,
                         None => return Ok(()), // TODO: This implies pollution

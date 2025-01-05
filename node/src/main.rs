@@ -6,11 +6,7 @@ use rjam_db::{BlockHeaderDB, RocksDBConfig};
 use rjam_extrinsics::pool::ExtrinsicsPool;
 use rjam_state::StateManager;
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
-use std::{
-    error::Error,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{error::Error, path::PathBuf};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -24,10 +20,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let merkle_db = MerkleDB::open(&merkle_db_config, MERKLE_DB_CACHE_SIZE)?;
     let state_db = StateDB::open(&state_db_config)?;
-    let _state_manager = StateManager::new(
-        Arc::new(RwLock::new(state_db)),
-        Arc::new(RwLock::new(merkle_db)),
-    );
+    let _state_manager = StateManager::new(state_db, merkle_db);
     let _extrinsic_pool = ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE);
     let mut header_db = BlockHeaderDB::open(&header_db_config, HEADER_DB_CACHE_SIZE)?;
 

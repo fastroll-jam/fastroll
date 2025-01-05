@@ -14,7 +14,7 @@ pub enum AuthPoolError {
     InvalidCoreIndex(CoreIndex),
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
 impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
 impl_simple_state_component!(AuthPool, AuthPool);
