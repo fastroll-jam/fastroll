@@ -18,7 +18,7 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_simple_state_component!(PendingReports, PendingReports);
@@ -80,7 +80,7 @@ impl PendingReports {
     }
 }
 
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, JamEncode, JamDecode)]
 pub struct PendingReport {
     pub work_report: WorkReport,
     pub reported_timeslot: Timeslot,

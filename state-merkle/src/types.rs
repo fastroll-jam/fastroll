@@ -111,7 +111,7 @@ pub enum LeafType {
 }
 
 /// Branch node child type.
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ChildType {
     Left,
     Right,
@@ -218,13 +218,22 @@ pub enum MerkleWriteOp {
 }
 
 /// Snapshot of the current state of the nodes to be affected by the state transition.
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AffectedNode {
     Branch(AffectedBranch),
     Leaf(AffectedLeaf),
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for AffectedNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AffectedNode::Branch(branch) => write!(f, "AffectedNode::Branch({})", branch),
+            AffectedNode::Leaf(leaf) => write!(f, "AffectedNode::Leaf({})", leaf),
+        }
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct AffectedBranch {
     /// Hash identifier of the current node.
     pub hash: Hash32,
@@ -236,7 +245,23 @@ pub struct AffectedBranch {
     pub right: Hash32,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for AffectedBranch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AffectedBranch {{ \
+            \thash: {},\n\
+            \tdepth: {},\n\
+            \tleft: {},\n\
+            \tright: {},\n\
+            }}
+            ",
+            self.hash, self.depth, self.left, self.right
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct AffectedLeaf {
     /// Depth of the current node in the trie.
     pub depth: usize,
@@ -244,14 +269,37 @@ pub struct AffectedLeaf {
     pub leaf_write_op_context: LeafWriteOpContext,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for AffectedLeaf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AffectedLeaf {{ \n\
+            \tdepth: {},\n\
+            \tleaf_write_op_context: {}\n\
+            }}",
+            self.depth, self.leaf_write_op_context
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum LeafWriteOpContext {
     Update(LeafUpdateContext),
     Add(LeafAddContext),
     Remove(LeafRemoveContext),
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for LeafWriteOpContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LeafWriteOpContext::Update(ctx) => write!(f, "Update({})", ctx),
+            LeafWriteOpContext::Add(ctx) => write!(f, "Add({})", ctx),
+            LeafWriteOpContext::Remove(ctx) => write!(f, "Remove({})", ctx),
+        }
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
     pub leaf_state_key: Hash32,
@@ -261,7 +309,23 @@ pub struct LeafUpdateContext {
     pub leaf_prior_hash: Hash32,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for LeafUpdateContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LeafUpdateContext {{ \n\
+            \tleaf_state_key: {},\n\
+            \tleaf_state_value: 0x{},\n\
+            \tleaf_prior_hash: {}\n\
+            }}",
+            self.leaf_state_key,
+            hex::encode(&self.leaf_state_value),
+            self.leaf_prior_hash
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafAddContext {
     /// State key of the leaf node to be added.
     pub leaf_state_key: Hash32,
@@ -273,10 +337,41 @@ pub struct LeafAddContext {
     pub added_leaf_child_side: ChildType,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+impl Display for LeafAddContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LeafAddContext {{ \n\
+            \tleaf_state_key: {},\n\
+            \tleaf_state_value: 0x{},\n\
+            \tsibling_candidate_hash: {},\n\
+            \tadded_leaf_child_side: {:?}\n\
+            }}",
+            self.leaf_state_key,
+            hex::encode(&self.leaf_state_value),
+            self.sibling_candidate_hash,
+            self.added_leaf_child_side
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafRemoveContext {
     /// Hash of the parent node of the leaf node to be removed.
     pub parent_hash: Hash32,
     /// Hash of the sibling node of the leaf node to be removed.
     pub sibling_hash: Hash32,
+}
+
+impl Display for LeafRemoveContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LeafRemoveContext {{ \n\
+            \tparent_hash: {},\n\
+            \tsibling_hash: {}\n\
+            }}",
+            self.parent_hash, self.sibling_hash
+        )
+    }
 }

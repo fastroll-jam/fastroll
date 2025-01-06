@@ -8,7 +8,7 @@ mod tests {
         codec::test_utils::simple_hash, merkle_db::MerkleDB, state_db::StateDB,
     };
     use rjam_types::{
-        state::AuthPool,
+        state::{AuthPool, PendingReport, PendingReports},
         state_utils::{get_simple_state_key, StateEntryType, StateKeyConstant},
     };
     use tempfile::tempdir;
@@ -38,7 +38,8 @@ mod tests {
         let mut state_manager = init_state_manager(init_state_db(), init_merkle_db());
         println!("--- StateManager initialized.");
 
-        // Prior state
+        // --- 1. Add one state entry, initializing the Merkle Trie
+        println!("========== 1. Add the first state entry ==========");
         let mut auth_pool = AuthPool::default();
         auth_pool.0[0].push(simple_hash("00"));
         auth_pool.0[1].push(simple_hash("01"));
@@ -54,7 +55,6 @@ mod tests {
         state_manager
             .with_mut_auth_pool(StateMut::Add, |_| {}) // Just add the entry
             .unwrap();
-
         println!("--- State Mutation Done.");
 
         // Commit to the DB
@@ -62,16 +62,56 @@ mod tests {
         state_manager
             .commit_single_dirty_cache(&auth_pool_state_key)
             .unwrap();
-
-        println!("--- DB Commit Done.");
+        println!("--- DB Commit Done.\n\n");
 
         // Retrieve the entry from the DB (not gating the state cache)
-        let state_data = state_manager
+        let auth_pool_state_data = state_manager
             .retrieve_state_encoded(&auth_pool_state_key)
             .unwrap()
             .unwrap();
-        let auth_pool = AuthPool::decode(&mut state_data.as_slice()).unwrap();
-
+        let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
         println!(">>> Retrieved AuthPool: {:?}", &auth_pool);
+
+        // --- 2. Add another state entry
+        println!("\n\n========== 2. Add another state entry ==========");
+        let mut pending_reports = PendingReports::default();
+        pending_reports.0[0] = Some(PendingReport::default());
+        pending_reports.0[1] = Some(PendingReport::default());
+
+        state_manager.load_state_for_test(
+            StateKeyConstant::PendingReports,
+            StateEntryType::PendingReports(pending_reports),
+        );
+        println!("--- Prior state loaded to the StateManager.");
+
+        state_manager
+            .with_mut_pending_reports(StateMut::Add, |_| {}) // Just add the entry
+            .unwrap();
+        println!("--- State Mutation Done.");
+
+        let pending_reports_state_key = get_simple_state_key(StateKeyConstant::PendingReports);
+
+        state_manager
+            .commit_single_dirty_cache(&pending_reports_state_key)
+            .unwrap();
+        println!("--- DB Commit Done.\n\n");
+
+        // // Retrieve the entry from the DB (not gating the state cache)
+        // let auth_pool_state_data = state_manager
+        //     .retrieve_state_encoded(&auth_pool_state_key)
+        //     .unwrap()
+        //     .unwrap();
+        //
+        // let pending_reports_state_data = state_manager
+        //     .retrieve_state_encoded(&pending_reports_state_key)
+        //     .unwrap()
+        //     .unwrap();
+        //
+        // let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
+        // let pending_reports =
+        //     PendingReports::decode(&mut pending_reports_state_data.as_slice()).unwrap();
+        //
+        // println!(">>> Retrieved AuthPool: {:?}", &auth_pool);
+        // println!(">>> Retrieved PendingReports: {:?}", &pending_reports);
     }
 }

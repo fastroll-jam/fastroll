@@ -2,7 +2,7 @@ use crate::{
     codec::{test_utils::print_node, NodeCodec},
     error::StateMerkleError,
     types::*,
-    utils::{bits_encode_msb, bitvec_to_hash32, slice_bitvec},
+    utils::{bits_encode_msb, bitvec_to_hash32},
     write_set::AffectedNodesByDepth,
 };
 use bit_vec::BitVec;
@@ -154,7 +154,7 @@ impl MerkleDB {
             None => return Ok(None),
         }; // initialize with the root node
 
-        println!(">>> Root Node <<<");
+        println!("-------------------- Root Node --------------------");
         print_node(&Some(current_node.clone()), self); // print the root node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
@@ -164,12 +164,11 @@ impl MerkleDB {
                     // update the current node and proceed to the next node
                     let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
                     let child_hash = if b { right } else { left };
-
                     current_node = match self.get_node(&child_hash)? {
                         Some(node) => node,
                         None => return Ok(None),
                     };
-                    print_node(&Some(current_node.clone()), self);
+                    print_node(&Some(current_node.clone()), self); // updated
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
@@ -188,6 +187,7 @@ impl MerkleDB {
     /// Used only for the merkle trie initialization.
     ///
     /// Returns (new_root, Option<(state_key, state_val)>)
+    #[allow(clippy::type_complexity)]
     pub fn commit_to_empty_trie(
         &self,
         write_op: &MerkleWriteOp,
@@ -339,10 +339,19 @@ impl MerkleDB {
             None => return Ok(()),
         }; // initialize with the root node
 
+        #[allow(unused_assignments)]
         let mut current_child_side = None; // ChildType (Left or Right) of the current node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for (depth, b) in state_key_bv.iter().enumerate() {
+            // update the current child type
+            current_child_side = if b {
+                Some(ChildType::Right)
+            } else {
+                Some(ChildType::Left)
+            };
+
+            // FIXME: the `b` bit iteration must proceed without running te below match arms for the common prefixes
             match current_node.check_node_type()? {
                 NodeType::Branch => {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
@@ -358,36 +367,22 @@ impl MerkleDB {
                             right,
                         }));
 
-                    // move forward along the merkle path
-                    let (child_hash, child_type) = if b {
-                        (&right, ChildType::Right)
-                    } else {
-                        (&left, ChildType::Left)
-                    };
+                    let child_hash = if b { &right } else { &left };
 
-                    // update state variables for the next iteration
+                    // update state variables for the next iteration (move forward along the merkle path)
                     current_node = match self.get_node(child_hash)? {
                         Some(node) => node,
                         None => return Ok(()), // TODO: This implies pollution
                     }; // update to the child node on the path
                     parent_hash = current_node.hash;
-                    current_child_side = Some(child_type); // update the current child side
                 }
                 NodeType::Leaf(_) => {
+                    // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
+                    // data matches to `state_key` argument value.
                     match write_op {
                         MerkleWriteOp::Update(_, _) | MerkleWriteOp::Remove(_) => {
-                            // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
-                            // data matches to `state_key` argument value.
                             let node_data_bv = bits_encode_msb(&current_node.data);
                             NodeCodec::compare_state_keys(&node_data_bv, &state_key_bv)?;
-
-                            let key_without_last_byte =
-                                slice_bitvec(&bits_encode_msb(&current_node.data), 8..256)?;
-                            let state_key_without_last_byte = slice_bitvec(&state_key_bv, 0..248)?;
-                            if key_without_last_byte != state_key_without_last_byte {
-                                // reached to another leaf node with the same prefix
-                                return Err(StateMerkleError::NodeNotFound);
-                            }
                         }
                         _ => {}
                     }

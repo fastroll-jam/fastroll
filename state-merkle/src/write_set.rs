@@ -4,6 +4,7 @@ use rjam_crypto::{hash, Blake2b256};
 use rocksdb::WriteBatch;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
 
@@ -22,6 +23,7 @@ impl MerkleWriteSet {
 }
 
 /// Representation of merkle node write operation which will be added to `WriteBatch` of the `MerkleDB`.
+#[derive(Debug)]
 pub struct MerkleNodeWrite {
     /// Blake2b-256 hash of the `node_data` field.
     /// Used as a key to a new entry to be added in the `MerkleDB`.
@@ -29,6 +31,20 @@ pub struct MerkleNodeWrite {
     /// Encoded node data after state transition.
     /// Data of the new entry to be added in the `MerkleDB`.
     node_data: Vec<u8>,
+}
+
+impl Display for MerkleNodeWrite {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MerkleNodeWrite {{\n\
+            \thash: {},\n\
+            \tnode_data: {}\n\
+            }}",
+            self.hash,
+            hex::encode(&self.node_data)
+        )
+    }
 }
 
 impl MerkleNodeWrite {
@@ -39,7 +55,7 @@ impl MerkleNodeWrite {
 
 /// A collection of merkle node entries to be written into the `MerkleDB`. Also includes the
 /// new merkle root that represents the posterior state of the merkle trie after commiting it.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MerkleDBWriteSet {
     new_root: Hash32,
     map: HashMap<Hash32, MerkleNodeWrite>,
@@ -56,6 +72,20 @@ impl Deref for MerkleDBWriteSet {
 impl DerefMut for MerkleDBWriteSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
+    }
+}
+
+impl Display for MerkleDBWriteSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.map.is_empty() {
+            return writeln!(f, "MerkleDBWriteSet is empty");
+        }
+
+        for (key, node_write) in &self.map {
+            writeln!(f, "Associated node prior hash: {}", key)?;
+            writeln!(f, "node_write: {}", node_write)?;
+        }
+        Ok(())
     }
 }
 
@@ -90,7 +120,7 @@ impl MerkleDBWriteSet {
 /// A collection of raw state data entries for regular leaf nodes in `StateDB`.
 /// Each entry is identified by a `Hash32` and contains the associated octets generated from
 /// `Add` or `Update` operations.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct StateDBWriteSet {
     inner: HashMap<Hash32, Vec<u8>>,
 }
@@ -106,6 +136,20 @@ impl Deref for StateDBWriteSet {
 impl DerefMut for StateDBWriteSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
+    }
+}
+
+impl Display for StateDBWriteSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.inner.is_empty() {
+            return writeln!(f, "StateDBWriteSet is empty");
+        }
+
+        for (state_key, state_data) in &self.inner {
+            writeln!(f, "State Key: {}", state_key)?;
+            writeln!(f, "Raw State Data: {}", hex::encode(state_data))?;
+        }
+        Ok(())
     }
 }
 
@@ -125,7 +169,7 @@ impl StateDBWriteSet {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct AffectedNodesByDepth {
     inner: BTreeMap<usize, HashSet<AffectedNode>>,
 }
@@ -141,6 +185,22 @@ impl Deref for AffectedNodesByDepth {
 impl DerefMut for AffectedNodesByDepth {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
+    }
+}
+
+impl Display for AffectedNodesByDepth {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.inner.is_empty() {
+            return writeln!(f, "AffectedNodesByDepth is empty");
+        }
+
+        for (depth, affected_nodes) in &self.inner {
+            writeln!(f, "Depth: {}", depth)?;
+            for node in affected_nodes {
+                writeln!(f, "  {}", node)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -269,14 +329,12 @@ impl AffectedNodesByDepth {
                         }
                     }
                     LeafWriteOpContext::Add(ctx) => {
-                        // TODO: Handle the case where the leaf node is the only entry (and therefore becomes the root node)
-
-                        // by adding a new state entry, two new entries will be added to the `MerkleDB`
-                        // one for the new leaf node that holds the new state data and the other
+                        // By adding a new state entry, two new entries will be added to the `MerkleDB`.
+                        // One for the new leaf node that holds the new state data and the other
                         // for the new branch node that will replace the position of the sibling leaf node of the new leaf node,
                         // pointing to the new leaf node and its sibling node as child nodes.
 
-                        // create a new leaf node as a merkle write
+                        // Create a new leaf node as a merkle write.
                         let state_value_slice = ctx.leaf_state_value.as_slice();
                         let added_leaf_node_data =
                             NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
@@ -284,7 +342,6 @@ impl AffectedNodesByDepth {
                         Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
 
                         let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
-
                         let added_leaf_write = MerkleNodeWrite {
                             hash: added_leaf_node_hash,
                             node_data: added_leaf_node_data,
@@ -304,9 +361,10 @@ impl AffectedNodesByDepth {
                             &new_branch_left_hash,
                             &new_branch_right_hash,
                         )?;
+                        let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
 
                         let new_branch_merkle_write = MerkleNodeWrite {
-                            hash: hash::<Blake2b256>(&new_branch_node_data)?,
+                            hash: new_branch_node_hash,
                             node_data: new_branch_node_data,
                         };
 
@@ -314,8 +372,13 @@ impl AffectedNodesByDepth {
                         merkle_db_write_set
                             .insert(ctx.sibling_candidate_hash, new_branch_merkle_write);
 
+                        // Calculate the new root hash.
+                        // Note: This case is relevant only for the case when the affected leaf node
+                        // "was" the only node in the trie, therefore being a merkle root, and then
+                        // a new leaf is added. This is the only case when the merkle root node is
+                        // changed from a leaf node into a branch node.
                         if is_root_node {
-                            Some(added_leaf_node_hash)
+                            Some(new_branch_node_hash)
                         } else {
                             None
                         }

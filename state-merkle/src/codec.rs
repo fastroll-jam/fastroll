@@ -262,7 +262,7 @@ pub mod test_utils {
     pub fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
         match node {
             Some(node) => {
-                println!(">>> GET Node: {}", node.parse_node_data(merkle_db).unwrap());
+                println!(">>> Node: {}", node.parse_node_data(merkle_db).unwrap());
             }
             None => println!(">>> None"),
         }
