@@ -16,12 +16,16 @@ pub enum StateMerkleError {
     NotEmptyTrie,
     #[error("Node not found")]
     NodeNotFound,
+    #[error("Invalid node data")]
+    InvalidNodeData,
     #[error("Invalid byte length")]
     InvalidByteLength(usize),
     #[error("Invalid bitvec length")]
     InvalidBitVecLength(usize),
     #[error("Invalid BitVec slice range")]
     InvalidBitVecSliceRange,
+    #[error("Invalid merkle path")]
+    InvalidMerklePath,
     #[error("Invalid node data length")]
     InvalidNodeDataLength(usize),
     #[error("Invalid input for conversion to Hash32 type")]

@@ -97,13 +97,42 @@ impl NodeCodec {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
-        let right_bv = slice_bitvec(&bv, 256..)?;
-        let right_hash = bitvec_to_hash32(&right_bv)?;
-
         let left_bv = slice_bitvec(&bv, 1..=255)?;
         let left_hash = merkle_db.restore_hash_bit(&left_bv)?;
 
+        let right_bv = slice_bitvec(&bv, 256..)?;
+        let right_hash = bitvec_to_hash32(&right_bv)?;
+
         Ok((left_hash, right_hash))
+    }
+
+    /// Naively checks branch type. This is useful for checking if the branch node contains an empty
+    /// hash or not. If the 255 bits of the left child hash identifier are all zeroes, assumes that
+    /// is an empty hash.
+    pub(crate) fn check_branch_type(node: &MerkleNode) -> Result<BranchType, StateMerkleError> {
+        // check node data length
+        let len = node.data.len();
+        if len != 64 {
+            return Err(StateMerkleError::InvalidNodeDataLength(len));
+        }
+
+        let bv = bits_encode_msb(&node.data);
+        let first_bit = bv.get(0).unwrap();
+
+        // ensure the node data represents a branch node
+        if first_bit {
+            return Err(StateMerkleError::InvalidNodeType);
+        }
+
+        let left_bv = slice_bitvec(&bv, 1..=255)?;
+        let right_bv = slice_bitvec(&bv, 256..)?;
+
+        match (left_bv.any(), right_bv.any()) {
+            (true, true) => Ok(BranchType::Full),
+            (true, false) => Ok(BranchType::LeftChildOnly),
+            (false, true) => Ok(BranchType::RightChildOnly),
+            _ => Err(StateMerkleError::InvalidNodeData),
+        }
     }
 
     /// Extracts state data or hash of the state data from a leaf node data, depending on the `leaf_type`.
@@ -119,7 +148,14 @@ impl NodeCodec {
     ) -> Result<Vec<u8>, StateMerkleError> {
         let bv = bits_encode_msb(&node.data);
         Self::validate_node_data(&bv, state_key)?;
-        Self::decode_leaf(node)
+        let leaf_parsed = Self::decode_leaf(node)?;
+
+        let node_data_octets = match leaf_parsed {
+            LeafParsed::EmbeddedLeaf(parsed) => parsed.value,
+            LeafParsed::RegularLeaf(parsed) => parsed.value_hash.to_vec(),
+        };
+
+        Ok(node_data_octets)
     }
 
     fn validate_node_data(
@@ -143,7 +179,7 @@ impl NodeCodec {
         Ok(())
     }
 
-    pub(crate) fn decode_leaf(node: &MerkleNode) -> Result<Vec<u8>, StateMerkleError> {
+    pub(crate) fn decode_leaf(node: &MerkleNode) -> Result<LeafParsed, StateMerkleError> {
         let node_data_bv = bits_encode_msb(&node.data);
         match node.check_node_type()? {
             NodeType::Leaf(LeafType::Embedded) => {
@@ -155,14 +191,17 @@ impl NodeCodec {
                 let value_len_in_bits = (value_len_decoded as usize) * 8;
                 let value_end_bit = 256 + value_len_in_bits;
 
-                Ok(bits_decode_msb(&slice_bitvec(
-                    &node_data_bv,
-                    256..value_end_bit,
-                )?))
+                Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
+                    node_hash: node.hash,
+                    value: bits_decode_msb(&slice_bitvec(&node_data_bv, 256..value_end_bit)?),
+                    partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
+                }))
             }
-            NodeType::Leaf(LeafType::Regular) => {
-                Ok(bits_decode_msb(&slice_bitvec(&node_data_bv, 256..)?))
-            }
+            NodeType::Leaf(LeafType::Regular) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
+                node_hash: node.hash,
+                value_hash: bitvec_to_hash32(&slice_bitvec(&node_data_bv, 256..)?)?,
+                partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
+            })),
             _ => Err(StateMerkleError::InvalidNodeType),
         }
     }

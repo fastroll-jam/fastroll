@@ -346,7 +346,6 @@ impl StateManager {
             return Err(StateManagerError::NotDirtyCache);
         }
         let write_op = cache_entry.as_merkle_state_mut(state_key)?;
-
         // Case 1: Trie is empty
         if self.merkle_db_read().root() == HASH32_EMPTY {
             // Initialize the empty merkle trie by committing the first entry.
@@ -391,12 +390,24 @@ impl StateManager {
             state_db_write_set,
         } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
+        // Debugging
+        // println!("AffectedNodesByDepth: ");
+        // println!("{}", &affected_nodes_by_depth);
+        // println!("MerkleDBWriteSet: ");
+        // println!("{}", &merkle_db_write_set);
+        // println!("StateDBWriteSet: ");
+        // println!("{}", &state_db_write_set);
+
         self.merkle_db_read()
             .commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()
             .update_root(merkle_db_write_set.get_new_root());
+        println!(
+            "Merkle root updated: {}",
+            &merkle_db_write_set.get_new_root()
+        );
 
         // Add new entries to the StateDB
         self.state_db_read()

@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
+use bit_vec::BitVec;
 use rjam_common::{Hash32, HASH32_EMPTY};
-use rjam_crypto::octets_to_hash32;
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
@@ -40,11 +40,15 @@ impl MerkleNode {
             NodeCodec::first_bit(&self.data),
             NodeCodec::second_bit(&self.data),
         ) {
-            (Some(false), _) => Ok(NodeType::Branch),
+            (Some(false), _) => Ok(NodeType::Branch(self.check_branch_type()?)),
             (Some(true), Some(false)) => Ok(NodeType::Leaf(LeafType::Embedded)),
             (Some(true), Some(true)) => Ok(NodeType::Leaf(LeafType::Regular)),
             _ => Err(StateMerkleError::InvalidNodeType),
         }
+    }
+
+    fn check_branch_type(&self) -> Result<BranchType, StateMerkleError> {
+        NodeCodec::check_branch_type(self)
     }
 
     fn parse_branch(&self, merkle_db: &MerkleDB) -> Result<BranchParsed, StateMerkleError> {
@@ -57,23 +61,37 @@ impl MerkleNode {
         })
     }
 
-    fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
-        let embedded_data = NodeCodec::decode_leaf(self)?;
+    /// Note: Since only the first 248 bits of the state key is encoded in the Leaf node data, we
+    /// cannot recover the full state key by parsing the leaf node data.
+    pub fn extract_partial_leaf_state_key(&self) -> Result<BitVec, StateMerkleError> {
+        match self.check_node_type()? {
+            NodeType::Leaf(LeafType::Embedded) => Ok(self.parse_embedded_leaf()?.partial_state_key),
+            NodeType::Leaf(LeafType::Regular) => Ok(self.parse_regular_leaf()?.partial_state_key),
+            _ => Err(StateMerkleError::InvalidNodeType),
+        }
+    }
 
-        Ok(EmbeddedLeafParsed {
-            node_hash: self.hash,
-            value: embedded_data,
-        })
+    // TODO: merge `parse_embedded_leaf` and `parse_regular_leaf`
+    fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
+        match NodeCodec::decode_leaf(self)? {
+            LeafParsed::EmbeddedLeaf(parsed) => Ok(EmbeddedLeafParsed {
+                node_hash: self.hash,
+                value: parsed.value,
+                partial_state_key: parsed.partial_state_key,
+            }),
+            _ => Err(StateMerkleError::InvalidNodeType),
+        }
     }
 
     fn parse_regular_leaf(&self) -> Result<RegularLeafParsed, StateMerkleError> {
-        let state_data_hash = NodeCodec::decode_leaf(self)?;
-
-        Ok(RegularLeafParsed {
-            node_hash: self.hash,
-            value_hash: octets_to_hash32(&state_data_hash)
-                .ok_or(StateMerkleError::InvalidHash32Input)?,
-        })
+        match NodeCodec::decode_leaf(self)? {
+            LeafParsed::RegularLeaf(parsed) => Ok(RegularLeafParsed {
+                node_hash: self.hash,
+                value_hash: parsed.value_hash,
+                partial_state_key: parsed.partial_state_key,
+            }),
+            _ => Err(StateMerkleError::InvalidNodeType),
+        }
     }
 
     pub fn parse_node_data(
@@ -81,13 +99,13 @@ impl MerkleNode {
         merkle_db: &MerkleDB,
     ) -> Result<NodeDataParsed, StateMerkleError> {
         match self.check_node_type()? {
-            NodeType::Branch => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db)?)),
-            NodeType::Leaf(LeafType::Embedded) => {
-                Ok(NodeDataParsed::EmbeddedLeaf(self.parse_embedded_leaf()?))
-            }
-            NodeType::Leaf(LeafType::Regular) => {
-                Ok(NodeDataParsed::RegularLeaf(self.parse_regular_leaf()?))
-            }
+            NodeType::Branch(_) => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db)?)),
+            NodeType::Leaf(LeafType::Embedded) => Ok(NodeDataParsed::Leaf(
+                LeafParsed::EmbeddedLeaf(self.parse_embedded_leaf()?),
+            )),
+            NodeType::Leaf(LeafType::Regular) => Ok(NodeDataParsed::Leaf(LeafParsed::RegularLeaf(
+                self.parse_regular_leaf()?,
+            ))),
             NodeType::Empty => Ok(NodeDataParsed::Empty(HASH32_EMPTY)),
         }
     }
@@ -96,9 +114,26 @@ impl MerkleNode {
 /// Merkle trie node type.
 #[derive(Debug)]
 pub enum NodeType {
-    Branch,
+    Branch(BranchType),
     Leaf(LeafType),
     Empty,
+}
+
+/// Branch node type.
+#[derive(Debug)]
+pub enum BranchType {
+    /// The branch has only the left child. Right child position is filled with an empty hash.
+    LeftChildOnly,
+    /// The branch has only the right child. Left child position is filled with an empty hash.
+    RightChildOnly,
+    /// The branch has two children nodes; left and right.
+    Full,
+}
+
+impl BranchType {
+    pub fn has_single_child(&self) -> bool {
+        matches!(self, Self::RightChildOnly | Self::LeftChildOnly)
+    }
 }
 
 /// Leaf node type.
@@ -132,8 +167,7 @@ impl ChildType {
 
 pub enum NodeDataParsed {
     Branch(BranchParsed),
-    EmbeddedLeaf(EmbeddedLeafParsed),
-    RegularLeaf(RegularLeafParsed),
+    Leaf(LeafParsed),
     Empty(Hash32), // HASH32_EMPTY
 }
 
@@ -141,8 +175,7 @@ impl Display for NodeDataParsed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Branch(branch) => write!(f, "{}", branch),
-            Self::EmbeddedLeaf(leaf) => write!(f, "{}", leaf),
-            Self::RegularLeaf(leaf) => write!(f, "{}", leaf),
+            Self::Leaf(leaf) => write!(f, "{}", leaf),
             Self::Empty(hash) => write!(f, "Empty({})", hash),
         }
     }
@@ -150,8 +183,11 @@ impl Display for NodeDataParsed {
 
 #[derive(Debug)]
 pub struct BranchParsed {
-    pub node_hash: Hash32, // Node hash identifier
+    /// Node hash identifier.
+    pub node_hash: Hash32,
+    /// Left child hash.
     pub left: Hash32,
+    /// Right child hash.
     pub right: Hash32,
 }
 
@@ -168,10 +204,28 @@ impl Display for BranchParsed {
     }
 }
 
+pub enum LeafParsed {
+    EmbeddedLeaf(EmbeddedLeafParsed),
+    RegularLeaf(RegularLeafParsed),
+}
+
+impl Display for LeafParsed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmbeddedLeaf(leaf) => write!(f, "{}", leaf),
+            Self::RegularLeaf(leaf) => write!(f, "{}", leaf),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EmbeddedLeafParsed {
-    pub node_hash: Hash32, // Node hash identifier
+    /// Node hash identifier.
+    pub node_hash: Hash32,
+    /// Embedded raw state value.
     pub value: Vec<u8>,
+    /// 248-bit partial state key of the entry that the leaf node represents.
+    pub partial_state_key: BitVec,
 }
 
 impl Display for EmbeddedLeafParsed {
@@ -180,17 +234,23 @@ impl Display for EmbeddedLeafParsed {
             f,
             "Embedded Leaf ({}) {{\n\
             \tvalue: 0x{},\n\
+            \tState Key: 0b{},\n\
             }}",
             self.node_hash,
             hex::encode(&self.value),
+            self.partial_state_key
         )
     }
 }
 
 #[derive(Debug)]
 pub struct RegularLeafParsed {
-    pub node_hash: Hash32,  // Node hash identifier
-    pub value_hash: Hash32, // Used as a key for the `StateDB` to retrieve the full encoded state value.
+    /// Node hash identifier.
+    pub node_hash: Hash32,
+    /// Hash of the state value. Used  as a key for the `StateDB` to retrieve the full encoded state value.
+    pub value_hash: Hash32,
+    /// 248-bit partial state key of the entry that the leaf node represents.
+    pub partial_state_key: BitVec,
 }
 
 impl Display for RegularLeafParsed {
@@ -199,8 +259,9 @@ impl Display for RegularLeafParsed {
             f,
             "Regular Leaf ({}) {{\n\
             \tvalue_hash: {},\n\
+            \tState Key: 0b{},\n\
             }}",
-            self.node_hash, self.value_hash
+            self.node_hash, self.value_hash, self.partial_state_key
         )
     }
 }
@@ -243,10 +304,18 @@ pub struct AffectedBranch {
     pub left: Hash32,
     /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
     pub right: Hash32,
+    /// Context of the write operation. Only useful when a new leaf is being `Add`ed as a child of
+    /// a single-child branch node, filling up the previously `EMPTY_HASH` side.
+    pub leaf_write_op_context: Option<LeafWriteOpContext>,
 }
 
 impl Display for AffectedBranch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let ctx = match &self.leaf_write_op_context {
+            Some(ctx) => format!("{}", ctx),
+            None => String::new(),
+        };
+
         write!(
             f,
             "AffectedBranch {{ \
@@ -254,9 +323,10 @@ impl Display for AffectedBranch {
             \tdepth: {},\n\
             \tleft: {},\n\
             \tright: {},\n\
+            \tleaf_write_op_context: {},\n\
             }}
             ",
-            self.hash, self.depth, self.left, self.right
+            self.hash, self.depth, self.left, self.right, ctx
         )
     }
 }
@@ -335,6 +405,12 @@ pub struct LeafAddContext {
     pub sibling_candidate_hash: Hash32,
     /// Child type (Left/Right) of the new leaf node.
     pub added_leaf_child_side: ChildType,
+    /// Partial merkle path from the root to the `AffectedNode`.
+    /// Used for handling path compression at leaf node.
+    pub partial_merkle_path: Option<BitVec>,
+    /// Partial 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
+    /// Used for handling path compression at leaf node.
+    pub sibling_partial_state_key: Option<BitVec>,
 }
 
 impl Display for LeafAddContext {
