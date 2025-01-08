@@ -7,6 +7,7 @@ use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashMap},
+    fmt::{Display, Formatter},
     ops::Deref,
 };
 use thiserror::Error;
@@ -212,6 +213,21 @@ pub struct SegmentRootLookupTable {
     items: HashMap<Hash32, Hash32>,
 }
 
+impl Display for SegmentRootLookupTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            write!(f, "SegmentRootLookupTable: {{}}")?;
+        } else {
+            writeln!(f, "SegmentRootLookupTable: {{")?;
+            for (k, v) in self.items.iter() {
+                writeln!(f, "  {}: {}", &k, &v)?;
+            }
+            writeln!(f, "}}")?;
+        }
+        Ok(())
+    }
+}
+
 impl Deref for SegmentRootLookupTable {
     type Target = HashMap<Hash32, Hash32>;
 
@@ -238,6 +254,28 @@ pub struct WorkReport {
     pub authorization_output: Octets,                 // o
     pub segment_roots_lookup: SegmentRootLookupTable, // l; number of items up to 8
     pub results: Vec<WorkItemResult>,                 // r; length range [1, 4]
+}
+
+impl Display for WorkReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "WorkReport {{")?;
+        writeln!(f, "\tspec: {}", self.specs)?;
+        writeln!(f, "\trefine_ctx: {}", self.refinement_context)?;
+        writeln!(f, "\tcore_idx: {}", self.core_index)?;
+        writeln!(f, "\tauth_hash: {}", self.authorizer_hash)?;
+        writeln!(f, "\tauth_output: {}", self.authorization_output)?;
+        writeln!(f, "\tsegment_roots_lookup: {}", self.segment_roots_lookup)?;
+        if self.results.is_empty() {
+            writeln!(f, "\tresults: []")?;
+        } else {
+            writeln!(f, "\tresults: [")?;
+            for result in self.results.iter() {
+                writeln!(f, "\t  {}", result)?;
+            }
+            writeln!(f, "\t]")?;
+        }
+        write!(f, "  }}")
+    }
 }
 
 impl JamEncode for WorkReport {
@@ -367,6 +405,24 @@ pub struct RefinementContext {
     pub prerequisite_work_packages: BTreeSet<Hash32>, // p;
 }
 
+impl Display for RefinementContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RefineContext: {{ anchor_header_hash: {}, beefy_root: {}, lookup_anchor_header_hash: {},\
+            lookup_anchor_timeslot: {}
+        ", self.anchor_header_hash, self.beefy_root, self.lookup_anchor_header_hash, self.lookup_anchor_timeslot)?;
+        if self.prerequisite_work_packages.is_empty() {
+            write!(f, "  prerequisites: []}}")?;
+        } else {
+            write!(f, "  prerequisites: [")?;
+            for wp_hash in self.prerequisite_work_packages.iter() {
+                write!(f, "    {}", &wp_hash)?;
+            }
+            write!(f, "  ]}}")?;
+        }
+        Ok(())
+    }
+}
+
 impl JamEncode for RefinementContext {
     fn size_hint(&self) -> usize {
         self.anchor_header_hash.size_hint()
@@ -413,6 +469,21 @@ pub struct AvailabilitySpecs {
     pub segment_count: usize,      // n
 }
 
+impl Display for AvailabilitySpecs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AvailSpecs {{ wp_hash: {}, wp_len: {}, erasure_root: {}, \
+             segment_root: {}, segment_count: {} }}",
+            self.work_package_hash,
+            self.work_package_length,
+            self.erasure_root,
+            self.segment_root,
+            self.segment_count,
+        )
+    }
+}
+
 impl JamEncode for AvailabilitySpecs {
     fn size_hint(&self) -> usize {
         self.work_package_hash.size_hint()
@@ -451,6 +522,22 @@ pub struct WorkItemResult {
     pub payload_hash: Hash32,                   // l
     pub gas_prioritization_ratio: UnsignedGas,  // g
     pub refinement_output: WorkExecutionOutput, // o
+}
+
+impl Display for WorkItemResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "WorkItemResult: {{")?;
+        writeln!(f, "service_idx: {}", self.service_index)?;
+        writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
+        writeln!(f, "payload_hash: {}", self.payload_hash)?;
+        writeln!(
+            f,
+            "gas_prioritization_ratio: {}",
+            self.gas_prioritization_ratio
+        )?;
+        writeln!(f, "refine_output: {}", self.refinement_output)?;
+        write!(f, "}}")
+    }
 }
 
 impl JamEncode for WorkItemResult {
@@ -499,6 +586,19 @@ impl WorkItemResult {
 pub enum WorkExecutionOutput {
     Output(Octets),            // Y
     Error(WorkExecutionError), // J
+}
+
+impl Display for WorkExecutionOutput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Output(octets) => {
+                write!(f, "{}", octets)
+            }
+            Self::Error(err) => {
+                write!(f, "{:?}", err)
+            }
+        }
+    }
 }
 
 impl WorkExecutionOutput {

@@ -67,7 +67,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
-        println!("\nState Retrieved: {:?}", &auth_pool);
+        println!("\nState Retrieved: {}", &auth_pool);
 
         // --- 2. Add another state entry
         println!("\n\n2. Add another state entry.");
@@ -106,7 +106,7 @@ mod tests {
         let pending_reports =
             PendingReports::decode(&mut pending_reports_state_data.as_slice()).unwrap();
 
-        println!("\nState Retrieved: {:?}", &auth_pool);
-        println!("\nState Retrieved: {:?}", &pending_reports);
+        println!("\nState Retrieved: {}", &auth_pool);
+        println!("\nState Retrieved: {}", &pending_reports);
     }
 }
