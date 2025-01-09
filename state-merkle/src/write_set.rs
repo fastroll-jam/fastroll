@@ -115,7 +115,10 @@ impl MerkleDBWriteSet {
         let mut batch = WriteBatch::default();
         // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
         self.values().for_each(|node| {
-            batch.put(node.hash.as_slice(), &node.node_data);
+            // `MerkleNodeWrite` with empty hash value is used as a placeholder for removed leaves.
+            if node.hash != HASH32_EMPTY {
+                batch.put(node.hash.as_slice(), &node.node_data);
+            }
         });
 
         Ok(batch)

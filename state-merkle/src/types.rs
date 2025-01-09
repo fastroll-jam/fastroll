@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
 use bit_vec::BitVec;
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
@@ -106,7 +106,6 @@ impl MerkleNode {
             NodeType::Leaf(LeafType::Regular) => Ok(NodeDataParsed::Leaf(LeafParsed::RegularLeaf(
                 self.parse_regular_leaf()?,
             ))),
-            NodeType::Empty => Ok(NodeDataParsed::Empty(HASH32_EMPTY)),
         }
     }
 }
@@ -116,7 +115,6 @@ impl MerkleNode {
 pub enum NodeType {
     Branch(BranchType),
     Leaf(LeafType),
-    Empty,
 }
 
 /// Branch node type.
@@ -168,7 +166,6 @@ impl ChildType {
 pub enum NodeDataParsed {
     Branch(BranchParsed),
     Leaf(LeafParsed),
-    Empty(Hash32), // HASH32_EMPTY
 }
 
 impl Display for NodeDataParsed {
@@ -176,7 +173,6 @@ impl Display for NodeDataParsed {
         match self {
             Self::Branch(branch) => write!(f, "{}", branch),
             Self::Leaf(leaf) => write!(f, "{}", leaf),
-            Self::Empty(hash) => write!(f, "Empty({})", hash),
         }
     }
 }

@@ -174,7 +174,6 @@ impl MerkleDB {
                     // print_node(&Some(current_node.clone()), self);
                     return Ok(Some((leaf_type, value)));
                 }
-                NodeType::Empty => return Err(StateMerkleError::EmptyState),
             }
         }
 
@@ -472,7 +471,6 @@ impl MerkleDB {
                         }
                     };
                 }
-                NodeType::Empty => return Err(StateMerkleError::EmptyState),
             }
         }
 
