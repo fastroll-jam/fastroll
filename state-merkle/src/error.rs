@@ -30,6 +30,8 @@ pub enum StateMerkleError {
     InvalidNodeDataLength(usize),
     #[error("Invalid input for conversion to Hash32 type")]
     InvalidHash32Input,
+    #[error("Failed to handle state entry removal")]
+    MerkleRemovalFailed,
     #[error("Write batch lock error")]
     WriteBatchLockError,
     #[error("RocksDB error: {0}")]

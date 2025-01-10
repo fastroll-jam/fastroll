@@ -342,6 +342,17 @@ impl MerkleDB {
         // from the root to the certain node.
         let mut partial_merkle_path = BitVec::new();
 
+        // Special handling for the `Remove` case
+        let remove_ctx = match write_op {
+            MerkleWriteOp::Remove(state_key) => {
+                // Remove operation inserts one `AffectedBranch`.
+                let state_key_bv = bits_encode_msb(state_key.as_slice());
+                let ctx = self.traverse_and_collect_removal_context(&state_key_bv)?;
+                Some(ctx)
+            }
+            _ => None,
+        };
+
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for (depth, b) in state_key_bv.iter().enumerate() {
             // Accumulate merkle path
@@ -350,11 +361,9 @@ impl MerkleDB {
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
-                    let (child_hash, sibling_child_hash, added_leaf_child_side) = if b {
-                        (&right, &left, ChildType::Right)
-                    } else {
-                        (&left, &right, ChildType::Left)
-                    };
+                    let (child_hash, sibling_child_hash) =
+                        if b { (&right, &left) } else { (&left, &right) };
+                    let added_leaf_child_side = ChildType::from_bit(b);
                     if child_hash == &HASH32_EMPTY && branch_type.has_single_child() {
                         if let MerkleWriteOp::Add(state_key, state_value) = &write_op {
                             // If the current branch is of single-child type and if we're trying to
@@ -386,6 +395,26 @@ impl MerkleDB {
                         // `HASH32_EMPTY` but the branch is not single-child type or the `write_op` is not `Add`,
                         // that case implies a wrong `state_key`.
                         return Err(StateMerkleError::NodeNotFound);
+                    }
+
+                    // If the write_op is `Remove` and we've reached the deepest full-branch node
+                    // to be modified, which were detected by `traverse_and_collect_removal_context`,
+                    // insert that node as affected node and finish the iteration.
+                    // `LeafRemoveContext.post_parent_hash` works as a stopper.
+                    if let MerkleWriteOp::Remove(_state_key) = &write_op {
+                        let remove_ctx = remove_ctx.clone().expect("exists for removal case");
+                        if current_node.hash == remove_ctx.post_parent_hash {
+                            // TODO: Rename `AffectedLeaf` type. We're using `AffectedLeaf` to process "branch" node.
+                            // TODO: For `Remove`, manual handling happens at the branch node, unlike `Add` or `Update`.
+                            // TODO: This is also handled by `AffectedNode::Leaf` arm at `AffectedNodesByDepth::process_affected_node`.
+                            affected_nodes_by_depth.entry(depth).or_default().insert(
+                                AffectedNode::Leaf(AffectedLeaf {
+                                    depth,
+                                    leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
+                                }),
+                            );
+                            return Ok(());
+                        }
                     }
 
                     // Simply collect the branch node as affected node.
@@ -467,8 +496,84 @@ impl MerkleDB {
                             Ok(())
                         }
                         MerkleWriteOp::Remove(_state_key) => {
-                            unimplemented!()
+                            Err(StateMerkleError::MerkleRemovalFailed)
                         }
+                    };
+                }
+            }
+        }
+
+        Err(StateMerkleError::NodeNotFound)
+    }
+
+    /// Traverses the Merkle trie from the root to the target leaf that will be removed,
+    /// gathering the context needed to perform the removal. Specifically, it determines:
+    ///
+    /// - Whether the sibling of the target leaf is a `Branch` or a `Leaf`.
+    /// - If the sibling is a `Leaf`, collects:
+    ///   1. The hash of a full-branch ("posterior parent") that will point to the sibling
+    ///      after the target leaf is removed.
+    ///   2. The sibling node's hash and its position (`Left` or `Right`) relative to the
+    ///      "posterior parent".
+    ///
+    /// - If the sibling is a `Branch`, there is no need to collect any context information.
+    ///
+    /// This information is used to correctly update the "posterior parent" once the removal
+    /// of the target leaf is finalized.
+    fn traverse_and_collect_removal_context(
+        &self,
+        state_key_bv: &BitVec,
+    ) -> Result<LeafRemoveContext, StateMerkleError> {
+        let mut current_node = self.get_node(&self.root)?.expect("root node must exist");
+        let mut partial_merkle_path = BitVec::new();
+
+        // Keeping this history is needed because we shouldn't count the parent of the leaf node to be removed.
+        let mut branch_history = FullBranchHistory::new(self.root);
+
+        for b in state_key_bv.iter() {
+            // Accumulate merkle path
+            partial_merkle_path.push(b);
+
+            match current_node.check_node_type()? {
+                NodeType::Branch(branch_type) => {
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
+
+                    if let BranchType::Full = branch_type {
+                        branch_history.update(current_node.hash, b, left, right);
+                    }
+
+                    let child_hash = if b { &right } else { &left };
+                    current_node = self
+                        .get_node(child_hash)?
+                        .ok_or(StateMerkleError::NodeNotFound)?;
+                }
+                NodeType::Leaf(_) => {
+                    let parent_node = self
+                        .get_node(&branch_history.curr.hash)?
+                        .expect("parent node must exist");
+
+                    let (left, right) = NodeCodec::decode_branch(&parent_node, self)?;
+
+                    let sibling_hash = if b { &left } else { &right };
+                    let sibling_node = self
+                        .get_node(sibling_hash)?
+                        .expect("sibling node must exist");
+
+                    return match sibling_node.check_node_type()? {
+                        NodeType::Branch(_) => Ok(LeafRemoveContext {
+                            post_parent_hash: branch_history.curr.hash,
+                            prior_left: branch_history.curr.left_child,
+                            prior_right: branch_history.curr.right_child,
+                            sibling_leaf_hash: None,
+                            removal_side: branch_history.curr.navigate_to,
+                        }),
+                        NodeType::Leaf(_) => Ok(LeafRemoveContext {
+                            post_parent_hash: branch_history.prev.hash,
+                            prior_left: branch_history.prev.hash,
+                            prior_right: branch_history.prev.left_child,
+                            sibling_leaf_hash: Some(*sibling_hash),
+                            removal_side: branch_history.prev.navigate_to,
+                        }),
                     };
                 }
             }

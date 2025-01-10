@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
 use bit_vec::BitVec;
-use rjam_common::Hash32;
+use rjam_common::{Hash32, HASH32_EMPTY};
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
@@ -157,6 +157,14 @@ impl ChildType {
             ChildType::Right => ChildType::Left,
         }
     }
+
+    pub fn from_bit(bit: bool) -> Self {
+        if bit {
+            ChildType::Right
+        } else {
+            ChildType::Left
+        }
+    }
 }
 
 //
@@ -300,8 +308,9 @@ pub struct AffectedBranch {
     pub left: Hash32,
     /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
     pub right: Hash32,
-    /// Context of the write operation. Only useful when a new leaf is being `Add`ed as a child of
-    /// a single-child branch node, filling up the previously `EMPTY_HASH` side.
+    /// Context of the write operation. Useful when a new leaf is being `Add`ed as a child of
+    /// a single-child branch node, filling up the previously `EMPTY_HASH` side,
+    /// or an existing leaf is being `Remove`d.
     pub leaf_write_op_context: Option<LeafWriteOpContext>,
 }
 
@@ -427,12 +436,18 @@ impl Display for LeafAddContext {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LeafRemoveContext {
-    /// Hash of the parent node of the leaf node to be removed.
-    pub parent_hash: Hash32,
-    /// Hash of the sibling node of the leaf node to be removed.
-    pub sibling_hash: Hash32,
+    /// Hash of the node that will be the "deepest" affected node for the removal.
+    pub post_parent_hash: Hash32,
+    /// Left child hash of `post_parent_hash` branch node prior to the removal.
+    pub prior_left: Hash32,
+    /// Right child hash of `post_parent_hash` branch node prior to the removal.
+    pub prior_right: Hash32,
+    /// Only needed when the sibling of the remove target node is leaf type.
+    pub sibling_leaf_hash: Option<Hash32>,
+    /// Whether left or right subtrie of the `post_parent_hash` is getting compressed or deleted after the removal.
+    pub removal_side: ChildType,
 }
 
 impl Display for LeafRemoveContext {
@@ -440,10 +455,69 @@ impl Display for LeafRemoveContext {
         write!(
             f,
             "LeafRemoveContext {{ \n\
-            \tparent_hash: {},\n\
-            \tsibling_hash: {}\n\
+            \tpost_parent_hash: {},\n\
+            \tprior_left: {},\n\
+            \tprior_left: {},\n\
+            \tsibling_leaf_hash: {:?},\n\
+            \tremoval_side: {:?},\n\
             }}",
-            self.parent_hash, self.sibling_hash
+            self.post_parent_hash,
+            self.prior_left,
+            self.prior_right,
+            self.sibling_leaf_hash,
+            self.removal_side
         )
+    }
+}
+
+impl LeafRemoveContext {
+    pub fn has_sibling_leaf(&self) -> bool {
+        self.sibling_leaf_hash.is_some()
+    }
+}
+
+pub(crate) struct FullBranchSnapshot {
+    pub(crate) hash: Hash32,
+    pub(crate) navigate_to: ChildType,
+    pub(crate) left_child: Hash32,
+    pub(crate) right_child: Hash32,
+}
+
+pub(crate) struct FullBranchHistory {
+    pub(crate) curr: FullBranchSnapshot,
+    pub(crate) prev: FullBranchSnapshot,
+}
+
+impl FullBranchHistory {
+    pub(crate) fn new(root: Hash32) -> Self {
+        Self {
+            curr: FullBranchSnapshot {
+                hash: root,
+                navigate_to: ChildType::Right, // init
+                left_child: HASH32_EMPTY,
+                right_child: HASH32_EMPTY,
+            },
+            prev: FullBranchSnapshot {
+                hash: root,
+                navigate_to: ChildType::Right, // init
+                left_child: HASH32_EMPTY,
+                right_child: HASH32_EMPTY,
+            },
+        }
+    }
+
+    /// Update the `prev` snapshot to be what the `curr` was, and then set `curr` to a new snapshot.
+    pub(crate) fn update(&mut self, node_hash: Hash32, bit: bool, left: Hash32, right: Hash32) {
+        // shift `curr` into `prev`
+        self.prev.hash = self.curr.hash;
+        self.prev.navigate_to = self.curr.navigate_to;
+        self.prev.left_child = self.curr.left_child;
+        self.prev.right_child = self.curr.right_child;
+
+        // set up `curr`
+        self.curr.hash = node_hash;
+        self.curr.navigate_to = ChildType::from_bit(bit);
+        self.curr.left_child = left;
+        self.curr.right_child = right;
     }
 }

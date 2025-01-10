@@ -59,7 +59,10 @@ mod tests {
         state_manager
             .commit_single_dirty_cache(&auth_pool_state_key)
             .unwrap();
-        println!("--- DB Commit Done.");
+        println!(
+            "--- DB Commit Done. Merkle Root: {}",
+            state_manager.merkle_root()
+        );
 
         // Retrieve the entry from the DB (not gating the state cache)
         let auth_pool_state_data = state_manager
@@ -70,7 +73,7 @@ mod tests {
         println!("\nState Retrieved: {}", &auth_pool);
 
         // --- 2. Add another state entry
-        println!("\n\n2. Add another state entry.");
+        println!("\n\n\n2. Add another state entry.");
         let mut pending_reports = PendingReports::default();
         pending_reports.0[0] = Some(PendingReport::default());
         pending_reports.0[1] = Some(PendingReport::default());
@@ -89,7 +92,10 @@ mod tests {
         state_manager
             .commit_single_dirty_cache(&pending_reports_state_key)
             .unwrap();
-        println!("--- DB Commit Done.");
+        println!(
+            "--- DB Commit Done. Merkle Root: {}",
+            state_manager.merkle_root()
+        );
 
         // Retrieve the entry from the DB (not gating the state cache)
         let auth_pool_state_data = state_manager
@@ -108,5 +114,47 @@ mod tests {
 
         println!("\nState Retrieved: {}", &auth_pool);
         println!("\nState Retrieved: {}", &pending_reports);
+
+        // --- 3. Update state entry
+        println!("\n\n\n3. Update state entry.");
+        state_manager
+            .with_mut_auth_pool(StateMut::Update, |pool| {
+                pool.0[1].push(simple_hash("02"));
+            })
+            .unwrap();
+        state_manager
+            .commit_single_dirty_cache(&auth_pool_state_key)
+            .unwrap();
+        println!(
+            "--- DB Commit Done. Merkle Root: {}",
+            state_manager.merkle_root()
+        );
+
+        let auth_pool_state_data = state_manager
+            .retrieve_state_encoded(&auth_pool_state_key)
+            .unwrap()
+            .unwrap();
+        let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
+        println!("\nState Retrieved: {}", &auth_pool);
+
+        // --- 4. Remove state entry
+        println!("\n\n\n4. Remove state entry.");
+        state_manager
+            .with_mut_auth_pool(StateMut::Remove, |_| {})
+            .unwrap();
+        state_manager
+            .commit_single_dirty_cache(&auth_pool_state_key)
+            .unwrap();
+        // FIXME: When there is the only state entry in the merkle trie, the leaf must be promoted to the root.
+        println!(
+            "--- DB Commit Done. Merkle Root: {}",
+            state_manager.merkle_root()
+        );
+        let auth_pool_state_data = state_manager
+            .retrieve_state_encoded(&auth_pool_state_key)
+            .unwrap()
+            .unwrap();
+        let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
+        println!("\nState Retrieved: {}", &auth_pool);
     }
 }

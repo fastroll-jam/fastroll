@@ -57,14 +57,14 @@ pub enum StateManagerError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum StateMut {
     Add,
     Update,
     Remove,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum CacheEntryStatus {
     Clean,
     Dirty(StateMut),
@@ -208,6 +208,10 @@ impl StateManager {
         let state_key = get_account_metadata_state_key(address);
         self.cache
             .insert(state_key, CacheEntry::new(state_entry_type));
+    }
+
+    pub fn merkle_root(&self) -> Hash32 {
+        self.merkle_db_read().root()
     }
 
     pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {

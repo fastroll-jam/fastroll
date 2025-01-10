@@ -373,7 +373,6 @@ impl AffectedNodesByDepth {
                         let merkle_write = MerkleNodeWrite::new(hash, node_data);
 
                         merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
-
                         if is_root_node {
                             Some(hash)
                         } else {
@@ -461,15 +460,36 @@ impl AffectedNodesByDepth {
                         }
                     }
                     LeafWriteOpContext::Remove(ctx) => {
-                        // TODO: Compressing path bits to the leaf node.
+                        // This case compresses path bits to the leaf node.
+                        let mut left = ctx.prior_left;
+                        let mut right = ctx.prior_right;
+                        if ctx.has_sibling_leaf() {
+                            // Sibling of the leaf being removed is leaf node
+                            match ctx.removal_side {
+                                ChildType::Left => {
+                                    left = ctx.sibling_leaf_hash.expect("Cannot be `None` here");
+                                }
+                                ChildType::Right => {
+                                    right = ctx.sibling_leaf_hash.expect("Cannot be `None` here");
+                                }
+                            };
+                        } else {
+                            // Sibling of the leaf being removed is branch node
+                            match ctx.removal_side {
+                                ChildType::Left => left = HASH32_EMPTY,
+                                ChildType::Right => right = HASH32_EMPTY,
+                            }
+                        }
 
-                        // By removing a state entry, only the new branch node will be added to the `MerkleDB`.
-                        let sibling_merkle_write = MerkleNodeWrite::new(ctx.sibling_hash, vec![]);
-
-                        merkle_db_write_set.insert(ctx.parent_hash, sibling_merkle_write);
+                        let post_parent_data = NodeCodec::encode_branch(&left, &right)?;
+                        let post_parent_data_new_hash = hash::<Blake2b256>(&post_parent_data)?;
+                        merkle_db_write_set.insert(
+                            ctx.post_parent_hash,
+                            MerkleNodeWrite::new(post_parent_data_new_hash, post_parent_data),
+                        );
 
                         if is_root_node {
-                            Some(ctx.parent_hash) // Note: This implies removing the root node, which were the only node in the Merkle trie.
+                            Some(post_parent_data_new_hash)
                         } else {
                             None
                         }
@@ -608,11 +628,7 @@ pub(crate) fn added_leaf_child_side(
     {
         // The first bit that the new leaf and the sibling leaf diverges
         if new_leaf_bit != sibling_leaf_bit {
-            return if new_leaf_bit {
-                Ok(ChildType::Right)
-            } else {
-                Ok(ChildType::Left)
-            };
+            return Ok(ChildType::from_bit(new_leaf_bit));
         }
     }
 
