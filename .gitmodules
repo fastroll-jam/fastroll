@@ -1,7 +1,7 @@
-[submodule "tests/jamtestvectors"]
-	path = tests/jamtestvectors
+[submodule "conformance-tests/jamtestvectors"]
+	path = conformance-tests/jamtestvectors
 	url = https://github.com/w3f/jamtestvectors.git
-[submodule "tests/jamtestvectors-polkajam"]
-	path = tests/jamtestvectors-polkajam
+[submodule "conformance-tests/jamtestvectors-polkajam"]
+	path = conformance-tests/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
 	branch = polkajam-vectors

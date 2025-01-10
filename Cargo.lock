@@ -1079,6 +1079,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "rjam-conformance-tests"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "hex",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-db",
+ "rjam-extrinsics",
+ "rjam-merkle",
+ "rjam-state",
+ "rjam-state-merkle",
+ "rjam-transition",
+ "rjam-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "rjam-crypto"
 version = "0.1.0"
 dependencies = [
@@ -1230,28 +1252,6 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "rocksdb",
- "thiserror",
-]
-
-[[package]]
-name = "rjam-tests"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "hex",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-db",
- "rjam-extrinsics",
- "rjam-merkle",
- "rjam-state",
- "rjam-state-merkle",
- "rjam-transition",
- "rjam-types",
- "serde",
- "serde_json",
- "tempfile",
  "thiserror",
 ]
 

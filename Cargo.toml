@@ -5,6 +5,7 @@ members = [
     "codec/rjam-codec",
     "codec/rjam-codec-derive",
     "common",
+    "conformance-tests",
     "crypto",
     "db",
     "extrinsics",
@@ -16,7 +17,6 @@ members = [
     "pvm-invocation",
     "state",
     "state-merkle",
-    "tests",
     "transition",
     "types",
 ]
