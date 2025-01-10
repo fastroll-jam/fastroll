@@ -5,8 +5,13 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, HASH32_EMPTY, MAX_AUTH_QUEUE_SIZE};
-use std::fmt::{Display, Formatter};
+use rjam_common::{
+    CoreIndex, Hash32, CORE_COUNT, HASH32_EMPTY, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE,
+};
+use std::{
+    array::from_fn,
+    fmt::{Display, Formatter},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -15,10 +20,18 @@ pub enum AuthPoolError {
     InvalidCoreIndex(CoreIndex),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
 impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
 impl_simple_state_component!(AuthPool, AuthPool);
+
+impl Default for AuthPool {
+    fn default() -> Self {
+        let arr = from_fn(|_| Vec::with_capacity(MAX_AUTH_POOL_SIZE));
+
+        Self(Box::new(arr))
+    }
+}
 
 impl Display for AuthPool {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

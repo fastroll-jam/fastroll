@@ -8,4 +8,5 @@ rjam-codec = { workspace = true }
 hex = { workspace = true }
 
 [features]
-testing = []
+default = ["tiny"]
+tiny = []

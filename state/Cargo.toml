@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
+rjam-common = { workspace = true, features = ["default"] }
 rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-state-merkle = { workspace = true }

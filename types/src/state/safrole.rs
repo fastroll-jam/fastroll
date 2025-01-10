@@ -11,6 +11,7 @@ use rjam_common::{
 };
 use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
 use std::{
+    array::from_fn,
     collections::BinaryHeap,
     fmt::{Display, Formatter},
 };
@@ -26,7 +27,7 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
-#[derive(Debug, Clone, Default, JamEncode)]
+#[derive(Debug, Clone, JamEncode)]
 pub struct SafroleState {
     pub pending_set: ValidatorKeySet,          // gamma_k
     pub ring_root: BandersnatchRingRoot,       // gamma_z
@@ -34,6 +35,17 @@ pub struct SafroleState {
     pub ticket_accumulator: TicketAccumulator, // gamma_a
 }
 impl_simple_state_component!(SafroleState, SafroleState);
+
+impl Default for SafroleState {
+    fn default() -> Self {
+        Self {
+            pending_set: Box::new(from_fn(|_| ValidatorKey::default())),
+            ring_root: BandersnatchRingRoot::default(),
+            slot_sealers: SlotSealerType::default(),
+            ticket_accumulator: TicketAccumulator::default(),
+        }
+    }
+}
 
 impl Display for SafroleState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

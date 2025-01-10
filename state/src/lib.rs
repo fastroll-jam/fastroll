@@ -29,8 +29,6 @@ use std::{
 };
 use thiserror::Error;
 
-mod tests;
-
 #[derive(Debug, Error)]
 pub enum StateManagerError {
     #[error("State key not initialized")]

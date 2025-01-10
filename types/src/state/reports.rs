@@ -8,7 +8,10 @@ use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
-use std::fmt::{Display, Formatter};
+use std::{
+    array::from_fn,
+    fmt::{Display, Formatter},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -19,10 +22,17 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_simple_state_component!(PendingReports, PendingReports);
+
+impl Default for PendingReports {
+    fn default() -> Self {
+        let arr = from_fn(|_| None);
+        Self(Box::new(arr))
+    }
+}
 
 impl Display for PendingReports {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
