@@ -52,8 +52,10 @@ mod tests {
                 .iter()
                 .map(|k| ByteArray::new(k.0))
                 .collect();
-            let mut prior_disputes = DisputesState::default();
-            prior_disputes.punish_set = offenders;
+            let prior_disputes = DisputesState {
+                punish_set: offenders,
+                ..Default::default()
+            };
             let prior_blocks_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
             let prior_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
             let prior_account_metadata_vec: Vec<AccountMetadata> = test_pre_state

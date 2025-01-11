@@ -88,8 +88,8 @@ mod tests {
             let offenders_marker = disputes.collect_offender_keys();
 
             // Run state transitions.
-            transition_reports_eliminate_invalid(&state_manager, disputes, &prior_timeslot)?;
-            transition_disputes(&state_manager, disputes, &prior_timeslot)?;
+            transition_reports_eliminate_invalid(state_manager, disputes, &prior_timeslot)?;
+            transition_disputes(state_manager, disputes, &prior_timeslot)?;
             set_header_offenders_marker(header_db, &offenders_marker.items)?;
 
             Ok(())

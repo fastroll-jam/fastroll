@@ -125,24 +125,20 @@ mod tests {
 
             // Run the chain extension procedure.
             let prior_timeslot = state_manager.get_timeslot()?;
-            transition_timeslot(&state_manager, &jam_input.slot)?;
+            transition_timeslot(state_manager, &jam_input.slot)?;
             let current_timeslot = state_manager.get_timeslot()?;
             let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
-            transition_entropy_accumulator(
-                &state_manager,
-                epoch_progressed,
-                jam_input.entropy.clone(),
-            )?;
-            transition_past_set(&state_manager, epoch_progressed)?;
-            transition_active_set(&state_manager, epoch_progressed)?;
+            transition_entropy_accumulator(state_manager, epoch_progressed, jam_input.entropy)?;
+            transition_past_set(state_manager, epoch_progressed)?;
+            transition_active_set(state_manager, epoch_progressed)?;
             transition_safrole(
-                &state_manager,
+                state_manager,
                 &prior_timeslot,
                 epoch_progressed,
                 &jam_input.extrinsic,
             )?;
 
-            let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
+            let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;
             if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
                 set_header_epoch_marker(header_db, epoch_marker)?;
             }

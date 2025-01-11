@@ -75,11 +75,11 @@ mod tests {
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
-            transition_block_history_parent_root(&state_manager, jam_input.parent_state_root)?;
+            transition_block_history_parent_root(state_manager, jam_input.parent_state_root)?;
 
             // Second transition: Append new history entry.
             transition_block_history_append(
-                &state_manager,
+                state_manager,
                 jam_input.header_hash,
                 jam_input.accumulate_root,
                 &jam_input.reported_packages,
