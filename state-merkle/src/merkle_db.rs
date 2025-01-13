@@ -1,5 +1,6 @@
+#[allow(unused_imports)]
 use crate::{
-    codec::NodeCodec,
+    codec::{test_utils::print_node, NodeCodec},
     error::StateMerkleError,
     types::*,
     utils::{bits_encode_msb, bitvec_to_hash32},
@@ -147,13 +148,13 @@ impl MerkleDB {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<(LeafType, Vec<u8>)>, StateMerkleError> {
+        // println!("\n----- Retrieval");
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
         let mut current_node = match self.get_node(&self.root)? {
             Some(node) => node,
             None => return Ok(None),
         }; // initialize with the root node
-           // print_node(&Some(current_node.clone()), self); // print the root node
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for b in &state_key_bv {
@@ -426,7 +427,6 @@ impl MerkleDB {
                             depth,
                             left,
                             right,
-                            leaf_write_op_context: None,
                         }));
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
@@ -528,15 +528,17 @@ impl MerkleDB {
         state_key_bv: &BitVec,
     ) -> Result<LeafRemoveContext, StateMerkleError> {
         let mut current_node = self.get_node(&self.root)?.expect("root node must exist");
-        let mut partial_merkle_path = BitVec::new();
+        let (root_left, root_right) = NodeCodec::decode_branch(&current_node, self)?;
 
         // Keeping this history is needed because we shouldn't count the parent of the leaf node to be removed.
-        let mut branch_history = FullBranchHistory::new(self.root);
+        let mut branch_history = FullBranchHistory::new(
+            self.root,
+            state_key_bv.get(0).expect("should not be None"),
+            root_left,
+            root_right,
+        );
 
         for b in state_key_bv.iter() {
-            // Accumulate merkle path
-            partial_merkle_path.push(b);
-
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
@@ -572,8 +574,8 @@ impl MerkleDB {
                         }),
                         NodeType::Leaf(_) => Ok(LeafRemoveContext {
                             post_parent_hash: branch_history.prev.hash,
-                            prior_left: branch_history.prev.hash,
-                            prior_right: branch_history.prev.left_child,
+                            prior_left: branch_history.prev.left_child,
+                            prior_right: branch_history.prev.right_child,
                             sibling_leaf_hash: Some(*sibling_hash),
                             removal_side: branch_history.prev.navigate_to,
                         }),

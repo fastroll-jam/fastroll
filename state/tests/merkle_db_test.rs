@@ -1,8 +1,10 @@
 //! MerkleDB Integration Tests
 use rjam_codec::JamDecode;
 use rjam_db::RocksDBConfig;
-use rjam_state::{StateManager, StateMut};
-use rjam_state_merkle::{codec::test_utils::simple_hash, merkle_db::MerkleDB, state_db::StateDB};
+use rjam_state::{StateManager, StateManagerError, StateMut};
+use rjam_state_merkle::{
+    codec::test_utils::simple_hash, error::StateMerkleError, merkle_db::MerkleDB, state_db::StateDB,
+};
 use rjam_types::{
     state::{AuthPool, PendingReport, PendingReports},
     state_utils::{get_simple_state_key, StateEntryType, StateKeyConstant},
@@ -146,10 +148,12 @@ fn merkle_db_test() {
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()
     );
-    let auth_pool_state_data = state_manager
-        .retrieve_state_encoded(&auth_pool_state_key)
-        .unwrap()
-        .unwrap();
-    let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice()).unwrap();
-    println!("\nState Retrieved: {}", &auth_pool);
+    // Retrieval of a removed entry must fail
+    let auth_pool_state_data_result = state_manager.retrieve_state_encoded(&auth_pool_state_key);
+    assert!(matches!(
+        auth_pool_state_data_result,
+        Err(StateManagerError::StateMerkleError(
+            StateMerkleError::NodeNotFound
+        ))
+    ));
 }

@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
 use bit_vec::BitVec;
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
@@ -292,8 +292,8 @@ pub enum AffectedNode {
 impl Display for AffectedNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::Branch({})", branch),
-            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Leaf({})", leaf),
+            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::PathNode({})", branch),
+            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Endpoint({})", leaf),
         }
     }
 }
@@ -308,30 +308,20 @@ pub struct AffectedPathNode {
     pub left: Hash32,
     /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
     pub right: Hash32,
-    /// Context of the write operation. Useful when a new leaf is being `Add`ed as a child of
-    /// a single-child branch node, filling up the previously `EMPTY_HASH` side,
-    /// or an existing leaf is being `Remove`d.
-    pub leaf_write_op_context: Option<LeafWriteOpContext>, // FIXME: delete?
 }
 
 impl Display for AffectedPathNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let ctx = match &self.leaf_write_op_context {
-            Some(ctx) => format!("{}", ctx),
-            None => String::new(),
-        };
-
         write!(
             f,
-            "AffectedBranch {{ \
+            "AffectedPathNode {{ \
             \thash: {},\n\
             \tdepth: {},\n\
             \tleft: {},\n\
             \tright: {},\n\
-            \tleaf_write_op_context: {},\n\
             }}
             ",
-            self.hash, self.depth, self.left, self.right, ctx
+            self.hash, self.depth, self.left, self.right,
         )
     }
 }
@@ -350,7 +340,7 @@ impl Display for AffectedEndpoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AffectedLeaf {{ \n\
+            "AffectedEndpoint {{ \n\
             \tdepth: {},\n\
             \tleaf_write_op_context: {}\n\
             }}",
@@ -469,19 +459,23 @@ pub struct LeafRemoveContext {
 
 impl Display for LeafRemoveContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let sibling_leaf_hash = match self.sibling_leaf_hash {
+            Some(hash) => format!("{}", hash),
+            None => String::from("None"),
+        };
         write!(
             f,
             "LeafRemoveContext {{ \n\
             \tpost_parent_hash: {},\n\
             \tprior_left: {},\n\
-            \tprior_left: {},\n\
-            \tsibling_leaf_hash: {:?},\n\
+            \tprior_right: {},\n\
+            \tsibling_leaf_hash: {},\n\
             \tremoval_side: {:?},\n\
             }}",
             self.post_parent_hash,
             self.prior_left,
             self.prior_right,
-            self.sibling_leaf_hash,
+            sibling_leaf_hash,
             self.removal_side
         )
     }
@@ -506,19 +500,24 @@ pub(crate) struct FullBranchHistory {
 }
 
 impl FullBranchHistory {
-    pub(crate) fn new(root: Hash32) -> Self {
+    pub(crate) fn new(
+        root: Hash32,
+        first_bit: bool,
+        left_child: Hash32,
+        right_child: Hash32,
+    ) -> Self {
         Self {
             curr: FullBranchSnapshot {
                 hash: root,
-                navigate_to: ChildType::Right, // init
-                left_child: HASH32_EMPTY,
-                right_child: HASH32_EMPTY,
+                navigate_to: ChildType::from_bit(first_bit),
+                left_child,
+                right_child,
             },
             prev: FullBranchSnapshot {
                 hash: root,
-                navigate_to: ChildType::Right, // init
-                left_child: HASH32_EMPTY,
-                right_child: HASH32_EMPTY,
+                navigate_to: ChildType::from_bit(first_bit),
+                left_child,
+                right_child,
             },
         }
     }

@@ -87,7 +87,7 @@ impl Display for MerkleDBWriteSet {
         }
 
         for (key, node_write) in &self.map {
-            writeln!(f, "Lookup Key: {}", key)?;
+            writeln!(f, "lookup_key: {}", key)?;
             writeln!(f, "node_write: {}", node_write)?;
         }
         Ok(())
