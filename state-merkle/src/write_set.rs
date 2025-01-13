@@ -287,60 +287,21 @@ impl AffectedNodesByDepth {
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
         let maybe_root = match affected_node {
-            AffectedNode::Branch(branch) => {
-                // Handle the `Add` operation for the single-child branch
-                if let Some(LeafWriteOpContext::Add(ctx)) = &branch.leaf_write_op_context {
-                    // TODO: DRY - same logic with the leaf node `Add` case
-                    // Create a new leaf node as a merkle write.
-                    let state_value_slice = ctx.leaf_state_value.as_slice();
-                    let added_leaf_node_data =
-                        NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
-
-                    Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
-
-                    let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
-                    let added_leaf_write =
-                        MerkleNodeWrite::new(added_leaf_node_hash, added_leaf_node_data);
-
-                    // Create a new branch node as a merkle write. This branch has the
-                    // new leaf and its sibling candidate node as child nodes.
-
-                    let (new_branch_left_hash, new_branch_right_hash) =
-                        match ctx.added_leaf_child_side {
-                            ChildType::Left => (added_leaf_node_hash, ctx.sibling_candidate_hash),
-                            ChildType::Right => (ctx.sibling_candidate_hash, added_leaf_node_hash),
-                        };
-
-                    let new_branch_node_data =
-                        NodeCodec::encode_branch(&new_branch_left_hash, &new_branch_right_hash)?;
-                    let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
-                    let new_branch_merkle_write =
-                        MerkleNodeWrite::new(new_branch_node_hash, new_branch_node_data);
-
-                    merkle_db_write_set.insert(added_leaf_node_hash, added_leaf_write); // note: `new_leaf_node_hash`, key of this entry will not be used as a lookup key.
-                    merkle_db_write_set.insert(branch.hash, new_branch_merkle_write);
-
-                    return if is_root_node {
-                        Ok(Some(new_branch_node_hash))
-                    } else {
-                        Ok(None)
-                    };
-                }
-
-                let prior_hash = branch.hash;
+            AffectedNode::PathNode(path_node) => {
+                let prior_hash = path_node.hash;
 
                 // Lookup `merkle_db_write_set` to check which side of its child hash
                 // was affected in the 1-level deeper depth.
                 // If the child hash was not affected, use its original hash.
                 // For some branch nodes, both the left and right child might be affected.
                 let left_hash = merkle_db_write_set
-                    .get(&branch.left)
-                    .map_or(branch.left, |write_set_left_child| {
+                    .get(&path_node.left)
+                    .map_or(path_node.left, |write_set_left_child| {
                         write_set_left_child.hash
                     });
                 let right_hash = merkle_db_write_set
-                    .get(&branch.right)
-                    .map_or(branch.right, |write_set_right_child| {
+                    .get(&path_node.right)
+                    .map_or(path_node.right, |write_set_right_child| {
                         write_set_right_child.hash
                     });
 
@@ -358,27 +319,8 @@ impl AffectedNodesByDepth {
                     None
                 }
             }
-            AffectedNode::Leaf(leaf) => {
-                match &leaf.leaf_write_op_context {
-                    LeafWriteOpContext::Update(ctx) => {
-                        // the leaf node data after the state transition
-                        let state_value_slice = ctx.leaf_state_value.as_slice();
-                        let node_data =
-                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
-
-                        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
-                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
-
-                        let hash = hash::<Blake2b256>(&node_data)?;
-                        let merkle_write = MerkleNodeWrite::new(hash, node_data);
-
-                        merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
-                        if is_root_node {
-                            Some(hash)
-                        } else {
-                            None
-                        }
-                    }
+            AffectedNode::Endpoint(endpoint) => {
+                match &endpoint.leaf_write_op_context {
                     LeafWriteOpContext::Add(ctx) => {
                         // `AffectedNode` is the future sibling leaf of the added leaf.
 
@@ -417,44 +359,71 @@ impl AffectedNodesByDepth {
                         let new_branch_merkle_write =
                             MerkleNodeWrite::new(new_branch_node_hash, new_branch_node_data);
 
-                        // Path decompression handling
-                        let partial_merkle_path = ctx
-                            .partial_merkle_path
-                            .clone()
-                            .expect("partial merkle path must be provided for this case");
-                        let new_leaf_state_key = ctx.leaf_state_key;
-                        let partial_sibling_state_key = ctx
-                            .sibling_partial_state_key
-                            .clone()
-                            .expect("partial sibling state key must be provided for this case");
+                        if ctx.is_splitting_leaf() {
+                            // Case 1: affected node endpoint is leaf
+                            // Path decompression handling
+                            let leaf_split_ctx = ctx
+                                .leaf_split_context
+                                .clone()
+                                .expect("leaf split context should be provided here");
+                            let new_leaf_state_key = ctx.leaf_state_key;
+                            let common_path = Self::get_common_path(
+                                &leaf_split_ctx.partial_merkle_path,
+                                &new_leaf_state_key,
+                                &leaf_split_ctx.sibling_partial_state_key,
+                            )?;
+                            let decompression_write_set = Self::generate_decompression_set(
+                                common_path,
+                                &ctx.sibling_candidate_hash,
+                                added_leaf_write,
+                                new_branch_merkle_write,
+                            )?;
+                            let (_, top_level_merkle_write) = decompression_write_set
+                                .last()
+                                .cloned()
+                                .expect("decompression set cannot be empty");
 
-                        let common_path = Self::get_common_path(
-                            &partial_merkle_path,
-                            &new_leaf_state_key,
-                            &partial_sibling_state_key,
-                        )?;
-                        let decompression_write_set = Self::generate_decompression_set(
-                            common_path,
-                            &ctx.sibling_candidate_hash,
-                            added_leaf_write,
-                            new_branch_merkle_write,
-                        )?;
-                        let (_, top_level_merkle_write) = decompression_write_set
-                            .last()
-                            .cloned()
-                            .expect("decompression set cannot be empty");
+                            // Insert merkle db write set entries
+                            for (merkle_write_lookup_key, write) in decompression_write_set {
+                                merkle_db_write_set.insert(merkle_write_lookup_key, write);
+                            }
+                            // Calculate the new root hash.
+                            // Note: This case is relevant only for the case when the affected leaf node
+                            // "was" the only node in the trie, therefore being a merkle root, and then
+                            // a new leaf is added. This is the only case when the merkle root node is
+                            // changed from a leaf node into a branch node.
+                            if is_root_node {
+                                Some(top_level_merkle_write.hash)
+                            } else {
+                                None
+                            }
+                        } else {
+                            // Case 2: affected node endpoint is single-child branch
+                            merkle_db_write_set.insert(added_leaf_node_hash, added_leaf_write); // note: `new_leaf_node_hash`, key of this entry will not be used as a lookup key.
+                            merkle_db_write_set.insert(endpoint.hash, new_branch_merkle_write);
 
-                        // Insert merkle db write set entries
-                        for (merkle_write_lookup_key, write) in decompression_write_set {
-                            merkle_db_write_set.insert(merkle_write_lookup_key, write);
+                            return if is_root_node {
+                                Ok(Some(new_branch_node_hash))
+                            } else {
+                                Ok(None)
+                            };
                         }
-                        // Calculate the new root hash.
-                        // Note: This case is relevant only for the case when the affected leaf node
-                        // "was" the only node in the trie, therefore being a merkle root, and then
-                        // a new leaf is added. This is the only case when the merkle root node is
-                        // changed from a leaf node into a branch node.
+                    }
+                    LeafWriteOpContext::Update(ctx) => {
+                        // the leaf node data after the state transition
+                        let state_value_slice = ctx.leaf_state_value.as_slice();
+                        let node_data =
+                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+
+                        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
+                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
+
+                        let hash = hash::<Blake2b256>(&node_data)?;
+                        let merkle_write = MerkleNodeWrite::new(hash, node_data);
+
+                        merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
                         if is_root_node {
-                            Some(top_level_merkle_write.hash)
+                            Some(hash)
                         } else {
                             None
                         }

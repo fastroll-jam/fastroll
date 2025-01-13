@@ -381,7 +381,7 @@ impl StateManager {
         };
 
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-        self.merkle_db_read().extract_path_nodes_to_leaf(
+        self.merkle_db_read().collect_leaf_path(
             state_key,
             write_op.clone(),
             &mut affected_nodes_by_depth,
@@ -433,7 +433,7 @@ impl StateManager {
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
 
         for (state_key, entry) in &dirty_entries {
-            self.merkle_db_read().extract_path_nodes_to_leaf(
+            self.merkle_db_read().collect_leaf_path(
                 state_key,
                 entry.as_merkle_state_mut(state_key)?,
                 &mut affected_nodes_by_depth,

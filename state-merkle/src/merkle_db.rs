@@ -324,11 +324,11 @@ impl MerkleDB {
     /// # Note
     /// This function should be called iteratively for all leaf nodes affected by a state transition,
     /// typically corresponding to all state cache entries marked as `Dirty`.
-    pub fn extract_path_nodes_to_leaf(
+    pub fn collect_leaf_path(
         &self,
         state_key: &Hash32,
         write_op: MerkleWriteOp,
-        affected_nodes_by_depth: &mut AffectedNodesByDepth,
+        affected_nodes: &mut AffectedNodesByDepth,
     ) -> Result<(), StateMerkleError> {
         // Initialize local state variables
         let state_key_bv = bits_encode_msb(state_key.as_slice());
@@ -347,7 +347,7 @@ impl MerkleDB {
             MerkleWriteOp::Remove(state_key) => {
                 // Remove operation inserts one `AffectedBranch`.
                 let state_key_bv = bits_encode_msb(state_key.as_slice());
-                let ctx = self.traverse_and_collect_removal_context(&state_key_bv)?;
+                let ctx = self.collect_removal_context(&state_key_bv)?;
                 Some(ctx)
             }
             _ => None,
@@ -364,51 +364,50 @@ impl MerkleDB {
                     let (child_hash, sibling_child_hash) =
                         if b { (&right, &left) } else { (&left, &right) };
                     let added_leaf_child_side = ChildType::from_bit(b);
+
+                    // Reached endpoint of the traversal.
+                    //
+                    // If the current branch is of single-child type and if we're trying to
+                    // add a new leaf node diverging from that branch, we should insert the
+                    // current node as an affected node with relevant context data for the
+                    // `Add` write operation.
                     if child_hash == &HASH32_EMPTY && branch_type.has_single_child() {
                         if let MerkleWriteOp::Add(state_key, state_value) = &write_op {
-                            // If the current branch is of single-child type and if we're trying to
-                            // add a new leaf node diverging from that branch, we should insert the
-                            // current node as an affected node with relevant context data for the
-                            // `Add` write operation.
-                            affected_nodes_by_depth.entry(depth).or_default().insert(
-                                AffectedNode::Branch(AffectedBranch {
+                            affected_nodes.entry(depth).or_default().insert(
+                                AffectedNode::Endpoint(AffectedEndpoint {
                                     hash: current_node.hash,
                                     depth,
-                                    left,
-                                    right,
-                                    leaf_write_op_context: Some(LeafWriteOpContext::Add(
+                                    leaf_write_op_context: LeafWriteOpContext::Add(
                                         LeafAddContext {
                                             leaf_state_key: *state_key,
                                             leaf_state_value: state_value.clone(),
                                             sibling_candidate_hash: *sibling_child_hash,
                                             added_leaf_child_side,
-                                            partial_merkle_path: None, // No need to handle path decompression in this case.
-                                            sibling_partial_state_key: None, // No need to handle path decompression in this case.
+                                            leaf_split_context: None, // No need to handle path decompression in this case.
                                         },
-                                    )),
+                                    ),
                                 }),
                             );
                             return Ok(());
                         }
 
                         // If child_hash of chosen on the merkle path (following the bit `b`) is
-                        // `HASH32_EMPTY` but the branch is not single-child type or the `write_op` is not `Add`,
-                        // that case implies a wrong `state_key`.
+                        // `HASH32_EMPTY` but the `write_op` is not `Add`, that implies a wrong `state_key`.
                         return Err(StateMerkleError::NodeNotFound);
                     }
 
+                    // Reached endpoint of the traversal.
+                    //
                     // If the write_op is `Remove` and we've reached the deepest full-branch node
-                    // to be modified, which were detected by `traverse_and_collect_removal_context`,
+                    // to be modified, which were detected by `collect_removal_context`,
                     // insert that node as affected node and finish the iteration.
                     // `LeafRemoveContext.post_parent_hash` works as a stopper.
                     if let MerkleWriteOp::Remove(_state_key) = &write_op {
-                        let remove_ctx = remove_ctx.clone().expect("exists for removal case");
+                        let remove_ctx = remove_ctx.clone().expect("should exist for removal case");
                         if current_node.hash == remove_ctx.post_parent_hash {
-                            // TODO: Rename `AffectedLeaf` type. We're using `AffectedLeaf` to process "branch" node.
-                            // TODO: For `Remove`, manual handling happens at the branch node, unlike `Add` or `Update`.
-                            // TODO: This is also handled by `AffectedNode::Leaf` arm at `AffectedNodesByDepth::process_affected_node`.
-                            affected_nodes_by_depth.entry(depth).or_default().insert(
-                                AffectedNode::Leaf(AffectedLeaf {
+                            affected_nodes.entry(depth).or_default().insert(
+                                AffectedNode::Endpoint(AffectedEndpoint {
+                                    hash: current_node.hash,
                                     depth,
                                     leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
                                 }),
@@ -419,10 +418,10 @@ impl MerkleDB {
 
                     // Simply collect the branch node as affected node.
                     // Here, affected node stored at `depth = 0` is the root node.
-                    affected_nodes_by_depth
+                    affected_nodes
                         .entry(depth)
                         .or_default()
-                        .insert(AffectedNode::Branch(AffectedBranch {
+                        .insert(AffectedNode::PathNode(AffectedPathNode {
                             hash: current_node.hash,
                             depth,
                             left,
@@ -451,21 +450,6 @@ impl MerkleDB {
                     // Collect the leaf node with relevant context of adjacent nodes
                     // depending on the operation type.
                     return match &write_op {
-                        MerkleWriteOp::Update(state_key, state_value) => {
-                            affected_nodes_by_depth.entry(depth).or_default().insert(
-                                AffectedNode::Leaf(AffectedLeaf {
-                                    depth,
-                                    leaf_write_op_context: LeafWriteOpContext::Update(
-                                        LeafUpdateContext {
-                                            leaf_state_key: *state_key,
-                                            leaf_state_value: state_value.clone(),
-                                            leaf_prior_hash: current_node.hash, // node hash before the `Update`
-                                        },
-                                    ),
-                                }),
-                            );
-                            Ok(())
-                        }
                         MerkleWriteOp::Add(state_key, state_value) => {
                             // Note: at this point, `current_node` isn't the leaf node to be added.
                             // It is the leaf node that shares the longest merkle path with the
@@ -475,8 +459,9 @@ impl MerkleDB {
                             let partial_leaf_state_key =
                                 current_node.extract_partial_leaf_state_key()?;
 
-                            affected_nodes_by_depth.entry(depth).or_default().insert(
-                                AffectedNode::Leaf(AffectedLeaf {
+                            affected_nodes.entry(depth).or_default().insert(
+                                AffectedNode::Endpoint(AffectedEndpoint {
+                                    hash: current_node.hash,
                                     depth,
                                     leaf_write_op_context: LeafWriteOpContext::Add(
                                         LeafAddContext {
@@ -487,8 +472,26 @@ impl MerkleDB {
                                                 state_key,
                                                 &partial_leaf_state_key,
                                             )?,
-                                            partial_merkle_path: Some(partial_merkle_path),
-                                            sibling_partial_state_key: Some(partial_leaf_state_key),
+                                            leaf_split_context: Some(LeafSplitContext {
+                                                partial_merkle_path,
+                                                sibling_partial_state_key: partial_leaf_state_key,
+                                            }),
+                                        },
+                                    ),
+                                }),
+                            );
+                            Ok(())
+                        }
+                        MerkleWriteOp::Update(state_key, state_value) => {
+                            affected_nodes.entry(depth).or_default().insert(
+                                AffectedNode::Endpoint(AffectedEndpoint {
+                                    hash: current_node.hash,
+                                    depth,
+                                    leaf_write_op_context: LeafWriteOpContext::Update(
+                                        LeafUpdateContext {
+                                            leaf_state_key: *state_key,
+                                            leaf_state_value: state_value.clone(),
+                                            leaf_prior_hash: current_node.hash, // node hash before the `Update`
                                         },
                                     ),
                                 }),
@@ -520,7 +523,7 @@ impl MerkleDB {
     ///
     /// This information is used to correctly update the "posterior parent" once the removal
     /// of the target leaf is finalized.
-    fn traverse_and_collect_removal_context(
+    fn collect_removal_context(
         &self,
         state_key_bv: &BitVec,
     ) -> Result<LeafRemoveContext, StateMerkleError> {

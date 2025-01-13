@@ -78,10 +78,7 @@ mod tests {
     fn test_bits_encode_decode_msb() {
         let input = vec![160, 0];
         let encoded = bits_encode_msb(&input);
-        let mut expected = BitVec::from_elem(16, false); // 0b0000_0000
-        expected.set(0, true);
-        expected.set(2, true);
-        // expected = 0b1010_0000
+        let expected = BitVec::from_bytes(&[0b1010_0000, 0]);
         assert_eq!(encoded, expected);
 
         let decoded = bits_decode_msb(&encoded);

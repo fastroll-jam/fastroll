@@ -285,21 +285,21 @@ pub enum MerkleWriteOp {
 /// Snapshot of the current state of the nodes to be affected by the state transition.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AffectedNode {
-    Branch(AffectedBranch),
-    Leaf(AffectedLeaf),
+    PathNode(AffectedPathNode),
+    Endpoint(AffectedEndpoint),
 }
 
 impl Display for AffectedNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            AffectedNode::Branch(branch) => write!(f, "AffectedNode::Branch({})", branch),
-            AffectedNode::Leaf(leaf) => write!(f, "AffectedNode::Leaf({})", leaf),
+            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::Branch({})", branch),
+            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Leaf({})", leaf),
         }
     }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub struct AffectedBranch {
+pub struct AffectedPathNode {
     /// Hash identifier of the current node.
     pub hash: Hash32,
     /// Depth of the current node in the trie.
@@ -311,10 +311,10 @@ pub struct AffectedBranch {
     /// Context of the write operation. Useful when a new leaf is being `Add`ed as a child of
     /// a single-child branch node, filling up the previously `EMPTY_HASH` side,
     /// or an existing leaf is being `Remove`d.
-    pub leaf_write_op_context: Option<LeafWriteOpContext>,
+    pub leaf_write_op_context: Option<LeafWriteOpContext>, // FIXME: delete?
 }
 
-impl Display for AffectedBranch {
+impl Display for AffectedPathNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let ctx = match &self.leaf_write_op_context {
             Some(ctx) => format!("{}", ctx),
@@ -337,14 +337,16 @@ impl Display for AffectedBranch {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub struct AffectedLeaf {
+pub struct AffectedEndpoint {
+    /// Hash identifier of the current node.
+    pub hash: Hash32,
     /// Depth of the current node in the trie.
     pub depth: usize,
     /// Context of the write operation.
     pub leaf_write_op_context: LeafWriteOpContext,
 }
 
-impl Display for AffectedLeaf {
+impl Display for AffectedEndpoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -400,6 +402,17 @@ impl Display for LeafUpdateContext {
     }
 }
 
+/// Context required for splitting a leaf for the addition and further decompressing the merkle path.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct LeafSplitContext {
+    /// Partial merkle path from the root to the `AffectedNode`.
+    /// Used for handling path compression at leaf node.
+    pub partial_merkle_path: BitVec,
+    /// Partial 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
+    /// Used for handling path compression at leaf node.
+    pub sibling_partial_state_key: BitVec,
+}
+
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafAddContext {
     /// State key of the leaf node to be added.
@@ -410,12 +423,8 @@ pub struct LeafAddContext {
     pub sibling_candidate_hash: Hash32,
     /// Child type (Left/Right) of the new leaf node.
     pub added_leaf_child_side: ChildType,
-    /// Partial merkle path from the root to the `AffectedNode`.
-    /// Used for handling path compression at leaf node.
-    pub partial_merkle_path: Option<BitVec>,
-    /// Partial 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
-    /// Used for handling path compression at leaf node.
-    pub sibling_partial_state_key: Option<BitVec>,
+    /// Context required for the leaf-splitting case.
+    pub leaf_split_context: Option<LeafSplitContext>,
 }
 
 impl Display for LeafAddContext {
@@ -427,12 +436,20 @@ impl Display for LeafAddContext {
             \tleaf_state_value: 0x{},\n\
             \tsibling_candidate_hash: {},\n\
             \tadded_leaf_child_side: {:?}\n\
+            \tleaf_split_context: {:?}\n\
             }}",
             self.leaf_state_key,
             hex::encode(&self.leaf_state_value),
             self.sibling_candidate_hash,
-            self.added_leaf_child_side
+            self.added_leaf_child_side,
+            self.leaf_split_context,
         )
+    }
+}
+
+impl LeafAddContext {
+    pub fn is_splitting_leaf(&self) -> bool {
+        self.leaf_split_context.is_some()
     }
 }
 
