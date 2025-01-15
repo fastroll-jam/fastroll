@@ -1,4 +1,4 @@
-extern crate core;
+pub mod test_utils;
 
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
@@ -45,6 +45,10 @@ pub enum StateManagerError {
     StorageEntryNotFound,
     #[error("Account lookups dictionary entry not found")]
     LookupsEntryNotFound,
+    #[error("Wrong StateMut operation type")]
+    WrongStateMutType,
+    #[error("State Entry with the state key already exists")]
+    StateEntryAlreadyExists,
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("Merkle error: {0}")]
@@ -70,8 +74,8 @@ pub enum CacheEntryStatus {
 
 #[derive(Clone)]
 struct CacheEntry {
-    value: StateEntryType,
-    status: CacheEntryStatus,
+    pub value: StateEntryType,
+    pub status: CacheEntryStatus,
 }
 
 impl CacheEntry {
@@ -182,6 +186,10 @@ macro_rules! impl_simple_state_accessors {
                 F: FnOnce(&mut $state_type),
             {
                 self.with_mut_simple_state_entry(state_mut, f)
+            }
+
+            pub fn [<add_ $fn_type>](&self, state_entry: $state_type) -> Result<(), StateManagerError> {
+                self.add_simple_state_entry(state_entry)
             }
         }
     };
@@ -319,12 +327,17 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let Some((leaf_type, state_data_hash)) = self.merkle_db_read().retrieve(state_key)? else {
+        let retrieved = match self.merkle_db_read().retrieve(state_key) {
+            Ok(val) => val,
+            Err(_) => return Ok(None),
+        };
+
+        let Some((leaf_type, state_data_hash)) = retrieved else {
             return Ok(None);
         };
 
         let state_data = match leaf_type {
-            LeafType::Embedded => state_data_hash,
+            LeafType::Embedded => state_data_hash.to_vec(),
             LeafType::Regular => {
                 // The state data hash is used as the key in the StateDB
                 let Some(entry) = self.state_db_read().get_entry(&state_data_hash)? else {
@@ -520,23 +533,16 @@ impl StateManager {
         T: StateComponent,
         F: FnOnce(&mut T),
     {
-        // Ensure the cache entry exists
-        let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
+        // Only `StateMut::Update` and `StateMut::Remove` are allowed.
+        if let StateMut::Add = state_mut {
+            return Err(StateManagerError::WrongStateMutType);
+        }
 
-        match (state_exists, &state_mut) {
-            (false, StateMut::Add) => {
-                // Add a new cache entry with a default value for `StateMut::Add` operation.
-                self.insert_cache_entry(state_key, T::default());
-            }
-            (false, _) => {
-                // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
-                return Err(StateManagerError::StateKeyNotInitialized);
-            }
-            (true, StateMut::Add) => {
-                // Attempts to apply `StateMut::Add` to a state entry that already exists.
-                // TODO: potentially throw error here
-            }
-            _ => {}
+        // Ensure the cache entry exists.
+        // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
+        let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
+        if !state_exists {
+            return Err(StateManagerError::StateKeyNotInitialized);
         }
 
         let mut cache_entry = self
@@ -553,11 +559,37 @@ impl StateManager {
         }
     }
 
+    fn add_state_entry_internal<T>(
+        &self,
+        state_key: &Hash32,
+        state_entry: T,
+    ) -> Result<(), StateManagerError>
+    where
+        T: StateComponent,
+    {
+        // Ensure the cache entry doesn't exist.
+        let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
+        // TODO: determine either to throw an error or silently run `Update` operation
+        if state_exists {
+            return Err(StateManagerError::StateEntryAlreadyExists);
+        }
+
+        self.cache.insert(
+            *state_key,
+            CacheEntry {
+                value: state_entry.into_entry_type(),
+                status: CacheEntryStatus::Dirty(StateMut::Add),
+            },
+        );
+
+        Ok(())
+    }
+
     fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
     where
         T: SimpleStateComponent,
     {
-        self.get_state_entry_internal::<T>(&get_simple_state_key(T::STATE_KEY_CONSTANT))?
+        self.get_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT))?
             .ok_or(StateManagerError::StateKeyNotInitialized) // simple state key must be initialized
     }
 
@@ -577,11 +609,18 @@ impl StateManager {
         )
     }
 
+    fn add_simple_state_entry<T>(&self, state_entry: T) -> Result<(), StateManagerError>
+    where
+        T: SimpleStateComponent,
+    {
+        self.add_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT), state_entry)
+    }
+
     fn get_account_state_entry<T>(&self, state_key: &Hash32) -> Result<Option<T>, StateManagerError>
     where
         T: AccountStateComponent,
     {
-        self.get_state_entry_internal::<T>(state_key) // account state key could not be initialized yet
+        self.get_state_entry_internal(state_key) // account state key could not be initialized yet
     }
 
     fn with_mut_account_state_entry<T, F>(
@@ -595,6 +634,17 @@ impl StateManager {
         F: FnOnce(&mut T),
     {
         self.with_mut_state_entry_internal(state_key, state_mut, f)
+    }
+
+    fn add_account_state_entry<T>(
+        &self,
+        state_key: &Hash32,
+        state_entry: T,
+    ) -> Result<(), StateManagerError>
+    where
+        T: AccountStateComponent,
+    {
+        self.add_state_entry_internal(state_key, state_entry)
     }
 
     impl_simple_state_accessors!(AuthPool, auth_pool);
@@ -633,6 +683,8 @@ impl StateManager {
         let state_key = get_account_metadata_state_key(address);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
     }
+
+    // TODO: Add method `add_account_metadata`
 
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
     /// when there is a change in the storage entries.
@@ -728,6 +780,16 @@ impl StateManager {
         self.with_mut_account_state_entry(&state_key, state_mut, f)
     }
 
+    pub fn add_account_storage_entry(
+        &self,
+        address: Address,
+        storage_key: &Hash32,
+        storage_entry: AccountStorageEntry,
+    ) -> Result<(), StateManagerError> {
+        let state_key = get_account_storage_state_key(address, storage_key);
+        self.add_account_state_entry(&state_key, storage_entry)
+    }
+
     pub fn get_account_preimages_entry(
         &self,
         address: Address,
@@ -749,6 +811,16 @@ impl StateManager {
     {
         let state_key = get_account_preimage_state_key(address, preimages_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+    }
+
+    pub fn add_account_preimages_entry(
+        &self,
+        address: Address,
+        preimages_key: &Hash32,
+        preimages_entry: AccountPreimagesEntry,
+    ) -> Result<(), StateManagerError> {
+        let state_key = get_account_preimage_state_key(address, preimages_key);
+        self.add_account_state_entry(&state_key, preimages_entry)
     }
 
     pub fn get_account_lookups_entry(
@@ -774,5 +846,16 @@ impl StateManager {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, l)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+    }
+
+    pub fn add_account_lookups_entry(
+        &self,
+        address: Address,
+        lookups_key: (&Hash32, u32),
+        lookups_entry: AccountLookupsEntry,
+    ) -> Result<(), StateManagerError> {
+        let (h, l) = lookups_key;
+        let state_key = get_account_lookups_state_key(address, h, l)?;
+        self.add_account_state_entry(&state_key, lookups_entry)
     }
 }

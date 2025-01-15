@@ -14,7 +14,5 @@ blake2 = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
 paste = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
-tempfile = "3.14.0"
