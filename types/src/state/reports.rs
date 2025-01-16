@@ -5,7 +5,8 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
+    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamDecodeFixed, JamEncode,
+    JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use std::{
@@ -109,7 +110,7 @@ impl PendingReports {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PendingReport {
     pub work_report: WorkReport,
     pub reported_timeslot: Timeslot,
@@ -122,5 +123,26 @@ impl Display for PendingReport {
             "PendingReport: {{ wr: {}, slot: {:?} }}",
             self.work_report, self.reported_timeslot
         )
+    }
+}
+
+impl JamEncode for PendingReport {
+    fn size_hint(&self) -> usize {
+        self.work_report.size_hint() + 4
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.work_report.encode_to(dest)?;
+        self.reported_timeslot.encode_to_fixed(dest, 4)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for PendingReport {
+    fn decode<T: JamInput>(input: &mut T) -> Result<Self, JamCodecError> {
+        Ok(Self {
+            work_report: WorkReport::decode(input)?,
+            reported_timeslot: Timeslot::decode_fixed(input, 4)?,
+        })
     }
 }

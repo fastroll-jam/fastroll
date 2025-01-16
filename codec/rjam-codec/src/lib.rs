@@ -173,9 +173,7 @@ where
     }
 }
 
-fn impl_decode_to_for_integers<I: JamInput, U: TryFrom<u64>>(
-    input: &mut I,
-) -> Result<U, JamCodecError>
+fn impl_decode_for_integers<I: JamInput, U: TryFrom<u64>>(input: &mut I) -> Result<U, JamCodecError>
 where
     <U as TryFrom<u64>>::Error: Debug + Display,
 {
@@ -228,7 +226,7 @@ macro_rules! impl_jam_codec_for_uint {
 
             impl JamDecode for $t {
                 fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-                    impl_decode_to_for_integers(input)
+                    impl_decode_for_integers(input)
                 }
             }
         )*

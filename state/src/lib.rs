@@ -386,17 +386,10 @@ impl StateManager {
         }
 
         // Case 2: Trie is not empty
-
-        let state_key = match &write_op {
-            MerkleWriteOp::Add(k, _) => k,
-            MerkleWriteOp::Update(k, _) => k,
-            MerkleWriteOp::Remove(k) => k,
-        };
-
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
         self.merkle_db_read().collect_leaf_path(
             state_key,
-            write_op.clone(),
+            write_op,
             &mut affected_nodes_by_depth,
         )?;
 

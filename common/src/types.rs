@@ -56,12 +56,12 @@ impl Display for ByteSequence {
 
 impl JamEncode for ByteSequence {
     fn size_hint(&self) -> usize {
-        self.0.len()
+        self.0.len().size_hint() + self.0.len()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         // By default add length discriminator prefix for octets
-        (self.0.len() as u8).encode_to(dest)?;
+        self.0.len().encode_to(dest)?;
         dest.write(self.0.as_slice());
         Ok(())
     }
@@ -72,7 +72,8 @@ impl JamDecode for ByteSequence {
     where
         Self: Sized,
     {
-        let mut vec = vec![];
+        let len = usize::decode(input)?;
+        let mut vec = Vec::with_capacity(len);
         input
             .read(&mut vec)
             .map_err(|_| JamCodecError::InputError("Failed to Decode ByteSequence".into()))?;

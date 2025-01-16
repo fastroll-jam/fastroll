@@ -666,7 +666,7 @@ impl From<AsnWorkItem> for WorkItem {
                 .into_iter()
                 .map(ExtrinsicInfo::from)
                 .collect(),
-            export_segment_count: value.export_count as usize,
+            export_segment_count: value.export_count,
         }
     }
 }
@@ -779,7 +779,7 @@ impl From<AsnWorkPackageSpec> for AvailabilitySpecs {
             work_package_length: value.length,
             erasure_root: ByteArray::new(value.erasure_root.0),
             segment_root: ByteArray::new(value.exports_root.0),
-            segment_count: value.exports_count as usize,
+            segment_count: value.exports_count,
         }
     }
 }
@@ -791,7 +791,7 @@ impl From<AvailabilitySpecs> for AsnWorkPackageSpec {
             length: value.work_package_length,
             erasure_root: AsnByteArray32(value.erasure_root.0),
             exports_root: AsnByteArray32(value.segment_root.0),
-            exports_count: value.segment_count as u16,
+            exports_count: value.segment_count,
         }
     }
 }

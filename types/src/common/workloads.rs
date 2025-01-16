@@ -163,7 +163,7 @@ pub struct WorkItem {
     pub accumulate_gas_limit: UnsignedGas,       // a
     pub import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
     pub extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
-    pub export_segment_count: usize,             // e; max 2^11
+    pub export_segment_count: u16,               // e; max 2^11
 }
 
 impl JamEncode for WorkItem {
@@ -203,7 +203,7 @@ impl JamDecode for WorkItem {
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
             import_segment_ids: Vec::<ImportInfo>::decode(input)?,
             extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
-            export_segment_count: usize::decode_fixed(input, 2)?,
+            export_segment_count: u16::decode_fixed(input, 2)?,
         })
     }
 }
@@ -466,7 +466,7 @@ pub struct AvailabilitySpecs {
     pub work_package_length: u32,  // l
     pub erasure_root: Hash32,      // u
     pub segment_root: Hash32,      // e; exports root
-    pub segment_count: usize,      // n
+    pub segment_count: u16,        // n
 }
 
 impl Display for AvailabilitySpecs {
@@ -507,10 +507,10 @@ impl JamDecode for AvailabilitySpecs {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             work_package_hash: Hash32::decode(input)?,
-            work_package_length: u32::decode(input)?,
+            work_package_length: u32::decode_fixed(input, 4)?,
             erasure_root: Hash32::decode(input)?,
             segment_root: Hash32::decode(input)?,
-            segment_count: usize::decode(input)?,
+            segment_count: u16::decode_fixed(input, 2)?,
         })
     }
 }
@@ -601,40 +601,6 @@ impl Display for WorkExecutionOutput {
     }
 }
 
-impl WorkExecutionOutput {
-    pub fn ok(output: Vec<u8>) -> Self {
-        Self::Output(Octets::from_vec(output))
-    }
-
-    pub fn ok_empty() -> Self {
-        Self::Output(Octets::default())
-    }
-
-    pub fn out_of_gas() -> Self {
-        Self::Error(WorkExecutionError::OutOfGas)
-    }
-
-    pub fn panic() -> Self {
-        Self::Error(WorkExecutionError::Panic)
-    }
-
-    pub fn bad() -> Self {
-        Self::Error(WorkExecutionError::Bad)
-    }
-
-    pub fn big() -> Self {
-        Self::Error(WorkExecutionError::Big)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkExecutionError {
-    OutOfGas,
-    Panic, // Panic
-    Bad,   // BAD; code or account address not found
-    Big,   // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
-}
-
 impl JamEncode for WorkExecutionOutput {
     fn size_hint(&self) -> usize {
         match self {
@@ -678,6 +644,40 @@ impl JamDecode for WorkExecutionOutput {
             )),
         }
     }
+}
+
+impl WorkExecutionOutput {
+    pub fn ok(output: Vec<u8>) -> Self {
+        Self::Output(Octets::from_vec(output))
+    }
+
+    pub fn ok_empty() -> Self {
+        Self::Output(Octets::default())
+    }
+
+    pub fn out_of_gas() -> Self {
+        Self::Error(WorkExecutionError::OutOfGas)
+    }
+
+    pub fn panic() -> Self {
+        Self::Error(WorkExecutionError::Panic)
+    }
+
+    pub fn bad() -> Self {
+        Self::Error(WorkExecutionError::Bad)
+    }
+
+    pub fn big() -> Self {
+        Self::Error(WorkExecutionError::Big)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorkExecutionError {
+    OutOfGas,
+    Panic, // Panic
+    Bad,   // BAD; code or account address not found
+    Big,   // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
 }
 
 impl JamDecode for WorkExecutionError {
