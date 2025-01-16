@@ -11,6 +11,16 @@ pub struct MerkleMountainRange<H: Hasher> {
     _hasher: PhantomData<H>,
 }
 
+impl<H: Hasher> PartialEq for MerkleMountainRange<H> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_super_peak = self.super_peak().unwrap();
+        let other_super_peak = other.super_peak().unwrap();
+        self_super_peak == other_super_peak
+    }
+}
+
+impl<H: Hasher> Eq for MerkleMountainRange<H> {}
+
 impl<H: Hasher> JamEncode for MerkleMountainRange<H> {
     fn size_hint(&self) -> usize {
         self.peaks.size_hint()

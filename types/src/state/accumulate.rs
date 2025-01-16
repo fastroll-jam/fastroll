@@ -17,7 +17,7 @@ pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
 /// Queue entries have fixed indices, by the slot phase `m` within an epoch of length `E`.
 ///
 /// Represents `θ` of the GP.
-#[derive(Clone, JamEncode, JamDecode)]
+#[derive(Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
     items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
 }
@@ -87,7 +87,7 @@ impl AccumulateQueue {
 /// sequence by one entry, as defined in the `add` method.
 ///
 /// Represents `ξ` of the GP.
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
     items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
 }

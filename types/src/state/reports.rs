@@ -23,7 +23,7 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_simple_state_component!(PendingReports, PendingReports);
@@ -110,7 +110,7 @@ impl PendingReports {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PendingReport {
     pub work_report: WorkReport,
     pub reported_timeslot: Timeslot,

@@ -10,7 +10,7 @@ use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
 impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
 impl_simple_state_component!(BlockHistory, BlockHistory);
@@ -66,7 +66,7 @@ impl BlockHistory {
     }
 }
 
-#[derive(Debug, Clone, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
     pub work_package_hash: Hash32,
     pub segment_root: Hash32, // exports root
@@ -79,7 +79,7 @@ impl Display for ReportedWorkPackage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockHistoryEntry {
     pub header_hash: Hash32,
     pub accumulation_result_mmr: MerkleMountainRange<Keccak256>,

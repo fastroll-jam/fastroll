@@ -5,7 +5,7 @@ use crate::{
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
 
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesState {
     pub good_set: Vec<Hash32>,          // psi_g; hash of correct work-reports
     pub bad_set: Vec<Hash32>,           // psi_b; hash of incorrect work-reports

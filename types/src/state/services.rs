@@ -16,7 +16,7 @@ pub const B_S: Balance = 100; // The basic minimum balance which all services re
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
 pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountInfo {
     pub code_hash: Hash32,                  // c
     pub balance: Balance,                   // b
@@ -24,7 +24,7 @@ pub struct AccountInfo {
     pub gas_limit_on_transfer: UnsignedGas, // m
 }
 
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountMetadata {
     pub address: Address,
     pub account_info: AccountInfo,
@@ -185,7 +185,7 @@ impl PVMContextState for AccountStorageEntry {}
 impl PVMContextState for AccountPreimagesEntry {}
 impl PVMContextState for AccountLookupsEntry {}
 
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountStorageEntry {
     pub value: Octets,
 }
@@ -201,13 +201,13 @@ impl StorageFootprint for AccountStorageEntry {
     }
 }
 
-#[derive(Clone, Default, JamEncode, JamDecode)]
+#[derive(Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountPreimagesEntry {
     pub value: Octets,
 }
 impl_account_state_component!(AccountPreimagesEntry, AccountPreimagesEntry);
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct AccountLookupsEntry {
     pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
 }
@@ -263,7 +263,7 @@ impl StorageFootprint for AccountLookupsOctetsUsage {
     }
 }
 
-#[derive(Debug, Clone, Default, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PrivilegedServices {
     pub manager_service: Address, // m; Alters state privileged services (`chi`).
     pub assign_service: Address,  // a; Alters auth queue (`phi`).

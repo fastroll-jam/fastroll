@@ -168,7 +168,7 @@ impl<const N: usize> ByteArray<N> {
 /// stored as a fixed-size byte array.
 ///
 /// The final ValidatorKey type is a simple concatenation of each component.
-#[derive(Debug, Default, Clone, Copy, JamEncode, JamDecode)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,

@@ -99,7 +99,7 @@ fn fmt_validator_set(
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// This is denoted by the Greek letter `iota` in the Graypaper.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct StagingSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
 impl_simple_state_component!(StagingSet, StagingSet);
@@ -134,7 +134,7 @@ impl Default for StagingSet {
 /// block authors of the current epoch.
 ///
 /// This is denoted by the Greek letter `kappa` in the Graypaper.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ActiveSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
 impl_simple_state_component!(ActiveSet, ActiveSet);
@@ -167,7 +167,7 @@ impl Default for ActiveSet {
 
 /// Represents the validator set that was active in the previous epoch.
 /// This is denoted by the Greek letter `lambda` in the Graypaper.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
 impl_simple_state_component!(PastSet, PastSet);

@@ -27,7 +27,7 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
-#[derive(Debug, Clone, JamEncode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct SafroleState {
     pub pending_set: ValidatorKeySet,          // gamma_k
     pub ring_root: BandersnatchRingRoot,       // gamma_z
@@ -101,7 +101,7 @@ impl JamDecode for SafroleState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotSealerType {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
@@ -249,6 +249,16 @@ impl Default for TicketAccumulator {
         }
     }
 }
+
+impl PartialEq for TicketAccumulator {
+    fn eq(&self, other: &Self) -> bool {
+        let self_sorted = self.heap.clone().into_sorted_vec();
+        let other_sorted = other.heap.clone().into_sorted_vec();
+        self_sorted == other_sorted
+    }
+}
+
+impl Eq for TicketAccumulator {}
 
 impl TicketAccumulator {
     pub fn new() -> Self {
