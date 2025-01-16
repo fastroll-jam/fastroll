@@ -217,28 +217,6 @@ impl AffectedNodesByDepth {
         Self { inner }
     }
 
-    /// Generates `MerkleDBWriteSet` and `StateDBWriteSet` by iterating `AffectedNode`s from `AffectedNodesByDepth`.
-    ///
-    /// # Purpose
-    /// This function is crucial for:
-    /// * Transforming affected nodes into `MerkleNodeWrite`s ready for `MerkleDB` insertion.
-    /// * Extracting a write set of the `StateDB` from the affected nodes.
-    /// * Maintaining the integrity of the Merkle trie during updates.
-    /// * Preparing the final state of nodes after all write operations are applied.
-    ///
-    /// # Process
-    /// - Iterates through affected nodes bottom-up (from leaves to root).
-    /// - For each node:
-    ///   - `Branch` nodes: Updates child hashes based on previous iterations.
-    ///   - `Leaf` nodes: Handles updates, additions, and removals differently.
-    /// - Creates new `MerkleNodeWrite`s with updated data and hashes.
-    /// - For `Add` or `Update` operations of `Regular` `Leaf` nodes, creates new write set entries
-    ///   with the new state data and hashes.
-    ///
-    /// # Notes
-    /// - The `HashMap` allows efficient lookup of updated child hashes for branch nodes in each iteration.
-    /// - For leaf additions, two new nodes are created: a leaf and a branch.
-    /// - For leaf removals, only the parent node is updated to point to the sibling.
     pub fn generate_merkle_write_set(&self) -> Result<MerkleWriteSet, StateMerkleError> {
         let mut merkle_db_write_set = MerkleDBWriteSet::default();
         let mut state_db_write_set = StateDBWriteSet::default();
@@ -270,16 +248,6 @@ impl AffectedNodesByDepth {
         Ok(MerkleWriteSet::new(merkle_db_write_set, state_db_write_set))
     }
 
-    /// Processes an affected node entry and inserts one or more entries to the `MerkleDBWriteSet`
-    /// and the `StateDBWriteSet`.
-    ///
-    /// If `is_root_node` is true, the node at the top among the `MerkleDBWriteSet`
-    /// must be returned to update the merkle root.
-    ///
-    /// # Returns
-    ///
-    /// `Some(Hash32)` with the updated merkle root hash, if the affected node corresponds to
-    /// the root node. Otherwise, returns `None`.
     fn process_affected_node(
         affected_node: &AffectedNode,
         merkle_db_write_set: &mut MerkleDBWriteSet,

@@ -136,13 +136,14 @@ impl MerkleDB {
     /// * `state_key`: [`&Hash32`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
     ///
     /// # Returns
-    /// * `Ok((LeafType, Vec<u8>))` - A tuple containing:
+    /// * `Ok(Option<(LeafType, Vec<u8>)>)` - An optional tuple containing:
     ///    - The type of the leaf node (`Embedded` or `Regular`).
     ///    - The Vec<u8> representing the state data or its hash, depending on the leaf type.
+    ///    - Returns `None` if a state entry with the given `state_key` is not found.
     /// * `Err(StateMerkleError)` - An error that occurred while retrieving the node data.
     ///
     /// # Note
-    /// For `Regular` leaf nodes, additional steps may be required to fetch the actual state data
+    /// For `Regular` leaf nodes, additional steps are required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
     pub fn retrieve(
         &self,
@@ -218,113 +219,6 @@ impl MerkleDB {
         }
     }
 
-    /// FIXME: Add docs for the single-child branch nodes.
-    /// Extracts all affected nodes on a path due to a write operation to be applied to a leaf node.
-    ///
-    /// This function traverses the Merkle trie from the root to the leaf node corresponding to the
-    /// given `state_key`, collecting all nodes encountered along the path. These nodes are then
-    /// added to the `affected_nodes_by_depth` map, organized by their depth in the trie.
-    ///
-    /// # Purpose
-    /// This extraction is crucial for efficient updates in the staging trie, as it allows for:
-    /// * Identifying only the nodes that need to be modified during a state transition.
-    /// * Preparing these nodes for eventual commitment to the `MerkleDB`.
-    /// * Maintaining the integrity of the Merkle trie structure during updates.
-    ///
-    /// # Write Operations
-    /// The function behaves differently based on the type of write operation:
-    ///
-    /// ## Update Operation
-    /// For an update, we traverse to the existing leaf node that matches the `state_key`. We collect
-    /// information about this leaf node and all branch nodes along the path. The leaf node's value
-    /// will be updated, and the hashes of all nodes along the path will need to be recalculated.
-    ///
-    /// ```text
-    ///  (Before)              (After)
-    ///
-    ///   ┌─┴─┐                 ┌─┴─┐
-    ///   │ B │                 │ B'│ (affected)
-    ///   └─┬─┘                 └─┬─┘
-    ///  ┌──┴──┐               ┌──┴───┐               (Updates an existing leaf node and recalculates hashes along the path)
-    /// ┌┴─┐ ┌─┴┐             ┌┴─┐  ┌─┴─┐
-    /// │L1│ │L2│             │L1│  │L2'│ (affected)
-    /// └──┘ └──┘             └──┘  └───┘
-    /// ```
-    ///
-    /// ## Add Operation
-    /// When adding a new entry with `state_key`, this key doesn't exist in the current Merkle trie.
-    /// As we traverse the trie, we'll reach a leaf node that shares the longest common prefix with
-    /// our `state_key`. This existing leaf node will become the sibling of our new leaf node after
-    /// the state transition.
-    ///
-    /// To insert the new node and maintain the trie structure:
-    /// 1. We create a new branch node
-    /// 2. This new branch node points to both:
-    ///    a. The existing leaf node (the found sibling)
-    ///    b. The new leaf node we're adding
-    ///
-    /// This process effectively "splits" the path, inserting our new node at the correct position
-    /// in the trie. The function collects information about the new leaf node and its sibling.
-    /// The actual construction of the new branch node occurs later outside of this function.
-    ///
-    /// ```text
-    ///  (Before)              (After)
-    ///
-    ///   ┌─┴─┐                 ┌─┴─┐
-    ///   │ B │                 │ B'│ (affected)
-    ///   └─┬─┘                 └─┬─┘
-    ///  ┌──┴──┐              ┌───┴───┐               (Inserts a new leaf node, creating a new branch node when necessary)
-    /// ┌┴─┐ ┌─┴┐            ┌┴─┐   ┌─┴┐
-    /// │L1│ │L2│      (new) │B1│   │L2│
-    /// └──┘ └──┘            └─┬┘   └──┘
-    ///                     ┌──┴──┐
-    ///                    ┌┴─┐ ┌─┴┐
-    ///                    │L1│ │L3│ (new)
-    ///                    └──┘ └──┘
-    /// ```
-    ///
-    /// ## Remove Operation
-    /// When removing a leaf node, we traverse to the target leaf and collect information about it,
-    /// its parent, and its sibling. After removal, the sibling node will be promoted to replace
-    /// the parent branch node. We collect information about all nodes along the path, as their
-    /// hashes will need to be recalculated.
-    ///
-    /// ```text
-    ///    (Before)              (After)
-    ///
-    ///      ┌─┴─┐                ┌─┴─┐
-    ///      │ B │                │ B'│ (affected)
-    ///      └─┬─┘                └─┬─┘
-    ///    ┌───┴───┐             ┌──┴──┐              (Removes a leaf node and adjusts the trie structure accordingly)
-    ///   ┌┴─┐   ┌─┴┐           ┌┴─┐ ┌─┴┐
-    ///   │B1│   │L3│           │L1│ │L3│
-    ///   └─┬┘   └──┘           └──┘ └──┘
-    ///  ┌──┴──┐
-    /// ┌┴─┐ ┌─┴┐               ┌──┐ ┌──┐
-    /// │L1│ │L2│               │B1│ │L2│ (B1, L2 removed)
-    /// └──┘ └──┘               └──┘ └──┘
-    /// ```
-    ///
-    /// # Arguments
-    /// * `state_key`: [`&Hash32`] - The state key representing the Merkle path to the target leaf node.
-    /// * `write_op`: [`MerkleWriteOp`] - The write operation to be applied to the leaf node.
-    /// * `affected_nodes_by_depth`: [`&mut AffectedNodesByDepth`] - A mutable reference
-    ///   to a collection that will store all `AffectedNode`s encountered, sorted by their depth in the trie.
-    ///
-    /// # Returns
-    /// * `Ok(())` - The path to the leaf node was successfully traversed and affected nodes were collected.
-    /// * `Err(StateMerkleError)` - An error occurred during the traversal or node collection process.
-    ///
-    /// # Errors
-    /// This function may return an error in the following situations:
-    /// * If a node is not found in the trie where expected.
-    /// * If there's an issue decoding node data.
-    /// * If an invalid node type is encountered.
-    /// * If the state key doesn't match the expected path in the trie.
-    ///
-    /// # Note
-    /// This function should be called iteratively for all leaf nodes affected by a state transition,
-    /// typically corresponding to all state cache entries marked as `Dirty`.
     pub fn collect_leaf_path(
         &self,
         state_key: &Hash32,

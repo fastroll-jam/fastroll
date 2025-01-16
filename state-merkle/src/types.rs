@@ -5,10 +5,6 @@ use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
 
-//
-// Merkle Node Types
-//
-
 /// Merkle trie node representation.
 #[derive(Clone, Debug)]
 pub struct MerkleNode {
