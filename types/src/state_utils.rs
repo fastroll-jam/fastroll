@@ -2,6 +2,7 @@ use crate::state::*;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{Address, ByteArray, Hash32, HASH32_EMPTY, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
+use std::fmt::Debug;
 
 /// Represents global state types with simple fixed state keys
 pub trait SimpleStateComponent: StateComponent {
@@ -11,7 +12,7 @@ pub trait SimpleStateComponent: StateComponent {
 /// Represents global state types associated with account state with dynamically-derived state keys
 pub trait AccountStateComponent: StateComponent {}
 
-pub trait StateComponent: Clone + Default + PartialEq + Eq + JamDecode {
+pub trait StateComponent: Clone + Debug + Default + PartialEq + Eq + JamDecode {
     fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
 
     fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;

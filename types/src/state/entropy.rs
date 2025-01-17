@@ -8,7 +8,7 @@ use rjam_codec::{
 use rjam_common::{Hash32, HASH32_EMPTY};
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
 impl_simple_state_component!(EntropyAccumulator, EntropyAccumulator);
