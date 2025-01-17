@@ -479,6 +479,18 @@ impl StateManager {
         unimplemented!()
     }
 
+    pub fn get_cache_entry<T>(&self, state_key: &Hash32) -> Result<Option<T>, StateManagerError>
+    where
+        T: StateComponent,
+    {
+        if let Some(entry) = self.cache.get(state_key) {
+            if let Some(state_entry) = T::from_entry_type(&entry.value) {
+                return Ok(Some(state_entry.clone()));
+            }
+        }
+        Ok(None)
+    }
+
     fn insert_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
     where
         T: StateComponent,
@@ -499,10 +511,8 @@ impl StateManager {
         T: StateComponent,
     {
         // Check the cache
-        if let Some(entry) = self.cache.get(state_key) {
-            if let Some(state_entry) = T::from_entry_type(&entry.value) {
-                return Ok(Some(state_entry.clone()));
-            }
+        if let Some(entry) = self.get_cache_entry(state_key)? {
+            return Ok(Some(entry));
         }
 
         // Retrieve the state from the DB
