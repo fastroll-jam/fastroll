@@ -105,10 +105,7 @@ impl MerkleDB {
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
-    pub fn commit_nodes_write_batch(
-        &self,
-        write_batch: WriteBatch,
-    ) -> Result<(), StateMerkleError> {
+    pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), StateMerkleError> {
         let write_options = WriteOptions::default();
         self.db.write_opt(write_batch, &write_options)?;
         Ok(())
@@ -227,7 +224,6 @@ impl MerkleDB {
     ) -> Result<(), StateMerkleError> {
         // Initialize local state variables
         let state_key_bv = bits_encode_msb(state_key.as_slice());
-        let mut _parent_hash = self.root;
         let mut current_node = match self.get_node(&self.root)? {
             Some(node) => node,
             None => return Ok(()),
@@ -238,15 +234,7 @@ impl MerkleDB {
         let mut partial_merkle_path = BitVec::new();
 
         // Special handling for the `Remove` case
-        let remove_ctx = match write_op {
-            MerkleWriteOp::Remove(state_key) => {
-                // Remove operation inserts one `AffectedBranch`.
-                let state_key_bv = bits_encode_msb(state_key.as_slice());
-                let ctx = self.collect_removal_context(&state_key_bv)?;
-                Some(ctx)
-            }
-            _ => None,
-        };
+        let remove_ctx = self.collect_removal_context(&write_op)?;
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for (depth, b) in state_key_bv.iter().enumerate() {
@@ -325,7 +313,6 @@ impl MerkleDB {
                         Some(node) => node,
                         None => return Ok(()), // TODO: This implies pollution
                     };
-                    _parent_hash = current_node.hash;
                 }
                 NodeType::Leaf(_) => {
                     // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
@@ -403,6 +390,21 @@ impl MerkleDB {
         Err(StateMerkleError::NodeNotFound)
     }
 
+    fn collect_removal_context(
+        &self,
+        write_op: &MerkleWriteOp,
+    ) -> Result<Option<LeafRemoveContext>, StateMerkleError> {
+        match write_op {
+            MerkleWriteOp::Remove(state_key) => {
+                // Remove operation inserts one `AffectedBranch`.
+                let state_key_bv = bits_encode_msb(state_key.as_slice());
+                let ctx = self.collect_removal_context_internal(&state_key_bv)?;
+                Ok(Some(ctx))
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// Traverses the Merkle trie from the root to the target leaf that will be removed,
     /// gathering the context needed to perform the removal. Specifically, it determines:
     ///
@@ -417,7 +419,7 @@ impl MerkleDB {
     ///
     /// This information is used to correctly update the "posterior parent" once the removal
     /// of the target leaf is finalized.
-    fn collect_removal_context(
+    fn collect_removal_context_internal(
         &self,
         state_key_bv: &BitVec,
     ) -> Result<LeafRemoveContext, StateMerkleError> {

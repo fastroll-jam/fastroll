@@ -72,7 +72,7 @@ pub enum CacheEntryStatus {
     Dirty(StateMut),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct CacheEntry {
     pub value: StateEntryType,
     pub status: CacheEntryStatus,
@@ -86,7 +86,6 @@ impl CacheEntry {
         }
     }
 
-    #[allow(dead_code)]
     fn is_dirty(&self) -> bool {
         matches!(self.status, CacheEntryStatus::Dirty(_))
     }
@@ -382,6 +381,9 @@ impl StateManager {
                     .commit_write_batch(state_db_write_batch_single)?;
             }
 
+            // Mark committed entry as clean
+            cache_entry.value_mut().mark_clean();
+
             return Ok(());
         }
 
@@ -407,7 +409,7 @@ impl StateManager {
         // println!("{}", &state_db_write_set);
 
         self.merkle_db_read()
-            .commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
+            .commit_write_batch(merkle_db_write_set.generate_write_batch()?)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()
@@ -453,7 +455,7 @@ impl StateManager {
         } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
         self.merkle_db_read()
-            .commit_nodes_write_batch(merkle_db_write_set.generate_write_batch()?)?;
+            .commit_write_batch(merkle_db_write_set.generate_write_batch()?)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()
@@ -489,6 +491,14 @@ impl StateManager {
             }
         }
         Ok(None)
+    }
+
+    pub fn is_cache_entry_dirty(&self, state_key: &Hash32) -> Result<bool, StateManagerError> {
+        let entry = self
+            .cache
+            .get(state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        Ok(entry.is_dirty())
     }
 
     fn insert_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)

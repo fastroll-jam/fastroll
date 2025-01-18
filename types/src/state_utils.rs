@@ -80,7 +80,7 @@ macro_rules! impl_account_state_component {
     };
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum StateEntryType {
     AuthPool(AuthPool),                     // alpha
     AuthQueue(AuthQueue),                   // phi
