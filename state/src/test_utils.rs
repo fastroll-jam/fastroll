@@ -69,36 +69,6 @@ pub fn add_all_simple_state_entries(state_manager: &StateManager) -> Result<(), 
     Ok(())
 }
 
-// TODO: Use batch commit instead
-pub fn commit_all_simple_state_entries(state_manager: &StateManager) -> Result<(), Box<dyn Error>> {
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::AuthPool))?;
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::AuthQueue))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::BlockHistory))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::SafroleState))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::DisputesState))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::EntropyAccumulator))?;
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::StagingSet))?;
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::ActiveSet))?;
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::PastSet))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::PendingReports))?;
-    state_manager.commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::Timeslot))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::PrivilegedServices))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::ValidatorStats))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::AccumulateQueue))?;
-    state_manager
-        .commit_single_dirty_cache(&get_simple_state_key(StateKeyConstant::AccumulateHistory))?;
-
-    Ok(())
-}
-
 pub fn compare_all_simple_state_cache_and_db(
     state_manager: &StateManager,
 ) -> Result<(), Box<dyn Error>> {

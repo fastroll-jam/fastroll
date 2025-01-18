@@ -1,4 +1,6 @@
-use crate::{codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB};
+use crate::{
+    codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB, write_set::MerkleNodeWrite,
+};
 use bit_vec::BitVec;
 use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
@@ -23,6 +25,15 @@ pub struct MerkleNode {
     /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key (partial)] + [encoded state value] + [zero padding]
     /// - Regular leaf node:  [11] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
     pub data: Vec<u8>,
+}
+
+impl From<MerkleNodeWrite> for MerkleNode {
+    fn from(value: MerkleNodeWrite) -> Self {
+        Self {
+            hash: value.hash,
+            data: value.node_data,
+        }
+    }
 }
 
 impl MerkleNode {

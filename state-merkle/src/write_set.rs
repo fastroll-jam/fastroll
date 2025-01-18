@@ -111,17 +111,20 @@ impl MerkleDBWriteSet {
     }
 
     /// Generates `WriteBatch` from `MerkleDBWriteSet`, converting `MerkleNodeWrite`s into `MerkleDB` entries.
-    pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
+    pub fn generate_write_batch(&self) -> WriteBatch {
         let mut batch = WriteBatch::default();
         // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
+        self.append_to_write_batch(&mut batch);
+        batch
+    }
+
+    pub fn append_to_write_batch(&self, batch: &mut WriteBatch) {
         self.values().for_each(|node| {
             // `MerkleNodeWrite` with empty hash value is used as a placeholder for removed leaves.
             if node.hash != HASH32_EMPTY {
                 batch.put(node.hash.as_slice(), &node.node_data);
             }
-        });
-
-        Ok(batch)
+        })
     }
 }
 
@@ -167,16 +170,20 @@ impl StateDBWriteSet {
     }
 
     /// Generates `WriteBatch` from `StateDBWriteSet`.
-    pub fn generate_write_batch(&self) -> Result<WriteBatch, StateMerkleError> {
+    pub fn generate_write_batch(&self) -> WriteBatch {
         let mut batch = WriteBatch::default();
         // `StateDB` entry format: (key: Hash32(value), value: raw state data)
-        self.iter()
-            .for_each(|(key, val)| batch.put(key.as_slice(), val));
+        self.append_to_write_batch(&mut batch);
+        batch
+    }
 
-        Ok(batch)
+    pub fn append_to_write_batch(&self, batch: &mut WriteBatch) {
+        self.iter()
+            .for_each(|(key, val)| batch.put(key.as_slice(), val))
     }
 }
 
+/// FIXME: Remove `HashSet` since only one `AffectedNode` exists per depth (see `StateManager::commit_dirty_cache`)
 #[derive(Debug, Default)]
 pub struct AffectedNodesByDepth {
     inner: BTreeMap<usize, HashSet<AffectedNode>>,

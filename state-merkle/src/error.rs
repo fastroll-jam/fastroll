@@ -1,5 +1,6 @@
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
+use rjam_db::KeyValueDBError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -40,4 +41,6 @@ pub enum StateMerkleError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("KeyValueDB error: {0}")]
+    KeyValueDBError(#[from] KeyValueDBError),
 }
