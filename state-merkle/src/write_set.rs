@@ -335,13 +335,13 @@ impl AffectedNodesByDepth {
                                 .clone()
                                 .expect("leaf split context should be provided here");
                             let new_leaf_state_key = ctx.leaf_state_key;
-                            let common_path = Self::get_common_path(
+                            let common_path_to_decompress = Self::get_common_path(
                                 &leaf_split_ctx.partial_merkle_path,
                                 &new_leaf_state_key,
-                                &leaf_split_ctx.sibling_partial_state_key,
+                                &leaf_split_ctx.sibling_state_key_248,
                             )?;
                             let decompression_write_set = Self::generate_decompression_set(
-                                common_path,
+                                common_path_to_decompress,
                                 &ctx.sibling_candidate_hash,
                                 added_leaf_write,
                                 new_branch_merkle_write,
@@ -441,19 +441,19 @@ impl AffectedNodesByDepth {
     fn get_common_path(
         partial_merkle_path: &BitVec,
         new_leaf_state_key: &Hash32,
-        sibling_leaf_partial_state_key: &BitVec,
+        sibling_state_key_248: &BitVec,
     ) -> Result<BitVec, StateMerkleError> {
         let new_leaf_state_key = bits_encode_msb(new_leaf_state_key.as_slice());
+
         // Validate inputs
-        let partial_merkle_path_len = partial_merkle_path.len();
-        if partial_merkle_path_len > new_leaf_state_key.len()
-            || partial_merkle_path_len > sibling_leaf_partial_state_key.len()
-        {
+        let partial_len = partial_merkle_path.len();
+        if partial_len > new_leaf_state_key.len() || partial_len > sibling_state_key_248.len() {
             return Err(StateMerkleError::InvalidMerklePath);
         }
-        for i in 0..partial_merkle_path_len {
+
+        for i in 0..partial_len {
             let bit = partial_merkle_path[i];
-            if new_leaf_state_key[i] != bit || sibling_leaf_partial_state_key[i] != bit {
+            if new_leaf_state_key[i] != bit || sibling_state_key_248[i] != bit {
                 return Err(StateMerkleError::InvalidMerklePath);
             }
         }
@@ -465,7 +465,8 @@ impl AffectedNodesByDepth {
         let mut common_path_to_decompress = BitVec::new();
         for (new_leaf_bit, sibling_leaf_bit) in new_leaf_state_key
             .iter()
-            .zip(sibling_leaf_partial_state_key.iter())
+            .skip(partial_len)
+            .zip(sibling_state_key_248.iter().skip(partial_len))
         {
             if new_leaf_bit == sibling_leaf_bit {
                 common_path_to_decompress.push(new_leaf_bit)

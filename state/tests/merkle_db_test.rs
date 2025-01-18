@@ -119,8 +119,8 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// #[test]
-fn _merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
+#[test]
+fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
     let state_manager = init_state_manager(init_state_db(), init_merkle_db());
     add_all_simple_state_entries(&state_manager)?;
     commit_all_simple_state_entries(&state_manager)?;

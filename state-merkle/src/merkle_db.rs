@@ -250,9 +250,6 @@ impl MerkleDB {
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for (depth, b) in state_key_bv.iter().enumerate() {
-            // Accumulate merkle path
-            partial_merkle_path.push(b);
-
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
@@ -350,7 +347,7 @@ impl MerkleDB {
                             // new leaf node to be `Add`ed.
 
                             // The partial state key of the sibling node of the new leaf node being added, extracted from its node data.
-                            let partial_leaf_state_key =
+                            let leaf_state_key_248 =
                                 current_node.extract_partial_leaf_state_key()?;
 
                             affected_nodes.entry(depth).or_default().insert(
@@ -364,11 +361,11 @@ impl MerkleDB {
                                             sibling_candidate_hash: current_node.hash,
                                             added_leaf_child_side: added_leaf_child_side(
                                                 state_key,
-                                                &partial_leaf_state_key,
+                                                &leaf_state_key_248,
                                             )?,
                                             leaf_split_context: Some(LeafSplitContext {
                                                 partial_merkle_path,
-                                                sibling_partial_state_key: partial_leaf_state_key,
+                                                sibling_state_key_248: leaf_state_key_248,
                                             }),
                                         },
                                     ),
@@ -398,6 +395,9 @@ impl MerkleDB {
                     };
                 }
             }
+
+            // Accumulate merkle path
+            partial_merkle_path.push(b);
         }
 
         Err(StateMerkleError::NodeNotFound)
