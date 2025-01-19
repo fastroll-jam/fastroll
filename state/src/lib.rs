@@ -1,5 +1,3 @@
-pub mod test_utils;
-
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32, HASH32_EMPTY};
@@ -216,6 +214,71 @@ impl StateManager {
             .insert(state_key, CacheEntry::new(state_entry_type));
     }
 
+    pub fn get_raw_state_entry_from_db(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        self.retrieve_state_encoded(state_key)
+    }
+
+    pub fn add_raw_state_entry(
+        &self,
+        state_key: &Hash32,
+        state_val: Vec<u8>,
+    ) -> Result<(), StateManagerError> {
+        // Ensure the cache entry doesn't exist.
+        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        if state_exists {
+            return Err(StateManagerError::StateEntryAlreadyExists);
+        }
+
+        self.cache.insert(
+            *state_key,
+            CacheEntry {
+                value: StateEntryType::Raw(state_val),
+                status: CacheEntryStatus::Dirty(StateMut::Add),
+            },
+        );
+        Ok(())
+    }
+
+    pub fn update_raw_state_entry(
+        &self,
+        state_key: &Hash32,
+        new_val: Vec<u8>,
+    ) -> Result<(), StateManagerError> {
+        // Ensure the cache entry exists.
+        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        if !state_exists {
+            return Err(StateManagerError::StateKeyNotInitialized);
+        }
+
+        self.cache.insert(
+            *state_key,
+            CacheEntry {
+                value: StateEntryType::Raw(new_val),
+                status: CacheEntryStatus::Dirty(StateMut::Update),
+            },
+        );
+        Ok(())
+    }
+
+    pub fn remove_raw_state_entry(&self, state_key: &Hash32) -> Result<(), StateManagerError> {
+        // Ensure the cache entry exists.
+        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        if !state_exists {
+            return Err(StateManagerError::StateKeyNotInitialized);
+        }
+
+        let mut cache_entry = self
+            .cache
+            .get_mut(state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        cache_entry.mark_dirty(StateMut::Remove);
+        Ok(())
+    }
+
     pub fn merkle_root(&self) -> Hash32 {
         self.merkle_db_read().root()
     }
@@ -409,8 +472,11 @@ impl StateManager {
         // println!("StateDBWriteSet: ");
         // println!("{}", &state_db_write_set);
 
-        self.merkle_db_read()
-            .commit_write_batch(merkle_db_write_set.generate_write_batch())?;
+        // Commit the write batch to the MerkleDB
+        self.commit_to_merkle_db(merkle_db_write_set.generate_write_batch())?;
+
+        // Commit the write batch to the StateDB
+        self.commit_to_state_db(state_db_write_set.generate_write_batch())?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db_write()
@@ -420,10 +486,6 @@ impl StateManager {
         //     &merkle_db_write_set.get_new_root()
         // );
 
-        // Add new entries to the StateDB
-        self.state_db_read()
-            .commit_write_batch(state_db_write_set.generate_write_batch())?;
-
         // Mark committed entry as clean
         cache_entry.value_mut().mark_clean();
 
@@ -432,7 +494,7 @@ impl StateManager {
 
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
-    /// After commiting to the databases, marks the committed cache entries as clean.
+    /// After committing to the databases, marks the committed cache entries as clean.
     pub fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let mut dirty_entries = self.cache.collect_dirty();
         if dirty_entries.is_empty() {
@@ -532,7 +594,7 @@ impl StateManager {
         Ok(entry.is_dirty())
     }
 
-    fn insert_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
+    fn insert_clean_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
     where
         T: StateComponent,
     {
@@ -563,7 +625,7 @@ impl StateManager {
 
         let state_entry = T::decode(&mut state_data.as_slice())?;
         // Insert the entry into the cache
-        self.insert_cache_entry(state_key, state_entry.clone());
+        self.insert_clean_cache_entry(state_key, state_entry.clone());
         Ok(Some(state_entry))
     }
 

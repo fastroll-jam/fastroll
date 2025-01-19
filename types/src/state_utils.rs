@@ -101,6 +101,7 @@ pub enum StateEntryType {
     AccountStorageEntry(AccountStorageEntry),
     AccountLookupsEntry(AccountLookupsEntry),
     AccountPreimagesEntry(AccountPreimagesEntry),
+    Raw(Vec<u8>), // Test-only
 }
 
 impl JamEncode for StateEntryType {
@@ -125,6 +126,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::AccountStorageEntry(inner) => inner.size_hint(),
             StateEntryType::AccountLookupsEntry(inner) => inner.size_hint(),
             StateEntryType::AccountPreimagesEntry(inner) => inner.size_hint(),
+            StateEntryType::Raw(inner) => inner.size_hint(),
         }
     }
 
@@ -149,6 +151,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::AccountStorageEntry(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountLookupsEntry(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountPreimagesEntry(inner) => inner.encode_to(dest)?,
+            StateEntryType::Raw(inner) => inner.encode_to(dest)?,
         }
         Ok(())
     }

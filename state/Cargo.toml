@@ -13,7 +13,9 @@ rjam-types = { workspace = true }
 blake2 = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
+hex = { workspace = true }
 paste = { workspace = true }
+rand = { workspace = true }
 rocksdb = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }

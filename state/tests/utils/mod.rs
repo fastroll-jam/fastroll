@@ -1,6 +1,8 @@
-use crate::StateManager;
-use rjam_common::Hash32;
+#![allow(dead_code)]
+use rand::{thread_rng, Rng};
+use rjam_common::{ByteArray, Hash32};
 use rjam_db::RocksDBConfig;
+use rjam_state::StateManager;
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use rjam_types::{
     state::{
@@ -31,6 +33,19 @@ pub fn init_state_db() -> StateDB {
 
 pub fn init_state_manager(state_db: StateDB, merkle_db: MerkleDB) -> StateManager {
     StateManager::new(state_db, merkle_db)
+}
+
+pub fn random_state_key() -> Hash32 {
+    let mut rng = thread_rng();
+    ByteArray::new(rng.gen())
+}
+
+pub fn random_state_val(max_len: usize) -> Vec<u8> {
+    let mut rng = thread_rng();
+    let len = rng.gen_range(0..max_len);
+    let mut data = vec![0u8; len];
+    rng.fill(&mut data[..]);
+    data
 }
 
 pub fn add_all_simple_state_entries(state_manager: &StateManager) -> Result<(), Box<dyn Error>> {
