@@ -146,15 +146,14 @@ impl NodeCodec {
         state_key: &BitVec,
         node: &MerkleNode,
     ) -> Result<Vec<u8>, StateMerkleError> {
-        let bv = bits_encode_msb(&node.data);
-        Self::validate_node_data(&bv, state_key)?;
+        let node_data_bv = bits_encode_msb(&node.data);
+        Self::validate_node_data(&node_data_bv, state_key)?;
         let leaf_parsed = Self::decode_leaf(node)?;
 
         let node_data_octets = match leaf_parsed {
             LeafParsed::EmbeddedLeaf(parsed) => parsed.value,
             LeafParsed::RegularLeaf(parsed) => parsed.value_hash.to_vec(),
         };
-
         Ok(node_data_octets)
     }
 
@@ -173,7 +172,9 @@ impl NodeCodec {
             return Err(StateMerkleError::InvalidNodeType);
         }
 
-        // compare the state key with the encoded state key
+        // Verify that the provided state key matches the encoded state key.
+        // Because a leaf node on the path may have a different state key,
+        // an explicit validation step is required here.
         Self::compare_state_keys(node_data_bv, state_key_bv)?;
 
         Ok(())
@@ -215,12 +216,12 @@ impl NodeCodec {
         node_data_bv: &BitVec,
         state_key: &BitVec,
     ) -> Result<(), StateMerkleError> {
-        let key_without_last_byte = slice_bitvec(node_data_bv, 8..256)?;
+        let state_key_without_last_byte_extracted = slice_bitvec(node_data_bv, 8..256)?;
         let state_key_without_last_byte = slice_bitvec(state_key, 0..248)?;
 
-        if key_without_last_byte != state_key_without_last_byte {
+        if state_key_without_last_byte_extracted != state_key_without_last_byte {
             // reached to another leaf node with the same prefix
-            Err(StateMerkleError::NodeNotFound)
+            Err(StateMerkleError::StateKeyMismatch)
         } else {
             Ok(())
         }

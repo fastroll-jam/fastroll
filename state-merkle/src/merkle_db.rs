@@ -145,6 +145,11 @@ impl MerkleDB {
         &self,
         node_hash: &Hash32,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
+        // empty node
+        if node_hash == &HASH32_EMPTY {
+            return Ok(None);
+        }
+
         // lookup the cache
         if let Some(node) = self.cache.get(node_hash) {
             return Ok(Some(node.clone()));
@@ -359,7 +364,7 @@ impl MerkleDB {
                         if current_node.hash == remove_ctx.post_parent_hash {
                             affected_nodes.entry(depth).or_default().insert(
                                 AffectedNode::Endpoint(AffectedEndpoint {
-                                    hash: current_node.hash,
+                                    hash: current_node.hash, // post parent node
                                     depth,
                                     leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
                                 }),
@@ -508,6 +513,9 @@ impl MerkleDB {
             root_right,
         );
 
+        // Tracking the most recently seen sibling hash here.
+        let mut last_sibling_hash = HASH32_EMPTY;
+
         for b in state_key_bv.iter() {
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
@@ -517,21 +525,16 @@ impl MerkleDB {
                         branch_history.update(current_node.hash, b, left, right);
                     }
 
-                    let child_hash = if b { &right } else { &left };
+                    let (child_hash, sibling_hash) = if b { (right, left) } else { (left, right) };
+                    last_sibling_hash = sibling_hash;
+
                     current_node = self
-                        .get_node_with_working_set(child_hash)?
+                        .get_node_with_working_set(&child_hash)?
                         .ok_or(StateMerkleError::NodeNotFound)?;
                 }
                 NodeType::Leaf(_) => {
-                    let parent_node = self
-                        .get_node_with_working_set(&branch_history.curr.hash)?
-                        .expect("parent node must exist");
-
-                    let (left, right) = NodeCodec::decode_branch(&parent_node, self)?;
-
-                    let sibling_hash = if b { &left } else { &right };
                     let sibling_node = self
-                        .get_node_with_working_set(sibling_hash)?
+                        .get_node_with_working_set(&last_sibling_hash)?
                         .expect("sibling node must exist");
 
                     return match sibling_node.check_node_type()? {
@@ -546,7 +549,7 @@ impl MerkleDB {
                             post_parent_hash: branch_history.prev.hash,
                             prior_left: branch_history.prev.left_child,
                             prior_right: branch_history.prev.right_child,
-                            sibling_leaf_hash: Some(*sibling_hash),
+                            sibling_leaf_hash: Some(last_sibling_hash),
                             removal_side: branch_history.prev.navigate_to,
                         }),
                     };

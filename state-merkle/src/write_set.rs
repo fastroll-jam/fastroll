@@ -411,10 +411,10 @@ impl AffectedNodesByDepth {
                             // Sibling of the leaf being removed is leaf node
                             match ctx.removal_side {
                                 ChildType::Left => {
-                                    left = ctx.sibling_leaf_hash.expect("Cannot be `None` here");
+                                    left = ctx.sibling_leaf_hash.expect("should not be None");
                                 }
                                 ChildType::Right => {
-                                    right = ctx.sibling_leaf_hash.expect("Cannot be `None` here");
+                                    right = ctx.sibling_leaf_hash.expect("should not be None");
                                 }
                             };
                         } else {

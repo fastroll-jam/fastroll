@@ -17,6 +17,8 @@ pub enum StateMerkleError {
     NotEmptyTrie,
     #[error("Node not found")]
     NodeNotFound,
+    #[error("State key mismatch")]
+    StateKeyMismatch,
     #[error("Invalid node data")]
     InvalidNodeData,
     #[error("Invalid byte length")]
