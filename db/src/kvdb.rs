@@ -37,11 +37,6 @@ impl RocksDBConfig {
     }
 }
 
-pub enum DBWriteOp<'a> {
-    Put(&'a [u8], Vec<u8>), // key, value
-    Delete(&'a [u8]),       // key
-}
-
 pub struct KVDB {
     /// RocksDB instance.
     db: Arc<DB>,
@@ -71,22 +66,6 @@ impl KVDB {
 
     pub fn delete_entry(&self, key: &[u8]) -> Result<(), KeyValueDBError> {
         self.db.delete(key).map_err(KeyValueDBError::RocksDBError)
-    }
-
-    pub fn commit(&self, changes: &[DBWriteOp]) -> Result<(), KeyValueDBError> {
-        let mut batch = WriteBatch::default();
-        let write_opts = WriteOptions::default();
-
-        for change in changes {
-            match change {
-                DBWriteOp::Put(key, value) => batch.put(*key, value),
-                DBWriteOp::Delete(key) => batch.delete(*key),
-            }
-        }
-
-        self.db
-            .write_opt(batch, &write_opts)
-            .map_err(KeyValueDBError::RocksDBError)
     }
 
     pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), KeyValueDBError> {
