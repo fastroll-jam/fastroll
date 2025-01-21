@@ -26,7 +26,8 @@ fn init_merkle_db(core_db: Arc<CoreDB>) -> MerkleDB {
 }
 
 fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
-    StateDB::new(core_db)
+    const STATE_DB_CACHE_SIZE: usize = 1000;
+    StateDB::new(core_db, STATE_DB_CACHE_SIZE)
 }
 
 fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {

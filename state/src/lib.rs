@@ -3,7 +3,7 @@ pub mod test_utils;
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32, HASH32_EMPTY};
-use rjam_crypto::CryptoError;
+use rjam_crypto::{octets_to_hash32, CryptoError};
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
@@ -396,15 +396,20 @@ impl StateManager {
             Err(_) => return Ok(None),
         };
 
-        let Some((leaf_type, state_data_hash)) = retrieved else {
+        let Some((leaf_type, state_data_or_hash)) = retrieved else {
             return Ok(None);
         };
 
         let state_data = match leaf_type {
-            LeafType::Embedded => state_data_hash.to_vec(),
+            LeafType::Embedded => state_data_or_hash,
             LeafType::Regular => {
                 // The state data hash is used as the key in the StateDB
-                let Some(entry) = self.state_db_read().get_entry(&state_data_hash)? else {
+                let Some(entry) = self.state_db_read().get_entry(
+                    &octets_to_hash32(&state_data_or_hash).ok_or(
+                        StateManagerError::StateMerkleError(StateMerkleError::InvalidHash32Input),
+                    )?,
+                )?
+                else {
                     return Ok(None);
                 };
                 entry

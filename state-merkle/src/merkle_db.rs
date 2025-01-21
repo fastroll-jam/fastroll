@@ -62,8 +62,8 @@ impl MerkleDB {
     pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
         Self {
             root: HASH32_EMPTY,
-            cache: DashMap::with_capacity(cache_size),
             core,
+            cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
         }
     }
@@ -163,29 +163,33 @@ impl MerkleDB {
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.core.get_merkle(node_hash.as_slice()) {
-            Ok(Some(data)) => {
-                let node = MerkleNode {
-                    hash: *node_hash,
-                    data,
-                };
-                self.cache.insert(*node_hash, node.clone());
-                Ok(Some(node))
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(e.into()),
+        let maybe_node = self
+            .core
+            .get_merkle(node_hash.as_slice())?
+            .map(|data| MerkleNode {
+                hash: *node_hash,
+                data,
+            });
+
+        // insert into cache if found
+        if let Some(node) = &maybe_node {
+            self.cache.insert(*node_hash, node.clone());
         }
+
+        Ok(maybe_node)
     }
 
     pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
-        self.core
-            .put_merkle(node.hash.as_slice(), &node.data)
-            .map_err(|e| e.into())
+        // write to DB
+        self.core.put_merkle(node.hash.as_slice(), &node.data)?;
+        // insert into cache
+        self.cache.insert(node.hash, node.clone());
+        Ok(())
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
     pub fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
-        self.core.commit_write_batch(batch).map_err(|e| e.into())
+        Ok(self.core.commit_write_batch(batch)?)
     }
 
     pub fn clear_working_set(&mut self) {
