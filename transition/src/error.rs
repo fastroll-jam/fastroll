@@ -1,6 +1,6 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::CryptoError;
-use rjam_db::BlockHeaderDBError;
+use rjam_db::header_db::BlockHeaderDBError;
 use rjam_extrinsics::validation::error::ExtrinsicValidationError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;

@@ -6,7 +6,7 @@ mod tests {
         asn_types::authorizations::*, generate_typed_tests,
         state_transition_framework::StateTransitionTest,
     };
-    use rjam_db::BlockHeaderDB;
+    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use rjam_types::{

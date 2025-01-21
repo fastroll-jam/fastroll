@@ -10,9 +10,9 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::{RocksDBConfig, KVDB};
+use rjam_db::core::CoreDB;
 use rocksdb::WriteBatch;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
 pub struct WorkingSet {
@@ -50,8 +50,8 @@ impl WorkingSet {
 pub struct MerkleDB {
     /// Root hash of the Merkle trie.
     root: Hash32,
-    /// Key-value database.
-    db: KVDB,
+    /// RocksDB core.
+    core: Arc<CoreDB>,
     /// Cache for storing Merkle trie nodes.
     cache: DashMap<Hash32, MerkleNode>,
     /// Working set of uncommitted Merkle nodes.
@@ -59,13 +59,24 @@ pub struct MerkleDB {
 }
 
 impl MerkleDB {
-    pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, StateMerkleError> {
-        Ok(Self {
+    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
+        Self {
             root: HASH32_EMPTY,
-            db: KVDB::open(config)?,
             cache: DashMap::with_capacity(cache_size),
+            core,
             working_set: WorkingSet::new(),
-        })
+        }
+    }
+
+    pub fn open<P: AsRef<Path>>(
+        path: P,
+        create_if_missing: bool,
+        cache_size: usize,
+    ) -> Result<Self, StateMerkleError> {
+        Ok(Self::new(
+            Arc::new(CoreDB::open(path, create_if_missing)?),
+            cache_size,
+        ))
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
@@ -148,7 +159,7 @@ impl MerkleDB {
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.db.get_entry(node_hash.as_slice()) {
+        match self.core.get_merkle(node_hash.as_slice()) {
             Ok(Some(data)) => {
                 let node = MerkleNode {
                     hash: *node_hash,
@@ -163,16 +174,14 @@ impl MerkleDB {
     }
 
     pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
-        self.db
-            .put_entry(node.hash.as_slice(), &node.data)
+        self.core
+            .put_merkle(node.hash.as_slice(), &node.data)
             .map_err(|e| e.into())
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
-    pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), StateMerkleError> {
-        self.db
-            .commit_write_batch(write_batch)
-            .map_err(|e| e.into())
+    pub fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
+        self.core.commit_write_batch(batch).map_err(|e| e.into())
     }
 
     pub fn clear_working_set(&mut self) {

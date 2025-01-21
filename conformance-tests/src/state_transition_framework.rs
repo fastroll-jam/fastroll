@@ -1,6 +1,5 @@
-use rjam_db::{BlockHeaderDB, RocksDBConfig};
+use rjam_db::header_db::BlockHeaderDB;
 use rjam_state::StateManager;
-use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -8,7 +7,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tempfile::tempdir;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase<I, O, S> {
@@ -37,18 +35,13 @@ pub trait StateTransitionTest {
     }
 
     fn init_state_manager() -> StateManager {
-        let tmp_path = tempdir().unwrap().into_path();
-        let state_db_config = RocksDBConfig::from_path(tmp_path.join("state_db"));
-        let merkle_db_config = RocksDBConfig::from_path(tmp_path.join("merkle_db"));
-        let state_db = StateDB::open(&state_db_config).unwrap();
-        let merkle_db = MerkleDB::open(&merkle_db_config, 1000).unwrap();
-        StateManager::new(state_db, merkle_db)
+        rjam_state::test_utils::init_state_manager()
     }
 
     fn setup_state_manager(test_pre_state: &Self::State) -> Result<StateManager, TransitionError>;
 
     fn setup_header_db() -> BlockHeaderDB {
-        BlockHeaderDB::initialize_for_test()
+        BlockHeaderDB::init_for_test()
     }
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;

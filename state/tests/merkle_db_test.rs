@@ -1,12 +1,11 @@
 //! MerkleDB Integration Tests
-mod utils;
-
-use crate::utils::{
-    add_all_simple_state_entries, compare_all_simple_state_cache_and_db, init_merkle_db,
-    init_state_db, init_state_manager,
-};
 use rjam_codec::JamDecode;
-use rjam_state::StateMut;
+use rjam_state::{
+    test_utils::{
+        add_all_simple_state_entries, compare_all_simple_state_cache_and_db, init_state_manager,
+    },
+    StateMut,
+};
 use rjam_state_merkle::codec::test_utils::simple_hash;
 use rjam_types::{
     state::{AuthPool, PendingReport, PendingReports},
@@ -16,7 +15,7 @@ use std::error::Error;
 
 #[test]
 fn merkle_db_test() -> Result<(), Box<dyn Error>> {
-    let state_manager = init_state_manager(init_state_db(), init_merkle_db());
+    let state_manager = init_state_manager();
 
     // --- 1. Add one state entry, initializing the Merkle Trie
     println!("1. Add the first state entry.");
@@ -121,7 +120,7 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
-    let state_manager = init_state_manager(init_state_db(), init_merkle_db());
+    let state_manager = init_state_manager();
     add_all_simple_state_entries(&state_manager)?;
     state_manager.commit_dirty_cache()?;
     compare_all_simple_state_cache_and_db(&state_manager)?;

@@ -1,5 +1,5 @@
 use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Options, WriteBatch, WriteOptions, DB};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -13,7 +13,7 @@ pub enum CoreDBError {
 /// A single RocksDB handle with multiple column families.
 pub struct CoreDB {
     /// RocksDB instance.
-    db: Arc<DB>,
+    db: DB,
 }
 
 impl CoreDB {
@@ -25,6 +25,7 @@ impl CoreDB {
     pub fn open<P: AsRef<Path>>(path: P, create_if_missing: bool) -> Result<Self, CoreDBError> {
         let mut opts = Options::default();
         opts.create_if_missing(create_if_missing);
+        opts.create_missing_column_families(true);
 
         let cfs = vec![
             ColumnFamilyDescriptor::new(Self::STATE_CF_NAME, Options::default()),
@@ -33,8 +34,9 @@ impl CoreDB {
         ];
 
         // Open DB with the CF descriptors
-        let db = DB::open_cf_descriptors(&opts, path, cfs)?;
-        Ok(Self { db: Arc::new(db) })
+        Ok(Self {
+            db: DB::open_cf_descriptors(&opts, path, cfs)?,
+        })
     }
 
     fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily, CoreDBError> {
@@ -59,6 +61,16 @@ impl CoreDB {
         Ok(self.db.delete_cf(cf, key)?)
     }
 
+    pub fn push_to_state_write_batch(
+        &self,
+        batch: &mut WriteBatch,
+        key: &[u8],
+        val: &[u8],
+    ) -> Result<(), CoreDBError> {
+        batch.put_cf(self.cf_handle(Self::STATE_CF_NAME)?, key, val);
+        Ok(())
+    }
+
     // --- Merkle CF operations
     pub fn get_merkle(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
         let cf = self.cf_handle(Self::MERKLE_CF_NAME)?;
@@ -73,6 +85,16 @@ impl CoreDB {
     pub fn delete_merkle(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(Self::MERKLE_CF_NAME)?;
         Ok(self.db.delete_cf(cf, key)?)
+    }
+
+    pub fn push_to_merkle_write_batch(
+        &self,
+        batch: &mut WriteBatch,
+        key: &[u8],
+        val: &[u8],
+    ) -> Result<(), CoreDBError> {
+        batch.put_cf(self.cf_handle(Self::MERKLE_CF_NAME)?, key, val);
+        Ok(())
     }
 
     // --- Header CF operations

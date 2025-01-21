@@ -122,7 +122,7 @@ impl MerkleDBWriteSet {
         self.values().for_each(|node| {
             // `MerkleNodeWrite` with empty hash value is used as a placeholder for removed leaves.
             if node.hash != HASH32_EMPTY {
-                batch.put(node.hash.as_slice(), &node.node_data);
+                batch.put(node.hash.as_slice(), &node.node_data); // FIXME: missing cf
             }
         })
     }
@@ -179,7 +179,7 @@ impl StateDBWriteSet {
 
     pub fn append_to_write_batch(&self, batch: &mut WriteBatch) {
         self.iter()
-            .for_each(|(key, val)| batch.put(key.as_slice(), val))
+            .for_each(|(key, val)| batch.put(key.as_slice(), val)) // FIXME: missing cf
     }
 }
 

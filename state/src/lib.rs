@@ -1,12 +1,13 @@
+pub mod test_utils;
+
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{Address, Hash32, HASH32_EMPTY};
 use rjam_crypto::CryptoError;
-use rjam_db::KeyValueDBError;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    state_db::StateDB,
+    state_db::{StateDB, StateDBError},
     types::{LeafType, MerkleWriteOp},
     write_set::{AffectedNodesByDepth, MerkleWriteSet, StateDBWriteSet},
 };
@@ -52,8 +53,8 @@ pub enum StateManagerError {
     CryptoError(#[from] CryptoError),
     #[error("Merkle error: {0}")]
     StateMerkleError(#[from] StateMerkleError),
-    #[error("KeyValueDB error: {0}")]
-    KeyValueDBError(#[from] KeyValueDBError),
+    #[error("StateDB error: {0}")]
+    StateDBError(#[from] StateDBError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
 }
@@ -119,11 +120,11 @@ impl CacheEntry {
 }
 
 struct StateCache {
-    inner: Arc<DashMap<Hash32, CacheEntry>>, // (state_key, cache_entry)
+    inner: DashMap<Hash32, CacheEntry>, // (state_key, cache_entry)
 }
 
 impl Deref for StateCache {
-    type Target = Arc<DashMap<Hash32, CacheEntry>>;
+    type Target = DashMap<Hash32, CacheEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -139,7 +140,7 @@ impl DerefMut for StateCache {
 impl StateCache {
     fn new() -> Self {
         Self {
-            inner: Arc::new(DashMap::new()),
+            inner: DashMap::new(),
         }
     }
 

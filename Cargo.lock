@@ -1096,7 +1096,6 @@ dependencies = [
  "rjam-types",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror",
 ]
 

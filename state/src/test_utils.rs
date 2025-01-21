@@ -1,8 +1,8 @@
 #![allow(dead_code)]
+use crate::StateManager;
 use rand::{thread_rng, Rng};
 use rjam_common::{ByteArray, Hash32};
-use rjam_db::RocksDBConfig;
-use rjam_state::StateManager;
+use rjam_db::core::CoreDB;
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use rjam_types::{
     state::{
@@ -12,26 +12,27 @@ use rjam_types::{
     },
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 use tempfile::tempdir;
 
-pub fn init_merkle_db() -> MerkleDB {
+fn init_core_db() -> CoreDB {
+    let db_path = tempdir().unwrap().path().join("test_db");
+    CoreDB::open(db_path, true).unwrap()
+}
+
+fn init_merkle_db(core_db: Arc<CoreDB>) -> MerkleDB {
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
-    MerkleDB::open(
-        &RocksDBConfig::from_path(tempdir().unwrap().into_path().join("merkle_db")),
-        MERKLE_DB_CACHE_SIZE,
-    )
-    .unwrap()
+    MerkleDB::new(core_db, MERKLE_DB_CACHE_SIZE)
 }
 
-pub fn init_state_db() -> StateDB {
-    StateDB::open(&RocksDBConfig::from_path(
-        tempdir().unwrap().into_path().join("state_db"),
-    ))
-    .unwrap()
+fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
+    StateDB::new(core_db)
 }
 
-pub fn init_state_manager(state_db: StateDB, merkle_db: MerkleDB) -> StateManager {
+pub fn init_state_manager() -> StateManager {
+    let core_db = Arc::new(init_core_db());
+    let merkle_db = init_merkle_db(core_db.clone());
+    let state_db = init_state_db(core_db);
     StateManager::new(state_db, merkle_db)
 }
 

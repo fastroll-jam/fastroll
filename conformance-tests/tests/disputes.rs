@@ -7,7 +7,7 @@ mod tests {
         state_transition_framework::{run_test_case, StateTransitionTest},
     };
 
-    use rjam_db::BlockHeaderDB;
+    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
