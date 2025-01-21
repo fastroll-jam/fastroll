@@ -1,8 +1,9 @@
-use crate::core::{CoreDB, CoreDBError};
+use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_types::block::header::{BlockHeader, BlockHeaderError};
+use rocksdb::ColumnFamily;
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -62,6 +63,14 @@ impl BlockHeaderDB {
             Some(Arc::new(CoreDB::open(path, create_if_missing)?)),
             cache_size,
         ))
+    }
+
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
+        if let Some(core_db) = &self.core {
+            core_db.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
+        } else {
+            Err(BlockHeaderDBError::HeaderDBNotInitialized)
+        }
     }
 
     /// Get a block header by timeslot, either from the DB or the cache.

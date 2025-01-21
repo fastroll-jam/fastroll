@@ -1,5 +1,5 @@
-use rjam_db::core::{CoreDB, CoreDBError};
-use rocksdb::WriteBatch;
+use rjam_db::core::{CoreDB, CoreDBError, STATE_CF_NAME};
+use rocksdb::{ColumnFamily, WriteBatch};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -24,6 +24,10 @@ impl StateDB {
         Ok(Self {
             core: Arc::new(core),
         })
+    }
+
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateDBError> {
+        self.core.cf_handle(STATE_CF_NAME).map_err(|e| e.into())
     }
 
     pub fn get_entry(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StateDBError> {

@@ -10,8 +10,8 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::core::CoreDB;
-use rocksdb::WriteBatch;
+use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
+use rocksdb::{ColumnFamily, WriteBatch};
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
@@ -77,6 +77,10 @@ impl MerkleDB {
             Arc::new(CoreDB::open(path, create_if_missing)?),
             cache_size,
         ))
+    }
+
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+        self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
