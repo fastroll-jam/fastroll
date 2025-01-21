@@ -1,4 +1,4 @@
-use rjam_db::kvdb::{KeyValueDB, KeyValueDBError, RocksDBConfig};
+use rjam_db::kvdb::{KeyValueDBError, RocksDBConfig, KVDB};
 use std::ops::Deref;
 use thiserror::Error;
 
@@ -8,10 +8,10 @@ pub enum StateDBError {
     KeyValueDBError(#[from] KeyValueDBError),
 }
 
-pub struct StateDB(KeyValueDB);
+pub struct StateDB(KVDB);
 
 impl Deref for StateDB {
-    type Target = KeyValueDB;
+    type Target = KVDB;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -20,7 +20,7 @@ impl Deref for StateDB {
 
 impl StateDB {
     pub fn open(config: &RocksDBConfig) -> Result<Self, StateDBError> {
-        let kvdb = KeyValueDB::new(config)?;
+        let kvdb = KVDB::open(config)?;
         Ok(Self(kvdb))
     }
 }

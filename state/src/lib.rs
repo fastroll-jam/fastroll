@@ -441,8 +441,7 @@ impl StateManager {
                 let state_db_write_batch_single =
                     StateDBWriteSet::new(HashMap::from([state_db_write.clone()]))
                         .generate_write_batch();
-                self.state_db_read()
-                    .commit_write_batch(state_db_write_batch_single)?;
+                self.commit_to_state_db(state_db_write_batch_single)?;
             }
 
             // Mark committed entry as clean

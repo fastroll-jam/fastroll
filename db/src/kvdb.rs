@@ -42,12 +42,13 @@ pub enum DBWriteOp<'a> {
     Delete(&'a [u8]),       // key
 }
 
-pub struct KeyValueDB {
+pub struct KVDB {
+    /// RocksDB instance.
     db: Arc<DB>,
 }
 
-impl KeyValueDB {
-    pub fn new(config: &RocksDBConfig) -> Result<Self, KeyValueDBError> {
+impl KVDB {
+    pub fn open(config: &RocksDBConfig) -> Result<Self, KeyValueDBError> {
         let mut opts = Options::default();
         opts.create_if_missing(config.create_if_missing);
         opts.set_max_open_files(config.max_open_files);
@@ -55,7 +56,7 @@ impl KeyValueDB {
         opts.set_max_write_buffer_number(config.max_write_buffer_number);
 
         let db = DB::open(&opts, &config.path).map_err(KeyValueDBError::RocksDBError)?;
-        Ok(KeyValueDB { db: Arc::new(db) })
+        Ok(KVDB { db: Arc::new(db) })
     }
 
     pub fn get_entry(&self, key: &[u8]) -> Result<Option<Vec<u8>>, KeyValueDBError> {

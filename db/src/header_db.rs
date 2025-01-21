@@ -1,4 +1,4 @@
-use crate::{KeyValueDB, KeyValueDBError, RocksDBConfig};
+use crate::{KeyValueDBError, RocksDBConfig, KVDB};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{Hash32, HASH32_EMPTY};
@@ -29,7 +29,7 @@ pub enum BlockHeaderDBError {
 /// Block headers are stored in the database indexed by both the timeslot and the header hash.
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
-    db: Option<Arc<KeyValueDB>>,
+    db: Option<Arc<KVDB>>,
     /// Cache for storing block headers, keyed by timeslot index.
     cache: Arc<DashMap<u32, BlockHeader>>,
     /// Mutable staging header used for block construction.
@@ -46,7 +46,7 @@ impl BlockHeaderDB {
     }
 
     pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, BlockHeaderDBError> {
-        let db = KeyValueDB::new(config)?;
+        let db = KVDB::open(config)?;
         Ok(Self {
             db: Some(Arc::new(db)),
             cache: Arc::new(DashMap::with_capacity(cache_size)),

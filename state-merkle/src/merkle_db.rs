@@ -10,9 +10,9 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::RocksDBConfig;
-use rocksdb::{Options, WriteBatch, WriteOptions, DB};
-use std::{collections::HashMap, sync::Arc};
+use rjam_db::{RocksDBConfig, KVDB};
+use rocksdb::WriteBatch;
+use std::collections::HashMap;
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
 pub struct WorkingSet {
@@ -50,28 +50,20 @@ impl WorkingSet {
 pub struct MerkleDB {
     /// Root hash of the Merkle trie.
     root: Hash32,
-    /// RocksDB instance.
-    db: Arc<DB>,
+    /// Key-value database.
+    db: KVDB,
     /// Cache for storing Merkle trie nodes.
-    cache: Arc<DashMap<Hash32, MerkleNode>>,
+    cache: DashMap<Hash32, MerkleNode>,
     /// Working set of uncommitted Merkle nodes.
     pub working_set: WorkingSet,
 }
 
 impl MerkleDB {
     pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, StateMerkleError> {
-        let mut opts = Options::default();
-        opts.create_if_missing(config.create_if_missing);
-        opts.set_max_open_files(config.max_open_files);
-        opts.set_write_buffer_size(config.write_buffer_size);
-        opts.set_max_write_buffer_number(config.max_write_buffer_number);
-
-        let db = DB::open(&opts, &config.path).map_err(StateMerkleError::RocksDBError)?;
-
         Ok(Self {
             root: HASH32_EMPTY,
-            db: Arc::new(db),
-            cache: Arc::new(DashMap::with_capacity(cache_size)),
+            db: KVDB::open(config)?,
+            cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
         })
     }
@@ -156,7 +148,7 @@ impl MerkleDB {
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.db.get(node_hash.as_slice()) {
+        match self.db.get_entry(node_hash.as_slice()) {
             Ok(Some(data)) => {
                 let node = MerkleNode {
                     hash: *node_hash,
@@ -172,15 +164,15 @@ impl MerkleDB {
 
     pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
         self.db
-            .put(node.hash.as_slice(), &node.data)
+            .put_entry(node.hash.as_slice(), &node.data)
             .map_err(|e| e.into())
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
     pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), StateMerkleError> {
-        let write_options = WriteOptions::default();
-        self.db.write_opt(write_batch, &write_options)?;
-        Ok(())
+        self.db
+            .commit_write_batch(write_batch)
+            .map_err(|e| e.into())
     }
 
     pub fn clear_working_set(&mut self) {
