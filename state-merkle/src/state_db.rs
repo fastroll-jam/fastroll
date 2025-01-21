@@ -12,6 +12,7 @@ pub enum StateDBError {
 pub struct StateDB {
     /// RocksDB core.
     core: Arc<CoreDB>,
+    // TODO: add cache
 }
 
 impl StateDB {

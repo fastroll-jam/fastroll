@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_DB_CACHE_SIZE);
     let state_db = StateDB::new(core_db.clone());
-    let mut header_db = BlockHeaderDB::new(Some(core_db), HEADER_DB_CACHE_SIZE);
+    let mut header_db = BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE);
     let _state_manager = StateManager::new(state_db, merkle_db);
     let _extrinsic_pool = ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE);
 

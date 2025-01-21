@@ -164,8 +164,8 @@ impl StateCache {
 }
 
 pub struct StateManager {
-    state_db: Arc<RwLock<StateDB>>,
-    merkle_db: Arc<RwLock<MerkleDB>>,
+    state_db: Arc<RwLock<StateDB>>,   // TODO: remove RwLock
+    merkle_db: Arc<RwLock<MerkleDB>>, // TODO: remove RwLock
     cache: StateCache,
 }
 

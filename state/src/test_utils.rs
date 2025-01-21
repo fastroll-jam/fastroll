@@ -2,7 +2,7 @@
 use crate::StateManager;
 use rand::{thread_rng, Rng};
 use rjam_common::{ByteArray, Hash32};
-use rjam_db::core::CoreDB;
+use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use rjam_types::{
     state::{
@@ -29,11 +29,20 @@ fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     StateDB::new(core_db)
 }
 
-pub fn init_state_manager() -> StateManager {
-    let core_db = Arc::new(init_core_db());
+fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
+    const HEADER_DB_CACHE_SIZE: usize = 1000;
+    BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE)
+}
+
+fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     let merkle_db = init_merkle_db(core_db.clone());
     let state_db = init_state_db(core_db);
     StateManager::new(state_db, merkle_db)
+}
+
+pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
+    let core_db = Arc::new(init_core_db());
+    (init_header_db(core_db.clone()), init_state_manager(core_db))
 }
 
 pub fn random_state_key() -> Hash32 {

@@ -9,8 +9,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderDBError {
-    #[error("Header DB is not initialized")]
-    HeaderDBNotInitialized,
     #[error("Header at index {0} not found")]
     HeaderNotFound(String),
     #[error("Staging header not initialized")]
@@ -30,7 +28,7 @@ pub enum BlockHeaderDBError {
 /// Block headers are stored in the database indexed by both the timeslot and the header hash.
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
-    core: Option<Arc<CoreDB>>,
+    core: Arc<CoreDB>,
     /// Cache for storing block headers, keyed by timeslot index.
     cache: DashMap<u32, BlockHeader>,
     /// Mutable staging header used for block construction.
@@ -38,19 +36,11 @@ pub struct BlockHeaderDB {
 }
 
 impl BlockHeaderDB {
-    pub fn new(core: Option<Arc<CoreDB>>, cache_size: usize) -> Self {
+    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
         Self {
             core,
             cache: DashMap::with_capacity(cache_size),
-            staging_header: None,
-        }
-    }
-
-    pub fn init_for_test() -> Self {
-        Self {
-            core: None,
-            cache: DashMap::new(),
-            staging_header: Some(BlockHeader::new(HASH32_EMPTY)),
+            staging_header: Some(BlockHeader::new(HASH32_EMPTY)), // TODO: initialize with None
         }
     }
 
@@ -60,17 +50,13 @@ impl BlockHeaderDB {
         cache_size: usize,
     ) -> Result<Self, BlockHeaderDBError> {
         Ok(Self::new(
-            Some(Arc::new(CoreDB::open(path, create_if_missing)?)),
+            Arc::new(CoreDB::open(path, create_if_missing)?),
             cache_size,
         ))
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
-        if let Some(core_db) = &self.core {
-            core_db.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
-        } else {
-            Err(BlockHeaderDBError::HeaderDBNotInitialized)
-        }
+        self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
     }
 
     /// Get a block header by timeslot, either from the DB or the cache.
@@ -80,15 +66,10 @@ impl BlockHeaderDB {
             return Ok(header.clone());
         }
 
-        let db_core = self
-            .core
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
         let header_encoded =
-            db_core
+            self.core
                 .get_header(&timeslot_key)?
                 .ok_or(BlockHeaderDBError::HeaderNotFound(
                     timeslot_index.to_string(),
@@ -105,15 +86,11 @@ impl BlockHeaderDB {
         &self,
         header_hash: &Hash32,
     ) -> Result<BlockHeader, BlockHeaderDBError> {
-        let db_core = self
-            .core
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let header_hash_string = format!("H::{}", header_hash.encode_hex());
         let header_hash_key = header_hash_string.clone().into_bytes();
 
-        let header_encoded = db_core
+        let header_encoded = self
+            .core
             .get_header(&header_hash_key)?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
@@ -121,18 +98,13 @@ impl BlockHeaderDB {
     }
 
     fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
-        let db_core = self
-            .core
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
         let header_hash_key = format!("H::{}", header.hash()?.encode_hex()).into_bytes();
 
         let header_encoded = header.encode()?;
 
-        db_core.put_header(&timeslot_key, &header_encoded)?;
-        db_core.put_header(&header_hash_key, &header_encoded)?;
+        self.core.put_header(&timeslot_key, &header_encoded)?;
+        self.core.put_header(&header_hash_key, &header_encoded)?;
         self.cache.insert(header.timeslot_index, header.clone());
 
         Ok(())

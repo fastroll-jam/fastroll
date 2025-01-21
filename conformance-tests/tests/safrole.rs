@@ -41,7 +41,8 @@ mod tests {
 
         fn setup_state_manager(
             test_pre_state: &Self::State,
-        ) -> Result<StateManager, TransitionError> {
+            state_manager: &mut StateManager,
+        ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
             let prior_safrole = SafroleState::from(test_pre_state);
             let prior_entropy = EntropyAccumulator::from(test_pre_state.eta.clone());
@@ -56,9 +57,6 @@ mod tests {
                 .iter()
                 .map(|key| ByteArray::new(key.0))
                 .collect();
-
-            // Initialize StateManager.
-            let mut state_manager = Self::init_state_manager();
 
             // Load pre-state into the state cache.
             state_manager.load_state_for_test(
@@ -93,7 +91,7 @@ mod tests {
                 disputes.punish_set = prior_post_offenders;
             })?;
 
-            Ok(state_manager)
+            Ok(())
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {

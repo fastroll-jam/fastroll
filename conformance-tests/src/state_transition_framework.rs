@@ -34,15 +34,14 @@ pub trait StateTransitionTest {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn init_state_manager() -> StateManager {
-        rjam_state::test_utils::init_state_manager()
+    fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
+        rjam_state::test_utils::init_db_and_manager()
     }
 
-    fn setup_state_manager(test_pre_state: &Self::State) -> Result<StateManager, TransitionError>;
-
-    fn setup_header_db() -> BlockHeaderDB {
-        BlockHeaderDB::init_for_test()
-    }
+    fn setup_state_manager(
+        test_pre_state: &Self::State,
+        state_manager: &mut StateManager,
+    ) -> Result<(), TransitionError>;
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;
 
@@ -72,11 +71,11 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     let filename = PathBuf::from(filename);
     let test_case = T::load_test_case(&filename);
 
-    // setup state manager and load current state
-    let state_manager = T::setup_state_manager(&test_case.pre_state)?;
+    // init state manager and header db
+    let (mut header_db, mut state_manager) = T::init_db_and_manager();
 
-    // setup header db
-    let mut header_db = T::setup_header_db();
+    // setup state manager and load current state
+    T::setup_state_manager(&test_case.pre_state, &mut state_manager)?;
 
     // load JAM input types
     let jam_input = T::convert_input_type(&test_case.input)?;
