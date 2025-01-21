@@ -1,15 +1,14 @@
-use crate::{KeyValueDB, KeyValueDBError, RocksDBConfig};
+use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_types::block::header::{BlockHeader, BlockHeaderError};
-use std::sync::Arc;
+use rocksdb::ColumnFamily;
+use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderDBError {
-    #[error("Header DB is not initialized")]
-    HeaderDBNotInitialized,
     #[error("Header at index {0} not found")]
     HeaderNotFound(String),
     #[error("Staging header not initialized")]
@@ -18,8 +17,8 @@ pub enum BlockHeaderDBError {
     StagingHeaderAlreadyInitialized,
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
-    #[error("KeyValueDBError: {0}")]
-    KeyValueDBError(#[from] KeyValueDBError),
+    #[error("CoreDBError: {0}")]
+    CoreDBError(#[from] CoreDBError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
 }
@@ -29,29 +28,35 @@ pub enum BlockHeaderDBError {
 /// Block headers are stored in the database indexed by both the timeslot and the header hash.
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
-    db: Option<Arc<KeyValueDB>>,
+    core: Arc<CoreDB>,
     /// Cache for storing block headers, keyed by timeslot index.
-    cache: Arc<DashMap<u32, BlockHeader>>,
+    cache: DashMap<u32, BlockHeader>,
     /// Mutable staging header used for block construction.
     staging_header: Option<BlockHeader>,
 }
 
 impl BlockHeaderDB {
-    pub fn initialize_for_test() -> Self {
+    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
         Self {
-            db: None,
-            cache: Arc::new(DashMap::new()),
-            staging_header: Some(BlockHeader::new(HASH32_EMPTY)),
+            core,
+            cache: DashMap::with_capacity(cache_size),
+            staging_header: Some(BlockHeader::new(HASH32_EMPTY)), // TODO: initialize with None
         }
     }
 
-    pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, BlockHeaderDBError> {
-        let db = KeyValueDB::new(config)?;
-        Ok(Self {
-            db: Some(Arc::new(db)),
-            cache: Arc::new(DashMap::with_capacity(cache_size)),
-            staging_header: None,
-        })
+    pub fn open<P: AsRef<Path>>(
+        path: P,
+        create_if_missing: bool,
+        cache_size: usize,
+    ) -> Result<Self, BlockHeaderDBError> {
+        Ok(Self::new(
+            Arc::new(CoreDB::open(path, create_if_missing)?),
+            cache_size,
+        ))
+    }
+
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
+        self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
     }
 
     /// Get a block header by timeslot, either from the DB or the cache.
@@ -61,15 +66,11 @@ impl BlockHeaderDB {
             return Ok(header.clone());
         }
 
-        let db = self
-            .db
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
         let header_encoded =
-            db.get_entry(&timeslot_key)?
+            self.core
+                .get_header(&timeslot_key)?
                 .ok_or(BlockHeaderDBError::HeaderNotFound(
                     timeslot_index.to_string(),
                 ))?;
@@ -85,41 +86,32 @@ impl BlockHeaderDB {
         &self,
         header_hash: &Hash32,
     ) -> Result<BlockHeader, BlockHeaderDBError> {
-        let db = self
-            .db
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let header_hash_string = format!("H::{}", header_hash.encode_hex());
         let header_hash_key = header_hash_string.clone().into_bytes();
 
-        let header_encoded = db
-            .get_entry(&header_hash_key)?
+        let header_encoded = self
+            .core
+            .get_header(&header_hash_key)?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
         Ok(BlockHeader::decode(&mut header_encoded.as_slice())?)
     }
 
     fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
-        let db = self
-            .db
-            .as_ref()
-            .ok_or(BlockHeaderDBError::HeaderDBNotInitialized)?;
-
         let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
         let header_hash_key = format!("H::{}", header.hash()?.encode_hex()).into_bytes();
 
         let header_encoded = header.encode()?;
 
-        db.put_entry(&timeslot_key, &header_encoded)?;
-        db.put_entry(&header_hash_key, &header_encoded)?;
+        self.core.put_header(&timeslot_key, &header_encoded)?;
+        self.core.put_header(&header_hash_key, &header_encoded)?;
         self.cache.insert(header.timeslot_index, header.clone());
 
         Ok(())
     }
 
     pub fn init_staging_header(&mut self, parent_hash: Hash32) -> Result<(), BlockHeaderDBError> {
-        if let Some(_staging_header) = self.get_staging_header() {
+        if self.get_staging_header().is_some() {
             return Err(BlockHeaderDBError::StagingHeaderAlreadyInitialized);
         }
 

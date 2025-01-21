@@ -2,27 +2,26 @@ pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
 use rjam_common::HASH32_EMPTY;
-use rjam_db::{BlockHeaderDB, RocksDBConfig};
+use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_extrinsics::pool::ExtrinsicsPool;
 use rjam_state::StateManager;
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, path::PathBuf, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     const EXTRINSICS_POOL_MAX_SIZE: usize = 1000;
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
+    const STATE_DB_CACHE_SIZE: usize = 1000;
     const HEADER_DB_CACHE_SIZE: usize = 1000;
 
-    let state_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/state"));
-    let header_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/header"));
-    let merkle_db_config = RocksDBConfig::from_path(PathBuf::from("./.rocksdb/merkle"));
+    let core_db = Arc::new(CoreDB::open(PathBuf::from("./.rocksdb"), true)?);
 
-    let merkle_db = MerkleDB::open(&merkle_db_config, MERKLE_DB_CACHE_SIZE)?;
-    let state_db = StateDB::open(&state_db_config)?;
+    let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_DB_CACHE_SIZE);
+    let state_db = StateDB::new(core_db.clone(), STATE_DB_CACHE_SIZE);
+    let mut header_db = BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE);
     let _state_manager = StateManager::new(state_db, merkle_db);
     let _extrinsic_pool = ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE);
-    let mut header_db = BlockHeaderDB::open(&header_db_config, HEADER_DB_CACHE_SIZE)?;
 
     println!("DB initialized successfully");
 

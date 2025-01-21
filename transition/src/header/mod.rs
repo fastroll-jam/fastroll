@@ -1,6 +1,6 @@
 use crate::error::BlockHeaderUpdateError;
 use rjam_common::{BandersnatchSignature, Ed25519PubKey, Hash32, ValidatorIndex};
-use rjam_db::BlockHeaderDB;
+use rjam_db::header_db::BlockHeaderDB;
 use rjam_types::{
     block::header::{EpochMarker, WinningTicketsMarker},
     state::timeslot::Timeslot,

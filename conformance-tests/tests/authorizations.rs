@@ -6,7 +6,7 @@ mod tests {
         asn_types::authorizations::*, generate_typed_tests,
         state_transition_framework::StateTransitionTest,
     };
-    use rjam_db::BlockHeaderDB;
+    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use rjam_types::{
@@ -29,13 +29,11 @@ mod tests {
 
         fn setup_state_manager(
             test_pre_state: &Self::State,
-        ) -> Result<StateManager, TransitionError> {
+            state_manager: &mut StateManager,
+        ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
             let prior_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
             let prior_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
-
-            // Initialize StateManager.
-            let mut state_manager = Self::init_state_manager();
 
             // Load pre-state info the state cache.
             state_manager.load_state_for_test(
@@ -47,7 +45,7 @@ mod tests {
                 StateEntryType::AuthQueue(prior_auth_queue),
             );
 
-            Ok(state_manager)
+            Ok(())
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {

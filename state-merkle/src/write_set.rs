@@ -2,7 +2,6 @@ use crate::{codec::NodeCodec, error::StateMerkleError, types::*, utils::bits_enc
 use bit_vec::BitVec;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::{hash, Blake2b256};
-use rocksdb::WriteBatch;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt::{Display, Formatter},
@@ -110,21 +109,10 @@ impl MerkleDBWriteSet {
         self.new_root = new_root;
     }
 
-    /// Generates `WriteBatch` from `MerkleDBWriteSet`, converting `MerkleNodeWrite`s into `MerkleDB` entries.
-    pub fn generate_write_batch(&self) -> WriteBatch {
-        let mut batch = WriteBatch::default();
-        // `MerkleDB` entry format: (key: Hash32(value), value: encoded node value)
-        self.append_to_write_batch(&mut batch);
-        batch
-    }
-
-    pub fn append_to_write_batch(&self, batch: &mut WriteBatch) {
-        self.values().for_each(|node| {
-            // `MerkleNodeWrite` with empty hash value is used as a placeholder for removed leaves.
-            if node.hash != HASH32_EMPTY {
-                batch.put(node.hash.as_slice(), &node.node_data);
-            }
-        })
+    pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
+        self.map
+            .values()
+            .map(|node_write| (&node_write.hash, &node_write.node_data))
     }
 }
 
@@ -169,17 +157,8 @@ impl StateDBWriteSet {
         Self { inner }
     }
 
-    /// Generates `WriteBatch` from `StateDBWriteSet`.
-    pub fn generate_write_batch(&self) -> WriteBatch {
-        let mut batch = WriteBatch::default();
-        // `StateDB` entry format: (key: Hash32(value), value: raw state data)
-        self.append_to_write_batch(&mut batch);
-        batch
-    }
-
-    pub fn append_to_write_batch(&self, batch: &mut WriteBatch) {
-        self.iter()
-            .for_each(|(key, val)| batch.put(key.as_slice(), val))
+    pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
+        self.inner.iter()
     }
 }
 

@@ -7,7 +7,7 @@ mod tests {
         generate_typed_tests,
         state_transition_framework::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::BlockHeaderDB;
+    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
@@ -32,16 +32,14 @@ mod tests {
 
         fn setup_state_manager(
             test_pre_state: &Self::State,
-        ) -> Result<StateManager, TransitionError> {
+            state_manager: &mut StateManager,
+        ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
             let prior_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
             let prior_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.curr_validators,
             ));
-
-            // Initialize StateManager.
-            let mut state_manager = Self::init_state_manager();
 
             // Load pre-state info the state cache.
             state_manager.load_state_for_test(
@@ -59,7 +57,7 @@ mod tests {
                 StateEntryType::Timeslot(Timeslot::new(0)),
             );
 
-            Ok(state_manager)
+            Ok(())
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {

@@ -10,86 +10,100 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::{Hash32, HASH32_EMPTY};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::RocksDBConfig;
-use rocksdb::{Options, WriteBatch, WriteOptions, DB};
-use std::{collections::HashMap, sync::Arc};
+use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
+use rocksdb::{ColumnFamily, WriteBatch};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
 pub struct WorkingSet {
     /// Uncommitted Merkle root
-    root: Hash32,
-    nodes: HashMap<Hash32, MerkleNode>,
+    root: Mutex<Hash32>,
+    nodes: DashMap<Hash32, MerkleNode>,
 }
 
 impl WorkingSet {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            root: HASH32_EMPTY,
-            nodes: HashMap::new(),
+            root: Mutex::new(HASH32_EMPTY),
+            nodes: DashMap::new(),
         }
+    }
+
+    pub fn root(&self) -> Hash32 {
+        *self.root.lock().unwrap()
     }
 
     /// Retrieves a node that might be uncommitted in the working set.
     /// If not found here, the caller can fallback to reading from RocksDB.
     pub fn get_node(&self, node_hash: &Hash32) -> Option<MerkleNode> {
-        self.nodes.get(node_hash).cloned()
+        self.nodes.get(node_hash).map(|entry| entry.value().clone())
     }
 
     /// Inserts or updates a Merkle node in the working set, so subsequent lookups see it.
-    pub fn insert_node(&mut self, node: MerkleNode) {
+    pub fn insert_node(&self, node: MerkleNode) {
         self.nodes.insert(node.hash, node);
     }
 
-    pub fn update_root(&mut self, new_root: Hash32) {
-        self.root = new_root;
+    pub fn update_root(&self, new_root: Hash32) {
+        *self.root.lock().unwrap() = new_root;
     }
 }
 
 /// Database and cache for storing and managing Merkle trie nodes.
 pub struct MerkleDB {
     /// Root hash of the Merkle trie.
-    root: Hash32,
-    /// RocksDB instance.
-    db: Arc<DB>,
+    root: Mutex<Hash32>,
+    /// RocksDB core.
+    core: Arc<CoreDB>,
     /// Cache for storing Merkle trie nodes.
-    cache: Arc<DashMap<Hash32, MerkleNode>>,
+    cache: DashMap<Hash32, MerkleNode>,
     /// Working set of uncommitted Merkle nodes.
     pub working_set: WorkingSet,
 }
 
 impl MerkleDB {
-    pub fn open(config: &RocksDBConfig, cache_size: usize) -> Result<Self, StateMerkleError> {
-        let mut opts = Options::default();
-        opts.create_if_missing(config.create_if_missing);
-        opts.set_max_open_files(config.max_open_files);
-        opts.set_write_buffer_size(config.write_buffer_size);
-        opts.set_max_write_buffer_number(config.max_write_buffer_number);
-
-        let db = DB::open(&opts, &config.path).map_err(StateMerkleError::RocksDBError)?;
-
-        Ok(Self {
-            root: HASH32_EMPTY,
-            db: Arc::new(db),
-            cache: Arc::new(DashMap::with_capacity(cache_size)),
+    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
+        Self {
+            root: Mutex::new(HASH32_EMPTY),
+            core,
+            cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
-        })
+        }
+    }
+
+    pub fn open<P: AsRef<Path>>(
+        path: P,
+        create_if_missing: bool,
+        cache_size: usize,
+    ) -> Result<Self, StateMerkleError> {
+        Ok(Self::new(
+            Arc::new(CoreDB::open(path, create_if_missing)?),
+            cache_size,
+        ))
+    }
+
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+        self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
-        if self.working_set.root != HASH32_EMPTY {
-            self.working_set.root
+        if self.working_set.root() != HASH32_EMPTY {
+            self.working_set.root()
         } else {
-            self.root
+            self.root()
         }
     }
 
     pub fn root(&self) -> Hash32 {
-        self.root
+        *self.root.lock().unwrap()
     }
 
-    pub fn update_root(&mut self, new_root: Hash32) {
-        self.root = new_root;
+    pub fn update_root(&self, new_root: Hash32) {
+        *self.root.lock().unwrap() = new_root
     }
 
     /// Restore correct hash value from a 255-bit bitvec representation, by attempting to
@@ -156,34 +170,36 @@ impl MerkleDB {
         }
 
         // fetch node data octets from the db and put into the cache
-        match self.db.get(node_hash.as_slice()) {
-            Ok(Some(data)) => {
-                let node = MerkleNode {
-                    hash: *node_hash,
-                    data,
-                };
-                self.cache.insert(*node_hash, node.clone());
-                Ok(Some(node))
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(e.into()),
+        let maybe_node = self
+            .core
+            .get_merkle(node_hash.as_slice())?
+            .map(|data| MerkleNode {
+                hash: *node_hash,
+                data,
+            });
+
+        // insert into cache if found
+        if let Some(node) = &maybe_node {
+            self.cache.insert(*node_hash, node.clone());
         }
+
+        Ok(maybe_node)
     }
 
     pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
-        self.db
-            .put(node.hash.as_slice(), &node.data)
-            .map_err(|e| e.into())
-    }
-
-    /// Commit a write batch for node entries into the MerkleDB.
-    pub fn commit_write_batch(&self, write_batch: WriteBatch) -> Result<(), StateMerkleError> {
-        let write_options = WriteOptions::default();
-        self.db.write_opt(write_batch, &write_options)?;
+        // write to DB
+        self.core.put_merkle(node.hash.as_slice(), &node.data)?;
+        // insert into cache
+        self.cache.insert(node.hash, node.clone());
         Ok(())
     }
 
-    pub fn clear_working_set(&mut self) {
+    /// Commit a write batch for node entries into the MerkleDB.
+    pub fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
+        Ok(self.core.commit_write_batch(batch)?)
+    }
+
+    pub fn clear_working_set(&self) {
         self.working_set.nodes.clear();
     }
 
@@ -225,7 +241,7 @@ impl MerkleDB {
         // println!("\n----- Retrieval");
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
-        let mut current_node = match self.get_node(&self.root)? {
+        let mut current_node = match self.get_node(&self.root())? {
             Some(node) => node,
             None => return Ok(None),
         }; // initialize with the root node
@@ -264,7 +280,7 @@ impl MerkleDB {
         &self,
         write_op: &MerkleWriteOp,
     ) -> Result<(Hash32, Option<(Hash32, Vec<u8>)>), StateMerkleError> {
-        if self.root != HASH32_EMPTY {
+        if self.root() != HASH32_EMPTY {
             return Err(StateMerkleError::NotEmptyTrie);
         }
 
@@ -501,13 +517,13 @@ impl MerkleDB {
         state_key_bv: &BitVec,
     ) -> Result<LeafRemoveContext, StateMerkleError> {
         let mut current_node = self
-            .get_node_with_working_set(&self.root)?
+            .get_node_with_working_set(&self.root())?
             .expect("root node must exist");
         let (root_left, root_right) = NodeCodec::decode_branch(&current_node, self)?;
 
         // Keeping this history is needed because we shouldn't count the parent of the leaf node to be removed.
         let mut branch_history = FullBranchHistory::new(
-            self.root,
+            self.root(),
             state_key_bv.get(0).expect("should not be None"),
             root_left,
             root_right,

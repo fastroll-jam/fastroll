@@ -1,17 +1,13 @@
 //! MerkleDB Fuzz Tests
 #![allow(unused_imports)]
-use crate::utils::{
-    init_merkle_db, init_state_db, init_state_manager, random_state_key, random_state_val,
-};
 use rand::seq::SliceRandom;
 use rjam_codec::JamDecode;
+use rjam_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
 use std::{collections::HashMap, error::Error};
-
-mod utils;
 
 #[test]
 fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
-    let state_manager = init_state_manager(init_state_db(), init_merkle_db());
+    let (_, state_manager) = init_db_and_manager();
 
     // Test with N random state entries
     const N: usize = 1000;
