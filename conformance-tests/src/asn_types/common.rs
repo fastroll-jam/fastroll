@@ -18,7 +18,7 @@ use rjam_types::{
     common::workloads::{
         Authorizer, AvailabilitySpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
         SegmentRootLookupTable,
-        WorkExecutionError::{Bad, Big, OutOfGas, Panic},
+        WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
     extrinsics::{
@@ -803,6 +803,7 @@ pub enum AsnWorkExecResult {
     ok(AsnByteSequence),
     out_of_gas,
     panic,
+    bad_exports,
     bad_code,
     code_oversize,
 }
@@ -813,6 +814,7 @@ impl From<AsnWorkExecResult> for WorkExecutionOutput {
             AsnWorkExecResult::ok(bytes) => Self::Output(Octets::from_vec(bytes.0)),
             AsnWorkExecResult::out_of_gas => Self::Error(OutOfGas),
             AsnWorkExecResult::panic => Self::Error(Panic),
+            AsnWorkExecResult::bad_exports => Self::Error(BadExports),
             AsnWorkExecResult::bad_code => Self::Error(Bad),
             AsnWorkExecResult::code_oversize => Self::Error(Big),
         }
@@ -825,6 +827,7 @@ impl From<WorkExecutionOutput> for AsnWorkExecResult {
             WorkExecutionOutput::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
             WorkExecutionOutput::Error(OutOfGas) => Self::out_of_gas,
             WorkExecutionOutput::Error(Panic) => Self::panic,
+            WorkExecutionOutput::Error(BadExports) => Self::bad_exports,
             WorkExecutionOutput::Error(Bad) => Self::bad_code,
             WorkExecutionOutput::Error(Big) => Self::code_oversize,
         }

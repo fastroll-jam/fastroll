@@ -621,8 +621,9 @@ impl JamEncode for WorkExecutionOutput {
             WorkExecutionOutput::Error(error) => match error {
                 WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
                 WorkExecutionError::Panic => 2u8.encode_to(dest),
-                WorkExecutionError::Bad => 3u8.encode_to(dest),
-                WorkExecutionError::Big => 4u8.encode_to(dest),
+                WorkExecutionError::BadExports => 3u8.encode_to(dest),
+                WorkExecutionError::Bad => 4u8.encode_to(dest),
+                WorkExecutionError::Big => 5u8.encode_to(dest),
             },
         }
     }
@@ -637,8 +638,9 @@ impl JamDecode for WorkExecutionOutput {
             }
             1 => Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas)),
             2 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Panic)),
-            3 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Bad)),
-            4 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Big)),
+            3 => Ok(WorkExecutionOutput::Error(WorkExecutionError::BadExports)),
+            4 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Bad)),
+            5 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Big)),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionOutput prefix".into(),
             )),
@@ -663,6 +665,10 @@ impl WorkExecutionOutput {
         Self::Error(WorkExecutionError::Panic)
     }
 
+    pub fn wrong_exports_count() -> Self {
+        Self::Error(WorkExecutionError::BadExports)
+    }
+
     pub fn bad() -> Self {
         Self::Error(WorkExecutionError::Bad)
     }
@@ -675,9 +681,10 @@ impl WorkExecutionOutput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionError {
     OutOfGas,
-    Panic, // Panic
-    Bad,   // BAD; code or account address not found
-    Big,   // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
+    Panic,      // Panic
+    BadExports, // the number of exports made was invalidly reported
+    Bad,        // BAD; service code not available for lookup
+    Big,        // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
 }
 
 impl JamDecode for WorkExecutionError {
@@ -685,8 +692,9 @@ impl JamDecode for WorkExecutionError {
         match u8::decode(input)? {
             1 => Ok(WorkExecutionError::OutOfGas),
             2 => Ok(WorkExecutionError::Panic),
-            3 => Ok(WorkExecutionError::Bad),
-            4 => Ok(WorkExecutionError::Big),
+            3 => Ok(WorkExecutionError::BadExports),
+            4 => Ok(WorkExecutionError::Bad),
+            5 => Ok(WorkExecutionError::Big),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionError prefix".into(),
             )),
