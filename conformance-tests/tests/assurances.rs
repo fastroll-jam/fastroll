@@ -44,9 +44,6 @@ mod tests {
             // Additionally, initialize the timeslot state cache
             state_manager.add_timeslot(Timeslot::new(0))?;
 
-            // Commit the pre-state into the DB
-            state_manager.commit_dirty_cache()?;
-
             Ok(())
         }
 

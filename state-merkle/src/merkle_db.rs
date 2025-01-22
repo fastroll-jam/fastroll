@@ -413,7 +413,6 @@ impl MerkleDB {
                     match write_op {
                         MerkleWriteOp::Update(_, _) | MerkleWriteOp::Remove(_) => {
                             let node_data_bv = bits_encode_msb(&current_node.data);
-                            println!(">>>> ERROR HERE 2");
                             NodeCodec::compare_state_keys(&node_data_bv, &state_key_bv)?;
                         }
                         _ => {}

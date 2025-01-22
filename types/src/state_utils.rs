@@ -12,7 +12,7 @@ pub trait SimpleStateComponent: StateComponent {
 /// Represents global state types associated with account state with dynamically-derived state keys
 pub trait AccountStateComponent: StateComponent {}
 
-pub trait StateComponent: Clone + Debug + Default + PartialEq + Eq + JamDecode {
+pub trait StateComponent: Clone + Debug + Default + PartialEq + Eq + JamEncode + JamDecode {
     fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
 
     fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;

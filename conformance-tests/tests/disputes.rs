@@ -46,9 +46,6 @@ mod tests {
             state_manager.add_active_set(pre_active_set)?;
             state_manager.add_past_set(pre_past_set)?;
 
-            // Commit the pre-state into the DB
-            state_manager.commit_dirty_cache()?;
-
             Ok(())
         }
 

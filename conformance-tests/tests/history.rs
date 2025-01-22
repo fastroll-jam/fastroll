@@ -36,9 +36,6 @@ mod tests {
             // Load pre-state into the state cache.
             state_manager.add_block_history(pre_block_history)?;
 
-            // Commit the pre-state into the DB
-            state_manager.commit_dirty_cache()?;
-
             Ok(())
         }
 

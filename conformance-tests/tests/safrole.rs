@@ -68,9 +68,6 @@ mod tests {
                 disputes.punish_set = pre_post_offenders;
             })?;
 
-            // Commit the pre-state into the DB
-            state_manager.commit_dirty_cache()?;
-
             Ok(())
         }
 

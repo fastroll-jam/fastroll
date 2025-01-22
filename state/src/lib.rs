@@ -259,6 +259,10 @@ impl StateManager {
         Ok(())
     }
 
+    pub fn clear_state_cache(&self) {
+        self.cache.clear();
+    }
+
     pub fn merkle_root(&self) -> Hash32 {
         self.merkle_db.root()
     }

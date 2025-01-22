@@ -37,9 +37,6 @@ mod tests {
             state_manager.add_auth_pool(pre_auth_pool)?;
             state_manager.add_auth_queue(pre_auth_queue)?;
 
-            // Commit the pre-state into the DB
-            state_manager.commit_dirty_cache()?;
-
             Ok(())
         }
 
