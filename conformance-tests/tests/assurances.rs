@@ -5,7 +5,7 @@ mod tests {
         asn_types::{assurances::*, common::*},
         err_map::assurances::map_error_to_custom_code,
         generate_typed_tests,
-        state_transition_framework::{run_test_case, StateTransitionTest},
+        harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
@@ -30,7 +30,7 @@ mod tests {
         type Output = Output;
         type ErrorCode = AssurancesErrorCode;
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
@@ -42,17 +42,17 @@ mod tests {
             ));
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::PendingReports,
                 StateEntryType::PendingReports(prior_pending_reports),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::ActiveSet,
                 StateEntryType::ActiveSet(prior_active_set),
             );
 
             // Additionally, initialize the timeslot state cache
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::Timeslot,
                 StateEntryType::Timeslot(Timeslot::new(0)),
             );

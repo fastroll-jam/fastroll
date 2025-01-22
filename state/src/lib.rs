@@ -195,7 +195,7 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
-    pub fn load_state_for_test(
+    pub fn load_simple_state_for_test(
         &mut self,
         state_key_constant: StateKeyConstant,
         state_entry_type: StateEntryType,
@@ -488,14 +488,14 @@ impl StateManager {
         // println!("{}", &state_db_write_set);
 
         // Commit the write batch to the MerkleDB
-        let mut merkle_db_write_batch = WriteBatch::default();
-        self.append_to_merkle_db_write_batch(&mut merkle_db_write_batch, &merkle_db_write_set)?;
-        self.commit_to_merkle_db(merkle_db_write_batch)?;
+        let mut merkle_db_wb = WriteBatch::default();
+        self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
+        self.commit_to_merkle_db(merkle_db_wb)?;
 
         // Commit the write batch to the StateDB
-        let mut state_db_write_batch = WriteBatch::default();
-        self.append_to_state_db_write_batch(&mut state_db_write_batch, &state_db_write_set)?;
-        self.commit_to_state_db(state_db_write_batch)?;
+        let mut state_db_wb = WriteBatch::default();
+        self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
+        self.commit_to_state_db(state_db_wb)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db
@@ -530,8 +530,8 @@ impl StateManager {
             }
         };
 
-        let mut merkle_db_write_batch = WriteBatch::default();
-        let mut state_db_write_batch = WriteBatch::default();
+        let mut merkle_db_wb = WriteBatch::default();
+        let mut state_db_wb = WriteBatch::default();
 
         for (state_key, entry) in &dirty_entries {
             let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
@@ -547,8 +547,8 @@ impl StateManager {
                 state_db_write_set,
             } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
-            self.append_to_merkle_db_write_batch(&mut merkle_db_write_batch, &merkle_db_write_set)?;
-            self.append_to_state_db_write_batch(&mut state_db_write_batch, &state_db_write_set)?;
+            self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
+            self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
 
             // Copy MerkleDBWriteSet entries to the WorkingSet
             merkle_db_write_set
@@ -565,10 +565,10 @@ impl StateManager {
         }
 
         // Commit the write batch to the MerkleDB
-        self.commit_to_merkle_db(merkle_db_write_batch)?;
+        self.commit_to_merkle_db(merkle_db_wb)?;
 
         // Commit the write batch to the StateDB
-        self.commit_to_state_db(state_db_write_batch)?;
+        self.commit_to_state_db(state_db_wb)?;
 
         // Update the merkle root of the MerkleDB
         let new_root = self.merkle_db.root_with_working_set();

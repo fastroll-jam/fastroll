@@ -1,10 +1,9 @@
 //! Authorizers state transition conformance tests
 mod tests {
-    use rjam_conformance_tests::state_transition_framework::run_test_case;
+    use rjam_conformance_tests::harness::run_test_case;
 
     use rjam_conformance_tests::{
-        asn_types::authorizations::*, generate_typed_tests,
-        state_transition_framework::StateTransitionTest,
+        asn_types::authorizations::*, generate_typed_tests, harness::StateTransitionTest,
     };
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
@@ -27,7 +26,7 @@ mod tests {
         type Output = Output;
         type ErrorCode = ();
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
@@ -36,11 +35,11 @@ mod tests {
             let prior_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::AuthPool,
                 StateEntryType::AuthPool(prior_auth_pool),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::AuthQueue,
                 StateEntryType::AuthQueue(prior_auth_queue),
             );

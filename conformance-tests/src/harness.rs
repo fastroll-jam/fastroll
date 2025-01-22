@@ -38,7 +38,7 @@ pub trait StateTransitionTest {
         rjam_state::test_utils::init_db_and_manager()
     }
 
-    fn setup_state_manager(
+    fn load_pre_state(
         test_pre_state: &Self::State,
         state_manager: &mut StateManager,
     ) -> Result<(), TransitionError>;
@@ -74,8 +74,8 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     // init state manager and header db
     let (mut header_db, mut state_manager) = T::init_db_and_manager();
 
-    // setup state manager and load current state
-    T::setup_state_manager(&test_case.pre_state, &mut state_manager)?;
+    // load current state
+    T::load_pre_state(&test_case.pre_state, &mut state_manager)?;
 
     // load JAM input types
     let jam_input = T::convert_input_type(&test_case.input)?;

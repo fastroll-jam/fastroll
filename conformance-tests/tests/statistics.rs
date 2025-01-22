@@ -3,7 +3,7 @@ mod test {
     use rjam_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
-        state_transition_framework::{run_test_case, StateTransitionTest},
+        harness::{run_test_case, StateTransitionTest},
     };
 
     use rjam_db::header_db::BlockHeaderDB;
@@ -27,7 +27,7 @@ mod test {
         type Output = Output;
         type ErrorCode = ();
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
@@ -39,15 +39,15 @@ mod test {
             ));
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::ValidatorStats,
                 StateEntryType::ValidatorStats(prior_validator_stats),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::Timeslot,
                 StateEntryType::Timeslot(prior_timeslot),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::ActiveSet,
                 StateEntryType::ActiveSet(posterior_active_set),
             );

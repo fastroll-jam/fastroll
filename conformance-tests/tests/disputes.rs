@@ -4,7 +4,7 @@ mod tests {
         asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
         generate_typed_tests,
-        state_transition_framework::{run_test_case, StateTransitionTest},
+        harness::{run_test_case, StateTransitionTest},
     };
 
     use rjam_db::header_db::BlockHeaderDB;
@@ -32,7 +32,7 @@ mod tests {
         type Output = Output;
         type ErrorCode = DisputesErrorCode;
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
@@ -45,23 +45,23 @@ mod tests {
             let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::DisputesState,
                 StateEntryType::DisputesState(prior_disputes_state),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::PendingReports,
                 StateEntryType::PendingReports(prior_pending_reports),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::Timeslot,
                 StateEntryType::Timeslot(prior_timeslot),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::ActiveSet,
                 StateEntryType::ActiveSet(prior_active_set),
             );
-            state_manager.load_state_for_test(
+            state_manager.load_simple_state_for_test(
                 StateKeyConstant::PastSet,
                 StateEntryType::PastSet(prior_past_set),
             );
