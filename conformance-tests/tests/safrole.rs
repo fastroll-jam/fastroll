@@ -24,7 +24,6 @@ mod tests {
     use rjam_types::{
         extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
         state::*,
-        state_utils::{StateEntryType, StateKeyConstant},
     };
 
     struct SafroleTest;
@@ -44,52 +43,33 @@ mod tests {
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_safrole = SafroleState::from(test_pre_state);
-            let prior_entropy = EntropyAccumulator::from(test_pre_state.eta.clone());
-            let prior_staging_set =
+            let pre_safrole = SafroleState::from(test_pre_state);
+            let pre_entropy = EntropyAccumulator::from(test_pre_state.eta.clone());
+            let pre_staging_set =
                 StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
-            let prior_active_set =
-                ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-            let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
-            let prior_timeslot = Timeslot::new(test_pre_state.tau);
-            let prior_post_offenders = test_pre_state
+            let pre_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+            let pre_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+            let pre_timeslot = Timeslot::new(test_pre_state.tau);
+            let pre_post_offenders = test_pre_state
                 .post_offenders
                 .iter()
                 .map(|key| ByteArray::new(key.0))
                 .collect();
 
             // Load pre-state into the state cache.
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::SafroleState,
-                StateEntryType::SafroleState(prior_safrole),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::StagingSet,
-                StateEntryType::StagingSet(prior_staging_set),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::ActiveSet,
-                StateEntryType::ActiveSet(prior_active_set),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::PastSet,
-                StateEntryType::PastSet(prior_past_set),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::EntropyAccumulator,
-                StateEntryType::EntropyAccumulator(prior_entropy),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::Timeslot,
-                StateEntryType::Timeslot(prior_timeslot),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::DisputesState,
-                StateEntryType::DisputesState(DisputesState::default()),
-            );
+            state_manager.add_safrole(pre_safrole)?;
+            state_manager.add_staging_set(pre_staging_set)?;
+            state_manager.add_active_set(pre_active_set)?;
+            state_manager.add_past_set(pre_past_set)?;
+            state_manager.add_entropy_accumulator(pre_entropy)?;
+            state_manager.add_timeslot(pre_timeslot)?;
+            state_manager.add_disputes(DisputesState::default())?;
             state_manager.with_mut_disputes(StateMut::Update, |disputes| {
-                disputes.punish_set = prior_post_offenders;
+                disputes.punish_set = pre_post_offenders;
             })?;
+
+            // Commit the pre-state into the DB
+            state_manager.commit_dirty_cache()?;
 
             Ok(())
         }
@@ -122,16 +102,16 @@ mod tests {
             // let (input_timeslot, input_header_entropy_hash, input_extrinsic) = jam_input;
 
             // Run the chain extension procedure.
-            let prior_timeslot = state_manager.get_timeslot()?;
+            let pre_timeslot = state_manager.get_timeslot()?;
             transition_timeslot(state_manager, &jam_input.slot)?;
-            let current_timeslot = state_manager.get_timeslot()?;
-            let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
+            let curr_timeslot = state_manager.get_timeslot()?;
+            let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
             transition_entropy_accumulator(state_manager, epoch_progressed, jam_input.entropy)?;
             transition_past_set(state_manager, epoch_progressed)?;
             transition_active_set(state_manager, epoch_progressed)?;
             transition_safrole(
                 state_manager,
-                &prior_timeslot,
+                &pre_timeslot,
                 epoch_progressed,
                 &jam_input.extrinsic,
             )?;
@@ -162,12 +142,12 @@ mod tests {
 
             // Convert RJAM output into ASN Output.
             let staging_header = header_db.get_staging_header().cloned().unwrap();
-            let current_header_epoch_marker = staging_header.epoch_marker;
-            let current_header_winning_tickets_marker = staging_header.winning_tickets_marker;
+            let curr_header_epoch_marker = staging_header.epoch_marker;
+            let curr_header_winning_tickets_marker = staging_header.winning_tickets_marker;
 
             let output_marks = SafroleHeaderMarkers {
-                epoch_marker: current_header_epoch_marker,
-                winning_tickets_marker: current_header_winning_tickets_marker,
+                epoch_marker: curr_header_epoch_marker,
+                winning_tickets_marker: curr_header_winning_tickets_marker,
             };
 
             Output::ok(output_marks.into())
@@ -184,28 +164,28 @@ mod tests {
             }
 
             // Get the posterior state from the state cache.
-            let current_safrole = state_manager.get_safrole().unwrap();
-            let current_staging_set = state_manager.get_staging_set().unwrap();
-            let current_active_set = state_manager.get_active_set().unwrap();
-            let current_past_set = state_manager.get_past_set().unwrap();
-            let current_entropy = state_manager.get_entropy_accumulator().unwrap();
-            let current_timeslot = state_manager.get_timeslot().unwrap();
-            let current_post_offenders = state_manager.get_disputes().unwrap().punish_set;
+            let curr_safrole = state_manager.get_safrole().unwrap();
+            let curr_staging_set = state_manager.get_staging_set().unwrap();
+            let curr_active_set = state_manager.get_active_set().unwrap();
+            let curr_past_set = state_manager.get_past_set().unwrap();
+            let curr_entropy = state_manager.get_entropy_accumulator().unwrap();
+            let curr_timeslot = state_manager.get_timeslot().unwrap();
+            let curr_post_offenders = state_manager.get_disputes().unwrap().punish_set;
 
             // Convert RJAM types post-state into ASN post-state
-            let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&current_safrole);
+            let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&curr_safrole);
 
             State {
-                tau: current_timeslot.slot(),
-                eta: current_entropy.into(),
-                lambda: validator_set_to_validators_data(&current_past_set),
-                kappa: validator_set_to_validators_data(&current_active_set),
+                tau: curr_timeslot.slot(),
+                eta: curr_entropy.into(),
+                lambda: validator_set_to_validators_data(&curr_past_set),
+                kappa: validator_set_to_validators_data(&curr_active_set),
                 gamma_k,
-                iota: validator_set_to_validators_data(&current_staging_set),
+                iota: validator_set_to_validators_data(&curr_staging_set),
                 gamma_a,
                 gamma_s,
                 gamma_z,
-                post_offenders: current_post_offenders
+                post_offenders: curr_post_offenders
                     .into_iter()
                     .map(AsnByteArray32::from)
                     .collect(),

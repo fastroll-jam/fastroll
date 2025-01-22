@@ -11,7 +11,6 @@ mod tests {
     use rjam_types::{
         extrinsics::guarantees::GuaranteesExtrinsic,
         state::{AuthPool, AuthQueue, Timeslot},
-        state_utils::{StateEntryType, StateKeyConstant},
     };
 
     struct AuthorizationsTest;
@@ -31,18 +30,15 @@ mod tests {
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
-            let prior_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
+            let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
+            let pre_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
 
             // Load pre-state info the state cache.
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::AuthPool,
-                StateEntryType::AuthPool(prior_auth_pool),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::AuthQueue,
-                StateEntryType::AuthQueue(prior_auth_queue),
-            );
+            state_manager.add_auth_pool(pre_auth_pool)?;
+            state_manager.add_auth_queue(pre_auth_queue)?;
+
+            // Commit the pre-state into the DB
+            state_manager.commit_dirty_cache()?;
 
             Ok(())
         }
@@ -86,12 +82,12 @@ mod tests {
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::State {
             // Get the posterior state from the state cache.
-            let current_auth_pool = state_manager.get_auth_pool().unwrap();
-            let current_auth_queue = state_manager.get_auth_queue().unwrap();
+            let curr_auth_pool = state_manager.get_auth_pool().unwrap();
+            let curr_auth_queue = state_manager.get_auth_queue().unwrap();
 
             State {
-                auth_pools: current_auth_pool.into(),
-                auth_queues: current_auth_queue.into(),
+                auth_pools: curr_auth_pool.into(),
+                auth_queues: curr_auth_queue.into(),
             }
         }
     }

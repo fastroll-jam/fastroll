@@ -17,12 +17,11 @@ use rjam_types::{
         get_account_lookups_state_key, get_account_metadata_state_key,
         get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
         AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
-        StateKeyConstant,
     },
 };
 use rocksdb::WriteBatch;
 use std::{
-    cmp::Ordering,
+    cmp::{Ordering, PartialEq},
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -59,7 +58,7 @@ pub enum StateManagerError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
     Add,
     Update,
@@ -195,26 +194,6 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
-    pub fn load_simple_state_for_test(
-        &mut self,
-        state_key_constant: StateKeyConstant,
-        state_entry_type: StateEntryType,
-    ) {
-        let state_key = get_simple_state_key(state_key_constant);
-        self.cache
-            .insert(state_key, CacheEntry::new(state_entry_type));
-    }
-
-    pub fn load_account_metadata_for_test(
-        &mut self,
-        address: Address,
-        state_entry_type: StateEntryType,
-    ) {
-        let state_key = get_account_metadata_state_key(address);
-        self.cache
-            .insert(state_key, CacheEntry::new(state_entry_type));
-    }
-
     pub fn get_raw_state_entry_from_db(
         &self,
         state_key: &Hash32,
@@ -665,6 +644,7 @@ impl StateManager {
 
         // Ensure the cache entry exists.
         // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
+        // Note: this only checks if the state entry is found either in the cache or the db.
         let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
         if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
@@ -677,7 +657,18 @@ impl StateManager {
 
         if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
             f(entry_mut); // Call the closure to apply the state mutation
-            cache_entry.mark_dirty(state_mut);
+
+            // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
+            // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
+            // they get committed to the db.
+            if let CacheEntryStatus::Dirty(StateMut::Add) = cache_entry.status {
+                if state_mut == StateMut::Update {
+                    // do nothing
+                }
+            } else {
+                cache_entry.mark_dirty(state_mut);
+            }
+
             Ok(())
         } else {
             Err(StateManagerError::UnexpectedEntryType)
@@ -809,7 +800,14 @@ impl StateManager {
         self.with_mut_account_state_entry(&state_key, state_mut, f)
     }
 
-    // TODO: Add method `add_account_metadata`
+    pub fn add_account_metadata(
+        &self,
+        address: Address,
+        metadata: AccountMetadata,
+    ) -> Result<(), StateManagerError> {
+        let state_key = get_account_metadata_state_key(address);
+        self.add_account_state_entry(&state_key, metadata)
+    }
 
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
     /// when there is a change in the storage entries.

@@ -74,7 +74,7 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     // init state manager and header db
     let (mut header_db, mut state_manager) = T::init_db_and_manager();
 
-    // load current state
+    // load pre-state to the cache and the DB
     T::load_pre_state(&test_case.pre_state, &mut state_manager)?;
 
     // load JAM input types

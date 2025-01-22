@@ -12,10 +12,7 @@ mod tests {
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
-    use rjam_types::{
-        state::{history::ReportedWorkPackage, BlockHistory},
-        state_utils::{StateEntryType, StateKeyConstant},
-    };
+    use rjam_types::state::{history::ReportedWorkPackage, BlockHistory};
 
     struct HistoryTest;
 
@@ -34,13 +31,13 @@ mod tests {
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_block_history = BlockHistory::from(test_pre_state.beta.clone());
+            let pre_block_history = BlockHistory::from(test_pre_state.beta.clone());
 
             // Load pre-state into the state cache.
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::BlockHistory,
-                StateEntryType::BlockHistory(prior_block_history),
-            );
+            state_manager.add_block_history(pre_block_history)?;
+
+            // Commit the pre-state into the DB
+            state_manager.commit_dirty_cache()?;
 
             Ok(())
         }

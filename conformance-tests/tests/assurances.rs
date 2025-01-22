@@ -13,10 +13,7 @@ mod tests {
         error::TransitionError,
         state::{reports::transition_reports_clear_availables, timeslot::transition_timeslot},
     };
-    use rjam_types::{
-        state::{ActiveSet, PendingReports, Timeslot},
-        state_utils::{StateEntryType, StateKeyConstant},
-    };
+    use rjam_types::state::{ActiveSet, PendingReports, Timeslot};
 
     struct AssurancesTest;
 
@@ -35,27 +32,20 @@ mod tests {
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_pending_reports =
+            let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
-            let prior_active_set = ActiveSet(validators_data_to_validator_set(
+            let pre_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.curr_validators,
             ));
 
             // Load pre-state info the state cache.
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::PendingReports,
-                StateEntryType::PendingReports(prior_pending_reports),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::ActiveSet,
-                StateEntryType::ActiveSet(prior_active_set),
-            );
-
+            state_manager.add_pending_reports(pre_pending_reports)?;
+            state_manager.add_active_set(pre_active_set)?;
             // Additionally, initialize the timeslot state cache
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::Timeslot,
-                StateEntryType::Timeslot(Timeslot::new(0)),
-            );
+            state_manager.add_timeslot(Timeslot::new(0))?;
+
+            // Commit the pre-state into the DB
+            state_manager.commit_dirty_cache()?;
 
             Ok(())
         }
@@ -114,12 +104,12 @@ mod tests {
             }
 
             // Get the posterior state from the state cache.
-            let current_pending_reports = state_manager.get_pending_reports().unwrap();
-            let current_active_set = state_manager.get_active_set().unwrap();
+            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
+            let curr_active_set = state_manager.get_active_set().unwrap();
 
             State {
-                avail_assignments: current_pending_reports.into(),
-                curr_validators: validator_set_to_validators_data(&current_active_set),
+                avail_assignments: curr_pending_reports.into(),
+                curr_validators: validator_set_to_validators_data(&curr_active_set),
             }
         }
     }

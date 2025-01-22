@@ -14,11 +14,7 @@ mod tests {
         header::set_header_offenders_marker,
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
     };
-    use rjam_types::{
-        extrinsics::disputes::OffendersHeaderMarker,
-        state::*,
-        state_utils::{StateEntryType, StateKeyConstant},
-    };
+    use rjam_types::{extrinsics::disputes::OffendersHeaderMarker, state::*};
 
     struct DisputesTest;
 
@@ -37,34 +33,21 @@ mod tests {
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_disputes_state = DisputesState::from(test_pre_state.psi.clone());
-            let prior_pending_reports = PendingReports::from(test_pre_state.rho.clone());
-            let prior_timeslot = Timeslot::new(test_pre_state.tau);
-            let prior_active_set =
-                ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-            let prior_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+            let pre_disputes = DisputesState::from(test_pre_state.psi.clone());
+            let pre_pending_reports = PendingReports::from(test_pre_state.rho.clone());
+            let pre_timeslot = Timeslot::new(test_pre_state.tau);
+            let pre_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
+            let pre_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
 
             // Load pre-state info the state cache.
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::DisputesState,
-                StateEntryType::DisputesState(prior_disputes_state),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::PendingReports,
-                StateEntryType::PendingReports(prior_pending_reports),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::Timeslot,
-                StateEntryType::Timeslot(prior_timeslot),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::ActiveSet,
-                StateEntryType::ActiveSet(prior_active_set),
-            );
-            state_manager.load_simple_state_for_test(
-                StateKeyConstant::PastSet,
-                StateEntryType::PastSet(prior_past_set),
-            );
+            state_manager.add_disputes(pre_disputes)?;
+            state_manager.add_pending_reports(pre_pending_reports)?;
+            state_manager.add_timeslot(pre_timeslot)?;
+            state_manager.add_active_set(pre_active_set)?;
+            state_manager.add_past_set(pre_past_set)?;
+
+            // Commit the pre-state into the DB
+            state_manager.commit_dirty_cache()?;
 
             Ok(())
         }
@@ -81,13 +64,13 @@ mod tests {
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
-            let prior_timeslot = state_manager.get_timeslot()?;
+            let pre_timeslot = state_manager.get_timeslot()?;
             let disputes = &jam_input.extrinsic;
             let offenders_marker = disputes.collect_offender_keys();
 
             // Run state transitions.
-            transition_reports_eliminate_invalid(state_manager, disputes, &prior_timeslot)?;
-            transition_disputes(state_manager, disputes, &prior_timeslot)?;
+            transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot)?;
+            transition_disputes(state_manager, disputes, &pre_timeslot)?;
             set_header_offenders_marker(header_db, &offenders_marker.items)?;
 
             Ok(())
@@ -107,15 +90,15 @@ mod tests {
             }
 
             // Convert RJAM output into ASN Output.
-            let current_header_offenders_marker = header_db
+            let curr_header_offenders_marker = header_db
                 .get_staging_header()
                 .cloned()
                 .unwrap()
                 .offenders_marker;
-            let current_offenders_marker = OffendersHeaderMarker {
-                items: current_header_offenders_marker,
+            let curr_offenders_marker = OffendersHeaderMarker {
+                items: curr_header_offenders_marker,
             };
-            let disputes_output_marks: AsnDisputesOutputMarks = current_offenders_marker.into();
+            let disputes_output_marks: AsnDisputesOutputMarks = curr_offenders_marker.into();
 
             Output::ok(disputes_output_marks)
         }
@@ -131,18 +114,18 @@ mod tests {
             }
 
             // Get the posterior state from the state cache.
-            let current_disputes_state = state_manager.get_disputes().unwrap();
-            let current_pending_reports = state_manager.get_pending_reports().unwrap();
-            let current_timeslot = state_manager.get_timeslot().unwrap();
-            let current_active_set = state_manager.get_active_set().unwrap();
-            let current_past_set = state_manager.get_past_set().unwrap();
+            let curr_disputes_state = state_manager.get_disputes().unwrap();
+            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
+            let curr_timeslot = state_manager.get_timeslot().unwrap();
+            let curr_active_set = state_manager.get_active_set().unwrap();
+            let curr_past_set = state_manager.get_past_set().unwrap();
 
             State {
-                psi: current_disputes_state.into(),
-                rho: current_pending_reports.into(),
-                tau: current_timeslot.0,
-                kappa: validator_set_to_validators_data(&current_active_set),
-                lambda: validator_set_to_validators_data(&current_past_set),
+                psi: curr_disputes_state.into(),
+                rho: curr_pending_reports.into(),
+                tau: curr_timeslot.0,
+                kappa: validator_set_to_validators_data(&curr_active_set),
+                lambda: validator_set_to_validators_data(&curr_past_set),
             }
         }
     }
