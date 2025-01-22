@@ -5,7 +5,7 @@ mod tests {
         asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
         generate_typed_tests,
-        state_transition_framework::{run_test_case, StateTransitionTest},
+        harness::{run_test_case, StateTransitionTest},
     };
 
     use rjam_db::header_db::BlockHeaderDB;
@@ -14,12 +14,9 @@ mod tests {
         error::TransitionError,
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
-    use rjam_types::{
-        state::{
-            AccountMetadata, ActiveSet, AuthPool, BlockHistory, DisputesState, EntropyAccumulator,
-            PastSet, PendingReports, Timeslot,
-        },
-        state_utils::{StateEntryType, StateKeyConstant},
+    use rjam_types::state::{
+        AccountMetadata, ActiveSet, AuthPool, BlockHistory, DisputesState, EntropyAccumulator,
+        PastSet, PendingReports, Timeslot,
     };
 
     struct ReportsTest;
@@ -34,32 +31,32 @@ mod tests {
         type Output = Output;
         type ErrorCode = ReportsErrorCode;
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_pending_reports =
+            let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
-            let prior_active_set = ActiveSet(validators_data_to_validator_set(
+            let pre_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.curr_validators,
             ));
-            let prior_past_set = PastSet(validators_data_to_validator_set(
+            let pre_past_set = PastSet(validators_data_to_validator_set(
                 &test_pre_state.prev_validators,
             ));
-            let prior_entropy = EntropyAccumulator::from(test_pre_state.entropy.clone());
+            let pre_entropy = EntropyAccumulator::from(test_pre_state.entropy.clone());
             let offenders: Vec<Ed25519PubKey> = test_pre_state
                 .offenders
                 .iter()
                 .map(|k| ByteArray::new(k.0))
                 .collect();
-            let prior_disputes = DisputesState {
+            let pre_disputes = DisputesState {
                 punish_set: offenders,
                 ..Default::default()
             };
-            let prior_blocks_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
-            let prior_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
-            let prior_account_metadata_vec: Vec<AccountMetadata> = test_pre_state
+            let pre_block_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
+            let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
+            let pre_account_metadata_vec: Vec<AccountMetadata> = test_pre_state
                 .services
                 .clone()
                 .into_iter()
@@ -67,46 +64,21 @@ mod tests {
                 .collect();
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
-                StateKeyConstant::PendingReports,
-                StateEntryType::PendingReports(prior_pending_reports),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::ActiveSet,
-                StateEntryType::ActiveSet(prior_active_set),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::PastSet,
-                StateEntryType::PastSet(prior_past_set),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::EntropyAccumulator,
-                StateEntryType::EntropyAccumulator(prior_entropy),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::DisputesState,
-                StateEntryType::DisputesState(prior_disputes),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::BlockHistory,
-                StateEntryType::BlockHistory(prior_blocks_history),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::AuthPool,
-                StateEntryType::AuthPool(prior_auth_pool),
-            );
-            for prior_account_metadata in prior_account_metadata_vec {
-                state_manager.load_account_metadata_for_test(
-                    prior_account_metadata.address,
-                    StateEntryType::AccountMetadata(prior_account_metadata),
-                );
+            state_manager.add_pending_reports(pre_pending_reports)?;
+            state_manager.add_active_set(pre_active_set)?;
+            state_manager.add_past_set(pre_past_set)?;
+            state_manager.add_entropy_accumulator(pre_entropy)?;
+            state_manager.add_disputes(pre_disputes)?;
+            state_manager.add_block_history(pre_block_history)?;
+            state_manager.add_auth_pool(pre_auth_pool)?;
+
+            for pre_account_metadata in pre_account_metadata_vec {
+                state_manager
+                    .add_account_metadata(pre_account_metadata.address, pre_account_metadata)?;
             }
 
             // Additionally, initialize the timeslot state cache
-            state_manager.load_state_for_test(
-                StateKeyConstant::Timeslot,
-                StateEntryType::Timeslot(Timeslot::new(0)),
-            );
+            state_manager.add_timeslot(Timeslot::new(0))?;
 
             Ok(())
         }
@@ -171,32 +143,32 @@ mod tests {
             }
 
             // Get the posterior state from the state cache.
-            let current_pending_reports = state_manager.get_pending_reports().unwrap();
-            let current_active_set = state_manager.get_active_set().unwrap();
-            let current_past_set = state_manager.get_past_set().unwrap();
-            let current_entropy = state_manager.get_entropy_accumulator().unwrap();
-            let current_disputes = state_manager.get_disputes().unwrap();
-            let current_blocks_history = state_manager.get_block_history().unwrap();
-            let current_auth_pool = state_manager.get_auth_pool().unwrap();
-            let current_account_metadata_vec: Vec<AccountMetadata> = pre_state
+            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
+            let curr_active_set = state_manager.get_active_set().unwrap();
+            let curr_past_set = state_manager.get_past_set().unwrap();
+            let curr_entropy = state_manager.get_entropy_accumulator().unwrap();
+            let curr_disputes = state_manager.get_disputes().unwrap();
+            let curr_blocks_history = state_manager.get_block_history().unwrap();
+            let curr_auth_pool = state_manager.get_auth_pool().unwrap();
+            let curr_account_metadata_vec: Vec<AccountMetadata> = pre_state
                 .services
                 .iter()
                 .map(|s| state_manager.get_account_metadata(s.id).unwrap().unwrap())
                 .collect();
 
             State {
-                avail_assignments: current_pending_reports.into(),
-                curr_validators: validator_set_to_validators_data(&current_active_set),
-                prev_validators: validator_set_to_validators_data(&current_past_set),
-                entropy: current_entropy.into(),
-                offenders: current_disputes
+                avail_assignments: curr_pending_reports.into(),
+                curr_validators: validator_set_to_validators_data(&curr_active_set),
+                prev_validators: validator_set_to_validators_data(&curr_past_set),
+                entropy: curr_entropy.into(),
+                offenders: curr_disputes
                     .punish_set
                     .iter()
                     .map(|k| AsnByteArray32(k.0))
                     .collect(),
-                recent_blocks: current_blocks_history.into(),
-                auth_pools: current_auth_pool.into(),
-                services: current_account_metadata_vec
+                recent_blocks: curr_blocks_history.into(),
+                auth_pools: curr_auth_pool.into(),
+                services: curr_account_metadata_vec
                     .into_iter()
                     .map(AsnServiceItem::from)
                     .collect(),

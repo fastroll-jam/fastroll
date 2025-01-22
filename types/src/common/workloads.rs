@@ -407,9 +407,9 @@ pub struct RefinementContext {
 
 impl Display for RefinementContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RefineContext: {{ anchor_header_hash: {}, beefy_root: {}, lookup_anchor_header_hash: {},\
+        write!(f, "RefineContext: {{ anchor_header_hash: {}, anchor_state_root: {} beefy_root: {}, lookup_anchor_header_hash: {},\
             lookup_anchor_timeslot: {}
-        ", self.anchor_header_hash, self.beefy_root, self.lookup_anchor_header_hash, self.lookup_anchor_timeslot)?;
+        ", self.anchor_header_hash, self.anchor_state_root, self.beefy_root, self.lookup_anchor_header_hash, self.lookup_anchor_timeslot)?;
         if self.prerequisite_work_packages.is_empty() {
             write!(f, "  prerequisites: []}}")?;
         } else {

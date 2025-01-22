@@ -38,7 +38,7 @@ pub trait StateTransitionTest {
         rjam_state::test_utils::init_db_and_manager()
     }
 
-    fn setup_state_manager(
+    fn load_pre_state(
         test_pre_state: &Self::State,
         state_manager: &mut StateManager,
     ) -> Result<(), TransitionError>;
@@ -74,8 +74,14 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     // init state manager and header db
     let (mut header_db, mut state_manager) = T::init_db_and_manager();
 
-    // setup state manager and load current state
-    T::setup_state_manager(&test_case.pre_state, &mut state_manager)?;
+    // load pre-state to the cache and the DB
+    T::load_pre_state(&test_case.pre_state, &mut state_manager)?;
+
+    // commit the pre-state into the DB
+    state_manager.commit_dirty_cache()?;
+
+    // clear state cache to ensure the test cases read state entries from the DB
+    state_manager.clear_state_cache();
 
     // load JAM input types
     let jam_input = T::convert_input_type(&test_case.input)?;
@@ -87,6 +93,12 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
         Ok(transition_output) => (Some(transition_output), None),
         Err(e) => (None, Some(T::map_error_code(e))),
     };
+
+    // commit the post-state into the DB
+    state_manager.commit_dirty_cache()?;
+
+    // clear state cache to ensure the test cases read state entries from the DB
+    state_manager.clear_state_cache();
 
     // compare the actual and the expected post state
     let post_state = T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code);

@@ -73,7 +73,7 @@ impl JamDecode for ByteSequence {
         Self: Sized,
     {
         let len = usize::decode(input)?;
-        let mut vec = Vec::with_capacity(len);
+        let mut vec = vec![0u8; len];
         input
             .read(&mut vec)
             .map_err(|_| JamCodecError::InputError("Failed to Decode ByteSequence".into()))?;

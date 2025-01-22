@@ -17,12 +17,11 @@ use rjam_types::{
         get_account_lookups_state_key, get_account_metadata_state_key,
         get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
         AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
-        StateKeyConstant,
     },
 };
 use rocksdb::WriteBatch;
 use std::{
-    cmp::Ordering,
+    cmp::{Ordering, PartialEq},
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -59,7 +58,7 @@ pub enum StateManagerError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
     Add,
     Update,
@@ -195,26 +194,6 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
-    pub fn load_state_for_test(
-        &mut self,
-        state_key_constant: StateKeyConstant,
-        state_entry_type: StateEntryType,
-    ) {
-        let state_key = get_simple_state_key(state_key_constant);
-        self.cache
-            .insert(state_key, CacheEntry::new(state_entry_type));
-    }
-
-    pub fn load_account_metadata_for_test(
-        &mut self,
-        address: Address,
-        state_entry_type: StateEntryType,
-    ) {
-        let state_key = get_account_metadata_state_key(address);
-        self.cache
-            .insert(state_key, CacheEntry::new(state_entry_type));
-    }
-
     pub fn get_raw_state_entry_from_db(
         &self,
         state_key: &Hash32,
@@ -278,6 +257,10 @@ impl StateManager {
 
         cache_entry.mark_dirty(StateMut::Remove);
         Ok(())
+    }
+
+    pub fn clear_state_cache(&self) {
+        self.cache.clear();
     }
 
     pub fn merkle_root(&self) -> Hash32 {
@@ -488,14 +471,14 @@ impl StateManager {
         // println!("{}", &state_db_write_set);
 
         // Commit the write batch to the MerkleDB
-        let mut merkle_db_write_batch = WriteBatch::default();
-        self.append_to_merkle_db_write_batch(&mut merkle_db_write_batch, &merkle_db_write_set)?;
-        self.commit_to_merkle_db(merkle_db_write_batch)?;
+        let mut merkle_db_wb = WriteBatch::default();
+        self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
+        self.commit_to_merkle_db(merkle_db_wb)?;
 
         // Commit the write batch to the StateDB
-        let mut state_db_write_batch = WriteBatch::default();
-        self.append_to_state_db_write_batch(&mut state_db_write_batch, &state_db_write_set)?;
-        self.commit_to_state_db(state_db_write_batch)?;
+        let mut state_db_wb = WriteBatch::default();
+        self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
+        self.commit_to_state_db(state_db_wb)?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db
@@ -530,8 +513,8 @@ impl StateManager {
             }
         };
 
-        let mut merkle_db_write_batch = WriteBatch::default();
-        let mut state_db_write_batch = WriteBatch::default();
+        let mut merkle_db_wb = WriteBatch::default();
+        let mut state_db_wb = WriteBatch::default();
 
         for (state_key, entry) in &dirty_entries {
             let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
@@ -547,8 +530,8 @@ impl StateManager {
                 state_db_write_set,
             } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
-            self.append_to_merkle_db_write_batch(&mut merkle_db_write_batch, &merkle_db_write_set)?;
-            self.append_to_state_db_write_batch(&mut state_db_write_batch, &state_db_write_set)?;
+            self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
+            self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
 
             // Copy MerkleDBWriteSet entries to the WorkingSet
             merkle_db_write_set
@@ -565,10 +548,10 @@ impl StateManager {
         }
 
         // Commit the write batch to the MerkleDB
-        self.commit_to_merkle_db(merkle_db_write_batch)?;
+        self.commit_to_merkle_db(merkle_db_wb)?;
 
         // Commit the write batch to the StateDB
-        self.commit_to_state_db(state_db_write_batch)?;
+        self.commit_to_state_db(state_db_wb)?;
 
         // Update the merkle root of the MerkleDB
         let new_root = self.merkle_db.root_with_working_set();
@@ -665,6 +648,7 @@ impl StateManager {
 
         // Ensure the cache entry exists.
         // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
+        // Note: this only checks if the state entry is found either in the cache or the db.
         let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
         if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
@@ -677,7 +661,18 @@ impl StateManager {
 
         if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
             f(entry_mut); // Call the closure to apply the state mutation
-            cache_entry.mark_dirty(state_mut);
+
+            // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
+            // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
+            // they get committed to the db.
+            if let CacheEntryStatus::Dirty(StateMut::Add) = cache_entry.status {
+                if state_mut == StateMut::Update {
+                    // do nothing
+                }
+            } else {
+                cache_entry.mark_dirty(state_mut);
+            }
+
             Ok(())
         } else {
             Err(StateManagerError::UnexpectedEntryType)
@@ -809,7 +804,14 @@ impl StateManager {
         self.with_mut_account_state_entry(&state_key, state_mut, f)
     }
 
-    // TODO: Add method `add_account_metadata`
+    pub fn add_account_metadata(
+        &self,
+        address: Address,
+        metadata: AccountMetadata,
+    ) -> Result<(), StateManagerError> {
+        let state_key = get_account_metadata_state_key(address);
+        self.add_account_state_entry(&state_key, metadata)
+    }
 
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
     /// when there is a change in the storage entries.

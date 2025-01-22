@@ -1,11 +1,10 @@
 //! Block history state transition conformance tests
 mod tests {
-    use rjam_conformance_tests::state_transition_framework::run_test_case;
+    use rjam_conformance_tests::harness::run_test_case;
 
     use rjam_common::ByteArray;
     use rjam_conformance_tests::{
-        asn_types::history::*, generate_typed_tests,
-        state_transition_framework::StateTransitionTest,
+        asn_types::history::*, generate_typed_tests, harness::StateTransitionTest,
     };
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::StateManager;
@@ -13,10 +12,7 @@ mod tests {
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
-    use rjam_types::{
-        state::{history::ReportedWorkPackage, BlockHistory},
-        state_utils::{StateEntryType, StateKeyConstant},
-    };
+    use rjam_types::state::{history::ReportedWorkPackage, BlockHistory};
 
     struct HistoryTest;
 
@@ -30,18 +26,15 @@ mod tests {
         type Output = Output;
         type ErrorCode = ();
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_block_history = BlockHistory::from(test_pre_state.beta.clone());
+            let pre_block_history = BlockHistory::from(test_pre_state.beta.clone());
 
             // Load pre-state into the state cache.
-            state_manager.load_state_for_test(
-                StateKeyConstant::BlockHistory,
-                StateEntryType::BlockHistory(prior_block_history),
-            );
+            state_manager.add_block_history(pre_block_history)?;
 
             Ok(())
         }

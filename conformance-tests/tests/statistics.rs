@@ -3,7 +3,7 @@ mod test {
     use rjam_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
-        state_transition_framework::{run_test_case, StateTransitionTest},
+        harness::{run_test_case, StateTransitionTest},
     };
 
     use rjam_db::header_db::BlockHeaderDB;
@@ -12,7 +12,6 @@ mod test {
     use rjam_types::{
         extrinsics::Extrinsics,
         state::{ActiveSet, Timeslot, ValidatorStats},
-        state_utils::{StateEntryType, StateKeyConstant},
     };
 
     struct StatisticsTest;
@@ -27,30 +26,21 @@ mod test {
         type Output = Output;
         type ErrorCode = ();
 
-        fn setup_state_manager(
+        fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
         ) -> Result<(), TransitionError> {
             // Convert ASN pre-state into RJAM types.
-            let prior_validator_stats = ValidatorStats::from(test_pre_state.pi.clone());
-            let prior_timeslot = Timeslot::new(test_pre_state.tau);
+            let pre_validator_stats = ValidatorStats::from(test_pre_state.pi.clone());
+            let pre_timeslot = Timeslot::new(test_pre_state.tau);
             let posterior_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.kappa_prime,
             ));
 
             // Load pre-state info the state cache.
-            state_manager.load_state_for_test(
-                StateKeyConstant::ValidatorStats,
-                StateEntryType::ValidatorStats(prior_validator_stats),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::Timeslot,
-                StateEntryType::Timeslot(prior_timeslot),
-            );
-            state_manager.load_state_for_test(
-                StateKeyConstant::ActiveSet,
-                StateEntryType::ActiveSet(posterior_active_set),
-            );
+            state_manager.add_validator_stats(pre_validator_stats)?;
+            state_manager.add_timeslot(pre_timeslot)?;
+            state_manager.add_active_set(posterior_active_set)?;
 
             Ok(())
         }
@@ -70,9 +60,9 @@ mod test {
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            let prior_timeslot = state_manager.get_timeslot()?;
+            let pre_timeslot = state_manager.get_timeslot()?;
             let next_timeslot = jam_input.timeslot;
-            let epoch_progressed = prior_timeslot.epoch() < next_timeslot.epoch();
+            let epoch_progressed = pre_timeslot.epoch() < next_timeslot.epoch();
 
             transition_validator_stats(
                 state_manager,
@@ -101,14 +91,14 @@ mod test {
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::State {
             // Get the posterior state from the state cache.
-            let current_validator_stats = state_manager.get_validator_stats().unwrap();
-            let current_timeslot = state_manager.get_timeslot().unwrap();
+            let curr_validator_stats = state_manager.get_validator_stats().unwrap();
+            let curr_timeslot = state_manager.get_timeslot().unwrap();
             let posterior_active_set = state_manager.get_active_set().unwrap();
 
             // Convert RJAM types post-state into ASN post-state
             State {
-                pi: current_validator_stats.into(),
-                tau: current_timeslot.slot(),
+                pi: curr_validator_stats.into(),
+                tau: curr_timeslot.slot(),
                 kappa_prime: validator_set_to_validators_data(&posterior_active_set),
             }
         }

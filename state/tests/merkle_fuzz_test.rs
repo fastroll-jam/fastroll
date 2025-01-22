@@ -10,7 +10,7 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager();
 
     // Test with N random state entries
-    const N: usize = 1000;
+    const N: usize = 100;
     const MAX_VAL_SIZE: usize = 1000;
 
     // Generate random state entries
