@@ -5,7 +5,7 @@ use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsExtrinsic {
     pub items: Vec<TicketsExtrinsicEntry>,
 }

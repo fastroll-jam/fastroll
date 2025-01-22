@@ -20,19 +20,19 @@ pub enum WorkReportError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
     SegmentRoot(Hash32),     // h; export segment root
     WorkPackageHash(Hash32), // h with `boxplus` tag; export work package hash
 }
 
-#[derive(Debug, Clone, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Authorizer {
     pub auth_code_hash: Hash32, // u
     pub param_blob: Octets,     // p
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkPackage {
     pub auth_token: Octets,          // j
     pub authorizer_address: Address, // h; service which hosts the authorization code
@@ -75,7 +75,7 @@ impl JamDecode for WorkPackage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportInfo {
     pub work_package_id: WorkPackageId, // h
     pub item_index: u16,                // i; range [0, 2^15)
@@ -124,10 +124,10 @@ impl JamDecode for ImportInfo {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicInfo {
-    pub blob_hash: Hash32,  // h
-    pub blob_length: usize, // i
+    pub blob_hash: Hash32, // h
+    pub blob_length: u32,  // i
 }
 
 impl JamEncode for ExtrinsicInfo {
@@ -149,12 +149,12 @@ impl JamDecode for ExtrinsicInfo {
     {
         Ok(Self {
             blob_hash: Hash32::decode(input)?,
-            blob_length: usize::decode(input)?,
+            blob_length: u32::decode_fixed(input, 4)?,
         })
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItem {
     pub service_index: Address,                  // s
     pub service_code_hash: Hash32,               // c

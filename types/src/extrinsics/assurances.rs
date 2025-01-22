@@ -9,7 +9,7 @@ use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator assurances regarding the availability of work-reports
 /// on assigned cores.
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AssurancesExtrinsic {
     pub items: Vec<AssurancesExtrinsicEntry>,
 }

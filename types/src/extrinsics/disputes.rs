@@ -23,7 +23,7 @@ pub struct OffendersHeaderMarker {
 
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesExtrinsic {
     pub verdicts: Vec<Verdict>, // v
     pub culprits: Vec<Culprit>, // c

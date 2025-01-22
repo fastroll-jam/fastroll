@@ -41,20 +41,21 @@ mod tests {
         Ok(test_type)
     }
 
-    pub fn test_round_trip<RjamType, AsnType>(filename: &str)
+    pub fn test_encode_decode<RjamType, AsnType>(filename: &str)
     where
-        RjamType: JamEncode + JamDecode + From<AsnType> + Debug,
-        AsnType: Serialize + DeserializeOwned, // TODO: + From<RjamType>,
+        RjamType: JamEncode + JamDecode + From<AsnType> + Debug + PartialEq + Eq,
+        AsnType: Serialize + DeserializeOwned + From<RjamType>,
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{}.json", filename));
         let asn_type: AsnType =
             load_json_file(&json_path).expect("Failed to load .json test vector.");
-        let rjam_type: RjamType = RjamType::from(asn_type);
+        let rjam_type = RjamType::from(asn_type);
         let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
         let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{}.bin", filename));
         let asn_type_encoded = load_bin_file(&bin_path).expect("Failed to load .bin test vector.");
 
+        // Test encoding
         println!(
             ">>> RJAM type encoded: (length: {} bytes) {:?}",
             &rjam_type_encoded.len(),
@@ -68,7 +69,9 @@ mod tests {
         );
         assert_eq!(rjam_type_encoded, asn_type_encoded);
 
-        // TODO: test deserialization
+        // Test decoding
+        let rjam_type_decoded = RjamType::decode(&mut asn_type_encoded.as_slice()).unwrap();
+        assert_eq!(rjam_type_decoded, rjam_type);
     }
 
     macro_rules! generate_codec_tests {
@@ -76,7 +79,7 @@ mod tests {
             $(
                 #[test]
                 fn $name() {
-                    test_round_trip::<$t, $u>($path)
+                    test_encode_decode::<$t, $u>($path)
                 }
             )*
         }

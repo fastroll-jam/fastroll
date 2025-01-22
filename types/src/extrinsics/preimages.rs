@@ -7,7 +7,7 @@ use std::ops::Deref;
 /// Represents a sequence of preimage lookups, where each lookup corresponds to
 /// a requested piece of data (preimage) that has been solicited by a service
 /// but has not yet been provided.
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PreimageLookupsExtrinsic {
     pub items: Vec<PreimageLookupsExtrinsicEntry>,
 }

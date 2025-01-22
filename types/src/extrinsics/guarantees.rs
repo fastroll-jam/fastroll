@@ -10,7 +10,7 @@ use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesExtrinsic {
     pub items: Vec<GuaranteesExtrinsicEntry>,
 }

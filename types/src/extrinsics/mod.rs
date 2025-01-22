@@ -20,7 +20,7 @@ pub enum ExtrinsicsError {
 }
 
 /// Struct used for Extrinsics serialization
-#[derive(Debug, JamEncode, JamDecode)]
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Extrinsics {
     pub tickets: TicketsExtrinsic,
     pub preimage_lookups: PreimageLookupsExtrinsic,

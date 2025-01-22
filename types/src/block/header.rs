@@ -19,14 +19,14 @@ pub enum BlockHeaderError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarker {
     pub entropy: Hash32,
     pub tickets_entropy: Hash32,
     pub validators: Box<[BandersnatchPubKey; VALIDATOR_COUNT]>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockHeader {
     pub parent_hash: Hash32,                                  // p
     pub parent_state_root: Hash32,                            // r
