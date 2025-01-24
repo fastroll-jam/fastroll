@@ -6,7 +6,7 @@ use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsXt {
     pub items: Vec<TicketsXtEntry>,
 }

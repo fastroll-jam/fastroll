@@ -5,10 +5,10 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EntropyAccumulator(pub [Hash32; 4]);
 impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
 impl_simple_state_component!(EntropyAccumulator, EntropyAccumulator);
@@ -21,12 +21,6 @@ impl Display for EntropyAccumulator {
         }
 
         write!(f, "}}")
-    }
-}
-
-impl Default for EntropyAccumulator {
-    fn default() -> Self {
-        Self([HASH32_EMPTY; 4])
     }
 }
 

@@ -45,7 +45,7 @@ pub trait XtEntry: JamEncode + JamDecode {
 }
 
 /// Struct used for Extrinsics serialization
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Extrinsics {
     pub tickets: TicketsXt,
     pub preimage_lookups: PreimagesXt,

@@ -1,7 +1,7 @@
 pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
-use rjam_common::HASH32_EMPTY;
+use rjam_common::Hash32;
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_extrinsics::pool::XtPool;
 use rjam_state::StateManager;
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("DB initialized successfully");
 
-    header_db.init_staging_header(HASH32_EMPTY)?;
+    header_db.init_staging_header(Hash32::default())?;
     header_db.update_staging_header(|header| {
         header.timeslot_index = 1;
     })?;

@@ -1,5 +1,5 @@
 use rjam_codec::JamCodecError;
-use rjam_common::HASH32_EMPTY;
+use rjam_common::Hash32;
 use rjam_crypto::{hash, CryptoError, Hasher};
 use thiserror::Error;
 
@@ -15,7 +15,7 @@ pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
 
     if data.is_empty() {
-        return Ok(HASH32_EMPTY.to_vec());
+        return Ok(Hash32::default().to_vec());
     }
 
     if data.len() == 1 {
@@ -43,7 +43,7 @@ mod tests {
         let data: &[Vec<u8>] = &[];
         let root = node::<Blake2b256>(data)?;
 
-        assert_eq!(root, HASH32_EMPTY.to_vec());
+        assert_eq!(root, Hash32::default().to_vec());
         Ok(())
     }
 

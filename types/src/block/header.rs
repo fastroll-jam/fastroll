@@ -3,7 +3,7 @@ use rjam_codec::{
 };
 use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
-    BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, HASH32_EMPTY, VALIDATOR_COUNT,
+    BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Display;
@@ -128,9 +128,9 @@ impl Display for BlockHeader {
 impl Default for BlockHeader {
     fn default() -> Self {
         Self {
-            parent_hash: HASH32_EMPTY,
-            parent_state_root: HASH32_EMPTY,
-            extrinsic_hash: HASH32_EMPTY,
+            parent_hash: Hash32::default(),
+            parent_state_root: Hash32::default(),
+            extrinsic_hash: Hash32::default(),
             timeslot_index: 0,
             epoch_marker: None,
             winning_tickets_marker: None,

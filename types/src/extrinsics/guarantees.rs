@@ -11,7 +11,7 @@ use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesXt {
     pub items: Vec<GuaranteesXtEntry>,
 }

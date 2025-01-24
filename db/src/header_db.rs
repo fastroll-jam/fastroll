@@ -1,7 +1,7 @@
 use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use rjam_types::block::header::{BlockHeader, BlockHeaderError};
 use rocksdb::ColumnFamily;
 use std::{path::Path, sync::Arc};
@@ -40,7 +40,7 @@ impl BlockHeaderDB {
         Self {
             core,
             cache: DashMap::with_capacity(cache_size),
-            staging_header: Some(BlockHeader::new(HASH32_EMPTY)), // TODO: initialize with None
+            staging_header: Some(BlockHeader::new(Hash32::default())), // TODO: initialize with None
         }
     }
 

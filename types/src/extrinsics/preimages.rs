@@ -8,7 +8,7 @@ use std::ops::Deref;
 /// Represents a sequence of preimage lookups, where each lookup corresponds to
 /// a requested piece of data (preimage) that has been solicited by a service
 /// but has not yet been provided.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PreimagesXt {
     pub items: Vec<PreimagesXtEntry>,
 }

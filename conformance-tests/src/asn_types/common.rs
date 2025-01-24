@@ -5,8 +5,7 @@ use crate::serde_utils::{
 use bit_vec::BitVec;
 use rjam_common::{
     BandersnatchPubKey, ByteArray, ByteSequence, Hash32, Octets, Ticket, ValidatorKey,
-    ValidatorKeySet, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, HASH32_EMPTY, MAX_AUTH_QUEUE_SIZE,
-    VALIDATOR_COUNT,
+    ValidatorKeySet, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
@@ -614,7 +613,7 @@ pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
         let queue = value.0.map(|q| {
-            let mut hashes = [HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE];
+            let mut hashes = [Hash32::default(); MAX_AUTH_QUEUE_SIZE];
             for (i, h) in q.0.iter().enumerate() {
                 hashes[i] = ByteArray::new(h.0);
             }

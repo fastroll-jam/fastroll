@@ -14,7 +14,7 @@ use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::timeslot::Timeslot
 /// added to the pool, discarding the oldest entry from the pool if it is full.
 pub fn transition_auth_pool(
     state_manager: &StateManager,
-    guarantees: &GuaranteesXt,
+    guarantees_xt: &GuaranteesXt,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Get the current auth queue state, after its mutation via the accumulation process.
@@ -23,7 +23,7 @@ pub fn transition_auth_pool(
     state_manager.with_mut_auth_pool(StateMut::Update, |pool| {
         for (core, core_pool) in pool.0.iter_mut().enumerate() {
             // Find a guarantees extrinsics entry that utilized the current core, if there is any.
-            let report_used_core = guarantees
+            let report_used_core = guarantees_xt
                 .iter()
                 .find(|guarantee| guarantee.work_report.core_index() == core as CoreIndex)
                 .map(|guarantee| guarantee.work_report.authorizer_hash());

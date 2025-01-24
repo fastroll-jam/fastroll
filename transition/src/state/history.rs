@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
@@ -57,7 +57,7 @@ pub fn transition_block_history_append(
         history.append(BlockHistoryEntry {
             header_hash,
             accumulation_result_mmr: mmr,
-            state_root: HASH32_EMPTY,
+            state_root: Hash32::default(),
             reported_packages: reported_packages.to_vec(),
         });
     })?;

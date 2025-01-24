@@ -9,14 +9,14 @@ pub fn transition_validator_stats(
     state_manager: &StateManager,
     epoch_progressed: bool,
     header_block_author_index: ValidatorIndex,
-    extrinsics: &Extrinsics,
+    xts: &Extrinsics,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager)?;
     }
 
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
-    handle_stats_accumulation(state_manager, header_block_author_index, extrinsics)?;
+    handle_stats_accumulation(state_manager, header_block_author_index, xts)?;
 
     Ok(())
 }
@@ -36,7 +36,7 @@ fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), Trans
 fn handle_stats_accumulation(
     state_manager: &StateManager,
     header_block_author_index: ValidatorIndex,
-    extrinsics: &Extrinsics,
+    xts: &Extrinsics,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set()?;
 
@@ -45,10 +45,10 @@ fn handle_stats_accumulation(
             stats.current_epoch_validator_stats_mut(header_block_author_index);
 
         current_epoch_author_stats.blocks_produced_count += 1;
-        current_epoch_author_stats.tickets_count += extrinsics.tickets.len() as u32;
-        current_epoch_author_stats.preimages_count += extrinsics.preimage_lookups.len() as u32;
+        current_epoch_author_stats.tickets_count += xts.tickets.len() as u32;
+        current_epoch_author_stats.preimages_count += xts.preimage_lookups.len() as u32;
         current_epoch_author_stats.preimage_data_octets_count +=
-            extrinsics.preimage_lookups.total_preimage_data_len() as u32;
+            xts.preimage_lookups.total_preimage_data_len() as u32;
 
         for (validator_index, validator_stats) in
             stats.current_epoch_stats_mut().iter_mut().enumerate()
@@ -60,7 +60,7 @@ fn handle_stats_accumulation(
                     .unwrap(); // TODO: proper validation error handling
 
             // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
-            if extrinsics
+            if xts
                 .guarantees
                 .extract_reporters(&current_active_set)
                 .iter()
@@ -70,7 +70,7 @@ fn handle_stats_accumulation(
             }
 
             // Update `assurances_count` if the current validator submitted assurances extrinsic entry.
-            if extrinsics
+            if xts
                 .assurances
                 .contains_assurance_for_validator(validator_index)
             {

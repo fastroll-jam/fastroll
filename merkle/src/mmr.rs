@@ -1,6 +1,6 @@
 use crate::common::MerkleError;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Hash32, HASH32_EMPTY, HASH_SIZE};
+use rjam_common::{Hash32, HASH_SIZE};
 use rjam_crypto::{hash, Hasher, Keccak256};
 use std::marker::PhantomData;
 
@@ -126,7 +126,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
         let mut peaks = self.peaks.iter().filter_map(|p| *p);
 
         let Some(mut result) = peaks.next() else {
-            return Ok(HASH32_EMPTY);
+            return Ok(Hash32::default());
         };
 
         let prefix: &[u8] = b"node"; // FIXME: update to "peak" (GP 0.5.3)

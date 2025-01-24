@@ -5,9 +5,7 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{
-    CoreIndex, Hash32, CORE_COUNT, HASH32_EMPTY, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE,
-};
+use rjam_common::{CoreIndex, Hash32, CORE_COUNT, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},
@@ -63,6 +61,8 @@ impl_simple_state_component!(AuthQueue, AuthQueue);
 
 impl Default for AuthQueue {
     fn default() -> Self {
-        Self(Box::new([[HASH32_EMPTY; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]))
+        Self(Box::new(
+            [[Hash32::default(); MAX_AUTH_QUEUE_SIZE]; CORE_COUNT],
+        ))
     }
 }

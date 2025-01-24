@@ -2,7 +2,7 @@ pub mod test_utils;
 
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamEncode};
-use rjam_common::{Address, Hash32, HASH32_EMPTY};
+use rjam_common::{Address, Hash32};
 use rjam_crypto::{octets_to_hash32, CryptoError};
 use rjam_state_merkle::{
     error::StateMerkleError,
@@ -423,7 +423,7 @@ impl StateManager {
         }
         let write_op = cache_entry.as_merkle_state_mut(state_key)?;
         // Case 1: Trie is empty
-        if self.merkle_db.root() == HASH32_EMPTY {
+        if self.merkle_db.root() == Hash32::default() {
             // Initialize the empty merkle trie by committing the first entry.
             // This adds the first entry to the `MerkleDB`.
             // Additionally, it also adds the first entry to the `StateDB`
@@ -505,7 +505,7 @@ impl StateManager {
 
         // If the trie is empty, process one dirty cache entry by calling `commit_single_dirty_cache`
         // to initialize the trie.
-        if self.merkle_db.root() == HASH32_EMPTY {
+        if self.merkle_db.root() == Hash32::default() {
             let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
             self.commit_single_dirty_cache(&state_key)?;
             if dirty_entries.is_empty() {

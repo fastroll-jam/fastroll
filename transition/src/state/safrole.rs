@@ -3,10 +3,7 @@ use rjam_common::{Ticket, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{error::XtValidationError::*, tickets::TicketsXtValidator};
 use rjam_state::{StateManager, StateMut};
-use rjam_types::{
-    extrinsics::tickets::{TicketsXt, TicketsXtEntry},
-    state::*,
-};
+use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
 
 /// State transition function of `SafroleState`.
 ///
@@ -29,14 +26,14 @@ pub fn transition_safrole(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
-    tickets: &TicketsXt,
+    tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager, prior_timeslot)?;
     }
 
     // Ticket accumulator transition
-    handle_ticket_accumulation(state_manager, tickets)?;
+    handle_ticket_accumulation(state_manager, tickets_xt)?;
 
     Ok(())
 }
@@ -104,9 +101,9 @@ fn update_slot_sealers(
 
 fn handle_ticket_accumulation(
     state_manager: &StateManager,
-    tickets: &TicketsXt,
+    tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
-    if tickets.is_empty() {
+    if tickets_xt.is_empty() {
         return Ok(());
     }
 
@@ -120,10 +117,10 @@ fn handle_ticket_accumulation(
 
     // Validate ticket extrinsic data.
     let ticket_validator = TicketsXtValidator::new(state_manager);
-    ticket_validator.validate(tickets)?;
+    ticket_validator.validate(tickets_xt)?;
 
     // Construct new tickets from ticket extrinsics.
-    let new_tickets = ticket_extrinsics_to_new_tickets(tickets);
+    let new_tickets = ticket_xt_to_new_tickets(tickets_xt);
 
     // Check if the ticket accumulator contains the new ticket entry.
     // If not, accumulate the new ticket entry into the accumulator.
@@ -142,10 +139,8 @@ fn handle_ticket_accumulation(
     Ok(())
 }
 
-pub(crate) fn ticket_extrinsics_to_new_tickets(
-    ticket_extrinsics: &[TicketsXtEntry],
-) -> Vec<Ticket> {
-    ticket_extrinsics
+pub(crate) fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
+    tickets_xt
         .iter()
         .map(|ticket| Ticket {
             id: entropy_hash_ring_vrf(&ticket.ticket_proof),
