@@ -3,7 +3,7 @@ pub(crate) mod timeslot_scheduler;
 
 use rjam_common::HASH32_EMPTY;
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
-use rjam_extrinsics::pool::ExtrinsicsPool;
+use rjam_extrinsics::pool::XtPool;
 use rjam_state::StateManager;
 use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
 use std::{error::Error, path::PathBuf, sync::Arc};
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let state_db = StateDB::new(core_db.clone(), STATE_DB_CACHE_SIZE);
     let mut header_db = BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE);
     let _state_manager = StateManager::new(state_db, merkle_db);
-    let _extrinsic_pool = ExtrinsicsPool::new(EXTRINSICS_POOL_MAX_SIZE);
+    let _extrinsic_pool = XtPool::new(EXTRINSICS_POOL_MAX_SIZE);
 
     println!("DB initialized successfully");
 

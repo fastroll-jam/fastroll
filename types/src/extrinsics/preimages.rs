@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -30,6 +31,10 @@ impl PreimagesXt {
 pub struct PreimagesXtEntry {
     pub service_index: Address, // requester of the preimage data
     pub preimage_data: Octets,
+}
+
+impl XtEntry for PreimagesXtEntry {
+    const XT_TYPE: XtType = XtType::PreimageLookup;
 }
 
 impl JamEncode for PreimagesXtEntry {

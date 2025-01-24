@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSignature;
@@ -46,6 +47,10 @@ impl Display for TicketsXtEntry {
                 .output_hash()
         )
     }
+}
+
+impl XtEntry for TicketsXtEntry {
+    const XT_TYPE: XtType = XtType::Ticket;
 }
 
 impl PartialOrd for TicketsXtEntry {

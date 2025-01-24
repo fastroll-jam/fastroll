@@ -1,18 +1,23 @@
 use rjam_common::Hash32;
-use rjam_types::extrinsics::disputes::{Culprit, Fault, Verdict};
+use rjam_types::extrinsics::{
+    disputes::{Culprit, Fault, Verdict},
+    ExtrinsicsError, XtEntry, XtType,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
 };
 use thiserror::Error;
 
-type ExtrinsicsMap = Arc<RwLock<HashMap<Hash32, ExtrinsicEntry>>>;
-type TypeTimeslotIndex = Arc<RwLock<BTreeMap<(ExtrinsicType, u32), Vec<Hash32>>>>; // u32 for timeslot index
+type XtMap = Arc<RwLock<HashMap<Hash32, OpaqueXtEntry>>>;
+type TypeTimeslotIndex = Arc<RwLock<BTreeMap<(XtType, u32), Vec<Hash32>>>>; // u32 for timeslot index
 
 #[derive(Debug, Error)]
-pub enum ExtrinsicsPoolError {
+pub enum XtPoolError {
     #[error("Extrinsics pool is full")]
     Full,
+    #[error("ExtrinsicsError: {0}")]
+    ExtrinsicsError(#[from] ExtrinsicsError),
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
@@ -22,37 +27,35 @@ pub enum DisputesEntryType {
     Fault(Fault),
 }
 
-#[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-pub enum ExtrinsicType {
-    Ticket,
-    Guarantee,
-    Assurance,
-    PreimageLookup,
-    Verdict,
-    Culprit,
-    Fault,
-}
-
-// Extrinsics entry stored to the main `ExtrinsicsPool` in-memory pool
+// Extrinsics entry stored to the main `XtPool` in-memory pool
 #[derive(Clone)]
-pub struct ExtrinsicEntry {
+pub struct OpaqueXtEntry {
     pub hash: Hash32,
     pub data: Vec<u8>, // serialized extrinsic data
-    pub extrinsic_type: ExtrinsicType,
-    pub timeslot_index: u32,
+    pub extrinsic_type: XtType,
+}
+
+impl OpaqueXtEntry {
+    pub fn from_xt_entry<E: XtEntry>(xt: E) -> Result<Self, ExtrinsicsError> {
+        Ok(Self {
+            hash: xt.hash()?,
+            data: xt.encode()?,
+            extrinsic_type: E::XT_TYPE,
+        })
+    }
 }
 
 /// Main in-memory data structure for storing unprocessed extrinsics
-pub struct ExtrinsicsPool {
+pub struct XtPool {
     /// Main storage
-    pub extrinsics: ExtrinsicsMap,
+    pub extrinsics: XtMap,
     /// Index for type and timeslot lookups
     type_timeslot_index: TypeTimeslotIndex,
     /// Maximum size of the pool
     max_size: usize,
 }
 
-impl ExtrinsicsPool {
+impl XtPool {
     pub fn new(max_size: usize) -> Self {
         Self {
             extrinsics: Arc::new(RwLock::new(HashMap::new())),
@@ -62,12 +65,16 @@ impl ExtrinsicsPool {
     }
 
     /// Adds an extrinsic entry to the in-memory pool
-    pub fn add_extrinsic(&self, entry: ExtrinsicEntry) -> Result<(), ExtrinsicsPoolError> {
+    pub fn add_extrinsic(
+        &self,
+        entry: OpaqueXtEntry,
+        timeslot_index: u32,
+    ) -> Result<(), XtPoolError> {
         let mut extrinsics = self.extrinsics.write().unwrap();
         let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
 
         if extrinsics.len() >= self.max_size {
-            return Err(ExtrinsicsPoolError::Full);
+            return Err(XtPoolError::Full);
         }
 
         // Add to the main storage
@@ -75,7 +82,7 @@ impl ExtrinsicsPool {
 
         // Add to the type-timeslot lookup index
         type_timeslot_index
-            .entry((entry.extrinsic_type.clone(), entry.timeslot_index))
+            .entry((entry.extrinsic_type.clone(), timeslot_index))
             .or_default()
             .push(entry.hash);
 
@@ -85,9 +92,9 @@ impl ExtrinsicsPool {
     /// Reads an extrinsic entry from the in-memory pool
     pub fn get_extrinsics_by_type_and_timeslot(
         &self,
-        extrinsic_type: ExtrinsicType,
+        extrinsic_type: XtType,
         timeslot_index: u32,
-    ) -> Result<Vec<ExtrinsicEntry>, ExtrinsicsPoolError> {
+    ) -> Result<Vec<OpaqueXtEntry>, XtPoolError> {
         let type_timeslot_index = self.type_timeslot_index.read().unwrap();
         let extrinsics = self.extrinsics.read().unwrap();
 
@@ -103,24 +110,7 @@ impl ExtrinsicsPool {
     }
 
     /// Deletes an extrinsic entry from the in-memory pool
-    pub fn remove_extrinsic(
-        &self,
-        hash: &Hash32,
-    ) -> Result<Option<ExtrinsicEntry>, ExtrinsicsPoolError> {
-        let mut extrinsics = self.extrinsics.write().unwrap();
-        let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
-
-        Ok(extrinsics.remove(hash).inspect(|extrinsic| {
-            if let Some(hashes) = type_timeslot_index
-                .get_mut(&(extrinsic.extrinsic_type.clone(), extrinsic.timeslot_index))
-            {
-                // Delete the hash entry being removed from the main storage
-                hashes.retain(|&h| h != *hash);
-                if hashes.is_empty() {
-                    type_timeslot_index
-                        .remove(&(extrinsic.extrinsic_type.clone(), extrinsic.timeslot_index));
-                }
-            }
-        }))
+    pub fn remove_extrinsic(&self, _hash: &Hash32) -> Result<Option<OpaqueXtEntry>, XtPoolError> {
+        unimplemented!()
     }
 }

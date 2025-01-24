@@ -1,5 +1,6 @@
 use crate::{
-    common::workloads::WorkReport, extrinsics::ExtrinsicsError,
+    common::workloads::WorkReport,
+    extrinsics::{ExtrinsicsError, XtEntry, XtType},
     state::validators::get_validator_ed25519_key_by_index,
 };
 use rjam_codec::{
@@ -86,6 +87,10 @@ pub struct GuaranteesXtEntry {
     pub work_report: WorkReport,                // w
     pub timeslot_index: u32,                    // t
     pub credentials: Vec<GuaranteesCredential>, // a
+}
+
+impl XtEntry for GuaranteesXtEntry {
+    const XT_TYPE: XtType = XtType::Guarantee;
 }
 
 impl PartialOrd for GuaranteesXtEntry {
