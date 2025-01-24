@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSignature;
@@ -5,7 +6,7 @@ use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsXt {
     pub items: Vec<TicketsXtEntry>,
 }
@@ -46,6 +47,10 @@ impl Display for TicketsXtEntry {
                 .output_hash()
         )
     }
+}
+
+impl XtEntry for TicketsXtEntry {
+    const XT_TYPE: XtType = XtType::Ticket;
 }
 
 impl PartialOrd for TicketsXtEntry {

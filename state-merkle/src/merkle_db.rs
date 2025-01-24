@@ -8,7 +8,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use dashmap::DashMap;
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
 use rocksdb::{ColumnFamily, WriteBatch};
@@ -28,7 +28,7 @@ impl WorkingSet {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            root: Mutex::new(HASH32_EMPTY),
+            root: Mutex::new(Hash32::default()),
             nodes: DashMap::new(),
         }
     }
@@ -68,7 +68,7 @@ pub struct MerkleDB {
 impl MerkleDB {
     pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
         Self {
-            root: Mutex::new(HASH32_EMPTY),
+            root: Mutex::new(Hash32::default()),
             core,
             cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
@@ -91,7 +91,7 @@ impl MerkleDB {
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
-        if self.working_set.root() != HASH32_EMPTY {
+        if self.working_set.root() != Hash32::default() {
             self.working_set.root()
         } else {
             self.root()
@@ -115,7 +115,7 @@ impl MerkleDB {
 
         let is_empty_hash = !hash_bv.any();
         if is_empty_hash {
-            return Ok(HASH32_EMPTY);
+            return Ok(Hash32::default());
         }
 
         let mut full_bits = hash_bv.clone();
@@ -160,7 +160,7 @@ impl MerkleDB {
         node_hash: &Hash32,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
         // empty node
-        if node_hash == &HASH32_EMPTY {
+        if node_hash == &Hash32::default() {
             return Ok(None);
         }
 
@@ -280,7 +280,7 @@ impl MerkleDB {
         &self,
         write_op: &MerkleWriteOp,
     ) -> Result<(Hash32, Option<(Hash32, Vec<u8>)>), StateMerkleError> {
-        if self.root() != HASH32_EMPTY {
+        if self.root() != Hash32::default() {
             return Err(StateMerkleError::NotEmptyTrie);
         }
 
@@ -304,7 +304,7 @@ impl MerkleDB {
                 Ok((node_hash, maybe_state_db_write))
             }
             MerkleWriteOp::Update(_, _) => Err(StateMerkleError::NodeNotFound),
-            MerkleWriteOp::Remove(_) => Ok((HASH32_EMPTY, None)),
+            MerkleWriteOp::Remove(_) => Ok((Hash32::default(), None)),
         }
     }
 
@@ -344,7 +344,7 @@ impl MerkleDB {
                     // add a new leaf node diverging from that branch, we should insert the
                     // current node as an affected node with relevant context data for the
                     // `Add` write operation.
-                    if child_hash == &HASH32_EMPTY && branch_type.has_single_child() {
+                    if child_hash == &Hash32::default() && branch_type.has_single_child() {
                         if let MerkleWriteOp::Add(state_key, state_value) = &write_op {
                             affected_nodes.entry(depth).or_default().insert(
                                 AffectedNode::Endpoint(AffectedEndpoint {
@@ -365,7 +365,7 @@ impl MerkleDB {
                         }
 
                         // If child_hash of chosen on the merkle path (following the bit `b`) is
-                        // `HASH32_EMPTY` but the `write_op` is not `Add`, that implies a wrong `state_key`.
+                        // `Hash32::default()` but the `write_op` is not `Add`, that implies a wrong `state_key`.
                         return Err(StateMerkleError::NodeNotFound);
                     }
 
@@ -530,7 +530,7 @@ impl MerkleDB {
         );
 
         // Tracking the most recently seen sibling hash here.
-        let mut last_sibling_hash = HASH32_EMPTY;
+        let mut last_sibling_hash = Hash32::default();
 
         for b in state_key_bv.iter() {
             match current_node.check_node_type()? {

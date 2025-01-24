@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use bit_vec::BitVec;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
@@ -9,7 +10,7 @@ use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator assurances regarding the availability of work-reports
 /// on assigned cores.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AssurancesXt {
     pub items: Vec<AssurancesXtEntry>,
 }
@@ -58,6 +59,10 @@ pub struct AssurancesXtEntry {
     pub assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
     pub validator_index: ValidatorIndex, // v;
     pub signature: Ed25519Signature,   // s
+}
+
+impl XtEntry for AssurancesXtEntry {
+    const XT_TYPE: XtType = XtType::Assurance;
 }
 
 impl PartialOrd for AssurancesXtEntry {

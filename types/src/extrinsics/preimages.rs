@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -7,7 +8,7 @@ use std::ops::Deref;
 /// Represents a sequence of preimage lookups, where each lookup corresponds to
 /// a requested piece of data (preimage) that has been solicited by a service
 /// but has not yet been provided.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PreimagesXt {
     pub items: Vec<PreimagesXtEntry>,
 }
@@ -30,6 +31,10 @@ impl PreimagesXt {
 pub struct PreimagesXtEntry {
     pub service_index: Address, // requester of the preimage data
     pub preimage_data: Octets,
+}
+
+impl XtEntry for PreimagesXtEntry {
+    const XT_TYPE: XtType = XtType::PreimageLookup;
 }
 
 impl JamEncode for PreimagesXtEntry {

@@ -14,15 +14,15 @@ use rjam_types::{extrinsics::disputes::DisputesXt, state::timeslot::Timeslot};
 /// identified culprits and faults.
 pub fn transition_disputes(
     state_manager: &StateManager,
-    disputes: &DisputesXt,
+    disputes_xt: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let disputes_validator = DisputesXtValidator::new(state_manager);
-    disputes_validator.validate(disputes, prior_timeslot)?;
+    disputes_validator.validate(disputes_xt, prior_timeslot)?;
 
-    let (good_set, bad_set, wonky_set) = disputes.split_report_set();
-    let culprits_keys = disputes.culprits_keys();
-    let faults_keys = disputes.faults_keys();
+    let (good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
+    let culprits_keys = disputes_xt.culprits_keys();
+    let faults_keys = disputes_xt.faults_keys();
     let offenders_keys: Vec<Ed25519PubKey> = culprits_keys.into_iter().chain(faults_keys).collect();
 
     state_manager.with_mut_disputes(StateMut::Update, |disputes| {

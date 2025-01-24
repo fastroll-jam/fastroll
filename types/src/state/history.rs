@@ -66,7 +66,7 @@ impl BlockHistory {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
     pub work_package_hash: Hash32,
     pub segment_root: Hash32, // exports root

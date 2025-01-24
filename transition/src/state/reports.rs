@@ -24,14 +24,14 @@ use rjam_types::{
 /// the on-chain state.
 pub fn transition_reports_eliminate_invalid(
     state_manager: &StateManager,
-    disputes: &DisputesXt,
+    disputes_xt: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Validate disputes extrinsic data.
     let disputes_validator = DisputesXtValidator::new(state_manager);
-    disputes_validator.validate(disputes, prior_timeslot)?;
+    disputes_validator.validate(disputes_xt, prior_timeslot)?;
 
-    let (_good_set, bad_set, wonky_set) = disputes.split_report_set();
+    let (_good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
 
     state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
         for report_hash in bad_set.iter().chain(wonky_set.iter()) {
@@ -53,15 +53,15 @@ pub fn transition_reports_eliminate_invalid(
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
 pub fn transition_reports_clear_availables(
     state_manager: &StateManager,
-    assurances: &AssurancesXt,
+    assurances_xt: &AssurancesXt,
     header_parent_hash: &Hash32,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(state_manager);
-    assurances_validator.validate(assurances, header_parent_hash)?;
+    assurances_validator.validate(assurances_xt, header_parent_hash)?;
 
     // Get core indices which have been available by introducing the assurances extrinsic.
-    let available_reports_core_indices = assurances.available_core_indices();
+    let available_reports_core_indices = assurances_xt.available_core_indices();
 
     // Aggregate work reports to be removed for being available.
     let mut available_reports = Vec::with_capacity(available_reports_core_indices.len());
@@ -109,14 +109,15 @@ pub fn transition_reports_clear_availables(
 #[allow(clippy::type_complexity)]
 pub fn transition_reports_update_entries(
     state_manager: &StateManager,
-    guarantees: &GuaranteesXt,
+    guarantees_xt: &GuaranteesXt,
     current_timeslot: &Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesXtValidator::new(state_manager);
-    let all_guarantor_keys = guarantees_validator.validate(guarantees, current_timeslot.slot())?;
+    let all_guarantor_keys =
+        guarantees_validator.validate(guarantees_xt, current_timeslot.slot())?;
 
-    let new_valid_reports = guarantees.extract_work_reports();
+    let new_valid_reports = guarantees_xt.extract_work_reports();
     state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
         for report in &new_valid_reports {
             pending_reports.0[report.core_index() as usize] = Some(PendingReport {

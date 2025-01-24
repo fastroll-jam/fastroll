@@ -1,8 +1,9 @@
 use crate::error::BlockHeaderUpdateError;
-use rjam_common::{BandersnatchSignature, Ed25519PubKey, Hash32, ValidatorIndex};
+use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_db::header_db::BlockHeaderDB;
 use rjam_types::{
     block::header::{EpochMarker, WinningTicketsMarker},
+    extrinsics::disputes::OffendersHeaderMarker,
     state::timeslot::Timeslot,
 };
 
@@ -102,11 +103,11 @@ pub fn set_header_winning_tickets_marker(
 
 pub fn set_header_offenders_marker(
     header_db: &mut BlockHeaderDB,
-    offenders_marker: &[Ed25519PubKey],
+    offenders_marker: &OffendersHeaderMarker,
 ) -> Result<(), BlockHeaderUpdateError> {
     header_db.assert_staging_header_initialized()?;
     header_db.update_staging_header(|header| {
-        header.offenders_marker = offenders_marker.to_vec();
+        header.offenders_marker = offenders_marker.items.to_vec();
     })?;
 
     Ok(())

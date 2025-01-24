@@ -1,3 +1,4 @@
+use crate::extrinsics::{XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -23,7 +24,7 @@ pub struct OffendersHeaderMarker {
 
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
-#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesXt {
     pub verdicts: Vec<Verdict>, // v
     pub culprits: Vec<Culprit>, // c
@@ -141,6 +142,10 @@ impl Display for Verdict {
     }
 }
 
+impl XtEntry for Verdict {
+    const XT_TYPE: XtType = XtType::Verdict;
+}
+
 impl PartialOrd for Verdict {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -254,7 +259,7 @@ impl Ord for Judgment {
 }
 
 /// Set of validators which have guaranteed a wrong work report.
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode, Hash)]
 pub struct Culprit {
     pub report_hash: Hash32,          // r
     pub validator_key: Ed25519PubKey, // k; the guarantor
@@ -267,6 +272,10 @@ impl Display for Culprit {
         writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
         write!(f, "signature: {}", self.signature.encode_hex())
     }
+}
+
+impl XtEntry for Culprit {
+    const XT_TYPE: XtType = XtType::Culprit;
 }
 
 impl PartialOrd for Culprit {
@@ -299,6 +308,10 @@ impl Display for Fault {
         writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
         write!(f, "signature: {}", self.signature.encode_hex())
     }
+}
+
+impl XtEntry for Fault {
+    const XT_TYPE: XtType = XtType::Fault;
 }
 
 impl PartialOrd for Fault {

@@ -26,7 +26,6 @@ pub type UnsignedGas = u64;
 pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
 // Default values
-pub const HASH32_EMPTY: Hash32 = ByteArray([0u8; 32]);
 pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = ByteArray([0u8; 96]);
 pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = ByteArray([0u8; 144]);
 
@@ -216,19 +215,10 @@ impl ValidatorKey {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
     pub id: Hash32,  // ticket identifier; `Y` hash of the RingVRF proof
     pub attempt: u8, // `N_N`; 0 or 1
-}
-
-impl Default for Ticket {
-    fn default() -> Self {
-        Self {
-            id: HASH32_EMPTY,
-            attempt: 0,
-        }
-    }
 }
 
 impl Display for Ticket {

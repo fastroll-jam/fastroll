@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, error::StateMerkleError, types::*, utils::bits_encode_msb};
 use bit_vec::BitVec;
-use rjam_common::{Hash32, HASH32_EMPTY};
+use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -96,7 +96,7 @@ impl Display for MerkleDBWriteSet {
 impl MerkleDBWriteSet {
     pub fn new(inner: HashMap<Hash32, MerkleNodeWrite>) -> Self {
         Self {
-            new_root: HASH32_EMPTY,
+            new_root: Hash32::default(),
             map: inner,
         }
     }
@@ -399,8 +399,8 @@ impl AffectedNodesByDepth {
                         } else {
                             // Sibling of the leaf being removed is branch node
                             match ctx.removal_side {
-                                ChildType::Left => left = HASH32_EMPTY,
-                                ChildType::Right => right = HASH32_EMPTY,
+                                ChildType::Left => left = Hash32::default(),
+                                ChildType::Right => right = Hash32::default(),
                             }
                         }
 
@@ -501,9 +501,9 @@ impl AffectedNodesByDepth {
         while let Some(b) = path_iter_rev.next() {
             let is_top_branch = path_iter_rev.peek().is_none();
             let (left_child, right_child) = if b {
-                (HASH32_EMPTY, child_hash)
+                (Hash32::default(), child_hash)
             } else {
-                (child_hash, HASH32_EMPTY)
+                (child_hash, Hash32::default())
             };
             let single_child_branch_data = NodeCodec::encode_branch(&left_child, &right_child)?;
             let single_child_branch_hash = hash::<Blake2b256>(&single_child_branch_data)?;

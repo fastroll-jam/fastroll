@@ -354,10 +354,9 @@ impl JamDecode for TicketAccumulator {
 #[cfg(test)]
 mod ticket_accumulator_tests {
     use super::*;
-    use rjam_common::HASH32_EMPTY;
 
     fn create_ticket(i: u16) -> Ticket {
-        let mut hash = HASH32_EMPTY;
+        let mut hash = Hash32::default();
         hash[0] = (i >> 8) as u8;
         hash[1] = i as u8;
         Ticket {
@@ -384,7 +383,7 @@ mod ticket_accumulator_tests {
     fn test_add_over_capacity() {
         let mut tickets = TicketAccumulator::new();
         for i in 0..EPOCH_LENGTH as u16 + 1 {
-            let mut hash = HASH32_EMPTY;
+            let mut hash = Hash32::default();
             // Constructing tickets with unique hash values, with first two bytes
             hash[0] = (i >> 8) as u8;
             hash[1] = (i & 0xFF) as u8;
@@ -398,7 +397,7 @@ mod ticket_accumulator_tests {
 
         let expected: Vec<Ticket> = (0..EPOCH_LENGTH as u16)
             .map(|i| {
-                let mut hash = HASH32_EMPTY;
+                let mut hash = Hash32::default();
                 hash[0] = (i >> 8) as u8;
                 hash[1] = (i & 0xFF) as u8;
                 Ticket {
@@ -412,7 +411,7 @@ mod ticket_accumulator_tests {
 
         // Large ticket should not be included in the MaxHeap
         let large_ticket = {
-            let mut hash = HASH32_EMPTY;
+            let mut hash = Hash32::default();
             hash[0] = (EPOCH_LENGTH as u16 >> 8) as u8;
             hash[1] = (EPOCH_LENGTH as u16 & 0xFF) as u8;
             Ticket {
