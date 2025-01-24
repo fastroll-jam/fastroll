@@ -1,14 +1,14 @@
-use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use crate::validation::error::{XtValidationError, XtValidationError::*};
 use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
-    extrinsics::disputes::{Culprit, DisputesExtrinsic, Fault, Verdict, VerdictEvaluation},
+    extrinsics::disputes::{Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation},
     state::*,
 };
 use std::collections::HashSet;
 
-/// Validates contents of `DisputesExtrinsic` type.
+/// Validates contents of `DisputesXt` type.
 ///
 /// # Validation Rules
 ///
@@ -33,20 +33,20 @@ use std::collections::HashSet;
 ///     - Offender signatures must be valid Ed25519 signatures of the work report hash,
 ///       similar to the validation of `verdicts`.
 ///     - Offenders whose work reports are already in the punish-set must be excluded.
-pub struct DisputesExtrinsicValidator<'a> {
+pub struct DisputesXtValidator<'a> {
     state_manager: &'a StateManager,
 }
 
-impl<'a> DisputesExtrinsicValidator<'a> {
+impl<'a> DisputesXtValidator<'a> {
     pub fn new(state_manager: &'a StateManager) -> Self {
         Self { state_manager }
     }
 
     pub fn validate(
         &self,
-        extrinsic: &DisputesExtrinsic,
+        extrinsic: &DisputesXt,
         prior_timeslot: &Timeslot,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         // Check if the entries are sorted
         if !extrinsic.verdicts.is_sorted() {
             return Err(VerdictsNotSorted);
@@ -132,8 +132,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Verdict,
         prior_timeslot: &Timeslot,
         all_past_report_hashes: &[Hash32],
-        extrinsic: &DisputesExtrinsic,
-    ) -> Result<(), ExtrinsicValidationError> {
+        extrinsic: &DisputesXt,
+    ) -> Result<(), XtValidationError> {
         // Check if verdicts contain entries with epoch index older the previous epoch
         if entry.epoch_index + 1 < prior_timeslot.epoch() {
             return Err(InvalidJudgmentsAge(
@@ -223,8 +223,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Culprit,
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],
-        extrinsic: &DisputesExtrinsic,
-    ) -> Result<(), ExtrinsicValidationError> {
+        extrinsic: &DisputesXt,
+    ) -> Result<(), XtValidationError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
             return Err(CulpritAlreadyReported(entry.validator_key.encode_hex()));
@@ -258,8 +258,8 @@ impl<'a> DisputesExtrinsicValidator<'a> {
         entry: &Fault,
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],
-        extrinsic: &DisputesExtrinsic,
-    ) -> Result<(), ExtrinsicValidationError> {
+        extrinsic: &DisputesXt,
+    ) -> Result<(), XtValidationError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
             return Err(FaultAlreadyReported(entry.validator_key.encode_hex()));

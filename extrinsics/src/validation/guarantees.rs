@@ -1,6 +1,6 @@
 use crate::{
     utils::guarantor_rotation::GuarantorAssignment,
-    validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*},
+    validation::error::{XtValidationError, XtValidationError::*},
 };
 use rjam_common::{
     CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
@@ -11,13 +11,13 @@ use rjam_crypto::verify_signature;
 use rjam_state::StateManager;
 use rjam_types::{
     common::workloads::{RefinementContext, WorkReport},
-    extrinsics::guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
+    extrinsics::guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
     state::*,
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.
 
-/// Validates contents of `GuaranteesExtrinsic` type.
+/// Validates contents of `GuaranteesXt` type.
 ///
 /// # Validation Rules
 ///
@@ -55,23 +55,23 @@ use std::collections::HashSet;
 ///     the hash of the work-report, signed by the public key corresponding to the validator index.
 ///   - The validator who signs the credential must be assigned to the core in question, either in
 ///     the current guarantor assignment rotation or in the previous rotation.
-pub struct GuaranteesExtrinsicValidator<'a> {
+pub struct GuaranteesXtValidator<'a> {
     state_manager: &'a StateManager,
 }
 
-impl<'a> GuaranteesExtrinsicValidator<'a> {
+impl<'a> GuaranteesXtValidator<'a> {
     pub fn new(state_manager: &'a StateManager) -> Self {
         Self { state_manager }
     }
 
-    /// Validates the entire `GuaranteesExtrinsic`.
+    /// Validates the entire `GuaranteesXt`.
     ///
     /// Returns `Ed25519PubKey`s of guarantors of all report entries.
     pub fn validate(
         &self,
-        extrinsic: &GuaranteesExtrinsic,
+        extrinsic: &GuaranteesXt,
         header_timeslot_index: u32,
-    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
             return Err(GuaranteesEntryLimitExceeded(extrinsic.len(), CORE_COUNT));
@@ -133,20 +133,20 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         Ok(all_guarantor_keys)
     }
 
-    /// Validates each `GuaranteesExtrinsicEntry`.
+    /// Validates each `GuaranteesXtEntry`.
     ///
     /// Returns `Ed25519PubKey`s of guarantors of the report entry.
     #[allow(clippy::too_many_arguments)]
     pub fn validate_entry(
         &self,
-        entry: &GuaranteesExtrinsicEntry,
+        entry: &GuaranteesXtEntry,
         exports_manifests: &[ReportedWorkPackage],
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
         self.validate_work_report(
             &entry.work_report,
             exports_manifests,
@@ -170,7 +170,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         // Check work report output size limit
         if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
             return Err(WorkReportOutputSizeLimitExceeded);
@@ -305,7 +305,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         block_history: &BlockHistory,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         let anchor_hash = work_report_context.anchor_header_hash;
         let anchor_state_root = work_report_context.anchor_state_root;
         let anchor_beefy_root = work_report_context.beefy_root;
@@ -334,7 +334,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         header_timeslot_index: u32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
         let lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
@@ -352,10 +352,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         Ok(())
     }
 
-    fn validate_work_results(
-        &self,
-        work_report: &WorkReport,
-    ) -> Result<(), ExtrinsicValidationError> {
+    fn validate_work_results(&self, work_report: &WorkReport) -> Result<(), XtValidationError> {
         for result in work_report.results() {
             if let Some(expected_code_hash) = self
                 .state_manager
@@ -383,8 +380,8 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
 
     fn validate_credentials(
         &self,
-        entry: &GuaranteesExtrinsicEntry,
-    ) -> Result<Vec<Ed25519PubKey>, ExtrinsicValidationError> {
+        entry: &GuaranteesXtEntry,
+    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
@@ -424,7 +421,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         work_report: &WorkReport,
         entry_timeslot_index: u32,
         credential: &GuaranteesCredential,
-    ) -> Result<Ed25519PubKey, ExtrinsicValidationError> {
+    ) -> Result<Ed25519PubKey, XtValidationError> {
         // Verify the signature
         let hash = work_report.hash()?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
@@ -475,7 +472,7 @@ impl<'a> GuaranteesExtrinsicValidator<'a> {
         &self,
         entry_timeslot_index: u32,
         current_timeslot_index: u32,
-    ) -> Result<GuarantorAssignment, ExtrinsicValidationError> {
+    ) -> Result<GuarantorAssignment, XtValidationError> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
         if within_same_rotation {

@@ -24,13 +24,13 @@ pub struct OffendersHeaderMarker {
 /// Represents a collection of judgments regarding the validity of work reports and the misbehavior
 /// of validators.
 #[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct DisputesExtrinsic {
+pub struct DisputesXt {
     pub verdicts: Vec<Verdict>, // v
     pub culprits: Vec<Culprit>, // c
     pub faults: Vec<Fault>,     // f
 }
 
-impl Display for DisputesExtrinsic {
+impl Display for DisputesXt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "verdicts:")?;
         for verdict in &self.verdicts {
@@ -50,7 +50,7 @@ impl Display for DisputesExtrinsic {
         Ok(())
     }
 }
-impl DisputesExtrinsic {
+impl DisputesXt {
     pub fn count_culprits_with_report_hash(&self, report_hash: &Hash32) -> usize {
         self.culprits
             .iter()

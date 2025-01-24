@@ -1,7 +1,7 @@
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::CryptoError;
 use rjam_db::header_db::BlockHeaderDBError;
-use rjam_extrinsics::validation::error::ExtrinsicValidationError;
+use rjam_extrinsics::validation::error::XtValidationError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::StateManagerError;
@@ -22,7 +22,7 @@ pub enum TransitionError {
     #[error("Block header update error: {0}")]
     BlockHeaderUpdateError(#[from] BlockHeaderUpdateError),
     #[error("Extrinsic validation error: {0}")]
-    ExtrinsicValidationError(#[from] ExtrinsicValidationError),
+    XtValidationError(#[from] XtValidationError),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] SerializationError),
     #[error("Fallback key error: {0}")]

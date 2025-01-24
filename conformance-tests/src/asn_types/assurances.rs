@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
 use rjam_common::Hash32;
 use rjam_types::{
-    common::workloads::WorkReport, extrinsics::assurances::AssurancesExtrinsic, state::Timeslot,
+    common::workloads::WorkReport, extrinsics::assurances::AssurancesXt, state::Timeslot,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,13 +24,13 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub assurances: AsnAssurancesExtrinsic,
+    pub assurances: AsnAssurancesXt,
     pub slot: AsnTimeSlot,
     pub parent: AsnHeaderHash,
 }
 
 pub struct JamInput {
-    pub extrinsic: AssurancesExtrinsic,
+    pub extrinsic: AssurancesXt,
     pub timeslot: Timeslot,
     pub parent_hash: Hash32,
 }

@@ -151,7 +151,7 @@ pub fn accumulate_outer(
             &HashMap::new(),
         )?;
 
-        accumulated_reports += result.accumulation_counter as usize;
+        accumulated_reports += result.accumulation_counter;
         deferred_transfers.extend(result.deferred_transfers);
         output_pairs.extend(result.output_pairs);
     }

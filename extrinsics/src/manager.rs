@@ -2,11 +2,11 @@
 use crate::pool::{ExtrinsicEntry, ExtrinsicType, ExtrinsicsPool, ExtrinsicsPoolError};
 use rjam_codec::JamDecode;
 use rjam_types::extrinsics::{
-    assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
-    disputes::{Culprit, DisputesExtrinsic, Fault, Verdict},
-    guarantees::{GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
-    preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry},
-    tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
+    assurances::{AssurancesXt, AssurancesXtEntry},
+    disputes::{Culprit, DisputesXt, Fault, Verdict},
+    guarantees::{GuaranteesXt, GuaranteesXtEntry},
+    preimages::{PreimagesXt, PreimagesXtEntry},
+    tickets::{TicketsXt, TicketsXtEntry},
 };
 
 // TODO: add submitter that accepts `Extrinsic` type (not Entry Type) with encoding
@@ -29,57 +29,54 @@ fn get_extrinsics(
 pub fn get_ticket_extrinsics(
     pool: &ExtrinsicsPool,
     timeslot_index: u32,
-) -> Result<TicketsExtrinsic, ExtrinsicsPoolError> {
-    let items: Vec<TicketsExtrinsicEntry> =
-        get_extrinsics(pool, ExtrinsicType::Ticket, timeslot_index)?
-            .into_iter()
-            .filter_map(|entry| TicketsExtrinsicEntry::decode(&mut entry.data.as_slice()).ok())
-            .collect();
-    Ok(TicketsExtrinsic { items })
+) -> Result<TicketsXt, ExtrinsicsPoolError> {
+    let items: Vec<TicketsXtEntry> = get_extrinsics(pool, ExtrinsicType::Ticket, timeslot_index)?
+        .into_iter()
+        .filter_map(|entry| TicketsXtEntry::decode(&mut entry.data.as_slice()).ok())
+        .collect();
+    Ok(TicketsXt { items })
 }
 
 pub fn get_guarantee_extrinsics(
     pool: &ExtrinsicsPool,
     timeslot_index: u32,
-) -> Result<GuaranteesExtrinsic, ExtrinsicsPoolError> {
-    let items: Vec<GuaranteesExtrinsicEntry> =
+) -> Result<GuaranteesXt, ExtrinsicsPoolError> {
+    let items: Vec<GuaranteesXtEntry> =
         get_extrinsics(pool, ExtrinsicType::Guarantee, timeslot_index)?
             .into_iter()
-            .filter_map(|entry| GuaranteesExtrinsicEntry::decode(&mut entry.data.as_slice()).ok())
+            .filter_map(|entry| GuaranteesXtEntry::decode(&mut entry.data.as_slice()).ok())
             .collect();
-    Ok(GuaranteesExtrinsic { items })
+    Ok(GuaranteesXt { items })
 }
 
 pub fn get_assurance_extrinsics(
     pool: &ExtrinsicsPool,
     timeslot_index: u32,
-) -> Result<AssurancesExtrinsic, ExtrinsicsPoolError> {
-    let items: Vec<AssurancesExtrinsicEntry> =
+) -> Result<AssurancesXt, ExtrinsicsPoolError> {
+    let items: Vec<AssurancesXtEntry> =
         get_extrinsics(pool, ExtrinsicType::Assurance, timeslot_index)?
             .into_iter()
-            .filter_map(|entry| AssurancesExtrinsicEntry::decode(&mut entry.data.as_slice()).ok())
+            .filter_map(|entry| AssurancesXtEntry::decode(&mut entry.data.as_slice()).ok())
             .collect();
-    Ok(AssurancesExtrinsic { items })
+    Ok(AssurancesXt { items })
 }
 
 pub fn get_lookup_extrinsics(
     pool: &ExtrinsicsPool,
     timeslot_index: u32,
-) -> Result<PreimageLookupsExtrinsic, ExtrinsicsPoolError> {
-    let items: Vec<PreimageLookupsExtrinsicEntry> =
+) -> Result<PreimagesXt, ExtrinsicsPoolError> {
+    let items: Vec<PreimagesXtEntry> =
         get_extrinsics(pool, ExtrinsicType::PreimageLookup, timeslot_index)?
             .into_iter()
-            .filter_map(|entry| {
-                PreimageLookupsExtrinsicEntry::decode(&mut entry.data.as_slice()).ok()
-            })
+            .filter_map(|entry| PreimagesXtEntry::decode(&mut entry.data.as_slice()).ok())
             .collect();
-    Ok(PreimageLookupsExtrinsic { items })
+    Ok(PreimagesXt { items })
 }
 
 pub fn get_dispute_extrinsics(
     pool: &ExtrinsicsPool,
     timeslot_index: u32,
-) -> Result<DisputesExtrinsic, ExtrinsicsPoolError> {
+) -> Result<DisputesXt, ExtrinsicsPoolError> {
     let verdicts: Vec<Verdict> = get_extrinsics(pool, ExtrinsicType::Verdict, timeslot_index)?
         .into_iter()
         .filter_map(|entry| Verdict::decode(&mut entry.data.as_slice()).ok())
@@ -94,7 +91,7 @@ pub fn get_dispute_extrinsics(
         .into_iter()
         .filter_map(|entry| Fault::decode(&mut entry.data.as_slice()).ok())
         .collect();
-    Ok(DisputesExtrinsic {
+    Ok(DisputesXt {
         verdicts,
         culprits,
         faults,

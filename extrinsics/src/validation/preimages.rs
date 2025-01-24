@@ -1,10 +1,10 @@
-use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use crate::validation::error::{XtValidationError, XtValidationError::*};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_state::StateManager;
-use rjam_types::extrinsics::preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry};
+use rjam_types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
 use std::collections::HashSet;
 
-/// Validate contents of `PreimagesExtrinsic` type.
+/// Validate contents of `PreimagesXt` type.
 ///
 /// # Validation Rules
 ///
@@ -18,20 +18,17 @@ use std::collections::HashSet;
 /// - No duplicate entries are allowed within the extrinsic.
 /// - Each entry must not be already integrated to the corresponding service account's state.
 ///   Thus, the solicited data must not exist in the service account's preimage lookup tables.
-pub struct PreimagesExtrinsicValidator<'a> {
+pub struct PreimagesXtValidator<'a> {
     state_manager: &'a StateManager,
 }
 
-impl<'a> PreimagesExtrinsicValidator<'a> {
+impl<'a> PreimagesXtValidator<'a> {
     pub fn new(state_manager: &'a StateManager) -> Self {
         Self { state_manager }
     }
 
-    /// Validates the entire `PreimageLookupsExtrinsic`.
-    pub fn validate(
-        &self,
-        extrinsic: &PreimageLookupsExtrinsic,
-    ) -> Result<(), ExtrinsicValidationError> {
+    /// Validates the entire `PreimagesXt`.
+    pub fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtValidationError> {
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
             return Err(PreimageLookupsNotSorted);
@@ -51,11 +48,8 @@ impl<'a> PreimagesExtrinsicValidator<'a> {
         Ok(())
     }
 
-    /// Validates each `PreimageLookupsExtrinsicEntry`.
-    pub fn validate_entry(
-        &self,
-        entry: &PreimageLookupsExtrinsicEntry,
-    ) -> Result<(), ExtrinsicValidationError> {
+    /// Validates each `PreimagesXtEntry`.
+    pub fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
         let service_index = entry.service_index;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;

@@ -6,9 +6,8 @@ mod tests {
         block::{header::BlockHeader, Block},
         common::workloads::{RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport},
         extrinsics::{
-            assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic,
-            guarantees::GuaranteesExtrinsic, preimages::PreimageLookupsExtrinsic,
-            tickets::TicketsExtrinsic, Extrinsics,
+            assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+            preimages::PreimagesXt, tickets::TicketsXt, Extrinsics,
         },
     };
     use serde::{de::DeserializeOwned, Serialize};
@@ -86,16 +85,16 @@ mod tests {
     }
 
     generate_codec_tests! {
-        assurances_extrinsic: ("assurances_extrinsic", AssurancesExtrinsic, AsnAssurancesExtrinsic),
+        assurances_extrinsic: ("assurances_extrinsic", AssurancesXt, AsnAssurancesXt),
         block: ("block", Block, AsnBlock),
-        disputes_extrinsic: ("disputes_extrinsic", DisputesExtrinsic, AsnDisputesExtrinsic),
+        disputes_extrinsic: ("disputes_extrinsic", DisputesXt, AsnDisputesXt),
         extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
-        guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesExtrinsic, AsnGuaranteesExtrinsic),
+        guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesXt, AsnGuaranteesXt),
         header_0: ("header_0", BlockHeader, AsnHeader),
         header_1: ("header_1", BlockHeader, AsnHeader),
-        preimages_extrinsic: ("preimages_extrinsic", PreimageLookupsExtrinsic, AsnPreimageLookupsExtrinsic),
+        preimages_extrinsic: ("preimages_extrinsic", PreimagesXt, AsnPreimagesXt),
         refine_context: ("refine_context", RefinementContext, AsnRefineContext),
-        tickets_extrinsic: ("tickets_extrinsic", TicketsExtrinsic, AsnTicketsExtrinsic),
+        tickets_extrinsic: ("tickets_extrinsic", TicketsXt, AsnTicketsXt),
         work_item: ("work_item", WorkItem, AsnWorkItem),
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
         work_report: ("work_report", WorkReport, AsnWorkReport),

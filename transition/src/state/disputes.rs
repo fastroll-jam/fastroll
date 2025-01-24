@@ -1,8 +1,8 @@
 use crate::error::TransitionError;
 use rjam_common::Ed25519PubKey;
-use rjam_extrinsics::validation::disputes::DisputesExtrinsicValidator;
+use rjam_extrinsics::validation::disputes::DisputesXtValidator;
 use rjam_state::{StateManager, StateMut};
-use rjam_types::{extrinsics::disputes::DisputesExtrinsic, state::timeslot::Timeslot};
+use rjam_types::{extrinsics::disputes::DisputesXt, state::timeslot::Timeslot};
 
 /// State transition function of `Disputes`.
 ///
@@ -14,10 +14,10 @@ use rjam_types::{extrinsics::disputes::DisputesExtrinsic, state::timeslot::Times
 /// identified culprits and faults.
 pub fn transition_disputes(
     state_manager: &StateManager,
-    disputes: &DisputesExtrinsic,
+    disputes: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let disputes_validator = DisputesExtrinsicValidator::new(state_manager);
+    let disputes_validator = DisputesXtValidator::new(state_manager);
     disputes_validator.validate(disputes, prior_timeslot)?;
 
     let (good_set, bad_set, wonky_set) = disputes.split_report_set();

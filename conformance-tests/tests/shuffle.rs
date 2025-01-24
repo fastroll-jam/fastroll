@@ -16,7 +16,7 @@ mod tests {
 
     impl ShuffleTestData {
         fn generate_input(&self) -> Vec<u16> {
-            (0..self.input).into_iter().collect()
+            (0..self.input).collect()
         }
 
         fn entropy_as_hash(&self) -> Hash32 {

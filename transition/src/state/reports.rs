@@ -1,21 +1,18 @@
 use crate::error::TransitionError;
 use rjam_common::{Ed25519PubKey, Hash32};
 use rjam_extrinsics::validation::{
-    assurances::AssurancesExtrinsicValidator, disputes::DisputesExtrinsicValidator,
-    guarantees::GuaranteesExtrinsicValidator,
+    assurances::AssurancesXtValidator, disputes::DisputesXtValidator,
+    guarantees::GuaranteesXtValidator,
 };
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{
     common::workloads::WorkReport,
-    extrinsics::{
-        assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic,
-        guarantees::GuaranteesExtrinsic,
-    },
+    extrinsics::{assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt},
     state::*,
 };
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming
-/// the `DisputesExtrinsic`.
+/// the `DisputesXt`.
 ///
 /// # Transitions
 ///
@@ -27,11 +24,11 @@ use rjam_types::{
 /// the on-chain state.
 pub fn transition_reports_eliminate_invalid(
     state_manager: &StateManager,
-    disputes: &DisputesExtrinsic,
+    disputes: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Validate disputes extrinsic data.
-    let disputes_validator = DisputesExtrinsicValidator::new(state_manager);
+    let disputes_validator = DisputesXtValidator::new(state_manager);
     disputes_validator.validate(disputes, prior_timeslot)?;
 
     let (_good_set, bad_set, wonky_set) = disputes.split_report_set();
@@ -46,7 +43,7 @@ pub fn transition_reports_eliminate_invalid(
 }
 
 /// State transition function of `PendingReports`, removing work reports that are now available for
-/// the accumulation by consuming the `AssurancesExtrinsic`. It also removes timed-out entries.
+/// the accumulation by consuming the `AssurancesXt`. It also removes timed-out entries.
 ///
 /// # Transitions
 ///
@@ -56,11 +53,11 @@ pub fn transition_reports_eliminate_invalid(
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
 pub fn transition_reports_clear_availables(
     state_manager: &StateManager,
-    assurances: &AssurancesExtrinsic,
+    assurances: &AssurancesXt,
     header_parent_hash: &Hash32,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
-    let assurances_validator = AssurancesExtrinsicValidator::new(state_manager);
+    let assurances_validator = AssurancesXtValidator::new(state_manager);
     assurances_validator.validate(assurances, header_parent_hash)?;
 
     // Get core indices which have been available by introducing the assurances extrinsic.
@@ -98,7 +95,7 @@ pub fn transition_reports_clear_availables(
 }
 
 /// State transition function of `PendingReports`, adding new reports or replacing those that
-/// have timed out, based on reports introduced in this block’s `GuaranteesExtrinsic`.
+/// have timed out, based on reports introduced in this block’s `GuaranteesXt`.
 ///
 /// # Transitions
 ///
@@ -112,11 +109,11 @@ pub fn transition_reports_clear_availables(
 #[allow(clippy::type_complexity)]
 pub fn transition_reports_update_entries(
     state_manager: &StateManager,
-    guarantees: &GuaranteesExtrinsic,
+    guarantees: &GuaranteesXt,
     current_timeslot: &Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
-    let guarantees_validator = GuaranteesExtrinsicValidator::new(state_manager);
+    let guarantees_validator = GuaranteesXtValidator::new(state_manager);
     let all_guarantor_keys = guarantees_validator.validate(guarantees, current_timeslot.slot())?;
 
     let new_valid_reports = guarantees.extract_work_reports();

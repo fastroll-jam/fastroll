@@ -11,19 +11,19 @@ use std::{cmp::Ordering, ops::Deref};
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
 #[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct GuaranteesExtrinsic {
-    pub items: Vec<GuaranteesExtrinsicEntry>,
+pub struct GuaranteesXt {
+    pub items: Vec<GuaranteesXtEntry>,
 }
 
-impl Deref for GuaranteesExtrinsic {
-    type Target = Vec<GuaranteesExtrinsicEntry>;
+impl Deref for GuaranteesXt {
+    type Target = Vec<GuaranteesXtEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
     }
 }
 
-impl GuaranteesExtrinsic {
+impl GuaranteesXt {
     /// Extracts Ed25519 keys of `reporters`, who are the validators whose signatures are placed
     /// in the guarantees extrinsic credentials.
     ///
@@ -41,7 +41,7 @@ impl GuaranteesExtrinsic {
     /// Extracts work reports from the extrinsic.
     ///
     /// This is used for aggregating all work reports that are introduced in the current guarantees
-    /// extrinsic, and expected to be validated by `GuaranteesExtrinsicValidator`.
+    /// extrinsic, and expected to be validated by `GuaranteesXtValidator`.
     pub fn extract_work_reports(&self) -> Vec<WorkReport> {
         self.iter().map(|entry| entry.work_report.clone()).collect()
     }
@@ -82,25 +82,25 @@ impl JamDecode for GuaranteesCredential {
 /// Each block, three `Guarantors` are assigned per core to verify accuracy of the work and this
 /// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GuaranteesExtrinsicEntry {
+pub struct GuaranteesXtEntry {
     pub work_report: WorkReport,                // w
     pub timeslot_index: u32,                    // t
     pub credentials: Vec<GuaranteesCredential>, // a
 }
 
-impl PartialOrd for GuaranteesExtrinsicEntry {
+impl PartialOrd for GuaranteesXtEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for GuaranteesExtrinsicEntry {
+impl Ord for GuaranteesXtEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         self.work_report.cmp(&other.work_report)
     }
 }
 
-impl JamEncode for GuaranteesExtrinsicEntry {
+impl JamEncode for GuaranteesXtEntry {
     fn size_hint(&self) -> usize {
         self.work_report.size_hint() + 4 + self.credentials.size_hint()
     }
@@ -113,7 +113,7 @@ impl JamEncode for GuaranteesExtrinsicEntry {
     }
 }
 
-impl JamDecode for GuaranteesExtrinsicEntry {
+impl JamDecode for GuaranteesXtEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: Sized,
@@ -126,7 +126,7 @@ impl JamDecode for GuaranteesExtrinsicEntry {
     }
 }
 
-impl GuaranteesExtrinsicEntry {
+impl GuaranteesXtEntry {
     pub fn new(work_report: WorkReport, timeslot_index: u32) -> Self {
         Self {
             work_report,

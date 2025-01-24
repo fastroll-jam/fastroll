@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
 use rjam_common::{Ed25519PubKey, Hash32};
 
-use rjam_types::{extrinsics::guarantees::GuaranteesExtrinsic, state::Timeslot};
+use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::Timeslot};
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]
@@ -47,12 +47,12 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub guarantees: AsnGuaranteesExtrinsic,
+    pub guarantees: AsnGuaranteesXt,
     pub slot: AsnTimeSlot,
 }
 
 pub struct JamInput {
-    pub extrinsic: GuaranteesExtrinsic,
+    pub extrinsic: GuaranteesXt,
     pub timeslot: Timeslot,
 }
 

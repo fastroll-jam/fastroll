@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
 use rjam_common::{ByteArray, Hash32, Ticket};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
-use rjam_types::{extrinsics::tickets::TicketsExtrinsic, state::*};
+use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -102,7 +102,7 @@ pub struct Input {
 pub struct JamInput {
     pub slot: Timeslot,
     pub entropy: Hash32,
-    pub extrinsic: TicketsExtrinsic,
+    pub extrinsic: TicketsXt,
 }
 
 #[allow(non_camel_case_types, clippy::large_enum_variant)]

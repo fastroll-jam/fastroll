@@ -8,31 +8,31 @@ use std::ops::Deref;
 /// a requested piece of data (preimage) that has been solicited by a service
 /// but has not yet been provided.
 #[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct PreimageLookupsExtrinsic {
-    pub items: Vec<PreimageLookupsExtrinsicEntry>,
+pub struct PreimagesXt {
+    pub items: Vec<PreimagesXtEntry>,
 }
 
-impl Deref for PreimageLookupsExtrinsic {
-    type Target = Vec<PreimageLookupsExtrinsicEntry>;
+impl Deref for PreimagesXt {
+    type Target = Vec<PreimagesXtEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
     }
 }
 
-impl PreimageLookupsExtrinsic {
+impl PreimagesXt {
     pub fn total_preimage_data_len(&self) -> usize {
         self.iter().map(|entry| entry.preimage_data_len()).sum()
     }
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash)]
-pub struct PreimageLookupsExtrinsicEntry {
+pub struct PreimagesXtEntry {
     pub service_index: Address, // requester of the preimage data
     pub preimage_data: Octets,
 }
 
-impl JamEncode for PreimageLookupsExtrinsicEntry {
+impl JamEncode for PreimagesXtEntry {
     fn size_hint(&self) -> usize {
         4 + self.preimage_data.size_hint()
     }
@@ -44,7 +44,7 @@ impl JamEncode for PreimageLookupsExtrinsicEntry {
     }
 }
 
-impl JamDecode for PreimageLookupsExtrinsicEntry {
+impl JamDecode for PreimagesXtEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: Sized,
@@ -56,7 +56,7 @@ impl JamDecode for PreimageLookupsExtrinsicEntry {
     }
 }
 
-impl PreimageLookupsExtrinsicEntry {
+impl PreimagesXtEntry {
     pub fn preimage_data_len(&self) -> usize {
         self.preimage_data.len()
     }

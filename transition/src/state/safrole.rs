@@ -1,12 +1,10 @@
 use crate::error::TransitionError;
 use rjam_common::{Ticket, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
-use rjam_extrinsics::validation::{
-    error::ExtrinsicValidationError::*, tickets::TicketsExtrinsicValidator,
-};
+use rjam_extrinsics::validation::{error::XtValidationError::*, tickets::TicketsXtValidator};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{
-    extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
+    extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     state::*,
 };
 
@@ -31,7 +29,7 @@ pub fn transition_safrole(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
-    tickets: &TicketsExtrinsic,
+    tickets: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager, prior_timeslot)?;
@@ -106,7 +104,7 @@ fn update_slot_sealers(
 
 fn handle_ticket_accumulation(
     state_manager: &StateManager,
-    tickets: &TicketsExtrinsic,
+    tickets: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if tickets.is_empty() {
         return Ok(());
@@ -115,13 +113,13 @@ fn handle_ticket_accumulation(
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot()?.slot_phase();
     if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
-        return Err(TransitionError::ExtrinsicValidationError(
-            TicketSubmissionClosed(current_slot_phase),
-        ));
+        return Err(TransitionError::XtValidationError(TicketSubmissionClosed(
+            current_slot_phase,
+        )));
     }
 
     // Validate ticket extrinsic data.
-    let ticket_validator = TicketsExtrinsicValidator::new(state_manager);
+    let ticket_validator = TicketsXtValidator::new(state_manager);
     ticket_validator.validate(tickets)?;
 
     // Construct new tickets from ticket extrinsics.
@@ -132,7 +130,7 @@ fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole()?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::ExtrinsicValidationError(DuplicateTicket));
+            return Err(TransitionError::XtValidationError(DuplicateTicket));
         }
         curr_ticket_accumulator.add(ticket);
     }
@@ -145,7 +143,7 @@ fn handle_ticket_accumulation(
 }
 
 pub(crate) fn ticket_extrinsics_to_new_tickets(
-    ticket_extrinsics: &[TicketsExtrinsicEntry],
+    ticket_extrinsics: &[TicketsXtEntry],
 ) -> Vec<Ticket> {
     ticket_extrinsics
         .iter()

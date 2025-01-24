@@ -1,6 +1,6 @@
 use crate::error::TransitionError;
 use rjam_common::ValidatorIndex;
-use rjam_extrinsics::validation::error::ExtrinsicValidationError::InvalidValidatorIndex;
+use rjam_extrinsics::validation::error::XtValidationError::InvalidValidatorIndex;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::Extrinsics, state::validators::get_validator_ed25519_key_by_index};
 
@@ -56,7 +56,7 @@ fn handle_stats_accumulation(
             let validator_index = validator_index as ValidatorIndex;
             let validator_ed25519_key =
                 get_validator_ed25519_key_by_index(&current_active_set, validator_index)
-                    .map_err(|_| TransitionError::ExtrinsicValidationError(InvalidValidatorIndex))
+                    .map_err(|_| TransitionError::XtValidationError(InvalidValidatorIndex))
                     .unwrap(); // TODO: proper validation error handling
 
             // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.

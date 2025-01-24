@@ -22,7 +22,7 @@ mod tests {
         },
     };
     use rjam_types::{
-        extrinsics::tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
+        extrinsics::tickets::{TicketsXt, TicketsXtEntry},
         state::*,
     };
 
@@ -75,7 +75,7 @@ mod tests {
             // Convert ASN Input into RJAM types.
             let input_timeslot = Timeslot::new(test_input.slot);
             let input_header_entropy_hash = test_input.entropy.0;
-            let input_ticket_entries: Vec<TicketsExtrinsicEntry> = test_input
+            let input_ticket_entries: Vec<TicketsXtEntry> = test_input
                 .extrinsic
                 .clone()
                 .into_iter()
@@ -85,7 +85,7 @@ mod tests {
             Ok(JamInput {
                 slot: input_timeslot,
                 entropy: ByteArray::new(input_header_entropy_hash),
-                extrinsic: TicketsExtrinsic {
+                extrinsic: TicketsXt {
                     items: input_ticket_entries,
                 },
             })

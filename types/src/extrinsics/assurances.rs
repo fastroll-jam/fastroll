@@ -10,19 +10,19 @@ use std::{cmp::Ordering, ops::Deref};
 /// Represents a sequence of validator assurances regarding the availability of work-reports
 /// on assigned cores.
 #[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AssurancesExtrinsic {
-    pub items: Vec<AssurancesExtrinsicEntry>,
+pub struct AssurancesXt {
+    pub items: Vec<AssurancesXtEntry>,
 }
 
-impl Deref for AssurancesExtrinsic {
-    type Target = Vec<AssurancesExtrinsicEntry>;
+impl Deref for AssurancesXt {
+    type Target = Vec<AssurancesXtEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
     }
 }
 
-impl AssurancesExtrinsic {
+impl AssurancesXt {
     pub fn contains_assurance_for_validator(&self, validator_index: ValidatorIndex) -> bool {
         self.iter()
             .any(|entry| entry.validator_index == validator_index)
@@ -53,26 +53,26 @@ impl AssurancesExtrinsic {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssurancesExtrinsicEntry {
+pub struct AssurancesXtEntry {
     pub anchor_parent_hash: Hash32,      // a
     pub assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
     pub validator_index: ValidatorIndex, // v;
     pub signature: Ed25519Signature,   // s
 }
 
-impl PartialOrd for AssurancesExtrinsicEntry {
+impl PartialOrd for AssurancesXtEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for AssurancesExtrinsicEntry {
+impl Ord for AssurancesXtEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         self.validator_index.cmp(&other.validator_index)
     }
 }
 
-impl JamEncode for AssurancesExtrinsicEntry {
+impl JamEncode for AssurancesXtEntry {
     fn size_hint(&self) -> usize {
         self.anchor_parent_hash.size_hint() + (CORE_COUNT + 7) / 8 + 2 + self.signature.size_hint()
     }
@@ -87,7 +87,7 @@ impl JamEncode for AssurancesExtrinsicEntry {
     }
 }
 
-impl JamDecode for AssurancesExtrinsicEntry {
+impl JamDecode for AssurancesXtEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             anchor_parent_hash: Hash32::decode(input)?,

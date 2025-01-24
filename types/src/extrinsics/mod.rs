@@ -1,6 +1,6 @@
 use crate::extrinsics::{
-    assurances::AssurancesExtrinsic, disputes::DisputesExtrinsic, guarantees::GuaranteesExtrinsic,
-    preimages::PreimageLookupsExtrinsic, tickets::TicketsExtrinsic,
+    assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+    preimages::PreimagesXt, tickets::TicketsXt,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use thiserror::Error;
@@ -22,9 +22,9 @@ pub enum ExtrinsicsError {
 /// Struct used for Extrinsics serialization
 #[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Extrinsics {
-    pub tickets: TicketsExtrinsic,
-    pub preimage_lookups: PreimageLookupsExtrinsic,
-    pub guarantees: GuaranteesExtrinsic,
-    pub assurances: AssurancesExtrinsic,
-    pub disputes: DisputesExtrinsic,
+    pub tickets: TicketsXt,
+    pub preimage_lookups: PreimagesXt,
+    pub guarantees: GuaranteesXt,
+    pub assurances: AssurancesXt,
+    pub disputes: DisputesXt,
 }

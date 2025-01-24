@@ -22,11 +22,11 @@ use rjam_types::{
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
     extrinsics::{
-        assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
-        disputes::{Culprit, DisputesExtrinsic, Fault, Judgment, OffendersHeaderMarker, Verdict},
-        guarantees::{GuaranteesCredential, GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
-        preimages::{PreimageLookupsExtrinsic, PreimageLookupsExtrinsicEntry},
-        tickets::{TicketsExtrinsic, TicketsExtrinsicEntry},
+        assurances::{AssurancesXt, AssurancesXtEntry},
+        disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
+        guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
+        preimages::{PreimagesXt, PreimagesXtEntry},
+        tickets::{TicketsXt, TicketsXtEntry},
         Extrinsics,
     },
     state::{
@@ -1274,7 +1274,7 @@ pub struct AsnTicketEnvelope {
     pub signature: AsnBandersnatchRingSignature,
 }
 
-impl From<AsnTicketEnvelope> for TicketsExtrinsicEntry {
+impl From<AsnTicketEnvelope> for TicketsXtEntry {
     fn from(value: AsnTicketEnvelope) -> Self {
         Self {
             ticket_proof: Box::new(ByteArray::new(value.signature.0)),
@@ -1283,8 +1283,8 @@ impl From<AsnTicketEnvelope> for TicketsExtrinsicEntry {
     }
 }
 
-impl From<TicketsExtrinsicEntry> for AsnTicketEnvelope {
-    fn from(value: TicketsExtrinsicEntry) -> Self {
+impl From<TicketsXtEntry> for AsnTicketEnvelope {
+    fn from(value: TicketsXtEntry) -> Self {
         Self {
             signature: AsnBandersnatchRingSignature(value.ticket_proof.0),
             attempt: value.entry_index,
@@ -1293,22 +1293,18 @@ impl From<TicketsExtrinsicEntry> for AsnTicketEnvelope {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnTicketsExtrinsic(pub Vec<AsnTicketEnvelope>);
+pub struct AsnTicketsXt(pub Vec<AsnTicketEnvelope>);
 
-impl From<AsnTicketsExtrinsic> for TicketsExtrinsic {
-    fn from(value: AsnTicketsExtrinsic) -> Self {
+impl From<AsnTicketsXt> for TicketsXt {
+    fn from(value: AsnTicketsXt) -> Self {
         Self {
-            items: value
-                .0
-                .into_iter()
-                .map(TicketsExtrinsicEntry::from)
-                .collect(),
+            items: value.0.into_iter().map(TicketsXtEntry::from).collect(),
         }
     }
 }
 
-impl From<TicketsExtrinsic> for AsnTicketsExtrinsic {
-    fn from(value: TicketsExtrinsic) -> Self {
+impl From<TicketsXt> for AsnTicketsXt {
+    fn from(value: TicketsXt) -> Self {
         Self(
             value
                 .items
@@ -1528,14 +1524,14 @@ impl From<DisputesState> for AsnDisputesRecords {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AsnDisputesExtrinsic {
+pub struct AsnDisputesXt {
     pub verdicts: Vec<AsnDisputeVerdict>,
     pub culprits: Vec<AsnDisputeCulpritProof>,
     pub faults: Vec<AsnDisputeFaultProof>,
 }
 
-impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
-    fn from(value: AsnDisputesExtrinsic) -> Self {
+impl From<AsnDisputesXt> for DisputesXt {
+    fn from(value: AsnDisputesXt) -> Self {
         Self {
             verdicts: value.verdicts.into_iter().map(Verdict::from).collect(),
             culprits: value.culprits.into_iter().map(Culprit::from).collect(),
@@ -1544,8 +1540,8 @@ impl From<AsnDisputesExtrinsic> for DisputesExtrinsic {
     }
 }
 
-impl From<DisputesExtrinsic> for AsnDisputesExtrinsic {
-    fn from(value: DisputesExtrinsic) -> Self {
+impl From<DisputesXt> for AsnDisputesXt {
+    fn from(value: DisputesXt) -> Self {
         Self {
             verdicts: value
                 .verdicts
@@ -1576,7 +1572,7 @@ pub struct AsnPreimage {
     pub blob: AsnByteSequence,
 }
 
-impl From<AsnPreimage> for PreimageLookupsExtrinsicEntry {
+impl From<AsnPreimage> for PreimagesXtEntry {
     fn from(value: AsnPreimage) -> Self {
         Self {
             service_index: value.requester,
@@ -1585,8 +1581,8 @@ impl From<AsnPreimage> for PreimageLookupsExtrinsicEntry {
     }
 }
 
-impl From<PreimageLookupsExtrinsicEntry> for AsnPreimage {
-    fn from(value: PreimageLookupsExtrinsicEntry) -> Self {
+impl From<PreimagesXtEntry> for AsnPreimage {
+    fn from(value: PreimagesXtEntry) -> Self {
         Self {
             requester: value.service_index,
             blob: AsnByteSequence(value.preimage_data.0),
@@ -1595,22 +1591,18 @@ impl From<PreimageLookupsExtrinsicEntry> for AsnPreimage {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnPreimageLookupsExtrinsic(pub Vec<AsnPreimage>);
+pub struct AsnPreimagesXt(pub Vec<AsnPreimage>);
 
-impl From<AsnPreimageLookupsExtrinsic> for PreimageLookupsExtrinsic {
-    fn from(value: AsnPreimageLookupsExtrinsic) -> Self {
+impl From<AsnPreimagesXt> for PreimagesXt {
+    fn from(value: AsnPreimagesXt) -> Self {
         Self {
-            items: value
-                .0
-                .into_iter()
-                .map(PreimageLookupsExtrinsicEntry::from)
-                .collect(),
+            items: value.0.into_iter().map(PreimagesXtEntry::from).collect(),
         }
     }
 }
 
-impl From<PreimageLookupsExtrinsic> for AsnPreimageLookupsExtrinsic {
-    fn from(value: PreimageLookupsExtrinsic) -> Self {
+impl From<PreimagesXt> for AsnPreimagesXt {
+    fn from(value: PreimagesXt) -> Self {
         Self(value.items.into_iter().map(AsnPreimage::from).collect())
     }
 }
@@ -1639,7 +1631,7 @@ fn bytes_to_bitvec(bytes: &[u8], num_bits: usize) -> BitVec {
     bitvec_rev
 }
 
-impl From<AsnAvailAssurance> for AssurancesExtrinsicEntry {
+impl From<AsnAvailAssurance> for AssurancesXtEntry {
     fn from(value: AsnAvailAssurance) -> Self {
         Self {
             anchor_parent_hash: ByteArray::new(value.anchor.0),
@@ -1650,8 +1642,8 @@ impl From<AsnAvailAssurance> for AssurancesExtrinsicEntry {
     }
 }
 
-impl From<AssurancesExtrinsicEntry> for AsnAvailAssurance {
-    fn from(value: AssurancesExtrinsicEntry) -> Self {
+impl From<AssurancesXtEntry> for AsnAvailAssurance {
+    fn from(value: AssurancesXtEntry) -> Self {
         let mut rev = BitVec::new();
         for b in value.assuring_cores_bitvec.iter().rev() {
             rev.push(b);
@@ -1671,22 +1663,18 @@ impl From<AssurancesExtrinsicEntry> for AsnAvailAssurance {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnAssurancesExtrinsic(pub Vec<AsnAvailAssurance>);
+pub struct AsnAssurancesXt(pub Vec<AsnAvailAssurance>);
 
-impl From<AsnAssurancesExtrinsic> for AssurancesExtrinsic {
-    fn from(value: AsnAssurancesExtrinsic) -> Self {
+impl From<AsnAssurancesXt> for AssurancesXt {
+    fn from(value: AsnAssurancesXt) -> Self {
         Self {
-            items: value
-                .0
-                .into_iter()
-                .map(AssurancesExtrinsicEntry::from)
-                .collect(),
+            items: value.0.into_iter().map(AssurancesXtEntry::from).collect(),
         }
     }
 }
 
-impl From<AssurancesExtrinsic> for AsnAssurancesExtrinsic {
-    fn from(value: AssurancesExtrinsic) -> Self {
+impl From<AssurancesXt> for AsnAssurancesXt {
+    fn from(value: AssurancesXt) -> Self {
         Self(
             value
                 .items
@@ -1732,7 +1720,7 @@ pub struct AsnReportGuarantee {
     pub signatures: Vec<AsnValidatorSignature>,
 }
 
-impl From<AsnReportGuarantee> for GuaranteesExtrinsicEntry {
+impl From<AsnReportGuarantee> for GuaranteesXtEntry {
     fn from(value: AsnReportGuarantee) -> Self {
         Self {
             work_report: value.report.into(),
@@ -1746,8 +1734,8 @@ impl From<AsnReportGuarantee> for GuaranteesExtrinsicEntry {
     }
 }
 
-impl From<GuaranteesExtrinsicEntry> for AsnReportGuarantee {
-    fn from(value: GuaranteesExtrinsicEntry) -> Self {
+impl From<GuaranteesXtEntry> for AsnReportGuarantee {
+    fn from(value: GuaranteesXtEntry) -> Self {
         Self {
             report: value.work_report.into(),
             slot: value.timeslot_index,
@@ -1761,22 +1749,18 @@ impl From<GuaranteesExtrinsicEntry> for AsnReportGuarantee {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AsnGuaranteesExtrinsic(pub Vec<AsnReportGuarantee>);
+pub struct AsnGuaranteesXt(pub Vec<AsnReportGuarantee>);
 
-impl From<AsnGuaranteesExtrinsic> for GuaranteesExtrinsic {
-    fn from(value: AsnGuaranteesExtrinsic) -> Self {
+impl From<AsnGuaranteesXt> for GuaranteesXt {
+    fn from(value: AsnGuaranteesXt) -> Self {
         Self {
-            items: value
-                .0
-                .into_iter()
-                .map(GuaranteesExtrinsicEntry::from)
-                .collect(),
+            items: value.0.into_iter().map(GuaranteesXtEntry::from).collect(),
         }
     }
 }
 
-impl From<GuaranteesExtrinsic> for AsnGuaranteesExtrinsic {
-    fn from(value: GuaranteesExtrinsic) -> Self {
+impl From<GuaranteesXt> for AsnGuaranteesXt {
+    fn from(value: GuaranteesXt) -> Self {
         Self(
             value
                 .items
@@ -1904,11 +1888,11 @@ impl From<BlockHeader> for AsnHeader {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnExtrinsic {
-    pub tickets: AsnTicketsExtrinsic,
-    pub disputes: AsnDisputesExtrinsic,
-    pub preimages: AsnPreimageLookupsExtrinsic,
-    pub assurances: AsnAssurancesExtrinsic,
-    pub guarantees: AsnGuaranteesExtrinsic,
+    pub tickets: AsnTicketsXt,
+    pub disputes: AsnDisputesXt,
+    pub preimages: AsnPreimagesXt,
+    pub assurances: AsnAssurancesXt,
+    pub guarantees: AsnGuaranteesXt,
 }
 
 impl From<AsnExtrinsic> for Extrinsics {

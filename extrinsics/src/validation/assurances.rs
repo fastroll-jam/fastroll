@@ -1,15 +1,15 @@
-use crate::validation::error::{ExtrinsicValidationError, ExtrinsicValidationError::*};
+use crate::validation::error::{XtValidationError, XtValidationError::*};
 use rjam_codec::JamEncode;
 use rjam_common::{CoreIndex, Hash32, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::StateManager;
 use rjam_types::{
-    extrinsics::assurances::{AssurancesExtrinsic, AssurancesExtrinsicEntry},
+    extrinsics::assurances::{AssurancesXt, AssurancesXtEntry},
     state::validators::get_validator_ed25519_key_by_index,
 };
 use std::collections::HashSet;
 
-/// Validates contents of `AssurancesExtrinsic` type.
+/// Validates contents of `AssurancesXt` type.
 ///
 /// # Validation Rules
 ///
@@ -28,21 +28,21 @@ use std::collections::HashSet;
 /// - `assuring_cores_bitvec`
 ///   - The `assuring_cores_bitvec` must only have bits set for cores that have pending reports
 ///     awaiting availability.
-pub struct AssurancesExtrinsicValidator<'a> {
+pub struct AssurancesXtValidator<'a> {
     state_manager: &'a StateManager,
 }
 
-impl<'a> AssurancesExtrinsicValidator<'a> {
+impl<'a> AssurancesXtValidator<'a> {
     pub fn new(state_manager: &'a StateManager) -> Self {
         Self { state_manager }
     }
 
-    /// Validates the entire `AssurancesExtrinsic`.
+    /// Validates the entire `AssurancesXt`.
     pub fn validate(
         &self,
-        extrinsic: &AssurancesExtrinsic,
+        extrinsic: &AssurancesXt,
         header_parent_hash: &Hash32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
             return Err(AssurancesEntryLimitExceeded(
@@ -73,12 +73,12 @@ impl<'a> AssurancesExtrinsicValidator<'a> {
         Ok(())
     }
 
-    /// Validates each `AssurancesExtrinsicEntry`.
+    /// Validates each `AssurancesXtEntry`.
     pub fn validate_entry(
         &self,
-        entry: &AssurancesExtrinsicEntry,
+        entry: &AssurancesXtEntry,
         header_parent_hash: &Hash32,
-    ) -> Result<(), ExtrinsicValidationError> {
+    ) -> Result<(), XtValidationError> {
         // Check the anchored parent hash
         if &entry.anchor_parent_hash != header_parent_hash {
             return Err(InvalidAssuranceParentHash(

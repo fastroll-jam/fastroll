@@ -3,7 +3,7 @@ use rjam_common::ByteArray;
 
 use rjam_types::{
     common::workloads::WorkReport,
-    extrinsics::guarantees::{GuaranteesExtrinsic, GuaranteesExtrinsicEntry},
+    extrinsics::guarantees::{GuaranteesXt, GuaranteesXtEntry},
     state::Timeslot,
 };
 use serde::{Deserialize, Serialize};
@@ -26,8 +26,8 @@ pub struct Input {
     pub auths: Vec<AsnCoreAuthorizer>,
 }
 
-/// Converts `Input` into `GuaranteesExtrinsic` type.
-impl From<Input> for GuaranteesExtrinsic {
+/// Converts `Input` into `GuaranteesXt` type.
+impl From<Input> for GuaranteesXt {
     fn from(value: Input) -> Self {
         let mut guarantees = Vec::with_capacity(value.auths.len());
 
@@ -38,7 +38,7 @@ impl From<Input> for GuaranteesExtrinsic {
                 ..Default::default()
             };
 
-            guarantees.push(GuaranteesExtrinsicEntry::new(report, value.slot));
+            guarantees.push(GuaranteesXtEntry::new(report, value.slot));
         }
         Self { items: guarantees }
     }
@@ -46,7 +46,7 @@ impl From<Input> for GuaranteesExtrinsic {
 
 pub struct JamInput {
     pub slot: Timeslot,
-    pub extrinsic: GuaranteesExtrinsic,
+    pub extrinsic: GuaranteesXt,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

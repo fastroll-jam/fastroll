@@ -1,5 +1,5 @@
 use crate::asn_types::common::*;
-use rjam_types::extrinsics::disputes::DisputesExtrinsic;
+use rjam_types::extrinsics::disputes::DisputesXt;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -33,11 +33,11 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
-    pub disputes: AsnDisputesExtrinsic,
+    pub disputes: AsnDisputesXt,
 }
 
 pub struct JamInput {
-    pub extrinsic: DisputesExtrinsic,
+    pub extrinsic: DisputesXt,
 }
 
 #[allow(non_camel_case_types)]

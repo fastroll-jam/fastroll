@@ -9,7 +9,7 @@ mod tests {
     use rjam_state::StateManager;
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use rjam_types::{
-        extrinsics::guarantees::GuaranteesExtrinsic,
+        extrinsics::guarantees::GuaranteesXt,
         state::{AuthPool, AuthQueue, Timeslot},
     };
 
@@ -43,7 +43,7 @@ mod tests {
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
             // Convert ASN Input into RJAM types.
             let input_timeslot = Timeslot::new(test_input.slot);
-            let input_extrinsic: GuaranteesExtrinsic = test_input.clone().into();
+            let input_extrinsic: GuaranteesXt = test_input.clone().into();
 
             Ok(JamInput {
                 slot: input_timeslot,

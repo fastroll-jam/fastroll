@@ -10,7 +10,7 @@ use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
-pub enum ExtrinsicValidationError {
+pub enum XtValidationError {
     // Common validation errors
     #[error("Invalid validator index (out of range)")]
     InvalidValidatorIndex,
