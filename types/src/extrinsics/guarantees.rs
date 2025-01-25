@@ -46,6 +46,15 @@ impl GuaranteesXt {
     pub fn extract_work_reports(&self) -> Vec<WorkReport> {
         self.iter().map(|entry| entry.work_report.clone()).collect()
     }
+
+    pub fn encode_with_hashed_reports(&self) -> Result<Vec<u8>, ExtrinsicsError> {
+        let mut buf = vec![];
+        self.items.len().encode_to(&mut buf)?; // length discriminator
+        for e in &self.items {
+            e.encode_to(&mut buf)?;
+        }
+        Ok(buf)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -172,5 +181,15 @@ impl GuaranteesXtEntry {
 
     pub fn credentials(&self) -> &Vec<GuaranteesCredential> {
         &self.credentials
+    }
+
+    /// Used for calculating header extrinsics hash
+    pub fn encode_with_hashed_report(&self) -> Result<Vec<u8>, ExtrinsicsError> {
+        let mut buf = vec![];
+        self.work_report.hash()?.encode_to(&mut buf)?;
+        self.timeslot_index.encode_to_fixed(&mut buf, 4)?;
+        self.credentials.encode_to(&mut buf)?;
+
+        Ok(buf)
     }
 }

@@ -1,6 +1,9 @@
-use crate::extrinsics::{
-    assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
-    preimages::PreimagesXt, tickets::TicketsXt,
+use crate::{
+    common::workloads::WorkReportError,
+    extrinsics::{
+        assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+        preimages::PreimagesXt, tickets::TicketsXt,
+    },
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::Hash32;
@@ -19,6 +22,8 @@ pub enum ExtrinsicsError {
     DuplicateValidatorIndex,
     #[error("Invalid number of credentials. Must have either 2 or 3 credentials")]
     InvalidCredentialCount,
+    #[error("WorkReportError: {0}")]
+    WorkReportError(#[from] WorkReportError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

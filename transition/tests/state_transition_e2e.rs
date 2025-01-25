@@ -1,6 +1,6 @@
 //! End-to-end state transition tests
 
-use rjam_common::{Hash32, ValidatorIndex};
+use rjam_common::Hash32;
 use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use rjam_transition::{
     procedures::chain_extension::mark_safrole_header_markers,
@@ -19,24 +19,24 @@ use rjam_transition::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use rjam_types::{
-    block::header::BlockHeader,
-    extrinsics::Extrinsics,
-    state::{ReportedWorkPackage, Timeslot},
-};
+use rjam_types::{block::header::BlockHeader, extrinsics::Extrinsics, state::ReportedWorkPackage};
 use std::error::Error;
 
 #[test]
 fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
-    // Initialize state
+    // Parent block context
     let parent_block = BlockHeader::default();
     let parent_hash = parent_block.hash()?;
+
+    // Initialize DB
     let (mut header_db, state_manager) = init_db_and_manager(Some(parent_hash));
     add_all_simple_state_entries(&state_manager)?;
     state_manager.commit_dirty_cache()?;
 
     // Collect Extrinsics
     let xt = Extrinsics::default();
+    header_db.set_extrinsic_hash(&xt)?;
+
     let xt_cloned = xt.clone();
     let disputes_xt = xt.disputes;
     let assurances_xt = xt.assurances;
@@ -44,10 +44,10 @@ fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let tickets_xt = xt.tickets;
 
     // Header fields
-    let pre_timeslot = Timeslot::default();
-    let header_timeslot = Timeslot::new(1);
-    let header_parent_state_root = Hash32::default();
-    let author_index: ValidatorIndex = 0;
+    let pre_timeslot = state_manager.get_timeslot()?;
+    let header_timeslot = header_db.set_timeslot()?;
+    let header_parent_state_root = state_manager.merkle_root(); // Assuming commitment of the parent stat is done here.
+    let author_index = 0;
 
     // Timeslot STF
     transition_timeslot(&state_manager, &header_timeslot)?;
@@ -61,7 +61,7 @@ fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let offenders_marker = disputes_xt.collect_offender_keys();
     transition_reports_eliminate_invalid(&state_manager, &disputes_xt, &pre_timeslot)?;
     transition_disputes(&state_manager, &disputes_xt, &pre_timeslot)?;
-    header_db.set_header_offenders_marker(&offenders_marker)?;
+    header_db.set_offenders_marker(&offenders_marker)?;
 
     // Assurances STF
     let _removed_reports =
@@ -82,10 +82,10 @@ fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     transition_safrole(&state_manager, &pre_timeslot, epoch_progressed, &tickets_xt)?;
     let markers = mark_safrole_header_markers(&state_manager, epoch_progressed)?;
     if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
-        header_db.set_header_epoch_marker(epoch_marker)?;
+        header_db.set_epoch_marker(epoch_marker)?;
     }
     if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
-        header_db.set_header_winning_tickets_marker(winning_tickets_marker)?;
+        header_db.set_winning_tickets_marker(winning_tickets_marker)?;
     }
 
     // Block summary
@@ -104,6 +104,8 @@ fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // ValidatorStats STF
     transition_validator_stats(&state_manager, epoch_progressed, author_index, &xt_cloned)?;
+
+    // TODO: Block sealing
 
     Ok(())
 }

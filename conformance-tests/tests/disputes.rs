@@ -67,7 +67,7 @@ mod tests {
             // Run state transitions.
             transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot)?;
             transition_disputes(state_manager, disputes, &pre_timeslot)?;
-            header_db.set_header_offenders_marker(&offenders_marker)?;
+            header_db.set_offenders_marker(&offenders_marker)?;
 
             Ok(())
         }

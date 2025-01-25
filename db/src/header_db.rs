@@ -2,9 +2,10 @@ use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
+use rjam_crypto::{hash, Blake2b256, CryptoError};
 use rjam_types::{
     block::header::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
-    extrinsics::disputes::OffendersHeaderMarker,
+    extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
     state::{Timeslot, TimeslotError},
 };
 use rocksdb::ColumnFamily;
@@ -23,8 +24,12 @@ pub enum BlockHeaderDBError {
     TimeslotError(#[from] TimeslotError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("ExtrinsicsError: {0}")]
+    ExtrinsicsError(#[from] ExtrinsicsError),
     #[error("CoreDBError: {0}")]
     CoreDBError(#[from] CoreDBError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
 }
@@ -163,7 +168,7 @@ impl BlockHeaderDB {
     }
 
     // Staging header setters
-    pub fn set_header_timeslot(&mut self) -> Result<Timeslot, BlockHeaderDBError> {
+    pub fn set_timeslot(&mut self) -> Result<Timeslot, BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         let curr_timeslot = Timeslot::from_now()?;
         self.update_staging_header(|h| {
@@ -172,17 +177,25 @@ impl BlockHeaderDB {
         Ok(curr_timeslot)
     }
 
-    pub fn set_header_extrinsic_hash(
-        &mut self,
-        xt_hash: &Hash32,
-    ) -> Result<(), BlockHeaderDBError> {
+    fn header_extrinsic_hash(xt: &Extrinsics) -> Result<Hash32, BlockHeaderDBError> {
+        let mut buf = vec![];
+        hash::<Blake2b256>(&xt.tickets.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&xt.preimage_lookups.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&xt.guarantees.encode_with_hashed_reports()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&xt.assurances.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&xt.disputes.encode()?)?.encode_to(&mut buf)?;
+        Ok(hash::<Blake2b256>(&buf)?)
+    }
+
+    pub fn set_extrinsic_hash(&mut self, xt: &Extrinsics) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
+        let xt_hash = Self::header_extrinsic_hash(xt)?;
         self.update_staging_header(|h| {
-            h.extrinsic_hash = *xt_hash;
+            h.extrinsic_hash = xt_hash;
         })
     }
 
-    pub fn set_header_vrf_signature(
+    pub fn set_vrf_signature(
         &mut self,
         vrf_sig: &BandersnatchSignature,
     ) -> Result<(), BlockHeaderDBError> {
@@ -192,7 +205,7 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_header_block_seal(
+    pub fn set_block_seal(
         &mut self,
         block_seal: &BandersnatchSignature,
     ) -> Result<(), BlockHeaderDBError> {
@@ -202,7 +215,7 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_header_block_author_index(
+    pub fn set_block_author_index(
         &mut self,
         block_author_index: ValidatorIndex,
     ) -> Result<(), BlockHeaderDBError> {
@@ -212,7 +225,7 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_header_epoch_marker(
+    pub fn set_epoch_marker(
         &mut self,
         epoch_marker: &EpochMarker,
     ) -> Result<(), BlockHeaderDBError> {
@@ -222,7 +235,7 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_header_winning_tickets_marker(
+    pub fn set_winning_tickets_marker(
         &mut self,
         winning_tickets_marker: &WinningTicketsMarker,
     ) -> Result<(), BlockHeaderDBError> {
@@ -232,7 +245,7 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_header_offenders_marker(
+    pub fn set_offenders_marker(
         &mut self,
         offenders_marker: &OffendersHeaderMarker,
     ) -> Result<(), BlockHeaderDBError> {

@@ -114,10 +114,10 @@ mod tests {
 
             let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;
             if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
-                header_db.set_header_epoch_marker(epoch_marker)?;
+                header_db.set_epoch_marker(epoch_marker)?;
             }
             if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
-                header_db.set_header_winning_tickets_marker(winning_tickets_marker)?;
+                header_db.set_winning_tickets_marker(winning_tickets_marker)?;
             }
 
             Ok(())
