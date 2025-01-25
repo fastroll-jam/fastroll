@@ -25,10 +25,6 @@ pub type SignedGas = i64;
 pub type UnsignedGas = u64;
 pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
-// Default values
-pub const BANDERSNATCH_SIGNATURE_EMPTY: BandersnatchSignature = ByteArray([0u8; 96]);
-pub const BANDERSNATCH_RING_ROOT_DEFAULT: BandersnatchRingRoot = ByteArray([0u8; 144]);
-
 // Types
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteSequence(pub Vec<u8>);

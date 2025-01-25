@@ -15,7 +15,7 @@ use std::error::Error;
 
 #[test]
 fn merkle_db_test() -> Result<(), Box<dyn Error>> {
-    let (_, state_manager) = init_db_and_manager();
+    let (_, state_manager) = init_db_and_manager(None);
 
     // --- 1. Add one state entry, initializing the Merkle Trie
     println!("1. Add the first state entry.");
@@ -120,7 +120,7 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
-    let (_, state_manager) = init_db_and_manager();
+    let (_, state_manager) = init_db_and_manager(None);
     add_all_simple_state_entries(&state_manager)?;
     state_manager.commit_dirty_cache()?;
     compare_all_simple_state_cache_and_db(&state_manager)?;

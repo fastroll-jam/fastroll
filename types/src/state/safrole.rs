@@ -7,7 +7,7 @@ use rjam_codec::{
 };
 use rjam_common::{
     BandersnatchPubKey, BandersnatchRingRoot, Hash32, Ticket, ValidatorKey, ValidatorKeySet,
-    BANDERSNATCH_RING_ROOT_DEFAULT, EPOCH_LENGTH, VALIDATOR_COUNT,
+    EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
 use std::{
@@ -86,7 +86,7 @@ impl JamDecode for SafroleState {
             *validator = ValidatorKey::decode(input)?;
         }
 
-        let mut ring_root = BANDERSNATCH_RING_ROOT_DEFAULT;
+        let mut ring_root = BandersnatchRingRoot::default();
         input.read(&mut *ring_root)?;
 
         let slot_sealers = SlotSealerType::decode(input)?;

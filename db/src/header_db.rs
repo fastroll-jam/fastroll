@@ -1,8 +1,12 @@
 use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
-use rjam_common::Hash32;
-use rjam_types::block::header::{BlockHeader, BlockHeaderError};
+use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
+use rjam_types::{
+    block::header::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
+    extrinsics::disputes::OffendersHeaderMarker,
+    state::{Timeslot, TimeslotError},
+};
 use rocksdb::ColumnFamily;
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
@@ -15,6 +19,8 @@ pub enum BlockHeaderDBError {
     StagingHeaderNotInitialized,
     #[error("Staging header is already initialized")]
     StagingHeaderAlreadyInitialized,
+    #[error("Timeslot error")]
+    TimeslotError(#[from] TimeslotError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("CoreDBError: {0}")]
@@ -40,7 +46,7 @@ impl BlockHeaderDB {
         Self {
             core,
             cache: DashMap::with_capacity(cache_size),
-            staging_header: Some(BlockHeader::new(Hash32::default())), // TODO: initialize with None
+            staging_header: None,
         }
     }
 
@@ -136,7 +142,7 @@ impl BlockHeaderDB {
         self.staging_header = None;
     }
 
-    pub fn update_staging_header<F>(&mut self, f: F) -> Result<(), BlockHeaderDBError>
+    fn update_staging_header<F>(&mut self, f: F) -> Result<(), BlockHeaderDBError>
     where
         F: FnOnce(&mut BlockHeader),
     {
@@ -154,5 +160,85 @@ impl BlockHeaderDB {
         } else {
             Err(BlockHeaderDBError::StagingHeaderNotInitialized)
         }
+    }
+
+    // Staging header setters
+    pub fn set_header_timeslot(&mut self) -> Result<Timeslot, BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        let curr_timeslot = Timeslot::from_now()?;
+        self.update_staging_header(|h| {
+            h.timeslot_index = curr_timeslot.slot();
+        })?;
+        Ok(curr_timeslot)
+    }
+
+    pub fn set_header_extrinsic_hash(
+        &mut self,
+        xt_hash: &Hash32,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.extrinsic_hash = *xt_hash;
+        })
+    }
+
+    pub fn set_header_vrf_signature(
+        &mut self,
+        vrf_sig: &BandersnatchSignature,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.vrf_signature = *vrf_sig;
+        })
+    }
+
+    pub fn set_header_block_seal(
+        &mut self,
+        block_seal: &BandersnatchSignature,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.block_seal = *block_seal;
+        })
+    }
+
+    pub fn set_header_block_author_index(
+        &mut self,
+        block_author_index: ValidatorIndex,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.block_author_index = block_author_index;
+        })
+    }
+
+    pub fn set_header_epoch_marker(
+        &mut self,
+        epoch_marker: &EpochMarker,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.epoch_marker = Some(epoch_marker.clone());
+        })
+    }
+
+    pub fn set_header_winning_tickets_marker(
+        &mut self,
+        winning_tickets_marker: &WinningTicketsMarker,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.winning_tickets_marker = Some(*winning_tickets_marker);
+        })
+    }
+
+    pub fn set_header_offenders_marker(
+        &mut self,
+        offenders_marker: &OffendersHeaderMarker,
+    ) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.offenders_marker = offenders_marker.items.to_vec();
+        })
     }
 }

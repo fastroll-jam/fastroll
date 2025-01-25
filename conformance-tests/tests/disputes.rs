@@ -11,7 +11,6 @@ mod tests {
     use rjam_state::StateManager;
     use rjam_transition::{
         error::TransitionError,
-        header::set_header_offenders_marker,
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
     };
     use rjam_types::{extrinsics::disputes::OffendersHeaderMarker, state::*};
@@ -68,7 +67,7 @@ mod tests {
             // Run state transitions.
             transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot)?;
             transition_disputes(state_manager, disputes, &pre_timeslot)?;
-            set_header_offenders_marker(header_db, &offenders_marker)?;
+            header_db.set_header_offenders_marker(&offenders_marker)?;
 
             Ok(())
         }

@@ -35,7 +35,7 @@ pub trait StateTransitionTest {
     }
 
     fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
-        rjam_state::test_utils::init_db_and_manager()
+        rjam_state::test_utils::init_db_and_manager(None)
     }
 
     fn load_pre_state(

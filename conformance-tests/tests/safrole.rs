@@ -12,7 +12,6 @@ mod tests {
     use rjam_state::{StateManager, StateMut};
     use rjam_transition::{
         error::TransitionError,
-        header::{set_header_epoch_marker, set_header_winning_tickets_marker},
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
             entropy::transition_entropy_accumulator,
@@ -115,10 +114,10 @@ mod tests {
 
             let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;
             if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
-                set_header_epoch_marker(header_db, epoch_marker)?;
+                header_db.set_header_epoch_marker(epoch_marker)?;
             }
             if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
-                set_header_winning_tickets_marker(header_db, winning_tickets_marker)?;
+                header_db.set_header_winning_tickets_marker(winning_tickets_marker)?;
             }
 
             Ok(())

@@ -3,7 +3,7 @@ use rjam_codec::{
 };
 use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
-    BANDERSNATCH_SIGNATURE_EMPTY, EPOCH_LENGTH, VALIDATOR_COUNT,
+    EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Display;
@@ -26,7 +26,7 @@ pub struct EpochMarker {
     pub validators: Box<[BandersnatchPubKey; VALIDATOR_COUNT]>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHeader {
     pub parent_hash: Hash32,                                  // p
     pub parent_state_root: Hash32,                            // r
@@ -122,23 +122,6 @@ impl Display for BlockHeader {
             self.vrf_signature.encode_hex(),
             self.block_seal.encode_hex(),
         )
-    }
-}
-
-impl Default for BlockHeader {
-    fn default() -> Self {
-        Self {
-            parent_hash: Hash32::default(),
-            parent_state_root: Hash32::default(),
-            extrinsic_hash: Hash32::default(),
-            timeslot_index: 0,
-            epoch_marker: None,
-            winning_tickets_marker: None,
-            offenders_marker: vec![],
-            block_author_index: 0,
-            vrf_signature: BANDERSNATCH_SIGNATURE_EMPTY,
-            block_seal: BANDERSNATCH_SIGNATURE_EMPTY,
-        }
     }
 }
 

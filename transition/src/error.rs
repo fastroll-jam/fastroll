@@ -19,8 +19,6 @@ pub enum TransitionError {
     #[error("PendingReports Error")]
     PendingReportsError(#[from] PendingReportsError),
     // External errors
-    #[error("Block header update error: {0}")]
-    BlockHeaderUpdateError(#[from] BlockHeaderUpdateError),
     #[error("Extrinsic validation error: {0}")]
     XtValidationError(#[from] XtValidationError),
     #[error("Serialization error: {0}")]
@@ -31,16 +29,10 @@ pub enum TransitionError {
     CryptoError(#[from] CryptoError),
     #[error("StateManager error: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("BlockHeaderDB error: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("Merkle error: {0}")]
     MerkleError(#[from] MerkleError),
     #[error("PVM error: {0}")]
     PVMError(#[from] PVMError),
-}
-
-#[derive(Debug, Error)]
-pub enum BlockHeaderUpdateError {
-    #[error("BlockHeaderDB error: {0}")]
-    BlockHeaderDBError(#[from] BlockHeaderDBError),
-    #[error("Timeslot error: {0}")]
-    TimeslotError(#[from] TimeslotError),
 }

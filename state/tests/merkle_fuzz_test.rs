@@ -7,7 +7,7 @@ use std::{collections::HashMap, error::Error};
 
 #[test]
 fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
-    let (_, state_manager) = init_db_and_manager();
+    let (_, state_manager) = init_db_and_manager(None);
 
     // Test with N random state entries
     const N: usize = 100;
