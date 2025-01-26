@@ -8,7 +8,7 @@ use rjam_types::{
     extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
     state::{Timeslot, TimeslotError},
 };
-use rocksdb::ColumnFamily;
+use rocksdb::BoundColumnFamily;
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -66,7 +66,7 @@ impl BlockHeaderDB {
         ))
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
+    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, BlockHeaderDBError> {
         self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
     }
 

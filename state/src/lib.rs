@@ -394,7 +394,7 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let merkle_cf = self.merkle_db.cf_handle()?;
         for (k, v) in write_set.entries() {
-            batch.put_cf(merkle_cf, k.as_slice(), v);
+            batch.put_cf(&merkle_cf, k.as_slice(), v);
         }
         Ok(())
     }
@@ -406,7 +406,7 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let state_cf = self.state_db.cf_handle()?;
         for (k, v) in write_set.entries() {
-            batch.put_cf(state_cf, k.as_slice(), v);
+            batch.put_cf(&state_cf, k.as_slice(), v);
         }
         Ok(())
     }

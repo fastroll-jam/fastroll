@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_db::core::{CoreDB, CoreDBError, STATE_CF_NAME};
-use rocksdb::{ColumnFamily, WriteBatch};
+use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -37,7 +37,7 @@ impl StateDB {
         ))
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateDBError> {
+    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateDBError> {
         self.core.cf_handle(STATE_CF_NAME).map_err(|e| e.into())
     }
 

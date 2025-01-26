@@ -11,7 +11,7 @@ use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
-use rocksdb::{ColumnFamily, WriteBatch};
+use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -86,7 +86,7 @@ impl MerkleDB {
         ))
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateMerkleError> {
         self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
     }
 
