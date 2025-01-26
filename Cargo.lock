@@ -1126,6 +1126,7 @@ dependencies = [
  "rjam-types",
  "rocksdb",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

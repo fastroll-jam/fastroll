@@ -8,16 +8,18 @@ pub const HEADER_CF_NAME: &str = "header_cf";
 
 #[derive(Debug, Error)]
 pub enum CoreDBError {
-    #[error("RocksDB error: {0}")]
-    RocksDBError(#[from] rocksdb::Error),
     #[error("Column family not found: {0}")]
     ColumnFamilyNotFound(String),
+    #[error("RocksDB error: {0}")]
+    RocksDBError(#[from] rocksdb::Error),
+    #[error("Tokio join error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 /// A single RocksDB handle with multiple column families.
 pub struct CoreDB {
     /// RocksDB instance.
-    db: DB,
+    db: Arc<DB>,
 }
 
 impl CoreDB {
@@ -35,7 +37,7 @@ impl CoreDB {
 
         // Open DB with the CF descriptors
         Ok(Self {
-            db: DB::open_cf_descriptors(&opts, path, cfs)?,
+            db: Arc::new(DB::open_cf_descriptors(&opts, path, cfs)?),
         })
     }
 
@@ -51,14 +53,54 @@ impl CoreDB {
         Ok(self.db.get_cf(&cf, key)?)
     }
 
+    pub async fn get_state_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        Ok(tokio::task::spawn_blocking(move || {
+            let cf = db
+                .cf_handle(STATE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(STATE_CF_NAME.to_string()))
+                .ok()?;
+            db.get_cf(&cf, &key_vec).ok()?
+        })
+        .await?)
+    }
+
     pub fn put_state(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(STATE_CF_NAME)?;
         Ok(self.db.put_cf(&cf, key, val)?)
     }
 
+    pub async fn put_state_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        let val_vec = val.to_vec();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(STATE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(STATE_CF_NAME.to_string()))?;
+            db.put_cf(&cf, &key_vec, val_vec)?;
+            Ok(())
+        })
+        .await?
+    }
+
     pub fn delete_state(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(STATE_CF_NAME)?;
         Ok(self.db.delete_cf(&cf, key)?)
+    }
+
+    pub async fn delete_state_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(STATE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(STATE_CF_NAME.to_string()))?;
+            db.delete_cf(&cf, key_vec)?;
+            Ok(())
+        })
+        .await?
     }
 
     pub fn push_to_state_write_batch(
@@ -77,14 +119,55 @@ impl CoreDB {
         Ok(self.db.get_cf(&cf, key)?)
     }
 
+    pub async fn get_merkle_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        Ok(tokio::task::spawn_blocking(move || {
+            let cf = db
+                .cf_handle(STATE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(MERKLE_CF_NAME.to_string()))
+                .ok()?;
+            db.get_cf(&cf, &key_vec).ok()?
+        })
+        .await?)
+    }
+
     pub fn put_merkle(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(MERKLE_CF_NAME)?;
         Ok(self.db.put_cf(&cf, key, val)?)
     }
 
+    pub async fn put_merkle_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        let val_vec = val.to_vec();
+
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(MERKLE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(MERKLE_CF_NAME.to_string()))?;
+            db.put_cf(&cf, &key_vec, val_vec)?;
+            Ok(())
+        })
+        .await?
+    }
+
     pub fn delete_merkle(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(MERKLE_CF_NAME)?;
         Ok(self.db.delete_cf(&cf, key)?)
+    }
+
+    pub async fn delete_merkle_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(MERKLE_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(MERKLE_CF_NAME.to_string()))?;
+            db.delete_cf(&cf, key_vec)?;
+            Ok(())
+        })
+        .await?
     }
 
     pub fn push_to_merkle_write_batch(
@@ -103,14 +186,54 @@ impl CoreDB {
         Ok(self.db.get_cf(&cf, key)?)
     }
 
+    pub async fn get_header_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        Ok(tokio::task::spawn_blocking(move || {
+            let cf = db
+                .cf_handle(HEADER_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(HEADER_CF_NAME.to_string()))
+                .ok()?;
+            db.get_cf(&cf, &key_vec).ok()?
+        })
+        .await?)
+    }
+
     pub fn put_header(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(HEADER_CF_NAME)?;
         Ok(self.db.put_cf(&cf, key, val)?)
     }
 
+    pub async fn put_header_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        let val_vec = val.to_vec();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(HEADER_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(HEADER_CF_NAME.to_string()))?;
+            db.put_cf(&cf, &key_vec, val_vec)?;
+            Ok(())
+        })
+        .await?
+    }
+
     pub fn delete_header(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let cf = self.cf_handle(HEADER_CF_NAME)?;
         Ok(self.db.delete_cf(&cf, key)?)
+    }
+
+    pub async fn delete_header_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        let key_vec = key.to_vec();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let cf = db
+                .cf_handle(HEADER_CF_NAME)
+                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(HEADER_CF_NAME.to_string()))?;
+            db.delete_cf(&cf, key_vec)?;
+            Ok(())
+        })
+        .await?
     }
 
     // --- Batch operation

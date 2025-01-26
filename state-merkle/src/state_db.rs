@@ -58,6 +58,23 @@ impl StateDB {
         Ok(value)
     }
 
+    pub async fn get_entry_async(&self, key: &Hash32) -> Result<Option<Vec<u8>>, StateDBError> {
+        // lookup the cache
+        if let Some(data) = self.cache.get(key) {
+            return Ok(Some(data.clone()));
+        }
+
+        // fetch encoded state data octets from the db and put into the cache
+        let value = self.core.get_state_async(key.as_slice()).await?;
+
+        // insert into cache if found
+        if let Some(data) = &value {
+            self.cache.insert(*key, data.clone());
+        }
+
+        Ok(value)
+    }
+
     pub fn put_entry(&self, key: &Hash32, val: &[u8]) -> Result<(), StateDBError> {
         // write to DB
         self.core.put_state(key.as_slice(), val)?;
@@ -66,8 +83,24 @@ impl StateDB {
         Ok(())
     }
 
+    pub async fn put_entry_async(&self, key: &Hash32, val: &[u8]) -> Result<(), StateDBError> {
+        // write to DB
+        self.core.put_state_async(key.as_slice(), val).await?;
+        // insert into cache
+        self.cache.insert(*key, val.to_vec());
+        Ok(())
+    }
+
     pub fn delete_entry(&self, key: &Hash32) -> Result<(), StateDBError> {
-        Ok(self.core.delete_state(key.as_slice())?)
+        self.core.delete_state(key.as_slice())?;
+        self.cache.remove(key);
+        Ok(())
+    }
+
+    pub async fn delete_entry_async(&self, key: &Hash32) -> Result<(), StateDBError> {
+        self.core.delete_state_async(key.as_slice()).await?;
+        self.cache.remove(key);
+        Ok(())
     }
 
     /// Commit a write batch to the state column family.
