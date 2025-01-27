@@ -10,15 +10,17 @@ use rjam_state::{StateManager, StateMut};
 ///
 /// ## Per-block transitions
 /// * `kappa`: None.
-pub fn transition_active_set(
+pub async fn transition_active_set(
     state_manager: &StateManager,
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        let prior_pending_set = state_manager.get_safrole()?.pending_set;
-        state_manager.with_mut_active_set(StateMut::Update, |active_set| {
-            active_set.0 = prior_pending_set;
-        })?;
+        let prior_pending_set = state_manager.get_safrole().await?.pending_set;
+        state_manager
+            .with_mut_active_set(StateMut::Update, |active_set| {
+                active_set.0 = prior_pending_set;
+            })
+            .await?;
     }
     Ok(())
 }
@@ -32,15 +34,17 @@ pub fn transition_active_set(
 ///
 /// ## Per-block transitions
 /// * `lambda`: None.
-pub fn transition_past_set(
+pub async fn transition_past_set(
     state_manager: &StateManager,
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        let prior_active_set = state_manager.get_active_set()?;
-        state_manager.with_mut_past_set(StateMut::Update, |past_set| {
-            past_set.0 = prior_active_set.0;
-        })?;
+        let prior_active_set = state_manager.get_active_set().await?;
+        state_manager
+            .with_mut_past_set(StateMut::Update, |past_set| {
+                past_set.0 = prior_active_set.0;
+            })
+            .await?;
     }
     Ok(())
 }

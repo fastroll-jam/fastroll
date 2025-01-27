@@ -48,12 +48,7 @@ impl CoreDB {
     }
 
     // --- State CF operations
-    pub fn get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        let cf = self.cf_handle(STATE_CF_NAME)?;
-        Ok(self.db.get_cf(&cf, key)?)
-    }
-
-    pub async fn get_state_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+    pub async fn get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         Ok(tokio::task::spawn_blocking(move || {
@@ -66,12 +61,7 @@ impl CoreDB {
         .await?)
     }
 
-    pub fn put_state(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(STATE_CF_NAME)?;
-        Ok(self.db.put_cf(&cf, key, val)?)
-    }
-
-    pub async fn put_state_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn put_state(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         let val_vec = val.to_vec();
@@ -85,12 +75,7 @@ impl CoreDB {
         .await?
     }
 
-    pub fn delete_state(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(STATE_CF_NAME)?;
-        Ok(self.db.delete_cf(&cf, key)?)
-    }
-
-    pub async fn delete_state_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn delete_state(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
@@ -114,17 +99,13 @@ impl CoreDB {
     }
 
     // --- Merkle CF operations
-    pub fn get_merkle(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        let cf = self.cf_handle(MERKLE_CF_NAME)?;
-        Ok(self.db.get_cf(&cf, key)?)
-    }
 
-    pub async fn get_merkle_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+    pub async fn get_merkle(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         Ok(tokio::task::spawn_blocking(move || {
             let cf = db
-                .cf_handle(STATE_CF_NAME)
+                .cf_handle(MERKLE_CF_NAME)
                 .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(MERKLE_CF_NAME.to_string()))
                 .ok()?;
             db.get_cf(&cf, &key_vec).ok()?
@@ -132,12 +113,7 @@ impl CoreDB {
         .await?)
     }
 
-    pub fn put_merkle(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(MERKLE_CF_NAME)?;
-        Ok(self.db.put_cf(&cf, key, val)?)
-    }
-
-    pub async fn put_merkle_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn put_merkle(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         let val_vec = val.to_vec();
@@ -152,12 +128,7 @@ impl CoreDB {
         .await?
     }
 
-    pub fn delete_merkle(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(MERKLE_CF_NAME)?;
-        Ok(self.db.delete_cf(&cf, key)?)
-    }
-
-    pub async fn delete_merkle_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn delete_merkle(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
@@ -181,12 +152,7 @@ impl CoreDB {
     }
 
     // --- Header CF operations
-    pub fn get_header(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        let cf = self.cf_handle(HEADER_CF_NAME)?;
-        Ok(self.db.get_cf(&cf, key)?)
-    }
-
-    pub async fn get_header_async(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
+    pub async fn get_header(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         Ok(tokio::task::spawn_blocking(move || {
@@ -199,12 +165,7 @@ impl CoreDB {
         .await?)
     }
 
-    pub fn put_header(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(HEADER_CF_NAME)?;
-        Ok(self.db.put_cf(&cf, key, val)?)
-    }
-
-    pub async fn put_header_async(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn put_header(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         let val_vec = val.to_vec();
@@ -218,12 +179,7 @@ impl CoreDB {
         .await?
     }
 
-    pub fn delete_header(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        let cf = self.cf_handle(HEADER_CF_NAME)?;
-        Ok(self.db.delete_cf(&cf, key)?)
-    }
-
-    pub async fn delete_header_async(&self, key: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn delete_header(&self, key: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
@@ -237,8 +193,13 @@ impl CoreDB {
     }
 
     // --- Batch operation
-    pub fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CoreDBError> {
-        let write_opts = WriteOptions::default();
-        Ok(self.db.write_opt(batch, &write_opts)?)
+    pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CoreDBError> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
+            let write_opts = WriteOptions::default();
+            db.write_opt(batch, &write_opts)?;
+            Ok(())
+        })
+        .await?
     }
 }

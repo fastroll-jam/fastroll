@@ -67,7 +67,7 @@ impl<'a> GuaranteesXtValidator<'a> {
     /// Validates the entire `GuaranteesXt`.
     ///
     /// Returns `Ed25519PubKey`s of guarantors of all report entries.
-    pub fn validate(
+    pub async fn validate(
         &self,
         extrinsic: &GuaranteesXt,
         header_timeslot_index: u32,
@@ -112,21 +112,23 @@ impl<'a> GuaranteesXtValidator<'a> {
             .collect();
 
         // Validate each entry
-        let pending_reports = self.state_manager.get_pending_reports()?;
-        let auth_pool = self.state_manager.get_auth_pool()?;
-        let block_history = self.state_manager.get_block_history()?;
+        let pending_reports = self.state_manager.get_pending_reports().await?;
+        let auth_pool = self.state_manager.get_auth_pool().await?;
+        let block_history = self.state_manager.get_block_history().await?;
 
         let mut all_guarantor_keys = vec![];
         for entry in extrinsic.iter() {
-            let guarantor_keys = self.validate_entry(
-                entry,
-                &exports_manifests,
-                &pending_reports,
-                &auth_pool,
-                &block_history,
-                &work_package_hashes,
-                header_timeslot_index,
-            )?;
+            let guarantor_keys = self
+                .validate_entry(
+                    entry,
+                    &exports_manifests,
+                    &pending_reports,
+                    &auth_pool,
+                    &block_history,
+                    &work_package_hashes,
+                    header_timeslot_index,
+                )
+                .await?;
             all_guarantor_keys.extend(guarantor_keys);
         }
 
@@ -137,7 +139,7 @@ impl<'a> GuaranteesXtValidator<'a> {
     ///
     /// Returns `Ed25519PubKey`s of guarantors of the report entry.
     #[allow(clippy::too_many_arguments)]
-    pub fn validate_entry(
+    pub async fn validate_entry(
         &self,
         entry: &GuaranteesXtEntry,
         exports_manifests: &[ReportedWorkPackage],
@@ -155,13 +157,14 @@ impl<'a> GuaranteesXtValidator<'a> {
             block_history,
             work_package_hashes,
             header_timeslot_index,
-        )?;
+        )
+        .await?;
 
-        self.validate_credentials(entry)
+        self.validate_credentials(entry).await
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn validate_work_report(
+    async fn validate_work_report(
         &self,
         work_report: &WorkReport,
         exports_manifests: &[ReportedWorkPackage],
@@ -184,7 +187,8 @@ impl<'a> GuaranteesXtValidator<'a> {
             // TODO: error handling for target account being not found?
             let target_service_account_metadata = self
                 .state_manager
-                .get_account_metadata(result_item.service_index)?;
+                .get_account_metadata(result_item.service_index)
+                .await?;
 
             let target_service_account_min_item_gas = match target_service_account_metadata {
                 Some(account) => account.account_info.gas_limit_accumulate,
@@ -280,7 +284,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         }
 
         // Validate work results' code hashes
-        self.validate_work_results(work_report)?;
+        self.validate_work_results(work_report).await?;
 
         Ok(())
     }
@@ -352,11 +356,15 @@ impl<'a> GuaranteesXtValidator<'a> {
         Ok(())
     }
 
-    fn validate_work_results(&self, work_report: &WorkReport) -> Result<(), XtValidationError> {
+    async fn validate_work_results(
+        &self,
+        work_report: &WorkReport,
+    ) -> Result<(), XtValidationError> {
         for result in work_report.results() {
             if let Some(expected_code_hash) = self
                 .state_manager
-                .get_account_code_hash(result.service_index)?
+                .get_account_code_hash(result.service_index)
+                .await?
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
@@ -378,7 +386,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         Ok(())
     }
 
-    fn validate_credentials(
+    async fn validate_credentials(
         &self,
         entry: &GuaranteesXtEntry,
     ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
@@ -408,15 +416,16 @@ impl<'a> GuaranteesXtValidator<'a> {
         // Validate each credential
         let mut guarantor_keys = Vec::with_capacity(credentials.len());
         for credential in credentials {
-            let guarantor =
-                self.validate_credential(&entry.work_report, entry.timeslot_index, credential)?;
+            let guarantor = self
+                .validate_credential(&entry.work_report, entry.timeslot_index, credential)
+                .await?;
             guarantor_keys.push(guarantor);
         }
 
         Ok(guarantor_keys)
     }
 
-    fn validate_credential(
+    async fn validate_credential(
         &self,
         work_report: &WorkReport,
         entry_timeslot_index: u32,
@@ -429,9 +438,10 @@ impl<'a> GuaranteesXtValidator<'a> {
         message.extend_from_slice(hash.as_slice());
 
         // Get core indices and validator keys
-        let current_timeslot_index = self.state_manager.get_timeslot()?.slot();
-        let guarantor_assignment =
-            self.get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)?;
+        let current_timeslot_index = self.state_manager.get_timeslot().await?.slot();
+        let guarantor_assignment = self
+            .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
+            .await?;
         let guarantor_public_key = get_validator_ed25519_key_by_index(
             &guarantor_assignment.validator_keys,
             credential.validator_index,
@@ -468,7 +478,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         Ok(guarantor_public_key)
     }
 
-    pub fn get_guarantor_assignment(
+    pub async fn get_guarantor_assignment(
         &self,
         entry_timeslot_index: u32,
         current_timeslot_index: u32,
@@ -476,13 +486,9 @@ impl<'a> GuaranteesXtValidator<'a> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
         if within_same_rotation {
-            Ok(GuarantorAssignment::current_guarantor_assignments(
-                self.state_manager,
-            )?)
+            Ok(GuarantorAssignment::current_guarantor_assignments(self.state_manager).await?)
         } else {
-            Ok(GuarantorAssignment::previous_guarantor_assignments(
-                self.state_manager,
-            )?)
+            Ok(GuarantorAssignment::previous_guarantor_assignments(self.state_manager).await?)
         }
     }
 }

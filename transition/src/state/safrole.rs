@@ -22,55 +22,57 @@ use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
 /// * `gamma_z`: None.
 /// * `gamma_s`: None.
 /// * `gamma_a`: Accumulates new tickets.
-pub fn transition_safrole(
+pub async fn transition_safrole(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        handle_new_epoch_transition(state_manager, prior_timeslot)?;
+        handle_new_epoch_transition(state_manager, prior_timeslot).await?;
     }
 
     // Ticket accumulator transition
-    handle_ticket_accumulation(state_manager, tickets_xt)?;
+    handle_ticket_accumulation(state_manager, tickets_xt).await?;
 
     Ok(())
 }
 
-fn handle_new_epoch_transition(
+async fn handle_new_epoch_transition(
     state_manager: &StateManager,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let current_punish_set = state_manager.get_disputes()?.punish_set;
-    let mut prior_staging_set = state_manager.get_staging_set()?;
+    let current_punish_set = state_manager.get_disputes().await?.punish_set;
+    let mut prior_staging_set = state_manager.get_staging_set().await?;
 
     // Remove punished validators from the staging set (iota).
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
     let current_ring_root = generate_ring_root(&prior_staging_set)?;
-    let current_active_set = state_manager.get_active_set()?;
-    let current_entropy = state_manager.get_entropy_accumulator()?;
+    let current_active_set = state_manager.get_active_set().await?;
+    let current_entropy = state_manager.get_entropy_accumulator().await?;
 
-    state_manager.with_mut_safrole(StateMut::Update, |safrole| {
-        // pending set transition (gamma_k)
-        safrole.pending_set = prior_staging_set.0;
+    state_manager
+        .with_mut_safrole(StateMut::Update, |safrole| {
+            // pending set transition (gamma_k)
+            safrole.pending_set = prior_staging_set.0;
 
-        // ring root transition (gamma_z)
-        safrole.ring_root = current_ring_root;
+            // ring root transition (gamma_z)
+            safrole.ring_root = current_ring_root;
 
-        // slot-sealer series transition (gamma_s)
-        update_slot_sealers(
-            safrole,
-            prior_timeslot,
-            &current_active_set,
-            &current_entropy,
-        );
+            // slot-sealer series transition (gamma_s)
+            update_slot_sealers(
+                safrole,
+                prior_timeslot,
+                &current_active_set,
+                &current_entropy,
+            );
 
-        // reset ticket accumulator (gamma_a)
-        safrole.ticket_accumulator = TicketAccumulator::new();
-    })?;
+            // reset ticket accumulator (gamma_a)
+            safrole.ticket_accumulator = TicketAccumulator::new();
+        })
+        .await?;
 
     Ok(())
 }
@@ -99,7 +101,7 @@ fn update_slot_sealers(
     }
 }
 
-fn handle_ticket_accumulation(
+async fn handle_ticket_accumulation(
     state_manager: &StateManager,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
@@ -108,7 +110,7 @@ fn handle_ticket_accumulation(
     }
 
     // Check if the current timeslot is within the ticket submission period.
-    let current_slot_phase = state_manager.get_timeslot()?.slot_phase();
+    let current_slot_phase = state_manager.get_timeslot().await?.slot_phase();
     if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
         return Err(TransitionError::XtValidationError(TicketSubmissionClosed(
             current_slot_phase,
@@ -117,14 +119,14 @@ fn handle_ticket_accumulation(
 
     // Validate ticket extrinsic data.
     let ticket_validator = TicketsXtValidator::new(state_manager);
-    ticket_validator.validate(tickets_xt)?;
+    ticket_validator.validate(tickets_xt).await?;
 
     // Construct new tickets from ticket extrinsics.
     let new_tickets = ticket_xt_to_new_tickets(tickets_xt);
 
     // Check if the ticket accumulator contains the new ticket entry.
     // If not, accumulate the new ticket entry into the accumulator.
-    let mut curr_ticket_accumulator = state_manager.get_safrole()?.ticket_accumulator;
+    let mut curr_ticket_accumulator = state_manager.get_safrole().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
             return Err(TransitionError::XtValidationError(DuplicateTicket));
@@ -132,9 +134,11 @@ fn handle_ticket_accumulation(
         curr_ticket_accumulator.add(ticket);
     }
 
-    state_manager.with_mut_safrole(StateMut::Update, |safrole| {
-        safrole.ticket_accumulator = curr_ticket_accumulator;
-    })?;
+    state_manager
+        .with_mut_safrole(StateMut::Update, |safrole| {
+            safrole.ticket_accumulator = curr_ticket_accumulator;
+        })
+        .await?;
 
     Ok(())
 }

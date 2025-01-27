@@ -4,7 +4,7 @@ use rjam_codec::JamCodecError;
 use rjam_common::{Address, CoreIndex, ValidatorIndex};
 use rjam_crypto::CryptoError;
 use rjam_merkle::common::MerkleError;
-use rjam_state::StateManagerError;
+use rjam_state::error::StateManagerError;
 use rjam_types::common::workloads::WorkReportError;
 use thiserror::Error;
 

@@ -35,9 +35,9 @@ impl<'a> TicketsXtValidator<'a> {
     }
 
     /// Validates the entire `TicketsXt`.
-    pub fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtValidationError> {
+    pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtValidationError> {
         // Check the slot phase
-        let current_slot_phase = self.state_manger.get_timeslot()?.slot_phase();
+        let current_slot_phase = self.state_manger.get_timeslot().await?.slot_phase();
         if current_slot_phase >= TICKET_SUBMISSION_DEADLINE_SLOT as u32 && !extrinsic.is_empty() {
             return Err(TicketSubmissionClosed(current_slot_phase));
         }
@@ -54,10 +54,11 @@ impl<'a> TicketsXtValidator<'a> {
             return Err(TicketsNotSorted);
         }
 
-        let pending_set = self.state_manger.get_safrole()?.pending_set;
+        let pending_set = self.state_manger.get_safrole().await?.pending_set;
         let entropy_2 = self
             .state_manger
-            .get_entropy_accumulator()?
+            .get_entropy_accumulator()
+            .await?
             .second_history();
         let ring = validator_set_to_bandersnatch_ring(&pending_set)?;
         let verifier = Verifier::new(ring);

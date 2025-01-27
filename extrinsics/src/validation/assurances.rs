@@ -38,7 +38,7 @@ impl<'a> AssurancesXtValidator<'a> {
     }
 
     /// Validates the entire `AssurancesXt`.
-    pub fn validate(
+    pub async fn validate(
         &self,
         extrinsic: &AssurancesXt,
         header_parent_hash: &Hash32,
@@ -67,14 +67,14 @@ impl<'a> AssurancesXtValidator<'a> {
 
         // Validate each entry
         for entry in extrinsic.iter() {
-            self.validate_entry(entry, header_parent_hash)?;
+            self.validate_entry(entry, header_parent_hash).await?;
         }
 
         Ok(())
     }
 
     /// Validates each `AssurancesXtEntry`.
-    pub fn validate_entry(
+    pub async fn validate_entry(
         &self,
         entry: &AssurancesXtEntry,
         header_parent_hash: &Hash32,
@@ -98,7 +98,7 @@ impl<'a> AssurancesXtValidator<'a> {
         message.extend_from_slice(X_A);
         message.extend_from_slice(hash.as_slice());
 
-        let current_active_set = self.state_manager.get_active_set()?;
+        let current_active_set = self.state_manager.get_active_set().await?;
         let assurer_public_key =
             get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
                 .map_err(|_| InvalidValidatorIndex)?;
@@ -108,7 +108,7 @@ impl<'a> AssurancesXtValidator<'a> {
         }
 
         // Validate the assuring cores bit-vec
-        let pending_reports = self.state_manager.get_pending_reports()?;
+        let pending_reports = self.state_manager.get_pending_reports().await?;
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
             if bit && pending_reports.0[core_index].is_none() {

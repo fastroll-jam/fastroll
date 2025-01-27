@@ -1,5 +1,6 @@
 //! Assurances state transition conformance tests
 mod tests {
+    use async_trait::async_trait;
     use rjam_common::ByteArray;
     use rjam_conformance_tests::{
         asn_types::{assurances::*, common::*},
@@ -8,7 +9,7 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{
         error::TransitionError,
         state::{reports::transition_reports_clear_availables, timeslot::transition_timeslot},
@@ -17,6 +18,7 @@ mod tests {
 
     struct AssurancesTest;
 
+    #[async_trait]
     impl StateTransitionTest for AssurancesTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/assurances/tiny";
 
@@ -27,10 +29,10 @@ mod tests {
         type Output = Output;
         type ErrorCode = AssurancesErrorCode;
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
@@ -39,10 +41,12 @@ mod tests {
             ));
 
             // Load pre-state info the state cache.
-            state_manager.add_pending_reports(pre_pending_reports)?;
-            state_manager.add_active_set(pre_active_set)?;
+            state_manager
+                .add_pending_reports(pre_pending_reports)
+                .await?;
+            state_manager.add_active_set(pre_active_set).await?;
             // Additionally, initialize the timeslot state cache
-            state_manager.add_timeslot(Timeslot::new(0))?;
+            state_manager.add_timeslot(Timeslot::new(0)).await?;
 
             Ok(())
         }
@@ -56,19 +60,20 @@ mod tests {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_timeslot(state_manager, &jam_input.timeslot)?;
+            transition_timeslot(state_manager, &jam_input.timeslot).await?;
 
             let removed_reports = transition_reports_clear_availables(
                 state_manager,
                 &jam_input.extrinsic,
                 &jam_input.parent_hash,
-            )?;
+            )
+            .await?;
 
             Ok(JamTransitionOutput { removed_reports })
         }
@@ -90,24 +95,24 @@ mod tests {
             Output::ok(transition_output.cloned().unwrap().into())
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
+        ) -> Result<Self::State, StateManagerError> {
             if error_code.is_some() {
                 // Rollback state transition
-                return pre_state.clone();
+                return Ok(pre_state.clone());
             }
 
             // Get the posterior state from the state cache.
-            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
-            let curr_active_set = state_manager.get_active_set().unwrap();
+            let curr_pending_reports = state_manager.get_pending_reports().await?;
+            let curr_active_set = state_manager.get_active_set().await?;
 
-            State {
+            Ok(State {
                 avail_assignments: curr_pending_reports.into(),
                 curr_validators: validator_set_to_validators_data(&curr_active_set),
-            }
+            })
         }
     }
 

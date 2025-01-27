@@ -129,9 +129,10 @@ impl AccountsSandboxHolder for OnTransferHostContext {
 }
 
 impl OnTransferHostContext {
-    pub fn new(state_manager: &StateManager, recipient: Address) -> Result<Self, PVMError> {
+    pub async fn new(state_manager: &StateManager, recipient: Address) -> Result<Self, PVMError> {
         let mut accounts_sandbox = HashMap::new();
-        let recipient_account_sandbox = AccountSandbox::from_address(state_manager, recipient)?;
+        let recipient_account_sandbox =
+            AccountSandbox::from_address(state_manager, recipient).await?;
         accounts_sandbox.insert(recipient, recipient_account_sandbox);
         Ok(Self {
             accounts_sandbox: AccountsSandboxMap {
@@ -195,7 +196,7 @@ pub struct AccumulateHostContext {
 }
 
 impl AccumulateHostContext {
-    pub fn new(
+    pub async fn new(
         state_manager: &StateManager,
         accumulate_address: Address,
         entropy: Hash32,
@@ -207,16 +208,18 @@ impl AccumulateHostContext {
                 accumulate_address,
                 entropy,
                 timeslot,
-            )?,
+            )
+            .await?,
             partial_state: AccumulatePartialState::new_from_address(
                 state_manager,
                 accumulate_address,
-            )?,
+            )
+            .await?,
             ..Default::default()
         })
     }
 
-    fn initialize_new_account_address(
+    async fn initialize_new_account_address(
         state_manager: &StateManager,
         accumulate_address: Address,
         entropy: Hash32,
@@ -230,17 +233,19 @@ impl AccumulateHostContext {
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let initial_check_address = u32::decode_fixed(&mut &source_hash[..], 4)? as u64
             & (((1 << 32) - (1 << 9)) + (1 << 8));
-        let new_account_address = state_manager.check(initial_check_address as Address)?;
+        let new_account_address = state_manager
+            .check(initial_check_address as Address)
+            .await?;
 
         Ok(new_account_address)
     }
 
-    pub fn copy_account_to_partial_state_sandbox(
+    pub async fn copy_account_to_partial_state_sandbox(
         &mut self,
         state_manager: &StateManager,
         address: Address,
     ) -> Result<(), PVMError> {
-        let account_copy = AccountSandbox::from_address(state_manager, address)?;
+        let account_copy = AccountSandbox::from_address(state_manager, address).await?;
         self.partial_state
             .accounts_sandbox
             .insert(address, account_copy);
@@ -248,23 +253,25 @@ impl AccumulateHostContext {
         Ok(())
     }
 
-    pub fn get_accumulator_metadata(
+    pub async fn get_accumulator_metadata(
         &mut self,
         state_manager: &StateManager,
     ) -> Result<&AccountMetadata, PVMError> {
         self.partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, self.accumulate_host)?
+            .get_account_metadata(state_manager, self.accumulate_host)
+            .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
-    pub fn get_mut_accumulator_metadata(
+    pub async fn get_mut_accumulator_metadata(
         &mut self,
         state_manager: &StateManager,
     ) -> Result<&mut AccountMetadata, PVMError> {
         self.partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)?
+            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
@@ -296,14 +303,15 @@ impl AccumulateHostContext {
     }
 
     #[allow(clippy::redundant_closure_call)]
-    pub fn rotate_new_account_address(
+    pub async fn rotate_new_account_address(
         &mut self,
         state_manager: &StateManager,
     ) -> Result<(), PVMError> {
         let bump = |a: Address| -> Address {
             ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8)) as Address
         };
-        self.next_new_account_address = bump(state_manager.check(self.next_new_account_address)?);
+        self.next_new_account_address =
+            bump(state_manager.check(self.next_new_account_address).await?);
         Ok(())
     }
 
@@ -337,7 +345,7 @@ impl AccumulateHostContext {
         Ok(())
     }
 
-    pub fn subtract_accumulator_balance(
+    pub async fn subtract_accumulator_balance(
         &mut self,
         state_manager: &StateManager,
         amount: Balance,
@@ -345,14 +353,15 @@ impl AccumulateHostContext {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)?
+            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         account_metadata.account_info.balance -= amount;
         Ok(())
     }
 
-    pub fn add_new_account(
+    pub async fn add_new_account(
         &mut self,
         state_manager: &StateManager,
         account_info: AccountInfo,
@@ -380,12 +389,13 @@ impl AccumulateHostContext {
                 new_account_address,
                 code_lookups_key,
                 code_lookups_entry,
-            )?;
+            )
+            .await?;
 
         Ok(new_account_address)
     }
 
-    pub fn update_accumulator_metadata(
+    pub async fn update_accumulator_metadata(
         &mut self,
         state_manager: &StateManager,
         code_hash: Hash32,
@@ -395,7 +405,8 @@ impl AccumulateHostContext {
         let accumulator_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)?
+            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         accumulator_metadata.account_info.code_hash = code_hash;

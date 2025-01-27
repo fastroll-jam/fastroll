@@ -27,9 +27,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     header_db.init_staging_header(Hash32::default())?;
     let timeslot = header_db.set_timeslot()?;
-    header_db.commit_staging_header()?;
+    header_db.commit_staging_header().await?;
 
-    let header_1 = header_db.get_header(timeslot.slot())?;
+    let header_1 = header_db.get_header(timeslot.slot()).await?;
     println!("Header 1:");
     println!("{}", header_1);
 

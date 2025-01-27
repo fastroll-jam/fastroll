@@ -13,19 +13,21 @@ use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
 /// initially set to an empty hash, as each block stores the state root of its parent block.
 /// This function performs the necessary update to reflect the correct parent state root
 /// before accumulation occurs for the current block.
-pub fn transition_block_history_parent_root(
+pub async fn transition_block_history_parent_root(
     state_manager: &StateManager,
     root: Hash32,
 ) -> Result<(), TransitionError> {
-    let history = state_manager.get_block_history()?;
+    let history = state_manager.get_block_history().await?;
     if history.0.is_empty() {
         return Ok(());
     }
 
-    state_manager.with_mut_block_history(StateMut::Update, |history| {
-        let last_index = history.0.len() - 1;
-        history.0[last_index].set_state_root(root);
-    })?;
+    state_manager
+        .with_mut_block_history(StateMut::Update, |history| {
+            let last_index = history.0.len() - 1;
+            history.0[last_index].set_state_root(root);
+        })
+        .await?;
 
     Ok(())
 }
@@ -40,27 +42,29 @@ pub fn transition_block_history_parent_root(
 /// The new entry is then appended to the `BlockHistory` vector. If the total number of entries
 /// exceeds the maximum allowed (`H = 8`), the oldest entry is removed to maintain the length limit,
 /// ensuring only the most recent block history are retained.
-pub fn transition_block_history_append(
+pub async fn transition_block_history_append(
     state_manager: &StateManager,
     header_hash: Hash32,
     accumulate_root: Hash32,
     reported_packages: &[ReportedWorkPackage],
 ) -> Result<(), TransitionError> {
-    let block_history = state_manager.get_block_history()?;
+    let block_history = state_manager.get_block_history().await?;
     let mut mmr = match block_history.get_latest_history().cloned() {
         Some(history) => history.accumulation_result_mmr,
         None => MerkleMountainRange::new(),
     };
     mmr.append(accumulate_root)?;
 
-    state_manager.with_mut_block_history(StateMut::Update, |history| {
-        history.append(BlockHistoryEntry {
-            header_hash,
-            accumulation_result_mmr: mmr,
-            state_root: Hash32::default(),
-            reported_packages: reported_packages.to_vec(),
-        });
-    })?;
+    state_manager
+        .with_mut_block_history(StateMut::Update, |history| {
+            history.append(BlockHistoryEntry {
+                header_hash,
+                accumulation_result_mmr: mmr,
+                state_root: Hash32::default(),
+                reported_packages: reported_packages.to_vec(),
+            });
+        })
+        .await?;
 
     Ok(())
 }

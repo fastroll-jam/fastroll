@@ -30,19 +30,19 @@ pub struct SafroleHeaderMarkers {
 /// 3. Past Set: Updates the set of past validators.
 /// 4. Active Set: Updates the set of currently active validators.
 /// 5. Safrole: Updates Safrole state components, including ring root calculation and ticket processing.
-pub fn chain_extension_procedure(
+pub async fn chain_extension_procedure(
     state_manager: &StateManager,
     header: &BlockHeader,
     tickets: &TicketsXt,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
-    let prior_timeslot = state_manager.get_timeslot()?;
+    let prior_timeslot = state_manager.get_timeslot().await?;
 
     // Timeslot transition
     let header_timeslot_index = header.timeslot_index;
-    transition_timeslot(state_manager, &Timeslot::new(header_timeslot_index))?;
+    transition_timeslot(state_manager, &Timeslot::new(header_timeslot_index)).await?;
 
     // Determine if the epoch has progressed
-    let current_timeslot = &state_manager.get_timeslot()?;
+    let current_timeslot = &state_manager.get_timeslot().await?;
     let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
 
     // EntropyAccumulator transition
@@ -51,32 +51,33 @@ pub fn chain_extension_procedure(
         state_manager,
         epoch_progressed,
         entropy_hash_ietf_vrf(header_vrf_signature),
-    )?;
+    )
+    .await?;
 
     // PastSet transition
-    transition_past_set(state_manager, epoch_progressed)?;
+    transition_past_set(state_manager, epoch_progressed).await?;
 
     // ActiveSet transition
-    transition_active_set(state_manager, epoch_progressed)?;
+    transition_active_set(state_manager, epoch_progressed).await?;
 
     // Safrole transition
-    transition_safrole(state_manager, &prior_timeslot, epoch_progressed, tickets)?;
+    transition_safrole(state_manager, &prior_timeslot, epoch_progressed, tickets).await?;
 
     // Generates SafroleHeaderMarkers as output of the chain extension procedure.
-    let markers = mark_safrole_header_markers(state_manager, epoch_progressed)?;
+    let markers = mark_safrole_header_markers(state_manager, epoch_progressed).await?;
 
     Ok(markers)
 }
 
-pub fn mark_safrole_header_markers(
+pub async fn mark_safrole_header_markers(
     state_manager: &StateManager,
     epoch_progressed: bool,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
-    let current_timeslot = state_manager.get_timeslot()?;
-    let current_safrole = state_manager.get_safrole()?;
+    let current_timeslot = state_manager.get_timeslot().await?;
+    let current_safrole = state_manager.get_safrole().await?;
 
     let epoch_marker = if epoch_progressed {
-        let current_entropy = state_manager.get_entropy_accumulator()?;
+        let current_entropy = state_manager.get_entropy_accumulator().await?;
         let current_pending_set = current_safrole.pending_set;
         Some(EpochMarker {
             entropy: current_entropy.first_history(), // FIXME: update to `current()`

@@ -143,16 +143,19 @@ impl PVMInvocation {
     /// * `args` - IsAuthorized arguments
     ///
     /// Represents `Ψ_I` of the GP
-    pub fn is_authorized(
+    pub async fn is_authorized(
         state_manager: &StateManager,
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via the historical lookup function
-        let code = match state_manager.lookup_preimage(
-            args.work_package.authorizer_address,
-            &Timeslot::new(args.work_package.context.lookup_anchor_timeslot),
-            &args.work_package.authorizer.auth_code_hash,
-        )? {
+        let code = match state_manager
+            .lookup_preimage(
+                args.work_package.authorizer_address,
+                &Timeslot::new(args.work_package.context.lookup_anchor_timeslot),
+                &args.work_package.authorizer.auth_code_hash,
+            )
+            .await?
+        {
             Some(code) => code,
             None => {
                 // failed to get the is_authorized code from the service account
@@ -168,7 +171,8 @@ impl PVMInvocation {
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
             &args.encode()?,
             &mut InvocationContext::X_I, // not used
-        )?;
+        )
+        .await?;
 
         match common_invocation_result {
             CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
@@ -190,7 +194,7 @@ impl PVMInvocation {
     /// * `export_segments_offset` - Initial offset index of the export segments array
     ///
     /// Represents `Ψ_R` of the GP
-    pub fn refine(
+    pub async fn refine(
         state_manager: &StateManager,
         code_hash: Hash32,
         gas_limit: UnsignedGas,
@@ -199,14 +203,16 @@ impl PVMInvocation {
         export_segments_offset: usize,
     ) -> Result<RefineResult, PVMError> {
         // check the refine target account address exists in the global state
-        let refine_account_exists = !state_manager.account_exists(args.refine_address)?;
+        let refine_account_exists = !state_manager.account_exists(args.refine_address).await?;
 
         // retrieve the service account code via the historical lookup function
-        let maybe_code = state_manager.lookup_preimage(
-            args.refine_address,
-            &Timeslot(args.refinement_context.lookup_anchor_timeslot),
-            &code_hash,
-        )?;
+        let maybe_code = state_manager
+            .lookup_preimage(
+                args.refine_address,
+                &Timeslot(args.refinement_context.lookup_anchor_timeslot),
+                &code_hash,
+            )
+            .await?;
 
         if !refine_account_exists || maybe_code.is_none() {
             return Ok(RefineResult::bad());
@@ -232,7 +238,8 @@ impl PVMInvocation {
             gas_limit,
             &args.encode()?,
             &mut context,
-        )?;
+        )
+        .await?;
 
         let RefineHostContext {
             export_segments, ..
@@ -262,27 +269,28 @@ impl PVMInvocation {
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     ///
     /// Represents `Ψ_A` of the GP
-    pub fn accumulate(
+    pub async fn accumulate(
         state_manager: &StateManager,
         accumulate_address: Address,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulateOperand>,
     ) -> Result<AccumulateResult, PVMError> {
-        let code = state_manager.get_account_code(accumulate_address)?;
+        let code = state_manager.get_account_code(accumulate_address).await?;
 
         if code.is_none() {
             return Ok(AccumulateResult::Unchanged);
         }
         let code = code.unwrap();
 
-        let current_entropy = state_manager.get_entropy_accumulator()?.current();
-        let current_timeslot = state_manager.get_timeslot()?;
+        let current_entropy = state_manager.get_entropy_accumulator().await?.current();
+        let current_timeslot = state_manager.get_timeslot().await?;
         let accumulate_context = AccumulateHostContext::new(
             state_manager,
             accumulate_address,
             current_entropy,
             &current_timeslot,
-        )?;
+        )
+        .await?;
 
         let context_pair = AccumulateHostContextPair {
             x: Box::new(accumulate_context.clone()),
@@ -301,7 +309,8 @@ impl PVMInvocation {
             gas_limit,
             &operands.encode()?,
             &mut context,
-        )?;
+        )
+        .await?;
 
         let AccumulateHostContextPair { x, y } = if let InvocationContext::X_A(pair) = context {
             pair
@@ -329,7 +338,7 @@ impl PVMInvocation {
     /// * `transfers` - The deferred transfers
     ///
     /// Represents `Ψ_T` of the GP
-    pub fn on_transfer(
+    pub async fn on_transfer(
         state_manager: &StateManager,
         destination: Address,
         transfers: Vec<DeferredTransfer>,
@@ -337,13 +346,13 @@ impl PVMInvocation {
         let total_amount = transfers.iter().map(|t| t.amount).sum();
         let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
 
-        let code = state_manager.get_account_code(destination)?;
+        let code = state_manager.get_account_code(destination).await?;
         if code.is_none() || transfers.is_empty() {
             return Ok(OnTransferResult::default());
         }
         let code = code.unwrap();
 
-        let on_transfer_context = OnTransferHostContext::new(state_manager, destination)?;
+        let on_transfer_context = OnTransferHostContext::new(state_manager, destination).await?;
 
         let _common_invocation_result = PVM::common_invocation(
             state_manager,
@@ -353,7 +362,8 @@ impl PVMInvocation {
             total_gas_limit,
             &transfers.encode()?,
             &mut InvocationContext::X_T(on_transfer_context), // not used
-        )?;
+        )
+        .await?;
 
         // TODO: return the recipient account storage changeset
         Ok(OnTransferResult::new(

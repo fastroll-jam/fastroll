@@ -28,7 +28,7 @@ impl<'a> PreimagesXtValidator<'a> {
     }
 
     /// Validates the entire `PreimagesXt`.
-    pub fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtValidationError> {
+    pub async fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtValidationError> {
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
             return Err(PreimageLookupsNotSorted);
@@ -42,14 +42,14 @@ impl<'a> PreimagesXtValidator<'a> {
         }
 
         for entry in extrinsic.iter() {
-            self.validate_entry(entry)?;
+            self.validate_entry(entry).await?;
         }
 
         Ok(())
     }
 
     /// Validates each `PreimagesXtEntry`.
-    pub fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
+    pub async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
         let service_index = entry.service_index;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
@@ -57,11 +57,13 @@ impl<'a> PreimagesXtValidator<'a> {
 
         if self
             .state_manager
-            .get_account_preimages_entry(service_index, &preimage_data_hash)?
+            .get_account_preimages_entry(service_index, &preimage_data_hash)
+            .await?
             .is_some()
             || self
                 .state_manager
-                .get_account_lookups_entry(service_index, lookups_key)?
+                .get_account_lookups_entry(service_index, lookups_key)
+                .await?
                 .is_some()
         {
             return Err(PreimageAlreadyIntegrated(service_index));

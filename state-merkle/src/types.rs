@@ -58,8 +58,8 @@ impl MerkleNode {
         NodeCodec::check_branch_type(self)
     }
 
-    fn parse_branch(&self, merkle_db: &MerkleDB) -> Result<BranchParsed, StateMerkleError> {
-        let (left, right) = NodeCodec::decode_branch(self, merkle_db)?;
+    async fn parse_branch(&self, merkle_db: &MerkleDB) -> Result<BranchParsed, StateMerkleError> {
+        let (left, right) = NodeCodec::decode_branch(self, merkle_db).await?;
 
         Ok(BranchParsed {
             node_hash: self.hash,
@@ -101,12 +101,12 @@ impl MerkleNode {
         }
     }
 
-    pub fn parse_node_data(
+    pub async fn parse_node_data(
         &self,
         merkle_db: &MerkleDB,
     ) -> Result<NodeDataParsed, StateMerkleError> {
         match self.check_node_type()? {
-            NodeType::Branch(_) => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db)?)),
+            NodeType::Branch(_) => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db).await?)),
             NodeType::Leaf(LeafType::Embedded) => Ok(NodeDataParsed::Leaf(
                 LeafParsed::EmbeddedLeaf(self.parse_embedded_leaf()?),
             )),

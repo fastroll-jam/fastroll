@@ -22,22 +22,26 @@ use rjam_types::{
 /// This function removes entries that are either in the `bad set` or the `wonky set` from
 /// `PendingReports`, ensuring that only valid reports remain, which can later be accumulated into
 /// the on-chain state.
-pub fn transition_reports_eliminate_invalid(
+pub async fn transition_reports_eliminate_invalid(
     state_manager: &StateManager,
     disputes_xt: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Validate disputes extrinsic data.
     let disputes_validator = DisputesXtValidator::new(state_manager);
-    disputes_validator.validate(disputes_xt, prior_timeslot)?;
+    disputes_validator
+        .validate(disputes_xt, prior_timeslot)
+        .await?;
 
     let (_good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
 
-    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
-        for report_hash in bad_set.iter().chain(wonky_set.iter()) {
-            pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
-        }
-    })?;
+    state_manager
+        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
+            for report_hash in bad_set.iter().chain(wonky_set.iter()) {
+                pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
+            }
+        })
+        .await?;
 
     Ok(())
 }
@@ -51,14 +55,16 @@ pub fn transition_reports_eliminate_invalid(
 /// Reports receiving assurances from more than two-thirds of the validators in the current block
 /// become available for accumulation. Since `PendingReports` holds at most one report per core
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
-pub fn transition_reports_clear_availables(
+pub async fn transition_reports_clear_availables(
     state_manager: &StateManager,
     assurances_xt: &AssurancesXt,
     header_parent_hash: &Hash32,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(state_manager);
-    assurances_validator.validate(assurances_xt, header_parent_hash)?;
+    assurances_validator
+        .validate(assurances_xt, header_parent_hash)
+        .await?;
 
     // Get core indices which have been available by introducing the assurances extrinsic.
     let available_reports_core_indices = assurances_xt.available_core_indices();
@@ -66,7 +72,7 @@ pub fn transition_reports_clear_availables(
     // Aggregate work reports to be removed for being available.
     let mut available_reports = Vec::with_capacity(available_reports_core_indices.len());
 
-    let prior_pending_reports = state_manager.get_pending_reports()?;
+    let prior_pending_reports = state_manager.get_pending_reports().await?;
     for core_index in &available_reports_core_indices {
         let report: WorkReport = prior_pending_reports
             .get_by_core_index(*core_index)?
@@ -77,19 +83,21 @@ pub fn transition_reports_clear_availables(
     }
 
     // Aggregate the core indices of any timed-out reports so they can be removed silently.
-    let current_timeslot = state_manager.get_timeslot()?;
+    let current_timeslot = state_manager.get_timeslot().await?;
     let timed_out_core_indices =
         prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
 
-    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
-        // Remove now-available reports and timed-out reports
-        for core_index in available_reports_core_indices
-            .iter()
-            .chain(timed_out_core_indices.iter())
-        {
-            pending_reports.remove_by_core_index(*core_index).unwrap()
-        }
-    })?;
+    state_manager
+        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
+            // Remove now-available reports and timed-out reports
+            for core_index in available_reports_core_indices
+                .iter()
+                .chain(timed_out_core_indices.iter())
+            {
+                pending_reports.remove_by_core_index(*core_index).unwrap()
+            }
+        })
+        .await?;
 
     Ok(available_reports)
 }
@@ -107,25 +115,28 @@ pub fn transition_reports_clear_availables(
 /// # Return
 /// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
 #[allow(clippy::type_complexity)]
-pub fn transition_reports_update_entries(
+pub async fn transition_reports_update_entries(
     state_manager: &StateManager,
     guarantees_xt: &GuaranteesXt,
     current_timeslot: &Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesXtValidator::new(state_manager);
-    let all_guarantor_keys =
-        guarantees_validator.validate(guarantees_xt, current_timeslot.slot())?;
+    let all_guarantor_keys = guarantees_validator
+        .validate(guarantees_xt, current_timeslot.slot())
+        .await?;
 
     let new_valid_reports = guarantees_xt.extract_work_reports();
-    state_manager.with_mut_pending_reports(StateMut::Update, |pending_reports| {
-        for report in &new_valid_reports {
-            pending_reports.0[report.core_index() as usize] = Some(PendingReport {
-                work_report: report.clone(),
-                reported_timeslot: *current_timeslot,
-            })
-        }
-    })?;
+    state_manager
+        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
+            for report in &new_valid_reports {
+                pending_reports.0[report.core_index() as usize] = Some(PendingReport {
+                    work_report: report.clone(),
+                    reported_timeslot: *current_timeslot,
+                })
+            }
+        })
+        .await?;
 
     let reported_packages: Vec<(Hash32, Hash32)> = new_valid_reports
         .into_iter()

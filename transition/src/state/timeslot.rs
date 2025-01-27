@@ -8,16 +8,18 @@ use rjam_types::state::timeslot::Timeslot;
 ///
 /// ## Per-block transitions
 /// * `tau`: Sets the most recent timeslot value to the header timeslot index.
-pub fn transition_timeslot(
+pub async fn transition_timeslot(
     state_manager: &StateManager,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let prior_timeslot = state_manager.get_timeslot()?; // Timeslot of the parent block.
+    let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.
     validate_timeslot(&prior_timeslot, header_timeslot)?;
 
-    state_manager.with_mut_timeslot(StateMut::Update, |timeslot| {
-        *timeslot = *header_timeslot;
-    })?;
+    state_manager
+        .with_mut_timeslot(StateMut::Update, |timeslot| {
+            *timeslot = *header_timeslot;
+        })
+        .await?;
     Ok(())
 }
 

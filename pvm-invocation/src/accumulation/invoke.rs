@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::{AccumulateResult, PVMInvocation};
 use rjam_common::{Address, Hash32, UnsignedGas};
 use rjam_pvm_core::types::{accumulation::AccumulateOperand, error::PVMError};
@@ -42,7 +43,7 @@ fn build_operands(reports: &[WorkReport], service_index: Address) -> Vec<Accumul
 /// Invokes the `accumulate` PVM entrypoint for a single service.
 ///
 /// Represents `Δ1` of the GP.
-fn accumulate_single_service(
+async fn accumulate_single_service(
     state_manager: &StateManager,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<Address, UnsignedGas>,
@@ -63,11 +64,11 @@ fn accumulate_single_service(
 
     gas += reports_gas_aggregated;
 
-    PVMInvocation::accumulate(state_manager, service_index, gas, operands)
+    PVMInvocation::accumulate(state_manager, service_index, gas, operands).await
 }
 
 /// Represents `Δ*` of the GP.
-fn accumulate_parallelized(
+async fn accumulate_parallelized(
     state_manager: &StateManager,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<Address, UnsignedGas>,
@@ -86,7 +87,8 @@ fn accumulate_parallelized(
 
     for service in services {
         if let AccumulateResult::Result(mut context, hash) =
-            accumulate_single_service(state_manager, reports, always_accumulate_services, service)?
+            accumulate_single_service(state_manager, reports, always_accumulate_services, service)
+                .await?
         {
             gas_used += context.gas_used;
 
@@ -105,60 +107,61 @@ fn accumulate_parallelized(
     })
 }
 
-/// Represents `Δ+` of the GP.
-pub fn accumulate_outer(
-    state_manager: &StateManager,
-    gas_limit: UnsignedGas,
-    reports: &[WorkReport],
-    always_accumulate_services: &HashMap<Address, UnsignedGas>,
-) -> Result<OuterAccumulationResult, PVMError> {
-    if reports.is_empty() {
-        return Ok(OuterAccumulationResult::default());
-    }
-
-    let mut accumulated_reports = 0;
-    let mut current_gas = 0;
-    let mut current_reports = Vec::new();
-
-    // Find the maximum number of reports that can be accumulated within the gas limit
-    for report in reports.iter() {
-        let report_gas: UnsignedGas = report
-            .results()
-            .iter()
-            .map(|r| r.gas_prioritization_ratio)
-            .sum();
-        if current_gas + report_gas > gas_limit {
-            break;
-        }
-        current_gas += report_gas;
-        current_reports.push(report.clone());
-        accumulated_reports += 1;
-    }
-
-    // Accumulate the reports that fit within the gas limit
-    let ParallelAccumulationResult {
-        gas_used,               // g*
-        mut deferred_transfers, // t*
-        mut output_pairs,       // b*
-    } = accumulate_parallelized(state_manager, &current_reports, always_accumulate_services)?;
-
-    // Recursively process remaining reports
-    if accumulated_reports < reports.len() {
-        let result = accumulate_outer(
-            state_manager,
-            gas_limit - gas_used,
-            &reports[accumulated_reports..],
-            &HashMap::new(),
-        )?;
-
-        accumulated_reports += result.accumulation_counter;
-        deferred_transfers.extend(result.deferred_transfers);
-        output_pairs.extend(result.output_pairs);
-    }
-
-    Ok(OuterAccumulationResult {
-        accumulation_counter: accumulated_reports,
-        deferred_transfers,
-        output_pairs,
-    })
-}
+// FIXME: Update recursion to iteration
+// /// Represents `Δ+` of the GP.
+// pub async fn accumulate_outer(
+//     state_manager: &StateManager,
+//     gas_limit: UnsignedGas,
+//     reports: &[WorkReport],
+//     always_accumulate_services: &HashMap<Address, UnsignedGas>,
+// ) -> Result<OuterAccumulationResult, PVMError> {
+//     if reports.is_empty() {
+//         return Ok(OuterAccumulationResult::default());
+//     }
+//
+//     let mut accumulated_reports = 0;
+//     let mut current_gas = 0;
+//     let mut current_reports = Vec::new();
+//
+//     // Find the maximum number of reports that can be accumulated within the gas limit
+//     for report in reports.iter() {
+//         let report_gas: UnsignedGas = report
+//             .results()
+//             .iter()
+//             .map(|r| r.gas_prioritization_ratio)
+//             .sum();
+//         if current_gas + report_gas > gas_limit {
+//             break;
+//         }
+//         current_gas += report_gas;
+//         current_reports.push(report.clone());
+//         accumulated_reports += 1;
+//     }
+//
+//     // Accumulate the reports that fit within the gas limit
+//     let ParallelAccumulationResult {
+//         gas_used,               // g*
+//         mut deferred_transfers, // t*
+//         mut output_pairs,       // b*
+//     } = accumulate_parallelized(state_manager, &current_reports, always_accumulate_services).await?;
+//
+//     // Recursively process remaining reports
+//     if accumulated_reports < reports.len() {
+//         let result = accumulate_outer(
+//             state_manager,
+//             gas_limit - gas_used,
+//             &reports[accumulated_reports..],
+//             &HashMap::new(),
+//         ).await?;
+//
+//         accumulated_reports += result.accumulation_counter;
+//         deferred_transfers.extend(result.deferred_transfers);
+//         output_pairs.extend(result.output_pairs);
+//     }
+//
+//     Ok(OuterAccumulationResult {
+//         accumulation_counter: accumulated_reports,
+//         deferred_transfers,
+//         output_pairs,
+//     })
+// }

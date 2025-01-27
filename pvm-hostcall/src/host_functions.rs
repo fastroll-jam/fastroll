@@ -19,8 +19,8 @@ use rjam_pvm_core::{
     },
 };
 use rjam_state::{
+    error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
     StateManager,
-    StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
 };
 use rjam_types::{common::transfers::DeferredTransfer, state::*};
 use std::collections::HashMap;
@@ -111,7 +111,7 @@ impl HostFunction {
 
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
     /// and writes it to memory.
-    pub fn host_lookup(
+    pub async fn host_lookup(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -140,11 +140,10 @@ impl HostFunction {
 
         let hash = hash::<Blake2b256>(&memory.read_bytes(hash_offset, 32)?)?;
 
-        if let Some(entry) = accounts_sandbox.get_or_load_account_preimages_entry(
-            state_manager,
-            account_address,
-            &hash,
-        )? {
+        if let Some(entry) = accounts_sandbox
+            .get_or_load_account_preimages_entry(state_manager, account_address, &hash)
+            .await?
+        {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
@@ -174,7 +173,7 @@ impl HostFunction {
 
     /// Fetches the storage entry value of the specified storage key from the given service account's
     /// storage and writes it into memory.
-    pub fn host_read(
+    pub async fn host_read(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -206,11 +205,10 @@ impl HostFunction {
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
-        if let Some(entry) = accounts_sandbox.get_or_load_account_storage_entry(
-            state_manager,
-            account_address,
-            &storage_key,
-        )? {
+        if let Some(entry) = accounts_sandbox
+            .get_or_load_account_storage_entry(state_manager, account_address, &storage_key)
+            .await?
+        {
             let write_data_size = buffer_size.min(entry.value.len());
 
             if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
@@ -242,7 +240,7 @@ impl HostFunction {
     /// using a key and value loaded from memory.
     /// If the value size is zero, the entry corresponding to the key is removed.
     /// The size of the previous value, if any, is returned via the register.
-    pub fn host_write(
+    pub async fn host_write(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -269,11 +267,9 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
-        let prev_storage_entry = accounts_sandbox.get_or_load_account_storage_entry(
-            state_manager,
-            target_address,
-            &storage_key,
-        )?;
+        let prev_storage_entry = accounts_sandbox
+            .get_or_load_account_storage_entry(state_manager, target_address, &storage_key)
+            .await?;
 
         let prev_value_size = if let Some(entry) = &prev_storage_entry {
             entry.value.len() as u64
@@ -294,7 +290,8 @@ impl HostFunction {
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
         let target_account_metadata = accounts_sandbox
-            .get_account_metadata(state_manager, target_address)?
+            .get_account_metadata(state_manager, target_address)
+            .await?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
         let simulated_threshold_balance = target_account_metadata
@@ -314,19 +311,19 @@ impl HostFunction {
         // Apply the state change
         if value_size == 0 {
             // Remove the entry if the size of the new entry value is zero
-            accounts_sandbox.remove_account_storage_entry(
-                state_manager,
-                target_address,
-                storage_key,
-            )?;
+            accounts_sandbox
+                .remove_account_storage_entry(state_manager, target_address, storage_key)
+                .await?;
         } else {
             // FIXME: get prev_value here
-            accounts_sandbox.insert_account_storage_entry(
-                state_manager,
-                target_address,
-                storage_key,
-                new_storage_entry,
-            )?;
+            accounts_sandbox
+                .insert_account_storage_entry(
+                    state_manager,
+                    target_address,
+                    storage_key,
+                    new_storage_entry,
+                )
+                .await?;
         }
 
         Ok(HostCallChangeSet::continue_with_vm_change(
@@ -339,7 +336,7 @@ impl HostFunction {
     }
 
     /// Retrieves the metadata of the specified account in a serialized format.
-    pub fn host_info(
+    pub async fn host_info(
         target_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -358,8 +355,9 @@ impl HostFunction {
                 account_address_reg as Address
             };
 
-        let account_metadata = if let Some(metadata) =
-            accounts_sandbox.get_account_metadata(state_manager, account_address)?
+        let account_metadata = if let Some(metadata) = accounts_sandbox
+            .get_account_metadata(state_manager, account_address)
+            .await?
         {
             metadata
         } else {
@@ -529,7 +527,7 @@ impl HostFunction {
     /// The code hash is loaded into memory, and the two gas limits are provided as arguments in registers.
     ///
     /// The account storage and lookup dictionary are initialized as empty.
-    pub fn host_new(
+    pub async fn host_new(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -553,7 +551,7 @@ impl HostFunction {
 
         // Check if the accumulator's balance if sufficient and subtract by
         // the initial threshold balance to be transferred to the new account.
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
@@ -563,22 +561,25 @@ impl HostFunction {
             )));
         }
 
-        x.subtract_accumulator_balance(state_manager, new_threshold_balance)?;
+        x.subtract_accumulator_balance(state_manager, new_threshold_balance)
+            .await?;
 
         // Add a new account to the partial state
-        let new_account_address = x.add_new_account(
-            state_manager,
-            AccountInfo {
-                code_hash,
-                balance: new_threshold_balance,
-                gas_limit_accumulate: gas_limit_g,
-                gas_limit_on_transfer: gas_limit_m,
-            },
-            (code_hash, code_lookup_len),
-        )?;
+        let new_account_address = x
+            .add_new_account(
+                state_manager,
+                AccountInfo {
+                    code_hash,
+                    balance: new_threshold_balance,
+                    gas_limit_accumulate: gas_limit_g,
+                    gas_limit_on_transfer: gas_limit_m,
+                },
+                (code_hash, code_lookup_len),
+            )
+            .await?;
 
         // Update the next new account address in the partial state
-        x.rotate_new_account_address(state_manager)?;
+        x.rotate_new_account_address(state_manager).await?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(
             HostCallVMStateChange {
@@ -591,7 +592,7 @@ impl HostFunction {
 
     /// Upgrades three metadata fields of the accumulating service account:
     /// code hash, accumulate gas limit and on-transfer gas limit.
-    pub fn host_upgrade(
+    pub async fn host_upgrade(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -611,7 +612,8 @@ impl HostFunction {
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
-        x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)?;
+        x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
+            .await?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -619,7 +621,7 @@ impl HostFunction {
     }
 
     /// Transfers tokens from the accumulating service account to another service account.
-    pub fn host_transfer(
+    pub async fn host_transfer(
         gas: UnsignedGas,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -652,9 +654,10 @@ impl HostFunction {
             gas_limit,
         };
 
-        let accumulator_balance = x.get_accumulator_metadata(state_manager)?.balance();
+        let accumulator_balance = x.get_accumulator_metadata(state_manager).await?.balance();
         let accumulator_threshold_balance = x
-            .get_accumulator_metadata(state_manager)?
+            .get_accumulator_metadata(state_manager)
+            .await?
             .threshold_balance();
 
         // Check the state manager and the accumulate context partial state to confirm that the
@@ -662,7 +665,8 @@ impl HostFunction {
         let dest_on_transfer_gas_limit = match x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, dest)?
+            .get_account_metadata(state_manager, dest)
+            .await?
         {
             Some(metadata) => metadata.account_info.gas_limit_on_transfer,
             None => {
@@ -690,7 +694,8 @@ impl HostFunction {
             )));
         }
 
-        x.subtract_accumulator_balance(state_manager, amount)?;
+        x.subtract_accumulator_balance(state_manager, amount)
+            .await?;
         x.add_to_deferred_transfers(transfer);
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
@@ -703,7 +708,7 @@ impl HostFunction {
     ///
     /// Upon a successful halt, The accumulating service account is removed from
     /// the accumulate context partial state.
-    pub fn host_quit(
+    pub async fn host_quit(
         target_address: Address,
         gas: UnsignedGas,
         regs: &[Register; REGISTERS_COUNT],
@@ -735,7 +740,7 @@ impl HostFunction {
             &mut memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
         )?;
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
         let amount =
             accumulator_metadata.balance() - accumulator_metadata.threshold_balance() + B_S;
 
@@ -752,7 +757,8 @@ impl HostFunction {
         let dest_on_transfer_gas_limit = match x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, dest)?
+            .get_account_metadata(state_manager, dest)
+            .await?
         {
             Some(metadata) => metadata.account_info.gas_limit_on_transfer,
             None => {
@@ -787,7 +793,7 @@ impl HostFunction {
     ///
     /// This is done by appending the current timeslot index to the timeslots vector of the
     /// lookup dictionary entry. It is asserted that the previous length of the vector is 2.
-    pub fn host_solicit(
+    pub async fn host_solicit(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -810,9 +816,10 @@ impl HostFunction {
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
+            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .await?;
 
-        let timeslot = state_manager.get_timeslot()?;
+        let timeslot = state_manager.get_timeslot().await?;
 
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
@@ -852,7 +859,7 @@ impl HostFunction {
             )
             .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager)?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
         let simulated_threshold_balance = accumulator_metadata
             .simulate_threshold_balance_after_mutation(
                 lookups_items_count_delta,
@@ -875,7 +882,8 @@ impl HostFunction {
                 x.accumulate_host,
                 lookups_key,
                 new_lookups_entry,
-            )?;
+            )
+            .await?;
 
         Ok(HostCallChangeSet::continue_with_vm_change(ok_change(
             BASE_GAS_CHARGE,
@@ -888,7 +896,7 @@ impl HostFunction {
     /// If the timeslot vector indicates the preimage is unavailable, remove the corresponding entries
     /// from both storages. Otherwise, mark the preimage as unavailable by appending the current timeslot
     /// to the timeslot vector.
-    pub fn host_forget(
+    pub async fn host_forget(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -910,9 +918,10 @@ impl HostFunction {
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)?;
+            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .await?;
 
-        let timeslot = state_manager.get_timeslot()?;
+        let timeslot = state_manager.get_timeslot().await?;
         let vm_state_change = match lookups_entry {
             None => huh_change(BASE_GAS_CHARGE),
             Some(entry) => {
@@ -927,14 +936,16 @@ impl HostFunction {
                                 state_manager,
                                 x.accumulate_host,
                                 lookup_hash,
-                            )?;
+                            )
+                            .await?;
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_lookups_entry(
                                 state_manager,
                                 x.accumulate_host,
                                 lookups_key,
-                            )?;
+                            )
+                            .await?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     1 => {
@@ -946,7 +957,8 @@ impl HostFunction {
                                 x.accumulate_host,
                                 lookups_key,
                                 timeslot,
-                            )?;
+                            )
+                            .await?;
                         ok_change(BASE_GAS_CHARGE)
                     }
                     len if len == 2 || len == 3 => {
@@ -961,14 +973,16 @@ impl HostFunction {
                                         state_manager,
                                         x.accumulate_host,
                                         lookup_hash,
-                                    )?;
+                                    )
+                                    .await?;
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_lookups_entry(
                                         state_manager,
                                         x.accumulate_host,
                                         lookups_key,
-                                    )?;
+                                    )
+                                    .await?;
                             } else {
                                 let prev_last_timeslot = lookups_timeslots.last().cloned().unwrap(); // Not empty at this point
                                 x.partial_state
@@ -977,7 +991,8 @@ impl HostFunction {
                                         state_manager,
                                         x.accumulate_host,
                                         lookups_key,
-                                    )?;
+                                    )
+                                    .await?;
                                 x.partial_state
                                     .accounts_sandbox
                                     .extend_timeslots_to_account_lookups_entry(
@@ -985,7 +1000,8 @@ impl HostFunction {
                                         x.accumulate_host,
                                         lookups_key,
                                         vec![prev_last_timeslot, timeslot],
-                                    )?;
+                                    )
+                                    .await?;
                             }
                         }
                         ok_change(BASE_GAS_CHARGE)
@@ -1006,7 +1022,7 @@ impl HostFunction {
     ///
     /// This is the only stateful operation in the refinement process and allows auditors to access
     /// states required for execution of the refinement through historical lookups.
-    pub fn host_historical_lookup(
+    pub async fn host_historical_lookup(
         refine_account_address: Address,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -1021,10 +1037,13 @@ impl HostFunction {
         let buffer_size = regs[10].as_usize()?;
 
         let account_address = if account_address_reg == u64::MAX
-            || state_manager.account_exists(refine_account_address)?
+            || state_manager.account_exists(refine_account_address).await?
         {
             refine_account_address
-        } else if state_manager.account_exists(regs[7].as_account_address()?)? {
+        } else if state_manager
+            .account_exists(regs[7].as_account_address()?)
+            .await?
+        {
             regs[7].as_account_address()?
         } else {
             return Ok(HostCallChangeSet::continue_with_vm_change(none_change(
@@ -1041,11 +1060,13 @@ impl HostFunction {
         let lookup_hash =
             Hash32::decode(&mut memory.read_bytes(lookup_hash_offset, HASH_SIZE)?.as_slice())?;
 
-        let preimage = state_manager.lookup_preimage(
-            account_address,
-            &Timeslot::new(x.lookup_anchor_timeslot),
-            &lookup_hash,
-        )?;
+        let preimage = state_manager
+            .lookup_preimage(
+                account_address,
+                &Timeslot::new(x.lookup_anchor_timeslot),
+                &lookup_hash,
+            )
+            .await?;
 
         if let Some(preimage) = preimage {
             let write_data_size = buffer_size.min(preimage.len());

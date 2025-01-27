@@ -79,7 +79,7 @@ impl NodeCodec {
     /// Consequently, this function internally calls [`MerkleDB::restore_hash_bit`] to attempt
     /// reconstructing the `left` hash by trying both `0` and `1` for the missing bit. It then
     /// verifies which hash corresponds to an actual entry in the `MerkleDB`.
-    pub fn decode_branch(
+    pub async fn decode_branch(
         node: &MerkleNode,
         merkle_db: &MerkleDB,
     ) -> Result<(Hash32, Hash32), StateMerkleError> {
@@ -98,7 +98,7 @@ impl NodeCodec {
         }
 
         let left_bv = slice_bitvec(&bv, 1..=255)?;
-        let left_hash = merkle_db.restore_hash_bit(&left_bv)?;
+        let left_hash = merkle_db.restore_hash_bit(&left_bv).await?;
 
         let right_bv = slice_bitvec(&bv, 256..)?;
         let right_hash = bitvec_to_hash32(&right_bv)?;
@@ -299,10 +299,13 @@ pub mod test_utils {
         MerkleNode::new(node_hash, node_data)
     }
 
-    pub fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
+    pub async fn print_node(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
         match node {
             Some(node) => {
-                println!(">>> Node: {}", node.parse_node_data(merkle_db).unwrap());
+                println!(
+                    ">>> Node: {}",
+                    node.parse_node_data(merkle_db).await.unwrap()
+                );
             }
             None => println!(">>> None"),
         }
