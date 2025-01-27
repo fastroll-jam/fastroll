@@ -31,7 +31,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
+            state_manager: &StateManager,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_disputes = DisputesState::from(test_pre_state.psi.clone());

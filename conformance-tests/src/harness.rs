@@ -42,7 +42,7 @@ pub trait StateTransitionTest {
 
     async fn load_pre_state(
         test_pre_state: &Self::State,
-        state_manager: &mut StateManager,
+        state_manager: &StateManager,
     ) -> Result<(), StateManagerError>;
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;
@@ -74,10 +74,10 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     let test_case = T::load_test_case(&filename);
 
     // init state manager and header db
-    let (mut header_db, mut state_manager) = T::init_db_and_manager();
+    let (mut header_db, state_manager) = T::init_db_and_manager();
 
     // load pre-state to the cache and the DB
-    T::load_pre_state(&test_case.pre_state, &mut state_manager).await?;
+    T::load_pre_state(&test_case.pre_state, &state_manager).await?;
 
     // commit the pre-state into the DB
     state_manager.commit_dirty_cache().await?;
