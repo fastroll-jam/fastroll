@@ -3,7 +3,7 @@ use rjam_common::{
     CoreIndex, Hash32, ValidatorKeySet, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD,
     VALIDATOR_COUNT,
 };
-use rjam_state::{StateManager, StateManagerError};
+use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::*;
 use thiserror::Error;
 
@@ -41,13 +41,16 @@ impl GuarantorAssignment {
     }
 
     /// Represents `G` of the GP.
-    pub fn current_guarantor_assignments(
+    pub async fn current_guarantor_assignments(
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {
-        let current_timeslot = state_manager.get_timeslot()?;
-        let entropy_2 = state_manager.get_entropy_accumulator()?.second_history();
-        let mut active_set = state_manager.get_active_set()?;
-        let punish_set = state_manager.get_disputes()?.punish_set;
+        let current_timeslot = state_manager.get_timeslot().await?;
+        let entropy_2 = state_manager
+            .get_entropy_accumulator()
+            .await?
+            .second_history();
+        let mut active_set = state_manager.get_active_set().await?;
+        let punish_set = state_manager.get_disputes().await?.punish_set;
         active_set.nullify_punished_validators(&punish_set);
 
         Ok(Self {
@@ -59,20 +62,26 @@ impl GuarantorAssignment {
     }
 
     /// Represents `G*` of the GP.
-    pub fn previous_guarantor_assignments(
+    pub async fn previous_guarantor_assignments(
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {
-        let current_timeslot = state_manager.get_timeslot()?;
-        let punish_set = state_manager.get_disputes()?.punish_set;
-        let entropy = state_manager.get_entropy_accumulator()?;
+        let current_timeslot = state_manager.get_timeslot().await?;
+        let punish_set = state_manager.get_disputes().await?.punish_set;
+        let entropy = state_manager.get_entropy_accumulator().await?;
         let previous_timeslot_value = current_timeslot.slot() - GUARANTOR_ROTATION_PERIOD as u32;
         let within_same_epoch = previous_timeslot_value / EPOCH_LENGTH as u32
             == current_timeslot.slot() / EPOCH_LENGTH as u32;
 
         let (entropy, ref mut validator_set) = if within_same_epoch {
-            (entropy.second_history(), state_manager.get_active_set()?.0)
+            (
+                entropy.second_history(),
+                state_manager.get_active_set().await?.0,
+            )
         } else {
-            (entropy.third_history(), state_manager.get_past_set()?.0)
+            (
+                entropy.third_history(),
+                state_manager.get_past_set().await?.0,
+            )
         };
         validator_set.nullify_punished_validators(&punish_set);
 

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use crate::StateManager;
+use crate::{state_db::StateDB, StateManager};
 use rand::{thread_rng, Rng};
 use rjam_common::{ByteArray, Hash32};
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
-use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
+use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_types::{
     state::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
@@ -66,7 +66,9 @@ pub fn random_state_val(max_len: usize) -> Vec<u8> {
     data
 }
 
-pub fn add_all_simple_state_entries(state_manager: &StateManager) -> Result<(), Box<dyn Error>> {
+pub async fn add_all_simple_state_entries(
+    state_manager: &StateManager,
+) -> Result<(), Box<dyn Error>> {
     let auth_pool = AuthPool::default();
     let auth_queue = AuthQueue::default();
     let block_history = BlockHistory::default();
@@ -83,97 +85,147 @@ pub fn add_all_simple_state_entries(state_manager: &StateManager) -> Result<(), 
     let accumulate_queue = AccumulateQueue::default();
     let accumulate_history = AccumulateHistory::default();
 
-    state_manager.add_auth_pool(auth_pool)?;
-    state_manager.add_auth_queue(auth_queue)?;
-    state_manager.add_block_history(block_history)?;
-    state_manager.add_safrole(safrole)?;
-    state_manager.add_disputes(disputes)?;
-    state_manager.add_entropy_accumulator(entropy)?;
-    state_manager.add_staging_set(staging_set)?;
-    state_manager.add_active_set(active_set)?;
-    state_manager.add_past_set(past_set)?;
-    state_manager.add_pending_reports(reports)?;
-    state_manager.add_timeslot(timeslot)?;
-    state_manager.add_privileged_services(privileges)?;
-    state_manager.add_validator_stats(validator_stats)?;
-    state_manager.add_accumulate_queue(accumulate_queue)?;
-    state_manager.add_accumulate_history(accumulate_history)?;
+    state_manager.add_auth_pool(auth_pool).await?;
+    state_manager.add_auth_queue(auth_queue).await?;
+    state_manager.add_block_history(block_history).await?;
+    state_manager.add_safrole(safrole).await?;
+    state_manager.add_disputes(disputes).await?;
+    state_manager.add_entropy_accumulator(entropy).await?;
+    state_manager.add_staging_set(staging_set).await?;
+    state_manager.add_active_set(active_set).await?;
+    state_manager.add_past_set(past_set).await?;
+    state_manager.add_pending_reports(reports).await?;
+    state_manager.add_timeslot(timeslot).await?;
+    state_manager.add_privileged_services(privileges).await?;
+    state_manager.add_validator_stats(validator_stats).await?;
+    state_manager.add_accumulate_queue(accumulate_queue).await?;
+    state_manager
+        .add_accumulate_history(accumulate_history)
+        .await?;
 
     Ok(())
 }
 
-pub fn compare_all_simple_state_cache_and_db(
+pub async fn compare_all_simple_state_cache_and_db(
     state_manager: &StateManager,
 ) -> Result<(), Box<dyn Error>> {
-    assert!(compare_cache_and_db::<AuthPool>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::AuthPool)
-    )?);
-    assert!(compare_cache_and_db::<AuthQueue>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::AuthQueue)
-    )?);
-    assert!(compare_cache_and_db::<BlockHistory>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::BlockHistory)
-    )?);
-    assert!(compare_cache_and_db::<SafroleState>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::SafroleState)
-    )?);
-    assert!(compare_cache_and_db::<DisputesState>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::DisputesState)
-    )?);
-    assert!(compare_cache_and_db::<EntropyAccumulator>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::EntropyAccumulator)
-    )?);
-    assert!(compare_cache_and_db::<StagingSet>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::StagingSet)
-    )?);
-    assert!(compare_cache_and_db::<ActiveSet>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::ActiveSet)
-    )?);
-    assert!(compare_cache_and_db::<PastSet>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::PastSet)
-    )?);
-    assert!(compare_cache_and_db::<PendingReports>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::PendingReports)
-    )?);
-    assert!(compare_cache_and_db::<Timeslot>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::Timeslot)
-    )?);
-    assert!(compare_cache_and_db::<PrivilegedServices>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::PrivilegedServices)
-    )?);
-    assert!(compare_cache_and_db::<ValidatorStats>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::ValidatorStats)
-    )?);
-    assert!(compare_cache_and_db::<AccumulateQueue>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::AccumulateQueue)
-    )?);
-    assert!(compare_cache_and_db::<AccumulateHistory>(
-        state_manager,
-        &get_simple_state_key(StateKeyConstant::AccumulateHistory)
-    )?);
+    assert!(
+        compare_cache_and_db::<AuthPool>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AuthPool)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AuthQueue>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AuthQueue)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<BlockHistory>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::BlockHistory)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<SafroleState>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::SafroleState)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<DisputesState>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::DisputesState)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<EntropyAccumulator>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::EntropyAccumulator)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<StagingSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::StagingSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<ActiveSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::ActiveSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PastSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PastSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PendingReports>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PendingReports)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<Timeslot>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::Timeslot)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PrivilegedServices>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PrivilegedServices)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<ValidatorStats>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::ValidatorStats)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AccumulateQueue>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AccumulateQueue)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AccumulateHistory>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AccumulateHistory)
+        )
+        .await?
+    );
 
     Ok(())
 }
 
-pub fn compare_cache_and_db<T: StateComponent>(
+pub async fn compare_cache_and_db<T: StateComponent>(
     state_manager: &StateManager,
     state_key: &Hash32,
 ) -> Result<bool, Box<dyn Error>> {
-    let db_entry_encoded = state_manager.retrieve_state_encoded(state_key)?.unwrap();
+    let db_entry_encoded = state_manager
+        .retrieve_state_encoded(state_key)
+        .await?
+        .unwrap();
     let db_entry = T::decode(&mut db_entry_encoded.as_slice())?;
     let cache_entry = state_manager.get_cache_entry(state_key)?.unwrap();
     Ok(db_entry == cache_entry)

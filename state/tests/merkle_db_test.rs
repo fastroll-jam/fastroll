@@ -13,8 +13,8 @@ use rjam_types::{
 };
 use std::error::Error;
 
-#[test]
-fn merkle_db_test() -> Result<(), Box<dyn Error>> {
+#[tokio::test]
+async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager(None);
 
     // --- 1. Add one state entry, initializing the Merkle Trie
@@ -25,11 +25,13 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     let auth_pool_expected = auth_pool.clone();
 
     // Apply state mutation
-    state_manager.add_auth_pool(auth_pool)?;
+    state_manager.add_auth_pool(auth_pool).await?;
 
     // Commit to the DB
     let auth_pool_state_key = get_simple_state_key(StateKeyConstant::AuthPool);
-    state_manager.commit_single_dirty_cache(&auth_pool_state_key)?;
+    state_manager
+        .commit_single_dirty_cache(&auth_pool_state_key)
+        .await?;
     println!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()
@@ -37,7 +39,8 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
     // Retrieve the entry from the DB (not gating the state cache)
     let auth_pool_state_data = state_manager
-        .retrieve_state_encoded(&auth_pool_state_key)?
+        .retrieve_state_encoded(&auth_pool_state_key)
+        .await?
         .unwrap();
     let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice())?;
     println!("\nState Retrieved: {}", &auth_pool);
@@ -50,11 +53,13 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     pending_reports.0[1] = Some(PendingReport::default());
     let pending_reports_expected = pending_reports.clone();
 
-    state_manager.add_pending_reports(pending_reports)?;
+    state_manager.add_pending_reports(pending_reports).await?;
 
     // Commit to the DB
     let pending_reports_state_key = get_simple_state_key(StateKeyConstant::PendingReports);
-    state_manager.commit_single_dirty_cache(&pending_reports_state_key)?;
+    state_manager
+        .commit_single_dirty_cache(&pending_reports_state_key)
+        .await?;
     println!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()
@@ -62,10 +67,12 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
     // Retrieve the entry from the DB (not gating the state cache)
     let auth_pool_state_data = state_manager
-        .retrieve_state_encoded(&auth_pool_state_key)?
+        .retrieve_state_encoded(&auth_pool_state_key)
+        .await?
         .unwrap();
     let pending_reports_state_data = state_manager
-        .retrieve_state_encoded(&pending_reports_state_key)?
+        .retrieve_state_encoded(&pending_reports_state_key)
+        .await?
         .unwrap();
 
     let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice())?;
@@ -78,18 +85,23 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
     // --- 3. Update state entry
     println!("\n\n\n3. Update state entry.");
-    state_manager.with_mut_auth_pool(StateMut::Update, |pool| {
-        pool.0[1].push(simple_hash("02"));
-    })?;
-    let auth_pool_expected = state_manager.get_auth_pool()?;
-    state_manager.commit_single_dirty_cache(&auth_pool_state_key)?;
+    state_manager
+        .with_mut_auth_pool(StateMut::Update, |pool| {
+            pool.0[1].push(simple_hash("02"));
+        })
+        .await?;
+    let auth_pool_expected = state_manager.get_auth_pool().await?;
+    state_manager
+        .commit_single_dirty_cache(&auth_pool_state_key)
+        .await?;
     println!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()
     );
 
     let auth_pool_state_data = state_manager
-        .retrieve_state_encoded(&auth_pool_state_key)?
+        .retrieve_state_encoded(&auth_pool_state_key)
+        .await?
         .unwrap();
     let auth_pool = AuthPool::decode(&mut auth_pool_state_data.as_slice())?;
     println!("\nState Retrieved: {}", &auth_pool);
@@ -97,20 +109,27 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
     // --- 4. Remove state entry
     println!("\n\n\n4. Remove state entry.");
-    state_manager.with_mut_auth_pool(StateMut::Remove, |_| {})?;
-    state_manager.commit_single_dirty_cache(&auth_pool_state_key)?;
+    state_manager
+        .with_mut_auth_pool(StateMut::Remove, |_| {})
+        .await?;
+    state_manager
+        .commit_single_dirty_cache(&auth_pool_state_key)
+        .await?;
     // FIXME: When there is the only state entry in the merkle trie, the leaf must be promoted to the root.
     println!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()
     );
     // Retrieval of a removed entry must return `None`
-    let auth_pool_state_data_result = state_manager.retrieve_state_encoded(&auth_pool_state_key)?;
+    let auth_pool_state_data_result = state_manager
+        .retrieve_state_encoded(&auth_pool_state_key)
+        .await?;
     assert!(auth_pool_state_data_result.is_none());
 
     // Check `PendingReports` state entry is still available
     let pending_reports_state_data = state_manager
-        .retrieve_state_encoded(&pending_reports_state_key)?
+        .retrieve_state_encoded(&pending_reports_state_key)
+        .await?
         .unwrap();
     let pending_reports = PendingReports::decode(&mut pending_reports_state_data.as_slice())?;
     assert_eq!(&pending_reports, &pending_reports_expected);
@@ -118,12 +137,12 @@ fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[test]
-fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
+#[tokio::test]
+async fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager(None);
-    add_all_simple_state_entries(&state_manager)?;
-    state_manager.commit_dirty_cache()?;
-    compare_all_simple_state_cache_and_db(&state_manager)?;
+    add_all_simple_state_entries(&state_manager).await?;
+    state_manager.commit_dirty_cache().await?;
+    compare_all_simple_state_cache_and_db(&state_manager).await?;
 
     Ok(())
 }

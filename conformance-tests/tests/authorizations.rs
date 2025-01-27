@@ -1,12 +1,13 @@
 //! Authorizers state transition conformance tests
 mod tests {
+    use async_trait::async_trait;
     use rjam_conformance_tests::harness::run_test_case;
 
     use rjam_conformance_tests::{
         asn_types::authorizations::*, generate_typed_tests, harness::StateTransitionTest,
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use rjam_types::{
         extrinsics::guarantees::GuaranteesXt,
@@ -15,6 +16,7 @@ mod tests {
 
     struct AuthorizationsTest;
 
+    #[async_trait]
     impl StateTransitionTest for AuthorizationsTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/authorizations/tiny";
 
@@ -25,17 +27,17 @@ mod tests {
         type Output = Output;
         type ErrorCode = ();
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+            state_manager: &StateManager,
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
             let pre_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
 
             // Load pre-state info the state cache.
-            state_manager.add_auth_pool(pre_auth_pool)?;
-            state_manager.add_auth_queue(pre_auth_queue)?;
+            state_manager.add_auth_pool(pre_auth_pool).await?;
+            state_manager.add_auth_queue(pre_auth_queue).await?;
 
             Ok(())
         }
@@ -51,13 +53,13 @@ mod tests {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_auth_pool(state_manager, &jam_input.extrinsic, &jam_input.slot)?;
+            transition_auth_pool(state_manager, &jam_input.extrinsic, &jam_input.slot).await?;
             Ok(())
         }
 
@@ -73,19 +75,19 @@ mod tests {
             Output
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             _pre_state: &Self::State,
             _error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
+        ) -> Result<Self::State, StateManagerError> {
             // Get the posterior state from the state cache.
-            let curr_auth_pool = state_manager.get_auth_pool().unwrap();
-            let curr_auth_queue = state_manager.get_auth_queue().unwrap();
+            let curr_auth_pool = state_manager.get_auth_pool().await?;
+            let curr_auth_queue = state_manager.get_auth_queue().await?;
 
-            State {
+            Ok(State {
                 auth_pools: curr_auth_pool.into(),
                 auth_queues: curr_auth_queue.into(),
-            }
+            })
         }
     }
 

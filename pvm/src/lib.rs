@@ -203,7 +203,7 @@ impl PVM {
     /// to be utilized during the execution of the `extended_invocation` and `general_invocation` functions.
     ///
     /// Represents `Ψ_M` of the GP.
-    pub fn common_invocation(
+    pub async fn common_invocation(
         state_manager: &StateManager,
         target_address: Address,
         standard_program: &[u8],
@@ -220,8 +220,9 @@ impl PVM {
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
-        let extended_invocation_result =
-            pvm.extended_invocation(state_manager, target_address, context)?;
+        let extended_invocation_result = pvm
+            .extended_invocation(state_manager, target_address, context)
+            .await?;
 
         match extended_invocation_result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
@@ -250,7 +251,7 @@ impl PVM {
     /// This function utilizes the program component of the `PVM` state.
     ///
     /// Represents `Ψ_H` of the GP.
-    fn extended_invocation(
+    async fn extended_invocation(
         &mut self,
         state_manager: &StateManager,
         target_address: Address,
@@ -265,7 +266,8 @@ impl PVM {
 
             let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
-                    self.execute_host_function(state_manager, target_address, context, &h)?
+                    self.execute_host_function(state_manager, target_address, context, &h)
+                        .await?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
@@ -294,7 +296,7 @@ impl PVM {
         }
     }
 
-    fn execute_host_function(
+    async fn execute_host_function(
         &mut self,
         state_manager: &StateManager,
         target_address: Address,
@@ -306,34 +308,46 @@ impl PVM {
             // General Functions
             //
             HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
-            HostCallType::LOOKUP => HostFunction::host_lookup(
-                target_address,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::READ => HostFunction::host_read(
-                target_address,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::WRITE => HostFunction::host_write(
-                target_address,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::INFO => HostFunction::host_info(
-                target_address,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
+            HostCallType::LOOKUP => {
+                HostFunction::host_lookup(
+                    target_address,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::READ => {
+                HostFunction::host_read(
+                    target_address,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::WRITE => {
+                HostFunction::host_write(
+                    target_address,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::INFO => {
+                HostFunction::host_info(
+                    target_address,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
             //
             // Accumulate Functions
             //
@@ -349,55 +363,76 @@ impl PVM {
             HostCallType::CHECKPOINT => {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
             }
-            HostCallType::NEW => HostFunction::host_new(
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::UPGRADE => HostFunction::host_upgrade(
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::TRANSFER => HostFunction::host_transfer(
-                self.state.gas_counter,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::QUIT => HostFunction::host_quit(
-                target_address,
-                self.state.gas_counter,
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::SOLICIT => HostFunction::host_solicit(
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
-            HostCallType::FORGET => HostFunction::host_forget(
-                self.get_registers(),
-                self.get_memory(),
-                state_manager,
-                context,
-            )?,
+            HostCallType::NEW => {
+                HostFunction::host_new(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::UPGRADE => {
+                HostFunction::host_upgrade(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::TRANSFER => {
+                HostFunction::host_transfer(
+                    self.state.gas_counter,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::QUIT => {
+                HostFunction::host_quit(
+                    target_address,
+                    self.state.gas_counter,
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::SOLICIT => {
+                HostFunction::host_solicit(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::FORGET => {
+                HostFunction::host_forget(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
             //
             // Refine Functions
             //
-            HostCallType::HISTORICAL_LOOKUP => HostFunction::host_historical_lookup(
-                target_address,
-                self.get_registers(),
-                self.get_memory(),
-                context,
-                state_manager,
-            )?,
+            HostCallType::HISTORICAL_LOOKUP => {
+                HostFunction::host_historical_lookup(
+                    target_address,
+                    self.get_registers(),
+                    self.get_memory(),
+                    context,
+                    state_manager,
+                )
+                .await?
+            }
             HostCallType::IMPORT => {
                 HostFunction::host_import(self.get_registers(), self.get_memory(), context)?
             }

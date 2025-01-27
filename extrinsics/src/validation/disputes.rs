@@ -42,7 +42,7 @@ impl<'a> DisputesXtValidator<'a> {
         Self { state_manager }
     }
 
-    pub fn validate(
+    pub async fn validate(
         &self,
         extrinsic: &DisputesXt,
         prior_timeslot: &Timeslot,
@@ -63,7 +63,11 @@ impl<'a> DisputesXtValidator<'a> {
         let mut culprits_hashes = HashSet::new();
         let mut faults_hashes = HashSet::new();
 
-        let all_past_report_hashes = self.state_manager.get_disputes()?.get_all_report_hashes();
+        let all_past_report_hashes = self
+            .state_manager
+            .get_disputes()
+            .await?
+            .get_all_report_hashes();
 
         // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
@@ -77,13 +81,14 @@ impl<'a> DisputesXtValidator<'a> {
                 prior_timeslot,
                 &all_past_report_hashes,
                 extrinsic,
-            )?;
+            )
+            .await?;
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
-        let active_set = self.state_manager.get_active_set()?;
-        let past_set = self.state_manager.get_past_set()?;
-        let punish_set = self.state_manager.get_disputes()?.punish_set;
+        let active_set = self.state_manager.get_active_set().await?;
+        let past_set = self.state_manager.get_past_set().await?;
+        let punish_set = self.state_manager.get_disputes().await?.punish_set;
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
 
@@ -94,7 +99,7 @@ impl<'a> DisputesXtValidator<'a> {
                 return Err(DuplicateCulprit);
             }
 
-            self.validate_culprits_entry(culprit, &valid_set, &punish_set, extrinsic)?;
+            Self::validate_culprits_entry(culprit, &valid_set, &punish_set, extrinsic)?;
         }
 
         // Validate each fault entry
@@ -104,7 +109,7 @@ impl<'a> DisputesXtValidator<'a> {
                 return Err(DuplicateFault);
             }
 
-            self.validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
+            Self::validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
         }
 
         Ok(())
@@ -127,7 +132,7 @@ impl<'a> DisputesXtValidator<'a> {
         active_and_past_keys
     }
 
-    pub fn validate_verdicts_entry(
+    pub async fn validate_verdicts_entry(
         &self,
         entry: &Verdict,
         prior_timeslot: &Timeslot,
@@ -185,11 +190,11 @@ impl<'a> DisputesXtValidator<'a> {
             }
         }
 
-        // TODO: Move this outside of this method.
+        // TODO: Move this outside of this method, remove `&self` param
         let validator_set = if entry.epoch_index == prior_timeslot.epoch() {
-            self.state_manager.get_active_set()?.0
+            self.state_manager.get_active_set().await?.0
         } else {
-            self.state_manager.get_past_set()?.0
+            self.state_manager.get_past_set().await?.0
         };
 
         let mut positive_message = Vec::with_capacity(X_1.len() + HASH_SIZE);
@@ -219,7 +224,6 @@ impl<'a> DisputesXtValidator<'a> {
     }
 
     pub fn validate_culprits_entry(
-        &self,
         entry: &Culprit,
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],
@@ -254,7 +258,6 @@ impl<'a> DisputesXtValidator<'a> {
     }
 
     pub fn validate_faults_entry(
-        &self,
         entry: &Fault,
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],

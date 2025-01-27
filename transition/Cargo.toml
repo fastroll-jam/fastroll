@@ -17,3 +17,4 @@ rjam-types = { workspace = true }
 ark-ec-vrfs = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
+tokio = { workspace = true }

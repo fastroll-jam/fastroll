@@ -1,5 +1,7 @@
 //! Reports state transition conformance tests
 mod tests {
+    use async_trait::async_trait;
+    use futures::future::join_all;
     use rjam_common::{ByteArray, Ed25519PubKey};
     use rjam_conformance_tests::{
         asn_types::{common::*, reports::*},
@@ -9,7 +11,7 @@ mod tests {
     };
 
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{
         error::TransitionError,
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
@@ -21,6 +23,7 @@ mod tests {
 
     struct ReportsTest;
 
+    #[async_trait]
     impl StateTransitionTest for ReportsTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/reports/tiny";
 
@@ -31,10 +34,10 @@ mod tests {
         type Output = Output;
         type ErrorCode = ReportsErrorCode;
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+            state_manager: &StateManager,
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
@@ -64,21 +67,24 @@ mod tests {
                 .collect();
 
             // Load pre-state info the state cache.
-            state_manager.add_pending_reports(pre_pending_reports)?;
-            state_manager.add_active_set(pre_active_set)?;
-            state_manager.add_past_set(pre_past_set)?;
-            state_manager.add_entropy_accumulator(pre_entropy)?;
-            state_manager.add_disputes(pre_disputes)?;
-            state_manager.add_block_history(pre_block_history)?;
-            state_manager.add_auth_pool(pre_auth_pool)?;
+            state_manager
+                .add_pending_reports(pre_pending_reports)
+                .await?;
+            state_manager.add_active_set(pre_active_set).await?;
+            state_manager.add_past_set(pre_past_set).await?;
+            state_manager.add_entropy_accumulator(pre_entropy).await?;
+            state_manager.add_disputes(pre_disputes).await?;
+            state_manager.add_block_history(pre_block_history).await?;
+            state_manager.add_auth_pool(pre_auth_pool).await?;
 
             for pre_account_metadata in pre_account_metadata_vec {
                 state_manager
-                    .add_account_metadata(pre_account_metadata.address, pre_account_metadata)?;
+                    .add_account_metadata(pre_account_metadata.address, pre_account_metadata)
+                    .await?;
             }
 
             // Additionally, initialize the timeslot state cache
-            state_manager.add_timeslot(Timeslot::new(0))?;
+            state_manager.add_timeslot(Timeslot::new(0)).await?;
 
             Ok(())
         }
@@ -91,19 +97,20 @@ mod tests {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_timeslot(state_manager, &jam_input.timeslot)?;
+            transition_timeslot(state_manager, &jam_input.timeslot).await?;
 
             let (mut reported, mut reporters) = transition_reports_update_entries(
                 state_manager,
                 &jam_input.extrinsic,
                 &jam_input.timeslot,
-            )?;
+            )
+            .await?;
 
             // Note: Here sorting the output vectors to conform with test vectors. Not part of the GP.
             reported.sort();
@@ -132,31 +139,35 @@ mod tests {
             Output::ok(transition_output.cloned().unwrap().into())
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
+        ) -> Result<Self::State, StateManagerError> {
             if error_code.is_some() {
                 // Rollback state transition
-                return pre_state.clone();
+                return Ok(pre_state.clone());
             }
 
             // Get the posterior state from the state cache.
-            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
-            let curr_active_set = state_manager.get_active_set().unwrap();
-            let curr_past_set = state_manager.get_past_set().unwrap();
-            let curr_entropy = state_manager.get_entropy_accumulator().unwrap();
-            let curr_disputes = state_manager.get_disputes().unwrap();
-            let curr_blocks_history = state_manager.get_block_history().unwrap();
-            let curr_auth_pool = state_manager.get_auth_pool().unwrap();
-            let curr_account_metadata_vec: Vec<AccountMetadata> = pre_state
-                .services
-                .iter()
-                .map(|s| state_manager.get_account_metadata(s.id).unwrap().unwrap())
-                .collect();
+            let curr_pending_reports = state_manager.get_pending_reports().await?;
+            let curr_active_set = state_manager.get_active_set().await?;
+            let curr_past_set = state_manager.get_past_set().await?;
+            let curr_entropy = state_manager.get_entropy_accumulator().await?;
+            let curr_disputes = state_manager.get_disputes().await?;
+            let curr_blocks_history = state_manager.get_block_history().await?;
+            let curr_auth_pool = state_manager.get_auth_pool().await?;
+            let curr_account_metadata_vec: Vec<AccountMetadata> =
+                join_all(pre_state.services.iter().map(async |s| -> AccountMetadata {
+                    state_manager
+                        .get_account_metadata(s.id)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                }))
+                .await;
 
-            State {
+            Ok(State {
                 avail_assignments: curr_pending_reports.into(),
                 curr_validators: validator_set_to_validators_data(&curr_active_set),
                 prev_validators: validator_set_to_validators_data(&curr_past_set),
@@ -172,7 +183,7 @@ mod tests {
                     .into_iter()
                     .map(AsnServiceItem::from)
                     .collect(),
-            }
+            })
         }
     }
 

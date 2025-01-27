@@ -4,8 +4,8 @@ pub(crate) mod timeslot_scheduler;
 use rjam_common::Hash32;
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_extrinsics::pool::XtPool;
-use rjam_state::StateManager;
-use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
+use rjam_state::{state_db::StateDB, StateManager};
+use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, path::PathBuf, sync::Arc};
 
 #[tokio::main]
@@ -27,9 +27,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     header_db.init_staging_header(Hash32::default())?;
     let timeslot = header_db.set_timeslot()?;
-    header_db.commit_staging_header()?;
+    header_db.commit_staging_header().await?;
 
-    let header_1 = header_db.get_header(timeslot.slot())?;
+    let header_1 = header_db.get_header(timeslot.slot()).await?;
     println!("Header 1:");
     println!("{}", header_1);
 

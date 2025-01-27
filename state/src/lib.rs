@@ -1,13 +1,15 @@
+pub mod error;
+pub mod state_db;
 pub mod test_utils;
 
+use crate::error::StateManagerError;
 use dashmap::DashMap;
-use rjam_codec::{JamCodecError, JamEncode};
+use rjam_codec::JamEncode;
 use rjam_common::{Address, Hash32};
-use rjam_crypto::{octets_to_hash32, CryptoError};
+use rjam_crypto::octets_to_hash32;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    state_db::{StateDB, StateDBError},
     types::{LeafType, MerkleWriteOp},
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
@@ -20,43 +22,13 @@ use rjam_types::{
     },
 };
 use rocksdb::WriteBatch;
+use state_db::StateDB;
 use std::{
     cmp::{Ordering, PartialEq},
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum StateManagerError {
-    #[error("State key not initialized")]
-    StateKeyNotInitialized,
-    #[error("Cache entry not found")]
-    CacheEntryNotFound,
-    #[error("Cache entry is clean")]
-    NotDirtyCache,
-    #[error("Unexpected entry type")]
-    UnexpectedEntryType,
-    #[error("Account not found")]
-    AccountNotFound,
-    #[error("Account storage dictionary entry not found")]
-    StorageEntryNotFound,
-    #[error("Account lookups dictionary entry not found")]
-    LookupsEntryNotFound,
-    #[error("Wrong StateMut operation type")]
-    WrongStateMutType,
-    #[error("State Entry with the state key already exists")]
-    StateEntryAlreadyExists,
-    #[error("Crypto error: {0}")]
-    CryptoError(#[from] CryptoError),
-    #[error("Merkle error: {0}")]
-    StateMerkleError(#[from] StateMerkleError),
-    #[error("StateDB error: {0}")]
-    StateDBError(#[from] StateDBError),
-    #[error("JamCodec error: {0}")]
-    JamCodecError(#[from] JamCodecError),
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -171,11 +143,11 @@ pub struct StateManager {
 macro_rules! impl_simple_state_accessors {
     ($state_type:ty, $fn_type:ident) => {
         paste::paste! {
-            pub fn [<get_ $fn_type>](&self) -> Result<$state_type, StateManagerError> {
-                self.get_simple_state_entry()
+            pub async fn [<get_ $fn_type>](&self) -> Result<$state_type, StateManagerError> {
+                self.get_simple_state_entry().await
             }
 
-            pub fn [<with_mut_ $fn_type>]<F>(
+            pub async fn [<with_mut_ $fn_type>]<F>(
                 &self,
                 state_mut: StateMut,
                 f: F,
@@ -183,31 +155,31 @@ macro_rules! impl_simple_state_accessors {
             where
                 F: FnOnce(&mut $state_type),
             {
-                self.with_mut_simple_state_entry(state_mut, f)
+                self.with_mut_simple_state_entry(state_mut, f).await
             }
 
-            pub fn [<add_ $fn_type>](&self, state_entry: $state_type) -> Result<(), StateManagerError> {
-                self.add_simple_state_entry(state_entry)
+            pub async fn [<add_ $fn_type>](&self, state_entry: $state_type) -> Result<(), StateManagerError> {
+                self.add_simple_state_entry(state_entry).await
             }
         }
     };
 }
 
 impl StateManager {
-    pub fn get_raw_state_entry_from_db(
+    pub async fn get_raw_state_entry_from_db(
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        self.retrieve_state_encoded(state_key)
+        self.retrieve_state_encoded(state_key).await
     }
 
-    pub fn add_raw_state_entry(
+    pub async fn add_raw_state_entry(
         &self,
         state_key: &Hash32,
         state_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // Ensure the cache entry doesn't exist.
-        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
         if state_exists {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
@@ -222,13 +194,13 @@ impl StateManager {
         Ok(())
     }
 
-    pub fn update_raw_state_entry(
+    pub async fn update_raw_state_entry(
         &self,
         state_key: &Hash32,
         new_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // Ensure the cache entry exists.
-        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
         if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
         }
@@ -243,9 +215,12 @@ impl StateManager {
         Ok(())
     }
 
-    pub fn remove_raw_state_entry(&self, state_key: &Hash32) -> Result<(), StateManagerError> {
+    pub async fn remove_raw_state_entry(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<(), StateManagerError> {
         // Ensure the cache entry exists.
-        let state_exists = self.get_raw_state_entry_from_db(state_key)?.is_some();
+        let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
         if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
         }
@@ -275,14 +250,14 @@ impl StateManager {
         }
     }
 
-    pub fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
-        Ok(self.get_account_metadata(address)?.is_some())
+    pub async fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
+        Ok(self.get_account_metadata(address).await?.is_some())
     }
 
-    pub fn check(&self, address: Address) -> Result<Address, StateManagerError> {
+    pub async fn check(&self, address: Address) -> Result<Address, StateManagerError> {
         let mut check_address = address;
         loop {
-            if !self.account_exists(check_address)? {
+            if !self.account_exists(check_address).await? {
                 return Ok(check_address);
             }
 
@@ -294,45 +269,56 @@ impl StateManager {
     /// This function assumes that the code preimage is available.
     /// For on-chain PVM invocations (`Accumulate` and `On-Transfer`) get account code directly from this function
     /// whereas for off-chain/in-core PVM invocations (`Refine` and `Is-Authorized`) conduct historical lookups.
-    pub fn get_account_code(&self, address: Address) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let code_hash = match self.get_account_metadata(address)? {
+    pub async fn get_account_code(
+        &self,
+        address: Address,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        let code_hash = match self.get_account_metadata(address).await? {
             Some(metadata) => metadata.account_info.code_hash,
             None => return Ok(None),
         };
 
-        match self.get_account_preimages_entry(address, &code_hash)? {
+        match self
+            .get_account_preimages_entry(address, &code_hash)
+            .await?
+        {
             Some(entry) => Ok(Some(entry.value.into_vec())),
             None => Ok(None),
         }
     }
 
-    pub fn get_account_code_hash(
+    pub async fn get_account_code_hash(
         &self,
         address: Address,
     ) -> Result<Option<Hash32>, StateManagerError> {
-        match self.get_account_metadata(address)? {
+        match self.get_account_metadata(address).await? {
             Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
             None => Ok(None),
         }
     }
 
     /// The historical lookup function
-    pub fn lookup_preimage(
+    pub async fn lookup_preimage(
         &self,
         address: Address,
         reference_timeslot: &Timeslot,
         preimage_hash: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let preimage = match self.get_account_preimages_entry(address, preimage_hash)? {
+        let preimage = match self
+            .get_account_preimages_entry(address, preimage_hash)
+            .await?
+        {
             Some(preimage) => preimage.value,
             None => return Ok(None),
         };
         let preimage_length = preimage.len() as u32;
-        let lookup_timeslots =
-            match self.get_account_lookups_entry(address, &(*preimage_hash, preimage_length))? {
-                Some(lookup_timeslots) => lookup_timeslots.value,
-                None => return Ok(None),
-            };
+        let lookup_timeslots = match self
+            .get_account_lookups_entry(address, &(*preimage_hash, preimage_length))
+            .await?
+        {
+            Some(lookup_timeslots) => lookup_timeslots.value,
+            None => return Ok(None),
+        };
 
         let valid = match lookup_timeslots.as_slice() {
             [] => false,
@@ -353,11 +339,11 @@ impl StateManager {
     }
 
     // TODO: mark as private
-    pub fn retrieve_state_encoded(
+    pub async fn retrieve_state_encoded(
         &self,
         state_key: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let retrieved = match self.merkle_db.retrieve(state_key) {
+        let retrieved = match self.merkle_db.retrieve(state_key).await {
             Ok(val) => val,
             Err(_) => return Ok(None),
         };
@@ -370,13 +356,12 @@ impl StateManager {
             LeafType::Embedded => state_data_or_hash,
             LeafType::Regular => {
                 // The state data hash is used as the key in the StateDB
-                let Some(entry) =
-                    self.state_db
-                        .get_entry(&octets_to_hash32(&state_data_or_hash).ok_or(
-                            StateManagerError::StateMerkleError(
-                                StateMerkleError::InvalidHash32Input,
-                            ),
-                        )?)?
+                let Some(entry) = self
+                    .state_db
+                    .get_entry(&octets_to_hash32(&state_data_or_hash).ok_or(
+                        StateManagerError::StateMerkleError(StateMerkleError::InvalidHash32Input),
+                    )?)
+                    .await?
                 else {
                     return Ok(None);
                 };
@@ -394,7 +379,7 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let merkle_cf = self.merkle_db.cf_handle()?;
         for (k, v) in write_set.entries() {
-            batch.put_cf(merkle_cf, k.as_slice(), v);
+            batch.put_cf(&merkle_cf, k.as_slice(), v);
         }
         Ok(())
     }
@@ -406,13 +391,16 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let state_cf = self.state_db.cf_handle()?;
         for (k, v) in write_set.entries() {
-            batch.put_cf(state_cf, k.as_slice(), v);
+            batch.put_cf(&state_cf, k.as_slice(), v);
         }
         Ok(())
     }
 
     /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
-    pub fn commit_single_dirty_cache(&self, state_key: &Hash32) -> Result<(), StateManagerError> {
+    pub async fn commit_single_dirty_cache(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<(), StateManagerError> {
         let mut cache_entry = self
             .cache
             .get_mut(state_key)
@@ -429,7 +417,7 @@ impl StateManager {
             // Additionally, it also adds the first entry to the `StateDB`
             // if the first entry of the merkle trie is the regular leaf node type.
             let (new_root, maybe_state_db_write) =
-                self.merkle_db.commit_to_empty_trie(&write_op)?;
+                self.merkle_db.commit_to_empty_trie(&write_op).await?;
 
             // Update the merkle root of the MerkleDB
             self.merkle_db.update_root(new_root);
@@ -443,7 +431,7 @@ impl StateManager {
                     &mut state_db_write_batch_single,
                     &state_db_write_set,
                 )?;
-                self.commit_to_state_db(state_db_write_batch_single)?;
+                self.commit_to_state_db(state_db_write_batch_single).await?;
             }
 
             // Mark committed entry as clean
@@ -455,7 +443,8 @@ impl StateManager {
         // Case 2: Trie is not empty
         let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
         self.merkle_db
-            .collect_leaf_path(state_key, write_op, &mut affected_nodes_by_depth)?;
+            .collect_leaf_path(state_key, write_op, &mut affected_nodes_by_depth)
+            .await?;
 
         let MerkleWriteSet {
             merkle_db_write_set,
@@ -473,12 +462,12 @@ impl StateManager {
         // Commit the write batch to the MerkleDB
         let mut merkle_db_wb = WriteBatch::default();
         self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
-        self.commit_to_merkle_db(merkle_db_wb)?;
+        self.commit_to_merkle_db(merkle_db_wb).await?;
 
         // Commit the write batch to the StateDB
         let mut state_db_wb = WriteBatch::default();
         self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
-        self.commit_to_state_db(state_db_wb)?;
+        self.commit_to_state_db(state_db_wb).await?;
 
         // Update the merkle root of the MerkleDB
         self.merkle_db
@@ -497,7 +486,7 @@ impl StateManager {
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
-    pub fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
+    pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let mut dirty_entries = self.cache.collect_dirty();
         if dirty_entries.is_empty() {
             return Ok(());
@@ -507,7 +496,7 @@ impl StateManager {
         // to initialize the trie.
         if self.merkle_db.root() == Hash32::default() {
             let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
-            self.commit_single_dirty_cache(&state_key)?;
+            self.commit_single_dirty_cache(&state_key).await?;
             if dirty_entries.is_empty() {
                 return Ok(());
             }
@@ -518,11 +507,13 @@ impl StateManager {
 
         for (state_key, entry) in &dirty_entries {
             let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-            self.merkle_db.collect_leaf_path(
-                state_key,
-                entry.as_merkle_state_mut(state_key)?,
-                &mut affected_nodes_by_depth,
-            )?;
+            self.merkle_db
+                .collect_leaf_path(
+                    state_key,
+                    entry.as_merkle_state_mut(state_key)?,
+                    &mut affected_nodes_by_depth,
+                )
+                .await?;
 
             // Convert dirty cache entries into write batch and commit to the MerkleDB
             let MerkleWriteSet {
@@ -548,10 +539,10 @@ impl StateManager {
         }
 
         // Commit the write batch to the MerkleDB
-        self.commit_to_merkle_db(merkle_db_wb)?;
+        self.commit_to_merkle_db(merkle_db_wb).await?;
 
         // Commit the write batch to the StateDB
-        self.commit_to_state_db(state_db_wb)?;
+        self.commit_to_state_db(state_db_wb).await?;
 
         // Update the merkle root of the MerkleDB
         let new_root = self.merkle_db.root_with_working_set();
@@ -566,13 +557,13 @@ impl StateManager {
         Ok(())
     }
 
-    fn commit_to_merkle_db(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
-        self.merkle_db.commit_write_batch(batch)?;
+    async fn commit_to_merkle_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
+        self.merkle_db.commit_write_batch(batch).await?;
         Ok(())
     }
 
-    fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
-        self.state_db.commit_write_batch(batch)?;
+    async fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
+        self.state_db.commit_write_batch(batch).await?;
         Ok(())
     }
 
@@ -604,11 +595,7 @@ impl StateManager {
         self.cache.insert(*state_key, cache_entry);
     }
 
-    //
-    // Immutable/mutable references to state components and account storage entries
-    //
-
-    fn get_state_entry_internal<T>(
+    async fn get_state_entry_internal<T>(
         &self,
         state_key: &Hash32,
     ) -> Result<Option<T>, StateManagerError>
@@ -621,7 +608,7 @@ impl StateManager {
         }
 
         // Retrieve the state from the DB
-        let Some(state_data) = self.retrieve_state_encoded(state_key)? else {
+        let Some(state_data) = self.retrieve_state_encoded(state_key).await? else {
             return Ok(None);
         };
 
@@ -631,7 +618,7 @@ impl StateManager {
         Ok(Some(state_entry))
     }
 
-    fn with_mut_state_entry_internal<T, F>(
+    async fn with_mut_state_entry_internal<T, F>(
         &self,
         state_key: &Hash32,
         state_mut: StateMut,
@@ -649,7 +636,10 @@ impl StateManager {
         // Ensure the cache entry exists.
         // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
         // Note: this only checks if the state entry is found either in the cache or the db.
-        let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
+        let state_exists = self
+            .get_state_entry_internal::<T>(state_key)
+            .await?
+            .is_some();
         if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
         }
@@ -679,7 +669,7 @@ impl StateManager {
         }
     }
 
-    fn add_state_entry_internal<T>(
+    async fn add_state_entry_internal<T>(
         &self,
         state_key: &Hash32,
         state_entry: T,
@@ -688,7 +678,10 @@ impl StateManager {
         T: StateComponent,
     {
         // Ensure the cache entry doesn't exist.
-        let state_exists = self.get_state_entry_internal::<T>(state_key)?.is_some();
+        let state_exists = self
+            .get_state_entry_internal::<T>(state_key)
+            .await?
+            .is_some();
         // TODO: determine either to throw an error or silently run `Update` operation
         if state_exists {
             return Err(StateManagerError::StateEntryAlreadyExists);
@@ -705,15 +698,16 @@ impl StateManager {
         Ok(())
     }
 
-    fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
+    async fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
     where
         T: SimpleStateComponent,
     {
-        self.get_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT))?
+        self.get_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT))
+            .await?
             .ok_or(StateManagerError::StateKeyNotInitialized) // simple state key must be initialized
     }
 
-    fn with_mut_simple_state_entry<T, F>(
+    async fn with_mut_simple_state_entry<T, F>(
         &self,
         state_mut: StateMut,
         f: F,
@@ -727,23 +721,28 @@ impl StateManager {
             state_mut,
             f,
         )
+        .await
     }
 
-    fn add_simple_state_entry<T>(&self, state_entry: T) -> Result<(), StateManagerError>
+    async fn add_simple_state_entry<T>(&self, state_entry: T) -> Result<(), StateManagerError>
     where
         T: SimpleStateComponent,
     {
         self.add_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT), state_entry)
+            .await
     }
 
-    fn get_account_state_entry<T>(&self, state_key: &Hash32) -> Result<Option<T>, StateManagerError>
+    async fn get_account_state_entry<T>(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<T>, StateManagerError>
     where
         T: AccountStateComponent,
     {
-        self.get_state_entry_internal(state_key) // account state key could not be initialized yet
+        self.get_state_entry_internal(state_key).await // account state key could not be initialized yet
     }
 
-    fn with_mut_account_state_entry<T, F>(
+    async fn with_mut_account_state_entry<T, F>(
         &self,
         state_key: &Hash32,
         state_mut: StateMut,
@@ -754,9 +753,10 @@ impl StateManager {
         F: FnOnce(&mut T),
     {
         self.with_mut_state_entry_internal(state_key, state_mut, f)
+            .await
     }
 
-    fn add_account_state_entry<T>(
+    async fn add_account_state_entry<T>(
         &self,
         state_key: &Hash32,
         state_entry: T,
@@ -764,7 +764,7 @@ impl StateManager {
     where
         T: AccountStateComponent,
     {
-        self.add_state_entry_internal(state_key, state_entry)
+        self.add_state_entry_internal(state_key, state_entry).await
     }
 
     impl_simple_state_accessors!(AuthPool, auth_pool);
@@ -783,15 +783,15 @@ impl StateManager {
     impl_simple_state_accessors!(AccumulateQueue, accumulate_queue);
     impl_simple_state_accessors!(AccumulateHistory, accumulate_history);
 
-    pub fn get_account_metadata(
+    pub async fn get_account_metadata(
         &self,
         address: Address,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
         let state_key = get_account_metadata_state_key(address);
-        self.get_account_state_entry(&state_key)
+        self.get_account_state_entry(&state_key).await
     }
 
-    pub fn with_mut_account_metadata<F>(
+    pub async fn with_mut_account_metadata<F>(
         &self,
         state_mut: StateMut,
         address: Address,
@@ -802,26 +802,27 @@ impl StateManager {
     {
         let state_key = get_account_metadata_state_key(address);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+            .await
     }
 
-    pub fn add_account_metadata(
+    pub async fn add_account_metadata(
         &self,
         address: Address,
         metadata: AccountMetadata,
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_metadata_state_key(address);
-        self.add_account_state_entry(&state_key, metadata)
+        self.add_account_state_entry(&state_key, metadata).await
     }
 
     /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
     /// when there is a change in the storage entries.
-    pub fn update_account_storage_footprint(
+    pub async fn update_account_storage_footprint(
         &self,
         address: Address,
         storage_key: &Hash32,
         new_storage_entry: &AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
-        let prev_storage_entry = self.get_account_storage_entry(address, storage_key)?;
+        let prev_storage_entry = self.get_account_storage_entry(address, storage_key).await?;
         let (item_count_delta, octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
                 prev_storage_entry.as_ref(),
@@ -840,17 +841,18 @@ impl StateManager {
             metadata.update_storage_items_count(item_count_delta);
             metadata.update_storage_total_octets(octets_count_delta);
         })
+        .await
     }
 
     /// Wrapper function of the `with_mut_account_metadata` to update lookups footprints of the
     /// account metadata when there is a change in the lookups entries.
-    pub fn update_account_lookups_footprint(
+    pub async fn update_account_lookups_footprint(
         &self,
         address: Address,
         lookups_key: &(Hash32, u32),
         new_lookups_entry: &AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
-        let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key)?;
+        let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key).await?;
 
         // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
         let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
@@ -879,21 +881,20 @@ impl StateManager {
         self.with_mut_account_metadata(state_mut, address, |metadata| {
             metadata.update_lookups_items_count(item_count_delta);
             metadata.update_lookups_total_octets(octets_count_delta);
-        })?;
-
-        Ok(())
+        })
+        .await
     }
 
-    pub fn get_account_storage_entry(
+    pub async fn get_account_storage_entry(
         &self,
         address: Address,
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = get_account_storage_state_key(address, storage_key);
-        self.get_account_state_entry(&state_key)
+        self.get_account_state_entry(&state_key).await
     }
 
-    pub fn with_mut_account_storage_entry<F>(
+    pub async fn with_mut_account_storage_entry<F>(
         &self,
         state_mut: StateMut,
         address: Address,
@@ -905,9 +906,10 @@ impl StateManager {
     {
         let state_key = get_account_storage_state_key(address, storage_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+            .await
     }
 
-    pub fn add_account_storage_entry(
+    pub async fn add_account_storage_entry(
         &self,
         address: Address,
         storage_key: &Hash32,
@@ -915,18 +917,19 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_storage_state_key(address, storage_key);
         self.add_account_state_entry(&state_key, storage_entry)
+            .await
     }
 
-    pub fn get_account_preimages_entry(
+    pub async fn get_account_preimages_entry(
         &self,
         address: Address,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         let state_key = get_account_preimage_state_key(address, preimages_key);
-        self.get_account_state_entry(&state_key)
+        self.get_account_state_entry(&state_key).await
     }
 
-    pub fn with_mut_account_preimages_entry<F>(
+    pub async fn with_mut_account_preimages_entry<F>(
         &self,
         state_mut: StateMut,
         address: Address,
@@ -938,9 +941,10 @@ impl StateManager {
     {
         let state_key = get_account_preimage_state_key(address, preimages_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+            .await
     }
 
-    pub fn add_account_preimages_entry(
+    pub async fn add_account_preimages_entry(
         &self,
         address: Address,
         preimages_key: &Hash32,
@@ -948,19 +952,20 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_preimage_state_key(address, preimages_key);
         self.add_account_state_entry(&state_key, preimages_entry)
+            .await
     }
 
-    pub fn get_account_lookups_entry(
+    pub async fn get_account_lookups_entry(
         &self,
         address: Address,
         lookups_key: &(Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, *l)?;
-        self.get_account_state_entry(&state_key)
+        self.get_account_state_entry(&state_key).await
     }
 
-    pub fn with_mut_account_lookups_entry<F>(
+    pub async fn with_mut_account_lookups_entry<F>(
         &self,
         state_mut: StateMut,
         address: Address,
@@ -973,9 +978,10 @@ impl StateManager {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, l)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
+            .await
     }
 
-    pub fn add_account_lookups_entry(
+    pub async fn add_account_lookups_entry(
         &self,
         address: Address,
         lookups_key: (&Hash32, u32),
@@ -984,5 +990,6 @@ impl StateManager {
         let (h, l) = lookups_key;
         let state_key = get_account_lookups_state_key(address, h, l)?;
         self.add_account_state_entry(&state_key, lookups_entry)
+            .await
     }
 }

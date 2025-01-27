@@ -11,7 +11,7 @@ use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
-use rocksdb::{ColumnFamily, WriteBatch};
+use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -86,7 +86,7 @@ impl MerkleDB {
         ))
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
+    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateMerkleError> {
         self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
     }
 
@@ -108,7 +108,10 @@ impl MerkleDB {
 
     /// Restore correct hash value from a 255-bit bitvec representation, by attempting to
     /// retrieve a node from the `MerkleDB`.
-    pub(crate) fn restore_hash_bit(&self, hash_bv: &BitVec) -> Result<Hash32, StateMerkleError> {
+    pub(crate) async fn restore_hash_bit(
+        &self,
+        hash_bv: &BitVec,
+    ) -> Result<Hash32, StateMerkleError> {
         if hash_bv.len() != 255 {
             return Err(StateMerkleError::InvalidBitVecLength(hash_bv.len()));
         }
@@ -122,16 +125,18 @@ impl MerkleDB {
 
         // Try 0 bit
         full_bits.insert(0, false);
-        if let Some(node_with_hash_0) =
-            self.get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)?
+        if let Some(node_with_hash_0) = self
+            .get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)
+            .await?
         {
             return Ok(node_with_hash_0.hash);
         }
 
         // Try 1 bit
         full_bits.set(0, true);
-        if let Some(node_with_hash_1) =
-            self.get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)?
+        if let Some(node_with_hash_1) = self
+            .get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)
+            .await?
         {
             return Ok(node_with_hash_1.hash);
         }
@@ -141,7 +146,7 @@ impl MerkleDB {
 
     /// Get a node entry, first looking up the working set of the MerkleDB
     /// and then looking into the DB storage if not found from the WorkingSet.
-    pub(crate) fn get_node_with_working_set(
+    pub(crate) async fn get_node_with_working_set(
         &self,
         node_hash: &Hash32,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
@@ -151,11 +156,11 @@ impl MerkleDB {
         }
 
         // If not found in the `WorkingSet`, fallback to the real DB
-        self.get_node(node_hash)
+        self.get_node(node_hash).await
     }
 
     /// Get a node entry from the MerkleDB.
-    pub(crate) fn get_node(
+    pub(crate) async fn get_node(
         &self,
         node_hash: &Hash32,
     ) -> Result<Option<MerkleNode>, StateMerkleError> {
@@ -172,7 +177,8 @@ impl MerkleDB {
         // fetch node data octets from the db and put into the cache
         let maybe_node = self
             .core
-            .get_merkle(node_hash.as_slice())?
+            .get_merkle(node_hash.as_slice())
+            .await?
             .map(|data| MerkleNode {
                 hash: *node_hash,
                 data,
@@ -186,17 +192,19 @@ impl MerkleDB {
         Ok(maybe_node)
     }
 
-    pub(crate) fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
+    pub(crate) async fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
         // write to DB
-        self.core.put_merkle(node.hash.as_slice(), &node.data)?;
+        self.core
+            .put_merkle(node.hash.as_slice(), &node.data)
+            .await?;
         // insert into cache
         self.cache.insert(node.hash, node.clone());
         Ok(())
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
-    pub fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
-        Ok(self.core.commit_write_batch(batch)?)
+    pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
+        Ok(self.core.commit_write_batch(batch).await?)
     }
 
     pub fn clear_working_set(&self) {
@@ -234,14 +242,14 @@ impl MerkleDB {
     /// # Note
     /// For `Regular` leaf nodes, additional steps are required to fetch the actual state data
     /// from the `StateDB` using the returned hash.
-    pub fn retrieve(
+    pub async fn retrieve(
         &self,
         state_key: &Hash32,
     ) -> Result<Option<(LeafType, Vec<u8>)>, StateMerkleError> {
         // println!("\n----- Retrieval");
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
-        let mut current_node = match self.get_node(&self.root())? {
+        let mut current_node = match self.get_node(&self.root()).await? {
             Some(node) => node,
             None => return Ok(None),
         }; // initialize with the root node
@@ -251,10 +259,10 @@ impl MerkleDB {
             match current_node.check_node_type()? {
                 NodeType::Branch(_) => {
                     // update the current node and proceed to the next node
-                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
                     let child_hash = if b { right } else { left };
-                    // print_node(&Some(current_node.clone()), self);
-                    current_node = match self.get_node(&child_hash)? {
+                    // print_node(&Some(current_node.clone()), self).await;
+                    current_node = match self.get_node(&child_hash).await? {
                         Some(node) => node,
                         None => return Ok(None),
                     };
@@ -262,7 +270,7 @@ impl MerkleDB {
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
                     let value = NodeCodec::get_leaf_value(&state_key_bv, &current_node)?;
-                    // print_node(&Some(current_node.clone()), self);
+                    // print_node(&Some(current_node.clone()), self).await;
                     return Ok(Some((leaf_type, value)));
                 }
             }
@@ -276,7 +284,7 @@ impl MerkleDB {
     ///
     /// Returns (new_root, Option<(state_key, state_val)>)
     #[allow(clippy::type_complexity)]
-    pub fn commit_to_empty_trie(
+    pub async fn commit_to_empty_trie(
         &self,
         write_op: &MerkleWriteOp,
     ) -> Result<(Hash32, Option<(Hash32, Vec<u8>)>), StateMerkleError> {
@@ -298,7 +306,7 @@ impl MerkleDB {
                         None
                     };
 
-                self.put_node(&new_leaf)?;
+                self.put_node(&new_leaf).await?;
                 self.cache.insert(node_hash, new_leaf); // optional
 
                 Ok((node_hash, maybe_state_db_write))
@@ -308,7 +316,7 @@ impl MerkleDB {
         }
     }
 
-    pub fn collect_leaf_path(
+    pub async fn collect_leaf_path(
         &self,
         state_key: &Hash32,
         write_op: MerkleWriteOp,
@@ -316,24 +324,26 @@ impl MerkleDB {
     ) -> Result<(), StateMerkleError> {
         // Initialize local state variables
         let state_key_bv = bits_encode_msb(state_key.as_slice());
-        let mut current_node =
-            match self.get_node_with_working_set(&self.root_with_working_set())? {
-                Some(node) => node,
-                None => return Ok(()),
-            };
+        let mut current_node = match self
+            .get_node_with_working_set(&self.root_with_working_set())
+            .await?
+        {
+            Some(node) => node,
+            None => return Ok(()),
+        };
 
         // Accumulator for bits of the state key bitvec. Represents the partial merkle path
         // from the root to the certain node.
         let mut partial_merkle_path = BitVec::new();
 
         // Special handling for the `Remove` case
-        let remove_ctx = self.collect_removal_context(&write_op)?;
+        let remove_ctx = self.collect_removal_context(&write_op).await?;
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for (depth, b) in state_key_bv.iter().enumerate() {
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
-                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
                     let (child_hash, sibling_child_hash) =
                         if b { (&right, &left) } else { (&left, &right) };
                     let added_leaf_child_side = ChildType::from_bit(b);
@@ -402,7 +412,7 @@ impl MerkleDB {
                         }));
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
-                    current_node = match self.get_node_with_working_set(child_hash)? {
+                    current_node = match self.get_node_with_working_set(child_hash).await? {
                         Some(node) => node,
                         None => return Ok(()), // TODO: This implies pollution
                     };
@@ -483,7 +493,7 @@ impl MerkleDB {
         Err(StateMerkleError::NodeNotFound)
     }
 
-    fn collect_removal_context(
+    async fn collect_removal_context(
         &self,
         write_op: &MerkleWriteOp,
     ) -> Result<Option<LeafRemoveContext>, StateMerkleError> {
@@ -491,7 +501,7 @@ impl MerkleDB {
             MerkleWriteOp::Remove(state_key) => {
                 // Remove operation inserts one `AffectedBranch`.
                 let state_key_bv = bits_encode_msb(state_key.as_slice());
-                let ctx = self.collect_removal_context_internal(&state_key_bv)?;
+                let ctx = self.collect_removal_context_internal(&state_key_bv).await?;
                 Ok(Some(ctx))
             }
             _ => Ok(None),
@@ -512,14 +522,15 @@ impl MerkleDB {
     ///
     /// This information is used to correctly update the "posterior parent" once the removal
     /// of the target leaf is finalized.
-    fn collect_removal_context_internal(
+    async fn collect_removal_context_internal(
         &self,
         state_key_bv: &BitVec,
     ) -> Result<LeafRemoveContext, StateMerkleError> {
         let mut current_node = self
-            .get_node_with_working_set(&self.root())?
+            .get_node_with_working_set(&self.root())
+            .await?
             .expect("root node must exist");
-        let (root_left, root_right) = NodeCodec::decode_branch(&current_node, self)?;
+        let (root_left, root_right) = NodeCodec::decode_branch(&current_node, self).await?;
 
         // Keeping this history is needed because we shouldn't count the parent of the leaf node to be removed.
         let mut branch_history = FullBranchHistory::new(
@@ -535,7 +546,7 @@ impl MerkleDB {
         for b in state_key_bv.iter() {
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
-                    let (left, right) = NodeCodec::decode_branch(&current_node, self)?;
+                    let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
 
                     if let BranchType::Full = branch_type {
                         branch_history.update(current_node.hash, b, left, right);
@@ -545,12 +556,14 @@ impl MerkleDB {
                     last_sibling_hash = sibling_hash;
 
                     current_node = self
-                        .get_node_with_working_set(&child_hash)?
+                        .get_node_with_working_set(&child_hash)
+                        .await?
                         .ok_or(StateMerkleError::NodeNotFound)?;
                 }
                 NodeType::Leaf(_) => {
                     let sibling_node = self
-                        .get_node_with_working_set(&last_sibling_hash)?
+                        .get_node_with_working_set(&last_sibling_hash)
+                        .await?
                         .expect("sibling node must exist");
 
                     return match sibling_node.check_node_type()? {

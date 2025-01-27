@@ -1,5 +1,6 @@
+use async_trait::async_trait;
 use rjam_db::header_db::BlockHeaderDB;
-use rjam_state::StateManager;
+use rjam_state::{error::StateManagerError, StateManager};
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -16,6 +17,7 @@ pub struct TestCase<I, O, S> {
     pub post_state: S,
 }
 
+#[async_trait]
 pub trait StateTransitionTest {
     const PATH_PREFIX: &'static str;
 
@@ -38,14 +40,14 @@ pub trait StateTransitionTest {
         rjam_state::test_utils::init_db_and_manager(None)
     }
 
-    fn load_pre_state(
+    async fn load_pre_state(
         test_pre_state: &Self::State,
-        state_manager: &mut StateManager,
-    ) -> Result<(), TransitionError>;
+        state_manager: &StateManager,
+    ) -> Result<(), StateManagerError>;
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;
 
-    fn run_state_transition(
+    async fn run_state_transition(
         state_manager: &StateManager,
         header_db: &mut BlockHeaderDB,
         jam_input: &Self::JamInput,
@@ -59,26 +61,26 @@ pub trait StateTransitionTest {
         error_code: &Option<Self::ErrorCode>,
     ) -> Self::Output;
 
-    fn extract_post_state(
+    async fn extract_post_state(
         state_manager: &StateManager,
         pre_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
-    ) -> Self::State;
+    ) -> Result<Self::State, StateManagerError>;
 }
 
-pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), TransitionError> {
+pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), TransitionError> {
     // load test case
     let filename = PathBuf::from(filename);
     let test_case = T::load_test_case(&filename);
 
     // init state manager and header db
-    let (mut header_db, mut state_manager) = T::init_db_and_manager();
+    let (mut header_db, state_manager) = T::init_db_and_manager();
 
     // load pre-state to the cache and the DB
-    T::load_pre_state(&test_case.pre_state, &mut state_manager)?;
+    T::load_pre_state(&test_case.pre_state, &state_manager).await?;
 
     // commit the pre-state into the DB
-    state_manager.commit_dirty_cache()?;
+    state_manager.commit_dirty_cache().await?;
 
     // clear state cache to ensure the test cases read state entries from the DB
     state_manager.clear_state_cache();
@@ -87,7 +89,8 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     let jam_input = T::convert_input_type(&test_case.input)?;
 
     // run state transitions
-    let transition_result = T::run_state_transition(&state_manager, &mut header_db, &jam_input);
+    let transition_result =
+        T::run_state_transition(&state_manager, &mut header_db, &jam_input).await;
 
     let (maybe_transition_output, maybe_error_code) = match transition_result {
         Ok(transition_output) => (Some(transition_output), None),
@@ -95,13 +98,14 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
     };
 
     // commit the post-state into the DB
-    state_manager.commit_dirty_cache()?;
+    state_manager.commit_dirty_cache().await?;
 
     // clear state cache to ensure the test cases read state entries from the DB
     state_manager.clear_state_cache();
 
     // compare the actual and the expected post state
-    let post_state = T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code);
+    let post_state =
+        T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code).await?;
     assert_eq!(post_state, test_case.post_state);
 
     // compare the output
@@ -135,9 +139,9 @@ pub fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), Trans
 macro_rules! generate_typed_tests {
     ($test_type:ty, $($name:ident: $path:expr,)*) => {
         $(
-            #[test]
-            fn $name() -> Result<(), TransitionError> {
-                run_test_case::<$test_type>($path)
+            #[tokio::test]
+            async fn $name() -> Result<(), TransitionError> {
+                run_test_case::<$test_type>($path).await
             }
         )*
     }

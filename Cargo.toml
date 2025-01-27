@@ -44,18 +44,20 @@ rjam-transition = { path = "transition" }
 rjam-types = { path = "types" }
 # External dependencies
 ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "d90e180", features = ["bandersnatch", "ring"] }
+async-trait = "0.1.84"
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
 dashmap = "6.1.0"
 dotenv = "0.15.0"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+futures = "0.3.31"
 hex = "0.4.3"
 num_enum = "0.7.3"
 paste = "1.0.15"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"
 rand = "0.8.5"
-rocksdb = "0.22.0"
+rocksdb = { version = "0.22.0", features = ["default", "multi-threaded-cf"] }
 serde = { version = "1.0.216", features = ["derive"] }
 sha3 = "0.10.8"
 syn = { version = "2.0.79", features = ["full", "extra-traits"] }

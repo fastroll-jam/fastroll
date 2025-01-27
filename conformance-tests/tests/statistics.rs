@@ -1,5 +1,6 @@
 //! Statistics state transition conformance tests
 mod test {
+    use async_trait::async_trait;
     use rjam_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
@@ -7,7 +8,7 @@ mod test {
     };
 
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
     use rjam_types::{
         extrinsics::Extrinsics,
@@ -16,6 +17,7 @@ mod test {
 
     struct StatisticsTest;
 
+    #[async_trait]
     impl StateTransitionTest for StatisticsTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/statistics/tiny";
 
@@ -26,10 +28,10 @@ mod test {
         type Output = Output;
         type ErrorCode = ();
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+            state_manager: &StateManager,
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_validator_stats = ValidatorStats::from(test_pre_state.pi.clone());
             let pre_timeslot = Timeslot::new(test_pre_state.tau);
@@ -38,9 +40,11 @@ mod test {
             ));
 
             // Load pre-state info the state cache.
-            state_manager.add_validator_stats(pre_validator_stats)?;
-            state_manager.add_timeslot(pre_timeslot)?;
-            state_manager.add_active_set(posterior_active_set)?;
+            state_manager
+                .add_validator_stats(pre_validator_stats)
+                .await?;
+            state_manager.add_timeslot(pre_timeslot).await?;
+            state_manager.add_active_set(posterior_active_set).await?;
 
             Ok(())
         }
@@ -54,13 +58,13 @@ mod test {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            let pre_timeslot = state_manager.get_timeslot()?;
+            let pre_timeslot = state_manager.get_timeslot().await?;
             let next_timeslot = jam_input.timeslot;
             let epoch_progressed = pre_timeslot.epoch() < next_timeslot.epoch();
 
@@ -69,7 +73,8 @@ mod test {
                 epoch_progressed,
                 jam_input.author_index,
                 &jam_input.extrinsics,
-            )?;
+            )
+            .await?;
             Ok(())
         }
 
@@ -85,22 +90,22 @@ mod test {
             Output
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             _pre_state: &Self::State,
             _error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
+        ) -> Result<Self::State, StateManagerError> {
             // Get the posterior state from the state cache.
-            let curr_validator_stats = state_manager.get_validator_stats().unwrap();
-            let curr_timeslot = state_manager.get_timeslot().unwrap();
-            let posterior_active_set = state_manager.get_active_set().unwrap();
+            let curr_validator_stats = state_manager.get_validator_stats().await?;
+            let curr_timeslot = state_manager.get_timeslot().await?;
+            let posterior_active_set = state_manager.get_active_set().await?;
 
             // Convert RJAM types post-state into ASN post-state
-            State {
+            Ok(State {
                 pi: curr_validator_stats.into(),
                 tau: curr_timeslot.slot(),
                 kappa_prime: validator_set_to_validators_data(&posterior_active_set),
-            }
+            })
         }
     }
 

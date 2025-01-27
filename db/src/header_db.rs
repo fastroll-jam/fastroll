@@ -8,8 +8,11 @@ use rjam_types::{
     extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
     state::{Timeslot, TimeslotError},
 };
-use rocksdb::ColumnFamily;
-use std::{path::Path, sync::Arc};
+use rocksdb::BoundColumnFamily;
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -43,7 +46,7 @@ pub struct BlockHeaderDB {
     /// Cache for storing block headers, keyed by timeslot index.
     cache: DashMap<u32, BlockHeader>,
     /// Mutable staging header used for block construction.
-    staging_header: Option<BlockHeader>,
+    staging_header: Mutex<Option<BlockHeader>>,
 }
 
 impl BlockHeaderDB {
@@ -51,7 +54,7 @@ impl BlockHeaderDB {
         Self {
             core,
             cache: DashMap::with_capacity(cache_size),
-            staging_header: None,
+            staging_header: Mutex::new(None),
         }
     }
 
@@ -66,12 +69,12 @@ impl BlockHeaderDB {
         ))
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
+    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, BlockHeaderDBError> {
         self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
     }
 
     /// Get a block header by timeslot, either from the DB or the cache.
-    pub fn get_header(&self, timeslot_index: u32) -> Result<BlockHeader, BlockHeaderDBError> {
+    pub async fn get_header(&self, timeslot_index: u32) -> Result<BlockHeader, BlockHeaderDBError> {
         // lookup the cache
         if let Some(header) = self.cache.get(&timeslot_index) {
             return Ok(header.clone());
@@ -79,12 +82,9 @@ impl BlockHeaderDB {
 
         let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
-        let header_encoded =
-            self.core
-                .get_header(&timeslot_key)?
-                .ok_or(BlockHeaderDBError::HeaderNotFound(
-                    timeslot_index.to_string(),
-                ))?;
+        let header_encoded = self.core.get_header(&timeslot_key).await?.ok_or(
+            BlockHeaderDBError::HeaderNotFound(timeslot_index.to_string()),
+        )?;
 
         let header = BlockHeader::decode(&mut header_encoded.as_slice())?;
         self.cache.insert(timeslot_index, header.clone());
@@ -93,7 +93,7 @@ impl BlockHeaderDB {
     }
 
     /// Get a block header by its hash from the DB.
-    pub fn get_header_by_hash(
+    pub async fn get_header_by_hash(
         &self,
         header_hash: &Hash32,
     ) -> Result<BlockHeader, BlockHeaderDBError> {
@@ -102,20 +102,23 @@ impl BlockHeaderDB {
 
         let header_encoded = self
             .core
-            .get_header(&header_hash_key)?
+            .get_header(&header_hash_key)
+            .await?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
         Ok(BlockHeader::decode(&mut header_encoded.as_slice())?)
     }
 
-    fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
+    async fn commit_header(&self, header: &BlockHeader) -> Result<(), BlockHeaderDBError> {
         let timeslot_key = format!("T::{}", header.timeslot_index).into_bytes();
         let header_hash_key = format!("H::{}", header.hash()?.encode_hex()).into_bytes();
 
         let header_encoded = header.encode()?;
 
-        self.core.put_header(&timeslot_key, &header_encoded)?;
-        self.core.put_header(&header_hash_key, &header_encoded)?;
+        self.core.put_header(&timeslot_key, &header_encoded).await?;
+        self.core
+            .put_header(&header_hash_key, &header_encoded)
+            .await?;
         self.cache.insert(header.timeslot_index, header.clone());
 
         Ok(())
@@ -126,17 +129,18 @@ impl BlockHeaderDB {
             return Err(BlockHeaderDBError::StagingHeaderAlreadyInitialized);
         }
 
-        self.staging_header = Some(BlockHeader::new(parent_hash));
+        let mut guard = self.staging_header.lock().unwrap();
+        *guard = Some(BlockHeader::new(parent_hash));
 
         Ok(())
     }
 
-    pub fn get_staging_header(&self) -> Option<&BlockHeader> {
-        self.staging_header.as_ref()
+    pub fn get_staging_header(&self) -> Option<BlockHeader> {
+        self.staging_header.lock().unwrap().clone()
     }
 
     pub fn assert_staging_header_initialized(&self) -> Result<(), BlockHeaderDBError> {
-        if self.staging_header.is_some() {
+        if self.staging_header.lock().unwrap().is_some() {
             Ok(())
         } else {
             Err(BlockHeaderDBError::StagingHeaderNotInitialized)
@@ -144,14 +148,15 @@ impl BlockHeaderDB {
     }
 
     pub fn drop_staging_header(&mut self) {
-        self.staging_header = None;
+        self.staging_header.lock().unwrap().take();
     }
 
     fn update_staging_header<F>(&mut self, f: F) -> Result<(), BlockHeaderDBError>
     where
         F: FnOnce(&mut BlockHeader),
     {
-        if let Some(ref mut header) = self.staging_header {
+        let mut guard = self.staging_header.lock().unwrap();
+        if let Some(header) = guard.as_mut() {
             f(header);
             Ok(())
         } else {
@@ -159,9 +164,10 @@ impl BlockHeaderDB {
         }
     }
 
-    pub fn commit_staging_header(&mut self) -> Result<(), BlockHeaderDBError> {
-        if let Some(header) = self.staging_header.take() {
-            self.commit_header(&header)
+    pub async fn commit_staging_header(&mut self) -> Result<(), BlockHeaderDBError> {
+        let maybe_header = self.staging_header.lock().unwrap().take();
+        if let Some(header) = maybe_header {
+            self.commit_header(&header).await
         } else {
             Err(BlockHeaderDBError::StagingHeaderNotInitialized)
         }

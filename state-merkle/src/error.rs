@@ -1,4 +1,3 @@
-use crate::state_db::StateDBError;
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
 use rjam_db::core::CoreDBError;
@@ -44,8 +43,6 @@ pub enum StateMerkleError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
-    #[error("StateDB error: {0}")]
-    StateDBError(#[from] StateDBError),
     #[error("CoreDB error: {0}")]
     CoreDBError(#[from] CoreDBError),
 }

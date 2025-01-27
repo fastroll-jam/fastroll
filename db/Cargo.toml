@@ -13,3 +13,4 @@ dotenv = { workspace = true }
 hex = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }

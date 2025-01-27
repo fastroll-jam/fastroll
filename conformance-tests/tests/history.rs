@@ -1,5 +1,6 @@
 //! Block history state transition conformance tests
 mod tests {
+    use async_trait::async_trait;
     use rjam_conformance_tests::harness::run_test_case;
 
     use rjam_common::ByteArray;
@@ -7,7 +8,7 @@ mod tests {
         asn_types::history::*, generate_typed_tests, harness::StateTransitionTest,
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
@@ -16,6 +17,7 @@ mod tests {
 
     struct HistoryTest;
 
+    #[async_trait]
     impl StateTransitionTest for HistoryTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/history/data";
 
@@ -26,15 +28,15 @@ mod tests {
         type Output = Output;
         type ErrorCode = ();
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+            state_manager: &StateManager,
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_block_history = BlockHistory::from(test_pre_state.beta.clone());
 
             // Load pre-state into the state cache.
-            state_manager.add_block_history(pre_block_history)?;
+            state_manager.add_block_history(pre_block_history).await?;
 
             Ok(())
         }
@@ -60,13 +62,14 @@ mod tests {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
-            transition_block_history_parent_root(state_manager, jam_input.parent_state_root)?;
+            transition_block_history_parent_root(state_manager, jam_input.parent_state_root)
+                .await?;
 
             // Second transition: Append new history entry.
             transition_block_history_append(
@@ -74,7 +77,8 @@ mod tests {
                 jam_input.header_hash,
                 jam_input.accumulate_root,
                 &jam_input.reported_packages,
-            )?;
+            )
+            .await?;
 
             Ok(())
         }
@@ -91,14 +95,14 @@ mod tests {
             Output
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             _pre_state: &Self::State,
             _error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
-            State {
-                beta: state_manager.get_block_history().unwrap().into(),
-            }
+        ) -> Result<Self::State, StateManagerError> {
+            Ok(State {
+                beta: state_manager.get_block_history().await?.into(),
+            })
         }
     }
 

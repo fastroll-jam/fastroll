@@ -1,48 +1,44 @@
 use crate::error::TransitionError;
-use rjam_common::{Address, ACCUMULATION_GAS_ALL_CORES};
-use rjam_pvm_invocation::{
-    accumulation::{
-        invoke::{accumulate_outer, OuterAccumulationResult},
-        utils::select_deferred_transfers,
-    },
-    PVMInvocation,
-};
+use rjam_common::Address;
+use rjam_pvm_invocation::{accumulation::utils::select_deferred_transfers, PVMInvocation};
 use rjam_state::StateManager;
-use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
+use rjam_types::common::transfers::DeferredTransfer;
 use std::collections::HashSet;
 
-/// State transition function for Accumulate context state components.
-///
-/// The `accumulate` PVM entrypoint invokes host functions that directly modify state cache entries
-/// via the `StateManager`:
-/// - `Service Accounts`:
-///     - host_write
-///     - host_new
-///     - host_upgrade
-///     - host_transfer
-///     - host_solicit
-///     - host_forget
-/// - `PrivilegedServices`:
-///     - host_bless
-/// - `StagingSet`:
-///     - host_designate
-/// - `AuthQueue`:
-///     - host_assign
-pub fn transition_accumulate_contexts(
-    state_manager: &StateManager,
-    reports: &[WorkReport],
-) -> Result<OuterAccumulationResult, TransitionError> {
-    let always_accumulate_services = &state_manager
-        .get_privileged_services()?
-        .always_accumulate_services;
-
-    Ok(accumulate_outer(
-        state_manager,
-        ACCUMULATION_GAS_ALL_CORES,
-        reports,
-        always_accumulate_services,
-    )?)
-}
+// FIXME
+// /// State transition function for Accumulate context state components.
+// ///
+// /// The `accumulate` PVM entrypoint invokes host functions that directly modify state cache entries
+// /// via the `StateManager`:
+// /// - `Service Accounts`:
+// ///     - host_write
+// ///     - host_new
+// ///     - host_upgrade
+// ///     - host_transfer
+// ///     - host_solicit
+// ///     - host_forget
+// /// - `PrivilegedServices`:
+// ///     - host_bless
+// /// - `StagingSet`:
+// ///     - host_designate
+// /// - `AuthQueue`:
+// ///     - host_assign
+// pub async fn transition_accumulate_contexts(
+//     state_manager: &StateManager,
+//     reports: &[WorkReport],
+// ) -> Result<OuterAccumulationResult, TransitionError> {
+//     let always_accumulate_services = &state_manager
+//         .get_privileged_services()
+//         .await?
+//         .always_accumulate_services;
+//
+//     Ok(accumulate_outer(
+//         state_manager,
+//         ACCUMULATION_GAS_ALL_CORES,
+//         reports,
+//         always_accumulate_services,
+//     )?)
+// }
 
 /// Processes deferred transfers for service accounts.
 ///
@@ -53,7 +49,7 @@ pub fn transition_accumulate_contexts(
 ///
 /// This function implements the second state transition for service accounts,
 /// following the `accumulate` PVM invocation.
-pub fn transition_on_transfer(
+pub async fn transition_on_transfer(
     state_manager: &StateManager,
     transfers: &[DeferredTransfer],
 ) -> Result<(), TransitionError> {
@@ -63,7 +59,7 @@ pub fn transition_on_transfer(
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
         let selected_transfers = select_deferred_transfers(transfers, destination);
-        PVMInvocation::on_transfer(state_manager, destination, selected_transfers)?;
+        PVMInvocation::on_transfer(state_manager, destination, selected_transfers).await?;
     }
 
     Ok(())

@@ -1,5 +1,6 @@
 //! Disputes state transition conformance tests
 mod tests {
+    use async_trait::async_trait;
     use rjam_conformance_tests::{
         asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
@@ -8,7 +9,7 @@ mod tests {
     };
 
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::StateManager;
+    use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{
         error::TransitionError,
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
@@ -17,6 +18,7 @@ mod tests {
 
     struct DisputesTest;
 
+    #[async_trait]
     impl StateTransitionTest for DisputesTest {
         const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/disputes/tiny";
 
@@ -27,10 +29,10 @@ mod tests {
         type Output = Output;
         type ErrorCode = DisputesErrorCode;
 
-        fn load_pre_state(
+        async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &mut StateManager,
-        ) -> Result<(), TransitionError> {
+            state_manager: &StateManager,
+        ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_disputes = DisputesState::from(test_pre_state.psi.clone());
             let pre_pending_reports = PendingReports::from(test_pre_state.rho.clone());
@@ -39,11 +41,13 @@ mod tests {
             let pre_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
 
             // Load pre-state info the state cache.
-            state_manager.add_disputes(pre_disputes)?;
-            state_manager.add_pending_reports(pre_pending_reports)?;
-            state_manager.add_timeslot(pre_timeslot)?;
-            state_manager.add_active_set(pre_active_set)?;
-            state_manager.add_past_set(pre_past_set)?;
+            state_manager.add_disputes(pre_disputes).await?;
+            state_manager
+                .add_pending_reports(pre_pending_reports)
+                .await?;
+            state_manager.add_timeslot(pre_timeslot).await?;
+            state_manager.add_active_set(pre_active_set).await?;
+            state_manager.add_past_set(pre_past_set).await?;
 
             Ok(())
         }
@@ -55,18 +59,18 @@ mod tests {
             })
         }
 
-        fn run_state_transition(
+        async fn run_state_transition(
             state_manager: &StateManager,
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
-            let pre_timeslot = state_manager.get_timeslot()?;
+            let pre_timeslot = state_manager.get_timeslot().await?;
             let disputes = &jam_input.extrinsic;
             let offenders_marker = disputes.collect_offender_keys();
 
             // Run state transitions.
-            transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot)?;
-            transition_disputes(state_manager, disputes, &pre_timeslot)?;
+            transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot).await?;
+            transition_disputes(state_manager, disputes, &pre_timeslot).await?;
             header_db.set_offenders_marker(&offenders_marker)?;
 
             Ok(())
@@ -86,11 +90,8 @@ mod tests {
             }
 
             // Convert RJAM output into ASN Output.
-            let curr_header_offenders_marker = header_db
-                .get_staging_header()
-                .cloned()
-                .unwrap()
-                .offenders_marker;
+            let curr_header_offenders_marker =
+                header_db.get_staging_header().unwrap().offenders_marker;
             let curr_offenders_marker = OffendersHeaderMarker {
                 items: curr_header_offenders_marker,
             };
@@ -99,30 +100,30 @@ mod tests {
             Output::ok(disputes_output_marks)
         }
 
-        fn extract_post_state(
+        async fn extract_post_state(
             state_manager: &StateManager,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
-        ) -> Self::State {
+        ) -> Result<Self::State, StateManagerError> {
             if error_code.is_some() {
                 // Rollback state transition
-                return pre_state.clone();
+                return Ok(pre_state.clone());
             }
 
             // Get the posterior state from the state cache.
-            let curr_disputes_state = state_manager.get_disputes().unwrap();
-            let curr_pending_reports = state_manager.get_pending_reports().unwrap();
-            let curr_timeslot = state_manager.get_timeslot().unwrap();
-            let curr_active_set = state_manager.get_active_set().unwrap();
-            let curr_past_set = state_manager.get_past_set().unwrap();
+            let curr_disputes_state = state_manager.get_disputes().await?;
+            let curr_pending_reports = state_manager.get_pending_reports().await?;
+            let curr_timeslot = state_manager.get_timeslot().await?;
+            let curr_active_set = state_manager.get_active_set().await?;
+            let curr_past_set = state_manager.get_past_set().await?;
 
-            State {
+            Ok(State {
                 psi: curr_disputes_state.into(),
                 rho: curr_pending_reports.into(),
                 tau: curr_timeslot.0,
                 kappa: validator_set_to_validators_data(&curr_active_set),
                 lambda: validator_set_to_validators_data(&curr_past_set),
-            }
+            })
         }
     }
 

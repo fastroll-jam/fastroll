@@ -1,12 +1,12 @@
 //! MerkleDB Fuzz Tests
 #![allow(unused_imports)]
-use rand::seq::SliceRandom;
+use rand::{seq::SliceRandom, thread_rng};
 use rjam_codec::JamDecode;
 use rjam_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
 use std::{collections::HashMap, error::Error};
 
-#[test]
-fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
+#[tokio::test]
+async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager(None);
 
     // Test with N random state entries
@@ -22,20 +22,23 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
         let state_key = random_state_key();
         let state_val = random_state_val(MAX_VAL_SIZE);
 
-        state_manager.add_raw_state_entry(&state_key, state_val.clone())?;
+        state_manager
+            .add_raw_state_entry(&state_key, state_val.clone())
+            .await?;
 
         state_keys.push(state_key);
         expected_state_values.push(state_val);
     }
 
     // Commit Additions
-    state_manager.commit_dirty_cache()?;
+    state_manager.commit_dirty_cache().await?;
     println!("--- Committed to the DB: Add");
 
     // Verify the Additions
     for i in 0..N {
         let state_val_db_encoded = state_manager
-            .get_raw_state_entry_from_db(&state_keys[i])?
+            .get_raw_state_entry_from_db(&state_keys[i])
+            .await?
             .expect("should not be None");
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         let state_val_expected = expected_state_values[i].clone();
@@ -50,7 +53,7 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Shuffle the keys
     let mut indices: Vec<usize> = (0..N).collect();
-    indices.shuffle(&mut rand::thread_rng());
+    indices.shuffle(&mut thread_rng());
 
     // State Mutation (Update)
     let update_indices = &indices[0..num_updates];
@@ -59,7 +62,9 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     for i in update_indices {
         let key = state_keys[*i];
         let new_val = random_state_val(MAX_VAL_SIZE);
-        state_manager.update_raw_state_entry(&key, new_val.clone())?;
+        state_manager
+            .update_raw_state_entry(&key, new_val.clone())
+            .await?;
         updated_values.insert(key, new_val);
     }
 
@@ -69,19 +74,20 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     for i in remove_indices {
         let key = state_keys[*i];
-        state_manager.remove_raw_state_entry(&key)?;
+        state_manager.remove_raw_state_entry(&key).await?;
         removed_keys.push(key);
     }
 
     // Commit Updates and Removals
-    state_manager.commit_dirty_cache()?;
+    state_manager.commit_dirty_cache().await?;
 
     println!("--- Committed to the DB: Update/Remove");
 
     // Verify the Updates
     for (key, val_expected) in updated_values {
         let state_val_db_encoded = state_manager
-            .get_raw_state_entry_from_db(&key)?
+            .get_raw_state_entry_from_db(&key)
+            .await?
             .expect("updated key must still exist");
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         assert_eq!(state_val_db, val_expected);
@@ -90,7 +96,7 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Verify the Removals
     for key in removed_keys {
-        let maybe_state_val = state_manager.get_raw_state_entry_from_db(&key)?;
+        let maybe_state_val = state_manager.get_raw_state_entry_from_db(&key).await?;
         assert!(
             maybe_state_val.is_none(),
             "Removed key ({key}) still found in DB"
@@ -103,7 +109,8 @@ fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     for i in unchanged_keys {
         let key = state_keys[i];
         let state_val_db_encoded = state_manager
-            .get_raw_state_entry_from_db(&key)?
+            .get_raw_state_entry_from_db(&key)
+            .await?
             .expect("unchanged key should exist");
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         assert_eq!(state_val_db, expected_state_values[i]);

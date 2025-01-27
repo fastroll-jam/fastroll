@@ -1,7 +1,7 @@
 use crate::state::memory::MemoryError;
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
-use rjam_state::StateManagerError;
+use rjam_state::error::StateManagerError;
 use thiserror::Error;
 
 // PVM Error Codes
