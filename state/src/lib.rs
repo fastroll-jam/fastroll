@@ -1,3 +1,4 @@
+pub mod state_db;
 pub mod test_utils;
 
 use dashmap::DashMap;
@@ -7,7 +8,6 @@ use rjam_crypto::{octets_to_hash32, CryptoError};
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    state_db::{StateDB, StateDBError},
     types::{LeafType, MerkleWriteOp},
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
@@ -20,6 +20,7 @@ use rjam_types::{
     },
 };
 use rocksdb::WriteBatch;
+use state_db::{StateDB, StateDBError};
 use std::{
     cmp::{Ordering, PartialEq},
     collections::HashMap,
@@ -566,12 +567,12 @@ impl StateManager {
         Ok(())
     }
 
-    fn commit_to_merkle_db(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
+    fn commit_to_merkle_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
         self.merkle_db.commit_write_batch(batch)?;
         Ok(())
     }
 
-    fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
+    fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
         self.state_db.commit_write_batch(batch)?;
         Ok(())
     }

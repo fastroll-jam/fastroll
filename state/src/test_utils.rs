@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use crate::StateManager;
+use crate::{state_db::StateDB, StateManager};
 use rand::{thread_rng, Rng};
 use rjam_common::{ByteArray, Hash32};
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
-use rjam_state_merkle::{merkle_db::MerkleDB, state_db::StateDB};
+use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_types::{
     state::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
