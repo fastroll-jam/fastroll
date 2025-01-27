@@ -9,7 +9,10 @@ use rjam_types::{
     state::{Timeslot, TimeslotError},
 };
 use rocksdb::BoundColumnFamily;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -43,7 +46,7 @@ pub struct BlockHeaderDB {
     /// Cache for storing block headers, keyed by timeslot index.
     cache: DashMap<u32, BlockHeader>,
     /// Mutable staging header used for block construction.
-    staging_header: Option<BlockHeader>,
+    staging_header: Mutex<Option<BlockHeader>>,
 }
 
 impl BlockHeaderDB {
@@ -51,7 +54,7 @@ impl BlockHeaderDB {
         Self {
             core,
             cache: DashMap::with_capacity(cache_size),
-            staging_header: None,
+            staging_header: Mutex::new(None),
         }
     }
 
@@ -126,17 +129,18 @@ impl BlockHeaderDB {
             return Err(BlockHeaderDBError::StagingHeaderAlreadyInitialized);
         }
 
-        self.staging_header = Some(BlockHeader::new(parent_hash));
+        let mut guard = self.staging_header.lock().unwrap();
+        *guard = Some(BlockHeader::new(parent_hash));
 
         Ok(())
     }
 
-    pub fn get_staging_header(&self) -> Option<&BlockHeader> {
-        self.staging_header.as_ref()
+    pub fn get_staging_header(&self) -> Option<BlockHeader> {
+        self.staging_header.lock().unwrap().clone()
     }
 
     pub fn assert_staging_header_initialized(&self) -> Result<(), BlockHeaderDBError> {
-        if self.staging_header.is_some() {
+        if self.staging_header.lock().unwrap().is_some() {
             Ok(())
         } else {
             Err(BlockHeaderDBError::StagingHeaderNotInitialized)
@@ -144,14 +148,15 @@ impl BlockHeaderDB {
     }
 
     pub fn drop_staging_header(&mut self) {
-        self.staging_header = None;
+        self.staging_header.lock().unwrap().take();
     }
 
     fn update_staging_header<F>(&mut self, f: F) -> Result<(), BlockHeaderDBError>
     where
         F: FnOnce(&mut BlockHeader),
     {
-        if let Some(ref mut header) = self.staging_header {
+        let mut guard = self.staging_header.lock().unwrap();
+        if let Some(header) = guard.as_mut() {
             f(header);
             Ok(())
         } else {
@@ -160,7 +165,8 @@ impl BlockHeaderDB {
     }
 
     pub async fn commit_staging_header(&mut self) -> Result<(), BlockHeaderDBError> {
-        if let Some(header) = self.staging_header.take() {
+        let maybe_header = self.staging_header.lock().unwrap().take();
+        if let Some(header) = maybe_header {
             self.commit_header(&header).await
         } else {
             Err(BlockHeaderDBError::StagingHeaderNotInitialized)

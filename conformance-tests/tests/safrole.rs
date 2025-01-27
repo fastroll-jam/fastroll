@@ -143,7 +143,7 @@ mod tests {
             }
 
             // Convert RJAM output into ASN Output.
-            let staging_header = header_db.get_staging_header().cloned().unwrap();
+            let staging_header = header_db.get_staging_header().unwrap();
             let curr_header_epoch_marker = staging_header.epoch_marker;
             let curr_header_winning_tickets_marker = staging_header.winning_tickets_marker;
 
