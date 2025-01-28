@@ -45,13 +45,18 @@ pub enum CacheEntryStatus {
 
 #[derive(Debug, Clone)]
 struct CacheEntry {
+    /// Cached snapshot of clean state entry, synchronized with the DB.
+    clean_snapshot: StateEntryType,
+    /// Latest state cache entry value.
     pub value: StateEntryType,
+    /// State cache status (Clean or Dirty).
     pub status: CacheEntryStatus,
 }
 
 impl CacheEntry {
     fn new(value: StateEntryType) -> Self {
         Self {
+            clean_snapshot: value.clone(),
             value,
             status: CacheEntryStatus::Clean,
         }
@@ -65,8 +70,9 @@ impl CacheEntry {
         self.status = CacheEntryStatus::Dirty(state_mut);
     }
 
-    fn mark_clean(&mut self) {
+    fn mark_clean_and_snapshot(&mut self) {
         self.status = CacheEntryStatus::Clean;
+        self.clean_snapshot = self.value.clone(); // snapshot clean value
     }
 
     pub fn as_merkle_state_mut(
@@ -128,7 +134,7 @@ impl StateCache {
     fn mark_entries_clean(&self, dirty_entries: &[(Hash32, CacheEntry)]) {
         for (key, _) in dirty_entries.iter() {
             if let Some(mut entry_mut) = self.inner.get_mut(key) {
-                entry_mut.value_mut().mark_clean();
+                entry_mut.value_mut().mark_clean_and_snapshot();
             }
         }
     }
@@ -145,6 +151,10 @@ macro_rules! impl_simple_state_accessors {
         paste::paste! {
             pub async fn [<get_ $fn_type>](&self) -> Result<$state_type, StateManagerError> {
                 self.get_simple_state_entry().await
+            }
+
+            pub async fn [<get_ $fn_type _clean>](&self) -> Result<$state_type, StateManagerError> {
+                self.get_clean_simple_state_entry().await
             }
 
             pub async fn [<with_mut_ $fn_type>]<F>(
@@ -166,6 +176,7 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
+    /// Always retrieves state entry from the DB for test purpose.
     pub async fn get_raw_state_entry_from_db(
         &self,
         state_key: &Hash32,
@@ -178,7 +189,7 @@ impl StateManager {
         state_key: &Hash32,
         state_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
-        // Ensure the cache entry doesn't exist.
+        // State entry must not exist to be added
         let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
         if state_exists {
             return Err(StateManagerError::StateEntryAlreadyExists);
@@ -187,6 +198,7 @@ impl StateManager {
         self.cache.insert(
             *state_key,
             CacheEntry {
+                clean_snapshot: StateEntryType::Raw(state_val.clone()),
                 value: StateEntryType::Raw(state_val),
                 status: CacheEntryStatus::Dirty(StateMut::Add),
             },
@@ -199,39 +211,88 @@ impl StateManager {
         state_key: &Hash32,
         new_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
-        // Ensure the cache entry exists.
-        let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
-        if !state_exists {
-            return Err(StateManagerError::StateKeyNotInitialized);
+        // State entry must exist to be updated
+        match self.get_raw_state_entry_from_db(state_key).await? {
+            Some(old_state) => {
+                self.cache.insert(
+                    *state_key,
+                    CacheEntry {
+                        clean_snapshot: StateEntryType::Raw(old_state),
+                        value: StateEntryType::Raw(new_val),
+                        status: CacheEntryStatus::Dirty(StateMut::Update),
+                    },
+                );
+                Ok(())
+            }
+            None => Err(StateManagerError::StateKeyNotInitialized),
         }
-
-        self.cache.insert(
-            *state_key,
-            CacheEntry {
-                value: StateEntryType::Raw(new_val),
-                status: CacheEntryStatus::Dirty(StateMut::Update),
-            },
-        );
-        Ok(())
     }
 
     pub async fn remove_raw_state_entry(
         &self,
         state_key: &Hash32,
     ) -> Result<(), StateManagerError> {
-        // Ensure the cache entry exists.
-        let state_exists = self.get_raw_state_entry_from_db(state_key).await?.is_some();
-        if !state_exists {
-            return Err(StateManagerError::StateKeyNotInitialized);
+        // State entry must exist to be removed
+        match self.get_raw_state_entry_from_db(state_key).await? {
+            Some(old_state) => {
+                self.cache.insert(
+                    *state_key,
+                    CacheEntry {
+                        value: StateEntryType::Raw(vec![]),
+                        clean_snapshot: StateEntryType::Raw(old_state),
+                        status: CacheEntryStatus::Dirty(StateMut::Remove),
+                    },
+                );
+                Ok(())
+            }
+            None => Err(StateManagerError::StateKeyNotInitialized),
         }
+    }
 
-        let mut cache_entry = self
+    fn get_clean_cache_snapshot_as_state<T>(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<T>, StateManagerError>
+    where
+        T: StateComponent,
+    {
+        if let Some(entry) = self.cache.get(state_key) {
+            if let Some(state_entry) = T::from_entry_type(&entry.clean_snapshot) {
+                return Ok(Some(state_entry.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn get_cache_entry_as_state<T>(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<T>, StateManagerError>
+    where
+        T: StateComponent,
+    {
+        if let Some(entry) = self.cache.get(state_key) {
+            if let Some(state_entry) = T::from_entry_type(&entry.value) {
+                return Ok(Some(state_entry.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn is_cache_entry_dirty(&self, state_key: &Hash32) -> Result<bool, StateManagerError> {
+        let entry = self
             .cache
-            .get_mut(state_key)
+            .get(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
+        Ok(entry.is_dirty())
+    }
 
-        cache_entry.mark_dirty(StateMut::Remove);
-        Ok(())
+    fn insert_clean_cache_entry_and_snapshot<T>(&self, state_key: &Hash32, state_entry: T)
+    where
+        T: StateComponent,
+    {
+        self.cache
+            .insert(*state_key, CacheEntry::new(T::into_entry_type(state_entry)));
     }
 
     pub fn clear_state_cache(&self) {
@@ -435,7 +496,7 @@ impl StateManager {
             }
 
             // Mark committed entry as clean
-            cache_entry.value_mut().mark_clean();
+            cache_entry.value_mut().mark_clean_and_snapshot();
 
             return Ok(());
         }
@@ -478,7 +539,7 @@ impl StateManager {
         // );
 
         // Mark committed entry as clean
-        cache_entry.value_mut().mark_clean();
+        cache_entry.value_mut().mark_clean_and_snapshot();
 
         Ok(())
     }
@@ -567,32 +628,29 @@ impl StateManager {
         Ok(())
     }
 
-    pub fn get_cache_entry<T>(&self, state_key: &Hash32) -> Result<Option<T>, StateManagerError>
+    /// Gets a state entry prior to state mutation, by either referencing `clean_snapshot` of
+    /// state cache or directly retrieving the clean value from the DB.
+    async fn get_clean_state_entry_internal<T>(
+        &self,
+        state_key: &Hash32,
+    ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
     {
-        if let Some(entry) = self.cache.get(state_key) {
-            if let Some(state_entry) = T::from_entry_type(&entry.value) {
-                return Ok(Some(state_entry.clone()));
-            }
+        // Check the cache
+        if let Some(clean_snapshot) = self.get_clean_cache_snapshot_as_state(state_key)? {
+            return Ok(Some(clean_snapshot));
         }
-        Ok(None)
-    }
 
-    pub fn is_cache_entry_dirty(&self, state_key: &Hash32) -> Result<bool, StateManagerError> {
-        let entry = self
-            .cache
-            .get(state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-        Ok(entry.is_dirty())
-    }
+        // Retrieve the state from the DB
+        let Some(state_data) = self.retrieve_state_encoded(state_key).await? else {
+            return Ok(None);
+        };
 
-    fn insert_clean_cache_entry<T>(&self, state_key: &Hash32, state_entry: T)
-    where
-        T: StateComponent,
-    {
-        let cache_entry = CacheEntry::new(T::into_entry_type(state_entry));
-        self.cache.insert(*state_key, cache_entry);
+        let state_entry = T::decode(&mut state_data.as_slice())?;
+        // Insert the entry into the cache
+        self.insert_clean_cache_entry_and_snapshot(state_key, state_entry.clone());
+        Ok(Some(state_entry))
     }
 
     async fn get_state_entry_internal<T>(
@@ -603,8 +661,8 @@ impl StateManager {
         T: StateComponent,
     {
         // Check the cache
-        if let Some(entry) = self.get_cache_entry(state_key)? {
-            return Ok(Some(entry));
+        if let Some(state_entry) = self.get_cache_entry_as_state(state_key)? {
+            return Ok(Some(state_entry));
         }
 
         // Retrieve the state from the DB
@@ -614,7 +672,7 @@ impl StateManager {
 
         let state_entry = T::decode(&mut state_data.as_slice())?;
         // Insert the entry into the cache
-        self.insert_clean_cache_entry(state_key, state_entry.clone());
+        self.insert_clean_cache_entry_and_snapshot(state_key, state_entry.clone());
         Ok(Some(state_entry))
     }
 
@@ -633,21 +691,17 @@ impl StateManager {
             return Err(StateManagerError::WrongStateMutType);
         }
 
-        // Ensure the cache entry exists.
-        // `StateMut::Update` and `StateMut::Remove` operations require initialized state entry.
-        // Note: this only checks if the state entry is found either in the cache or the db.
         let state_exists = self
             .get_state_entry_internal::<T>(state_key)
             .await?
             .is_some();
-        if !state_exists {
-            return Err(StateManagerError::StateKeyNotInitialized);
-        }
 
-        let mut cache_entry = self
-            .cache
-            .get_mut(state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        let mut cache_entry = if state_exists {
+            // At this point, it is obvious that an entry corresponding to the `old_state` exists.
+            self.cache.get_mut(state_key).expect("should exist")
+        } else {
+            return Err(StateManagerError::StateKeyNotInitialized);
+        };
 
         if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
             f(entry_mut); // Call the closure to apply the state mutation
@@ -662,7 +716,6 @@ impl StateManager {
             } else {
                 cache_entry.mark_dirty(state_mut);
             }
-
             Ok(())
         } else {
             Err(StateManagerError::UnexpectedEntryType)
@@ -677,7 +730,7 @@ impl StateManager {
     where
         T: StateComponent,
     {
-        // Ensure the cache entry doesn't exist.
+        // Ensure the state entry doesn't exist.
         let state_exists = self
             .get_state_entry_internal::<T>(state_key)
             .await?
@@ -687,15 +740,26 @@ impl StateManager {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
 
+        let state_entry_type = state_entry.into_entry_type();
         self.cache.insert(
             *state_key,
             CacheEntry {
-                value: state_entry.into_entry_type(),
+                clean_snapshot: state_entry_type.clone(),
+                value: state_entry_type,
                 status: CacheEntryStatus::Dirty(StateMut::Add),
             },
         );
 
         Ok(())
+    }
+
+    async fn get_clean_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
+    where
+        T: SimpleStateComponent,
+    {
+        self.get_clean_state_entry_internal(&get_simple_state_key(T::STATE_KEY_CONSTANT))
+            .await?
+            .ok_or(StateManagerError::StateKeyNotInitialized) // simple state key must be initialized
     }
 
     async fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
