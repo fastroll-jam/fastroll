@@ -3,6 +3,7 @@ use rjam_common::Ed25519PubKey;
 use rjam_extrinsics::validation::disputes::DisputesXtValidator;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::disputes::DisputesXt, state::timeslot::Timeslot};
+use std::sync::Arc;
 
 /// State transition function of `Disputes`.
 ///
@@ -13,11 +14,11 @@ use rjam_types::{extrinsics::disputes::DisputesXt, state::timeslot::Timeslot};
 /// adds them to the `punish set`, ensuring that the effective punishments can be taken against the
 /// identified culprits and faults.
 pub async fn transition_disputes(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     disputes_xt: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let disputes_validator = DisputesXtValidator::new(state_manager);
+    let disputes_validator = DisputesXtValidator::new(&state_manager);
     disputes_validator
         .validate(disputes_xt, prior_timeslot)
         .await?;

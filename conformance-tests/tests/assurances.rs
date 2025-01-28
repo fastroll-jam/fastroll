@@ -15,6 +15,7 @@ mod tests {
         state::{reports::transition_reports_clear_availables, timeslot::transition_timeslot},
     };
     use rjam_types::state::{ActiveSet, PendingReports, Timeslot};
+    use std::sync::Arc;
 
     struct AssurancesTest;
 
@@ -31,7 +32,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_pending_reports =
@@ -61,12 +62,12 @@ mod tests {
         }
 
         async fn run_state_transition(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_timeslot(state_manager, &jam_input.timeslot).await?;
+            transition_timeslot(state_manager.clone(), &jam_input.timeslot).await?;
 
             let removed_reports = transition_reports_clear_availables(
                 state_manager,
@@ -96,7 +97,7 @@ mod tests {
         }
 
         async fn extract_post_state(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {

@@ -2,6 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use rjam_conformance_tests::harness::run_test_case;
+    use std::sync::Arc;
 
     use rjam_common::ByteArray;
     use rjam_conformance_tests::{
@@ -30,7 +31,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_block_history = BlockHistory::from(test_pre_state.beta.clone());
@@ -63,13 +64,16 @@ mod tests {
         }
 
         async fn run_state_transition(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
-            transition_block_history_parent_root(state_manager, jam_input.parent_state_root)
-                .await?;
+            transition_block_history_parent_root(
+                state_manager.clone(),
+                jam_input.parent_state_root,
+            )
+            .await?;
 
             // Second transition: Append new history entry.
             transition_block_history_append(
@@ -96,7 +100,7 @@ mod tests {
         }
 
         async fn extract_post_state(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             _pre_state: &Self::State,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {

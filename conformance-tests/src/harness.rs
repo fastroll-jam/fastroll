@@ -7,6 +7,7 @@ use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -42,13 +43,13 @@ pub trait StateTransitionTest {
 
     async fn load_pre_state(
         test_pre_state: &Self::State,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
     ) -> Result<(), StateManagerError>;
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError>;
 
     async fn run_state_transition(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         header_db: &mut BlockHeaderDB,
         jam_input: &Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError>;
@@ -62,7 +63,7 @@ pub trait StateTransitionTest {
     ) -> Self::Output;
 
     async fn extract_post_state(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         pre_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError>;
@@ -75,9 +76,10 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // init state manager and header db
     let (mut header_db, state_manager) = T::init_db_and_manager();
+    let state_manager = Arc::new(state_manager);
 
     // load pre-state to the cache and the DB
-    T::load_pre_state(&test_case.pre_state, &state_manager).await?;
+    T::load_pre_state(&test_case.pre_state, state_manager.clone()).await?;
 
     // commit the pre-state into the DB
     state_manager.commit_dirty_cache().await?;
@@ -90,7 +92,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // run state transitions
     let transition_result =
-        T::run_state_transition(&state_manager, &mut header_db, &jam_input).await;
+        T::run_state_transition(state_manager.clone(), &mut header_db, &jam_input).await;
 
     let (maybe_transition_output, maybe_error_code) = match transition_result {
         Ok(transition_output) => (Some(transition_output), None),
@@ -105,7 +107,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // compare the actual and the expected post state
     let post_state =
-        T::extract_post_state(&state_manager, &test_case.pre_state, &maybe_error_code).await?;
+        T::extract_post_state(state_manager, &test_case.pre_state, &maybe_error_code).await?;
     assert_eq!(post_state, test_case.post_state);
 
     // compare the output

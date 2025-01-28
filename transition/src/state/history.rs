@@ -3,6 +3,7 @@ use rjam_common::Hash32;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
+use std::sync::Arc;
 
 /// State transition function of `BlockHistory`, updating the parent block's state root.
 ///
@@ -14,7 +15,7 @@ use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
 /// This function performs the necessary update to reflect the correct parent state root
 /// before accumulation occurs for the current block.
 pub async fn transition_block_history_parent_root(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     root: Hash32,
 ) -> Result<(), TransitionError> {
     let history = state_manager.get_block_history().await?;
@@ -43,7 +44,7 @@ pub async fn transition_block_history_parent_root(
 /// exceeds the maximum allowed (`H = 8`), the oldest entry is removed to maintain the length limit,
 /// ensuring only the most recent block history are retained.
 pub async fn transition_block_history_append(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     header_hash: Hash32,
     accumulate_root: Hash32,
     reported_packages: &[ReportedWorkPackage],

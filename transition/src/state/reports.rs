@@ -10,6 +10,7 @@ use rjam_types::{
     extrinsics::{assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt},
     state::*,
 };
+use std::sync::Arc;
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming
 /// the `DisputesXt`.
@@ -23,12 +24,12 @@ use rjam_types::{
 /// `PendingReports`, ensuring that only valid reports remain, which can later be accumulated into
 /// the on-chain state.
 pub async fn transition_reports_eliminate_invalid(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     disputes_xt: &DisputesXt,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     // Validate disputes extrinsic data.
-    let disputes_validator = DisputesXtValidator::new(state_manager);
+    let disputes_validator = DisputesXtValidator::new(&state_manager);
     disputes_validator
         .validate(disputes_xt, prior_timeslot)
         .await?;
@@ -56,12 +57,12 @@ pub async fn transition_reports_eliminate_invalid(
 /// become available for accumulation. Since `PendingReports` holds at most one report per core
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
 pub async fn transition_reports_clear_availables(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     assurances_xt: &AssurancesXt,
     header_parent_hash: &Hash32,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
-    let assurances_validator = AssurancesXtValidator::new(state_manager);
+    let assurances_validator = AssurancesXtValidator::new(&state_manager);
     assurances_validator
         .validate(assurances_xt, header_parent_hash)
         .await?;
@@ -116,12 +117,12 @@ pub async fn transition_reports_clear_availables(
 /// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
 #[allow(clippy::type_complexity)]
 pub async fn transition_reports_update_entries(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     guarantees_xt: &GuaranteesXt,
     current_timeslot: &Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
-    let guarantees_validator = GuaranteesXtValidator::new(state_manager);
+    let guarantees_validator = GuaranteesXtValidator::new(&state_manager);
     let all_guarantor_keys = guarantees_validator
         .validate(guarantees_xt, current_timeslot.slot())
         .await?;

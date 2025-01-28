@@ -1,5 +1,6 @@
 use crate::error::TransitionError;
 use rjam_state::{StateManager, StateMut};
+use std::sync::Arc;
 
 /// State transition function of `ActiveSet`.
 ///
@@ -11,7 +12,7 @@ use rjam_state::{StateManager, StateMut};
 /// ## Per-block transitions
 /// * `kappa`: None.
 pub async fn transition_active_set(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
@@ -35,7 +36,7 @@ pub async fn transition_active_set(
 /// ## Per-block transitions
 /// * `lambda`: None.
 pub async fn transition_past_set(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {

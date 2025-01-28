@@ -8,6 +8,7 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
+    use std::sync::Arc;
 
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{error::StateManagerError, StateManager, StateMut};
@@ -41,7 +42,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_safrole = SafroleState::from(test_pre_state);
@@ -95,7 +96,7 @@ mod tests {
         }
 
         async fn run_state_transition(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
@@ -103,15 +104,19 @@ mod tests {
 
             // Run the chain extension procedure.
             let pre_timeslot = state_manager.get_timeslot().await?;
-            transition_timeslot(state_manager, &jam_input.slot).await?;
+            transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
-            transition_entropy_accumulator(state_manager, epoch_progressed, jam_input.entropy)
-                .await?;
-            transition_past_set(state_manager, epoch_progressed).await?;
-            transition_active_set(state_manager, epoch_progressed).await?;
+            transition_entropy_accumulator(
+                state_manager.clone(),
+                epoch_progressed,
+                jam_input.entropy,
+            )
+            .await?;
+            transition_past_set(state_manager.clone(), epoch_progressed).await?;
+            transition_active_set(state_manager.clone(), epoch_progressed).await?;
             transition_safrole(
-                state_manager,
+                state_manager.clone(),
                 &pre_timeslot,
                 epoch_progressed,
                 &jam_input.extrinsic,
@@ -156,7 +161,7 @@ mod tests {
         }
 
         async fn extract_post_state(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {

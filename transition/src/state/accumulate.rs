@@ -3,10 +3,11 @@ use rjam_common::EPOCH_LENGTH;
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, map_segment_roots};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{common::workloads::WorkReport, state::*};
+use std::sync::Arc;
 
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     accumulatable_reports: &[WorkReport],    // W^*
     accumulated_reports: usize,              // n
     deferred_reports: &[DeferredWorkReport], // W^Q
@@ -52,7 +53,7 @@ pub async fn transition_accumulate_queue(
 
 /// State transition function of `AccumulateHistory`.
 pub async fn transition_accumulate_history(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     accumulatable_reports: &[WorkReport], // W^*
     accumulated_reports: usize,           // n
 ) -> Result<(), TransitionError> {

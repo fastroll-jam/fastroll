@@ -2,6 +2,7 @@ use crate::error::TransitionError;
 use rjam_common::{CoreIndex, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::timeslot::Timeslot};
+use std::sync::Arc;
 
 /// State transition function of `AuthPool`.
 ///
@@ -13,7 +14,7 @@ use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::timeslot::Timeslot
 /// hash in the queue is added to the pool. If no guarantee exists, the next authorizer hash is still
 /// added to the pool, discarding the oldest entry from the pool if it is full.
 pub async fn transition_auth_pool(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     guarantees_xt: &GuaranteesXt,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {

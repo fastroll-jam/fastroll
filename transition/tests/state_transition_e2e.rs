@@ -20,7 +20,7 @@ use rjam_transition::{
     },
 };
 use rjam_types::{block::header::BlockHeader, extrinsics::Extrinsics, state::ReportedWorkPackage};
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
@@ -30,6 +30,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Initialize DB
     let (mut header_db, state_manager) = init_db_and_manager(Some(parent_hash));
+    let state_manager = Arc::new(state_manager);
     add_all_simple_state_entries(&state_manager).await?;
     state_manager.commit_dirty_cache().await?;
 
@@ -50,7 +51,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let author_index = 0;
 
     // Timeslot STF
-    transition_timeslot(&state_manager, &header_timeslot).await?;
+    transition_timeslot(state_manager.clone(), &header_timeslot).await?;
 
     // Epoch progress check
     let curr_timeslot = state_manager.get_timeslot().await?;
@@ -59,28 +60,37 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Disputes STF
     let pre_timeslot = state_manager.get_timeslot().await?;
     let offenders_marker = disputes_xt.collect_offender_keys();
-    transition_reports_eliminate_invalid(&state_manager, &disputes_xt, &pre_timeslot).await?;
-    transition_disputes(&state_manager, &disputes_xt, &pre_timeslot).await?;
+    transition_reports_eliminate_invalid(state_manager.clone(), &disputes_xt, &pre_timeslot)
+        .await?;
+    transition_disputes(state_manager.clone(), &disputes_xt, &pre_timeslot).await?;
     header_db.set_offenders_marker(&offenders_marker)?;
 
     // Assurances STF
     let _removed_reports =
-        transition_reports_clear_availables(&state_manager, &assurances_xt, &parent_hash).await?;
+        transition_reports_clear_availables(state_manager.clone(), &assurances_xt, &parent_hash)
+            .await?;
 
     // Reports STF
     let (_reported, _reporters) =
-        transition_reports_update_entries(&state_manager, &guarantees_xt, &curr_timeslot).await?;
+        transition_reports_update_entries(state_manager.clone(), &guarantees_xt, &curr_timeslot)
+            .await?;
 
     // Authorizer STF
-    transition_auth_pool(&state_manager, &guarantees_xt, &header_timeslot).await?;
+    transition_auth_pool(state_manager.clone(), &guarantees_xt, &header_timeslot).await?;
 
     // Safrole STF
     let input_entropy = Hash32::default();
-    transition_entropy_accumulator(&state_manager, epoch_progressed, input_entropy).await?;
-    transition_past_set(&state_manager, epoch_progressed).await?;
-    transition_active_set(&state_manager, epoch_progressed).await?;
-    transition_safrole(&state_manager, &pre_timeslot, epoch_progressed, &tickets_xt).await?;
-    let markers = mark_safrole_header_markers(&state_manager, epoch_progressed).await?;
+    transition_entropy_accumulator(state_manager.clone(), epoch_progressed, input_entropy).await?;
+    transition_past_set(state_manager.clone(), epoch_progressed).await?;
+    transition_active_set(state_manager.clone(), epoch_progressed).await?;
+    transition_safrole(
+        state_manager.clone(),
+        &pre_timeslot,
+        epoch_progressed,
+        &tickets_xt,
+    )
+    .await?;
+    let markers = mark_safrole_header_markers(state_manager.clone(), epoch_progressed).await?;
     if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
         header_db.set_epoch_marker(epoch_marker)?;
     }
@@ -94,9 +104,9 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let reported_packages: Vec<ReportedWorkPackage> = vec![];
 
     // Block History STF
-    transition_block_history_parent_root(&state_manager, header_parent_state_root).await?;
+    transition_block_history_parent_root(state_manager.clone(), header_parent_state_root).await?;
     transition_block_history_append(
-        &state_manager,
+        state_manager.clone(),
         header_hash,
         accumulate_root,
         &reported_packages,
@@ -104,7 +114,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     .await?;
 
     // ValidatorStats STF
-    transition_validator_stats(&state_manager, epoch_progressed, author_index, &xt_cloned).await?;
+    transition_validator_stats(state_manager, epoch_progressed, author_index, &xt_cloned).await?;
 
     // TODO: Block sealing, PVM Invocation
     Ok(())

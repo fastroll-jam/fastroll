@@ -1,6 +1,7 @@
 use crate::error::TransitionError;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::state::timeslot::Timeslot;
+use std::sync::Arc;
 
 /// State transition function of `Timeslot`.
 ///
@@ -9,7 +10,7 @@ use rjam_types::state::timeslot::Timeslot;
 /// ## Per-block transitions
 /// * `tau`: Sets the most recent timeslot value to the header timeslot index.
 pub async fn transition_timeslot(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.

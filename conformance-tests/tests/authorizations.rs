@@ -2,6 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use rjam_conformance_tests::harness::run_test_case;
+    use std::sync::Arc;
 
     use rjam_conformance_tests::{
         asn_types::authorizations::*, generate_typed_tests, harness::StateTransitionTest,
@@ -29,7 +30,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
@@ -54,7 +55,7 @@ mod tests {
         }
 
         async fn run_state_transition(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
@@ -76,7 +77,7 @@ mod tests {
         }
 
         async fn extract_post_state(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             _pre_state: &Self::State,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {

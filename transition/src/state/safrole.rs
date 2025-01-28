@@ -4,6 +4,7 @@ use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{error::XtValidationError::*, tickets::TicketsXtValidator};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
+use std::sync::Arc;
 
 /// State transition function of `SafroleState`.
 ///
@@ -23,13 +24,13 @@ use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
 /// * `gamma_s`: None.
 /// * `gamma_a`: Accumulates new tickets.
 pub async fn transition_safrole(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
     epoch_progressed: bool,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        handle_new_epoch_transition(state_manager, prior_timeslot).await?;
+        handle_new_epoch_transition(state_manager.clone(), prior_timeslot).await?;
     }
 
     // Ticket accumulator transition
@@ -39,7 +40,7 @@ pub async fn transition_safrole(
 }
 
 async fn handle_new_epoch_transition(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let current_punish_set = state_manager.get_disputes().await?.punish_set;
@@ -102,7 +103,7 @@ fn update_slot_sealers(
 }
 
 async fn handle_ticket_accumulation(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if tickets_xt.is_empty() {
@@ -118,7 +119,7 @@ async fn handle_ticket_accumulation(
     }
 
     // Validate ticket extrinsic data.
-    let ticket_validator = TicketsXtValidator::new(state_manager);
+    let ticket_validator = TicketsXtValidator::new(&state_manager);
     ticket_validator.validate(tickets_xt).await?;
 
     // Construct new tickets from ticket extrinsics.

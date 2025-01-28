@@ -7,6 +7,7 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
+    use std::sync::Arc;
 
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{error::StateManagerError, StateManager};
@@ -31,7 +32,7 @@ mod tests {
 
         async fn load_pre_state(
             test_pre_state: &Self::State,
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_disputes = DisputesState::from(test_pre_state.psi.clone());
@@ -60,7 +61,7 @@ mod tests {
         }
 
         async fn run_state_transition(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             header_db: &mut BlockHeaderDB,
             jam_input: &Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
@@ -69,7 +70,8 @@ mod tests {
             let offenders_marker = disputes.collect_offender_keys();
 
             // Run state transitions.
-            transition_reports_eliminate_invalid(state_manager, disputes, &pre_timeslot).await?;
+            transition_reports_eliminate_invalid(state_manager.clone(), disputes, &pre_timeslot)
+                .await?;
             transition_disputes(state_manager, disputes, &pre_timeslot).await?;
             header_db.set_offenders_marker(&offenders_marker)?;
 
@@ -101,7 +103,7 @@ mod tests {
         }
 
         async fn extract_post_state(
-            state_manager: &StateManager,
+            state_manager: Arc<StateManager>,
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {

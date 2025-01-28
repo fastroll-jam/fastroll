@@ -2,6 +2,7 @@ use crate::error::TransitionError;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_state::{StateManager, StateMut};
+use std::sync::Arc;
 
 /// State transition function of `EntropyAccumulator`.
 ///
@@ -13,7 +14,7 @@ use rjam_state::{StateManager, StateMut};
 /// ## Per-block transitions
 /// * `eta`: Accumulates the VRF output hash of the current block header to the current entropy state.
 pub async fn transition_entropy_accumulator(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     epoch_progressed: bool,
     source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {

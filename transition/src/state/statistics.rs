@@ -3,16 +3,17 @@ use rjam_common::ValidatorIndex;
 use rjam_extrinsics::validation::error::XtValidationError::InvalidValidatorIndex;
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::Extrinsics, state::validators::get_validator_ed25519_key_by_index};
+use std::sync::Arc;
 
 /// State transition function of `ValidatorStats`
 pub async fn transition_validator_stats(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     epoch_progressed: bool,
     header_block_author_index: ValidatorIndex,
     xts: &Extrinsics,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        handle_new_epoch_transition(state_manager).await?;
+        handle_new_epoch_transition(state_manager.clone()).await?;
     }
 
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
@@ -21,7 +22,9 @@ pub async fn transition_validator_stats(
     Ok(())
 }
 
-async fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(), TransitionError> {
+async fn handle_new_epoch_transition(
+    state_manager: Arc<StateManager>,
+) -> Result<(), TransitionError> {
     let prior_validator_stats = state_manager.get_validator_stats().await?;
     let prior_current_epoch_stats = prior_validator_stats.current_epoch_stats();
 
@@ -36,7 +39,7 @@ async fn handle_new_epoch_transition(state_manager: &StateManager) -> Result<(),
 }
 
 async fn handle_stats_accumulation(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     header_block_author_index: ValidatorIndex,
     xts: &Extrinsics,
 ) -> Result<(), TransitionError> {
