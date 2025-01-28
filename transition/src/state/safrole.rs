@@ -44,7 +44,7 @@ async fn handle_new_epoch_transition(
     prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let current_punish_set = state_manager.get_disputes().await?.punish_set;
-    let mut prior_staging_set = state_manager.get_staging_set().await?;
+    let mut prior_staging_set = state_manager.get_staging_set_clean().await?;
 
     // Remove punished validators from the staging set (iota).
     prior_staging_set.nullify_punished_validators(&current_punish_set);
@@ -127,7 +127,7 @@ async fn handle_ticket_accumulation(
 
     // Check if the ticket accumulator contains the new ticket entry.
     // If not, accumulate the new ticket entry into the accumulator.
-    let mut curr_ticket_accumulator = state_manager.get_safrole().await?.ticket_accumulator;
+    let mut curr_ticket_accumulator = state_manager.get_safrole_clean().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
             return Err(TransitionError::XtValidationError(DuplicateTicket));

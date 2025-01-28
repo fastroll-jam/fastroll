@@ -16,7 +16,7 @@ pub async fn transition_active_set(
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        let prior_pending_set = state_manager.get_safrole().await?.pending_set;
+        let prior_pending_set = state_manager.get_safrole_clean().await?.pending_set;
         state_manager
             .with_mut_active_set(StateMut::Update, |active_set| {
                 active_set.0 = prior_pending_set;
@@ -40,7 +40,7 @@ pub async fn transition_past_set(
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        let prior_active_set = state_manager.get_active_set().await?;
+        let prior_active_set = state_manager.get_active_set_clean().await?;
         state_manager
             .with_mut_past_set(StateMut::Update, |past_set| {
                 past_set.0 = prior_active_set.0;

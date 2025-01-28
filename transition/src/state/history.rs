@@ -18,7 +18,7 @@ pub async fn transition_block_history_parent_root(
     state_manager: Arc<StateManager>,
     root: Hash32,
 ) -> Result<(), TransitionError> {
-    let history = state_manager.get_block_history().await?;
+    let history = state_manager.get_block_history_clean().await?;
     if history.0.is_empty() {
         return Ok(());
     }
