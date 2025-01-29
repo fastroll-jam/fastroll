@@ -21,6 +21,7 @@ use rjam_transition::{
 };
 use rjam_types::{block::header::BlockHeader, extrinsics::Extrinsics, state::ReportedWorkPackage};
 use std::{error::Error, sync::Arc};
+use tokio::join;
 
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
@@ -44,59 +45,100 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let guarantees_xt = xt.guarantees;
     let tickets_xt = xt.tickets;
 
-    // Header fields
-    let pre_timeslot = state_manager.get_timeslot().await?;
+    // Prepare Header Fields
+    let prev_timeslot = state_manager.get_timeslot().await?;
     let header_timeslot = header_db.set_timeslot()?;
     let header_parent_state_root = state_manager.merkle_root(); // Assuming commitment of the parent stat is done here.
     let author_index = 0;
 
     // Timeslot STF
-    transition_timeslot(state_manager.clone(), &header_timeslot).await?;
+    let state_manager_cloned = state_manager.clone();
+    tokio::spawn(async move {
+        transition_timeslot(state_manager_cloned, &header_timeslot)
+            .await
+            .unwrap();
+    })
+    .await?;
 
     // Epoch progress check
     let curr_timeslot = state_manager.get_timeslot().await?;
-    let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
+    let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
 
     // Disputes STF
-    let pre_timeslot = state_manager.get_timeslot().await?;
-    let offenders_marker = disputes_xt.collect_offender_keys();
-    transition_reports_eliminate_invalid(state_manager.clone(), &disputes_xt, &pre_timeslot)
-        .await?;
-    transition_disputes(state_manager.clone(), &disputes_xt, &pre_timeslot).await?;
-    header_db.set_offenders_marker(&offenders_marker)?;
+    let state_manager_cloned = state_manager.clone();
+    let disputes_xt_cloned = disputes_xt.clone();
+    let disputes_jh = tokio::spawn(async move {
+        let offenders_marker = disputes_xt_cloned.collect_offender_keys();
+        transition_disputes(state_manager_cloned, &disputes_xt_cloned, &prev_timeslot)
+            .await
+            .unwrap();
 
-    // Assurances STF
-    let _removed_reports =
-        transition_reports_clear_availables(state_manager.clone(), &assurances_xt, &parent_hash)
-            .await?;
+        offenders_marker
+    });
+
+    // Entropy STF
+    let input_entropy = Hash32::default();
+    let state_manager_cloned = state_manager.clone();
+    let entropy_jh = tokio::spawn(async move {
+        transition_entropy_accumulator(
+            state_manager_cloned.clone(),
+            epoch_progressed,
+            input_entropy,
+        )
+        .await
+        .unwrap();
+    });
+
+    // PastSet STF
+    let state_manager_cloned = state_manager.clone();
+    let past_set_jh = tokio::spawn(async move {
+        transition_past_set(state_manager_cloned, epoch_progressed)
+            .await
+            .unwrap();
+    });
+
+    // ActiveSet STF
+    let state_manager_cloned = state_manager.clone();
+    let active_set_jh = tokio::spawn(async move {
+        transition_active_set(state_manager_cloned, epoch_progressed)
+            .await
+            .unwrap();
+    });
 
     // Reports STF
-    let (_reported, _reporters) =
-        transition_reports_update_entries(state_manager.clone(), &guarantees_xt, &curr_timeslot)
-            .await?;
+    let state_manager_cloned = state_manager.clone();
+    let guarantees_xt_cloned = guarantees_xt.clone();
+    let reports_jh = tokio::spawn(async move {
+        transition_reports_eliminate_invalid(
+            state_manager_cloned.clone(),
+            &disputes_xt,
+            &prev_timeslot,
+        )
+        .await
+        .unwrap();
+        let _removed_reports = transition_reports_clear_availables(
+            state_manager_cloned.clone(),
+            &assurances_xt,
+            &parent_hash,
+        )
+        .await
+        .unwrap();
+        let (_reported, _reporters) = transition_reports_update_entries(
+            state_manager_cloned,
+            &guarantees_xt_cloned,
+            &curr_timeslot,
+        )
+        .await
+        .unwrap();
+    });
 
     // Authorizer STF
-    transition_auth_pool(state_manager.clone(), &guarantees_xt, &header_timeslot).await?;
-
-    // Safrole STF
-    let input_entropy = Hash32::default();
-    transition_entropy_accumulator(state_manager.clone(), epoch_progressed, input_entropy).await?;
-    transition_past_set(state_manager.clone(), epoch_progressed).await?;
-    transition_active_set(state_manager.clone(), epoch_progressed).await?;
-    transition_safrole(
-        state_manager.clone(),
-        &pre_timeslot,
-        epoch_progressed,
-        &tickets_xt,
-    )
-    .await?;
-    let markers = mark_safrole_header_markers(state_manager.clone(), epoch_progressed).await?;
-    if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
-        header_db.set_epoch_marker(epoch_marker)?;
-    }
-    if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
-        header_db.set_winning_tickets_marker(winning_tickets_marker)?;
-    }
+    let state_manager_cloned = state_manager.clone();
+    let auth_pool_jh = tokio::spawn(async move {
+        transition_auth_pool(state_manager_cloned, &guarantees_xt, &header_timeslot)
+            .await
+            .unwrap();
+    });
 
     // Block summary
     let header_hash = Hash32::default();
@@ -104,17 +146,70 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let reported_packages: Vec<ReportedWorkPackage> = vec![];
 
     // Block History STF
-    transition_block_history_parent_root(state_manager.clone(), header_parent_state_root).await?;
-    transition_block_history_append(
-        state_manager.clone(),
-        header_hash,
-        accumulate_root,
-        &reported_packages,
-    )
-    .await?;
+    let state_manager_cloned = state_manager.clone();
+    let history_jh = tokio::spawn(async move {
+        transition_block_history_parent_root(
+            state_manager_cloned.clone(),
+            header_parent_state_root,
+        )
+        .await
+        .unwrap();
+        transition_block_history_append(
+            state_manager_cloned,
+            header_hash,
+            accumulate_root,
+            &reported_packages,
+        )
+        .await
+        .unwrap();
+    });
+
+    // Join: Disputes, Entropy, PastSet, ActiveSet STF (dependencies for Safrole STF)
+    let (offenders_marker, _, _, _) = join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh);
+
+    // Safrole STF
+    let state_manager_cloned = state_manager.clone();
+    let safrole_jh = tokio::spawn(async move {
+        transition_safrole(
+            state_manager_cloned.clone(),
+            &prev_timeslot,
+            epoch_progressed,
+            &tickets_xt,
+        )
+        .await
+        .unwrap();
+        // Return markers
+        mark_safrole_header_markers(state_manager_cloned, epoch_progressed)
+            .await
+            .unwrap()
+    });
 
     // ValidatorStats STF
-    transition_validator_stats(state_manager, epoch_progressed, author_index, &xt_cloned).await?;
+    let state_manager_cloned = state_manager.clone();
+    let stats_jh = tokio::spawn(async move {
+        transition_validator_stats(
+            state_manager_cloned,
+            epoch_progressed,
+            author_index,
+            &xt_cloned,
+        )
+        .await
+        .unwrap();
+    });
+
+    // Join remaining STF tasks
+    let (_, _, _, safrole_markers_result, _) =
+        join!(reports_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh);
+
+    // Set header markers
+    header_db.set_offenders_marker(&offenders_marker?)?;
+    let safrole_markers = safrole_markers_result?;
+    if let Some(epoch_marker) = safrole_markers.epoch_marker.as_ref() {
+        header_db.set_epoch_marker(epoch_marker)?;
+    }
+    if let Some(winning_tickets_marker) = safrole_markers.winning_tickets_marker.as_ref() {
+        header_db.set_winning_tickets_marker(winning_tickets_marker)?;
+    }
 
     // TODO: Block sealing, PVM Invocation
     Ok(())
