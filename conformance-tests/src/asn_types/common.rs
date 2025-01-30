@@ -1649,7 +1649,7 @@ impl From<AssurancesXtEntry> for AsnAvailAssurance {
         }
 
         let mut bytes = rev.to_bytes();
-        let bytes_count = (ASN_CORE_COUNT + 7) / 8;
+        let bytes_count = ASN_CORE_COUNT.div_ceil(8);
         bytes.resize(bytes_count, 0u8);
 
         Self {

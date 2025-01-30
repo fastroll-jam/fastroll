@@ -79,7 +79,10 @@ impl Ord for AssurancesXtEntry {
 
 impl JamEncode for AssurancesXtEntry {
     fn size_hint(&self) -> usize {
-        self.anchor_parent_hash.size_hint() + (CORE_COUNT + 7) / 8 + 2 + self.signature.size_hint()
+        self.anchor_parent_hash.size_hint()
+            + CORE_COUNT.div_ceil(8)
+            + 2
+            + self.signature.size_hint()
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {

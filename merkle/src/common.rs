@@ -22,8 +22,8 @@ pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
         return Ok(data[0].clone());
     }
 
-    let left = node::<H>(&data[..((data.len() + 1) / 2)])?;
-    let right = node::<H>(&data[((data.len() + 1) / 2)..])?;
+    let left = node::<H>(&data[..data.len().div_ceil(2)])?;
+    let right = node::<H>(&data[data.len().div_ceil(2)..])?;
 
     let mut hash_input = Vec::with_capacity(HASH_PREFIX.len() + left.len() + right.len());
     hash_input.extend_from_slice(HASH_PREFIX);

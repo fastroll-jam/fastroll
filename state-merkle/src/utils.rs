@@ -16,7 +16,7 @@ pub(crate) fn bits_encode_msb(data: &[u8]) -> BitVec {
 
 /// The inverse function of `bits` of the GP.
 pub(crate) fn bits_decode_msb(bits: &BitVec) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity((bits.len() + 7) / 8);
+    let mut bytes = Vec::with_capacity(bits.len().div_ceil(8));
     let mut current_byte = 0u8;
     for (i, bit) in bits.iter().enumerate() {
         if bit {

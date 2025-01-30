@@ -351,8 +351,8 @@ impl<T: JamDecode> JamDecode for Vec<T> {
 
 impl JamEncode for BitVec {
     fn size_hint(&self) -> usize {
-        let length_size = ((self.len() + 7) / 8).size_hint();
-        length_size + (self.len() + 7) / 8
+        let length_size = self.len().div_ceil(8).size_hint();
+        length_size + self.len().div_ceil(8)
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -390,7 +390,7 @@ impl JamDecode for BitVec {
         let len = usize::decode(input)?;
         let mut bv = Self::with_capacity(len);
 
-        let byte_count = (len + 7) / 8;
+        let byte_count = len.div_ceil(8);
         for _ in 0..byte_count {
             let byte = input.read_byte()?;
             for i in 0..8 {
@@ -503,7 +503,7 @@ pub trait JamEncodeFixed {
     fn encode_fixed(&self, size: usize) -> Result<Vec<u8>, JamCodecError> {
         let size_in_bytes = match Self::SIZE_UNIT {
             SizeUnit::Bytes => size,
-            SizeUnit::Bits => (size + 7) / 8,
+            SizeUnit::Bits => size.div_ceil(8),
         };
         let mut r = Vec::with_capacity(size_in_bytes);
         self.encode_to_fixed(&mut r, size)?;
@@ -725,7 +725,7 @@ impl JamDecodeFixed for BitVec {
         Self: Sized,
     {
         let mut bv = Self::with_capacity(size_in_bits);
-        let expected_bytes = (size_in_bits + 7) / 8;
+        let expected_bytes = size_in_bits.div_ceil(8);
         let mut bytes_read = 0;
 
         while bytes_read < expected_bytes {
