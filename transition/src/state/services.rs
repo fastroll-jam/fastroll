@@ -25,7 +25,7 @@ use std::collections::HashSet;
 // ///     - host_assign
 // pub async fn transition_accumulate_contexts(
 //     state_manager: &StateManager,
-//     reports: &[WorkReport],
+//     reports: Vec<WorkReport>,
 // ) -> Result<OuterAccumulationResult, TransitionError> {
 //     let always_accumulate_services = &state_manager
 //         .get_privileged_services()
@@ -51,14 +51,14 @@ use std::collections::HashSet;
 /// following the `accumulate` PVM invocation.
 pub async fn transition_on_transfer(
     state_manager: &StateManager,
-    transfers: &[DeferredTransfer],
+    transfers: Vec<DeferredTransfer>,
 ) -> Result<(), TransitionError> {
     // Gather all unique destination addresses.
     let destinations: HashSet<Address> = transfers.iter().map(|t| t.to).collect();
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
-        let selected_transfers = select_deferred_transfers(transfers, destination);
+        let selected_transfers = select_deferred_transfers(&transfers, destination);
         PVMInvocation::on_transfer(state_manager, destination, selected_transfers).await?;
     }
 

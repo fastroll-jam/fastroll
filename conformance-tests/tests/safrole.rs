@@ -98,13 +98,13 @@ mod tests {
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
             header_db: &mut BlockHeaderDB,
-            jam_input: &Self::JamInput,
+            jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // let (input_timeslot, input_header_entropy_hash, input_extrinsic) = jam_input;
 
             // Run the chain extension procedure.
             let pre_timeslot = state_manager.get_timeslot().await?;
-            transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
+            transition_timeslot(state_manager.clone(), jam_input.slot).await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
             transition_entropy_accumulator(
@@ -117,9 +117,9 @@ mod tests {
             transition_active_set(state_manager.clone(), epoch_progressed).await?;
             transition_safrole(
                 state_manager.clone(),
-                &pre_timeslot,
+                pre_timeslot,
                 epoch_progressed,
-                &jam_input.extrinsic,
+                jam_input.extrinsic,
             )
             .await?;
 

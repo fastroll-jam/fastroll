@@ -10,7 +10,7 @@ pub async fn transition_validator_stats(
     state_manager: Arc<StateManager>,
     epoch_progressed: bool,
     header_block_author_index: ValidatorIndex,
-    xts: &Extrinsics,
+    xts: Extrinsics,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone()).await?;
@@ -41,7 +41,7 @@ async fn handle_new_epoch_transition(
 async fn handle_stats_accumulation(
     state_manager: Arc<StateManager>,
     header_block_author_index: ValidatorIndex,
-    xts: &Extrinsics,
+    xts: Extrinsics,
 ) -> Result<(), TransitionError> {
     let current_active_set = state_manager.get_active_set().await?;
 

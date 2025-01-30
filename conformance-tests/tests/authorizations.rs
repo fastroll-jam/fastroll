@@ -57,10 +57,10 @@ mod tests {
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
-            jam_input: &Self::JamInput,
+            jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_auth_pool(state_manager, &jam_input.extrinsic, &jam_input.slot).await?;
+            transition_auth_pool(state_manager, jam_input.extrinsic, jam_input.slot).await?;
             Ok(())
         }
 

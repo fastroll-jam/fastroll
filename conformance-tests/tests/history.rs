@@ -66,7 +66,7 @@ mod tests {
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
-            jam_input: &Self::JamInput,
+            jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
             transition_block_history_parent_root(
@@ -80,7 +80,7 @@ mod tests {
                 state_manager,
                 jam_input.header_hash,
                 jam_input.accumulate_root,
-                &jam_input.reported_packages,
+                jam_input.reported_packages,
             )
             .await?;
 

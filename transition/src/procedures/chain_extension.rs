@@ -33,14 +33,14 @@ pub struct SafroleHeaderMarkers {
 /// 5. Safrole: Updates Safrole state components, including ring root calculation and ticket processing.
 pub async fn chain_extension_procedure(
     state_manager: Arc<StateManager>,
-    header: &BlockHeader,
-    tickets: &TicketsXt,
+    header: BlockHeader,
+    tickets: TicketsXt,
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
     let prior_timeslot = state_manager.get_timeslot().await?;
 
     // Timeslot transition
     let header_timeslot_index = header.timeslot_index;
-    transition_timeslot(state_manager.clone(), &Timeslot::new(header_timeslot_index)).await?;
+    transition_timeslot(state_manager.clone(), Timeslot::new(header_timeslot_index)).await?;
 
     // Determine if the epoch has progressed
     let current_timeslot = state_manager.get_timeslot().await?;
@@ -64,7 +64,7 @@ pub async fn chain_extension_procedure(
     // Safrole transition
     transition_safrole(
         state_manager.clone(),
-        &prior_timeslot,
+        prior_timeslot,
         epoch_progressed,
         tickets,
     )

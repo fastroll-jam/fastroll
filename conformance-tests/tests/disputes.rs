@@ -63,16 +63,20 @@ mod tests {
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
             header_db: &mut BlockHeaderDB,
-            jam_input: &Self::JamInput,
+            jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             let pre_timeslot = state_manager.get_timeslot().await?;
-            let disputes = &jam_input.extrinsic;
+            let disputes = jam_input.extrinsic;
             let offenders_marker = disputes.collect_offender_keys();
 
             // Run state transitions.
-            transition_reports_eliminate_invalid(state_manager.clone(), disputes, &pre_timeslot)
-                .await?;
-            transition_disputes(state_manager, disputes, &pre_timeslot).await?;
+            transition_reports_eliminate_invalid(
+                state_manager.clone(),
+                disputes.clone(),
+                pre_timeslot,
+            )
+            .await?;
+            transition_disputes(state_manager, disputes, pre_timeslot).await?;
             header_db.set_offenders_marker(&offenders_marker)?;
 
             Ok(())

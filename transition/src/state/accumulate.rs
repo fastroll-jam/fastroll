@@ -8,11 +8,11 @@ use std::sync::Arc;
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
     state_manager: Arc<StateManager>,
-    accumulatable_reports: &[WorkReport],    // W^*
-    accumulated_reports: usize,              // n
-    deferred_reports: &[DeferredWorkReport], // W^Q
-    prior_timeslot: &Timeslot,               // tau
-    current_timeslot: &Timeslot,             // tau'
+    accumulatable_reports: Vec<WorkReport>,    // W^*
+    accumulated_reports: usize,                // n
+    deferred_reports: Vec<DeferredWorkReport>, // W^Q
+    prior_timeslot: Timeslot,                  // tau
+    current_timeslot: Timeslot,                // tau'
 ) -> Result<(), TransitionError> {
     // TODO: Check the formal definition of the state transition -
     // TODO: the function `E` takes the history  mapping type as the second argument.
@@ -54,8 +54,8 @@ pub async fn transition_accumulate_queue(
 /// State transition function of `AccumulateHistory`.
 pub async fn transition_accumulate_history(
     state_manager: Arc<StateManager>,
-    accumulatable_reports: &[WorkReport], // W^*
-    accumulated_reports: usize,           // n
+    accumulatable_reports: Vec<WorkReport>, // W^*
+    accumulated_reports: usize,             // n
 ) -> Result<(), TransitionError> {
     assert!(accumulated_reports <= accumulatable_reports.len());
     let last_history = map_segment_roots(&accumulatable_reports[..accumulated_reports]);

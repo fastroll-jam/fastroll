@@ -51,7 +51,7 @@ pub trait StateTransitionTest {
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
         header_db: &mut BlockHeaderDB,
-        jam_input: &Self::JamInput,
+        jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError>;
 
     fn map_error_code(e: TransitionError) -> Self::ErrorCode;
@@ -92,7 +92,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // run state transitions
     let transition_result =
-        T::run_state_transition(state_manager.clone(), &mut header_db, &jam_input).await;
+        T::run_state_transition(state_manager.clone(), &mut header_db, jam_input).await;
 
     let (maybe_transition_output, maybe_error_code) = match transition_result {
         Ok(transition_output) => (Some(transition_output), None),

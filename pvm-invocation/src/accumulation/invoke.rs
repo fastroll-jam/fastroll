@@ -112,7 +112,7 @@ async fn accumulate_parallelized(
 // pub async fn accumulate_outer(
 //     state_manager: &StateManager,
 //     gas_limit: UnsignedGas,
-//     reports: &[WorkReport],
+//     reports: Vec<WorkReport>,
 //     always_accumulate_services: &HashMap<Address, UnsignedGas>,
 // ) -> Result<OuterAccumulationResult, PVMError> {
 //     if reports.is_empty() {

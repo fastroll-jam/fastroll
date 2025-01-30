@@ -62,7 +62,7 @@ mod test {
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
             _header_db: &mut BlockHeaderDB,
-            jam_input: &Self::JamInput,
+            jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
             let pre_timeslot = state_manager.get_timeslot().await?;
@@ -73,7 +73,7 @@ mod test {
                 state_manager,
                 epoch_progressed,
                 jam_input.author_index,
-                &jam_input.extrinsics,
+                jam_input.extrinsics,
             )
             .await?;
             Ok(())
