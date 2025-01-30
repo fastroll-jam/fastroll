@@ -20,11 +20,33 @@ use rjam_transition::{
     },
 };
 use rjam_types::{block::header::BlockHeader, extrinsics::Extrinsics, state::ReportedWorkPackage};
-use std::{error::Error, sync::Arc};
-use tokio::join;
+use std::{error::Error, future::Future, sync::Arc, time::Instant};
+use tokio::{join, task::JoinHandle};
+use tracing::{info, subscriber::set_global_default};
+use tracing_subscriber::{fmt, prelude::*, Registry};
+
+fn spawn_timed<F, T>(task_name: &'static str, fut: F) -> JoinHandle<T>
+where
+    F: Future<Output = T> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::spawn(async move {
+        let start = Instant::now();
+        let result = fut.await;
+        info!(%task_name, "Transitioned in {:?} micros", start.elapsed().as_micros());
+        result
+    })
+}
 
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
+    // Config tracing subscriber
+    let fmt_layer = fmt::layer()
+        .with_target(false)
+        .with_timer(fmt::time::uptime());
+    let sub = Registry::default().with(fmt_layer);
+    set_global_default(sub)?;
+
     // Parent block context
     let parent_block = BlockHeader::default();
     let parent_hash = parent_block.hash()?;
@@ -53,12 +75,10 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Timeslot STF
     let state_manager_cloned = state_manager.clone();
-    tokio::spawn(async move {
-        transition_timeslot(state_manager_cloned, header_timeslot)
-            .await
-            .unwrap();
+    spawn_timed("timeslot_stf", async move {
+        transition_timeslot(state_manager_cloned, header_timeslot).await
     })
-    .await?;
+    .await??;
 
     // Epoch progress check
     let curr_timeslot = state_manager.get_timeslot().await?;
@@ -67,7 +87,8 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Disputes STF
     let state_manager_cloned = state_manager.clone();
     let disputes_xt_cloned = disputes_xt.clone();
-    let disputes_jh = tokio::spawn(async move {
+
+    let disputes_jh = spawn_timed("disputes_stf", async move {
         let offenders_marker = disputes_xt_cloned.collect_offender_keys();
         transition_disputes(state_manager_cloned, disputes_xt_cloned, prev_timeslot)
             .await
@@ -79,7 +100,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Entropy STF
     let input_entropy = Hash32::default();
     let state_manager_cloned = state_manager.clone();
-    let entropy_jh = tokio::spawn(async move {
+    let entropy_jh = spawn_timed("entropy_stf", async move {
         transition_entropy_accumulator(
             state_manager_cloned.clone(),
             epoch_progressed,
@@ -91,7 +112,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // PastSet STF
     let state_manager_cloned = state_manager.clone();
-    let past_set_jh = tokio::spawn(async move {
+    let past_set_jh = spawn_timed("past_set_stf", async move {
         transition_past_set(state_manager_cloned, epoch_progressed)
             .await
             .unwrap();
@@ -99,7 +120,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // ActiveSet STF
     let state_manager_cloned = state_manager.clone();
-    let active_set_jh = tokio::spawn(async move {
+    let active_set_jh = spawn_timed("active_set_stf", async move {
         transition_active_set(state_manager_cloned, epoch_progressed)
             .await
             .unwrap();
@@ -108,7 +129,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Reports STF
     let state_manager_cloned = state_manager.clone();
     let guarantees_xt_cloned = guarantees_xt.clone();
-    let reports_jh = tokio::spawn(async move {
+    let reports_jh = spawn_timed("reports_stf", async move {
         transition_reports_eliminate_invalid(
             state_manager_cloned.clone(),
             disputes_xt,
@@ -134,7 +155,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Authorizer STF
     let state_manager_cloned = state_manager.clone();
-    let auth_pool_jh = tokio::spawn(async move {
+    let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
         transition_auth_pool(state_manager_cloned, guarantees_xt, header_timeslot)
             .await
             .unwrap();
@@ -147,7 +168,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Block History STF
     let state_manager_cloned = state_manager.clone();
-    let history_jh = tokio::spawn(async move {
+    let history_jh = spawn_timed("history_stf", async move {
         transition_block_history_parent_root(
             state_manager_cloned.clone(),
             header_parent_state_root,
@@ -169,7 +190,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Safrole STF
     let state_manager_cloned = state_manager.clone();
-    let safrole_jh = tokio::spawn(async move {
+    let safrole_jh = spawn_timed("safrole_stf", async move {
         transition_safrole(
             state_manager_cloned.clone(),
             prev_timeslot,
@@ -186,7 +207,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // ValidatorStats STF
     let state_manager_cloned = state_manager.clone();
-    let stats_jh = tokio::spawn(async move {
+    let stats_jh = spawn_timed("stats_stf", async move {
         transition_validator_stats(
             state_manager_cloned,
             epoch_progressed,
