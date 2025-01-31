@@ -7,7 +7,7 @@ use crate::{
 };
 use rjam_common::Address;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Register {
     pub value: RegValue,
 }

@@ -44,9 +44,9 @@ struct ExtendedInvocationResult {
 /// Main stateful PVM struct
 #[derive(Default)]
 pub struct PVM {
-    state: VMState,
-    program_blob: Vec<u8>,       // serialization of `PVM.program`
-    program_state: ProgramState, // initialized in the general invocation `Ψ`
+    pub state: VMState,
+    pub program_blob: Vec<u8>,       // serialization of `PVM.program`
+    pub program_state: ProgramState, // initialized in the general invocation `Ψ`
 }
 
 impl PVM {

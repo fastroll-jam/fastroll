@@ -40,7 +40,7 @@ pub fn mem_address(page_index: usize, offset: usize) -> MemAddress {
     (page_index * PAGE_SIZE + offset) as MemAddress
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MemoryPage {
     index: usize,
     data: Vec<u8>, // length: PAGE_SIZE
@@ -91,7 +91,7 @@ impl MemoryPage {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Memory {
     pages: HashMap<usize, MemoryPage>, // (page index, page)
     page_size: usize,
