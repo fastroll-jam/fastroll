@@ -1,3 +1,4 @@
+#![allow(unused_variables)] // TODO: remove
 use crate::{
     constants::JUMP_ALIGNMENT,
     core::{PVMCore, SingleStepResult, StateChange, VMState},
@@ -41,13 +42,10 @@ fn reg_to_usize(reg: RegValue) -> Result<usize, PVMError> {
     usize::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
 }
 
+/// PVM instruction execution functions
 pub struct InstructionSet;
 
 impl InstructionSet {
-    //
-    // PVM instruction execution functions
-    //
-
     //
     // Group 0: Helper functions
     //
@@ -1058,13 +1056,103 @@ impl InstructionSet {
         })
     }
 
+    /// Opcode: 102
+    pub fn count_set_bits_64(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 103
+    pub fn count_set_bits_32(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 104
+    pub fn leading_zero_bits_64(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 105
+    pub fn leading_zero_bits_32(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 106
+    pub fn trailing_zero_bits_64(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 107
+    pub fn trailing_zero_bits_32(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 108
+    pub fn sign_extend_8(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 109
+    pub fn sign_extend_16(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 110
+    pub fn zero_extend_16(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 111
+    pub fn reverse_bytes(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
     //
     // Group 10: Instructions with Arguments of Two Registers & One Immediate
     //
 
     /// Store 8-bit value to memory indirectly
     ///
-    /// Opcode: 110
+    /// Opcode: 120
     pub fn store_ind_u8(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1090,7 +1178,7 @@ impl InstructionSet {
 
     /// Store 16-bit value to memory indirectly
     ///
-    /// Opcode: 111
+    /// Opcode: 121
     pub fn store_ind_u16(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1116,7 +1204,7 @@ impl InstructionSet {
 
     /// Store 32-bit value to memory indirectly
     ///
-    /// Opcode: 112
+    /// Opcode: 122
     pub fn store_ind_u32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1142,7 +1230,7 @@ impl InstructionSet {
 
     /// Store 64-bit value to memory indirectly
     ///
-    /// Opcode: 113
+    /// Opcode: 123
     pub fn store_ind_u64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1167,7 +1255,7 @@ impl InstructionSet {
 
     /// Load 8-bit unsigned value from memory indirectly
     ///
-    /// Opcode: 114
+    /// Opcode: 124
     pub fn load_ind_u8(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1191,7 +1279,7 @@ impl InstructionSet {
 
     /// Load 8-bit signed value from memory indirectly
     ///
-    /// Opcode: 115
+    /// Opcode: 125
     pub fn load_ind_i8(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1217,7 +1305,7 @@ impl InstructionSet {
 
     /// Load 16-bit unsigned value from memory indirectly
     ///
-    /// Opcode: 116
+    /// Opcode: 126
     pub fn load_ind_u16(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1242,7 +1330,7 @@ impl InstructionSet {
 
     /// Load 16-bit signed value from memory indirectly
     ///
-    /// Opcode: 117
+    /// Opcode: 127
     pub fn load_ind_i16(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1270,7 +1358,7 @@ impl InstructionSet {
 
     /// Load 32-bit unsigned value from memory indirectly
     ///
-    /// Opcode: 118
+    /// Opcode: 128
     pub fn load_ind_u32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1295,7 +1383,7 @@ impl InstructionSet {
 
     /// Load 32-bit signed value from memory indirectly
     ///
-    /// Opcode: 119
+    /// Opcode: 129
     pub fn load_ind_i32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1323,7 +1411,7 @@ impl InstructionSet {
 
     /// Load 64-bit unsigned value from memory indirectly
     ///
-    /// Opcode: 120
+    /// Opcode: 130
     pub fn load_ind_u64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1348,7 +1436,7 @@ impl InstructionSet {
 
     /// Add 32-bit immediate to register value and allocate to another register
     ///
-    /// Opcode: 121
+    /// Opcode: 131
     pub fn add_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1371,7 +1459,7 @@ impl InstructionSet {
 
     /// Bitwise AND with immediate
     ///
-    /// Opcode: 122
+    /// Opcode: 132
     pub fn and_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1392,7 +1480,7 @@ impl InstructionSet {
 
     /// Bitwise XOR with immediate
     ///
-    /// Opcode: 123
+    /// Opcode: 133
     pub fn xor_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1413,7 +1501,7 @@ impl InstructionSet {
 
     /// Bitwise OR with immediate
     ///
-    /// Opcode: 124
+    /// Opcode: 134
     pub fn or_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1434,7 +1522,7 @@ impl InstructionSet {
 
     /// Multiply with 32-bit immediate
     ///
-    /// Opcode: 125
+    /// Opcode: 135
     pub fn mul_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1457,7 +1545,7 @@ impl InstructionSet {
 
     /// Set if less than immediate (unsigned)
     ///
-    /// Opcode: 126
+    /// Opcode: 136
     pub fn set_lt_u_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1479,7 +1567,7 @@ impl InstructionSet {
 
     /// Set if less than immediate (signed)
     ///
-    /// Opcode: 127
+    /// Opcode: 137
     pub fn set_lt_s_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1510,7 +1598,7 @@ impl InstructionSet {
 
     /// Shift left logical with 32-bit immediate
     ///
-    /// Opcode: 128
+    /// Opcode: 138
     pub fn shlo_l_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1533,7 +1621,7 @@ impl InstructionSet {
 
     /// Shift right logical with 32-bit immediate
     ///
-    /// Opcode: 129
+    /// Opcode: 139
     pub fn shlo_r_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1556,7 +1644,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic with 32-bit immediate
     ///
-    /// Opcode: 130
+    /// Opcode: 140
     pub fn shar_r_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1581,7 +1669,7 @@ impl InstructionSet {
 
     /// Negate and add 32-bit immediate
     ///
-    /// Opcode: 131
+    /// Opcode: 141
     pub fn neg_add_imm_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1607,7 +1695,7 @@ impl InstructionSet {
 
     /// Set if greater than immediate (unsigned)
     ///
-    /// Opcode: 132
+    /// Opcode: 142
     pub fn set_gt_u_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1629,7 +1717,7 @@ impl InstructionSet {
 
     /// Set if greater than immediate (signed)
     ///
-    /// Opcode: 133
+    /// Opcode: 143
     pub fn set_gt_s_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1660,7 +1748,7 @@ impl InstructionSet {
 
     /// Shift left logical with 32-bit immediate (alternative)
     ///
-    /// Opcode: 134
+    /// Opcode: 144
     pub fn shlo_l_imm_alt_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1684,7 +1772,7 @@ impl InstructionSet {
 
     /// Shift right logical with 32-bit immediate (alternative)
     ///
-    /// Opcode: 135
+    /// Opcode: 145
     pub fn shlo_r_imm_alt_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1707,7 +1795,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic with 32-bit immediate (alternative)
     ///
-    /// Opcode: 136
+    /// Opcode: 146
     pub fn shar_r_imm_alt_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1731,7 +1819,7 @@ impl InstructionSet {
 
     /// Conditional move if zero with immediate
     ///
-    /// Opcode: 137
+    /// Opcode: 147
     pub fn cmov_iz_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1755,7 +1843,7 @@ impl InstructionSet {
 
     /// Conditional move if not zero with immediate
     ///
-    /// Opcode: 138
+    /// Opcode: 148
     pub fn cmov_nz_imm(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1779,7 +1867,7 @@ impl InstructionSet {
 
     /// Add 64-bit immediate to register value and allocate to another register
     ///
-    /// Opcode: 139
+    /// Opcode: 149
     pub fn add_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1800,7 +1888,7 @@ impl InstructionSet {
 
     /// Multiply with 64-bit immediate
     ///
-    /// Opcode: 140
+    /// Opcode: 150
     pub fn mul_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1821,7 +1909,7 @@ impl InstructionSet {
 
     /// Shift left logical with 64-bit immediate
     ///
-    /// Opcode: 141
+    /// Opcode: 151
     pub fn shlo_l_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1843,7 +1931,7 @@ impl InstructionSet {
 
     /// Shift right logical with 64-bit immediate
     ///
-    /// Opcode: 142
+    /// Opcode: 152
     pub fn shlo_r_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1866,7 +1954,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic with 64-bit immediate
     ///
-    /// Opcode: 143
+    /// Opcode: 153
     pub fn shar_r_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1890,7 +1978,7 @@ impl InstructionSet {
 
     /// Negate and add 64-bit immediate
     ///
-    /// Opcode: 144
+    /// Opcode: 154
     pub fn neg_add_imm_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1913,7 +2001,7 @@ impl InstructionSet {
 
     /// Shift left logical with 64-bit immediate (alternative)
     ///
-    /// Opcode: 145
+    /// Opcode: 155
     pub fn shlo_l_imm_alt_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1934,7 +2022,7 @@ impl InstructionSet {
 
     /// Shift right logical with 64-bit immediate (alternative)
     ///
-    /// Opcode: 146
+    /// Opcode: 156
     pub fn shlo_r_imm_alt_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1956,7 +2044,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic with 64-bit immediate (alternative)
     ///
-    /// Opcode: 147
+    /// Opcode: 157
     pub fn shar_r_imm_alt_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -1978,13 +2066,49 @@ impl InstructionSet {
         })
     }
 
+    /// Opcode: 158
+    pub fn rot_r_64_imm(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 159
+    pub fn rot_r_64_imm_alt(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 160
+    pub fn rot_r_32_imm(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 161
+    pub fn rot_r_32_imm_alt(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
     //
     // Group 11: Instructions with Arguments of Two Registers & One Offset
     //
 
     /// Branch if equal
     ///
-    /// Opcode: 150
+    /// Opcode: 170
     pub fn branch_eq(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2008,7 +2132,7 @@ impl InstructionSet {
 
     /// Branch if not equal
     ///
-    /// Opcode: 151
+    /// Opcode: 171
     pub fn branch_ne(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2032,7 +2156,7 @@ impl InstructionSet {
 
     /// Branch if less than (unsigned)
     ///
-    /// Opcode: 152
+    /// Opcode: 172
     pub fn branch_lt_u(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2055,7 +2179,7 @@ impl InstructionSet {
 
     /// Branch if less than (signed)
     ///
-    /// Opcode: 153
+    /// Opcode: 173
     pub fn branch_lt_s(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2087,7 +2211,7 @@ impl InstructionSet {
 
     /// Branch if greater than or equal (unsigned)
     ///
-    /// Opcode: 154
+    /// Opcode: 174
     pub fn branch_ge_u(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2111,7 +2235,7 @@ impl InstructionSet {
 
     /// Branch if greater than or equal (signed)
     ///
-    /// Opcode: 155
+    /// Opcode: 175
     pub fn branch_ge_s(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2147,7 +2271,7 @@ impl InstructionSet {
 
     /// Load immediate and jump indirect
     ///
-    /// Opcode: 160
+    /// Opcode: 180
     pub fn load_imm_jump_ind(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2179,7 +2303,7 @@ impl InstructionSet {
 
     /// Add two registers and get a 32-bit value
     ///
-    /// Opcode: 170
+    /// Opcode: 190
     pub fn add_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2202,7 +2326,7 @@ impl InstructionSet {
 
     /// Subtract two registers and get a 32-bit value
     ///
-    /// Opcode: 171
+    /// Opcode: 191
     pub fn sub_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2226,7 +2350,7 @@ impl InstructionSet {
 
     /// Multiply two registers and get a 32-bit value
     ///
-    /// Opcode: 172
+    /// Opcode: 192
     pub fn mul_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2249,7 +2373,7 @@ impl InstructionSet {
 
     /// Divide unsigned and get a 32-bit value
     ///
-    /// Opcode: 173
+    /// Opcode: 193
     pub fn div_u_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2275,7 +2399,7 @@ impl InstructionSet {
 
     /// Divide signed and get a 32-bit value
     ///
-    /// Opcode: 174
+    /// Opcode: 194
     pub fn div_s_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2313,7 +2437,7 @@ impl InstructionSet {
 
     /// Remainder unsigned and get a 32-bit value
     ///
-    /// Opcode: 175
+    /// Opcode: 195
     pub fn rem_u_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2343,7 +2467,7 @@ impl InstructionSet {
 
     /// Remainder signed and get a 32-bit value
     ///
-    /// Opcode: 176
+    /// Opcode: 196
     pub fn rem_s_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2379,7 +2503,7 @@ impl InstructionSet {
 
     /// Shift left logical and get a 32-bit value
     ///
-    /// Opcode: 177
+    /// Opcode: 197
     pub fn shlo_l_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2402,7 +2526,7 @@ impl InstructionSet {
 
     /// Shift right logical and get a 32-bit value
     ///
-    /// Opcode: 178
+    /// Opcode: 198
     pub fn shlo_r_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2425,7 +2549,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic and get a 32-bit value
     ///
-    /// Opcode: 179
+    /// Opcode: 199
     pub fn shar_r_32(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2452,7 +2576,7 @@ impl InstructionSet {
 
     /// Add two registers and get a 64-bit value
     ///
-    /// Opcode: 180
+    /// Opcode: 200
     pub fn add_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2473,7 +2597,7 @@ impl InstructionSet {
 
     /// Subtract two registers and get a 64-bit value
     ///
-    /// Opcode: 181
+    /// Opcode: 201
     pub fn sub_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2494,7 +2618,7 @@ impl InstructionSet {
 
     /// Multiply two registers and get a 64-bit value
     ///
-    /// Opcode: 182
+    /// Opcode: 202
     pub fn mul_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2515,7 +2639,7 @@ impl InstructionSet {
 
     /// Divide unsigned and get a 64-bit value
     ///
-    /// Opcode: 183
+    /// Opcode: 203
     pub fn div_u_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2541,7 +2665,7 @@ impl InstructionSet {
 
     /// Divide signed and get a 64-bit value
     ///
-    /// Opcode: 184
+    /// Opcode: 204
     pub fn div_s_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2578,7 +2702,7 @@ impl InstructionSet {
 
     /// Remainder unsigned and get a 64-bit value
     ///
-    /// Opcode: 185
+    /// Opcode: 205
     pub fn rem_u_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2604,7 +2728,7 @@ impl InstructionSet {
 
     /// Remainder signed and get a 64-bit value
     ///
-    /// Opcode: 186
+    /// Opcode: 206
     pub fn rem_s_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2640,7 +2764,7 @@ impl InstructionSet {
 
     /// Shift left logical and get a 64-bit value
     ///
-    /// Opcode: 187
+    /// Opcode: 207
     pub fn shlo_l_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2661,7 +2785,7 @@ impl InstructionSet {
 
     /// Shift right logical and get a 64-bit value
     ///
-    /// Opcode: 188
+    /// Opcode: 208
     pub fn shlo_r_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2682,7 +2806,7 @@ impl InstructionSet {
 
     /// Shift right arithmetic and get a 64-bit value
     ///
-    /// Opcode: 189
+    /// Opcode: 209
     pub fn shar_r_64(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2709,7 +2833,7 @@ impl InstructionSet {
 
     /// Bitwise AND of two registers
     ///
-    /// Opcode: 190
+    /// Opcode: 210
     pub fn and(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2730,7 +2854,7 @@ impl InstructionSet {
 
     /// Bitwise XOR of two registers
     ///
-    /// Opcode: 191
+    /// Opcode: 211
     pub fn xor(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2751,7 +2875,7 @@ impl InstructionSet {
 
     /// Bitwise OR of two registers
     ///
-    /// Opcode: 192
+    /// Opcode: 212
     pub fn or(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2772,7 +2896,7 @@ impl InstructionSet {
 
     /// Multiply upper (signed * signed)
     ///
-    /// Opcode: 193
+    /// Opcode: 213
     pub fn mul_upper_s_s(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2805,7 +2929,7 @@ impl InstructionSet {
 
     /// Multiply upper (unsigned * unsigned)
     ///
-    /// Opcode: 194
+    /// Opcode: 214
     pub fn mul_upper_u_u(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2829,7 +2953,7 @@ impl InstructionSet {
 
     /// Multiply upper (signed * unsigned)
     ///
-    /// Opcode: 195
+    /// Opcode: 215
     pub fn mul_upper_s_u(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2858,7 +2982,7 @@ impl InstructionSet {
 
     /// Set if less than (unsigned)
     ///
-    /// Opcode: 196
+    /// Opcode: 216
     pub fn set_lt_u(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2880,7 +3004,7 @@ impl InstructionSet {
 
     /// Set if less than (signed)
     ///
-    /// Opcode: 197
+    /// Opcode: 217
     pub fn set_lt_s(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2910,7 +3034,7 @@ impl InstructionSet {
 
     /// Conditional move if zero
     ///
-    /// Opcode: 198
+    /// Opcode: 218
     pub fn cmov_iz(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2935,7 +3059,7 @@ impl InstructionSet {
 
     /// Conditional move if not zero
     ///
-    /// Opcode: 199
+    /// Opcode: 219
     pub fn cmov_nz(
         vm_state: &VMState,
         program_state: &ProgramState,
@@ -2956,5 +3080,104 @@ impl InstructionSet {
                 ..Default::default()
             },
         })
+    }
+
+    /// Opcode: 220
+    pub fn rot_l_64(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 221
+    pub fn rot_l_32(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 222
+    pub fn rot_r_64(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 223
+    pub fn rot_r_32(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 224
+    pub fn and_inv(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 225
+    pub fn or_inv(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 226
+    pub fn xnor(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 227
+    pub fn max(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 228
+    pub fn max_u(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 229
+    pub fn min(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
+    }
+
+    /// Opcode: 230
+    pub fn min_u(
+        vm_state: &mut VMState,
+        program_state: &ProgramState,
+        ins: &Instruction,
+    ) -> Result<SingleStepResult, PVMError> {
+        unimplemented!();
     }
 }

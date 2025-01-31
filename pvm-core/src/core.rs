@@ -307,6 +307,20 @@ impl PVMCore {
             Opcode::BRANCH_GT_S_IMM => IS::branch_gt_s_imm(vm_state, program_state, ins),
             Opcode::MOVE_REG => IS::move_reg(vm_state, program_state, ins),
             Opcode::SBRK => IS::sbrk(vm_state, program_state, ins),
+            Opcode::COUNT_SET_BITS_64 => IS::count_set_bits_64(vm_state, program_state, ins),
+            Opcode::COUNT_SET_BITS_32 => IS::count_set_bits_32(vm_state, program_state, ins),
+            Opcode::LEADING_ZERO_BITS_64 => IS::leading_zero_bits_64(vm_state, program_state, ins),
+            Opcode::LEADING_ZERO_BITS_32 => IS::leading_zero_bits_32(vm_state, program_state, ins),
+            Opcode::TRAILING_ZERO_BITS_64 => {
+                IS::trailing_zero_bits_64(vm_state, program_state, ins)
+            }
+            Opcode::TRAILING_ZERO_BITS_32 => {
+                IS::trailing_zero_bits_32(vm_state, program_state, ins)
+            }
+            Opcode::SIGN_EXTEND_8 => IS::sign_extend_8(vm_state, program_state, ins),
+            Opcode::SIGN_EXTEND_16 => IS::sign_extend_16(vm_state, program_state, ins),
+            Opcode::ZERO_EXTEND_16 => IS::zero_extend_16(vm_state, program_state, ins),
+            Opcode::REVERSE_BYTES => IS::reverse_bytes(vm_state, program_state, ins),
             Opcode::STORE_IND_U8 => IS::store_ind_u8(vm_state, program_state, ins),
             Opcode::STORE_IND_U16 => IS::store_ind_u16(vm_state, program_state, ins),
             Opcode::STORE_IND_U32 => IS::store_ind_u32(vm_state, program_state, ins),
@@ -345,6 +359,10 @@ impl PVMCore {
             Opcode::SHLO_L_IMM_ALT_64 => IS::shlo_l_imm_alt_64(vm_state, program_state, ins),
             Opcode::SHLO_R_IMM_ALT_64 => IS::shlo_r_imm_alt_64(vm_state, program_state, ins),
             Opcode::SHAR_R_IMM_ALT_64 => IS::shar_r_imm_alt_64(vm_state, program_state, ins),
+            Opcode::ROT_R_64_IMM => IS::rot_r_64_imm(vm_state, program_state, ins),
+            Opcode::ROT_R_64_IMM_ALT => IS::rot_r_64_imm_alt(vm_state, program_state, ins),
+            Opcode::ROT_R_32_IMM => IS::rot_r_32_imm(vm_state, program_state, ins),
+            Opcode::ROT_R_32_IMM_ALT => IS::rot_r_32_imm_alt(vm_state, program_state, ins),
             Opcode::BRANCH_EQ => IS::branch_eq(vm_state, program_state, ins),
             Opcode::BRANCH_NE => IS::branch_ne(vm_state, program_state, ins),
             Opcode::BRANCH_LT_U => IS::branch_lt_u(vm_state, program_state, ins),
@@ -382,6 +400,17 @@ impl PVMCore {
             Opcode::SET_LT_S => IS::set_lt_s(vm_state, program_state, ins),
             Opcode::CMOV_IZ => IS::cmov_iz(vm_state, program_state, ins),
             Opcode::CMOV_NZ => IS::cmov_nz(vm_state, program_state, ins),
+            Opcode::ROT_L_64 => IS::rot_l_64(vm_state, program_state, ins),
+            Opcode::ROT_L_32 => IS::rot_l_32(vm_state, program_state, ins),
+            Opcode::ROT_R_64 => IS::rot_r_64(vm_state, program_state, ins),
+            Opcode::ROT_R_32 => IS::rot_r_32(vm_state, program_state, ins),
+            Opcode::AND_INV => IS::and_inv(vm_state, program_state, ins),
+            Opcode::OR_INV => IS::or_inv(vm_state, program_state, ins),
+            Opcode::XNOR => IS::xnor(vm_state, program_state, ins),
+            Opcode::MAX => IS::max(vm_state, program_state, ins),
+            Opcode::MAX_U => IS::max_u(vm_state, program_state, ins),
+            Opcode::MIN => IS::min(vm_state, program_state, ins),
+            Opcode::MIN_U => IS::min_u(vm_state, program_state, ins),
         }
     }
 }

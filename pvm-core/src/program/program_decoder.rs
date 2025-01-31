@@ -385,7 +385,18 @@ impl ProgramDecoder {
             }
 
             // Group 9: two registers
-            MOVE_REG | SBRK => {
+            MOVE_REG
+            | SBRK
+            | COUNT_SET_BITS_64
+            | COUNT_SET_BITS_32
+            | LEADING_ZERO_BITS_64
+            | LEADING_ZERO_BITS_32
+            | TRAILING_ZERO_BITS_64
+            | TRAILING_ZERO_BITS_32
+            | SIGN_EXTEND_8
+            | SIGN_EXTEND_16
+            | ZERO_EXTEND_16
+            | REVERSE_BYTES => {
                 let r_d = 12.min(single_inst_blob[1] % 16) as usize;
                 let r_a = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
 
@@ -407,7 +418,8 @@ impl ProgramDecoder {
             | NEG_ADD_IMM_32 | SET_GT_U_IMM | SET_GT_S_IMM | SHLO_L_IMM_ALT_32
             | SHLO_R_IMM_ALT_32 | SHAR_R_IMM_ALT_32 | CMOV_IZ_IMM | CMOV_NZ_IMM | ADD_IMM_64
             | MUL_IMM_64 | SHLO_L_IMM_64 | SHLO_R_IMM_64 | SHAR_R_IMM_64 | NEG_ADD_IMM_64
-            | SHLO_L_IMM_ALT_64 | SHLO_R_IMM_ALT_64 | SHAR_R_IMM_ALT_64 => {
+            | SHLO_L_IMM_ALT_64 | SHLO_R_IMM_ALT_64 | SHAR_R_IMM_ALT_64 | ROT_R_64_IMM
+            | ROT_R_64_IMM_ALT | ROT_R_32_IMM | ROT_R_32_IMM_ALT => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
                 let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
                 let l_x = 4.min(0.max(skip_distance - 1));
@@ -463,7 +475,9 @@ impl ProgramDecoder {
             ADD_32 | SUB_32 | MUL_32 | DIV_U_32 | DIV_S_32 | REM_U_32 | REM_S_32 | SHLO_L_32
             | SHLO_R_32 | SHAR_R_32 | ADD_64 | SUB_64 | MUL_64 | DIV_U_64 | DIV_S_64 | REM_U_64
             | REM_S_64 | SHLO_L_64 | SHLO_R_64 | SHAR_R_64 | AND | XOR | OR | MUL_UPPER_S_S
-            | MUL_UPPER_U_U | MUL_UPPER_S_U | SET_LT_U | SET_LT_S | CMOV_IZ | CMOV_NZ => {
+            | MUL_UPPER_U_U | MUL_UPPER_S_U | SET_LT_U | SET_LT_S | CMOV_IZ | CMOV_NZ
+            | ROT_L_64 | ROT_L_32 | ROT_R_64 | ROT_R_32 | AND_INV | OR_INV | XNOR | MAX | MAX_U
+            | MIN | MIN_U => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
                 let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
                 let r_d = 12.min(single_inst_blob[2]) as usize;
