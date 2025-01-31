@@ -23,7 +23,7 @@ pub struct SingleStepResult {
 }
 
 /// Mutable VM state
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct VMState {
     pub registers: [Register; REGISTERS_COUNT], // omega
     pub memory: Memory,                         // mu

@@ -13,14 +13,22 @@ use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
 use std::collections::HashSet;
 
 pub struct FormattedProgram {
-    pub static_size: u32,      // |o|; length of read-only data of the program
-    pub heap_size: u32,        // |w|; length of read-write data of the program
-    pub extra_heap_pages: u16, // z; extra heap allocation in pages
-    pub stack_size: u32,       // s
-    pub static_data: Vec<u8>,  // o
-    pub heap_data: Vec<u8>,    // w
-    pub code_size: u32,        // |c|
-    pub code: Vec<u8>,         // c
+    /// `|o|`: Read-only data size
+    pub static_size: u32,
+    /// `|w|`: Read-write data size
+    pub heap_size: u32,
+    /// `z`: Extra heap allocation in pages
+    pub extra_heap_pages: u16,
+    /// `s`: Stack area size
+    pub stack_size: u32,
+    /// `o`: Read-only data of the program
+    pub static_data: Vec<u8>,
+    /// `w`: Read-write data of the program
+    pub heap_data: Vec<u8>,
+    /// `|c|`: Program code size
+    pub code_size: u32,
+    /// `c`: Program code blob; encoding of instructions, an opcode bitmask and a dynamic jump table.
+    pub code: Vec<u8>,
 }
 
 impl JamDecode for FormattedProgram {
@@ -52,13 +60,13 @@ impl JamDecode for FormattedProgram {
 
 impl FormattedProgram {
     pub fn validate_program_size(&self) -> bool {
-        5 * REGION_SIZE
-            + VMUtils::region_align(self.static_size as usize)
-            + VMUtils::region_align(
-                self.heap_size as usize + (self.extra_heap_pages as usize) * INIT_PAGE_SIZE,
+        5 * INIT_ZONE_SIZE
+            + VMUtils::zone_align(self.static_size as usize)
+            + VMUtils::zone_align(
+                self.heap_size as usize + (self.extra_heap_pages as usize) * PAGE_SIZE,
             )
-            + VMUtils::region_align(self.stack_size as usize)
-            + INIT_SIZE
+            + VMUtils::zone_align(self.stack_size as usize)
+            + INIT_INPUT_SIZE
             <= STANDARD_PROGRAM_SIZE_LIMIT
     }
 }

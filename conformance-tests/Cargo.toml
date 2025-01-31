@@ -10,6 +10,8 @@ rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-extrinsics = { workspace = true }
 rjam-merkle = { workspace = true }
+rjam-pvm = { workspace = true }
+rjam-pvm-core = { workspace = true }
 rjam-state = { workspace = true }
 rjam-state-merkle = { workspace = true }
 rjam-transition = { workspace = true }
@@ -18,6 +20,7 @@ async-trait = { workspace = true }
 bit-vec = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+paste = { workspace = true }
 serde = { workspace = true }
 serde_json = "1.0.132"
 thiserror = { workspace = true }
