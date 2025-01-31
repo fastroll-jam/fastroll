@@ -1,4 +1,4 @@
-use crate::constants::{INIT_PAGE_SIZE, PAGE_SIZE};
+use crate::constants::PAGE_SIZE;
 use std::{collections::HashMap, fmt::Display, ops::Range};
 use thiserror::Error;
 
@@ -101,7 +101,7 @@ pub struct Memory {
 
 impl Default for Memory {
     fn default() -> Self {
-        let pages: HashMap<usize, MemoryPage> = (0..PAGE_SIZE)
+        let pages = (0..PAGE_SIZE)
             .map(|index| (index, MemoryPage::default()))
             .collect();
 
@@ -169,25 +169,6 @@ impl Memory {
             .entry(page_index)
             .or_insert(MemoryPage::new(page_index, access));
         page.set_access(access);
-        Ok(())
-    }
-
-    /// Initializes and sets the access type for a bulk of memory pages within an `INIT_PAGE_SIZE` unit.
-    ///
-    /// During initialization, memory is allocated and managed in bulk units of size `INIT_PAGE_SIZE`,
-    /// which corresponds to 4 pages (where `INIT_PAGE_SIZE / PAGE_SIZE = 4`).
-    ///
-    /// Note: currently not used
-    #[allow(dead_code)]
-    fn bulk_init_page_access(
-        &mut self,
-        start_page_index: usize,
-        access: AccessType,
-    ) -> Result<(), MemoryError> {
-        let end_page_index = start_page_index + (INIT_PAGE_SIZE / PAGE_SIZE);
-        for page_index in start_page_index..end_page_index {
-            self.set_page_access(page_index, access)?;
-        }
         Ok(())
     }
 
