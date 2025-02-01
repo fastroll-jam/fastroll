@@ -12,8 +12,8 @@ pub enum MemoryError {
     InvalidPageIndex(usize),
     #[error("Page not initialized: {0}")]
     PageNotInitialized(usize),
-    #[error("Memory access violation: (address: {0}, allowed access: {1})")]
-    AccessViolation(MemAddress, AccessType),
+    #[error("Memory access violation: (address: {0})")]
+    AccessViolation(MemAddress),
 }
 
 /// Memory Cell Access Types
@@ -60,6 +60,10 @@ impl MemoryPage {
         self.access = access;
     }
 
+    pub fn start_address(&self) -> MemAddress {
+        (self.index * PAGE_SIZE) as MemAddress
+    }
+
     pub fn read_byte(&self, offset: usize) -> Result<u8, MemoryError> {
         if offset >= self.data.len() {
             return Err(MemoryError::OutOfRange(mem_address(self.index, offset)));
@@ -67,10 +71,9 @@ impl MemoryPage {
 
         match self.access {
             AccessType::ReadOnly | AccessType::ReadWrite => Ok(self.data[offset]),
-            AccessType::Inaccessible => Err(MemoryError::AccessViolation(
-                mem_address(self.index, offset),
-                self.access,
-            )),
+            AccessType::Inaccessible => Err(MemoryError::AccessViolation(mem_address(
+                self.index, offset,
+            ))),
         }
     }
 
@@ -80,10 +83,9 @@ impl MemoryPage {
         }
 
         if self.access != AccessType::ReadWrite {
-            return Err(MemoryError::AccessViolation(
-                mem_address(self.index, offset),
-                self.access,
-            ));
+            return Err(MemoryError::AccessViolation(mem_address(
+                self.index, offset,
+            )));
         }
 
         self.data[offset] = byte;
@@ -127,7 +129,7 @@ impl Memory {
     }
 
     /// Validates if the given page index is within the valid range.
-    fn validate_page_index(&self, page_index: usize) -> Result<(), MemoryError> {
+    fn validate_page_index_bound(&self, page_index: usize) -> Result<(), MemoryError> {
         if page_index >= self.total_pages {
             Err(MemoryError::InvalidPageIndex(page_index))
         } else {
@@ -135,24 +137,20 @@ impl Memory {
         }
     }
 
-    fn get_page_and_offset(&self, address: MemAddress) -> Result<(usize, usize), MemoryError> {
+    fn get_page_and_offset(&self, address: MemAddress) -> (usize, usize) {
         let page_index = (address as usize) / self.page_size;
         let offset = (address as usize) % self.page_size;
-        Ok((page_index, offset))
+        (page_index, offset)
     }
 
-    fn get_page(&self, page_index: usize) -> Result<&MemoryPage, MemoryError> {
-        self.validate_page_index(page_index)?;
-        self.pages
-            .get(&page_index)
-            .ok_or(MemoryError::PageNotInitialized(page_index))
+    fn get_page(&self, page_index: usize) -> Result<Option<&MemoryPage>, MemoryError> {
+        self.validate_page_index_bound(page_index)?;
+        Ok(self.pages.get(&page_index))
     }
 
-    fn get_page_mut(&mut self, page_index: usize) -> Result<&mut MemoryPage, MemoryError> {
-        self.validate_page_index(page_index)?;
-        self.pages
-            .get_mut(&page_index)
-            .ok_or(MemoryError::PageNotInitialized(page_index))
+    fn get_page_mut(&mut self, page_index: usize) -> Result<Option<&mut MemoryPage>, MemoryError> {
+        self.validate_page_index_bound(page_index)?;
+        Ok(self.pages.get_mut(&page_index))
     }
 
     /// Initializes and sets the access type for the memory page at the given index
@@ -161,7 +159,7 @@ impl Memory {
         page_index: usize,
         access: AccessType,
     ) -> Result<(), MemoryError> {
-        self.validate_page_index(page_index)?;
+        self.validate_page_index_bound(page_index)?;
 
         // Initialize the page if needed
         let page = self
@@ -190,8 +188,8 @@ impl Memory {
         address_range: Range<MemAddress>,
         access: AccessType,
     ) -> Result<(), MemoryError> {
-        let (start_page_index, _) = self.get_page_and_offset(address_range.start)?;
-        let (end_page_index, _) = self.get_page_and_offset(address_range.end)?;
+        let (start_page_index, _) = self.get_page_and_offset(address_range.start);
+        let (end_page_index, _) = self.get_page_and_offset(address_range.end);
 
         self.set_page_range_access(start_page_index..end_page_index, access)?;
         Ok(())
@@ -199,8 +197,11 @@ impl Memory {
 
     /// Check if a memory page is readable
     fn is_page_readable(&self, page_index: usize) -> Result<bool, MemoryError> {
-        self.validate_page_index(page_index)?;
-        let page = self.get_page(page_index)?;
+        self.validate_page_index_bound(page_index)?;
+        let page = match self.get_page(page_index) {
+            Ok(Some(page)) => page,
+            _ => return Ok(false), // Not found entry implies `Inaccessible`
+        };
 
         Ok(page.access == AccessType::ReadOnly || page.access == AccessType::ReadWrite)
     }
@@ -208,8 +209,23 @@ impl Memory {
     /// Check if a memory cell at the given address is in a readable page
     #[allow(dead_code)]
     fn is_address_readable(&self, address: MemAddress) -> Result<bool, MemoryError> {
-        let (page_index, _) = self.get_page_and_offset(address)?;
+        let (page_index, _) = self.get_page_and_offset(address);
         self.is_page_readable(page_index)
+    }
+
+    /// Returns the lowest memory address that is not readable, if found any.
+    /// If all pages in the range is writable, returns `None`.
+    pub fn check_not_readable_in_range(
+        &self,
+        page_range: Range<usize>,
+    ) -> Result<Option<MemAddress>, MemoryError> {
+        for page_index in page_range {
+            if !self.is_page_readable(page_index)? {
+                // The first address of the page
+                return Ok(Some(mem_address(page_index, 0)));
+            }
+        }
+        Ok(None)
     }
 
     /// Check if a range of memory pages is readable
@@ -229,8 +245,8 @@ impl Memory {
         length: usize,
     ) -> Result<bool, MemoryError> {
         let end = start + length as MemAddress;
-        let (start_page_index, _) = self.get_page_and_offset(start)?;
-        let (end_page_index, _) = self.get_page_and_offset(end)?;
+        let (start_page_index, _) = self.get_page_and_offset(start);
+        let (end_page_index, _) = self.get_page_and_offset(end);
 
         self.is_page_range_readable(start_page_index..end_page_index)?;
 
@@ -239,16 +255,34 @@ impl Memory {
 
     /// Check if a memory page is writable
     fn is_page_writable(&self, page_index: usize) -> Result<bool, MemoryError> {
-        self.validate_page_index(page_index)?;
-        let page = self.get_page(page_index)?;
+        self.validate_page_index_bound(page_index)?;
+        let page = match self.get_page(page_index) {
+            Ok(Some(page)) => page,
+            _ => return Ok(false), // Not found entry implies `Inaccessible`
+        };
         Ok(page.access == AccessType::ReadWrite)
     }
 
     /// Check if a memory cell at the given address is in a writable page
     #[allow(dead_code)]
     fn is_address_writable(&self, address: MemAddress) -> Result<bool, MemoryError> {
-        let (page_index, _) = self.get_page_and_offset(address)?;
+        let (page_index, _) = self.get_page_and_offset(address);
         self.is_page_writable(page_index)
+    }
+
+    /// Returns the lowest memory address that is not writable, if found any.
+    /// If all pages in the range is writable, returns `None`.
+    pub fn check_not_writable_in_range(
+        &self,
+        page_range: Range<usize>,
+    ) -> Result<Option<MemAddress>, MemoryError> {
+        for page_index in page_range {
+            if !self.is_page_writable(page_index)? {
+                // The first address of the page
+                return Ok(Some(mem_address(page_index, 0)));
+            }
+        }
+        Ok(None)
     }
 
     /// Check if a range of memory pages is writable
@@ -268,32 +302,50 @@ impl Memory {
         length: usize,
     ) -> Result<bool, MemoryError> {
         let end = start + length as MemAddress;
-        let (start_page_index, _) = self.get_page_and_offset(start)?;
-        let (end_page_index, _) = self.get_page_and_offset(end)?;
+        let (start_page_index, _) = self.get_page_and_offset(start);
+        let (end_page_index, _) = self.get_page_and_offset(end);
 
-        self.is_page_range_writable(start_page_index..end_page_index)?;
+        self.check_not_writable_in_range(start_page_index..end_page_index)?;
         Ok(true)
     }
 
     /// Read a byte from a memory cell at the given address
     pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
-        let (page_index, offset) = self.get_page_and_offset(address)?;
-        let page = self.get_page(page_index)?;
-        page.read_byte(offset)
+        let (page_index, offset) = self.get_page_and_offset(address);
+        if let Some(page) = self.get_page(page_index)? {
+            page.read_byte(offset)
+        } else {
+            // Inaccessible page
+            Err(MemoryError::AccessViolation(mem_address(
+                page_index, offset,
+            )))
+        }
     }
 
     /// Read a specified number of bytes from memory starting at the given address
     pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
-        (0..length)
-            .map(|i| self.read_byte(address + i as MemAddress))
-            .collect()
+        let (start_page, _) = self.get_page_and_offset(address);
+        let (end_page, _) = self.get_page_and_offset(address + length as MemAddress);
+
+        match self.check_not_readable_in_range(start_page..end_page + 1)? {
+            None => (0..length)
+                .map(|i| self.read_byte(address + i as MemAddress))
+                .collect(),
+            Some(not_readable_lowest) => Err(MemoryError::AccessViolation(not_readable_lowest)),
+        }
     }
 
     /// Write a byte to a memory cell at the given address
     pub fn write_byte(&mut self, address: MemAddress, value: u8) -> Result<(), MemoryError> {
-        let (page_index, offset) = self.get_page_and_offset(address)?;
-        let page = self.get_page_mut(page_index)?;
-        page.write_byte(offset, value)
+        let (page_index, offset) = self.get_page_and_offset(address);
+        if let Some(page) = self.get_page_mut(page_index)? {
+            page.write_byte(offset, value)
+        } else {
+            // Inaccessible page
+            Err(MemoryError::AccessViolation(mem_address(
+                page_index, offset,
+            )))
+        }
     }
 
     /// Write a slice of bytes to memory starting at the given address
@@ -302,10 +354,19 @@ impl Memory {
         start_address: MemAddress,
         bytes: &[u8],
     ) -> Result<(), MemoryError> {
-        for (i, &byte) in bytes.iter().enumerate() {
-            self.write_byte(start_address + i as MemAddress, byte)?;
+        let (start_page, _) = self.get_page_and_offset(start_address);
+        let (end_page, _) = self.get_page_and_offset(start_address + bytes.len() as MemAddress);
+
+        match self.check_not_writable_in_range(start_page..end_page + 1)? {
+            None => {
+                // All pages in the rage are writable
+                for (i, &byte) in bytes.iter().enumerate() {
+                    self.write_byte(start_address + i as MemAddress, byte)?;
+                }
+                Ok(())
+            }
+            Some(not_writable_lowest) => Err(MemoryError::AccessViolation(not_writable_lowest)),
         }
-        Ok(())
     }
 
     /// Get the break address (end of the heap) of current memory layout
