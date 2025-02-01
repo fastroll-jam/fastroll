@@ -547,7 +547,7 @@ macro_rules! impl_jam_fixed_codec_for_uint {
 
                 fn decode_fixed<I: JamInput>(input: &mut I, size_in_bytes: usize) -> Result<Self, JamCodecError> {
                     let type_size = size_of::<Self>();
-                    if size_in_bytes != type_size {
+                    if size_in_bytes > type_size {
                         return Err(JamCodecError::InvalidSize(format!(
                             "Invalid size for {}",
                             std::any::type_name::<Self>()
