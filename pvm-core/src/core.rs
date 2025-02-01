@@ -195,6 +195,31 @@ impl PVMCore {
     // Common PVM invocation functions
     //
 
+    /// Extracts a single instruction at a given program counter from the instructions blob.
+    /// Returns `None` if the parsing fails.
+    fn extract_single_inst(
+        instructions: &[u8],
+        curr_pc: RegValue,
+        skip_distance: usize,
+    ) -> Option<Instruction> {
+        let curr_ins_idx = curr_pc as usize;
+        let next_ins_idx = curr_ins_idx + 1 + skip_distance;
+
+        // Out of slice boundary
+        if next_ins_idx > instructions.len() {
+            return None;
+        }
+
+        let mut inst_blob = &instructions[curr_ins_idx..next_ins_idx];
+
+        // Instruction blob length is not greater than 16
+        if inst_blob.len() > 16 {
+            inst_blob = &inst_blob[..16];
+        }
+
+        ProgramDecoder::decode_instruction(inst_blob, curr_pc, skip_distance).ok()
+    }
+
     /// General PVM invocation function.
     ///
     /// This function recursively calls single-step invocation functions following the instruction
@@ -218,23 +243,20 @@ impl PVMCore {
         }
 
         loop {
+            let curr_pc = vm_state.pc;
             let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
 
-            let current_pc = vm_state.pc;
-            let current_ins_idx = current_pc as usize;
-            let next_ins_idx = current_ins_idx + 1 + skip_distance;
-
-            // Instruction blob length is not greater than 16
-            let mut instruction_blob = &program_state.instructions[current_ins_idx..next_ins_idx];
-            if instruction_blob.len() > 16 {
-                instruction_blob = &instruction_blob[..16];
-            }
-
-            let instruction =
-                ProgramDecoder::decode_instruction(instruction_blob, current_pc, skip_distance)?;
+            let inst = match Self::extract_single_inst(
+                &program_state.instructions,
+                curr_pc,
+                skip_distance,
+            ) {
+                Some(inst) => inst,
+                None => return Ok(ExitReason::Panic),
+            };
 
             let single_invocation_result =
-                Self::single_step_invocation(vm_state, program_state, &instruction)?;
+                Self::single_step_invocation(vm_state, program_state, &inst)?;
 
             let post_gas =
                 Self::apply_state_change(vm_state, single_invocation_result.state_change)?;
