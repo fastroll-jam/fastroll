@@ -6,7 +6,7 @@ use crate::{
         program_decoder::{Instruction, ProgramDecoder, ProgramState},
     },
     state::{
-        memory::{MemAddress, Memory},
+        memory::{MemAddress, Memory, MemoryError},
         register::Register,
     },
     types::{
@@ -45,7 +45,7 @@ impl VMState {
 #[derive(Default)]
 pub struct StateChange {
     pub register_writes: Vec<(usize, RegValue)>,
-    pub memory_write: (MemAddress, u32, Vec<u8>), // (start_address, data_len, data)
+    pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
     pub new_pc: Option<RegValue>,
     pub gas_charge: UnsignedGas,
 }
@@ -174,13 +174,19 @@ impl PVMCore {
 
         // Apply memory change
         // FIXME: data_len arg is redundant
-        let (start_address, data_len, data) = change.memory_write;
-        if data_len as usize > data.len() {
-            return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
+        if let Some((start_address, data_len, data)) = change.memory_write {
+            if data_len as usize > data.len() {
+                return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
+            }
+
+            match vm_state.memory.write_bytes(start_address, &data) {
+                Ok(_) => {}
+                Err(MemoryError::AccessViolation(address)) => {
+                    return Err(PVMError::PageFault(address))
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
-
-        vm_state.memory.write_bytes(start_address, &data)?;
-
         // Apply PC change
         if let Some(new_pc) = change.new_pc {
             vm_state.pc = new_pc;
@@ -259,7 +265,11 @@ impl PVMCore {
                 Self::single_step_invocation(vm_state, program_state, &inst)?;
 
             let post_gas =
-                Self::apply_state_change(vm_state, single_invocation_result.state_change)?;
+                match Self::apply_state_change(vm_state, single_invocation_result.state_change) {
+                    Ok(post_gas) => post_gas,
+                    Err(PVMError::PageFault(address)) => return Ok(ExitReason::PageFault(address)),
+                    Err(e) => return Err(e),
+                };
             if post_gas < 0 {
                 return Ok(ExitReason::OutOfGas);
             }

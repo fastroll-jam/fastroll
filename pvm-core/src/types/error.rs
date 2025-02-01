@@ -1,4 +1,4 @@
-use crate::state::memory::MemoryError;
+use crate::state::memory::{MemAddress, MemoryError};
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
 use rjam_state::error::StateManagerError;
@@ -13,6 +13,8 @@ pub enum PVMError {
     AccountCodeNotFound,
     #[error("Account not found")]
     AccountNotFound,
+    #[error("Page Fault at Address {0}")]
+    PageFault(MemAddress),
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]

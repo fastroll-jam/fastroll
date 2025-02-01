@@ -172,14 +172,15 @@ impl PVM {
         }
 
         // Apply memory change
-        let (start_address, data_len, data) = change.memory_write.clone();
-        if data_len as usize > data.len() {
-            return Err(PVMError::HostCallError(InvalidMemoryWrite));
-        }
-        for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
-            self.state
-                .memory
-                .write_byte(start_address.wrapping_add(offset as u32), byte)?;
+        if let Some((start_address, data_len, data)) = change.memory_write.clone() {
+            if data_len as usize > data.len() {
+                return Err(PVMError::HostCallError(InvalidMemoryWrite));
+            }
+            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
+                self.state
+                    .memory
+                    .write_byte(start_address.wrapping_add(offset as u32), byte)?;
+            }
         }
 
         // Apply gas change
