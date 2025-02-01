@@ -26,6 +26,7 @@ pub enum ExpectedStatus {
     /// The execution finished gracefully (a dynamic jump to address `0xffff0000` was made).
     halt,
     /// The execution finished with a page fault.
+    #[serde(rename = "page-fault")]
     page_fault,
 }
 
@@ -48,6 +49,7 @@ impl MemoryChunk {
 struct PageMap {
     pub address: u32,
     pub length: u32,
+    #[serde(rename = "is-writable")]
     pub is_writable: bool,
 }
 
