@@ -6,7 +6,7 @@ use crate::{
     state::memory::MemAddress,
     types::{
         common::{ExitReason, RegValue},
-        error::{PVMError, VMCoreError, VMCoreError::*},
+        error::{PVMError, VMCoreError::*},
         hostcall::HostCallType,
     },
     utils::VMUtils,
@@ -162,7 +162,7 @@ impl InstructionSet {
         let imm_host_call_type = reg_to_u8(ins.imm1.ok_or(InvalidImmVal)?)?;
 
         let exit_reason = ExitReason::HostCall(
-            HostCallType::from_u8(imm_host_call_type).ok_or(VMCoreError::InvalidHostCallType)?,
+            HostCallType::from_u8(imm_host_call_type).ok_or(InvalidHostCallType)?,
         );
 
         Ok(SingleStepResult {
@@ -532,10 +532,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
-        let r1_val = reg_to_u8(PVMCore::read_reg(
-            vm_state,
-            ins.r1.ok_or(InvalidImmVal)? & 0xFF,
-        )?)?;
+        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
