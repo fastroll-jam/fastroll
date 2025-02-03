@@ -192,7 +192,7 @@ impl ProgramDecoder {
     /// Decodes code element of the formatted program code into
     /// instruction sequence (c), opcode bitmask (k) and dynamic jump table (j).
     /// Used by `Ψ`.
-    pub fn decode_program_code(
+    pub fn deblob_program_code(
         code: &[u8],
     ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), PVMError> {
         let mut input = code;

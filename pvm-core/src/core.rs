@@ -125,7 +125,7 @@ impl PVMCore {
     ) -> Result<(), PVMError> {
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
         let (instructions, opcode_bitmask, jump_table) =
-            ProgramDecoder::decode_program_code(program_code)?;
+            ProgramDecoder::deblob_program_code(program_code)?;
 
         // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
         program_state.instructions = instructions;
