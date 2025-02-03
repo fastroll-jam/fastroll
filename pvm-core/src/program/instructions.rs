@@ -66,9 +66,15 @@ impl InstructionSet {
                 .basic_block_start_indices
                 .contains(&(target as usize)),
         ) {
-            (false, _) => Ok((ExitReason::Continue, vm_state.pc_as_mem_address()?)),
+            (false, _) => Ok((
+                ExitReason::Continue,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+            )),
             (true, true) => Ok((ExitReason::Continue, target)),
-            (true, false) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
+            (true, false) => Ok((
+                ExitReason::Panic,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+            )),
         }
     }
 
@@ -86,14 +92,20 @@ impl InstructionSet {
         const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
 
         if a == SPECIAL_HALT_VALUE {
-            return Ok((ExitReason::RegularHalt, vm_state.pc_as_mem_address()?));
+            return Ok((
+                ExitReason::RegularHalt,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+            ));
         }
 
         let jump_table_len = program_state.jump_table.len();
 
         // Check if the argument `a` is valid and compute the target
         if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
-            return Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?));
+            return Ok((
+                ExitReason::Panic,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+            ));
         }
 
         let aligned_index = (a / JUMP_ALIGNMENT) - 1;
@@ -106,7 +118,10 @@ impl InstructionSet {
             {
                 Ok((ExitReason::Continue, target))
             }
-            Some(_) => Ok((ExitReason::Panic, vm_state.pc_as_mem_address()?)),
+            Some(_) => Ok((
+                ExitReason::Panic,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+            )),
             None => Err(PVMError::VMCoreError(JumpTableOutOfBounds(aligned_index))),
         }
     }
@@ -332,11 +347,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
-        let (exit_reason, target) = Self::djump(
-            vm_state,
-            program_state,
-            ((r1_val + imm1) & (0xFFFF_FFFF)) as usize,
+        let jump_address = reg_to_usize(
+            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?)
+                & 0xFFFF_FFFF,
         )?;
+        let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
 
         Ok(SingleStepResult {
             exit_reason,
@@ -399,7 +415,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let val = vm_state.memory.read_byte(imm_address)?;
-        let val_extended = VMUtils::signed_extend(val, 1).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val, 1).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -444,7 +460,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
-        let val_extended = VMUtils::signed_extend(val_decoded, 2).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, 2).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -489,7 +505,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
-        let val_extended = VMUtils::signed_extend(val_decoded, 4).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, 4).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1441,8 +1457,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
             .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1527,8 +1542,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
             .wrapping_mul(ins.imm1.ok_or(InvalidImmVal)?);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1603,8 +1617,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? << shift;
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1627,7 +1640,7 @@ impl InstructionSet {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let result = (r2_val & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::signed_extend(result, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1677,8 +1690,7 @@ impl InstructionSet {
             .ok_or(InvalidImmVal)?
             .wrapping_add(1 << 32)
             .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1754,8 +1766,7 @@ impl InstructionSet {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let result = ins.imm1.ok_or(InvalidImmVal)? << shift;
 
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1778,7 +1789,7 @@ impl InstructionSet {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
         let result = imm1 >> shift;
-        let result_extended = VMUtils::signed_extend(result, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1914,7 +1925,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
         let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? << shift;
-        let result_extended = VMUtils::signed_extend(result, 8).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1937,7 +1948,7 @@ impl InstructionSet {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let result = r2_val >> shift;
-        let result_extended = VMUtils::signed_extend(result, 8).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2308,8 +2319,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             .wrapping_add(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2332,8 +2342,7 @@ impl InstructionSet {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             .wrapping_add(1 << 32)
             .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2355,8 +2364,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             .wrapping_mul(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2443,13 +2451,13 @@ impl InstructionSet {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
         let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
-            VMUtils::signed_extend(
+            VMUtils::sext(
                 PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
                 4,
             )
             .ok_or(InvalidRegVal)?
         } else {
-            VMUtils::signed_extend(dividend % divisor, 4).ok_or(InvalidRegVal)?
+            VMUtils::sext(dividend % divisor, 4).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2508,8 +2516,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? << shift;
-        let result_extended =
-            VMUtils::signed_extend(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2532,7 +2539,7 @@ impl InstructionSet {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let result =
             (PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::signed_extend(result, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,

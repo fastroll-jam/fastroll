@@ -74,7 +74,7 @@ impl FormattedProgram {
 /// Immutable VM state (program components)
 ///
 /// Equivalent to `FormattedProgram.code`.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ProgramState {
     pub instructions: Vec<u8>, // c; serialized // TODO: define instruction_blob with endless zeroes padding
     pub jump_table: Vec<MemAddress>, // j
@@ -220,7 +220,7 @@ impl ProgramDecoder {
             let mut buffer = [0u8; 4];
             buffer[..imm_size]
                 .copy_from_slice(&single_inst_blob[start_index..(start_index + imm_size)]);
-            Ok(VMUtils::signed_extend(
+            Ok(VMUtils::sext(
                 u32::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
                 imm_size,
             )
@@ -300,7 +300,7 @@ impl ProgramDecoder {
             // Group 3: one register and one extended width immediate
             LOAD_IMM_64 => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let imm_x = Self::extract_imm_extended_width(single_inst_blob, 1)?;
+                let imm_x = Self::extract_imm_extended_width(single_inst_blob, 2)?;
                 Ok(Instruction::new(
                     op,
                     Some(r_a),

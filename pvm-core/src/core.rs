@@ -42,7 +42,7 @@ impl VMState {
 }
 
 /// VM mutable state change set
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct StateChange {
     pub register_writes: Vec<(usize, RegValue)>,
     pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
@@ -78,7 +78,7 @@ impl PVMCore {
     fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
         const MAX_SKIP: usize = 24;
 
-        for skip_distance in 1..=MAX_SKIP {
+        for skip_distance in 0..=MAX_SKIP {
             if opcode_bitmask
                 .get(curr_opcode_index + 1 + skip_distance)
                 .unwrap_or(true)
@@ -93,7 +93,9 @@ impl PVMCore {
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
     pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
-        1 + Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask) as RegValue
+        vm_state.pc
+            + 1
+            + Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask) as RegValue
     }
 
     /// Collects opcode indices that indicate beginning of basic blocks and sets the
