@@ -44,7 +44,7 @@ impl VMUtils {
                 if a < max_positive {
                     Some(a as i64)
                 } else {
-                    Some((a as i64) - (1i64 << (8 * n)))
+                    Some((a as i64) - (1i64.wrapping_shl(8 * n as u32)))
                 }
             }
             _ => None,
@@ -65,7 +65,7 @@ impl VMUtils {
     pub fn signed_to_unsigned(n: u64, a: i64) -> Option<u64> {
         match n {
             0..=8 => {
-                let modulus = 1i64 << (8 * n);
+                let modulus = 1i64.wrapping_shl(8 * n as u32);
                 Some(((modulus + a) % modulus) as u64)
             }
             _ => None,
@@ -133,12 +133,12 @@ impl VMUtils {
     /// # Returns
     ///
     /// The sign-extended 64-bit unsigned integer, or None if `n` is greater than 4.
-    pub fn signed_extend<T>(compact_val: T, n: usize) -> Option<RegValue>
+    pub fn sext<T>(compact_val: T, n: usize) -> Option<RegValue>
     where
         T: Into<u64> + Copy,
     {
         match n {
-            0..=8 => {
+            0..=4 | 8 => {
                 let val = compact_val.into();
                 let msb = (val >> (8 * n - 1)) & 1;
                 if msb == 1 {
