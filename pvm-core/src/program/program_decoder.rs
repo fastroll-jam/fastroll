@@ -242,8 +242,8 @@ impl ProgramDecoder {
             buffer[..imm_size]
                 .copy_from_slice(&single_inst_blob[start_index..(start_index + imm_size)]);
             VMUtils::unsigned_to_signed(
-                imm_size as u64,
                 u64::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
+                imm_size,
             )
             .ok_or(PVMError::VMCoreError(InvalidInstructionFormat))?
         } else {
