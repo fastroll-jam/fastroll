@@ -1764,7 +1764,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
-        let result = imm1 >> shift;
+        let result = (imm1 & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
