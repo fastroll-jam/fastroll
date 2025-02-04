@@ -191,7 +191,7 @@ impl Memory {
         let (start_page_index, _) = self.get_page_and_offset(address_range.start);
         let (end_page_index, _) = self.get_page_and_offset(address_range.end);
 
-        self.set_page_range_access(start_page_index..end_page_index, access)?;
+        self.set_page_range_access(start_page_index..end_page_index + 1, access)?;
         Ok(())
     }
 

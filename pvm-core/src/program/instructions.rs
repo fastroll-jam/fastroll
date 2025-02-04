@@ -905,12 +905,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm_val =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let condition = r1_val < imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
@@ -934,12 +934,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm_val =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let condition = r1_val <= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
@@ -963,12 +963,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm_val =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let condition = r1_val >= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
@@ -992,12 +992,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
         let r1_val = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm_val =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let condition = r1_val > imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
@@ -1303,8 +1303,8 @@ impl InstructionSet {
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
         )?;
         let value = vm_state.memory.read_byte(address)?;
-        let signed_value = VMUtils::unsigned_to_signed(1, value as u64).ok_or(InvalidMemVal)?;
-        let unsigned_value = VMUtils::signed_to_unsigned(8, signed_value).ok_or(InvalidMemVal)?;
+        let signed_value = VMUtils::unsigned_to_signed(value as u64, 1).ok_or(InvalidMemVal)?;
+        let unsigned_value = VMUtils::signed_to_unsigned(signed_value, 8).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1356,8 +1356,8 @@ impl InstructionSet {
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
         let signed_value =
-            VMUtils::unsigned_to_signed(2, value_decoded as u64).ok_or(InvalidMemVal)?;
-        let unsigned_value = VMUtils::signed_to_unsigned(8, signed_value).ok_or(InvalidMemVal)?;
+            VMUtils::unsigned_to_signed(value_decoded as u64, 2).ok_or(InvalidMemVal)?;
+        let unsigned_value = VMUtils::signed_to_unsigned(signed_value, 8).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1409,8 +1409,8 @@ impl InstructionSet {
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
         let signed_value =
-            VMUtils::unsigned_to_signed(4, value_decoded as u64).ok_or(InvalidMemVal)?;
-        let unsigned_value = VMUtils::signed_to_unsigned(8, signed_value).ok_or(InvalidMemVal)?;
+            VMUtils::unsigned_to_signed(value_decoded as u64, 4).ok_or(InvalidMemVal)?;
+        let unsigned_value = VMUtils::signed_to_unsigned(signed_value, 8).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1585,12 +1585,12 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm1_val_signed =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let result = if r2_val_signed < imm1_val_signed {
             1
         } else {
@@ -1663,9 +1663,9 @@ impl InstructionSet {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let r2_val_signed =
-            VMUtils::unsigned_to_signed(4, r2_val & 0xFFFF_FFFF).ok_or(InvalidRegVal)?;
+            VMUtils::unsigned_to_signed(r2_val & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
         let result = r2_val_signed >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1733,12 +1733,12 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let imm1_val_signed =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let result = if r2_val_signed > imm1_val_signed {
             1
         } else {
@@ -1811,9 +1811,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let imm1_val_signed =
-            VMUtils::unsigned_to_signed(4, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 4).ok_or(InvalidImmVal)?;
         let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1970,9 +1970,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let r2_val_signed = VMUtils::unsigned_to_signed(8, r2_val).ok_or(InvalidRegVal)?;
+        let r2_val_signed = VMUtils::unsigned_to_signed(r2_val, 8).ok_or(InvalidRegVal)?;
         let result = r2_val_signed >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2060,9 +2060,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
         let imm1_val_signed =
-            VMUtils::unsigned_to_signed(8, ins.imm1.ok_or(InvalidImmVal)?).ok_or(InvalidImmVal)?;
+            VMUtils::unsigned_to_signed(ins.imm1.ok_or(InvalidImmVal)?, 8).ok_or(InvalidImmVal)?;
         let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2195,13 +2195,13 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let condition = r1_val_signed < r2_val_signed;
@@ -2251,13 +2251,13 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
         let r1_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let condition = r1_val_signed >= r2_val_signed;
@@ -2411,13 +2411,13 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
-            4,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF,
+            4,
         )
         .ok_or(InvalidRegVal)?;
         let divisor = VMUtils::unsigned_to_signed(
-            4,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF,
+            4,
         )
         .ok_or(InvalidRegVal)?;
 
@@ -2427,7 +2427,7 @@ impl InstructionSet {
             // TODO: check the GP (returns `dividend`, which is a signed integer)
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
         } else {
-            VMUtils::signed_to_unsigned(8, dividend.wrapping_div(divisor)).ok_or(InvalidRegVal)?
+            VMUtils::signed_to_unsigned(dividend.wrapping_div(divisor), 8).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2479,21 +2479,21 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
-            4,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF,
+            4,
         )
         .ok_or(InvalidRegVal)?;
         let divisor = VMUtils::unsigned_to_signed(
-            4,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF,
+            4,
         )
         .ok_or(InvalidRegVal)?;
         let result = if divisor == 0 {
-            VMUtils::signed_to_unsigned(8, dividend).ok_or(InvalidRegVal)?
+            VMUtils::signed_to_unsigned(dividend, 8).ok_or(InvalidRegVal)?
         } else if dividend == i32::MIN as i64 && divisor == -1 {
             0
         } else {
-            VMUtils::signed_to_unsigned(8, dividend % divisor).ok_or(InvalidRegVal)?
+            VMUtils::signed_to_unsigned(dividend % divisor, 8).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2561,12 +2561,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
         let value = VMUtils::unsigned_to_signed(
-            4,
             (PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?) & 0xFFFF_FFFF,
+            4,
         )
         .ok_or(InvalidRegVal)?;
         let result = value >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).unwrap();
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).unwrap();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2676,13 +2676,13 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let divisor = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
 
@@ -2691,7 +2691,7 @@ impl InstructionSet {
         } else if dividend == i64::MIN && divisor == -1 {
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
         } else {
-            VMUtils::signed_to_unsigned(8, dividend.wrapping_div(divisor)).ok_or(InvalidRegVal)?
+            VMUtils::signed_to_unsigned(dividend.wrapping_div(divisor), 8).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2739,13 +2739,13 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let dividend = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let divisor = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let result = if divisor == 0 {
@@ -2753,7 +2753,7 @@ impl InstructionSet {
         } else if dividend == i64::MIN && divisor == -1 {
             0
         } else {
-            VMUtils::signed_to_unsigned(8, dividend % divisor).ok_or(InvalidRegVal)?
+            VMUtils::signed_to_unsigned(dividend % divisor, 8).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2818,12 +2818,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
         let value = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let result = value >> shift;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).unwrap();
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).unwrap();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2907,19 +2907,19 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let result = ((r1_val_signed as i128 * r2_val_signed as i128) >> 64)
             .try_into()
             .map_err(|_| InvalidRegVal)?;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2964,15 +2964,15 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let r2_val = reg_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
         let result = ((r1_val_signed as i128 * r2_val as i128) >> 64)
             .try_into()
             .map_err(|_| InvalidRegVal)?;
-        let result_unsigned = VMUtils::signed_to_unsigned(8, result).ok_or(InvalidRegVal)?;
+        let result_unsigned = VMUtils::signed_to_unsigned(result, 8).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3015,13 +3015,13 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let r2_val_signed = VMUtils::unsigned_to_signed(
-            8,
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?,
+            8,
         )
         .ok_or(InvalidRegVal)?;
         let result = if r1_val_signed < r2_val_signed { 1 } else { 0 };

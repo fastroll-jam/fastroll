@@ -1,5 +1,5 @@
 use crate::{
-    constants::REGISTERS_COUNT,
+    constants::{INIT_ZONE_SIZE, REGISTERS_COUNT},
     program::{
         instructions::InstructionSet as IS,
         opcode::Opcode,
@@ -181,6 +181,11 @@ impl PVMCore {
                 return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
             }
 
+            // TODO: check if INIT_ZONE_SIZE inclusive
+            if start_address as usize <= INIT_ZONE_SIZE {
+                return Err(PVMError::InvalidMemZone);
+            }
+
             match vm_state.memory.write_bytes(start_address, &data) {
                 Ok(_) => {}
                 Err(MemoryError::AccessViolation(address)) => {
@@ -264,11 +269,20 @@ impl PVMCore {
             };
 
             let single_invocation_result =
-                Self::single_step_invocation(vm_state, program_state, &inst)?;
+                match Self::single_step_invocation(vm_state, program_state, &inst) {
+                    Ok(result) => result,
+                    // TODO: better error type conversion
+                    Err(PVMError::PageFault(address))
+                    | Err(PVMError::MemoryError(MemoryError::AccessViolation(address))) => {
+                        return Ok(ExitReason::PageFault(address))
+                    }
+                    Err(e) => return Err(e),
+                };
 
             let post_gas =
                 match Self::apply_state_change(vm_state, single_invocation_result.state_change) {
                     Ok(post_gas) => post_gas,
+                    Err(PVMError::InvalidMemZone) => return Ok(ExitReason::Panic),
                     Err(PVMError::PageFault(address)) => return Ok(ExitReason::PageFault(address)),
                     Err(e) => return Err(e),
                 };

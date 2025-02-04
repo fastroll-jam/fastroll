@@ -15,6 +15,8 @@ pub enum PVMError {
     AccountNotFound,
     #[error("Page Fault at Address {0}")]
     PageFault(MemAddress),
+    #[error("Invalid memory zone")]
+    InvalidMemZone,
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]

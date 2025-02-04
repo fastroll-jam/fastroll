@@ -31,13 +31,13 @@ impl VMUtils {
     /// Represents `Z_n` of the GP
     /// # Arguments
     ///
-    /// * `n`: The number of octets in the integer.
     /// * `a`: The unsigned integer to convert.
+    /// * `n`: The number of octets in the integer.
     ///
     /// # Returns
     ///
     /// The signed equivalent of the input, or None if `n` is greater than 8.
-    pub fn unsigned_to_signed(n: u64, a: u64) -> Option<i64> {
+    pub fn unsigned_to_signed(a: u64, n: u64) -> Option<i64> {
         match n {
             0..=8 => {
                 let max_positive = 1u64 << (8 * n - 1);
@@ -56,13 +56,13 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets in the integer.
     /// * `a`: The signed integer to convert.
+    /// * `n`: The number of octets in the integer.
     ///
     /// # Returns
     ///
     /// The unsigned equivalent of the input, or None if `n` is greater than 8.
-    pub fn signed_to_unsigned(n: u64, a: i64) -> Option<u64> {
+    pub fn signed_to_unsigned(a: i64, n: u64) -> Option<u64> {
         match n {
             0..=8 => {
                 let modulus = 1i64.wrapping_shl(8 * n as u32);
@@ -77,14 +77,14 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets in the integer.
     /// * `x`: The unsigned integer to convert.
+    /// * `n`: The number of octets in the integer.
     ///
     /// # Returns
     ///
     /// A vector of booleans representing the binary form of the input,
     /// or None if `n` is greater than 8.
-    pub fn int_to_bitvec(n: u64, x: u64) -> Option<BitVec> {
+    pub fn int_to_bitvec(x: u64, n: u64) -> Option<BitVec> {
         match n {
             0..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
@@ -102,14 +102,14 @@ impl VMUtils {
     ///
     /// # Arguments
     ///
-    /// * `n`: The number of octets in the integer.
     /// * `x`: A vector of booleans representing the binary form.
+    /// * `n`: The number of octets in the integer.
     ///
     /// # Returns
     ///
     /// The unsigned integer represented by the input binary form,
     /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
-    pub fn bitvec_to_int(n: u64, x: &BitVec) -> Option<u64> {
+    pub fn bitvec_to_int(x: &BitVec, n: u64) -> Option<u64> {
         if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
