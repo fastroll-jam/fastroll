@@ -244,11 +244,10 @@ impl Memory {
         start: MemAddress,
         length: usize,
     ) -> Result<bool, MemoryError> {
-        let end = start + length as MemAddress;
-        let (start_page_index, _) = self.get_page_and_offset(start);
-        let (end_page_index, _) = self.get_page_and_offset(end);
+        let (start_page, _) = self.get_page_and_offset(start);
+        let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
 
-        self.is_page_range_readable(start_page_index..end_page_index)?;
+        self.is_page_range_readable(start_page..end_page + 1)?;
 
         Ok(true)
     }
@@ -301,11 +300,10 @@ impl Memory {
         start: MemAddress,
         length: usize,
     ) -> Result<bool, MemoryError> {
-        let end = start + length as MemAddress;
-        let (start_page_index, _) = self.get_page_and_offset(start);
-        let (end_page_index, _) = self.get_page_and_offset(end);
+        let (start_page, _) = self.get_page_and_offset(start);
+        let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
 
-        self.check_not_writable_in_range(start_page_index..end_page_index)?;
+        self.check_not_writable_in_range(start_page..end_page + 1)?;
         Ok(true)
     }
 
