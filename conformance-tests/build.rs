@@ -3,9 +3,10 @@ use std::{env, fs, path::PathBuf};
 /// Build script to generate PVM test cases from JSON test vectors
 fn main() {
     let test_vectors_dir = PathBuf::from("jamtestvectors-pvm/pvm/programs");
-    println!("cargo:rerun-if-changed={}", test_vectors_dir.display());
+    let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
+    println!("cargo:rerun-if-changed={}", full_path.display());
     let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
-    let test_files = fs::read_dir(&test_vectors_dir).expect("Failed to read test vectors dir");
+    let test_files = fs::read_dir(&full_path).expect("Failed to read test vectors dir");
 
     let mut test_case_contents = String::new();
     for test_file in test_files {
