@@ -203,16 +203,16 @@ impl VMUtils {
     /// The sign-extended 64-bit unsigned integer, or None if `n` is greater than 4.
     pub fn sext<T>(compact_val: T, n: usize) -> Option<RegValue>
     where
-        T: Into<u64> + Copy,
+        T: Into<i128> + Copy,
     {
         match n {
             0..=4 | 8 => {
                 let val = compact_val.into();
                 let msb = (val >> (8 * n - 1)) & 1;
                 if msb == 1 {
-                    Some(val + (RegValue::MAX - (1 << (8 * n)) + 1))
+                    Some((val + (RegValue::MAX as i128 - (1 << (8 * n as i128)) + 1)) as RegValue)
                 } else {
-                    Some(val)
+                    Some(val as RegValue)
                 }
             }
             _ => None,

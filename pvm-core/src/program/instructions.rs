@@ -627,7 +627,6 @@ impl InstructionSet {
         })
     }
 
-    // TODO: apply `wrapping_add` to other memory index operation as well
     //
     // Group 7: Instructions with Arguments of One Register & Two Immediates
     //
