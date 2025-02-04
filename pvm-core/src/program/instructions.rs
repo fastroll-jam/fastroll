@@ -2384,8 +2384,7 @@ impl InstructionSet {
         let result = if divisor == 0 {
             u64::MAX
         } else if dividend == i32::MIN && divisor == -1 {
-            // TODO: check the GP (returns `dividend`, which is a signed integer)
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            VMUtils::i64_to_u64(dividend as i64)
         } else {
             VMUtils::i64_to_u64(dividend as i64 / divisor as i64)
         };
