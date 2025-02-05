@@ -152,7 +152,7 @@ impl VMUtils {
     ///
     /// A vector of booleans representing the binary form of the input,
     /// or None if `n` is greater than 8.
-    pub fn int_to_bitvec(x: u64, n: u64) -> Option<BitVec> {
+    pub fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
         match n {
             0..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
@@ -163,6 +163,26 @@ impl VMUtils {
             }
             _ => None,
         }
+    }
+
+    /// `B_n` function with `n = 4`
+    pub fn u32_to_bits(x: u32) -> BitVec {
+        let n = 4;
+        let mut result = BitVec::from_elem((8 * n) as usize, false);
+        for i in 0..(8 * n) {
+            result.set(i as usize, (x >> i) & 1 == 1);
+        }
+        result
+    }
+
+    /// `B_n` function with `n = 8`
+    pub fn u64_to_bits(x: u64) -> BitVec {
+        let n = 8;
+        let mut result = BitVec::from_elem((8 * n) as usize, false);
+        for i in 0..(8 * n) {
+            result.set(i as usize, (x >> i) & 1 == 1);
+        }
+        result
     }
 
     /// Converts a binary representation back to an unsigned integer.
@@ -177,7 +197,7 @@ impl VMUtils {
     ///
     /// The unsigned integer represented by the input binary form,
     /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
-    pub fn bitvec_to_int(x: &BitVec, n: u64) -> Option<u64> {
+    pub fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
         if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
@@ -187,6 +207,20 @@ impl VMUtils {
                 .enumerate()
                 .fold(0, |acc, (i, bit)| acc | ((bit as u64) << i)),
         )
+    }
+
+    /// `{B_n}^-1` function with `n = 4`
+    pub fn bits_to_u32(x: &BitVec) -> u32 {
+        x.iter()
+            .enumerate()
+            .fold(0, |acc, (i, bit)| acc | ((bit as u32) << i))
+    }
+
+    /// `{B_n}^-1` function with `n = 8`
+    pub fn bits_to_u64(x: &BitVec) -> u64 {
+        x.iter()
+            .enumerate()
+            .fold(0, |acc, (i, bit)| acc | ((bit as u64) << i))
     }
 
     /// Performs signed extension on compactly encoded immediate argument octets, so that the
