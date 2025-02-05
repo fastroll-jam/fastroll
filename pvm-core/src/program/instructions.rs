@@ -2186,40 +2186,98 @@ impl InstructionSet {
         })
     }
 
+    /// Rotate right logical a 64-bit value by an immediate amount
+    ///
     /// Opcode: 158
     pub fn rot_r_64_imm(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let result =
+            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate right logical a 64-bit value by an immediate amount (alternative)
+    ///
     /// Opcode: 159
     pub fn rot_r_64_imm_alt(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result = ins.imm1.ok_or(InvalidImmVal)?.rotate_right(rotate);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate right logical a 32-bit value by an immediate amount
+    ///
     /// Opcode: 160
     pub fn rot_r_32_imm(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let result = VMUtils::sext(
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?
+                .rotate_right(rotate),
+            4,
+        )
+        .ok_or(InvalidImmVal)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate right logical a 32-bit value by an immediate amount (alternative)
+    ///
     /// Opcode: 161
     pub fn rot_r_32_imm_alt(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result = VMUtils::sext(
+            reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?.rotate_right(rotate),
+            4,
+        )
+        .ok_or(InvalidImmVal)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
     //
@@ -3141,40 +3199,99 @@ impl InstructionSet {
         })
     }
 
+    /// Rotate left logical a 64-bit value
+    ///
     /// Opcode: 220
     pub fn rot_l_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_left(rotate);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate left logical a 32-bit value
+    ///
     /// Opcode: 221
     pub fn rot_l_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result = VMUtils::sext(
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?
+                .rotate_left(rotate),
+            4,
+        )
+        .ok_or(InvalidImmVal)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate right logical a 64-bit value
+    ///
     /// Opcode: 222
     pub fn rot_r_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result =
+            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Rotate right logical a 32-bit value
+    ///
     /// Opcode: 223
     pub fn rot_r_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let result = VMUtils::sext(
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?
+                .rotate_right(rotate),
+            4,
+        )
+        .ok_or(InvalidImmVal)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
     /// Bitwise AND with the inverse of the second register.
