@@ -591,10 +591,8 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
-        let r1_val = reg_to_u32(PVMCore::read_reg(
-            vm_state,
-            ins.r1.ok_or(InvalidImmVal)? & 0xFFFF_FFFF,
-        )?)?;
+        let r1_val =
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1053,94 +1051,233 @@ impl InstructionSet {
         })
     }
 
+    /// Count the number of set bits of a 64-bit value
+    ///
     /// Opcode: 102
     pub fn count_set_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let set_bits = VMUtils::u64_to_bv(r1_val).count_ones();
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, set_bits)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Count the number of set bits of a 64-bit value
+    ///
     /// Opcode: 103
     pub fn count_set_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+        let set_bits = VMUtils::u32_to_bv(r1_val).count_ones();
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, set_bits)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Count the number of leading zeroes of a 64-bit value
+    ///
     /// Opcode: 104
     pub fn leading_zero_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let leading_zeroes = VMUtils::u64_to_bv(r1_val)
+            .iter()
+            .take_while(|&b| !b)
+            .count() as u64;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Count the number of leading zeroes of a 32-bit value
+    ///
     /// Opcode: 105
     pub fn leading_zero_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+        let leading_zeroes = VMUtils::u32_to_bv(r1_val)
+            .iter()
+            .take_while(|&b| !b)
+            .count() as u64;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Count the number of trailing zeroes of a 64-bit value
+    ///
     /// Opcode: 106
     pub fn trailing_zero_bits_64(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let trailing_zeroes = VMUtils::u64_to_bv(r1_val)
+            .iter()
+            .rev()
+            .take_while(|&b| !b)
+            .count() as u64;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Count the number of trailing zeroes of a 32-bit value
+    ///
     /// Opcode: 107
     pub fn trailing_zero_bits_32(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+        let trailing_zeroes = VMUtils::u32_to_bv(r1_val)
+            .iter()
+            .rev()
+            .take_while(|&b| !b)
+            .count() as u64;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Sign extend a 8-bit value
+    ///
     /// Opcode: 108
     pub fn sign_extend_8(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF)?;
+        let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(r1_val) as i64);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, val)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Sign extend a 16-bit value
+    ///
     /// Opcode: 109
     pub fn sign_extend_16(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)?;
+        let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(r1_val) as i64);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, val)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Zero extend a 16-bit value
+    ///
     /// Opcode: 110
     pub fn zero_extend_16(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, r1_val)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Reverse bytes of a 64-bit value
+    ///
     /// Opcode: 111
     pub fn reverse_bytes(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let mut r1_val_encoded = r1_val.encode_fixed(8)?;
+        r1_val_encoded.reverse();
+        let rev_val = u64::decode_fixed(&mut r1_val_encoded.as_slice(), 8)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, rev_val)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
     //
