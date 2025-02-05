@@ -166,7 +166,7 @@ impl VMUtils {
     }
 
     /// `B_n` function with `n = 4`
-    pub fn u32_to_bv(x: u32) -> BitVec {
+    pub fn u32_to_bits(x: u32) -> BitVec {
         let n = 4;
         let mut result = BitVec::from_elem((8 * n) as usize, false);
         for i in 0..(8 * n) {
@@ -176,7 +176,7 @@ impl VMUtils {
     }
 
     /// `B_n` function with `n = 8`
-    pub fn u64_to_bv(x: u64) -> BitVec {
+    pub fn u64_to_bits(x: u64) -> BitVec {
         let n = 8;
         let mut result = BitVec::from_elem((8 * n) as usize, false);
         for i in 0..(8 * n) {

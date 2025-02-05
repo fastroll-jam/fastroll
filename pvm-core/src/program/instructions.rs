@@ -1,4 +1,5 @@
-#![allow(unused_variables)] // TODO: remove
+#![allow(unused_variables)]
+// TODO: remove
 use crate::{
     constants::JUMP_ALIGNMENT,
     core::{PVMCore, SingleStepResult, StateChange, VMState},
@@ -1060,7 +1061,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let set_bits = VMUtils::u64_to_bv(r1_val).count_ones();
+        let set_bits = VMUtils::u64_to_bits(r1_val).count_ones();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1082,7 +1083,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
-        let set_bits = VMUtils::u32_to_bv(r1_val).count_ones();
+        let set_bits = VMUtils::u32_to_bits(r1_val).count_ones();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1103,7 +1104,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let leading_zeroes = VMUtils::u64_to_bv(r1_val)
+        let leading_zeroes = VMUtils::u64_to_bits(r1_val)
             .iter()
             .take_while(|&b| !b)
             .count() as u64;
@@ -1128,7 +1129,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
-        let leading_zeroes = VMUtils::u32_to_bv(r1_val)
+        let leading_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
             .take_while(|&b| !b)
             .count() as u64;
@@ -1152,7 +1153,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let trailing_zeroes = VMUtils::u64_to_bv(r1_val)
+        let trailing_zeroes = VMUtils::u64_to_bits(r1_val)
             .iter()
             .rev()
             .take_while(|&b| !b)
@@ -1178,7 +1179,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
-        let trailing_zeroes = VMUtils::u32_to_bv(r1_val)
+        let trailing_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
             .rev()
             .take_while(|&b| !b)
@@ -3176,66 +3177,158 @@ impl InstructionSet {
         unimplemented!();
     }
 
+    /// Bitwise AND with the inverse of the second register.
+    ///
     /// Opcode: 224
     pub fn and_inv(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            & !PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Bitwise OR with the inverse of the second register.
+    ///
     /// Opcode: 225
     pub fn or_inv(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            | !PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Bitwise XNOR of two registers.
+    ///
     /// Opcode: 226
     pub fn xnor(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let result = !(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            ^ PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Return the maximum of two signed 64-bit register values
+    ///
     /// Opcode: 227
     pub fn max(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
+        let r2_val =
+            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = VMUtils::i64_to_u64(r1_val.max(r2_val));
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Return the maximum of two unsigned 64-bit register values
+    ///
     /// Opcode: 228
     pub fn max_u(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = r1_val.max(r2_val);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Return the minimum of two signed 64-bit register values
+    ///
     /// Opcode: 229
     pub fn min(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val =
+            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
+        let r2_val =
+            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = VMUtils::i64_to_u64(r1_val.min(r2_val));
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 
+    /// Return the minimum of two unsigned 64-bit register values
+    ///
     /// Opcode: 230
     pub fn min_u(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        unimplemented!();
+        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = r1_val.min(r2_val);
+
+        Ok(SingleStepResult {
+            exit_reason: ExitReason::Continue,
+            state_change: StateChange {
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
+                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                ..Default::default()
+            },
+        })
     }
 }
