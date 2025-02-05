@@ -65,6 +65,15 @@ impl PageMap {
             .set_address_range_access(self.address..(self.address + self.length), access_type)
             .expect("Failed to set access");
     }
+
+    fn set_access_privileged(&self, memory: &mut Memory) {
+        memory
+            .set_address_range_access(
+                self.address..(self.address + self.length),
+                AccessType::ReadWrite,
+            )
+            .expect("Failed to set access");
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -147,14 +156,19 @@ impl PVMHarness {
             initial_vm.registers[i] = Register::new(*val);
         }
 
-        // Setup memory
+        // Give ReadWrite access during memory setup
         for page_map in &test_case.initial_page_map {
-            page_map.set_access(&mut initial_vm.memory);
+            page_map.set_access_privileged(&mut initial_vm.memory);
         }
 
         // Load initial data to value
         for memory_chunk in test_case.initial_memory {
             memory_chunk.write_to_memory(&mut initial_vm.memory);
+        }
+
+        // Setup memory page accesses
+        for page_map in &test_case.initial_page_map {
+            page_map.set_access(&mut initial_vm.memory);
         }
 
         // --- Expected VM State after program run
@@ -170,14 +184,19 @@ impl PVMHarness {
             expected_vm.registers[i] = Register::new(*val);
         }
 
-        // Setup memory
+        // Give ReadWrite access during memory setup
         for page_map in &test_case.initial_page_map {
-            page_map.set_access(&mut expected_vm.memory);
+            page_map.set_access_privileged(&mut expected_vm.memory);
         }
 
         // Load initial data to value
         for memory_chunk in test_case.expected_memory {
             memory_chunk.write_to_memory(&mut expected_vm.memory);
+        }
+
+        // Setup memory page accesses
+        for page_map in &test_case.initial_page_map {
+            page_map.set_access(&mut expected_vm.memory);
         }
 
         ParsedTestCase {
