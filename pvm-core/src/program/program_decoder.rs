@@ -356,7 +356,7 @@ impl ProgramDecoder {
             // Group 7: one register & two immediates
             STORE_IMM_IND_U8 | STORE_IMM_IND_U16 | STORE_IMM_IND_U32 | STORE_IMM_IND_U64 => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let l_x = 4.min((single_inst_blob[1] as f64 / 16.0).floor() as u8 % 8) as usize;
+                let l_x = 4.min((single_inst_blob[1] / 16) % 8) as usize;
                 let l_y = 4.min(0.max(skip_distance - l_x - 1));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
                 let imm_y = Self::extract_imm_value(single_inst_blob, l_y, 2 + l_x)?;
@@ -376,7 +376,7 @@ impl ProgramDecoder {
             | BRANCH_GE_U_IMM | BRANCH_GT_U_IMM | BRANCH_LT_S_IMM | BRANCH_LE_S_IMM
             | BRANCH_GE_S_IMM | BRANCH_GT_S_IMM => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let l_x = 4.min((single_inst_blob[1] as f64 / 16.0).floor() as u8 % 8) as usize;
+                let l_x = 4.min((single_inst_blob[1] / 16) % 8) as usize;
                 let l_y = 4.min(0.max(skip_distance - l_x - 1));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
                 let imm_y =
@@ -406,7 +406,7 @@ impl ProgramDecoder {
             | ZERO_EXTEND_16
             | REVERSE_BYTES => {
                 let r_d = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_a = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
+                let r_a = 12.min(single_inst_blob[1] / 16) as usize;
 
                 Ok(Instruction::new(
                     op,
@@ -429,7 +429,7 @@ impl ProgramDecoder {
             | SHLO_L_IMM_ALT_64 | SHLO_R_IMM_ALT_64 | SHAR_R_IMM_ALT_64 | ROT_R_64_IMM
             | ROT_R_64_IMM_ALT | ROT_R_32_IMM | ROT_R_32_IMM_ALT => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
+                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
                 let l_x = 4.min(0.max(skip_distance - 1));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
 
@@ -446,7 +446,7 @@ impl ProgramDecoder {
             // Group 11: two registers & one offset
             BRANCH_EQ | BRANCH_NE | BRANCH_LT_U | BRANCH_LT_S | BRANCH_GE_U | BRANCH_GE_S => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
+                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
                 let l_x = 4.min(0.max(skip_distance - 1));
                 let imm_x = Self::extract_imm_target_address(current_pc, single_inst_blob, l_x, 2)?;
 
@@ -463,7 +463,7 @@ impl ProgramDecoder {
             // Group 12: two registers & two immediates
             LOAD_IMM_JUMP_IND => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
+                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
                 let l_x = 4.min(single_inst_blob[2] % 8) as usize;
                 let l_y = 4.min(0.max(skip_distance - l_x - 2));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 3)?;
@@ -487,7 +487,7 @@ impl ProgramDecoder {
             | ROT_L_64 | ROT_L_32 | ROT_R_64 | ROT_R_32 | AND_INV | OR_INV | XNOR | MAX | MAX_U
             | MIN | MIN_U => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min((single_inst_blob[1] as f64 / 16.0).floor() as u8) as usize;
+                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
                 let r_d = 12.min(single_inst_blob[2]) as usize;
 
                 Ok(Instruction::new(
