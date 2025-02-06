@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-// TODO: remove
 use crate::{
     constants::JUMP_ALIGNMENT,
     core::{PVMCore, SingleStepResult, StateChange, VMState},
@@ -14,33 +12,34 @@ use crate::{
 };
 use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
 
-fn reg_to_mem_address(reg: RegValue) -> Result<MemAddress, PVMError> {
-    MemAddress::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+// Convert RegValue to smaller int types by taking the lower bits
+fn reg_to_mem_address(reg: RegValue) -> MemAddress {
+    reg as MemAddress
 }
 
-fn reg_to_u8(reg: RegValue) -> Result<u8, PVMError> {
-    u8::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_u8(reg: RegValue) -> u8 {
+    reg as u8
 }
 
-fn reg_to_u16(reg: RegValue) -> Result<u16, PVMError> {
-    u16::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_u16(reg: RegValue) -> u16 {
+    reg as u16
 }
 
-fn reg_to_u32(reg: RegValue) -> Result<u32, PVMError> {
-    u32::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_u32(reg: RegValue) -> u32 {
+    reg as u32
 }
 
 #[allow(clippy::useless_conversion)]
-fn reg_to_u64(reg: RegValue) -> Result<u64, PVMError> {
-    u64::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_u64(reg: RegValue) -> u64 {
+    reg
 }
 
-fn reg_to_i64(reg: RegValue) -> Result<i64, PVMError> {
-    i64::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_i64(reg: RegValue) -> i64 {
+    reg as i64
 }
 
-fn reg_to_usize(reg: RegValue) -> Result<usize, PVMError> {
-    usize::try_from(reg).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+fn reg_to_usize(reg: RegValue) -> usize {
+    reg as usize
 }
 
 /// PVM instruction execution functions
@@ -69,12 +68,12 @@ impl InstructionSet {
         ) {
             (false, _) => Ok((
                 ExitReason::Continue,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
             )),
             (true, true) => Ok((ExitReason::Continue, target)),
             (true, false) => Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
             )),
         }
     }
@@ -95,7 +94,7 @@ impl InstructionSet {
         if a == SPECIAL_HALT_VALUE {
             return Ok((
                 ExitReason::RegularHalt,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
             ));
         }
 
@@ -105,7 +104,7 @@ impl InstructionSet {
         if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
             return Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
             ));
         }
 
@@ -121,7 +120,7 @@ impl InstructionSet {
             }
             Some(_) => Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state))?,
+                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
             )),
             None => Err(PVMError::VMCoreError(JumpTableOutOfBounds(aligned_index))),
         }
@@ -175,7 +174,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_host_call_type = reg_to_u8(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_host_call_type = reg_to_u8(ins.imm1.ok_or(InvalidImmVal)?);
 
         let exit_reason = ExitReason::HostCall(
             HostCallType::from_u8(imm_host_call_type).ok_or(InvalidHostCallType)?,
@@ -208,7 +207,7 @@ impl InstructionSet {
                 new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 register_writes: vec![(
                     ins.r1.ok_or(InvalidImmVal)?,
-                    reg_to_u64(ins.imm1.ok_or(InvalidImmVal)?)?,
+                    reg_to_u64(ins.imm1.ok_or(InvalidImmVal)?),
                 )],
                 ..Default::default()
             },
@@ -227,7 +226,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
 
@@ -249,7 +248,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
 
@@ -271,7 +270,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
         let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
 
@@ -293,7 +292,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
         let value = imm_value.encode_fixed(8)?;
 
@@ -319,7 +318,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
@@ -348,11 +347,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
-        let jump_address = reg_to_usize(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?)
-                & 0xFFFF_FFFF,
-        )?;
+        let jump_address = reg_to_usize(r1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
 
         Ok(SingleStepResult {
@@ -393,7 +388,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_byte(imm_address)?;
 
         Ok(SingleStepResult {
@@ -414,7 +409,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_byte(imm_address)?;
         let val_extended = VMUtils::sext(val, 1).ok_or(InvalidMemVal)?;
 
@@ -436,7 +431,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
 
@@ -458,7 +453,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
         let val_extended = VMUtils::sext(val_decoded, 2).ok_or(InvalidMemVal)?;
@@ -481,7 +476,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
 
@@ -503,7 +498,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
         let val_extended = VMUtils::sext(val_decoded, 4).ok_or(InvalidMemVal)?;
@@ -526,7 +521,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let val = vm_state.memory.read_bytes(imm_address, 8)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
 
@@ -548,8 +543,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
-        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -569,9 +564,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val =
-            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)?;
+            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -591,9 +586,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -613,8 +608,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
-        let r1_val = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?;
+        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let r1_val = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -641,8 +636,8 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
-        let value = vec![reg_to_u8(ins.imm2.ok_or(InvalidImmVal)? & 0xFF)?];
+        );
+        let value = vec![reg_to_u8(ins.imm2.ok_or(InvalidImmVal)? & 0xFF)];
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -665,8 +660,8 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
-        let value = reg_to_u16(ins.imm2.ok_or(InvalidImmVal)? & 0xFFFF)?.encode_fixed(2)?;
+        );
+        let value = reg_to_u16(ins.imm2.ok_or(InvalidImmVal)? & 0xFFFF).encode_fixed(2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -689,9 +684,9 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         // TODO: check the GP if `mod 2^32` not needed here
-        let value = reg_to_u32(ins.imm2.ok_or(InvalidImmVal)?)?.encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2.ok_or(InvalidImmVal)?).encode_fixed(4)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -714,8 +709,8 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
-        let value = reg_to_u64(ins.imm2.ok_or(InvalidImmVal)?)?.encode_fixed(8)?;
+        );
+        let value = reg_to_u64(ins.imm2.ok_or(InvalidImmVal)?).encode_fixed(8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -739,7 +734,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
@@ -763,7 +758,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             == ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -786,7 +781,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             != ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -809,7 +804,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             < ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -832,7 +827,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             <= ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -855,7 +850,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             >= ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -878,7 +873,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
             > ins.imm1.ok_or(InvalidImmVal)?;
 
@@ -901,7 +896,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let r1_val =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
@@ -926,7 +921,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let r1_val =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
@@ -952,7 +947,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let r1_val =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
@@ -977,7 +972,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
         let r1_val =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
@@ -1082,7 +1077,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
         let set_bits = VMUtils::u32_to_bits(r1_val).count_ones();
 
         Ok(SingleStepResult {
@@ -1128,7 +1123,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
         let leading_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
             .take_while(|&b| !b)
@@ -1178,7 +1173,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?;
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
         let trailing_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
             .rev()
@@ -1203,7 +1198,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF)?;
+        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF);
         let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(r1_val) as i64);
 
         Ok(SingleStepResult {
@@ -1225,7 +1220,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
-            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)?;
+            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF);
         let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(r1_val) as i64);
 
         Ok(SingleStepResult {
@@ -1296,10 +1291,10 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vec![reg_to_u8(
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF,
-        )?];
+        )];
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1322,10 +1317,9 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
-        let value =
-            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)?
-                .encode_fixed(2)?;
+        );
+        let value = reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)
+            .encode_fixed(2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1348,9 +1342,9 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)?
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)
                 .encode_fixed(4)?;
 
         Ok(SingleStepResult {
@@ -1374,8 +1368,8 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
-        let value = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?
+        );
+        let value = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
             .encode_fixed(8)?;
 
         Ok(SingleStepResult {
@@ -1399,7 +1393,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_byte(address)?;
 
         Ok(SingleStepResult {
@@ -1423,7 +1417,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_byte(address)?;
         let signed_value = VMUtils::u8_to_i8(value);
         let unsigned_value = VMUtils::i64_to_u64(signed_value as i64);
@@ -1449,7 +1443,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
 
@@ -1474,7 +1468,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
         let signed_value = VMUtils::u16_to_i16(value_decoded);
@@ -1501,7 +1495,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
 
@@ -1526,7 +1520,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
         let signed_value = VMUtils::u32_to_i32(value_decoded);
@@ -1553,7 +1547,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        )?;
+        );
         let value = vm_state.memory.read_bytes(address, 8)?;
         let value_decoded = u64::decode_fixed(&mut &value[..], 8)?;
 
@@ -2194,7 +2188,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?);
         let result =
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
 
@@ -2216,7 +2210,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = ins.imm1.ok_or(InvalidImmVal)?.rotate_right(rotate);
 
         Ok(SingleStepResult {
@@ -2237,9 +2231,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?);
         let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)
                 .rotate_right(rotate),
             4,
         )
@@ -2263,9 +2257,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = VMUtils::sext(
-            reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?)?.rotate_right(rotate),
+            reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?).rotate_right(rotate),
             4,
         )
         .ok_or(InvalidImmVal)?;
@@ -2292,7 +2286,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let condition = r1_val == r2_val;
@@ -2316,7 +2310,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = r1_val != r2_val;
@@ -2340,7 +2334,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let condition = r1_val < r2_val;
@@ -2363,7 +2357,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val_signed =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let r2_val_signed =
@@ -2390,7 +2384,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
         let condition = r1_val >= r2_val;
@@ -2414,7 +2408,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?)?;
+        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
         let r1_val_signed =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let r2_val_signed =
@@ -2448,7 +2442,7 @@ impl InstructionSet {
             PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
                 .wrapping_add(ins.imm2.ok_or(InvalidImmVal)?)
                 & 0xFFFF_FFFF,
-        )?;
+        );
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
 
         Ok(SingleStepResult {
@@ -3090,7 +3084,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val_signed =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val = reg_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let r2_val = reg_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = ((r1_val_signed as i128 * r2_val as i128) >> 64) as i64;
         let result_unsigned = VMUtils::i64_to_u64(result);
         Ok(SingleStepResult {
@@ -3207,7 +3201,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_left(rotate);
 
         Ok(SingleStepResult {
@@ -3228,9 +3222,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
                 .rotate_left(rotate),
             4,
         )
@@ -3254,7 +3248,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result =
             PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
 
@@ -3276,9 +3270,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)?;
+        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
         let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)?
+            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
                 .rotate_right(rotate),
             4,
         )
