@@ -42,7 +42,7 @@ pub struct State {
     pub offenders: Vec<AsnEd25519Key>,
     pub recent_blocks: AsnBlocksHistory,
     pub auth_pools: AsnAuthPools,
-    pub services: AsnServices,
+    pub accounts: AsnServices,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

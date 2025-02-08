@@ -61,7 +61,7 @@ mod tests {
             let pre_block_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
             let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
             let pre_account_metadata_vec: Vec<AccountMetadata> = test_pre_state
-                .services
+                .accounts
                 .clone()
                 .into_iter()
                 .map(AccountMetadata::from)
@@ -159,7 +159,7 @@ mod tests {
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;
             let curr_account_metadata_vec: Vec<AccountMetadata> =
-                join_all(pre_state.services.iter().map(async |s| -> AccountMetadata {
+                join_all(pre_state.accounts.iter().map(async |s| -> AccountMetadata {
                     state_manager
                         .get_account_metadata(s.id)
                         .await
@@ -180,7 +180,7 @@ mod tests {
                     .collect(),
                 recent_blocks: curr_blocks_history.into(),
                 auth_pools: curr_auth_pool.into(),
-                services: curr_account_metadata_vec
+                accounts: curr_account_metadata_vec
                     .into_iter()
                     .map(AsnServiceItem::from)
                     .collect(),

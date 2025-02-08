@@ -376,9 +376,14 @@ pub struct AsnServiceInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnAccount {
+    service: AsnServiceInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnServiceItem {
     pub id: AsnServiceId,
-    pub info: AsnServiceInfo,
+    pub data: AsnAccount,
 }
 
 impl From<AccountMetadata> for AsnServiceItem {
@@ -394,7 +399,7 @@ impl From<AccountMetadata> for AsnServiceItem {
 
         Self {
             id: value.address,
-            info,
+            data: AsnAccount { service: info },
         }
     }
 }
@@ -404,19 +409,19 @@ impl From<AsnServiceItem> for AccountMetadata {
     // for the storage and lookups separately.
     fn from(value: AsnServiceItem) -> Self {
         let account_info = AccountInfo {
-            code_hash: value.info.code_hash.into(),
-            balance: value.info.balance,
-            gas_limit_accumulate: value.info.min_item_gas,
-            gas_limit_on_transfer: value.info.min_memo_gas,
+            code_hash: value.data.service.code_hash.into(),
+            balance: value.data.service.balance,
+            gas_limit_accumulate: value.data.service.min_item_gas,
+            gas_limit_on_transfer: value.data.service.min_memo_gas,
         };
 
         Self {
             address: value.id,
             account_info,
             lookups_items_count: 0,
-            storage_items_count: value.info.items,
+            storage_items_count: value.data.service.items,
             lookups_total_octets: 0,
-            storage_total_octets: value.info.bytes,
+            storage_total_octets: value.data.service.bytes,
         }
     }
 }

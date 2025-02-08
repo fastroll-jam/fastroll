@@ -129,7 +129,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
             return Ok(Hash32::default());
         };
 
-        let prefix: &[u8] = b"node"; // FIXME: update to "peak" (GP 0.5.3)
+        let prefix: &[u8] = b"peak";
         for peak in peaks {
             let mut buf = Vec::with_capacity(prefix.len() + 2 * HASH_SIZE);
             buf.extend_from_slice(prefix);
