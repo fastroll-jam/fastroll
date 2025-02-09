@@ -39,40 +39,44 @@ impl VMState {
     pub fn pc_as_mem_address(&self) -> Result<MemAddress, PVMError> {
         MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
+
+    pub fn read_reg(&self, index: usize) -> RegValue {
+        self.registers[index].value()
+    }
+
+    pub fn read_reg_as_mem_address(&self, index: usize) -> Result<MemAddress, PVMError> {
+        self.registers[index].as_mem_address()
+    }
+
+    pub fn read_reg_as_reg_index(&self, index: usize) -> Result<usize, PVMError> {
+        self.registers[index].as_reg_index()
+    }
+
+    pub fn read_rs1(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rs1()?].value())
+    }
+
+    pub fn read_rs2(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rs2()?].value())
+    }
+
+    pub fn read_rd(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rd()?].value())
+    }
 }
 
 /// VM mutable state change set
 #[derive(Debug, Default)]
 pub struct StateChange {
-    pub register_writes: Vec<(usize, RegValue)>,
-    pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
-    pub new_pc: Option<RegValue>,
+    pub register_write: Option<(usize, RegValue)>,
+    pub memory_write: Option<(MemAddress, Vec<u8>)>, // (start_address, data)
+    pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
 }
 
 pub struct PVMCore;
 
 impl PVMCore {
-    //
-    // PVM util functions
-    //
-
-    /// Read a `u64` value stored in a register of the given index
-    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<RegValue, PVMError> {
-        Ok(vm_state.registers[index].value())
-    }
-
-    pub fn read_reg_as_mem_address(
-        vm_state: &VMState,
-        index: usize,
-    ) -> Result<MemAddress, PVMError> {
-        vm_state.registers[index].as_mem_address()
-    }
-
-    pub fn read_reg_as_reg_index(vm_state: &VMState, index: usize) -> Result<usize, PVMError> {
-        vm_state.registers[index].as_reg_index()
-    }
-
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
     fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
@@ -167,20 +171,15 @@ impl PVMCore {
         change: StateChange,
     ) -> Result<SignedGas, PVMError> {
         // Apply register changes
-        for (reg_index, new_value) in change.register_writes {
+        if let Some((reg_index, new_val)) = change.register_write {
             if reg_index >= REGISTERS_COUNT {
                 return Err(PVMError::VMCoreError(InvalidRegIndex(reg_index)));
             }
-            vm_state.registers[reg_index] = Register { value: new_value };
+            vm_state.registers[reg_index] = Register::new(new_val);
         }
 
         // Apply memory change
-        // FIXME: data_len arg is redundant
-        if let Some((start_address, data_len, data)) = change.memory_write {
-            if data_len as usize > data.len() {
-                return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
-            }
-
+        if let Some((start_address, data)) = change.memory_write {
             // TODO: check if INIT_ZONE_SIZE inclusive
             if start_address as usize <= INIT_ZONE_SIZE {
                 return Err(PVMError::InvalidMemZone);
@@ -195,9 +194,7 @@ impl PVMCore {
             }
         }
         // Apply PC change
-        if let Some(new_pc) = change.new_pc {
-            vm_state.pc = new_pc;
-        }
+        vm_state.pc = change.new_pc;
 
         // Check gas counter and apply gas change
         let post_gas = Self::apply_gas_cost(vm_state, change.gas_charge)?;

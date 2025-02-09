@@ -121,8 +121,8 @@ impl JamDecode for ProgramState {
 #[derive(Debug, Default)]
 pub struct Instruction {
     pub op: Opcode,             // opcode
-    pub r1: Option<usize>,      // first source register index
-    pub r2: Option<usize>,      // second source register index
+    pub rs1: Option<usize>,     // first source register index
+    pub rs2: Option<usize>,     // second source register index
     pub rd: Option<usize>,      // destination register index
     pub imm1: Option<RegValue>, // first immediate value argument (value or offset)
     pub imm2: Option<RegValue>, // second immediate value argument (value or offset)
@@ -131,15 +131,15 @@ pub struct Instruction {
 impl Instruction {
     fn new(
         op: Opcode,
-        r1: Option<usize>,
-        r2: Option<usize>,
+        rs1: Option<usize>,
+        rs2: Option<usize>,
         rd: Option<usize>,
         imm1: Option<RegValue>,
         imm2: Option<RegValue>,
     ) -> Result<Self, PVMError> {
         // FIXME: move this logic into the decode, since this function will be removed.
         // Validate register indices
-        for &reg in [rd, r1, r2].iter().flatten() {
+        for &reg in [rd, rs1, rs2].iter().flatten() {
             if reg > (REGISTERS_COUNT - 1) {
                 return Err(PVMError::VMCoreError(InvalidInstructionFormat));
             }
@@ -147,12 +147,37 @@ impl Instruction {
 
         Ok(Self {
             op,
-            r1,
-            r2,
+            rs1,
+            rs2,
             rd,
             imm1,
             imm2,
         })
+    }
+
+    pub fn imm1(&self) -> Result<RegValue, PVMError> {
+        self.imm1
+            .ok_or(PVMError::VMCoreError(ImmValNotFound(self.op)))
+    }
+
+    pub fn imm2(&self) -> Result<RegValue, PVMError> {
+        self.imm2
+            .ok_or(PVMError::VMCoreError(ImmValNotFound(self.op)))
+    }
+
+    pub fn rs1(&self) -> Result<usize, PVMError> {
+        self.rs1
+            .ok_or(PVMError::VMCoreError(SourceRegIdxNotFound(self.op)))
+    }
+
+    pub fn rs2(&self) -> Result<usize, PVMError> {
+        self.rs2
+            .ok_or(PVMError::VMCoreError(SourceRegIdxNotFound(self.op)))
+    }
+
+    pub fn rd(&self) -> Result<usize, PVMError> {
+        self.rd
+            .ok_or(PVMError::VMCoreError(DestinationRegIdxNotFound(self.op)))
     }
 }
 

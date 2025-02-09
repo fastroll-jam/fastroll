@@ -136,7 +136,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -152,7 +152,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -170,7 +170,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_host_call_type = reg_to_u8(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_host_call_type = reg_to_u8(ins.imm1()?);
 
         let exit_reason = ExitReason::HostCall(
             HostCallType::from_u8(imm_host_call_type).ok_or(InvalidHostCallType)?,
@@ -179,7 +179,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -200,11 +200,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
-                register_writes: vec![(
-                    ins.r1.ok_or(InvalidImmVal)?,
-                    reg_to_u64(ins.imm1.ok_or(InvalidImmVal)?),
-                )],
+                new_pc: PVMCore::next_pc(vm_state, program_state),
+                register_write: Some((ins.rs1()?, reg_to_u64(ins.imm1()?))),
                 ..Default::default()
             },
         })
@@ -222,15 +219,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let imm_value = ins.imm2()?;
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -244,15 +241,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -266,15 +263,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -288,15 +285,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let imm_value = ins.imm2.ok_or(InvalidImmVal)?;
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let imm_value = ins.imm2()?;
         let value = imm_value.encode_fixed(8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -314,13 +311,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let target = reg_to_mem_address(ins.imm1()?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -341,15 +338,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
-        let jump_address = reg_to_usize(r1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let imm1 = ins.imm1()?;
+        let jump_address = reg_to_usize(rs1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -366,11 +363,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(
-                    ins.r1.ok_or(InvalidImmVal)?,
-                    ins.imm1.ok_or(InvalidImmVal)?,
-                )],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, ins.imm1()?)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -384,14 +378,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_byte(imm_address)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -405,15 +399,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_byte(imm_address)?;
         let val_extended = VMUtils::sext(val, 1).ok_or(InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -427,15 +421,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_decoded)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -449,7 +443,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
         let val_extended = VMUtils::sext(val_decoded, 2).ok_or(InvalidMemVal)?;
@@ -457,8 +451,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -472,15 +466,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_decoded)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -494,7 +488,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
         let val_extended = VMUtils::sext(val_decoded, 4).ok_or(InvalidMemVal)?;
@@ -502,8 +496,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -517,15 +511,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 8)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, val_decoded)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -539,14 +533,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 1, vec![r1_val])),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, vec![rs1_val])),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -560,15 +554,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val =
-            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 2, r1_val.encode_fixed(2)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(2)?)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -582,15 +575,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 4, r1_val.encode_fixed(4)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(4)?)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -604,14 +596,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let imm_address = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
+        let imm_address = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = reg_to_u64(vm_state.read_rs1(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 8, r1_val.encode_fixed(8)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(8)?)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -629,17 +621,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = vec![reg_to_u8(ins.imm2.ok_or(InvalidImmVal)? & 0xFF)];
+        let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
+        let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -653,17 +642,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = reg_to_u16(ins.imm2.ok_or(InvalidImmVal)? & 0xFFFF).encode_fixed(2)?;
+        let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
+        let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -677,18 +663,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         // TODO: check the GP if `mod 2^32` not needed here
-        let value = reg_to_u32(ins.imm2.ok_or(InvalidImmVal)?).encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2()?).encode_fixed(4)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -702,17 +685,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = reg_to_u64(ins.imm2.ok_or(InvalidImmVal)?).encode_fixed(8)?;
+        let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
+        let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -730,17 +710,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
+        let target = reg_to_mem_address(ins.imm2()?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                register_writes: vec![(
-                    ins.r1.ok_or(InvalidImmVal)?,
-                    ins.imm1.ok_or(InvalidImmVal)?,
-                )],
-                new_pc: Some(target as RegValue),
+                register_write: Some((ins.rs1()?, ins.imm1()?)),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -754,16 +731,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            == ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? == ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -777,16 +753,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            != ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? != ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -800,16 +775,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            < ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? < ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -823,16 +797,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            <= ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? <= ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -846,16 +819,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            >= ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? >= ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -869,16 +841,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let condition = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            > ins.imm1.ok_or(InvalidImmVal)?;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let condition = vm_state.read_rs1(ins)? > ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -892,18 +863,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
-        let condition = r1_val < imm_val;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
+        let condition = rs1_val < imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -917,19 +887,18 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
+        let target = reg_to_mem_address(ins.imm2()?);
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
 
-        let condition = r1_val <= imm_val;
+        let condition = rs1_val <= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -943,18 +912,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
-        let condition = r1_val >= imm_val;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
+        let condition = rs1_val >= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -968,18 +936,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm2.ok_or(InvalidImmVal)?);
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let imm_val = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
-        let condition = r1_val > imm_val;
+        let target = reg_to_mem_address(ins.imm2()?);
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
+        let condition = rs1_val > imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -997,13 +964,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
+        let rs1_val = vm_state.read_rs1(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, r1_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, rs1_val)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1024,7 +991,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let requested_size = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? as usize;
+        let requested_size = vm_state.read_rs1(ins)? as usize;
 
         // find the first sequence of unavailable memory cells that can satisfy the request
         let alloc_start = vm_state.memory.get_break(requested_size)?;
@@ -1036,8 +1003,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, alloc_start as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, alloc_start as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1051,14 +1018,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let set_bits = VMUtils::u64_to_bits(r1_val).count_ones();
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let set_bits = VMUtils::u64_to_bits(rs1_val).count_ones();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, set_bits)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, set_bits)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1072,15 +1039,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let set_bits = VMUtils::u32_to_bits(r1_val).count_ones();
+        let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
+        let set_bits = VMUtils::u32_to_bits(rs1_val).count_ones();
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, set_bits)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, set_bits)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1094,18 +1060,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let leading_zeroes = VMUtils::u64_to_bits(r1_val)
-            .iter()
-            .rev()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let leading_zeros = rs1_val.leading_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, leading_zeros)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1119,19 +1081,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let leading_zeroes = VMUtils::u32_to_bits(r1_val)
-            .iter()
-            .rev()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
+        let leading_zeros = rs1_val.leading_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, leading_zeros)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1145,17 +1102,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let trailing_zeroes = VMUtils::u64_to_bits(r1_val)
-            .iter()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let trailing_zeros = rs1_val.trailing_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, trailing_zeros)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1169,18 +1123,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let trailing_zeroes = VMUtils::u32_to_bits(r1_val)
-            .iter()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
+        let trailing_zeros = rs1_val.trailing_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, trailing_zeros)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1194,14 +1144,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = reg_to_u8(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF);
-        let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(r1_val) as i64);
+        let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
+        let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(rs1_val) as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, val)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1215,15 +1165,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF);
-        let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(r1_val) as i64);
+        let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
+        let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(rs1_val) as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, val)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1237,13 +1186,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF;
+        let rs1_val = vm_state.read_rs1(ins)? & 0xFFFF;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, r1_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, rs1_val)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1257,16 +1206,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let mut r1_val_encoded = r1_val.encode_fixed(8)?;
-        r1_val_encoded.reverse();
-        let rev_val = u64::decode_fixed(&mut r1_val_encoded.as_slice(), 8)?;
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let mut rs1_val_encoded = rs1_val.encode_fixed(8)?;
+        rs1_val_encoded.reverse();
+        let rev_val = u64::decode_fixed(&mut rs1_val_encoded.as_slice(), 8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, rev_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, rev_val)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1284,19 +1233,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = vec![reg_to_u8(
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFF,
-        )];
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
+        let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1310,18 +1254,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = reg_to_u16(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF)
-            .encode_fixed(2)?;
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
+        let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1335,19 +1275,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value =
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF)
-                .encode_fixed(4)?;
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
+        let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1361,18 +1296,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
-        let value = reg_to_u64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
-            .encode_fixed(8)?;
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
+        let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                memory_write: Some((address, value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1386,17 +1317,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_byte(address)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, value as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, value as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1410,10 +1338,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_byte(address)?;
         let signed_value = VMUtils::u8_to_i8(value);
         let unsigned_value = VMUtils::i64_to_u64(signed_value as i64);
@@ -1421,8 +1346,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, unsigned_value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1436,18 +1361,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.unwrap(), value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, value_decoded as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1461,10 +1383,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
         let signed_value = VMUtils::u16_to_i16(value_decoded);
@@ -1473,8 +1392,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, unsigned_value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1488,18 +1407,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, value_decoded as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1513,10 +1429,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
         let signed_value = VMUtils::u32_to_i32(value_decoded);
@@ -1525,8 +1438,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, unsigned_value)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1540,18 +1453,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let address = reg_to_mem_address(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?),
-        );
+        let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 8)?;
         let value_decoded = u64::decode_fixed(&mut &value[..], 8)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, value_decoded as RegValue)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1565,15 +1475,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?);
+        let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1587,14 +1496,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            & ins.imm1.ok_or(InvalidImmVal)?;
+        let result = vm_state.read_rs2(ins)? & ins.imm1()?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1608,14 +1516,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            ^ ins.imm1.ok_or(InvalidImmVal)?;
+        let result = vm_state.read_rs2(ins)? ^ ins.imm1()?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1629,14 +1536,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            | ins.imm1.ok_or(InvalidImmVal)?;
+        let result = vm_state.read_rs2(ins)? | ins.imm1()?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1650,15 +1556,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            .wrapping_mul(ins.imm1.ok_or(InvalidImmVal)?);
+        let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1672,15 +1577,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let imm1_val = ins.imm1.ok_or(InvalidImmVal)?;
-        let result = if r2_val < imm1_val { 1 } else { 0 };
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let imm1_val = ins.imm1()?;
+        let result = if rs2_val < imm1_val { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1694,21 +1599,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
-        let result = if r2_val_signed < imm1_val_signed {
-            1
-        } else {
-            0
-        };
+        let result = if rs2_val_s < imm1_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1722,15 +1622,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? << shift;
+        let shift = ins.imm1()? & 0x1F; // mod 32
+        let result = vm_state.read_rs2(ins)? << shift;
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1744,16 +1644,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = (r2_val & 0xFFFF_FFFF) >> shift;
+        let shift = ins.imm1()? & 0x1F; // mod 32
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = (rs2_val & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1767,17 +1667,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x1F; // mod 32
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let r2_val_signed = VMUtils::u32_to_i32((r2_val & 0xFFFF_FFFF) as u32);
-        let result = r2_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let shift = ins.imm1()? & 0x1F; // mod 32
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let rs2_val_s = VMUtils::u32_to_i32((rs2_val & 0xFFFF_FFFF) as u32);
+        let result = rs2_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1792,17 +1692,16 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let result = ins
-            .imm1
-            .ok_or(InvalidImmVal)?
+            .imm1()?
             .wrapping_add(1 << 32)
-            .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+            .wrapping_sub(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1816,15 +1715,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let imm1_val = ins.imm1.ok_or(InvalidImmVal)?;
-        let result = if r2_val > imm1_val { 1 } else { 0 };
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let imm1_val = ins.imm1()?;
+        let result = if rs2_val > imm1_val { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1838,21 +1737,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
-        let result = if r2_val_signed > imm1_val_signed {
-            1
-        } else {
-            0
-        };
+        let result = if rs2_val_s > imm1_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1866,16 +1760,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let result = ins.imm1.ok_or(InvalidImmVal)? << shift;
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let result = ins.imm1()? << shift;
 
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1889,16 +1783,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let imm1 = ins.imm1()?;
         let result = (imm1 & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1912,17 +1806,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
-        let imm1_val_signed = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
-        let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let imm1 = ins.imm1()?;
+        let imm1_val_s = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
+        let result = imm1_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1936,17 +1830,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? == 0 {
-            ins.imm1.ok_or(InvalidImmVal)?
+        let result = if vm_state.read_rs2(ins)? == 0 {
+            ins.imm1()?
         } else {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            vm_state.read_rs1(ins)?
         };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1960,17 +1854,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = if PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? != 0 {
-            ins.imm1.ok_or(InvalidImmVal)?
+        let result = if vm_state.read_rs2(ins)? != 0 {
+            ins.imm1()?
         } else {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            vm_state.read_rs1(ins)?
         };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1984,14 +1878,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            .wrapping_add(ins.imm1.ok_or(InvalidImmVal)?);
+        let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2005,14 +1898,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-            .wrapping_mul(ins.imm1.ok_or(InvalidImmVal)?);
+        let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2026,15 +1918,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
-        let result = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? << shift;
+        let shift = ins.imm1()? & 0x3F; // mod 64
+        let result = vm_state.read_rs2(ins)? << shift;
         let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2048,16 +1940,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = r2_val >> shift;
+        let shift = ins.imm1()? & 0x3F; // mod 64
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = rs2_val >> shift;
         let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2071,17 +1963,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = ins.imm1.ok_or(InvalidImmVal)? & 0x3F; // mod 64
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let r2_val_signed = VMUtils::u64_to_i64(r2_val);
-        let result = r2_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let shift = ins.imm1()? & 0x3F; // mod 64
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let rs2_val_s = VMUtils::u64_to_i64(rs2_val);
+        let result = rs2_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2095,16 +1987,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = ins
-            .imm1
-            .ok_or(InvalidImmVal)?
-            .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = ins.imm1()?.wrapping_sub(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2118,14 +2007,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let result = ins.imm1.ok_or(InvalidImmVal)? << shift;
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let result = ins.imm1()? << shift;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2139,15 +2028,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let imm1 = ins.imm1.ok_or(InvalidImmVal)?;
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let imm1 = ins.imm1()?;
         let result = imm1 >> shift;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2161,16 +2050,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1.ok_or(InvalidImmVal)?);
-        let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
+        let result = imm1_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2184,15 +2073,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?);
-        let result =
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
+        let rotate = reg_to_u32(ins.imm1()?);
+        let result = vm_state.read_rs2(ins)?.rotate_right(rotate);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2206,14 +2094,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = ins.imm1.ok_or(InvalidImmVal)?.rotate_right(rotate);
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result = ins.imm1()?.rotate_right(rotate);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2227,19 +2115,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?);
-        let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?)
-                .rotate_right(rotate),
-            4,
-        )
-        .ok_or(InvalidImmVal)?;
+        let rotate = reg_to_u32(ins.imm1()?);
+        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs2(ins)?).rotate_right(rotate), 4)
+            .ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2253,18 +2137,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = VMUtils::sext(
-            reg_to_u32(ins.imm1.ok_or(InvalidImmVal)?).rotate_right(rotate),
-            4,
-        )
-        .ok_or(InvalidImmVal)?;
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result =
+            VMUtils::sext(reg_to_u32(ins.imm1()?).rotate_right(rotate), 4).ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.r1.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rs1()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2282,17 +2163,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let condition = r1_val == r2_val;
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let condition = rs1_val == rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2306,17 +2187,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
-        let condition = r1_val != r2_val;
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let condition = rs1_val != rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2330,16 +2211,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let condition = r1_val < r2_val;
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let condition = rs1_val < rs2_val;
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2353,20 +2234,18 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
 
-        let condition = r1_val_signed < r2_val_signed;
+        let condition = rs1_val_s < rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2380,17 +2259,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.unwrap())?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.unwrap())?;
-        let condition = r1_val >= r2_val;
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let condition = rs1_val >= rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2404,19 +2283,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let target = reg_to_mem_address(ins.imm1.ok_or(InvalidImmVal)?);
-        let r1_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let condition = r1_val_signed >= r2_val_signed;
+        let target = reg_to_mem_address(ins.imm1()?);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let condition = rs1_val_s >= rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2434,21 +2311,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let jump_address = reg_to_usize(
-            PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?
-                .wrapping_add(ins.imm2.ok_or(InvalidImmVal)?)
-                & 0xFFFF_FFFF,
-        );
+        let jump_address =
+            reg_to_usize(vm_state.read_rs2(ins)?.wrapping_add(ins.imm2()?) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
 
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                register_writes: vec![(
-                    ins.r1.ok_or(InvalidImmVal)?,
-                    ins.imm1.ok_or(InvalidImmVal)?,
-                )],
-                new_pc: Some(target as RegValue),
+                register_write: Some((ins.rs1()?, ins.imm1()?)),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2466,15 +2337,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            .wrapping_add(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = vm_state
+            .read_rs1(ins)?
+            .wrapping_add(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2488,16 +2360,17 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+        let result = vm_state
+            .read_rs1(ins)?
             .wrapping_add(1 << 32)
-            .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
+            .wrapping_sub(vm_state.read_rs2(ins)? & 0xFFFF_FFFF);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2511,15 +2384,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            .wrapping_mul(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = vm_state
+            .read_rs1(ins)?
+            .wrapping_mul(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2533,8 +2407,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
-        let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
+        let dividend = vm_state.read_rs1(ins)? & 0xFFFF_FFFF;
+        let divisor = vm_state.read_rs2(ins)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
             u64::MAX
         } else {
@@ -2544,8 +2418,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2559,12 +2433,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = VMUtils::u32_to_i32(
-            (PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) as u32,
-        );
-        let divisor = VMUtils::u32_to_i32(
-            (PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) as u32,
-        );
+        let dividend = VMUtils::u32_to_i32((vm_state.read_rs1(ins)? & 0xFFFF_FFFF) as u32);
+        let divisor = VMUtils::u32_to_i32((vm_state.read_rs2(ins)? & 0xFFFF_FFFF) as u32);
 
         let result = if divisor == 0 {
             u64::MAX
@@ -2577,8 +2447,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2592,8 +2462,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
-        let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
+        let dividend = vm_state.read_rs1(ins)? & 0xFFFF_FFFF;
+        let divisor = vm_state.read_rs2(ins)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
             VMUtils::sext(dividend, 4).ok_or(InvalidRegVal)?
         } else {
@@ -2603,8 +2473,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2618,12 +2488,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = VMUtils::u32_to_i32(
-            (PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) as u32,
-        );
-        let divisor = VMUtils::u32_to_i32(
-            (PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) as u32,
-        );
+        let dividend = VMUtils::u32_to_i32((vm_state.read_rs1(ins)? & 0xFFFF_FFFF) as u32);
+        let divisor = VMUtils::u32_to_i32((vm_state.read_rs2(ins)? & 0xFFFF_FFFF) as u32);
         let result = if dividend == i32::MIN && divisor == -1 {
             0
         } else {
@@ -2633,8 +2499,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2648,15 +2514,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? << shift;
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let result = vm_state.read_rs1(ins)? << shift;
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2670,16 +2536,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let result =
-            (PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) >> shift;
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let result = (vm_state.read_rs1(ins)? & 0xFFFF_FFFF) >> shift;
         let result_extended = VMUtils::sext(result, 4).ok_or(InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_extended)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2693,18 +2558,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x1F; // mod 32
-        let value = VMUtils::u32_to_i32(
-            ((PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?) & 0xFFFF_FFFF) as u32,
-        );
+        let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
+        let value = VMUtils::u32_to_i32(((vm_state.read_rs1(ins)?) & 0xFFFF_FFFF) as u32);
         let result = value >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2718,14 +2581,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            .wrapping_add(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = vm_state
+            .read_rs1(ins)?
+            .wrapping_add(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2739,14 +2603,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            .wrapping_sub(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = vm_state
+            .read_rs1(ins)?
+            .wrapping_sub(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2760,14 +2625,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            .wrapping_mul(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = vm_state
+            .read_rs1(ins)?
+            .wrapping_mul(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2781,19 +2647,19 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let dividend = vm_state.read_rs1(ins)?;
+        let divisor = vm_state.read_rs2(ins)?;
         let result = if divisor == 0 {
             u64::MAX
         } else {
-            dividend.wrapping_div(divisor)
+            dividend / divisor
         };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2807,15 +2673,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let divisor =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let dividend = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let divisor = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
 
         let result = if divisor == 0 {
             u64::MAX
         } else if dividend == i64::MIN && divisor == -1 {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+            vm_state.read_rs1(ins)?
         } else {
             VMUtils::i64_to_u64(dividend / divisor)
         };
@@ -2823,8 +2687,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2838,8 +2702,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let dividend = vm_state.read_rs1(ins)?;
+        let divisor = vm_state.read_rs2(ins)?;
         let result = if divisor == 0 {
             dividend
         } else {
@@ -2849,8 +2713,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2864,10 +2728,8 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let dividend =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let divisor =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let dividend = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let divisor = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = if dividend == i64::MIN && divisor == -1 {
             0
         } else {
@@ -2877,8 +2739,8 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2892,14 +2754,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? << shift;
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let result = vm_state.read_rs1(ins)? << shift;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2913,14 +2775,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? >> shift;
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let result = vm_state.read_rs1(ins)? >> shift;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2934,16 +2796,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let shift = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0x3F; // mod 64
-        let value = VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
+        let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
+        let value = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let result = value >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2957,14 +2819,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            & PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = vm_state.read_rs1(ins)? & vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2978,14 +2839,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            ^ PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2999,14 +2859,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            | PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = vm_state.read_rs1(ins)? | vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3020,18 +2879,16 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = ((r1_val_signed as i128 * r2_val_signed as i128) >> 64) as i64;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = ((rs1_val_s as i128 * rs2_val_s as i128) >> 64) as i64;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3045,15 +2902,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = ((r1_val as u128 * r2_val as u128) >> 64) as u64;
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = ((rs1_val as u128 * rs2_val as u128) >> 64) as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3067,16 +2924,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = ((r1_val_signed as i128 * r2_val as i128) >> 64) as i64;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = ((rs1_val_s as i128 * rs2_val as i128) >> 64) as i64;
+        let result_u = VMUtils::i64_to_u64(result);
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result_u)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3090,15 +2946,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = if r1_val < r2_val { 1 } else { 0 };
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = if rs1_val < rs2_val { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3112,17 +2968,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val_signed =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = if r1_val_signed < r2_val_signed { 1 } else { 0 };
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = if rs1_val_s < rs2_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3136,18 +2990,18 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = if r2_val == 0 {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = if rs2_val == 0 {
+            vm_state.read_rs1(ins)?
         } else {
-            PVMCore::read_reg(vm_state, ins.rd.ok_or(InvalidImmVal)?)?
+            vm_state.read_rd(ins)?
         };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3161,18 +3015,18 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = if r2_val != 0 {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = if rs2_val != 0 {
+            vm_state.read_rs1(ins)?
         } else {
-            PVMCore::read_reg(vm_state, ins.rd.ok_or(InvalidImmVal)?)?
+            vm_state.read_rd(ins)?
         };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3186,14 +3040,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_left(rotate);
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result = vm_state.read_rs1(ins)?.rotate_left(rotate);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3207,19 +3061,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
-                .rotate_left(rotate),
-            4,
-        )
-        .ok_or(InvalidImmVal)?;
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_left(rotate), 4)
+            .ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3233,15 +3083,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result =
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?.rotate_right(rotate);
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result = vm_state.read_rs1(ins)?.rotate_right(rotate);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3255,19 +3104,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rotate = reg_to_u32(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = VMUtils::sext(
-            reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?)
-                .rotate_right(rotate),
-            4,
-        )
-        .ok_or(InvalidImmVal)?;
+        let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
+        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_right(rotate), 4)
+            .ok_or(InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3281,14 +3126,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            & !PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = vm_state.read_rs1(ins)? & !vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3302,14 +3146,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            | !PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
+        let result = vm_state.read_rs1(ins)? | !vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3323,14 +3166,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = !(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-            ^ PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let result = !(vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3344,17 +3186,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = VMUtils::i64_to_u64(r1_val.max(r2_val));
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = VMUtils::i64_to_u64(rs1_val.max(rs2_val));
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3368,15 +3208,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = r1_val.max(r2_val);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = rs1_val.max(rs2_val);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3390,17 +3230,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val =
-            VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = VMUtils::i64_to_u64(r1_val.min(r2_val));
+        let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = VMUtils::i64_to_u64(rs1_val.min(rs2_val));
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3414,15 +3252,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = r1_val.min(r2_val);
+        let rs1_val = vm_state.read_rs1(ins)?;
+        let rs2_val = vm_state.read_rs2(ins)?;
+        let result = rs1_val.min(rs2_val);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                register_write: Some((ins.rd()?, result)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
