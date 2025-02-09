@@ -2652,7 +2652,7 @@ impl InstructionSet {
         let result = if divisor == 0 {
             u64::MAX
         } else {
-            dividend.wrapping_div(divisor)
+            dividend / divisor
         };
 
         Ok(SingleStepResult {
