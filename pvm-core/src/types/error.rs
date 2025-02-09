@@ -1,4 +1,7 @@
-use crate::state::memory::{MemAddress, MemoryError};
+use crate::{
+    program::opcode::Opcode,
+    state::memory::{MemAddress, MemoryError},
+};
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
 use rjam_state::error::StateManagerError;
@@ -52,6 +55,10 @@ pub enum VMCoreError {
     InvalidRegVal,
     #[error("Invalid register index: {0}")]
     InvalidRegIndex(usize),
+    #[error("Immediate value not found in the instruction. Opcode: {0:?}")]
+    ImmValNotFound(Opcode),
+    #[error("Source register index not found in the instruction. Opcode: {0:?}")]
+    SourceRegIdxNotFound(Opcode),
     #[error("Invalid memory value")]
     InvalidMemVal,
     #[error("Invalid immediate value")]

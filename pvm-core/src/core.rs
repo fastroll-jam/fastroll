@@ -39,6 +39,14 @@ impl VMState {
     pub fn pc_as_mem_address(&self) -> Result<MemAddress, PVMError> {
         MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
+
+    pub fn read_rs1(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rs1()?].value())
+    }
+
+    pub fn read_rs2(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rs2()?].value())
+    }
 }
 
 /// VM mutable state change set
