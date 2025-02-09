@@ -230,8 +230,8 @@ impl PVM {
         match extended_invocation_result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
             ExitReason::RegularHalt => {
-                let start_address = PVMCore::read_reg_as_mem_address(&pvm.state, 10)?;
-                let data_len = PVMCore::read_reg(&pvm.state, 11)? as usize;
+                let start_address = pvm.state.read_reg_as_mem_address(10)?;
+                let data_len = pvm.state.read_reg(11) as usize;
                 if !pvm
                     .state
                     .memory

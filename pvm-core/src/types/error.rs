@@ -59,6 +59,8 @@ pub enum VMCoreError {
     ImmValNotFound(Opcode),
     #[error("Source register index not found in the instruction. Opcode: {0:?}")]
     SourceRegIdxNotFound(Opcode),
+    #[error("Destination register index not found in the instruction. Opcode: {0:?}")]
+    DestinationRegIdxNotFound(Opcode),
     #[error("Invalid memory value")]
     InvalidMemVal,
     #[error("Invalid immediate value")]

@@ -174,6 +174,11 @@ impl Instruction {
         self.rs2
             .ok_or(PVMError::VMCoreError(SourceRegIdxNotFound(self.op)))
     }
+
+    pub fn rd(&self) -> Result<usize, PVMError> {
+        self.rd
+            .ok_or(PVMError::VMCoreError(DestinationRegIdxNotFound(self.op)))
+    }
 }
 
 /// General program decoders used for processing PVM programs.

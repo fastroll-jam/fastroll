@@ -40,12 +40,28 @@ impl VMState {
         MemAddress::try_from(self.pc).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
     }
 
+    pub fn read_reg(&self, index: usize) -> RegValue {
+        self.registers[index].value()
+    }
+
+    pub fn read_reg_as_mem_address(&self, index: usize) -> Result<MemAddress, PVMError> {
+        self.registers[index].as_mem_address()
+    }
+
+    pub fn read_reg_as_reg_index(&self, index: usize) -> Result<usize, PVMError> {
+        self.registers[index].as_reg_index()
+    }
+
     pub fn read_rs1(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
         Ok(self.registers[ins.rs1()?].value())
     }
 
     pub fn read_rs2(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
         Ok(self.registers[ins.rs2()?].value())
+    }
+
+    pub fn read_rd(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
+        Ok(self.registers[ins.rd()?].value())
     }
 }
 
@@ -61,26 +77,6 @@ pub struct StateChange {
 pub struct PVMCore;
 
 impl PVMCore {
-    //
-    // PVM util functions
-    //
-
-    /// Read a `u64` value stored in a register of the given index
-    pub fn read_reg(vm_state: &VMState, index: usize) -> Result<RegValue, PVMError> {
-        Ok(vm_state.registers[index].value())
-    }
-
-    pub fn read_reg_as_mem_address(
-        vm_state: &VMState,
-        index: usize,
-    ) -> Result<MemAddress, PVMError> {
-        vm_state.registers[index].as_mem_address()
-    }
-
-    pub fn read_reg_as_reg_index(vm_state: &VMState, index: usize) -> Result<usize, PVMError> {
-        vm_state.registers[index].as_reg_index()
-    }
-
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
     fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
