@@ -1696,8 +1696,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let result = ins
-            .imm1
-            .ok_or(InvalidImmVal)?
+            .imm1()?
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)?);
         let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
@@ -1996,10 +1995,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let result = ins
-            .imm1
-            .ok_or(InvalidImmVal)?
-            .wrapping_sub(vm_state.read_rs2(ins)?);
+        let result = ins.imm1()?.wrapping_sub(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
