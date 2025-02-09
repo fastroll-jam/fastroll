@@ -1599,14 +1599,10 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1()?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
-        let result = if rs2_val_signed < imm1_val_signed {
-            1
-        } else {
-            0
-        };
+        let result = if rs2_val_s < imm1_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1673,14 +1669,14 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let rs2_val = vm_state.read_rs2(ins)?;
-        let rs2_val_signed = VMUtils::u32_to_i32((rs2_val & 0xFFFF_FFFF) as u32);
-        let result = rs2_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let rs2_val_s = VMUtils::u32_to_i32((rs2_val & 0xFFFF_FFFF) as u32);
+        let result = rs2_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rs1()?, result_unsigned)],
+                register_writes: vec![(ins.rs1()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1741,14 +1737,10 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1()?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
-        let result = if rs2_val_signed > imm1_val_signed {
-            1
-        } else {
-            0
-        };
+        let result = if rs2_val_s > imm1_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1816,14 +1808,14 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let imm1 = ins.imm1()?;
-        let imm1_val_signed = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
-        let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let imm1_val_s = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
+        let result = imm1_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rs1()?, result_unsigned)],
+                register_writes: vec![(ins.rs1()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1973,14 +1965,14 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let rs2_val = vm_state.read_rs2(ins)?;
-        let rs2_val_signed = VMUtils::u64_to_i64(rs2_val);
-        let result = rs2_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let rs2_val_s = VMUtils::u64_to_i64(rs2_val);
+        let result = rs2_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rs1()?, result_unsigned)],
+                register_writes: vec![(ins.rs1()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2059,14 +2051,14 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
-        let imm1_val_signed = VMUtils::u64_to_i64(ins.imm1()?);
-        let result = imm1_val_signed >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
+        let result = imm1_val_s >> shift;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rs1()?, result_unsigned)],
+                register_writes: vec![(ins.rs1()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2243,10 +2235,10 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm1()?);
-        let rs1_val_signed = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
 
-        let condition = rs1_val_signed < rs2_val_signed;
+        let condition = rs1_val_s < rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
@@ -2292,9 +2284,9 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let target = reg_to_mem_address(ins.imm1()?);
-        let rs1_val_signed = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-        let condition = rs1_val_signed >= rs2_val_signed;
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let condition = rs1_val_s >= rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
 
@@ -2569,12 +2561,12 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let value = VMUtils::u32_to_i32(((vm_state.read_rs1(ins)?) & 0xFFFF_FFFF) as u32);
         let result = value >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result as i64);
+        let result_u = VMUtils::i64_to_u64(result as i64);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd()?, result_unsigned)],
+                register_writes: vec![(ins.rd()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2807,12 +2799,12 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let value = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let result = value >> shift;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd()?, result_unsigned)],
+                register_writes: vec![(ins.rd()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2887,15 +2879,15 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rs1_val_signed = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-        let result = ((rs1_val_signed as i128 * rs2_val_signed as i128) >> 64) as i64;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = ((rs1_val_s as i128 * rs2_val_s as i128) >> 64) as i64;
+        let result_u = VMUtils::i64_to_u64(result);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd()?, result_unsigned)],
+                register_writes: vec![(ins.rd()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2932,14 +2924,14 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rs1_val_signed = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = vm_state.read_rs2(ins)?;
-        let result = ((rs1_val_signed as i128 * rs2_val as i128) >> 64) as i64;
-        let result_unsigned = VMUtils::i64_to_u64(result);
+        let result = ((rs1_val_s as i128 * rs2_val as i128) >> 64) as i64;
+        let result_u = VMUtils::i64_to_u64(result);
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd()?, result_unsigned)],
+                register_writes: vec![(ins.rd()?, result_u)],
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -2976,13 +2968,9 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
-        let rs1_val_signed = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
-        let rs2_val_signed = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-        let result = if rs1_val_signed < rs2_val_signed {
-            1
-        } else {
-            0
-        };
+        let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
+        let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
+        let result = if rs1_val_s < rs2_val_s { 1 } else { 0 };
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
