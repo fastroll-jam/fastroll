@@ -8,7 +8,9 @@ fn main() {
     let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
     let test_files = fs::read_dir(&full_path).expect("Failed to read test vectors dir");
 
-    let mut test_case_contents = String::new();
+    let mut test_case_contents =
+        String::from("use rjam_conformance_tests::pvm_harness::run_test_case;");
+
     for test_file in test_files {
         let test_file_path = test_file.expect("Failed to get test file").path();
         let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();

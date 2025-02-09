@@ -232,7 +232,7 @@ pub fn run_test_case(filename: &str) {
         .expect("Failed to set program state");
 
     // Debugging
-    println!(">>> ProgramState: {:?}", pvm.program_state);
+    println!("{:?}", pvm.program_state);
 
     // execute PVM
     let exit_reason = PVMCore::general_invocation(&mut pvm.state, &mut pvm.program_state, &program)
@@ -247,25 +247,11 @@ pub fn run_test_case(filename: &str) {
 
     // Bypass gas_counter for now, since it is not finalized yet
     // assert_eq!(pvm.state, expected_vm);
+    // TODO: test gas counter and pc values
     // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter);
     // assert_eq!(pvm.state.pc, expected_vm.pc);
     assert_eq!(pvm.state.registers, expected_vm.registers);
     assert_eq!(pvm.state.memory, expected_vm.memory);
     assert_eq!(actual_status, expected_status);
     assert_eq!(actual_page_fault_address, expected_page_fault_address);
-}
-
-#[macro_export]
-macro_rules! generate_pvm_tests {
-    ($($name:ident: $path:expr,)*) => {
-        use rjam_conformance_tests::pvm_harness::run_test_case;
-        $(
-            paste::paste! {
-                #[test]
-                fn [<pvm_ $name>]() {
-                    run_test_case($path);
-                }
-            }
-        )*
-    }
 }
