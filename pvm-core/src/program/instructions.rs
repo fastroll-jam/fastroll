@@ -34,10 +34,6 @@ fn reg_to_u64(reg: RegValue) -> u64 {
     reg
 }
 
-fn reg_to_i64(reg: RegValue) -> i64 {
-    reg as i64
-}
-
 fn reg_to_usize(reg: RegValue) -> usize {
     reg as usize
 }
@@ -1101,6 +1097,7 @@ impl InstructionSet {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let leading_zeroes = VMUtils::u64_to_bits(r1_val)
             .iter()
+            .rev()
             .take_while(|&b| !b)
             .count() as u64;
 
@@ -1126,6 +1123,7 @@ impl InstructionSet {
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
         let leading_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
+            .rev()
             .take_while(|&b| !b)
             .count() as u64;
 
@@ -1150,7 +1148,6 @@ impl InstructionSet {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let trailing_zeroes = VMUtils::u64_to_bits(r1_val)
             .iter()
-            .rev()
             .take_while(|&b| !b)
             .count() as u64;
 
@@ -1176,7 +1173,6 @@ impl InstructionSet {
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
         let trailing_zeroes = VMUtils::u32_to_bits(r1_val)
             .iter()
-            .rev()
             .take_while(|&b| !b)
             .count() as u64;
 
@@ -2542,7 +2538,7 @@ impl InstructionSet {
         let result = if divisor == 0 {
             u64::MAX
         } else {
-            dividend.wrapping_div(divisor)
+            VMUtils::sext(dividend / divisor, 4).ok_or(InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2575,7 +2571,7 @@ impl InstructionSet {
         } else if dividend == i32::MIN && divisor == -1 {
             VMUtils::i64_to_u64(dividend as i64)
         } else {
-            VMUtils::i64_to_u64(dividend as i64 / divisor as i64)
+            VMUtils::i64_to_u64((dividend / divisor) as i64)
         };
 
         Ok(SingleStepResult {
@@ -2599,11 +2595,7 @@ impl InstructionSet {
         let dividend = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
         let divisor = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
-            VMUtils::sext(
-                PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?,
-                4,
-            )
-            .ok_or(InvalidRegVal)?
+            VMUtils::sext(dividend, 4).ok_or(InvalidRegVal)?
         } else {
             VMUtils::sext(dividend % divisor, 4).ok_or(InvalidRegVal)?
         };
@@ -2632,13 +2624,10 @@ impl InstructionSet {
         let divisor = VMUtils::u32_to_i32(
             (PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF) as u32,
         );
-
-        let result = if divisor == 0 {
-            VMUtils::i64_to_u64(dividend as i64)
-        } else if dividend == i32::MIN && divisor == -1 {
+        let result = if dividend == i32::MIN && divisor == -1 {
             0
         } else {
-            VMUtils::i64_to_u64((dividend % divisor) as i64)
+            VMUtils::i64_to_u64(VMUtils::smod_32(dividend, divisor) as i64)
         };
 
         Ok(SingleStepResult {
@@ -2879,12 +2868,10 @@ impl InstructionSet {
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
         let divisor =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
-        let result = if divisor == 0 {
-            PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?
-        } else if dividend == i64::MIN && divisor == -1 {
+        let result = if dividend == i64::MIN && divisor == -1 {
             0
         } else {
-            VMUtils::i64_to_u64(dividend % divisor)
+            VMUtils::i64_to_u64(VMUtils::smod_64(dividend, divisor))
         };
 
         Ok(SingleStepResult {
@@ -3060,9 +3047,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
         let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
-        let result = ((r1_val as u128 * r2_val as u128) >> 64)
-            .try_into()
-            .map_err(|_| InvalidRegVal)?;
+        let result = ((r1_val as u128 * r2_val as u128) >> 64) as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3084,7 +3069,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val_signed =
             VMUtils::u64_to_i64(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?);
-        let r2_val = reg_to_i64(PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?);
+        let r2_val = PVMCore::read_reg(vm_state, ins.r2.ok_or(InvalidImmVal)?)?;
         let result = ((r1_val_signed as i128 * r2_val as i128) >> 64) as i64;
         let result_unsigned = VMUtils::i64_to_u64(result);
         Ok(SingleStepResult {

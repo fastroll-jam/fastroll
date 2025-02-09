@@ -252,4 +252,24 @@ impl VMUtils {
             _ => None,
         }
     }
+
+    /// Signed modulo operations for i32
+    pub fn smod_32(a: i32, b: i32) -> i32 {
+        if b == 0 {
+            a
+        } else {
+            let sgn = if a.is_positive() { 1 } else { -1 };
+            sgn * (((a as i64).abs() as i32) % ((b as i64).abs() as i32))
+        }
+    }
+
+    /// Signed modulo operations for i64
+    pub fn smod_64(a: i64, b: i64) -> i64 {
+        if b == 0 {
+            a
+        } else {
+            let sgn = if a.is_positive() { 1 } else { -1 };
+            sgn * (((a as i128).abs() as i64) % ((b as i128).abs() as i64))
+        }
+    }
 }
