@@ -226,7 +226,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 1, value)),
+                memory_write: Some((imm_address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -248,7 +248,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 2, value)),
+                memory_write: Some((imm_address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -270,7 +270,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 4, value)),
+                memory_write: Some((imm_address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -292,7 +292,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 8, value)),
+                memory_write: Some((imm_address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -539,7 +539,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 1, vec![rs1_val])),
+                memory_write: Some((imm_address, vec![rs1_val])),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -560,7 +560,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 2, rs1_val.encode_fixed(2)?)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(2)?)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -581,7 +581,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 4, rs1_val.encode_fixed(4)?)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(4)?)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -602,7 +602,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((imm_address, 8, rs1_val.encode_fixed(8)?)),
+                memory_write: Some((imm_address, rs1_val.encode_fixed(8)?)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -627,7 +627,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 1, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -648,7 +648,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 2, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -670,7 +670,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 4, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -691,7 +691,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 8, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1239,7 +1239,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 1, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1260,7 +1260,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 2, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1281,7 +1281,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 4, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1302,7 +1302,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                memory_write: Some((address, 8, value)),
+                memory_write: Some((address, value)),
                 new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },

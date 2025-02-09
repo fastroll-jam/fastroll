@@ -69,7 +69,7 @@ impl VMState {
 #[derive(Debug, Default)]
 pub struct StateChange {
     pub register_write: Option<(usize, RegValue)>,
-    pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
+    pub memory_write: Option<(MemAddress, Vec<u8>)>, // (start_address, data)
     pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
 }
@@ -179,12 +179,7 @@ impl PVMCore {
         }
 
         // Apply memory change
-        // FIXME: data_len arg is redundant
-        if let Some((start_address, data_len, data)) = change.memory_write {
-            if data_len as usize > data.len() {
-                return Err(PVMError::VMCoreError(MemoryStateChangeDataLengthMismatch));
-            }
-
+        if let Some((start_address, data)) = change.memory_write {
             // TODO: check if INIT_ZONE_SIZE inclusive
             if start_address as usize <= INIT_ZONE_SIZE {
                 return Err(PVMError::InvalidMemZone);
