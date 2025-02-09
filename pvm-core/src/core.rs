@@ -68,7 +68,7 @@ impl VMState {
 /// VM mutable state change set
 #[derive(Debug, Default)]
 pub struct StateChange {
-    pub register_writes: Vec<(usize, RegValue)>,
+    pub register_write: Option<(usize, RegValue)>,
     pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
     pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
@@ -171,11 +171,11 @@ impl PVMCore {
         change: StateChange,
     ) -> Result<SignedGas, PVMError> {
         // Apply register changes
-        for (reg_index, new_value) in change.register_writes {
+        if let Some((reg_index, new_val)) = change.register_write {
             if reg_index >= REGISTERS_COUNT {
                 return Err(PVMError::VMCoreError(InvalidRegIndex(reg_index)));
             }
-            vm_state.registers[reg_index] = Register { value: new_value };
+            vm_state.registers[reg_index] = Register::new(new_val);
         }
 
         // Apply memory change
