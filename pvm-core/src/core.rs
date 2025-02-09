@@ -70,7 +70,7 @@ impl VMState {
 pub struct StateChange {
     pub register_writes: Vec<(usize, RegValue)>,
     pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
-    pub new_pc: Option<RegValue>,
+    pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
 }
 
@@ -199,9 +199,7 @@ impl PVMCore {
             }
         }
         // Apply PC change
-        if let Some(new_pc) = change.new_pc {
-            vm_state.pc = new_pc;
-        }
+        vm_state.pc = change.new_pc;
 
         // Check gas counter and apply gas change
         let post_gas = Self::apply_gas_cost(vm_state, change.gas_charge)?;

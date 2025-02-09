@@ -136,7 +136,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -152,7 +152,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -179,7 +179,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -200,7 +200,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 register_writes: vec![(ins.rs1()?, reg_to_u64(ins.imm1()?))],
                 ..Default::default()
             },
@@ -227,7 +227,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -249,7 +249,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -271,7 +271,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -293,7 +293,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -317,7 +317,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -346,7 +346,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -364,7 +364,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, ins.imm1()?)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -385,7 +385,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -407,7 +407,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -429,7 +429,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -452,7 +452,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -474,7 +474,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -497,7 +497,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -519,7 +519,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, val_decoded)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -540,7 +540,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 1, vec![rs1_val])),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -561,7 +561,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 2, rs1_val.encode_fixed(2)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -582,7 +582,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 4, rs1_val.encode_fixed(4)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -603,7 +603,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, 8, rs1_val.encode_fixed(8)?)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -628,7 +628,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -649,7 +649,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -671,7 +671,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -692,7 +692,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -717,7 +717,7 @@ impl InstructionSet {
             exit_reason,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, ins.imm1()?)],
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -739,7 +739,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -761,7 +761,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -783,7 +783,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -805,7 +805,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -827,7 +827,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -849,7 +849,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -873,7 +873,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -898,7 +898,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -922,7 +922,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -946,7 +946,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -970,7 +970,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, rs1_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1004,7 +1004,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, alloc_start as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1025,7 +1025,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, set_bits)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1046,7 +1046,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, set_bits)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1067,7 +1067,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, leading_zeros)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1088,7 +1088,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, leading_zeros)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1109,7 +1109,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, trailing_zeros)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1130,7 +1130,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, trailing_zeros)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1151,7 +1151,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1172,7 +1172,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1192,7 +1192,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, rs1_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1215,7 +1215,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, rev_val)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1240,7 +1240,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 1, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1261,7 +1261,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 2, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1282,7 +1282,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 4, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1303,7 +1303,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, 8, value)),
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1324,7 +1324,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, value as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1347,7 +1347,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1369,7 +1369,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1393,7 +1393,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1415,7 +1415,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1439,7 +1439,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, unsigned_value)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1461,7 +1461,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, value_decoded as RegValue)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1482,7 +1482,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1502,7 +1502,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1522,7 +1522,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1542,7 +1542,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1563,7 +1563,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1585,7 +1585,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1612,7 +1612,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1634,7 +1634,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1657,7 +1657,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1681,7 +1681,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1706,7 +1706,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1728,7 +1728,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1755,7 +1755,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1778,7 +1778,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1801,7 +1801,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1825,7 +1825,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1849,7 +1849,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1873,7 +1873,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1893,7 +1893,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1913,7 +1913,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1935,7 +1935,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1958,7 +1958,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1982,7 +1982,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2005,7 +2005,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2026,7 +2026,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2048,7 +2048,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2071,7 +2071,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2092,7 +2092,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2113,7 +2113,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2135,7 +2135,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2157,7 +2157,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2185,7 +2185,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2209,7 +2209,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2232,7 +2232,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2257,7 +2257,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2281,7 +2281,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2305,7 +2305,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2331,7 +2331,7 @@ impl InstructionSet {
             exit_reason,
             state_change: StateChange {
                 register_writes: vec![(ins.rs1()?, ins.imm1()?)],
-                new_pc: Some(target as RegValue),
+                new_pc: target as RegValue,
                 ..Default::default()
             },
         })
@@ -2358,7 +2358,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2382,7 +2382,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2405,7 +2405,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2431,7 +2431,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2460,7 +2460,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2486,7 +2486,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2512,7 +2512,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2534,7 +2534,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2556,7 +2556,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_extended)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2579,7 +2579,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2601,7 +2601,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2623,7 +2623,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2645,7 +2645,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2671,7 +2671,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2700,7 +2700,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2726,7 +2726,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2752,7 +2752,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2773,7 +2773,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2794,7 +2794,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2817,7 +2817,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2837,7 +2837,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2857,7 +2857,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2877,7 +2877,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2900,7 +2900,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2922,7 +2922,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2944,7 +2944,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result_unsigned)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2966,7 +2966,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2992,7 +2992,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3017,7 +3017,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3042,7 +3042,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3063,7 +3063,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3085,7 +3085,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3106,7 +3106,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3128,7 +3128,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3148,7 +3148,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3168,7 +3168,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3188,7 +3188,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3210,7 +3210,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3232,7 +3232,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3254,7 +3254,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3276,7 +3276,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_writes: vec![(ins.rd()?, result)],
-                new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
+                new_pc: PVMCore::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
