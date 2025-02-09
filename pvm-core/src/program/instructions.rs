@@ -1095,16 +1095,12 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let leading_zeroes = VMUtils::u64_to_bits(r1_val)
-            .iter()
-            .rev()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let leading_zeros = r1_val.leading_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeros)],
                 new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
@@ -1121,16 +1117,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let leading_zeroes = VMUtils::u32_to_bits(r1_val)
-            .iter()
-            .rev()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let leading_zeros = r1_val.leading_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeroes)],
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, leading_zeros)],
                 new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
@@ -1146,15 +1138,12 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val = PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)?;
-        let trailing_zeroes = VMUtils::u64_to_bits(r1_val)
-            .iter()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let trailing_zeros = r1_val.trailing_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeros)],
                 new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
@@ -1171,15 +1160,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, PVMError> {
         let r1_val =
             reg_to_u32(PVMCore::read_reg(vm_state, ins.r1.ok_or(InvalidImmVal)?)? & 0xFFFF_FFFF);
-        let trailing_zeroes = VMUtils::u32_to_bits(r1_val)
-            .iter()
-            .take_while(|&b| !b)
-            .count() as u64;
+        let trailing_zeros = r1_val.trailing_zeros() as u64;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeroes)],
+                register_writes: vec![(ins.rd.ok_or(InvalidImmVal)?, trailing_zeros)],
                 new_pc: Some(PVMCore::next_pc(vm_state, program_state)),
                 ..Default::default()
             },
