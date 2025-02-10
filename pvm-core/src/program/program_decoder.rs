@@ -59,7 +59,7 @@ impl JamDecode for FormattedProgram {
 }
 
 impl FormattedProgram {
-    pub fn validate_program_size(&self) -> bool {
+    pub fn is_program_size_valid(&self) -> bool {
         5 * INIT_ZONE_SIZE
             + VMUtils::zone_align(self.static_size as usize)
             + VMUtils::zone_align(
@@ -73,14 +73,19 @@ impl FormattedProgram {
 
 /// Immutable VM state (program components)
 ///
-/// Equivalent to `FormattedProgram.code`.
+/// Equivalent to `code` of `FormattedProgram`.
 #[derive(Debug, Default)]
 pub struct ProgramState {
-    pub instructions: Vec<u8>, // c; serialized // TODO: define instruction_blob with endless zeroes padding
-    pub jump_table: Vec<MemAddress>, // j
-    pub opcode_bitmask: BitVec, // k
-    pub basic_block_start_indices: HashSet<usize>, // opcode indices that are beginning of basic-blocks
-    pub initialized: bool,                         // boolean flag indicating initialization status
+    /// `c`: Serialized instructions blob
+    pub instructions: Vec<u8>, // TODO: define instruction_blob with endless zeroes padding
+    /// `j`: Dynamic jump table
+    pub jump_table: Vec<MemAddress>,
+    /// `k`: Opcode bitmask
+    pub opcode_bitmask: BitVec,
+    /// Opcode indices that are beginning of basic-blocks
+    pub basic_block_start_indices: HashSet<usize>,
+    /// Boolean flag indicating program initialization status
+    pub initialized: bool,
 }
 
 impl JamDecode for ProgramState {
@@ -120,12 +125,18 @@ impl JamDecode for ProgramState {
 
 #[derive(Debug, Default)]
 pub struct Instruction {
-    pub op: Opcode,             // opcode
-    pub rs1: Option<usize>,     // first source register index
-    pub rs2: Option<usize>,     // second source register index
-    pub rd: Option<usize>,      // destination register index
-    pub imm1: Option<RegValue>, // first immediate value argument (value or offset)
-    pub imm2: Option<RegValue>, // second immediate value argument (value or offset)
+    /// Opcode
+    pub op: Opcode,
+    /// First source register index
+    pub rs1: Option<usize>,
+    /// Second source register index
+    pub rs2: Option<usize>,
+    /// Destination register index
+    pub rd: Option<usize>,
+    /// First immediate value argument (value or offset)
+    pub imm1: Option<RegValue>,
+    /// Second immediate value argument (value or offset)
+    pub imm2: Option<RegValue>,
 }
 
 impl Instruction {
@@ -137,7 +148,6 @@ impl Instruction {
         imm1: Option<RegValue>,
         imm2: Option<RegValue>,
     ) -> Result<Self, PVMError> {
-        // FIXME: move this logic into the decode, since this function will be removed.
         // Validate register indices
         for &reg in [rd, rs1, rs2].iter().flatten() {
             if reg > (REGISTERS_COUNT - 1) {

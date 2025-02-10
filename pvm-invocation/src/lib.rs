@@ -163,7 +163,7 @@ impl PVMInvocation {
             }
         };
 
-        let common_invocation_result = PVM::common_invocation(
+        let common_invocation_result = PVM::invoke_with_args(
             state_manager,
             args.work_package.authorizer_address,
             &code,
@@ -230,7 +230,7 @@ impl PVMInvocation {
             export_segments_offset,
         ));
 
-        let common_invocation_result = PVM::common_invocation(
+        let common_invocation_result = PVM::invoke_with_args(
             state_manager,
             args.refine_address,
             &code,
@@ -301,7 +301,7 @@ impl PVMInvocation {
 
         // TODO: Accounts subject to mutation due to `read`, `write` and `lookup` host functions must be copied into the partial state (Function G)
         // TODO: use `AccumulateHostContext::copy_account_to_partial_state_sandbox`, and host functions must return the subject account addresses.
-        let common_invocation_result = PVM::common_invocation(
+        let common_invocation_result = PVM::invoke_with_args(
             state_manager,
             accumulate_address,
             &code,
@@ -354,7 +354,7 @@ impl PVMInvocation {
 
         let on_transfer_context = OnTransferHostContext::new(state_manager, destination).await?;
 
-        let _common_invocation_result = PVM::common_invocation(
+        let _common_invocation_result = PVM::invoke_with_args(
             state_manager,
             destination,
             &code,

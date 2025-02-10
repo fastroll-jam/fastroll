@@ -180,8 +180,7 @@ impl PVMCore {
 
         // Apply memory change
         if let Some((start_address, data)) = change.memory_write {
-            // TODO: check if INIT_ZONE_SIZE inclusive
-            if start_address as usize <= INIT_ZONE_SIZE {
+            if (start_address as usize) < INIT_ZONE_SIZE {
                 return Err(PVMError::InvalidMemZone);
             }
 
@@ -238,12 +237,12 @@ impl PVMCore {
     /// # Input Program
     /// This function utilizes the program component of the `PVM` state. The program is decoded
     /// into instructions sequence, an opcode bitmask, and a dynamic jump table, which are then passed
-    /// as arguments to the `single_step_invocation` function.
+    /// as arguments to the `invoke_single_step` function.
     ///
     /// Represents `Ψ` of the GP.
-    pub fn general_invocation(
+    pub fn invoke_general(
         vm_state: &mut VMState,
-        program_state: &mut ProgramState, // program code loaded from the `extended_invocation`
+        program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
         program_code: &[u8],
     ) -> Result<ExitReason, PVMError> {
         // Ensure the program state is initialized only once, as the general invocation
@@ -266,7 +265,7 @@ impl PVMCore {
             };
 
             let single_invocation_result =
-                match Self::single_step_invocation(vm_state, program_state, &inst) {
+                match Self::invoke_single_step(vm_state, program_state, &inst) {
                     Ok(result) => result,
                     // TODO: better error type conversion
                     Err(PVMError::PageFault(address))
@@ -307,7 +306,7 @@ impl PVMCore {
     /// Instruction `SBRK` is the only instruction that directly mutates the VM state, for a heap expansion.
     ///
     /// Represents `Ψ_1` of the GP.
-    fn single_step_invocation(
+    fn invoke_single_step(
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,

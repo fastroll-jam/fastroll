@@ -235,7 +235,7 @@ pub fn run_test_case(filename: &str) {
     println!("{:?}", pvm.program_state);
 
     // execute PVM
-    let exit_reason = PVMCore::general_invocation(&mut pvm.state, &mut pvm.program_state, &program)
+    let exit_reason = PVMCore::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
         .expect("Failed to run PVM");
 
     let (actual_status, actual_page_fault_address) = match exit_reason {

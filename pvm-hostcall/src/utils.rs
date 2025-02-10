@@ -42,7 +42,6 @@ define_host_call_state_change_function!(full_change, FULL);
 define_host_call_state_change_function!(core_change, CORE);
 define_host_call_state_change_function!(cash_change, CASH);
 define_host_call_state_change_function!(low_change, LOW);
-define_host_call_state_change_function!(high_change, HIGH);
 // define_host_call_state_change_function!(what_change, WHAT);
 define_host_call_state_change_function!(huh_change, HUH);
 define_host_call_state_change_function!(ok_change, OK);

@@ -27,17 +27,16 @@ use std::collections::HashMap;
 
 #[repr(u64)]
 pub enum HostCallResultConstant {
-    NONE = u64::MAX,     // An item does not exist.
+    NONE = u64::MAX,     // The return value indicating an item does not exist.
     WHAT = u64::MAX - 1, // Name unknown.
-    OOB = u64::MAX - 2,  // Memory index is not accessible for reading or writing.
-    WHO = u64::MAX - 3,  // Index unknown.
+    OOB = u64::MAX - 2, // The inner PVM memory index provided for reading/writing is not accessible.
+    WHO = u64::MAX - 3, // Index unknown.
     FULL = u64::MAX - 4, // Storage full.
     CORE = u64::MAX - 5, // Core index unknown.
     CASH = u64::MAX - 6, // Insufficient funds.
-    LOW = u64::MAX - 7,  // Gas limit too low.
-    HIGH = u64::MAX - 8, // Gas limit too high.
-    HUH = u64::MAX - 9,  // The item is already solicited or cannot be forgotten.
-    OK = 0,
+    LOW = u64::MAX - 7, // Gas limit too low.
+    HUH = u64::MAX - 8, // The item is already solicited or cannot be forgotten.
+    OK = 0,             // The return value indicating general success.
 }
 
 #[repr(u32)]
@@ -622,7 +621,6 @@ impl HostFunction {
 
     /// Transfers tokens from the accumulating service account to another service account.
     pub async fn host_transfer(
-        gas: UnsignedGas,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -678,12 +676,6 @@ impl HostFunction {
 
         if gas_limit < dest_on_transfer_gas_limit {
             return Ok(HostCallChangeSet::continue_with_vm_change(low_change(
-                gas_charge,
-            )));
-        }
-
-        if gas < gas_limit {
-            return Ok(HostCallChangeSet::continue_with_vm_change(high_change(
                 gas_charge,
             )));
         }
@@ -1438,7 +1430,7 @@ impl HostFunction {
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
 
-        let inner_vm_exit_reason = PVMCore::general_invocation(
+        let inner_vm_exit_reason = PVMCore::invoke_general(
             &mut inner_vm_state_copy,
             &mut inner_vm_program_state,
             inner_vm_program_code,

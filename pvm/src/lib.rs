@@ -60,9 +60,14 @@ impl PVM {
     fn init_with_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
         let mut pvm = Self::default();
 
-        // decode program and check program size limit
+        // Check argument data size limit
+        if args.len() > INIT_INPUT_SIZE {
+            return Err(PVMError::VMCoreError(ProgramArgsSizeLimitExceeded));
+        }
+
+        // Decode program and check program size limit
         let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
-        if !formatted_program.validate_program_size() {
+        if !formatted_program.is_program_size_valid() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
 
@@ -203,10 +208,10 @@ impl PVM {
     /// `FormattedProgram` type. The decoding process extracts information about the memory layout
     /// necessary for initialization. Subsequently, the code section of the `FormattedProgram`
     /// is loaded as an immutable state within the `PVM`. This immutable state allows the program code
-    /// to be utilized during the execution of the `extended_invocation` and `general_invocation` functions.
+    /// to be utilized during the execution of the `invoke_extended` and `invoke_general` functions.
     ///
     /// Represents `Ψ_M` of the GP.
-    pub async fn common_invocation(
+    pub async fn invoke_with_args(
         state_manager: &StateManager,
         target_address: Address,
         standard_program: &[u8],
@@ -224,7 +229,7 @@ impl PVM {
         pvm.state.gas_counter = gas;
 
         let extended_invocation_result = pvm
-            .extended_invocation(state_manager, target_address, context)
+            .invoke_extended(state_manager, target_address, context)
             .await?;
 
         match extended_invocation_result.exit_reason {
@@ -254,14 +259,14 @@ impl PVM {
     /// This function utilizes the program component of the `PVM` state.
     ///
     /// Represents `Ψ_H` of the GP.
-    async fn extended_invocation(
+    async fn invoke_extended(
         &mut self,
         state_manager: &StateManager,
         target_address: Address,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
-            let exit_reason = PVMCore::general_invocation(
+            let exit_reason = PVMCore::invoke_general(
                 &mut self.state,
                 &mut self.program_state,
                 &self.program_blob,
@@ -386,7 +391,6 @@ impl PVM {
             }
             HostCallType::TRANSFER => {
                 HostFunction::host_transfer(
-                    self.state.gas_counter,
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,

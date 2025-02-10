@@ -45,6 +45,8 @@ pub enum VMCoreError {
     TooLargeGasCounter,
     #[error("Invalid program")]
     InvalidProgram,
+    #[error("Program arguments size limit exceeded")]
+    ProgramArgsSizeLimitExceeded,
     #[error("Invalid instruction format")]
     InvalidInstructionFormat,
     #[error("Invalid opcode")]
