@@ -52,7 +52,6 @@ dotenv = "0.15.0"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 futures = "0.3.31"
 hex = "0.4.3"
-num_enum = "0.7.3"
 paste = "1.0.15"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"

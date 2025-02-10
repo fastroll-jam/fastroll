@@ -1,7 +1,7 @@
-use num_enum::TryFromPrimitive;
+use crate::types::error::{PVMError, VMCoreError::InvalidHostCallType};
 
 #[repr(u8)]
-#[derive(Clone, TryFromPrimitive)]
+#[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum HostCallType {
     // General Functions
@@ -32,6 +32,41 @@ pub enum HostCallType {
     VOID = 22,
     INVOKE = 23,
     EXPUNGE = 24,
+}
+
+impl TryFrom<u8> for HostCallType {
+    type Error = PVMError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(HostCallType::GAS),
+            1 => Ok(HostCallType::LOOKUP),
+            2 => Ok(HostCallType::READ),
+            3 => Ok(HostCallType::WRITE),
+            4 => Ok(HostCallType::INFO),
+            5 => Ok(HostCallType::BLESS),
+            6 => Ok(HostCallType::ASSIGN),
+            7 => Ok(HostCallType::DESIGNATE),
+            8 => Ok(HostCallType::CHECKPOINT),
+            9 => Ok(HostCallType::NEW),
+            10 => Ok(HostCallType::UPGRADE),
+            11 => Ok(HostCallType::TRANSFER),
+            12 => Ok(HostCallType::QUIT),
+            13 => Ok(HostCallType::SOLICIT),
+            14 => Ok(HostCallType::FORGET),
+            15 => Ok(HostCallType::HISTORICAL_LOOKUP),
+            16 => Ok(HostCallType::IMPORT),
+            17 => Ok(HostCallType::EXPORT),
+            18 => Ok(HostCallType::MACHINE),
+            19 => Ok(HostCallType::PEEK),
+            20 => Ok(HostCallType::POKE),
+            21 => Ok(HostCallType::ZERO),
+            22 => Ok(HostCallType::VOID),
+            23 => Ok(HostCallType::INVOKE),
+            24 => Ok(HostCallType::EXPUNGE),
+            _ => Err(PVMError::VMCoreError(InvalidHostCallType)),
+        }
+    }
 }
 
 impl HostCallType {
