@@ -252,10 +252,10 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let key_offset = regs[7].as_mem_address()?;
-        let key_size = regs[8].as_usize()?;
-        let value_offset = regs[9].as_mem_address()?;
-        let value_size = regs[10].as_usize()?;
+        let key_offset = regs[7].as_mem_address()?; // k_o
+        let key_size = regs[8].as_usize()?; // k_z
+        let value_offset = regs[9].as_mem_address()?; // v_o
+        let value_size = regs[10].as_usize()?; // v_z
 
         if !memory.is_address_range_readable(key_offset, key_size)?
             || (value_size > 0 && !memory.is_address_range_readable(value_offset, value_size)?)
@@ -345,15 +345,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let account_address_reg = regs[7].as_u64()?;
-        let buffer_offset = regs[8].as_mem_address()?;
+        let address_reg = regs[7].as_u64()?;
+        let mw_offset = regs[8].as_mem_address()?; // o
 
-        let account_address =
-            if account_address_reg == u64::MAX || account_address_reg == service_address as u64 {
-                service_address
-            } else {
-                account_address_reg as Address
-            };
+        let account_address = if address_reg == u64::MAX {
+            service_address
+        } else {
+            address_reg as Address
+        };
 
         let account_metadata = if let Some(metadata) = accounts_sandbox
             .get_account_metadata(state_manager, account_address)
@@ -369,7 +368,7 @@ impl HostFunction {
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
-        if !memory.is_address_range_writable(buffer_offset, info.len())? {
+        if !memory.is_address_range_writable(mw_offset, info.len())? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -379,7 +378,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((buffer_offset, info.len() as u32, info)),
+                memory_write: Some((mw_offset, info.len() as u32, info)),
                 ..Default::default()
             },
         ))
