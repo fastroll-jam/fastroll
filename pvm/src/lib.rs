@@ -20,7 +20,7 @@ use rjam_pvm_core::{
 };
 use rjam_pvm_hostcall::{
     context::types::InvocationContext,
-    host_functions::{HostCallChangeSet, HostCallVMStateChange, HostFunction},
+    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
 };
 use rjam_state::StateManager;
 
@@ -310,7 +310,7 @@ impl PVM {
         target_address: Address,
         context: &mut InvocationContext,
         h: &HostCallType,
-    ) -> Result<HostCallChangeSet, PVMError> {
+    ) -> Result<HostCallResult, PVMError> {
         let result = match h {
             //
             // General Functions

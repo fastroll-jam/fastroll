@@ -1,4 +1,4 @@
-use crate::host_functions::{HostCallResultConstant, HostCallVMStateChange};
+use crate::host_functions::{HostCallReturnCode, HostCallVMStateChange};
 use rjam_common::UnsignedGas;
 use rjam_pvm_core::types::common::RegValue;
 
@@ -16,7 +16,7 @@ pub fn zero_pad_as_array<const BLOCK_SIZE: usize>(
 
 // Convenience function for `HostCallVMStateChange` construction
 fn create_host_call_state_change(
-    constant: HostCallResultConstant,
+    constant: HostCallReturnCode,
     gas_charge: UnsignedGas,
 ) -> HostCallVMStateChange {
     HostCallVMStateChange {
@@ -29,7 +29,7 @@ fn create_host_call_state_change(
 macro_rules! define_host_call_state_change_function {
     ($func_name:ident, $constant:ident) => {
         pub fn $func_name(gas_charge: UnsignedGas) -> HostCallVMStateChange {
-            create_host_call_state_change(HostCallResultConstant::$constant, gas_charge)
+            create_host_call_state_change(HostCallReturnCode::$constant, gas_charge)
         }
     };
 }
