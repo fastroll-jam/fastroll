@@ -149,22 +149,22 @@ impl HostFunction {
             .get_or_load_account_preimages_entry(state_manager, account_address, &hash)
             .await?
         {
-            let preimage_len = entry.value.len();
-            let preimage_offset = regs[10].as_usize()?.min(preimage_len); // f
-            let lookup_len = regs[11].as_usize()?.min(preimage_len - preimage_offset); // l
+            let preimage_size = entry.value.len();
+            let preimage_offset = regs[10].as_usize()?.min(preimage_size); // f
+            let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
-            if !memory.is_address_range_writable(mw_offset, lookup_len)? {
+            if !memory.is_address_range_writable(mw_offset, lookup_size)? {
                 return Ok(HostCallResult::panic());
             }
 
             Ok(HostCallResult::continue_with_vm_change(
                 HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(preimage_len as RegValue),
+                    r7_write: Some(preimage_size as RegValue),
                     memory_write: Some((
                         mw_offset,
-                        lookup_len as u32,
-                        entry.value[preimage_offset..preimage_offset + lookup_len].to_vec(),
+                        lookup_size as u32,
+                        entry.value[preimage_offset..preimage_offset + lookup_size].to_vec(),
                     )),
                     ..Default::default()
                 },
@@ -189,7 +189,7 @@ impl HostFunction {
 
         let address_reg = regs[7].as_u64()?;
         let key_offset = regs[8].as_mem_address()?; // k_o
-        let key_len = regs[9].as_usize()?; // k_z
+        let key_size = regs[9].as_usize()?; // k_z
         let mw_offset = regs[10].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
@@ -198,23 +198,23 @@ impl HostFunction {
             address_reg as Address
         };
 
-        if !memory.is_address_range_readable(key_offset, key_len)? {
+        if !memory.is_address_range_readable(key_offset, key_size)? {
             return Ok(HostCallResult::panic());
         }
 
         let mut key = service_address.encode_fixed(4)?;
-        key.extend(memory.read_bytes(key_offset, key_len)?);
+        key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
         if let Some(entry) = accounts_sandbox
             .get_or_load_account_storage_entry(state_manager, account_address, &storage_key)
             .await?
         {
-            let storage_val_len = entry.value.len();
-            let storage_val_offset = regs[11].as_usize()?.min(storage_val_len); // f
+            let storage_val_size = entry.value.len();
+            let storage_val_offset = regs[11].as_usize()?.min(storage_val_size); // f
             let read_len = regs[12]
                 .as_usize()?
-                .min(storage_val_len - storage_val_offset); // l
+                .min(storage_val_size - storage_val_offset); // l
 
             if !memory.is_address_range_writable(mw_offset, read_len)? {
                 return Ok(HostCallResult::panic());
@@ -223,10 +223,10 @@ impl HostFunction {
             Ok(HostCallResult::continue_with_vm_change(
                 HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(storage_val_len as RegValue),
+                    r7_write: Some(storage_val_size as RegValue),
                     memory_write: Some((
                         mw_offset,
-                        storage_val_len as u32,
+                        storage_val_size as u32,
                         entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
                     )),
                     ..Default::default()
@@ -240,7 +240,7 @@ impl HostFunction {
     }
 
     /// Writes an entry to the storage of the service account hosting the code being executed,
-    /// using a key and value loaded from memory.
+    /// using a key and value read from the memory.
     /// If the value size is zero, the entry corresponding to the key is removed.
     /// The size of the previous value, if any, is returned via the register.
     pub async fn host_write(
@@ -258,11 +258,9 @@ impl HostFunction {
         let value_size = regs[10].as_usize()?;
 
         if !memory.is_address_range_readable(key_offset, key_size)?
-            || !memory.is_address_range_readable(value_offset, value_size)?
+            || (value_size > 0 && !memory.is_address_range_readable(value_offset, value_size)?)
         {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let mut key = service_address.encode_fixed(4)?;
@@ -270,34 +268,34 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
-        let prev_storage_entry = accounts_sandbox
+        let maybe_prev_storage_entry = accounts_sandbox
             .get_or_load_account_storage_entry(state_manager, service_address, &storage_key)
             .await?;
 
-        let prev_value_size = if let Some(entry) = &prev_storage_entry {
+        let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
+        {
             entry.value.len() as u64
         } else {
             HostCallReturnCode::NONE as u64
         };
 
-        let new_storage_entry_data = memory.read_bytes(value_offset, value_size)?;
         let new_storage_entry = AccountStorageEntry {
-            value: Octets::from_vec(new_storage_entry_data.clone()),
+            value: Octets::from_vec(memory.read_bytes(value_offset, value_size)?),
         };
 
         let (storage_items_count_delta, storage_octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
-                prev_storage_entry.as_ref(),
+                maybe_prev_storage_entry.as_ref(),
                 &new_storage_entry,
             )
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
-        let target_account_metadata = accounts_sandbox
+        let account_metadata = accounts_sandbox
             .get_account_metadata(state_manager, service_address)
             .await?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
-        let simulated_threshold_balance = target_account_metadata
+        let simulated_threshold_balance = account_metadata
             .simulate_threshold_balance_after_mutation(
                 0,
                 storage_items_count_delta,
@@ -305,7 +303,7 @@ impl HostFunction {
                 storage_octets_count_delta,
             );
 
-        if simulated_threshold_balance > target_account_metadata.account_info.balance {
+        if simulated_threshold_balance > account_metadata.account_info.balance {
             return Ok(HostCallResult::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));
@@ -318,7 +316,6 @@ impl HostFunction {
                 .remove_account_storage_entry(state_manager, service_address, storage_key)
                 .await?;
         } else {
-            // FIXME: get prev_value here
             accounts_sandbox
                 .insert_account_storage_entry(
                     state_manager,
@@ -332,7 +329,7 @@ impl HostFunction {
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(prev_value_size as RegValue),
+                r7_write: Some(prev_storage_val_size_or_return_code as RegValue),
                 ..Default::default()
             },
         ))

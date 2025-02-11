@@ -322,6 +322,10 @@ impl Memory {
 
     /// Read a specified number of bytes from memory starting at the given address
     pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
+        if length == 0 {
+            return Ok(Vec::new());
+        }
+
         let (start_page, _) = self.get_page_and_offset(address);
         let (end_page, _) = self.get_page_and_offset(address + (length - 1) as MemAddress);
 
@@ -352,6 +356,10 @@ impl Memory {
         start_address: MemAddress,
         bytes: &[u8],
     ) -> Result<(), MemoryError> {
+        if bytes.is_empty() {
+            return Ok(());
+        }
+
         let (start_page, _) = self.get_page_and_offset(start_address);
         let (end_page, _) =
             self.get_page_and_offset(start_address + (bytes.len() - 1) as MemAddress);
