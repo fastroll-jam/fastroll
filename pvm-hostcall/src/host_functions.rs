@@ -117,7 +117,7 @@ impl HostFunction {
     }
 
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
-    /// and writes it to memory.
+    /// and writes it into memory.
     pub async fn host_lookup(
         service_address: Address,
         regs: &[Register; REGISTERS_COUNT],
@@ -127,9 +127,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?; // s
+        let address_reg = regs[7].as_u64()?;
         let hash_offset = regs[8].as_mem_address()?; // h
-        let write_offset = regs[9].as_mem_address()?; // o
+        let mw_offset = regs[9].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX || address_reg == service_address as u64 {
             service_address
@@ -141,6 +141,7 @@ impl HostFunction {
             return Ok(HostCallResult::panic());
         }
 
+        // Read preimage storage key (hash) from the memory
         let hash = octets_to_hash32(&memory.read_bytes(hash_offset, 32)?)
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
@@ -152,7 +153,7 @@ impl HostFunction {
             let preimage_offset = regs[10].as_usize()?.min(preimage_len); // f
             let lookup_len = regs[11].as_usize()?.min(preimage_len - preimage_offset); // l
 
-            if !memory.is_address_range_writable(write_offset, lookup_len)? {
+            if !memory.is_address_range_writable(mw_offset, lookup_len)? {
                 return Ok(HostCallResult::panic());
             }
 
@@ -161,7 +162,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage_len as RegValue),
                     memory_write: Some((
-                        write_offset,
+                        mw_offset,
                         lookup_len as u32,
                         entry.value[preimage_offset..preimage_offset + lookup_len].to_vec(),
                     )),
@@ -186,49 +187,47 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let account_address_reg = regs[7].as_u64()?;
-        let key_offset = regs[8].as_mem_address()?;
-        let key_size = regs[9].as_usize()?;
-        let buffer_offset = regs[10].as_mem_address()?;
-        let buffer_size = regs[11].as_usize()?;
+        let address_reg = regs[7].as_u64()?;
+        let key_offset = regs[8].as_mem_address()?; // k_o
+        let key_len = regs[9].as_usize()?; // k_z
+        let mw_offset = regs[10].as_mem_address()?; // o
 
-        let account_address =
-            if account_address_reg == u64::MAX || account_address_reg == service_address as u64 {
-                service_address
-            } else {
-                account_address_reg as Address
-            };
+        let account_address = if address_reg == u64::MAX {
+            service_address
+        } else {
+            address_reg as Address
+        };
 
-        if !memory.is_address_range_readable(key_offset, key_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+        if !memory.is_address_range_readable(key_offset, key_len)? {
+            return Ok(HostCallResult::panic());
         }
 
         let mut key = service_address.encode_fixed(4)?;
-        key.extend(memory.read_bytes(key_offset, key_size)?);
+        key.extend(memory.read_bytes(key_offset, key_len)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
         if let Some(entry) = accounts_sandbox
             .get_or_load_account_storage_entry(state_manager, account_address, &storage_key)
             .await?
         {
-            let write_data_size = buffer_size.min(entry.value.len());
+            let storage_val_len = entry.value.len();
+            let storage_val_offset = regs[11].as_usize()?.min(storage_val_len); // f
+            let read_len = regs[12]
+                .as_usize()?
+                .min(storage_val_len - storage_val_offset); // l
 
-            if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                    BASE_GAS_CHARGE,
-                )));
+            if !memory.is_address_range_writable(mw_offset, read_len)? {
+                return Ok(HostCallResult::panic());
             }
 
             Ok(HostCallResult::continue_with_vm_change(
                 HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(entry.value.len() as RegValue),
+                    r7_write: Some(storage_val_len as RegValue),
                     memory_write: Some((
-                        buffer_offset,
-                        write_data_size as u32,
-                        entry.value[..write_data_size].to_vec(),
+                        mw_offset,
+                        storage_val_len as u32,
+                        entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
                     )),
                     ..Default::default()
                 },
