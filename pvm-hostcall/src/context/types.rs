@@ -112,7 +112,7 @@ impl InvocationContext {
     }
 }
 
-/// Represents the contextual state maintained throughout the accumulation process.
+/// Represents the contextual state maintained throughout the `on_transfer` process.
 #[derive(Clone, Default)]
 pub struct OnTransferHostContext {
     pub accounts_sandbox: AccountsSandboxMap,
@@ -175,7 +175,7 @@ impl AccumulateHostContextPair {
     }
 }
 
-/// Represents the contextual state maintained throughout the accumulation process.
+/// Represents the contextual state maintained throughout the `accumulate` process.
 ///
 /// This provides the necessary state to manage mutations and track changes during the accumulation.
 /// The context ensures that state changes are sandboxed and isolated from the global state until

@@ -213,7 +213,7 @@ impl PVM {
     /// Represents `Ψ_M` of the GP.
     pub async fn invoke_with_args(
         state_manager: &StateManager,
-        target_address: Address,
+        service_address: Address,
         standard_program: &[u8],
         pc: RegValue,
         gas: UnsignedGas,
@@ -229,7 +229,7 @@ impl PVM {
         pvm.state.gas_counter = gas;
 
         let extended_invocation_result = pvm
-            .invoke_extended(state_manager, target_address, context)
+            .invoke_extended(state_manager, service_address, context)
             .await?;
 
         match extended_invocation_result.exit_reason {
@@ -262,7 +262,7 @@ impl PVM {
     async fn invoke_extended(
         &mut self,
         state_manager: &StateManager,
-        target_address: Address,
+        service_address: Address,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
@@ -274,7 +274,7 @@ impl PVM {
 
             let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
-                    self.execute_host_function(state_manager, target_address, context, &h)
+                    self.execute_host_function(state_manager, service_address, context, &h)
                         .await?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
@@ -307,7 +307,7 @@ impl PVM {
     async fn execute_host_function(
         &mut self,
         state_manager: &StateManager,
-        target_address: Address,
+        service_address: Address,
         context: &mut InvocationContext,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
@@ -318,7 +318,7 @@ impl PVM {
             HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
             HostCallType::LOOKUP => {
                 HostFunction::host_lookup(
-                    target_address,
+                    service_address,
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,
@@ -328,7 +328,7 @@ impl PVM {
             }
             HostCallType::READ => {
                 HostFunction::host_read(
-                    target_address,
+                    service_address,
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,
@@ -338,7 +338,7 @@ impl PVM {
             }
             HostCallType::WRITE => {
                 HostFunction::host_write(
-                    target_address,
+                    service_address,
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,
@@ -348,7 +348,7 @@ impl PVM {
             }
             HostCallType::INFO => {
                 HostFunction::host_info(
-                    target_address,
+                    service_address,
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,
@@ -400,7 +400,7 @@ impl PVM {
             }
             HostCallType::QUIT => {
                 HostFunction::host_quit(
-                    target_address,
+                    service_address,
                     self.state.gas_counter,
                     self.get_registers(),
                     self.get_memory(),
@@ -432,7 +432,7 @@ impl PVM {
             //
             HostCallType::HISTORICAL_LOOKUP => {
                 HostFunction::host_historical_lookup(
-                    target_address,
+                    service_address,
                     self.get_registers(),
                     self.get_memory(),
                     context,
