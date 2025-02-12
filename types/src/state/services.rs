@@ -55,7 +55,7 @@ impl AccountMetadata {
         2 * self.lookups_items_count + self.storage_items_count
     }
 
-    /// The number of total octets used in the service storages (l)
+    /// The number of total octets used in the service storages (o)
     ///
     /// Sum({ 81 + preimage_data_len }) + Sum({ 32 + storage_data_len })
     pub fn total_octets_footprint(&self) -> u64 {
@@ -72,9 +72,9 @@ impl AccountMetadata {
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
         let i = self.item_counts_footprint() as Balance;
-        let l = self.total_octets_footprint();
+        let o = self.total_octets_footprint();
 
-        B_S + B_I * i + B_L * l
+        B_S + B_I * i + B_L * o
     }
 
     /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
@@ -162,7 +162,7 @@ impl AccountMetadata {
         self.account_info
             .gas_limit_on_transfer
             .encode_to(&mut buf)?; // m
-        self.total_octets_footprint().encode_to(&mut buf)?; // l
+        self.total_octets_footprint().encode_to(&mut buf)?; // o
         self.item_counts_footprint().encode_to(&mut buf)?; // i
 
         Ok(buf)

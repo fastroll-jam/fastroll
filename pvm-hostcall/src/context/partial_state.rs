@@ -465,6 +465,34 @@ impl AccountsSandboxMap {
             .await?;
         Ok(true)
     }
+
+    pub async fn eject_account(
+        &mut self,
+        state_manager: &StateManager,
+        address: Address,
+    ) -> Result<(), PartialStateError> {
+        let account_sandbox = self
+            .get_mut_account_sandbox(state_manager, address)
+            .await?
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+        account_sandbox.metadata = StateView::Removed;
+
+        // Mark all storage entries associated with the address as removed.
+        account_sandbox
+            .storage
+            .values_mut()
+            .for_each(|v| *v = StateView::Removed);
+        account_sandbox
+            .preimages
+            .values_mut()
+            .for_each(|v| *v = StateView::Removed);
+        account_sandbox
+            .lookups
+            .values_mut()
+            .for_each(|v| *v = StateView::Removed);
+
+        Ok(())
+    }
 }
 
 /// Represents a mutable copy of a subset of the global state used during the accumulation process.

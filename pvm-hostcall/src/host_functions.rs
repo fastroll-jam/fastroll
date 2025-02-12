@@ -693,6 +693,88 @@ impl HostFunction {
         )))
     }
 
+    /// Completely removes a service account from the global state.
+    pub async fn host_eject(
+        regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
+        state_manager: &StateManager,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let x = context.get_mut_accumulate_x()?;
+
+        let eject_address = regs[7].as_account_address()?; // d
+        let offset = regs[8].as_mem_address()?; // o
+
+        if !memory.is_address_range_readable(offset, HASH_SIZE)? {
+            return Ok(HostCallResult::panic());
+        }
+        let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+
+        if eject_address == x.accumulate_host {
+            return Ok(HostCallResult::continue_with_vm_change(who_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
+
+        let eject_account_metadata = match x
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_manager, eject_address)
+            .await?
+        {
+            Some(metadata) => metadata.clone(),
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(who_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
+
+        let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
+            .expect("Should not fail convert 32-byte octets into Hash32");
+        if eject_account_metadata.account_info.code_hash != accumulate_host_as_hash {
+            return Ok(HostCallResult::continue_with_vm_change(who_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
+
+        // TODO: safe type casting
+        let preimage_len = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
+        if eject_account_metadata.item_counts_footprint() != 2 {
+            return Ok(HostCallResult::continue_with_vm_change(huh_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
+        let lookups_key = (preimage_hash, preimage_len);
+
+        // FIXME: use header timeslot value instead
+        if let Some(entry) = x
+            .partial_state
+            .accounts_sandbox
+            .get_or_load_account_lookups_entry(state_manager, eject_address, &lookups_key)
+            .await?
+        {
+            let curr_timeslot = state_manager.get_timeslot().await?.slot();
+            if entry.value.len() == 2
+                && entry.value[1].slot() < curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
+            {
+                x.add_accumulator_balance(state_manager, eject_account_metadata.balance())
+                    .await?;
+                x.partial_state
+                    .accounts_sandbox
+                    .eject_account(state_manager, eject_address)
+                    .await?;
+                return Ok(HostCallResult::continue_with_vm_change(ok_change(
+                    BASE_GAS_CHARGE,
+                )));
+            }
+        }
+
+        Ok(HostCallResult::continue_with_vm_change(huh_change(
+            BASE_GAS_CHARGE,
+        )))
+    }
+
     /// Halts the host call execution and optionally transfers tokens to the specified destination
     /// account, leaving (threshold balance - initial threshold balance) in the accumulator account.
     ///

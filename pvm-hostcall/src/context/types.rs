@@ -365,6 +365,23 @@ impl AccumulateHostContext {
         Ok(())
     }
 
+    pub async fn add_accumulator_balance(
+        &mut self,
+        state_manager: &StateManager,
+        amount: Balance,
+    ) -> Result<(), PVMError> {
+        let account_metadata = self
+            .partial_state
+            .accounts_sandbox
+            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .await?
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+
+        // TODO: check overflow
+        account_metadata.account_info.balance += amount;
+        Ok(())
+    }
+
     pub async fn add_new_account(
         &mut self,
         state_manager: &StateManager,
