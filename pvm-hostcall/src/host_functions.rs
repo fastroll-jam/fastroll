@@ -15,7 +15,7 @@ use rjam_pvm_core::{
     },
     types::{
         common::{ExitReason, ExportDataSegment, RegValue},
-        error::{HostCallError::*, PVMError, VMCoreError::InvalidRegVal},
+        error::{HostCallError::*, PVMError},
     },
 };
 use rjam_state::{
@@ -773,90 +773,6 @@ impl HostFunction {
         Ok(HostCallResult::continue_with_vm_change(huh_change(
             BASE_GAS_CHARGE,
         )))
-    }
-
-    /// Halts the host call execution and optionally transfers tokens to the specified destination
-    /// account, leaving (threshold balance - initial threshold balance) in the accumulator account.
-    ///
-    /// Upon a successful halt, The accumulating service account is removed from
-    /// the accumulate context partial state.
-    pub async fn host_quit(
-        service_address: Address,
-        gas: UnsignedGas,
-        regs: &[Register; REGISTERS_COUNT],
-        memory: &Memory,
-        state_manager: &StateManager,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
-
-        let dest = regs[7].value();
-        let offset = regs[8].as_mem_address()?;
-
-        // Halts with no transfer
-        if dest == x.accumulate_host as u64 || dest == u64::MAX {
-            x.remove_accumulator_account()?;
-            return Ok(HostCallResult::continue_with_vm_change(ok_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-        let dest = u32::try_from(dest).map_err(|_| PVMError::VMCoreError(InvalidRegVal))?;
-
-        if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-
-        let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
-            &mut memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
-        )?;
-
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
-        let amount =
-            accumulator_metadata.balance() - accumulator_metadata.threshold_balance() + B_S;
-
-        let transfer = DeferredTransfer {
-            from: service_address,
-            to: dest,
-            amount,
-            memo,
-            gas_limit: gas,
-        };
-
-        // Check the state manager and the accumulate context partial state to confirm that the
-        // destination account exists.
-        let dest_on_transfer_gas_limit = match x
-            .partial_state
-            .accounts_sandbox
-            .get_account_metadata(state_manager, dest)
-            .await?
-        {
-            Some(metadata) => metadata.account_info.gas_limit_on_transfer,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )));
-            }
-        };
-
-        if gas < dest_on_transfer_gas_limit {
-            return Ok(HostCallResult::continue_with_vm_change(low_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-
-        x.add_to_deferred_transfers(transfer);
-        x.remove_accumulator_account()?;
-
-        Ok(HostCallResult {
-            exit_reason: ExitReason::RegularHalt,
-            vm_change: HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(HostCallReturnCode::OK as RegValue),
-                ..Default::default()
-            },
-        })
     }
 
     /// Marks the accumulating account's lookup dictionary entry, which references a preimage entry
