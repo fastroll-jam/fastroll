@@ -397,19 +397,27 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let manager = regs[7].as_account_address()?;
-        let assign = regs[8].as_account_address()?;
-        let designate = regs[9].as_account_address()?;
-        let offset = regs[10].as_mem_address()?;
-        let always_accumulates_count = regs[11].as_usize()?;
+        let (manager, assign, designate) = match (
+            regs[7].as_account_address(),
+            regs[8].as_account_address(),
+            regs[9].as_account_address(),
+        ) {
+            (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
+            _ => {
+                return Ok(HostCallResult::continue_with_vm_change(who_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
+
+        let offset = regs[10].as_mem_address()?; // o
+        let always_accumulates_count = regs[11].as_usize()?; // n
 
         if !memory.is_address_range_readable(offset, 12 * always_accumulates_count)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
-        let mut always_accumulate_services = HashMap::new();
+        let mut always_accumulate_services = HashMap::with_capacity(always_accumulates_count);
 
         for i in 0..always_accumulates_count {
             let always_accumulate_serialized =
@@ -436,12 +444,10 @@ impl HostFunction {
         let x = context.get_mut_accumulate_x()?;
 
         let core_index = regs[7].as_usize()?;
-        let offset = regs[8].as_mem_address()?;
+        let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         if core_index >= CORE_COUNT {
@@ -472,12 +478,10 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let offset = regs[7].as_mem_address()?;
+        let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let mut new_staging_set = StagingSet::default();
@@ -520,8 +524,8 @@ impl HostFunction {
         ))
     }
 
-    /// Creates a new service account with an address derived from the hash of the accumulator address,
-    /// the current epochal entropy, and the block timeslot index.
+    /// Creates a new service account with an address derived from the hash of
+    /// the accumulate host address, the current epochal entropy, and the block timeslot index.
     ///
     /// The code hash is loaded into memory, and the two gas limits are provided as arguments in registers.
     ///
@@ -534,33 +538,33 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let offset = regs[7].as_mem_address()?;
-        let code_lookup_len = regs[8].as_u32()?;
-        let gas_limit_g = regs[9].value();
-        let gas_limit_m = regs[10].value();
+        let offset = regs[7].as_mem_address()?; // o
+        let code_lookup_len = regs[8].as_u32()?; // l
+        let gas_limit_g = regs[9].value(); // g
+        let gas_limit_m = regs[10].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let new_threshold_balance = AccountMetadata::get_initial_threshold_balance();
+        let new_account_threshold_balance = AccountMetadata::get_initial_threshold_balance();
 
-        // Check if the accumulator's balance if sufficient and subtract by
-        // the initial threshold balance to be transferred to the new account.
+        // Check if the accumulate host service account's balance is sufficient
+        // and subtract by the initial threshold balance to be transferred to the new account.
         let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
-        if accumulator_balance < accumulator_threshold_balance + new_threshold_balance {
+        if accumulator_balance.saturating_sub(accumulator_threshold_balance)
+            < new_account_threshold_balance
+        {
             return Ok(HostCallResult::continue_with_vm_change(cash_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        x.subtract_accumulator_balance(state_manager, new_threshold_balance)
+        x.subtract_accumulator_balance(state_manager, new_account_threshold_balance)
             .await?;
 
         // Add a new account to the partial state
@@ -569,7 +573,7 @@ impl HostFunction {
                 state_manager,
                 AccountInfo {
                     code_hash,
-                    balance: new_threshold_balance,
+                    balance: new_account_threshold_balance,
                     gas_limit_accumulate: gas_limit_g,
                     gas_limit_on_transfer: gas_limit_m,
                 },
@@ -590,7 +594,7 @@ impl HostFunction {
     }
 
     /// Upgrades three metadata fields of the accumulating service account:
-    /// code hash, accumulate gas limit and on-transfer gas limit.
+    /// code hash ahs gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -599,14 +603,12 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let offset = regs[7].as_mem_address()?;
-        let gas_limit_g = regs[8].value();
-        let gas_limit_m = regs[9].value();
+        let offset = regs[7].as_mem_address()?; // o
+        let gas_limit_g = regs[8].value(); // g
+        let gas_limit_m = regs[9].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -628,16 +630,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let dest = regs[7].as_account_address()?;
-        let amount = regs[8].value();
-        let gas_limit = regs[9].value();
-        let offset = regs[10].as_mem_address()?;
-        let gas_charge = BASE_GAS_CHARGE + amount + (1 << 32) * gas_limit;
+        let dest = regs[7].as_account_address()?; // d
+        let amount = regs[8].value(); // a
+        let gas_limit = regs[9].value(); // l
+        let offset = regs[10].as_mem_address()?; // o
+        let gas_charge = BASE_GAS_CHARGE + gas_limit;
 
         if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -652,21 +652,19 @@ impl HostFunction {
             gas_limit,
         };
 
-        let accumulator_balance = x.get_accumulator_metadata(state_manager).await?.balance();
-        let accumulator_threshold_balance = x
-            .get_accumulator_metadata(state_manager)
-            .await?
-            .threshold_balance();
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
+        let accumulator_balance = accumulator_metadata.balance();
+        let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
-        // Check the state manager and the accumulate context partial state to confirm that the
+        // Check the global state and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_on_transfer_gas_limit = match x
+        let dest_account_info = match x
             .partial_state
             .accounts_sandbox
             .get_account_metadata(state_manager, dest)
             .await?
         {
-            Some(metadata) => metadata.account_info.gas_limit_on_transfer,
+            Some(metadata) => &metadata.account_info,
             None => {
                 return Ok(HostCallResult::continue_with_vm_change(who_change(
                     gas_charge,
@@ -674,13 +672,13 @@ impl HostFunction {
             }
         };
 
-        if gas_limit < dest_on_transfer_gas_limit {
+        if gas_limit < dest_account_info.gas_limit_on_transfer {
             return Ok(HostCallResult::continue_with_vm_change(low_change(
                 gas_charge,
             )));
         }
 
-        if accumulator_balance < amount + accumulator_threshold_balance {
+        if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
             return Ok(HostCallResult::continue_with_vm_change(cash_change(
                 gas_charge,
             )));
