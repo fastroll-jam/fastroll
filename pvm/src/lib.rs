@@ -399,10 +399,22 @@ impl PVM {
                 .await?
             }
             HostCallType::EJECT => {
-                unimplemented!()
+                HostFunction::host_eject(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
             }
             HostCallType::QUERY => {
-                unimplemented!()
+                HostFunction::host_query(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
             }
             HostCallType::SOLICIT => {
                 HostFunction::host_solicit(
@@ -423,7 +435,7 @@ impl PVM {
                 .await?
             }
             HostCallType::YIELD => {
-                unimplemented!()
+                HostFunction::host_yield(self.get_registers(), self.get_memory(), context).await?
             }
             //
             // Refine Functions
