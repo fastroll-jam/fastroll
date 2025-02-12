@@ -739,13 +739,13 @@ impl HostFunction {
         }
 
         // TODO: safe type casting
-        let preimage_len = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
+        let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
         if eject_account_metadata.item_counts_footprint() != 2 {
             return Ok(HostCallResult::continue_with_vm_change(huh_change(
                 BASE_GAS_CHARGE,
             )));
         }
-        let lookups_key = (preimage_hash, preimage_len);
+        let lookups_key = (preimage_hash, preimage_size);
 
         // FIXME: use header timeslot value instead
         if let Some(entry) = x
@@ -775,6 +775,54 @@ impl HostFunction {
         )))
     }
 
+    /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
+    pub async fn host_query(
+        regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
+        state_manager: &StateManager,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let x = context.get_mut_accumulate_x()?;
+
+        let offset = regs[7].as_mem_address()?; // o
+        let preimage_size = regs[8].as_u32()?; // z
+
+        if !memory.is_address_range_readable(offset, HASH_SIZE)? {
+            return Ok(HostCallResult::panic());
+        }
+        let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+
+        let lookups_key = (preimage_hash, preimage_size);
+        if let Some(entry) = x
+            .partial_state
+            .accounts_sandbox
+            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .await?
+        {
+            let (r7, r8) = match entry.value.len() {
+                0 => (0, 0),
+                1 => (1 + entry.value[0].slot() * (1 << 32), 0),
+                2 => (2 + entry.value[0].slot() * (1 << 32), entry.value[1].slot()),
+                3 => (
+                    3 + entry.value[0].slot() * (1 << 32),
+                    entry.value[1].slot() + entry.value[2].slot() * (1 << 32),
+                ),
+                _ => panic!("Should not have more than 3 timeslot values"),
+            };
+            Ok(HostCallResult::continue_with_vm_change(
+                HostCallVMStateChange {
+                    r7_write: Some(r7 as RegValue),
+                    r8_write: Some(r8 as RegValue),
+                    ..Default::default()
+                },
+            ))
+        } else {
+            Ok(HostCallResult::continue_with_vm_change(none_change(
+                BASE_GAS_CHARGE,
+            )))
+        }
+    }
+
     /// Marks the accumulating account's lookup dictionary entry, which references a preimage entry
     /// that was previously available but is currently unavailable, as available again starting
     /// from the current timeslot.
@@ -789,17 +837,15 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_accumulate_x()?;
 
-        let offset = regs[7].as_mem_address()?;
-        let lookup_len = regs[8].as_u32()?;
+        let offset = regs[7].as_mem_address()?; // o
+        let lookups_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let lookups_key = (lookup_hash, lookup_len);
+        let lookups_key = (lookup_hash, lookups_size);
 
         let prev_lookups_entry = x
             .partial_state
@@ -831,11 +877,11 @@ impl HostFunction {
 
         // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
         let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
-            preimage_length: lookup_len,
+            preimage_length: lookups_size,
             entry: p,
         });
         let new_lookups_octets_usage = AccountLookupsOctetsUsage {
-            preimage_length: lookup_len,
+            preimage_length: lookups_size,
             entry: new_lookups_entry.clone(),
         };
 
@@ -896,9 +942,7 @@ impl HostFunction {
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -999,6 +1043,29 @@ impl HostFunction {
             }
         };
         Ok(HostCallResult::continue_with_vm_change(vm_state_change))
+    }
+
+    /// Yields the accumulation result commitment hash to the accumulate context.
+    pub async fn host_yield(
+        regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let x = context.get_mut_accumulate_x()?;
+
+        let offset = regs[7].as_mem_address()?; // o
+
+        if !memory.is_address_range_readable(offset, HASH_SIZE)? {
+            return Ok(HostCallResult::panic());
+        }
+        let commitment_hash =
+            Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+
+        x.yielded_accumulate_hash = Some(commitment_hash);
+
+        Ok(HostCallResult::continue_with_vm_change(ok_change(
+            BASE_GAS_CHARGE,
+        )))
     }
 
     //
