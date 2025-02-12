@@ -192,6 +192,7 @@ pub struct AccumulateHostContext {
     /// TODO: Check how to manage this context in the parallelized accumulation.
     pub next_new_account_address: Address, // i; used for allocating unique address to a new service
     pub deferred_transfers: Vec<DeferredTransfer>, // t
+    pub yielded_accumulate_hash: Option<Hash32>, // y
     pub gas_used: UnsignedGas,
 }
 
@@ -231,8 +232,9 @@ impl AccumulateHostContext {
         timeslot.0.encode_to(&mut buf)?;
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
-        let initial_check_address = u32::decode_fixed(&mut &source_hash[..], 4)? as u64
-            & (((1 << 32) - (1 << 9)) + (1 << 8));
+        let modulus = (1u64 << 32) - (1 << 9);
+        let initial_check_address =
+            (u64::decode_fixed(&mut &source_hash[..], 4)? % modulus) + (1 << 8);
         let new_account_address = state_manager
             .check(initial_check_address as Address)
             .await?;
@@ -308,7 +310,8 @@ impl AccumulateHostContext {
         state_manager: &StateManager,
     ) -> Result<(), PVMError> {
         let bump = |a: Address| -> Address {
-            ((a as u64 - (1u64 << 8) + 42) % ((1u64 << 32) - (1u64 << 9)) + (1u64 << 8)) as Address
+            let modulus = (1u64 << 32) - (1u64 << 9);
+            ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as Address
         };
         self.next_new_account_address =
             bump(state_manager.check(self.next_new_account_address).await?);
@@ -357,7 +360,25 @@ impl AccumulateHostContext {
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
+        // Explicitly checked from callsites (host functions) that this has positive value.
         account_metadata.account_info.balance -= amount;
+        Ok(())
+    }
+
+    pub async fn add_accumulator_balance(
+        &mut self,
+        state_manager: &StateManager,
+        amount: Balance,
+    ) -> Result<(), PVMError> {
+        let account_metadata = self
+            .partial_state
+            .accounts_sandbox
+            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .await?
+            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+
+        // TODO: check overflow
+        account_metadata.account_info.balance += amount;
         Ok(())
     }
 

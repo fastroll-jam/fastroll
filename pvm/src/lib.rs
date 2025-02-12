@@ -398,10 +398,17 @@ impl PVM {
                 )
                 .await?
             }
-            HostCallType::QUIT => {
-                HostFunction::host_quit(
-                    service_address,
-                    self.state.gas_counter,
+            HostCallType::EJECT => {
+                HostFunction::host_eject(
+                    self.get_registers(),
+                    self.get_memory(),
+                    state_manager,
+                    context,
+                )
+                .await?
+            }
+            HostCallType::QUERY => {
+                HostFunction::host_query(
                     self.get_registers(),
                     self.get_memory(),
                     state_manager,
@@ -427,6 +434,9 @@ impl PVM {
                 )
                 .await?
             }
+            HostCallType::YIELD => {
+                HostFunction::host_yield(self.get_registers(), self.get_memory(), context).await?
+            }
             //
             // Refine Functions
             //
@@ -440,8 +450,8 @@ impl PVM {
                 )
                 .await?
             }
-            HostCallType::IMPORT => {
-                HostFunction::host_import(self.get_registers(), self.get_memory(), context)?
+            HostCallType::FETCH => {
+                unimplemented!()
             }
             HostCallType::EXPORT => {
                 HostFunction::host_export(self.get_registers(), self.get_memory(), context)?
