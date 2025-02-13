@@ -2,7 +2,7 @@ use crate::{
     context::types::InvocationContext, host_functions::InnerPVMResultConstant::*,
     inner_vm::InnerPVM, utils::*,
 };
-use rjam_codec::{JamDecode, JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
@@ -1136,6 +1136,121 @@ impl HostFunction {
                     buf_offset,
                     lookup_size as u32,
                     preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
+                )),
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Fetches various data types introduced as arguments of the refine invocation.
+    /// This includes work-package data, authorizer output and imports data.
+    pub fn host_fetch(
+        regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let x = context.get_refine_x()?;
+        let data_id = regs[10].as_usize()?;
+
+        let data = match data_id {
+            0 => x.invoke_args.package.clone().encode()?,
+            1 => x.invoke_args.auth_output.clone(),
+            2 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = regs[11].as_usize()?;
+                if item_idx < items.len() {
+                    items[item_idx].payload_blob.to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            3 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = regs[11].as_usize()?;
+                let xt_idx = regs[12].as_usize()?;
+                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
+                        xt_blob.to_vec()
+                    } else {
+                        return Ok(HostCallResult::continue_with_vm_change(none_change(
+                            BASE_GAS_CHARGE,
+                        )));
+                    }
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            4 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = x.invoke_args.item_idx;
+                let xt_idx = regs[11].as_usize()?;
+                if xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
+                        xt_blob.to_vec()
+                    } else {
+                        return Ok(HostCallResult::continue_with_vm_change(none_change(
+                            BASE_GAS_CHARGE,
+                        )));
+                    }
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            5 => {
+                let imports = x.invoke_args.import_segments.clone();
+                let item_idx = regs[11].as_usize()?;
+                let segment_idx = regs[12].as_usize()?;
+                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            6 => {
+                let imports = x.invoke_args.import_segments.clone();
+                let item_idx = x.invoke_args.item_idx;
+                let segment_idx = regs[11].as_usize()?;
+                if segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            _ => {
+                return Ok(HostCallResult::continue_with_vm_change(none_change(
+                    BASE_GAS_CHARGE,
+                )));
+            }
+        };
+
+        let buf_offset = regs[7].as_mem_address()?; // o
+        let data_read_offset = regs[8].as_usize()?.min(data.len()); // f
+        let data_read_size = regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+
+        if !memory.is_address_range_writable(buf_offset, data_read_size)? {
+            return Ok(HostCallResult::panic());
+        }
+
+        Ok(HostCallResult::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(data.len() as RegValue),
+                memory_write: Some((
+                    buf_offset,
+                    data_read_size as u32,
+                    data[data_read_offset..data_read_offset + data_read_size].to_vec(),
                 )),
                 ..Default::default()
             },

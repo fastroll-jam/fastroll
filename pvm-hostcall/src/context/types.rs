@@ -36,6 +36,19 @@ pub enum InvocationContext {
 }
 
 impl InvocationContext {
+    fn as_refine_context(&mut self) -> Option<&RefineHostContext> {
+        if let InvocationContext::X_R(ref ctx) = self {
+            Some(ctx)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_refine_x(&mut self) -> Result<&RefineHostContext, PVMError> {
+        self.as_refine_context()
+            .ok_or(PVMError::HostCallError(InvalidContext))
+    }
+
     fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
@@ -49,7 +62,7 @@ impl InvocationContext {
             .ok_or(PVMError::HostCallError(InvalidContext))
     }
 
-    // TODO: merge methods?
+    // FIXME: merge methods
     fn as_accumulate_context(&self) -> Option<&AccumulateHostContextPair> {
         if let InvocationContext::X_A(ref pair) = self {
             Some(pair)

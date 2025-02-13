@@ -146,7 +146,7 @@ impl JamDecode for ImportInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExtrinsicInfo {
     /// `h`: Extrinsic data hash
     pub blob_hash: Hash32,
