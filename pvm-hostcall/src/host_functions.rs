@@ -1101,7 +1101,7 @@ impl HostFunction {
         context: &mut InvocationContext,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = context.get_refine_x()?;
 
         let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?;
@@ -1354,21 +1354,20 @@ impl HostFunction {
 
     /// Peeks data from the inner VM memory and copies it to the external host VM memory.
     ///
-    /// This function reads data from the memory of the inner VM at the specified index
-    /// ands write it to the memory of the external host VM.
+    /// `HostVM` `<--(peek)--` `InnerVM`
     pub fn host_peek(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = context.get_refine_x()?;
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // o
         let inner_memory_offset = regs[9].as_mem_address()?; // s
-        let data_len = regs[10].as_usize()?; // z
+        let data_size = regs[10].as_usize()?; // z
 
-        if !memory.is_address_range_writable(memory_offset, data_len)? {
+        if !memory.is_address_range_writable(memory_offset, data_size)? {
             return Ok(HostCallResult::panic());
         }
 
@@ -1378,27 +1377,26 @@ impl HostFunction {
             )));
         };
 
-        if !inner_memory.is_address_range_readable(inner_memory_offset, data_len)? {
+        if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
         }
-        let data = inner_memory.read_bytes(inner_memory_offset, data_len)?;
+        let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
 
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some(MemWrite::new(memory_offset, data_len as u32, data)),
+                memory_write: Some(MemWrite::new(memory_offset, data_size as u32, data)),
                 ..Default::default()
             },
         ))
     }
 
-    /// Pokes data into the memory of the inner VM from the external host VM memory.
+    /// Pokes data into the inner VM memory from the external host VM memory.
     ///
-    /// This function writes data to the memory of the inner VM at the specified index,
-    /// copying it from the memory of the external host VM.
+    /// `HostVM` `--(poke)-->` `InnerVM`
     pub fn host_poke(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -1409,27 +1407,24 @@ impl HostFunction {
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // s
         let inner_memory_offset = regs[9].as_mem_address()?; // o
-        let data_len = regs[10].as_usize()?; // z
+        let data_size = regs[10].as_usize()?; // z
 
-        if !memory.is_address_range_readable(memory_offset, data_len)? {
+        if !memory.is_address_range_readable(memory_offset, data_size)? {
             return Ok(HostCallResult::panic());
         }
 
-        let inner_memory_mut =
-            if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
-                inner_memory_mut
-            } else {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )));
-            };
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            return Ok(HostCallResult::continue_with_vm_change(who_change(
+                BASE_GAS_CHARGE,
+            )));
+        };
 
-        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_len)? {
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
         }
-        let data = memory.read_bytes(memory_offset, data_len)?;
+        let data = memory.read_bytes(memory_offset, data_size)?;
 
         inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
@@ -1438,8 +1433,7 @@ impl HostFunction {
         )))
     }
 
-    /// Sets the specified range of pages in the inner VM's memory to zero
-    /// and marks the pages as `ReadWrite`.
+    /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
     pub fn host_zero(
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
@@ -1453,25 +1447,21 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
+            return Ok(HostCallResult::continue_with_vm_change(huh_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        let inner_memory_mut =
-            if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
-                inner_memory_mut
-            } else {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )));
-            };
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            return Ok(HostCallResult::continue_with_vm_change(who_change(
+                BASE_GAS_CHARGE,
+            )));
+        };
 
         // set values
         let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_len = pages_count * PAGE_SIZE;
-        let data = vec![0u8; data_len];
-        inner_memory_mut.write_bytes(address_offset, &data)?;
+        let data_size = pages_count * PAGE_SIZE;
+        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
 
         // set access types
         let page_start = inner_memory_page_offset;
@@ -1483,8 +1473,7 @@ impl HostFunction {
         )))
     }
 
-    /// Sets the specified range of pages in the inner VM's memory to zero
-    /// and marks the pages as `Inaccessible`.
+    /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
     pub fn host_void(
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
@@ -1495,32 +1484,33 @@ impl HostFunction {
         let inner_memory_page_offset = regs[8].as_usize()?; // p
         let pages_count = regs[9].as_usize()?; // c
 
-        let inner_memory_mut =
-            if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
-                inner_memory_mut
-            } else {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )));
-            };
+        if inner_memory_page_offset < 16
+            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
+        {
+            return Ok(HostCallResult::continue_with_vm_change(huh_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
+
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            return Ok(HostCallResult::continue_with_vm_change(who_change(
+                BASE_GAS_CHARGE,
+            )));
+        };
 
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
-        // TODO: Check the GP's range validation rule here
-        if inner_memory_page_offset < 16
-            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
-            || !inner_memory_mut.is_page_range_readable(page_start..page_end)?
-        {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
+        // should not have a page already `Inaccessible` within the range
+        if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
+            return Ok(HostCallResult::continue_with_vm_change(huh_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
         // set values
         let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_len = pages_count * PAGE_SIZE;
-        let data = vec![0u8; data_len];
-        inner_memory_mut.write_bytes(address_offset, &data)?;
+        let data_size = pages_count * PAGE_SIZE;
+        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
 
         // set access types
         inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
@@ -1530,7 +1520,7 @@ impl HostFunction {
         )))
     }
 
-    /// Invokes the inner VM with its program using the PVM general invocation function.
+    /// Invokes the inner VM with its program using the PVM general invocation function `Ψ`.
     ///
     /// The gas limit and initial register values for the inner VM are read from the memory of the host VM.
     /// Upon completion, the posterior state (e.g., gas counter, memory, registers) of the inner VM is
@@ -1546,10 +1536,8 @@ impl HostFunction {
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // o
 
-        if !memory.is_address_range_writable(memory_offset, 60)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+        if !memory.is_address_range_writable(memory_offset, 112)? {
+            return Ok(HostCallResult::panic());
         }
 
         let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
@@ -1558,27 +1546,27 @@ impl HostFunction {
             )));
         };
 
-        let gas =
+        let gas_limit =
             UnsignedGas::decode_fixed(&mut memory.read_bytes(memory_offset, 8)?.as_slice(), 8)?;
 
         let mut regs = [Register::default(); REGISTERS_COUNT];
-        for (i, register) in regs.iter_mut().enumerate() {
-            register.value = RegValue::decode_fixed(
+        for (i, reg) in regs.iter_mut().enumerate() {
+            reg.value = RegValue::decode_fixed(
                 &mut memory
-                    .read_bytes(memory_offset + 8 + 4 * i as MemAddress, 4)?
+                    .read_bytes(memory_offset + 8 + 8 * i as MemAddress, 8)?
                     .as_slice(),
-                4,
+                8,
             )?;
         }
 
         // Construct a new `VMState` and `ProgramState` for the general invocation function.
         let mut inner_vm_state_copy = VMState {
             registers: regs,
-            memory: inner_vm_mut.memory.clone(), // TODO: reduce unnecessary copies
+            memory: inner_vm_mut.memory.clone(),
             pc: inner_vm_mut.pc,
-            gas_counter: gas,
+            gas_counter: gas_limit,
         };
-        let inner_vm_program_code = &inner_vm_mut.program_code;
+        let inner_vm_program_code = &inner_vm_mut.program_code.clone();
         let mut inner_vm_program_state = ProgramState::default();
 
         let inner_vm_exit_reason = PVMCore::invoke_general(
@@ -1591,12 +1579,12 @@ impl HostFunction {
         inner_vm_mut.pc = inner_vm_state_copy.pc;
         inner_vm_mut.memory = inner_vm_state_copy.memory;
 
-        let mut write_data = vec![];
+        let mut host_buf = vec![];
         inner_vm_state_copy
             .gas_counter
-            .encode_to_fixed(&mut write_data, 8)?;
+            .encode_to_fixed(&mut host_buf, 8)?;
         for reg in inner_vm_state_copy.registers {
-            reg.value.encode_to_fixed(&mut write_data, 4)?;
+            reg.value.encode_to_fixed(&mut host_buf, 8)?;
         }
 
         match inner_vm_exit_reason {
@@ -1607,7 +1595,7 @@ impl HostFunction {
                         gas_charge: BASE_GAS_CHARGE,
                         r7_write: Some(HOST as RegValue),
                         r8_write: Some(host_call_type as RegValue),
-                        memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
+                        memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
                     },
                 ))
             }
@@ -1616,7 +1604,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(FAULT as RegValue),
                     r8_write: Some(address as RegValue),
-                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
                 },
             )),
             ExitReason::OutOfGas => Ok(HostCallResult::continue_with_vm_change(
@@ -1624,7 +1612,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(OOG as RegValue),
                     r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
                 },
             )),
             ExitReason::Panic => Ok(HostCallResult::continue_with_vm_change(
@@ -1632,7 +1620,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(PANIC as RegValue),
                     r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
                 },
             )),
             ExitReason::RegularHalt => Ok(HostCallResult::continue_with_vm_change(
@@ -1640,7 +1628,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(HALT as RegValue),
                     r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
                 },
             )),
 
@@ -1648,7 +1636,7 @@ impl HostFunction {
         }
     }
 
-    /// Removes an inner VM instance from the refine context.
+    /// Removes an inner VM instance from the refine context and returns its final pc.
     pub fn host_expunge(
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
@@ -1657,13 +1645,12 @@ impl HostFunction {
 
         let inner_vm_id = regs[7].as_usize()?; // n
 
-        let final_pc = if let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) {
-            inner_vm.pc
-        } else {
+        let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
             return Ok(HostCallResult::continue_with_vm_change(who_change(
                 BASE_GAS_CHARGE,
             )));
         };
+        let final_pc = inner_vm.pc;
 
         x.remove_pvm_instance(inner_vm_id);
 
