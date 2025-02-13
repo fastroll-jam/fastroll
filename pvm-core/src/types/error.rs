@@ -94,7 +94,7 @@ pub enum HostCallError {
     InvalidMemoryWrite,
     #[error("Account not found from the global account state")]
     AccountNotFound,
-    #[error("Exit reason of the inner PVM invocation is invalid")]
+    #[error("Exit reason of the PVM invocation is invalid")]
     InvalidExitReason,
     #[error("State manager holding polluted data")]
     StateManagerPollution,

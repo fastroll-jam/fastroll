@@ -20,7 +20,7 @@ use rjam_pvm_core::{
 };
 use rjam_pvm_hostcall::{
     context::types::InvocationContext,
-    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction},
+    host_functions::{HostCallResult, HostCallVMStateChange, HostFunction, MemWrite},
 };
 use rjam_state::StateManager;
 
@@ -177,14 +177,19 @@ impl PVM {
         }
 
         // Apply memory change
-        if let Some((start_address, data_len, data)) = change.memory_write.clone() {
-            if data_len as usize > data.len() {
+        if let Some(MemWrite {
+            buf_offset,
+            write_len,
+            write_data,
+        }) = change.memory_write.clone()
+        {
+            if write_len as usize > write_data.len() {
                 return Err(PVMError::HostCallError(InvalidMemoryWrite));
             }
-            for (offset, &byte) in data.iter().take(data_len as usize).enumerate() {
+            for (offset, &byte) in write_data.iter().take(write_len as usize).enumerate() {
                 self.state
                     .memory
-                    .write_byte(start_address.wrapping_add(offset as u32), byte)?;
+                    .write_byte(buf_offset.wrapping_add(offset as u32), byte)?;
             }
         }
 
@@ -451,7 +456,7 @@ impl PVM {
                 .await?
             }
             HostCallType::FETCH => {
-                unimplemented!()
+                HostFunction::host_fetch(self.get_registers(), self.get_memory(), context)?
             }
             HostCallType::EXPORT => {
                 HostFunction::host_export(self.get_registers(), self.get_memory(), context)?
