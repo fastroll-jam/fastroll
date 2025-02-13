@@ -127,7 +127,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
+        let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?; // h
         let mw_offset = regs[9].as_mem_address()?; // o
 
@@ -187,7 +187,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
+        let address_reg = regs[7].value();
         let key_offset = regs[8].as_mem_address()?; // k_o
         let key_size = regs[9].as_usize()?; // k_z
         let mw_offset = regs[10].as_mem_address()?; // o
@@ -345,7 +345,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
+        let address_reg = regs[7].value();
         let mw_offset = regs[8].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
@@ -1086,12 +1086,11 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let account_address_reg = regs[7].value();
-        let lookup_hash_offset = regs[8].as_mem_address()?;
-        let buffer_offset = regs[9].as_mem_address()?;
-        let buffer_size = regs[10].as_usize()?;
+        let address_reg = regs[7].value();
+        let hash_offset = regs[8].as_mem_address()?;
+        let mw_offset = regs[9].as_mem_address()?;
 
-        let account_address = if account_address_reg == u64::MAX
+        let account_address = if address_reg == u64::MAX
             || state_manager.account_exists(refine_account_address).await?
         {
             refine_account_address
@@ -1106,14 +1105,12 @@ impl HostFunction {
             )));
         };
 
-        if !memory.is_address_range_readable(lookup_hash_offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+        if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
+            return Ok(HostCallResult::panic());
         }
 
         let lookup_hash =
-            Hash32::decode(&mut memory.read_bytes(lookup_hash_offset, HASH_SIZE)?.as_slice())?;
+            Hash32::decode(&mut memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
 
         let preimage = state_manager
             .lookup_preimage(
@@ -1121,34 +1118,28 @@ impl HostFunction {
                 &Timeslot::new(x.lookup_anchor_timeslot),
                 &lookup_hash,
             )
-            .await?;
+            .await?
+            .unwrap_or_default();
 
-        if let Some(preimage) = preimage {
-            let write_data_size = buffer_size.min(preimage.len());
+        let preimage_offset = regs[10].as_usize()?.min(preimage.len()); // f
+        let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
-            if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                    BASE_GAS_CHARGE,
-                )));
-            }
-
-            Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(preimage.len() as RegValue),
-                    memory_write: Some((
-                        buffer_offset,
-                        write_data_size as u32,
-                        preimage[..write_data_size].to_vec(),
-                    )),
-                    ..Default::default()
-                },
-            ))
-        } else {
-            Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )))
+        if !memory.is_address_range_writable(mw_offset, lookup_size)? {
+            return Ok(HostCallResult::panic());
         }
+
+        Ok(HostCallResult::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(preimage.len() as RegValue),
+                memory_write: Some((
+                    mw_offset,
+                    lookup_size as u32,
+                    preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
+                )),
+                ..Default::default()
+            },
+        ))
     }
 
     /// Fetches the import segment of the specified index from the ImportDA common storage and

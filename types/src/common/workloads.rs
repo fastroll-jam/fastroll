@@ -395,14 +395,21 @@ impl WorkReport {
     }
 }
 
+/// Context of the blockchain at the point of evaluation of the report's corresponding work-package.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RefinementContext {
-    pub anchor_header_hash: Hash32,                   // a
-    pub anchor_state_root: Hash32,                    // s; posterior state root of the anchor block
-    pub beefy_root: Hash32,                           // b
-    pub lookup_anchor_header_hash: Hash32,            // l
-    pub lookup_anchor_timeslot: u32,                  // t
-    pub prerequisite_work_packages: BTreeSet<Hash32>, // p;
+    /// `a`: Anchor block header hash
+    pub anchor_header_hash: Hash32,
+    /// `s`: Anchor block posterior state root
+    pub anchor_state_root: Hash32,
+    /// `b`: Anchor block posterior BEEFY root
+    pub beefy_root: Hash32,
+    /// `l`: Lookup anchor block header hash
+    pub lookup_anchor_header_hash: Hash32,
+    /// `t`: Lookup anchor block timeslot index
+    pub lookup_anchor_timeslot: u32,
+    /// **`p`**: Set of prerequisite work package hash
+    pub prerequisite_work_packages: BTreeSet<Hash32>,
 }
 
 impl Display for RefinementContext {

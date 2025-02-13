@@ -439,11 +439,17 @@ impl AccumulateHostContext {
 
 #[derive(Clone, Default)]
 pub struct RefineHostContext {
+    /// Inner PVM instances
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
-    pub next_instance_id: usize, // PVM instance ID to be assigned for the next instance
+    /// PVM instance ID to be assigned for the next instance
+    pub next_instance_id: usize,
+    /// Export data segments
     pub export_segments: Vec<ExportDataSegment>,
-    pub lookup_anchor_timeslot: u32, // Copy of `RefinementContext.t`
+    /// Lookup anchor timeslot; copied from `RefinementContext`
+    pub lookup_anchor_timeslot: u32,
+    /// Import data segments
     pub import_segments: Vec<ExportDataSegment>,
+    /// Export data segments index
     pub export_segments_offset: usize,
 }
 
