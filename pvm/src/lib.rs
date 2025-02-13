@@ -456,7 +456,7 @@ impl PVM {
                 .await?
             }
             HostCallType::FETCH => {
-                unimplemented!()
+                HostFunction::host_fetch(self.get_registers(), self.get_memory(), context)?
             }
             HostCallType::EXPORT => {
                 HostFunction::host_export(self.get_registers(), self.get_memory(), context)?

@@ -8,7 +8,7 @@ use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
     constants::*,
     core::{PVMCore, VMState},
-    program::program_decoder::ProgramState,
+    program::program_decoder::{ProgramDecoder, ProgramState},
     state::{
         memory::{AccessType, MemAddress, Memory},
         register::Register,
@@ -1285,10 +1285,9 @@ impl HostFunction {
         let x = context.get_mut_refine_x()?;
 
         let offset = regs[7].as_mem_address()?; // p
-        let size = regs[8].as_usize()?;
-        let export_segment_size = size.min(SEGMENT_SIZE); // z
+        let export_size = regs[8].as_usize()?.min(SEGMENT_SIZE); // z
 
-        if !memory.is_address_range_readable(offset, export_segment_size)? {
+        if !memory.is_address_range_readable(offset, export_size)? {
             return Ok(HostCallResult::panic());
         }
 
@@ -1301,7 +1300,7 @@ impl HostFunction {
         }
 
         let data_segment: ExportDataSegment =
-            zero_pad_as_array::<SEGMENT_SIZE>(memory.read_bytes(offset, export_segment_size)?)
+            zero_pad_as_array::<SEGMENT_SIZE>(memory.read_bytes(offset, export_size)?)
                 .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
 
         x.export_segments.push(data_segment);
@@ -1315,10 +1314,9 @@ impl HostFunction {
         ))
     }
 
-    /// Initializes an inner VM with the specified program and sets the initial program counter value.
+    /// Initializes an inner VM with the specified program and the initial program counter.
     ///
-    /// The inner VM's memory is initialized with all cells set to zero and all pages marked as
-    /// `Inaccessible`.
+    /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
     pub fn host_machine(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
@@ -1335,8 +1333,15 @@ impl HostFunction {
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
+        // Validate the program blob can be `deblob`ed properly
+        if ProgramDecoder::deblob_program_code(&program).is_err() {
+            return Ok(HostCallResult::continue_with_vm_change(huh_change(
+                BASE_GAS_CHARGE,
+            )));
+        }
+
         let inner_vm = InnerPVM::new(program, initial_pc);
-        let inner_vm_id = x.add_pvm_instance(inner_vm);
+        let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
