@@ -12,6 +12,7 @@ use rjam_pvm_core::{
     types::{
         common::ExportDataSegment,
         error::{HostCallError::*, PVMError},
+        invoke_args::RefineInvokeArgs,
     },
 };
 use rjam_state::StateManager;
@@ -35,6 +36,19 @@ pub enum InvocationContext {
 }
 
 impl InvocationContext {
+    fn as_refine_context(&mut self) -> Option<&RefineHostContext> {
+        if let InvocationContext::X_R(ref ctx) = self {
+            Some(ctx)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_refine_x(&mut self) -> Result<&RefineHostContext, PVMError> {
+        self.as_refine_context()
+            .ok_or(PVMError::HostCallError(InvalidContext))
+    }
+
     fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
@@ -48,7 +62,7 @@ impl InvocationContext {
             .ok_or(PVMError::HostCallError(InvalidContext))
     }
 
-    // TODO: merge methods?
+    // FIXME: merge methods
     fn as_accumulate_context(&self) -> Option<&AccumulateHostContextPair> {
         if let InvocationContext::X_A(ref pair) = self {
             Some(pair)
@@ -439,24 +453,20 @@ impl AccumulateHostContext {
 
 #[derive(Clone, Default)]
 pub struct RefineHostContext {
+    /// PVM instance ID to be assigned for the next instance
+    pub next_instance_id: usize,
+    /// **`m`**: Inner PVM instances
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
-    pub next_instance_id: usize, // PVM instance ID to be assigned for the next instance
+    /// **`e`**: Export data segments
     pub export_segments: Vec<ExportDataSegment>,
-    pub lookup_anchor_timeslot: u32, // Copy of `RefinementContext.t`
-    pub import_segments: Vec<ExportDataSegment>,
-    pub export_segments_offset: usize,
+    /// Refine entry-point function invocation args (read-only)
+    pub invoke_args: RefineInvokeArgs,
 }
 
 impl RefineHostContext {
-    pub fn new(
-        lookup_anchor_timeslot: u32,
-        import_segments: Vec<ExportDataSegment>,
-        export_segments_offset: usize,
-    ) -> Self {
+    pub fn new_with_invoke_args(invoke_args: RefineInvokeArgs) -> Self {
         Self {
-            lookup_anchor_timeslot,
-            import_segments,
-            export_segments_offset,
+            invoke_args,
             ..Default::default()
         }
     }

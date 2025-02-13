@@ -12,6 +12,7 @@ use std::{
 };
 use thiserror::Error;
 
+// TODO: remove
 #[derive(Debug, Error)]
 pub enum WorkReportError {
     #[error("Crypto error: {0}")]
@@ -22,23 +23,32 @@ pub enum WorkReportError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
-    SegmentRoot(Hash32),     // h; export segment root
-    WorkPackageHash(Hash32), // h with `boxplus` tag; export work package hash
+    /// `h`: Export segments root
+    SegmentRoot(Hash32),
+    /// `h+` (boxplus): Exporting work-package hash
+    WorkPackageHash(Hash32),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Authorizer {
-    pub auth_code_hash: Hash32, // u
-    pub param_blob: Octets,     // p
+    /// `u`: Authorization code hash
+    pub auth_code_hash: Hash32,
+    /// **`p`**: Authorization param blob
+    pub param_blob: Octets,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkPackage {
-    pub auth_token: Octets,          // j
-    pub authorizer_address: Address, // h; service which hosts the authorization code
-    pub authorizer: Authorizer,      // u and p
-    pub context: RefinementContext,  // x
-    pub work_items: Vec<WorkItem>,   // w; length range [1, 4]
+    /// **`j`**: Authorizer token blob
+    pub auth_token: Octets,
+    /// `h`: Authorization code host service address
+    pub authorizer_address: Address,
+    /// `u` & **`p`**: Authorization code hash and param blob
+    pub authorizer: Authorizer,
+    /// **`x`**: Refinement context
+    pub context: RefinementContext,
+    /// **`w`**: Sequence of work items (4 items at most)
+    pub work_items: Vec<WorkItem>,
 }
 
 impl JamEncode for WorkPackage {
@@ -75,10 +85,22 @@ impl JamDecode for WorkPackage {
     }
 }
 
+impl WorkPackage {
+    pub fn hash(&self) -> Result<Hash32, CryptoError> {
+        hash::<Blake2b256>(
+            self.encode()
+                .map_err(|_| CryptoError::HashError)?
+                .as_slice(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportInfo {
-    pub work_package_id: WorkPackageId, // h
-    pub item_index: u16,                // i; range [0, 2^15)
+    /// `h` or `h+`: Work package id
+    pub work_package_id: WorkPackageId,
+    /// `i`: Work item index within the work package, up to 2^15
+    pub item_index: u16,
 }
 
 impl JamEncode for ImportInfo {
@@ -124,10 +146,12 @@ impl JamDecode for ImportInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExtrinsicInfo {
-    pub blob_hash: Hash32, // h
-    pub blob_length: u32,  // i
+    /// `h`: Extrinsic data hash
+    pub blob_hash: Hash32,
+    /// `i`: Extrinsic data size
+    pub blob_length: u32,
 }
 
 impl JamEncode for ExtrinsicInfo {
@@ -156,14 +180,24 @@ impl JamDecode for ExtrinsicInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItem {
-    pub service_index: Address,                  // s
-    pub service_code_hash: Hash32,               // c
-    pub payload_blob: Octets,                    // y
-    pub refine_gas_limit: UnsignedGas,           // g
-    pub accumulate_gas_limit: UnsignedGas,       // a
-    pub import_segment_ids: Vec<ImportInfo>,     // i; up to 2^11 entries
-    pub extrinsic_data_info: Vec<ExtrinsicInfo>, // x;
-    pub export_segment_count: u16,               // e; max 2^11
+    /// `s`: Associated service index
+    pub service_index: Address,
+    /// `c`: Code hash of the service, at the time of reporting
+    pub service_code_hash: Hash32,
+    /// **`y`**: Work item payload blob
+    pub payload_blob: Octets,
+    /// `g`: Service-specific gas limit for Refinement
+    pub refine_gas_limit: UnsignedGas,
+    /// `a`: Service-specific gas limit for Accumulation
+    pub accumulate_gas_limit: UnsignedGas,
+    /// **`i`**: Import segments info (hash and index).
+    /// max length = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
+    pub import_segment_ids: Vec<ImportInfo>,
+    /// **`x`**: Extrinsic data info (hash and length)
+    pub extrinsic_data_info: Vec<ExtrinsicInfo>,
+    /// `e`: Number of export data segments exported by the work item.
+    /// max value = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
+    pub export_segment_count: u16,
 }
 
 impl JamEncode for WorkItem {
@@ -242,18 +276,26 @@ impl SegmentRootLookupTable {
     }
 }
 
-/// Represents a work report generated from refining a work package, to be integrated into the on-chain state.
+/// Represents a work report generated from refinement of a work package,
+/// to be integrated into the on-chain state via the accumulation process.
 ///
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkReport {
-    pub specs: AvailabilitySpecs,                     // s
-    pub refinement_context: RefinementContext,        // x
-    pub core_index: CoreIndex,                        // c
-    pub authorizer_hash: Hash32,                      // a
-    pub authorization_output: Octets,                 // o
-    pub segment_roots_lookup: SegmentRootLookupTable, // l; number of items up to 8
-    pub results: Vec<WorkItemResult>,                 // r; length range [1, 4]
+    /// `s`: Work package availability specification
+    pub specs: AvailabilitySpecs,
+    /// `x`: Refinement context
+    pub refinement_context: RefinementContext,
+    /// `c`: Core index on which the work is done
+    pub core_index: CoreIndex,
+    /// `a`: Authorizer hash
+    pub authorizer_hash: Hash32,
+    /// **`o`**: Authorization output
+    pub authorization_output: Octets,
+    /// **`l`**: Segment-root lookup dictionary, up to 8 items
+    pub segment_roots_lookup: SegmentRootLookupTable,
+    /// **`r`**: Work item results, with at least 1 and no more than 4 items
+    pub results: Vec<WorkItemResult>,
 }
 
 impl Display for WorkReport {
@@ -395,14 +437,21 @@ impl WorkReport {
     }
 }
 
+/// Context of the blockchain at the point of evaluation of the report's corresponding work-package.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RefinementContext {
-    pub anchor_header_hash: Hash32,                   // a
-    pub anchor_state_root: Hash32,                    // s; posterior state root of the anchor block
-    pub beefy_root: Hash32,                           // b
-    pub lookup_anchor_header_hash: Hash32,            // l
-    pub lookup_anchor_timeslot: u32,                  // t
-    pub prerequisite_work_packages: BTreeSet<Hash32>, // p;
+    /// `a`: Anchor block header hash
+    pub anchor_header_hash: Hash32,
+    /// `s`: Anchor block posterior state root
+    pub anchor_state_root: Hash32,
+    /// `b`: Anchor block posterior BEEFY root
+    pub beefy_root: Hash32,
+    /// `l`: Lookup anchor block header hash
+    pub lookup_anchor_header_hash: Hash32,
+    /// `t`: Lookup anchor block timeslot index
+    pub lookup_anchor_timeslot: u32,
+    /// **`p`**: Set of prerequisite work package hash
+    pub prerequisite_work_packages: BTreeSet<Hash32>,
 }
 
 impl Display for RefinementContext {
@@ -462,11 +511,16 @@ impl JamDecode for RefinementContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AvailabilitySpecs {
-    pub work_package_hash: Hash32, // h
-    pub work_package_length: u32,  // l
-    pub erasure_root: Hash32,      // u
-    pub segment_root: Hash32,      // e; exports root
-    pub segment_count: u16,        // n
+    /// `h`: Work package hash
+    pub work_package_hash: Hash32,
+    /// `l`: Auditable work bundle length
+    pub work_package_length: u32,
+    /// `u`: Erasure root of the work package
+    pub erasure_root: Hash32,
+    /// `e`: Export segment root of the work package
+    pub segment_root: Hash32,
+    /// `n`: Number of export segments
+    pub segment_count: u16,
 }
 
 impl Display for AvailabilitySpecs {
@@ -517,11 +571,16 @@ impl JamDecode for AvailabilitySpecs {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItemResult {
-    pub service_index: Address,                 // s
-    pub service_code_hash: Hash32,              // c
-    pub payload_hash: Hash32,                   // l
-    pub gas_prioritization_ratio: UnsignedGas,  // g
-    pub refinement_output: WorkExecutionOutput, // o
+    /// `s`: Associated service address
+    pub service_index: Address,
+    /// `c`: Code hash of the service, at the time of reporting
+    pub service_code_hash: Hash32,
+    /// `l`: Hash of the associated work item payload
+    pub payload_hash: Hash32,
+    /// `g`: A ratio to calculate the gas allocated to the work item's accumulation
+    pub gas_prioritization_ratio: UnsignedGas,
+    /// **`o`**: Output or error of the execution of the work item
+    pub refinement_output: WorkExecutionOutput,
 }
 
 impl Display for WorkItemResult {
@@ -584,8 +643,8 @@ impl WorkItemResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionOutput {
-    Output(Octets),            // Y
-    Error(WorkExecutionError), // J
+    Output(Octets),
+    Error(WorkExecutionError),
 }
 
 impl Display for WorkExecutionOutput {
@@ -680,11 +739,16 @@ impl WorkExecutionOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionError {
+    /// `∞`: Out of gas
     OutOfGas,
-    Panic,      // Panic
-    BadExports, // the number of exports made was invalidly reported
-    Bad,        // BAD; service code not available for lookup
-    Big,        // BIG; code size exceeds MAX_SERVICE_CODE_SIZE
+    /// `☇`: Panic on execution
+    Panic,
+    /// `⊚`: The reported number of exports made is invalid
+    BadExports,
+    /// `BAD`: Service code not available for lookup
+    Bad,
+    /// `BIG`: Code size exceeds `MAX_SERVICE_CODE_SIZE`
+    Big,
 }
 
 impl JamDecode for WorkExecutionError {

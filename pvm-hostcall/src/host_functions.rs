@@ -2,7 +2,7 @@ use crate::{
     context::types::InvocationContext, host_functions::InnerPVMResultConstant::*,
     inner_vm::InnerPVM, utils::*,
 };
-use rjam_codec::{JamDecode, JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
@@ -127,9 +127,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
+        let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?; // h
-        let mw_offset = regs[9].as_mem_address()?; // o
+        let buf_offset = regs[9].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX || address_reg == service_address as u64 {
             service_address
@@ -153,7 +153,7 @@ impl HostFunction {
             let preimage_offset = regs[10].as_usize()?.min(preimage_size); // f
             let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
-            if !memory.is_address_range_writable(mw_offset, lookup_size)? {
+            if !memory.is_address_range_writable(buf_offset, lookup_size)? {
                 return Ok(HostCallResult::panic());
             }
 
@@ -162,7 +162,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage_size as RegValue),
                     memory_write: Some((
-                        mw_offset,
+                        buf_offset,
                         lookup_size as u32,
                         entry.value[preimage_offset..preimage_offset + lookup_size].to_vec(),
                     )),
@@ -187,10 +187,10 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
+        let address_reg = regs[7].value();
         let key_offset = regs[8].as_mem_address()?; // k_o
         let key_size = regs[9].as_usize()?; // k_z
-        let mw_offset = regs[10].as_mem_address()?; // o
+        let buf_offset = regs[10].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
             service_address
@@ -216,7 +216,7 @@ impl HostFunction {
                 .as_usize()?
                 .min(storage_val_size - storage_val_offset); // l
 
-            if !memory.is_address_range_writable(mw_offset, read_len)? {
+            if !memory.is_address_range_writable(buf_offset, read_len)? {
                 return Ok(HostCallResult::panic());
             }
 
@@ -225,7 +225,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(storage_val_size as RegValue),
                     memory_write: Some((
-                        mw_offset,
+                        buf_offset,
                         storage_val_size as u32,
                         entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
                     )),
@@ -345,8 +345,8 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
-        let address_reg = regs[7].as_u64()?;
-        let mw_offset = regs[8].as_mem_address()?; // o
+        let address_reg = regs[7].value();
+        let buf_offset = regs[8].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
             service_address
@@ -368,7 +368,7 @@ impl HostFunction {
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
-        if !memory.is_address_range_writable(mw_offset, info.len())? {
+        if !memory.is_address_range_writable(buf_offset, info.len())? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -378,7 +378,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((mw_offset, info.len() as u32, info)),
+                memory_write: Some((buf_offset, info.len() as u32, info)),
                 ..Default::default()
             },
         ))
@@ -1086,12 +1086,11 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let account_address_reg = regs[7].value();
-        let lookup_hash_offset = regs[8].as_mem_address()?;
-        let buffer_offset = regs[9].as_mem_address()?;
-        let buffer_size = regs[10].as_usize()?;
+        let address_reg = regs[7].value();
+        let hash_offset = regs[8].as_mem_address()?;
+        let buf_offset = regs[9].as_mem_address()?;
 
-        let account_address = if account_address_reg == u64::MAX
+        let account_address = if address_reg == u64::MAX
             || state_manager.account_exists(refine_account_address).await?
         {
             refine_account_address
@@ -1106,84 +1105,153 @@ impl HostFunction {
             )));
         };
 
-        if !memory.is_address_range_readable(lookup_hash_offset, HASH_SIZE)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+        if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
+            return Ok(HostCallResult::panic());
         }
 
         let lookup_hash =
-            Hash32::decode(&mut memory.read_bytes(lookup_hash_offset, HASH_SIZE)?.as_slice())?;
+            Hash32::decode(&mut memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
 
         let preimage = state_manager
             .lookup_preimage(
                 account_address,
-                &Timeslot::new(x.lookup_anchor_timeslot),
+                &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
                 &lookup_hash,
             )
-            .await?;
+            .await?
+            .unwrap_or_default();
 
-        if let Some(preimage) = preimage {
-            let write_data_size = buffer_size.min(preimage.len());
+        let preimage_offset = regs[10].as_usize()?.min(preimage.len()); // f
+        let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
-            if !memory.is_address_range_writable(buffer_offset, buffer_size)? {
-                return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                    BASE_GAS_CHARGE,
-                )));
-            }
-
-            Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(preimage.len() as RegValue),
-                    memory_write: Some((
-                        buffer_offset,
-                        write_data_size as u32,
-                        preimage[..write_data_size].to_vec(),
-                    )),
-                    ..Default::default()
-                },
-            ))
-        } else {
-            Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )))
-        }
-    }
-
-    /// Fetches the import segment of the specified index from the ImportDA common storage and
-    /// writes it into memory.
-    pub fn host_import(
-        regs: &[Register; REGISTERS_COUNT],
-        memory: &Memory,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
-
-        let import_segment_index = regs[7].as_usize()?;
-        let offset = regs[8].as_mem_address()?;
-        let segment_len = regs[9].as_usize()?;
-
-        if x.import_segments.len() <= import_segment_index {
-            return Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-        let import_segment = x.import_segments[import_segment_index].clone();
-
-        let segment_read_len = segment_len.min(DATA_SEGMENTS_SIZE);
-
-        if !memory.is_address_range_writable(offset, segment_read_len)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+        if !memory.is_address_range_writable(buf_offset, lookup_size)? {
+            return Ok(HostCallResult::panic());
         }
 
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((offset, segment_read_len as u32, import_segment.to_vec())),
+                r7_write: Some(preimage.len() as RegValue),
+                memory_write: Some((
+                    buf_offset,
+                    lookup_size as u32,
+                    preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
+                )),
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Fetches various data types introduced as arguments of the refine invocation.
+    /// This includes work-package data, authorizer output and imports data.
+    pub fn host_fetch(
+        regs: &[Register; REGISTERS_COUNT],
+        memory: &Memory,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, PVMError> {
+        let x = context.get_refine_x()?;
+        let data_id = regs[10].as_usize()?;
+
+        let data = match data_id {
+            0 => x.invoke_args.package.clone().encode()?,
+            1 => x.invoke_args.auth_output.clone(),
+            2 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = regs[11].as_usize()?;
+                if item_idx < items.len() {
+                    items[item_idx].payload_blob.to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            3 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = regs[11].as_usize()?;
+                let xt_idx = regs[12].as_usize()?;
+                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
+                        xt_blob.to_vec()
+                    } else {
+                        return Ok(HostCallResult::continue_with_vm_change(none_change(
+                            BASE_GAS_CHARGE,
+                        )));
+                    }
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            4 => {
+                let items = x.invoke_args.package.work_items.clone();
+                let item_idx = x.invoke_args.item_idx;
+                let xt_idx = regs[11].as_usize()?;
+                if xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
+                        xt_blob.to_vec()
+                    } else {
+                        return Ok(HostCallResult::continue_with_vm_change(none_change(
+                            BASE_GAS_CHARGE,
+                        )));
+                    }
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            5 => {
+                let imports = x.invoke_args.import_segments.clone();
+                let item_idx = regs[11].as_usize()?;
+                let segment_idx = regs[12].as_usize()?;
+                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            6 => {
+                let imports = x.invoke_args.import_segments.clone();
+                let item_idx = x.invoke_args.item_idx;
+                let segment_idx = regs[11].as_usize()?;
+                if segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].to_vec()
+                } else {
+                    return Ok(HostCallResult::continue_with_vm_change(none_change(
+                        BASE_GAS_CHARGE,
+                    )));
+                }
+            }
+            _ => {
+                return Ok(HostCallResult::continue_with_vm_change(none_change(
+                    BASE_GAS_CHARGE,
+                )));
+            }
+        };
+
+        let buf_offset = regs[7].as_mem_address()?; // o
+        let data_read_offset = regs[8].as_usize()?.min(data.len()); // f
+        let data_read_size = regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+
+        if !memory.is_address_range_writable(buf_offset, data_read_size)? {
+            return Ok(HostCallResult::panic());
+        }
+
+        Ok(HostCallResult::continue_with_vm_change(
+            HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(data.len() as RegValue),
+                memory_write: Some((
+                    buf_offset,
+                    data_read_size as u32,
+                    data[data_read_offset..data_read_offset + data_read_size].to_vec(),
+                )),
                 ..Default::default()
             },
         ))
@@ -1199,31 +1267,27 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let offset = regs[7].as_mem_address()?;
+        let offset = regs[7].as_mem_address()?; // p
         let size = regs[8].as_usize()?;
-
-        let export_segment_size = size.min(DATA_SEGMENTS_SIZE);
+        let export_segment_size = size.min(SEGMENT_SIZE); // z
 
         if !memory.is_address_range_readable(offset, export_segment_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
-        let next_export_segments_offset = x.export_segments.len() + x.export_segments_offset;
-        if next_export_segments_offset >= IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT {
+        let next_export_segments_offset =
+            x.export_segments.len() + x.invoke_args.export_segments_offset;
+        if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
             return Ok(HostCallResult::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        let data_segment: ExportDataSegment = zero_pad_as_array::<DATA_SEGMENTS_SIZE>(
-            memory.read_bytes(offset, export_segment_size)?,
-        )
-        .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
+        let data_segment: ExportDataSegment =
+            zero_pad_as_array::<SEGMENT_SIZE>(memory.read_bytes(offset, export_segment_size)?)
+                .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
 
         x.export_segments.push(data_segment);
-        x.export_segments_offset = next_export_segments_offset;
 
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
@@ -1245,14 +1309,12 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let program_offset = regs[7].as_mem_address()?;
-        let program_size = regs[8].as_usize()?;
-        let initial_pc = regs[9].value();
+        let program_offset = regs[7].as_mem_address()?; // p_o
+        let program_size = regs[8].as_usize()?; // p_z
+        let initial_pc = regs[9].value(); // i
 
         if !memory.is_address_range_readable(program_offset, program_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
@@ -1279,10 +1341,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
-        let inner_memory_offset = regs[9].as_mem_address()?;
-        let data_len = regs[10].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // o
+        let inner_memory_offset = regs[9].as_mem_address()?; // s
+        let data_len = regs[10].as_usize()?; // z
+
+        if !memory.is_address_range_writable(memory_offset, data_len)? {
+            return Ok(HostCallResult::panic());
+        }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
             return Ok(HostCallResult::continue_with_vm_change(who_change(
@@ -1290,9 +1356,7 @@ impl HostFunction {
             )));
         };
 
-        if !inner_memory.is_address_range_readable(inner_memory_offset, data_len)?
-            || !memory.is_address_range_writable(memory_offset, data_len)?
-        {
+        if !inner_memory.is_address_range_readable(inner_memory_offset, data_len)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1320,10 +1384,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
-        let inner_memory_offset = regs[9].as_mem_address()?;
-        let data_len = regs[10].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // s
+        let inner_memory_offset = regs[9].as_mem_address()?; // o
+        let data_len = regs[10].as_usize()?; // z
+
+        if !memory.is_address_range_readable(memory_offset, data_len)? {
+            return Ok(HostCallResult::panic());
+        }
 
         let inner_memory_mut =
             if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
@@ -1334,9 +1402,7 @@ impl HostFunction {
                 )));
             };
 
-        if !memory.is_address_range_readable(memory_offset, data_len)?
-            || !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_len)?
-        {
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_len)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1358,9 +1424,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let inner_memory_page_offset = regs[8].as_usize()?;
-        let pages_count = regs[9].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let inner_memory_page_offset = regs[8].as_usize()?; // p
+        let pages_count = regs[9].as_usize()?; // c
 
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
@@ -1403,9 +1469,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let inner_memory_page_offset = regs[8].as_usize()?;
-        let pages_count = regs[9].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let inner_memory_page_offset = regs[8].as_usize()?; // p
+        let pages_count = regs[9].as_usize()?; // c
 
         let inner_memory_mut =
             if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
@@ -1455,8 +1521,8 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_writable(memory_offset, 60)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
@@ -1567,7 +1633,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
 
         let final_pc = if let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) {
             inner_vm.pc

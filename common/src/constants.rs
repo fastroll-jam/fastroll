@@ -42,7 +42,7 @@ pub const PENDING_REPORT_TIMEOUT: usize = 5; // U
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400; // L
 pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16; // K
 pub const MAX_REPORT_DEPENDENCIES: usize = 8; // J
-pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10); // W_R
 
 // PVM Gas Allocations
 pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 10_000_000; // G_A

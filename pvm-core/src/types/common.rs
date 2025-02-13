@@ -1,6 +1,4 @@
-use crate::{
-    constants::DATA_SEGMENTS_SIZE, state::memory::MemAddress, types::hostcall::HostCallType,
-};
+use crate::{constants::SEGMENT_SIZE, state::memory::MemAddress, types::hostcall::HostCallType};
 
 /// PVM Invocation Exit Reasons
 #[derive(Default)]
@@ -15,4 +13,4 @@ pub enum ExitReason {
 }
 
 pub type RegValue = u64;
-pub type ExportDataSegment = Box<[u8; DATA_SEGMENTS_SIZE]>;
+pub type ExportDataSegment = Box<[u8; SEGMENT_SIZE]>;

@@ -358,7 +358,7 @@ impl StateManager {
         }
     }
 
-    /// The historical lookup function
+    /// The historical lookup function `Λ`
     pub async fn lookup_preimage(
         &self,
         address: Address,
