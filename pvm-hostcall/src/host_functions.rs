@@ -1267,29 +1267,25 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let offset = regs[7].as_mem_address()?;
+        let offset = regs[7].as_mem_address()?; // p
         let size = regs[8].as_usize()?;
-
-        let export_segment_size = size.min(DATA_SEGMENTS_SIZE);
+        let export_segment_size = size.min(SEGMENT_SIZE); // z
 
         if !memory.is_address_range_readable(offset, export_segment_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
-        if next_export_segments_offset >= IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT {
+        if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
             return Ok(HostCallResult::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
             )));
         }
 
-        let data_segment: ExportDataSegment = zero_pad_as_array::<DATA_SEGMENTS_SIZE>(
-            memory.read_bytes(offset, export_segment_size)?,
-        )
-        .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
+        let data_segment: ExportDataSegment =
+            zero_pad_as_array::<SEGMENT_SIZE>(memory.read_bytes(offset, export_segment_size)?)
+                .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
 
         x.export_segments.push(data_segment);
 
@@ -1313,14 +1309,12 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let program_offset = regs[7].as_mem_address()?;
-        let program_size = regs[8].as_usize()?;
-        let initial_pc = regs[9].value();
+        let program_offset = regs[7].as_mem_address()?; // p_o
+        let program_size = regs[8].as_usize()?; // p_z
+        let initial_pc = regs[9].value(); // i
 
         if !memory.is_address_range_readable(program_offset, program_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(HostCallResult::panic());
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
@@ -1347,10 +1341,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
-        let inner_memory_offset = regs[9].as_mem_address()?;
-        let data_len = regs[10].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // o
+        let inner_memory_offset = regs[9].as_mem_address()?; // s
+        let data_len = regs[10].as_usize()?; // z
+
+        if !memory.is_address_range_writable(memory_offset, data_len)? {
+            return Ok(HostCallResult::panic());
+        }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
             return Ok(HostCallResult::continue_with_vm_change(who_change(
@@ -1358,9 +1356,7 @@ impl HostFunction {
             )));
         };
 
-        if !inner_memory.is_address_range_readable(inner_memory_offset, data_len)?
-            || !memory.is_address_range_writable(memory_offset, data_len)?
-        {
+        if !inner_memory.is_address_range_readable(inner_memory_offset, data_len)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1388,10 +1384,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
-        let inner_memory_offset = regs[9].as_mem_address()?;
-        let data_len = regs[10].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // s
+        let inner_memory_offset = regs[9].as_mem_address()?; // o
+        let data_len = regs[10].as_usize()?; // z
+
+        if !memory.is_address_range_readable(memory_offset, data_len)? {
+            return Ok(HostCallResult::panic());
+        }
 
         let inner_memory_mut =
             if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
@@ -1402,9 +1402,7 @@ impl HostFunction {
                 )));
             };
 
-        if !memory.is_address_range_readable(memory_offset, data_len)?
-            || !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_len)?
-        {
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_len)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -1426,9 +1424,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let inner_memory_page_offset = regs[8].as_usize()?;
-        let pages_count = regs[9].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let inner_memory_page_offset = regs[8].as_usize()?; // p
+        let pages_count = regs[9].as_usize()?; // c
 
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
@@ -1471,9 +1469,9 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let inner_memory_page_offset = regs[8].as_usize()?;
-        let pages_count = regs[9].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let inner_memory_page_offset = regs[8].as_usize()?; // p
+        let pages_count = regs[9].as_usize()?; // c
 
         let inner_memory_mut =
             if let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) {
@@ -1523,8 +1521,8 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
-        let memory_offset = regs[8].as_mem_address()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
+        let memory_offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_writable(memory_offset, 60)? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
@@ -1635,7 +1633,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = context.get_mut_refine_x()?;
 
-        let inner_vm_id = regs[7].as_usize()?;
+        let inner_vm_id = regs[7].as_usize()?; // n
 
         let final_pc = if let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) {
             inner_vm.pc
