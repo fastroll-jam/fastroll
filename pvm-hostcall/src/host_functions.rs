@@ -75,12 +75,29 @@ impl HostCallResult {
     }
 }
 
+#[derive(Clone)]
+pub struct MemWrite {
+    pub buf_offset: MemAddress,
+    pub write_len: u32,
+    pub write_data: Vec<u8>,
+}
+
+impl MemWrite {
+    pub fn new(buf_offset: MemAddress, write_len: u32, write_data: Vec<u8>) -> Self {
+        Self {
+            buf_offset,
+            write_len,
+            write_data,
+        }
+    }
+}
+
 /// Represents the state changes in the PVM resulting from a single host function execution.
 pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
     pub r8_write: Option<RegValue>,
-    pub memory_write: Option<(MemAddress, u32, Vec<u8>)>, // (start_address, data_len, data)
+    pub memory_write: Option<MemWrite>, // (start_address, data_len, data)
 }
 
 impl Default for HostCallVMStateChange {
@@ -161,7 +178,7 @@ impl HostFunction {
                 HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage_size as RegValue),
-                    memory_write: Some((
+                    memory_write: Some(MemWrite::new(
                         buf_offset,
                         lookup_size as u32,
                         entry.value[preimage_offset..preimage_offset + lookup_size].to_vec(),
@@ -224,7 +241,7 @@ impl HostFunction {
                 HostCallVMStateChange {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(storage_val_size as RegValue),
-                    memory_write: Some((
+                    memory_write: Some(MemWrite::new(
                         buf_offset,
                         storage_val_size as u32,
                         entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
@@ -378,7 +395,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((buf_offset, info.len() as u32, info)),
+                memory_write: Some(MemWrite::new(buf_offset, info.len() as u32, info)),
                 ..Default::default()
             },
         ))
@@ -1132,7 +1149,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(preimage.len() as RegValue),
-                memory_write: Some((
+                memory_write: Some(MemWrite::new(
                     buf_offset,
                     lookup_size as u32,
                     preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
@@ -1247,7 +1264,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(data.len() as RegValue),
-                memory_write: Some((
+                memory_write: Some(MemWrite::new(
                     buf_offset,
                     data_read_size as u32,
                     data[data_read_offset..data_read_offset + data_read_size].to_vec(),
@@ -1367,7 +1384,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((memory_offset, data_len as u32, data)),
+                memory_write: Some(MemWrite::new(memory_offset, data_len as u32, data)),
                 ..Default::default()
             },
         ))
@@ -1585,7 +1602,7 @@ impl HostFunction {
                         gas_charge: BASE_GAS_CHARGE,
                         r7_write: Some(HOST as RegValue),
                         r8_write: Some(host_call_type as RegValue),
-                        memory_write: Some((memory_offset, 60, write_data)),
+                        memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
                     },
                 ))
             }
@@ -1594,7 +1611,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(FAULT as RegValue),
                     r8_write: Some(address as RegValue),
-                    memory_write: Some((memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
                 },
             )),
             ExitReason::OutOfGas => Ok(HostCallResult::continue_with_vm_change(
@@ -1602,7 +1619,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(OOG as RegValue),
                     r8_write: None,
-                    memory_write: Some((memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
                 },
             )),
             ExitReason::Panic => Ok(HostCallResult::continue_with_vm_change(
@@ -1610,7 +1627,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(PANIC as RegValue),
                     r8_write: None,
-                    memory_write: Some((memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
                 },
             )),
             ExitReason::RegularHalt => Ok(HostCallResult::continue_with_vm_change(
@@ -1618,7 +1635,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(HALT as RegValue),
                     r8_write: None,
-                    memory_write: Some((memory_offset, 60, write_data)),
+                    memory_write: Some(MemWrite::new(memory_offset, 60, write_data)),
                 },
             )),
 
