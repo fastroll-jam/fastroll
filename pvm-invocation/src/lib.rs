@@ -8,6 +8,7 @@ use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
+    invoke_args::RefineInvokeArgs,
 };
 use rjam_pvm_hostcall::context::types::*;
 use rjam_state::StateManager;
@@ -31,15 +32,19 @@ pub struct IsAuthorizedArgs {
     core_index: CoreIndex,     // c
 }
 
+/// `Ψ_M` invocation function arguments
 #[derive(JamEncode)]
-pub struct RefineArgs {
-    refine_address: Address,               // s
-    work_payload: Vec<u8>,                 // y
-    work_package_hash: Hash32,             // p
-    refinement_context: RefinementContext, // c
-    authorizer_hash: Hash32,               // a
-    authorization_output: Vec<u8>,         // o
-    extrinsic_data_blobs: Vec<Vec<u8>>,    // x_bar
+pub struct RefineVMArgs {
+    /// Associated service index (`s` of `WorkItem`)
+    refine_address: Address,
+    /// Work item payload blob (**`y`** of `WorkItem`)
+    work_payload: Vec<u8>,
+    /// Work package hash (Hash of `WorkPackage`)
+    work_package_hash: Hash32,
+    /// Refinement context (**`x`** of `WorkPackage`)
+    refinement_context: RefinementContext,
+    /// Authorizer code hash (`u` of `WorkPackage`)
+    auth_code_hash: Hash32,
 }
 
 pub struct RefineResult {
@@ -187,30 +192,26 @@ impl PVMInvocation {
     /// # Arguments
     ///
     /// * `state_manager` - State manager to access to the global state. The only allowed access is the historical lookup.
-    /// * `code_hash` - Prediction of the refinement service code hash at the time of reporting
-    /// * `gas_limit` - The maximum amount of gas allowed for the refinement process
-    /// * `args` - Refinement arguments
-    /// * `import_segments` - Fixed-length data segments imported from the import DA
-    /// * `export_segments_offset` - Initial offset index of the export segments array
+    /// * `args` - Refine entry-point function arguments
     ///
     /// Represents `Ψ_R` of the GP
     pub async fn refine(
         state_manager: &StateManager,
-        code_hash: Hash32,
-        gas_limit: UnsignedGas,
-        args: &RefineArgs,
-        import_segments: Vec<ExportDataSegment>,
-        export_segments_offset: usize,
+        args: RefineInvokeArgs,
     ) -> Result<RefineResult, PVMError> {
-        // check the refine target account address exists in the global state
-        let refine_account_exists = !state_manager.account_exists(args.refine_address).await?;
+        let work_item = &args.package.work_items.clone()[args.item_idx];
 
-        // retrieve the service account code via the historical lookup function
+        // Check the account to run refinement exists in the global state
+        let refine_account_exists = !state_manager
+            .account_exists(work_item.service_index)
+            .await?;
+
+        // Retrieve the service account code via the historical lookup function
         let maybe_code = state_manager
             .lookup_preimage(
-                args.refine_address,
-                &Timeslot(args.refinement_context.lookup_anchor_timeslot),
-                &code_hash,
+                work_item.service_index,
+                &Timeslot(args.package.context.lookup_anchor_timeslot),
+                &work_item.service_code_hash,
             )
             .await?;
 
@@ -219,24 +220,26 @@ impl PVMInvocation {
         }
 
         let code = maybe_code.expect("Confirmed code exists");
-
         if code.len() > MAX_SERVICE_CODE_SIZE {
             return Ok(RefineResult::big());
         }
 
-        let mut context = InvocationContext::X_R(RefineHostContext::new(
-            args.refinement_context.lookup_anchor_timeslot,
-            import_segments,
-            export_segments_offset,
-        ));
+        let vm_args = RefineVMArgs {
+            refine_address: work_item.service_index,
+            work_payload: work_item.payload_blob.clone().into_vec(),
+            work_package_hash: args.package.hash()?,
+            refinement_context: args.package.context.clone(),
+            auth_code_hash: args.package.authorizer.auth_code_hash,
+        };
 
+        let mut context = InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args));
         let common_invocation_result = PVM::invoke_with_args(
             state_manager,
-            args.refine_address,
+            work_item.service_index,
             &code,
             REFINE_INITIAL_PC,
-            gas_limit,
-            &args.encode()?,
+            work_item.refine_gas_limit,
+            &vm_args.encode()?,
             &mut context,
         )
         .await?;

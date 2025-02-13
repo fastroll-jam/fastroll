@@ -12,6 +12,7 @@ use rjam_pvm_core::{
     types::{
         common::ExportDataSegment,
         error::{HostCallError::*, PVMError},
+        invoke_args::RefineInvokeArgs,
     },
 };
 use rjam_state::StateManager;
@@ -439,30 +440,20 @@ impl AccumulateHostContext {
 
 #[derive(Clone, Default)]
 pub struct RefineHostContext {
-    /// Inner PVM instances
-    pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     /// PVM instance ID to be assigned for the next instance
     pub next_instance_id: usize,
-    /// Export data segments
+    /// **`m`**: Inner PVM instances
+    pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
+    /// **`e`**: Export data segments
     pub export_segments: Vec<ExportDataSegment>,
-    /// Lookup anchor timeslot; copied from `RefinementContext`
-    pub lookup_anchor_timeslot: u32,
-    /// Import data segments
-    pub import_segments: Vec<ExportDataSegment>,
-    /// Export data segments index
-    pub export_segments_offset: usize,
+    /// Refine entry-point function invocation args (read-only)
+    pub invoke_args: RefineInvokeArgs,
 }
 
 impl RefineHostContext {
-    pub fn new(
-        lookup_anchor_timeslot: u32,
-        import_segments: Vec<ExportDataSegment>,
-        export_segments_offset: usize,
-    ) -> Self {
+    pub fn new_with_invoke_args(invoke_args: RefineInvokeArgs) -> Self {
         Self {
-            lookup_anchor_timeslot,
-            import_segments,
-            export_segments_offset,
+            invoke_args,
             ..Default::default()
         }
     }

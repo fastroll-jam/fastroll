@@ -12,6 +12,7 @@ use std::{
 };
 use thiserror::Error;
 
+// TODO: remove
 #[derive(Debug, Error)]
 pub enum WorkReportError {
     #[error("Crypto error: {0}")]
@@ -28,7 +29,7 @@ pub enum WorkPackageId {
     WorkPackageHash(Hash32),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Authorizer {
     /// `u`: Authorization code hash
     pub auth_code_hash: Hash32,
@@ -36,7 +37,7 @@ pub struct Authorizer {
     pub param_blob: Octets,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkPackage {
     /// **`j`**: Authorizer token blob
     pub auth_token: Octets,
@@ -81,6 +82,16 @@ impl JamDecode for WorkPackage {
             context: RefinementContext::decode(input)?,
             work_items: Vec::<WorkItem>::decode(input)?,
         })
+    }
+}
+
+impl WorkPackage {
+    pub fn hash(&self) -> Result<Hash32, CryptoError> {
+        hash::<Blake2b256>(
+            self.encode()
+                .map_err(|_| CryptoError::HashError)?
+                .as_slice(),
+        )
     }
 }
 
@@ -173,7 +184,7 @@ pub struct WorkItem {
     pub service_index: Address,
     /// `c`: Code hash of the service, at the time of reporting
     pub service_code_hash: Hash32,
-    /// **`y`**: Payload blob
+    /// **`y`**: Work item payload blob
     pub payload_blob: Octets,
     /// `g`: Service-specific gas limit for Refinement
     pub refine_gas_limit: UnsignedGas,

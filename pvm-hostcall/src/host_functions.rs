@@ -1115,7 +1115,7 @@ impl HostFunction {
         let preimage = state_manager
             .lookup_preimage(
                 account_address,
-                &Timeslot::new(x.lookup_anchor_timeslot),
+                &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
                 &lookup_hash,
             )
             .await?
@@ -1142,44 +1142,6 @@ impl HostFunction {
         ))
     }
 
-    /// Fetches the import segment of the specified index from the ImportDA common storage and
-    /// writes it into memory.
-    pub fn host_import(
-        regs: &[Register; REGISTERS_COUNT],
-        memory: &Memory,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
-
-        let import_segment_index = regs[7].as_usize()?;
-        let offset = regs[8].as_mem_address()?;
-        let segment_len = regs[9].as_usize()?;
-
-        if x.import_segments.len() <= import_segment_index {
-            return Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-        let import_segment = x.import_segments[import_segment_index].clone();
-
-        let segment_read_len = segment_len.min(DATA_SEGMENTS_SIZE);
-
-        if !memory.is_address_range_writable(offset, segment_read_len)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
-        }
-
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((offset, segment_read_len as u32, import_segment.to_vec())),
-                ..Default::default()
-            },
-        ))
-    }
-
     /// Appends an entry to the export segments vector using the value loaded from memory.
     /// This export segments vector will be written to the ImportDA after the successful execution
     /// of the refinement process.
@@ -1201,7 +1163,8 @@ impl HostFunction {
             )));
         }
 
-        let next_export_segments_offset = x.export_segments.len() + x.export_segments_offset;
+        let next_export_segments_offset =
+            x.export_segments.len() + x.invoke_args.export_segments_offset;
         if next_export_segments_offset >= IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT {
             return Ok(HostCallResult::continue_with_vm_change(full_change(
                 BASE_GAS_CHARGE,
@@ -1214,7 +1177,6 @@ impl HostFunction {
         .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
 
         x.export_segments.push(data_segment);
-        x.export_segments_offset = next_export_segments_offset;
 
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
