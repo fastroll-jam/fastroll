@@ -188,8 +188,8 @@ impl PVMInvocation {
     ///
     /// * `state_manager` - State manager to access to the global state. The only allowed access is the historical lookup.
     /// * `code_hash` - Prediction of the refinement service code hash at the time of reporting
-    /// * `args` - Refinement arguments
     /// * `gas_limit` - The maximum amount of gas allowed for the refinement process
+    /// * `args` - Refinement arguments
     /// * `import_segments` - Fixed-length data segments imported from the import DA
     /// * `export_segments_offset` - Initial offset index of the export segments array
     ///
@@ -218,7 +218,7 @@ impl PVMInvocation {
             return Ok(RefineResult::bad());
         }
 
-        let code = maybe_code.unwrap();
+        let code = maybe_code.expect("Confirmed code exists");
 
         if code.len() > MAX_SERVICE_CODE_SIZE {
             return Ok(RefineResult::big());

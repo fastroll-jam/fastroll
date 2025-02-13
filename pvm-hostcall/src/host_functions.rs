@@ -129,7 +129,7 @@ impl HostFunction {
 
         let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?; // h
-        let mw_offset = regs[9].as_mem_address()?; // o
+        let buf_offset = regs[9].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX || address_reg == service_address as u64 {
             service_address
@@ -153,7 +153,7 @@ impl HostFunction {
             let preimage_offset = regs[10].as_usize()?.min(preimage_size); // f
             let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
-            if !memory.is_address_range_writable(mw_offset, lookup_size)? {
+            if !memory.is_address_range_writable(buf_offset, lookup_size)? {
                 return Ok(HostCallResult::panic());
             }
 
@@ -162,7 +162,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(preimage_size as RegValue),
                     memory_write: Some((
-                        mw_offset,
+                        buf_offset,
                         lookup_size as u32,
                         entry.value[preimage_offset..preimage_offset + lookup_size].to_vec(),
                     )),
@@ -190,7 +190,7 @@ impl HostFunction {
         let address_reg = regs[7].value();
         let key_offset = regs[8].as_mem_address()?; // k_o
         let key_size = regs[9].as_usize()?; // k_z
-        let mw_offset = regs[10].as_mem_address()?; // o
+        let buf_offset = regs[10].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
             service_address
@@ -216,7 +216,7 @@ impl HostFunction {
                 .as_usize()?
                 .min(storage_val_size - storage_val_offset); // l
 
-            if !memory.is_address_range_writable(mw_offset, read_len)? {
+            if !memory.is_address_range_writable(buf_offset, read_len)? {
                 return Ok(HostCallResult::panic());
             }
 
@@ -225,7 +225,7 @@ impl HostFunction {
                     gas_charge: BASE_GAS_CHARGE,
                     r7_write: Some(storage_val_size as RegValue),
                     memory_write: Some((
-                        mw_offset,
+                        buf_offset,
                         storage_val_size as u32,
                         entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
                     )),
@@ -346,7 +346,7 @@ impl HostFunction {
         let accounts_sandbox = context.get_mut_accounts_sandbox()?;
 
         let address_reg = regs[7].value();
-        let mw_offset = regs[8].as_mem_address()?; // o
+        let buf_offset = regs[8].as_mem_address()?; // o
 
         let account_address = if address_reg == u64::MAX {
             service_address
@@ -368,7 +368,7 @@ impl HostFunction {
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
-        if !memory.is_address_range_writable(mw_offset, info.len())? {
+        if !memory.is_address_range_writable(buf_offset, info.len())? {
             return Ok(HostCallResult::continue_with_vm_change(oob_change(
                 BASE_GAS_CHARGE,
             )));
@@ -378,7 +378,7 @@ impl HostFunction {
             HostCallVMStateChange {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some((mw_offset, info.len() as u32, info)),
+                memory_write: Some((buf_offset, info.len() as u32, info)),
                 ..Default::default()
             },
         ))
@@ -1088,7 +1088,7 @@ impl HostFunction {
 
         let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?;
-        let mw_offset = regs[9].as_mem_address()?;
+        let buf_offset = regs[9].as_mem_address()?;
 
         let account_address = if address_reg == u64::MAX
             || state_manager.account_exists(refine_account_address).await?
@@ -1124,7 +1124,7 @@ impl HostFunction {
         let preimage_offset = regs[10].as_usize()?.min(preimage.len()); // f
         let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
-        if !memory.is_address_range_writable(mw_offset, lookup_size)? {
+        if !memory.is_address_range_writable(buf_offset, lookup_size)? {
             return Ok(HostCallResult::panic());
         }
 
@@ -1133,7 +1133,7 @@ impl HostFunction {
                 gas_charge: BASE_GAS_CHARGE,
                 r7_write: Some(preimage.len() as RegValue),
                 memory_write: Some((
-                    mw_offset,
+                    buf_offset,
                     lookup_size as u32,
                     preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
                 )),
