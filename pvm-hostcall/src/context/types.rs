@@ -29,7 +29,7 @@ pub trait AccountsSandboxHolder {
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    /// `is_authorized` host-call context (empty)
+    /// `is_authorized` host-call context (no context)
     X_I,
     /// `refine` host-call context
     X_R(RefineHostContext),
@@ -40,7 +40,7 @@ pub enum InvocationContext {
 }
 
 impl InvocationContext {
-    fn as_refine_context(&mut self) -> Option<&RefineHostContext> {
+    pub fn get_refine_x(&mut self) -> Option<&RefineHostContext> {
         if let InvocationContext::X_R(ref ctx) = self {
             Some(ctx)
         } else {
@@ -48,12 +48,7 @@ impl InvocationContext {
         }
     }
 
-    pub fn get_refine_x(&mut self) -> Result<&RefineHostContext, PVMError> {
-        self.as_refine_context()
-            .ok_or(PVMError::HostCallError(InvalidContext))
-    }
-
-    fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
+    pub fn get_mut_refine_x(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
         } else {
@@ -61,71 +56,44 @@ impl InvocationContext {
         }
     }
 
-    pub fn get_mut_refine_x(&mut self) -> Result<&mut RefineHostContext, PVMError> {
-        self.as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))
-    }
-
-    // FIXME: merge methods
-    fn as_accumulate_context(&self) -> Option<&AccumulateHostContextPair> {
+    pub fn get_accumulate_x(&self) -> Option<&AccumulateHostContext> {
         if let InvocationContext::X_A(ref pair) = self {
-            Some(pair)
+            Some(pair.get_x())
         } else {
             None
         }
     }
 
-    fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateHostContextPair> {
+    pub fn get_mut_accumulate_x(&mut self) -> Option<&mut AccumulateHostContext> {
         if let InvocationContext::X_A(ref mut pair) = self {
-            Some(pair)
+            Some(pair.get_mut_x())
         } else {
             None
         }
     }
 
-    pub fn get_accumulate_x(&self) -> Result<&AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_x())
-    }
-
-    pub fn get_mut_accumulate_x(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_mut_x())
-    }
-
-    pub fn get_mut_accumulate_y(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_mut_y())
-    }
-
-    pub fn as_on_transfer_context_mut(&mut self) -> Option<&mut OnTransferHostContext> {
-        if let InvocationContext::X_T(ref mut ctx) = self {
-            Some(ctx)
+    pub fn get_mut_accumulate_y(&mut self) -> Option<&mut AccumulateHostContext> {
+        if let InvocationContext::X_A(ref mut pair) = self {
+            Some(pair.get_mut_y())
         } else {
             None
         }
     }
 
     #[allow(dead_code)]
-    pub fn get_accounts_sandbox(&self) -> Result<&AccountsSandboxMap, PVMError> {
+    pub fn get_accounts_sandbox(&self) -> Option<&AccountsSandboxMap> {
         match self {
-            Self::X_A(ctx_pair) => Ok(ctx_pair.get_accounts_sandbox()),
-            Self::X_T(ctx) => Ok(ctx.get_accounts_sandbox()),
-            _ => Err(PVMError::HostCallError(InvalidContext)),
+            Self::X_A(ctx_pair) => Some(ctx_pair.get_accounts_sandbox()),
+            Self::X_T(ctx) => Some(ctx.get_accounts_sandbox()),
+            _ => None,
         }
     }
 
-    pub fn get_mut_accounts_sandbox(&mut self) -> Result<&mut AccountsSandboxMap, PVMError> {
+    pub fn get_mut_accounts_sandbox(&mut self) -> Option<&mut AccountsSandboxMap> {
         match self {
-            Self::X_A(ctx_pair) => Ok(ctx_pair.get_mut_accounts_sandbox()),
-            Self::X_T(ctx) => Ok(ctx.get_mut_accounts_sandbox()),
-            _ => Err(PVMError::HostCallError(InvalidContext)),
+            Self::X_A(ctx_pair) => Some(ctx_pair.get_mut_accounts_sandbox()),
+            Self::X_T(ctx) => Some(ctx.get_mut_accounts_sandbox()),
+            _ => None,
         }
     }
 }
