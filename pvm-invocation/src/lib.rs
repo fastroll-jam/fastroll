@@ -8,9 +8,12 @@ use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::{AccumulateInvokeArgs, RefineInvokeArgs},
+    invoke_args::{AccumulateInvokeArgs, OnTransferInvokeArgs, RefineInvokeArgs},
 };
-use rjam_pvm_hostcall::context::{partial_state::AccumulatePartialState, types::*};
+use rjam_pvm_hostcall::context::{
+    partial_state::{AccountSandbox, AccumulatePartialState},
+    types::*,
+};
 use rjam_state::StateManager;
 use rjam_types::common::{
     transfers::DeferredTransfer,
@@ -98,8 +101,11 @@ impl RefineResult {
 /// `Ψ_M` invocation function arguments for `Ψ_A`
 #[derive(JamEncode)]
 pub struct AccumulateVMArgs {
+    /// Current timeslot index
     timeslot_index: u32,
+    /// `s` of `AccumulateInvokeArgs`
     accumulate_host: Address,
+    /// **`o`** of `AccumulateInvokeArgs`
     operands: Vec<AccumulateOperand>,
 }
 
@@ -112,33 +118,46 @@ pub struct AccumulateResult {
 }
 
 #[allow(dead_code)]
-struct BalanceChangeSet {
+pub struct BalanceChangeSet {
     recipient: Address,
     added_amount: Balance,
 }
 
-// TODO: impl
-pub struct DestinationStorageChangeSet {}
+/// `Ψ_M` invocation function arguments for `Ψ_T`
+#[derive(JamEncode)]
+pub struct OnTransferVMArgs {
+    /// Current timeslot index
+    timeslot_index: u32,
+    /// `s` of `OnTransferInvokeArgs`
+    destination: Address,
+    /// **`t`** of `OnTransferInvokeArgs`
+    transfers: Vec<DeferredTransfer>,
+}
 
-#[allow(dead_code)]
 #[derive(Default)]
 pub struct OnTransferResult {
-    balance_change_set: Option<BalanceChangeSet>,
-    storage_change_set: Option<DestinationStorageChangeSet>,
+    pub balance_change_set: Option<BalanceChangeSet>,
+    pub recipient_sandbox: Option<AccountSandbox>,
 }
 
 impl OnTransferResult {
     pub fn new(
         recipient: Address,
         added_amount: Balance,
-        storage_change_set: DestinationStorageChangeSet,
+        recipient_sandbox: Option<AccountSandbox>,
     ) -> Self {
-        Self {
-            balance_change_set: Some(BalanceChangeSet {
+        let balance_change_set = if added_amount > 0 {
+            Some(BalanceChangeSet {
                 recipient,
                 added_amount,
-            }),
-            storage_change_set: Some(storage_change_set),
+            })
+        } else {
+            None
+        };
+
+        Self {
+            balance_change_set,
+            recipient_sandbox,
         }
     }
 }
@@ -249,28 +268,28 @@ impl PVMInvocation {
             auth_code_hash: args.package.authorizer.auth_code_hash,
         };
 
-        let mut context =
+        let mut refine_ctx =
             InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args.clone()));
-        let common_invocation_result = PVM::invoke_with_args(
+        let result = PVM::invoke_with_args(
             state_manager,
             work_item.service_index,
             &code,
             REFINE_INITIAL_PC,
             work_item.refine_gas_limit,
             &vm_args.encode()?,
-            &mut context,
+            &mut refine_ctx,
         )
         .await?;
 
         let RefineHostContext {
             export_segments, ..
-        } = if let InvocationContext::X_R(context) = context {
-            context
+        } = if let InvocationContext::X_R(x) = refine_ctx {
+            x
         } else {
             return Err(PVMError::HostCallError(InvalidContext));
         };
 
-        match common_invocation_result {
+        match result {
             CommonInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
             CommonInvocationResult::ResultUnavailable(_) => {
                 Ok(RefineResult::ok_empty(export_segments))
@@ -305,18 +324,18 @@ impl PVMInvocation {
             operands: args.operands.clone(),
         };
 
-        let accumulate_context = AccumulateHostContext::new(
+        let ctx = AccumulateHostContext::new(
             state_manager,
             args.accumulate_host,
             curr_entropy,
             &curr_timeslot,
         )
         .await?;
-        let context_pair = AccumulateHostContextPair {
-            x: Box::new(accumulate_context.clone()),
-            y: Box::new(accumulate_context),
+        let ctx_pair = AccumulateHostContextPair {
+            x: Box::new(ctx.clone()),
+            y: Box::new(ctx),
         };
-        let mut context = InvocationContext::X_A(context_pair);
+        let mut accumulate_ctx = InvocationContext::X_A(ctx_pair);
 
         let result = PVM::invoke_with_args(
             state_manager,
@@ -325,15 +344,16 @@ impl PVMInvocation {
             ACCUMULATE_INITIAL_PC,
             args.gas_limit,
             &vm_args.encode()?,
-            &mut context,
+            &mut accumulate_ctx,
         )
         .await?;
 
-        let AccumulateHostContextPair { x, y } = if let InvocationContext::X_A(pair) = context {
-            pair
-        } else {
-            return Err(PVMError::HostCallError(InvalidContext));
-        };
+        let AccumulateHostContextPair { x, y } =
+            if let InvocationContext::X_A(pair) = accumulate_ctx {
+                pair
+            } else {
+                return Err(PVMError::HostCallError(InvalidContext));
+            };
 
         match result {
             CommonInvocationResult::Result(output)
@@ -367,42 +387,63 @@ impl PVMInvocation {
     /// # Arguments
     ///
     /// * `state_manager` - State manager to access to the global state
-    /// * `destination` - The recipient address of the transfers
-    /// * `transfers` - The deferred transfers
+    /// * `args` - On-Transfer entry-point function arguments
     ///
     /// Represents `Ψ_T` of the GP
     pub async fn on_transfer(
         state_manager: &StateManager,
-        destination: Address,
-        transfers: Vec<DeferredTransfer>,
+        args: &OnTransferInvokeArgs,
     ) -> Result<OnTransferResult, PVMError> {
-        let total_amount = transfers.iter().map(|t| t.amount).sum();
-        let total_gas_limit = transfers.iter().map(|t| t.gas_limit).sum();
-
-        let code = state_manager.get_account_code(destination).await?;
-        if code.is_none() || transfers.is_empty() {
+        if args.transfers.is_empty() {
             return Ok(OnTransferResult::default());
         }
-        let code = code.unwrap();
 
-        let on_transfer_context = OnTransferHostContext::new(state_manager, destination).await?;
+        let total_amount = args.transfers.iter().map(|t| t.amount).sum();
+        let total_gas_limit = args.transfers.iter().map(|t| t.gas_limit).sum();
 
-        let _common_invocation_result = PVM::invoke_with_args(
+        let Some(code) = state_manager.get_account_code(args.destination).await? else {
+            return Ok(OnTransferResult::default());
+        };
+
+        let curr_timeslot = state_manager.get_timeslot().await?;
+
+        let vm_args = OnTransferVMArgs {
+            timeslot_index: curr_timeslot.slot(),
+            destination: args.destination,
+            transfers: args.transfers.clone(),
+        };
+
+        let ctx = OnTransferHostContext::new(state_manager, args.destination).await?;
+        let mut on_transfer_ctx = InvocationContext::X_T(ctx);
+
+        let _ = PVM::invoke_with_args(
             state_manager,
-            destination,
+            args.destination,
             &code,
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
-            &transfers.encode()?,
-            &mut InvocationContext::X_T(on_transfer_context), // not used
+            &vm_args.encode()?,
+            &mut on_transfer_ctx,
         )
         .await?;
 
-        // TODO: return the recipient account storage changeset
+        let OnTransferHostContext {
+            mut accounts_sandbox,
+        } = if let InvocationContext::X_T(x) = on_transfer_ctx {
+            x
+        } else {
+            return Err(PVMError::HostCallError(InvalidContext));
+        };
+
+        let recipient_sandbox = accounts_sandbox
+            .get_account_sandbox(state_manager, args.destination)
+            .await?
+            .cloned();
+
         Ok(OnTransferResult::new(
-            destination,
+            args.destination,
             total_amount,
-            DestinationStorageChangeSet {},
+            recipient_sandbox,
         ))
     }
 }

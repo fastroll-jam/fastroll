@@ -124,7 +124,7 @@ impl AccountsSandboxMap {
         Ok(())
     }
 
-    async fn get_account_sandbox(
+    pub async fn get_account_sandbox(
         &mut self,
         state_manager: &StateManager,
         address: Address,

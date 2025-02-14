@@ -1,10 +1,10 @@
 use crate::error::TransitionError;
 use rjam_common::Address;
+use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
 use rjam_pvm_invocation::{accumulation::utils::select_deferred_transfers, PVMInvocation};
 use rjam_state::StateManager;
 use rjam_types::common::transfers::DeferredTransfer;
 use std::collections::HashSet;
-
 // FIXME
 // /// State transition function for Accumulate context state components.
 // ///
@@ -58,8 +58,15 @@ pub async fn transition_on_transfer(
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
-        let selected_transfers = select_deferred_transfers(&transfers, destination);
-        PVMInvocation::on_transfer(state_manager, destination, selected_transfers).await?;
+        let transfers = select_deferred_transfers(&transfers, destination);
+        PVMInvocation::on_transfer(
+            state_manager,
+            &OnTransferInvokeArgs {
+                destination,
+                transfers,
+            },
+        )
+        .await?;
     }
 
     Ok(())

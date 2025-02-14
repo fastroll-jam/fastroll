@@ -1,6 +1,9 @@
 use crate::types::{accumulation::AccumulateOperand, common::ExportDataSegment};
 use rjam_common::{Address, UnsignedGas};
-use rjam_types::common::workloads::{ExtrinsicInfo, WorkPackage};
+use rjam_types::common::{
+    transfers::DeferredTransfer,
+    workloads::{ExtrinsicInfo, WorkPackage},
+};
 use std::collections::HashMap;
 
 // TODO: Find a better location
@@ -34,4 +37,14 @@ pub struct AccumulateInvokeArgs {
     pub gas_limit: UnsignedGas,
     /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     pub operands: Vec<AccumulateOperand>,
+}
+
+/// Accumulate entry-point function arguments
+///
+/// Note: The timeslot index (`t`) is directly fetched from the state manager.
+pub struct OnTransferInvokeArgs {
+    /// `s`: Destination (recipient) account address of the transfer
+    pub destination: Address,
+    /// **`t`**: A vector of `DeferredTransfer`s
+    pub transfers: Vec<DeferredTransfer>,
 }
