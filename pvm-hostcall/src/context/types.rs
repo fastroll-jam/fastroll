@@ -29,10 +29,14 @@ pub trait AccountsSandboxHolder {
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_I,                            // IsAuthorized
-    X_R(RefineHostContext),         // Refine
-    X_A(AccumulateHostContextPair), // Accumulate
-    X_T(OnTransferHostContext),     // OnTransfer
+    /// `is_authorized` host-call context (empty)
+    X_I,
+    /// `refine` host-call context
+    X_R(RefineHostContext),
+    /// `accumulate` host-call context pair
+    X_A(AccumulateHostContextPair),
+    /// `on_transfer` host-call context
+    X_T(OnTransferHostContext),
 }
 
 impl InvocationContext {

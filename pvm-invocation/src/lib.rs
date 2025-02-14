@@ -12,12 +12,9 @@ use rjam_pvm_core::types::{
 };
 use rjam_pvm_hostcall::context::types::*;
 use rjam_state::StateManager;
-use rjam_types::{
-    common::{
-        transfers::DeferredTransfer,
-        workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
-    },
-    state::timeslot::Timeslot,
+use rjam_types::common::{
+    transfers::DeferredTransfer,
+    workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
 };
 
 // Initial Program Counters
@@ -28,8 +25,10 @@ const ON_TRANSFER_INITIAL_PC: RegValue = 10;
 
 #[derive(JamEncode)]
 pub struct IsAuthorizedArgs {
-    work_package: WorkPackage, // p
-    core_index: CoreIndex,     // c
+    /// **`p`**: Work package
+    package: WorkPackage,
+    /// `c`: Core index to process the work package
+    core_index: CoreIndex,
 }
 
 /// `Ψ_M` invocation function arguments
@@ -152,25 +151,25 @@ impl PVMInvocation {
         state_manager: &StateManager,
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
-        // retrieve the service account code via the historical lookup function
+        // retrieve the service account code via historical lookup
         let code = match state_manager
-            .lookup_preimage(
-                args.work_package.authorizer_address,
-                &Timeslot::new(args.work_package.context.lookup_anchor_timeslot),
-                &args.work_package.authorizer.auth_code_hash,
+            .get_account_code_by_lookup(
+                args.package.authorizer_address,
+                args.package.context.lookup_anchor_timeslot,
+                &args.package.authorizer.auth_code_hash,
             )
             .await?
         {
             Some(code) => code,
             None => {
-                // failed to get the is_authorized code from the service account
+                // failed to get the `is_authorized` code from the service account
                 return Ok(WorkExecutionOutput::bad());
             }
         };
 
-        let common_invocation_result = PVM::invoke_with_args(
+        let result = PVM::invoke_with_args(
             state_manager,
-            args.work_package.authorizer_address,
+            args.package.authorizer_address,
             &code,
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
@@ -179,7 +178,7 @@ impl PVMInvocation {
         )
         .await?;
 
-        match common_invocation_result {
+        match result {
             CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
             CommonInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
             CommonInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
@@ -205,21 +204,26 @@ impl PVMInvocation {
         let refine_account_exists = !state_manager
             .account_exists(work_item.service_index)
             .await?;
-
-        // Retrieve the service account code via the historical lookup function
-        let maybe_code = state_manager
-            .lookup_preimage(
-                work_item.service_index,
-                &Timeslot(args.package.context.lookup_anchor_timeslot),
-                &work_item.service_code_hash,
-            )
-            .await?;
-
-        if !refine_account_exists || maybe_code.is_none() {
+        if !refine_account_exists {
             return Ok(RefineResult::bad());
         }
 
-        let code = maybe_code.expect("Confirmed code exists");
+        // Retrieve the service account code via the historical lookup function
+        let code = match state_manager
+            .get_account_code_by_lookup(
+                work_item.service_index,
+                args.package.context.lookup_anchor_timeslot,
+                &work_item.service_code_hash,
+            )
+            .await?
+        {
+            Some(code) => code,
+            None => {
+                // failed to get the `refine` code from the service account
+                return Ok(RefineResult::bad());
+            }
+        };
+
         if code.len() > MAX_SERVICE_CODE_SIZE {
             return Ok(RefineResult::big());
         }

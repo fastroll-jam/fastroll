@@ -327,9 +327,21 @@ impl StateManager {
         }
     }
 
-    /// This function assumes that the code preimage is available.
-    /// For on-chain PVM invocations (`Accumulate` and `On-Transfer`) get account code directly from this function
-    /// whereas for off-chain/in-core PVM invocations (`Refine` and `Is-Authorized`) conduct historical lookups.
+    pub async fn get_account_code_hash(
+        &self,
+        address: Address,
+    ) -> Result<Option<Hash32>, StateManagerError> {
+        match self.get_account_metadata(address).await? {
+            Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
+            None => Ok(None),
+        }
+    }
+
+    /// Retrieves service account code (preimage of the code hash)
+    /// directly from the account preimage storage.
+    ///
+    /// Used by on-chain PVM invocations (`accumulate` and `on-transfer`) where direct access to
+    /// on-chain state is possible.
     pub async fn get_account_code(
         &self,
         address: Address,
@@ -348,14 +360,19 @@ impl StateManager {
         }
     }
 
-    pub async fn get_account_code_hash(
+    /// Retrieves service account code (preimage of the code hash)
+    /// by utilizing the historical lookup function.
+    ///
+    /// Used by off-chain/in-core PVM invocations (`is-authorized` and `refine`) where direct access
+    /// to on-chain state is not possible.
+    pub async fn get_account_code_by_lookup(
         &self,
         address: Address,
-    ) -> Result<Option<Hash32>, StateManagerError> {
-        match self.get_account_metadata(address).await? {
-            Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
-            None => Ok(None),
-        }
+        reference_timeslot_index: u32,
+        code_hash: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        self.lookup_preimage(address, &Timeslot(reference_timeslot_index), code_hash)
+            .await
     }
 
     /// The historical lookup function `Λ`
