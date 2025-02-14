@@ -2,7 +2,7 @@ use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::Hash32;
 use rjam_types::common::workloads::WorkExecutionOutput;
 
-#[derive(JamEncode)]
+#[derive(Clone, JamEncode)]
 pub struct AccumulateOperand {
     /// **`o`**: Work output (`refine_output` of `WorkItemResult`)
     pub work_output: WorkExecutionOutput,

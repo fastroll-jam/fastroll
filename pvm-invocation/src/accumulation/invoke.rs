@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 use crate::{AccumulateResult, PVMInvocation};
 use rjam_common::{Address, Hash32, UnsignedGas};
-use rjam_pvm_core::types::{accumulation::AccumulateOperand, error::PVMError};
+use rjam_pvm_core::types::{
+    accumulation::AccumulateOperand, error::PVMError, invoke_args::AccumulateInvokeArgs,
+};
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashMap;
@@ -64,7 +66,15 @@ async fn accumulate_single_service(
 
     gas += reports_gas_aggregated;
 
-    PVMInvocation::accumulate(state_manager, service_index, gas, operands).await
+    PVMInvocation::accumulate(
+        state_manager,
+        &AccumulateInvokeArgs {
+            accumulate_host: service_index,
+            gas_limit: gas,
+            operands,
+        },
+    )
+    .await
 }
 
 /// Represents `Δ*` of the GP.

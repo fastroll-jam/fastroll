@@ -8,7 +8,7 @@ use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::RefineInvokeArgs,
+    invoke_args::{AccumulateInvokeArgs, RefineInvokeArgs},
 };
 use rjam_pvm_hostcall::context::{partial_state::AccumulatePartialState, types::*};
 use rjam_state::StateManager;
@@ -285,18 +285,14 @@ impl PVMInvocation {
     /// # Arguments
     ///
     /// * `state_manager` - State manager to access to the global state
-    /// * `service_address` - The address of the service account to run the accumulation process
-    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation process
-    /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
+    /// * `args` - Accumulate entry-point function arguments
     ///
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
         state_manager: &StateManager,
-        service_address: Address,
-        gas_limit: UnsignedGas,
-        operands: Vec<AccumulateOperand>,
+        args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
-        let Some(code) = state_manager.get_account_code(service_address).await? else {
+        let Some(code) = state_manager.get_account_code(args.accumulate_host).await? else {
             return Ok(AccumulateResult::default());
         };
 
@@ -305,13 +301,13 @@ impl PVMInvocation {
 
         let vm_args = AccumulateVMArgs {
             timeslot_index: curr_timeslot.slot(),
-            accumulate_host: service_address,
-            operands,
+            accumulate_host: args.accumulate_host,
+            operands: args.operands.clone(),
         };
 
         let accumulate_context = AccumulateHostContext::new(
             state_manager,
-            service_address,
+            args.accumulate_host,
             curr_entropy,
             &curr_timeslot,
         )
@@ -324,10 +320,10 @@ impl PVMInvocation {
 
         let result = PVM::invoke_with_args(
             state_manager,
-            service_address,
+            args.accumulate_host,
             &code,
             ACCUMULATE_INITIAL_PC,
-            gas_limit,
+            args.gas_limit,
             &vm_args.encode()?,
             &mut context,
         )
