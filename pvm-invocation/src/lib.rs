@@ -10,7 +10,7 @@ use rjam_pvm_core::types::{
     error::{HostCallError::InvalidContext, PVMError},
     invoke_args::RefineInvokeArgs,
 };
-use rjam_pvm_hostcall::context::types::*;
+use rjam_pvm_hostcall::context::{partial_state::AccumulatePartialState, types::*};
 use rjam_state::StateManager;
 use rjam_types::common::{
     transfers::DeferredTransfer,
@@ -31,7 +31,7 @@ pub struct IsAuthorizedArgs {
     core_index: CoreIndex,
 }
 
-/// `Ψ_M` invocation function arguments
+/// `Ψ_M` invocation function arguments for `Ψ_R`
 #[derive(JamEncode)]
 pub struct RefineVMArgs {
     /// Associated service index (`s` of `WorkItem`)
@@ -95,9 +95,20 @@ impl RefineResult {
     }
 }
 
-pub enum AccumulateResult {
-    Result(Box<AccumulateHostContext>, Option<Hash32>), // (mutated context, optional result hash)
-    Unchanged,
+/// `Ψ_M` invocation function arguments for `Ψ_A`
+#[derive(JamEncode)]
+pub struct AccumulateVMArgs {
+    timeslot_index: u32,
+    accumulate_host: Address,
+    operands: Vec<AccumulateOperand>,
+}
+
+#[derive(Default)]
+pub struct AccumulateResult {
+    pub partial_state: AccumulatePartialState,
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    pub yielded_accumulate_hash: Option<Hash32>,
+    pub gas_used: UnsignedGas,
 }
 
 #[allow(dead_code)]
@@ -274,50 +285,50 @@ impl PVMInvocation {
     /// # Arguments
     ///
     /// * `state_manager` - State manager to access to the global state
-    /// * `accumulate_address` - The address of the target service account to run the accumulation process
+    /// * `service_address` - The address of the service account to run the accumulation process
     /// * `gas_limit` - The maximum amount of gas allowed for the accumulation process
     /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     ///
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
         state_manager: &StateManager,
-        accumulate_address: Address,
+        service_address: Address,
         gas_limit: UnsignedGas,
         operands: Vec<AccumulateOperand>,
     ) -> Result<AccumulateResult, PVMError> {
-        let code = state_manager.get_account_code(accumulate_address).await?;
+        let Some(code) = state_manager.get_account_code(service_address).await? else {
+            return Ok(AccumulateResult::default());
+        };
 
-        if code.is_none() {
-            return Ok(AccumulateResult::Unchanged);
-        }
-        let code = code.unwrap();
+        let curr_entropy = state_manager.get_entropy_accumulator().await?.current();
+        let curr_timeslot = state_manager.get_timeslot().await?;
 
-        let current_entropy = state_manager.get_entropy_accumulator().await?.current();
-        let current_timeslot = state_manager.get_timeslot().await?;
+        let vm_args = AccumulateVMArgs {
+            timeslot_index: curr_timeslot.slot(),
+            accumulate_host: service_address,
+            operands,
+        };
+
         let accumulate_context = AccumulateHostContext::new(
             state_manager,
-            accumulate_address,
-            current_entropy,
-            &current_timeslot,
+            service_address,
+            curr_entropy,
+            &curr_timeslot,
         )
         .await?;
-
         let context_pair = AccumulateHostContextPair {
             x: Box::new(accumulate_context.clone()),
             y: Box::new(accumulate_context),
         };
-
         let mut context = InvocationContext::X_A(context_pair);
 
-        // TODO: Accounts subject to mutation due to `read`, `write` and `lookup` host functions must be copied into the partial state (Function G)
-        // TODO: use `AccumulateHostContext::copy_account_to_partial_state_sandbox`, and host functions must return the subject account addresses.
-        let common_invocation_result = PVM::invoke_with_args(
+        let result = PVM::invoke_with_args(
             state_manager,
-            accumulate_address,
+            service_address,
             &code,
             ACCUMULATE_INITIAL_PC,
             gas_limit,
-            &operands.encode()?,
+            &vm_args.encode()?,
             &mut context,
         )
         .await?;
@@ -328,13 +339,29 @@ impl PVMInvocation {
             return Err(PVMError::HostCallError(InvalidContext));
         };
 
-        match common_invocation_result {
+        match result {
             CommonInvocationResult::Result(output)
             | CommonInvocationResult::ResultUnavailable(output) => {
-                Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
+                let accumulate_result_hash = if output.len() == HASH_SIZE {
+                    octets_to_hash32(&output)
+                } else {
+                    x.yielded_accumulate_hash
+                };
+
+                Ok(AccumulateResult {
+                    partial_state: x.partial_state,
+                    deferred_transfers: x.deferred_transfers,
+                    yielded_accumulate_hash: accumulate_result_hash,
+                    gas_used: x.gas_used,
+                })
             }
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
-                Ok(AccumulateResult::Result(y, None))
+                Ok(AccumulateResult {
+                    partial_state: y.partial_state,
+                    deferred_transfers: y.deferred_transfers,
+                    yielded_accumulate_hash: y.yielded_accumulate_hash,
+                    gas_used: x.gas_used, // Note: taking gas usage from the `x` context
+                })
             }
         }
     }

@@ -31,7 +31,7 @@ fn build_operands(reports: &[WorkReport], service_index: Address) -> Vec<Accumul
                 .iter()
                 .filter(|result| result.service_index == service_index)
                 .map(move |result| AccumulateOperand {
-                    work_output: result.refinement_output.clone(),
+                    work_output: result.refine_output.clone(),
                     work_output_payload_hash: result.payload_hash,
                     work_package_hash: report.work_package_hash(),
                     authorization_output: report.authorization_output().to_vec(),
@@ -86,18 +86,16 @@ async fn accumulate_parallelized(
     let mut deferred_transfers = Vec::new(); // t
 
     for service in services {
-        if let AccumulateResult::Result(mut context, hash) =
+        let accumulate_result =
             accumulate_single_service(state_manager, reports, always_accumulate_services, service)
-                .await?
-        {
-            gas_used += context.gas_used;
+                .await?;
+        gas_used += accumulate_result.gas_used;
 
-            if let Some(output_hash) = hash {
-                output_pairs.push((service, output_hash));
-            }
-
-            deferred_transfers.append(&mut context.deferred_transfers);
+        if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
+            output_pairs.push((service, output_hash));
         }
+
+        deferred_transfers.extend(accumulate_result.deferred_transfers);
     }
 
     Ok(ParallelAccumulationResult {

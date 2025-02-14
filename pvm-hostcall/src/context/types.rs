@@ -173,12 +173,17 @@ impl AccumulateHostContextPair {
 /// proper isolation.
 #[derive(Clone, Default)]
 pub struct AccumulateHostContext {
-    pub accumulate_host: Address,              // s
-    pub partial_state: AccumulatePartialState, // u
+    /// `s`: Accumulate host service account address
+    pub accumulate_host: Address,
+    /// **`u`**: Global state partially copied as an accumulation context
+    pub partial_state: AccumulatePartialState,
     /// TODO: Check how to manage this context in the parallelized accumulation.
-    pub next_new_account_address: Address, // i; used for allocating unique address to a new service
-    pub deferred_transfers: Vec<DeferredTransfer>, // t
-    pub yielded_accumulate_hash: Option<Hash32>, // y
+    /// `i`: Next new service account address, carefully chosen to avoid collision
+    pub next_new_account_address: Address,
+    /// **`t`**: Deferred token transfers
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    /// `y`: Accumulation result hash
+    pub yielded_accumulate_hash: Option<Hash32>,
     pub gas_used: UnsignedGas,
 }
 
@@ -208,37 +213,24 @@ impl AccumulateHostContext {
 
     async fn initialize_new_account_address(
         state_manager: &StateManager,
-        accumulate_address: Address,
+        accumulate_host: Address,
         entropy: Hash32,
         timeslot: &Timeslot,
     ) -> Result<Address, PVMError> {
         let mut buf = vec![];
-        accumulate_address.encode_to(&mut buf)?;
+        accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
-        timeslot.0.encode_to(&mut buf)?;
+        timeslot.slot().encode_to(&mut buf)?;
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
+        let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
         let modulus = (1u64 << 32) - (1 << 9);
-        let initial_check_address =
-            (u64::decode_fixed(&mut &source_hash[..], 4)? % modulus) + (1 << 8);
+        let initial_check_address = (hash_as_u64 % modulus) + (1 << 8);
         let new_account_address = state_manager
             .check(initial_check_address as Address)
             .await?;
 
         Ok(new_account_address)
-    }
-
-    pub async fn copy_account_to_partial_state_sandbox(
-        &mut self,
-        state_manager: &StateManager,
-        address: Address,
-    ) -> Result<(), PVMError> {
-        let account_copy = AccountSandbox::from_address(state_manager, address).await?;
-        self.partial_state
-            .accounts_sandbox
-            .insert(address, account_copy);
-
-        Ok(())
     }
 
     pub async fn get_accumulator_metadata(

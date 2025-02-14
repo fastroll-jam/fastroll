@@ -283,7 +283,7 @@ impl SegmentRootLookupTable {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkReport {
     /// `s`: Work package availability specification
-    pub specs: AvailabilitySpecs,
+    pub specs: AvailSpecs,
     /// `x`: Refinement context
     pub refinement_context: RefinementContext,
     /// `c`: Core index on which the work is done
@@ -349,7 +349,7 @@ impl JamDecode for WorkReport {
         Self: Sized,
     {
         Ok(Self {
-            specs: AvailabilitySpecs::decode(input)?,
+            specs: AvailSpecs::decode(input)?,
             refinement_context: RefinementContext::decode(input)?,
             core_index: CoreIndex::decode_fixed(input, 2)?,
             authorizer_hash: Hash32::decode(input)?,
@@ -510,7 +510,7 @@ impl JamDecode for RefinementContext {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AvailabilitySpecs {
+pub struct AvailSpecs {
     /// `h`: Work package hash
     pub work_package_hash: Hash32,
     /// `l`: Auditable work bundle length
@@ -523,7 +523,7 @@ pub struct AvailabilitySpecs {
     pub segment_count: u16,
 }
 
-impl Display for AvailabilitySpecs {
+impl Display for AvailSpecs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -538,7 +538,7 @@ impl Display for AvailabilitySpecs {
     }
 }
 
-impl JamEncode for AvailabilitySpecs {
+impl JamEncode for AvailSpecs {
     fn size_hint(&self) -> usize {
         self.work_package_hash.size_hint()
             + 4
@@ -557,7 +557,7 @@ impl JamEncode for AvailabilitySpecs {
     }
 }
 
-impl JamDecode for AvailabilitySpecs {
+impl JamDecode for AvailSpecs {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             work_package_hash: Hash32::decode(input)?,
@@ -580,7 +580,7 @@ pub struct WorkItemResult {
     /// `g`: A ratio to calculate the gas allocated to the work item's accumulation
     pub gas_prioritization_ratio: UnsignedGas,
     /// **`o`**: Output or error of the execution of the work item
-    pub refinement_output: WorkExecutionOutput,
+    pub refine_output: WorkExecutionOutput,
 }
 
 impl Display for WorkItemResult {
@@ -594,7 +594,7 @@ impl Display for WorkItemResult {
             "gas_prioritization_ratio: {}",
             self.gas_prioritization_ratio
         )?;
-        writeln!(f, "refine_output: {}", self.refinement_output)?;
+        writeln!(f, "refine_output: {}", self.refine_output)?;
         write!(f, "}}")
     }
 }
@@ -604,7 +604,7 @@ impl JamEncode for WorkItemResult {
         4 + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
             + 8
-            + self.refinement_output.size_hint()
+            + self.refine_output.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -612,7 +612,7 @@ impl JamEncode for WorkItemResult {
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
         self.gas_prioritization_ratio.encode_to_fixed(dest, 8)?;
-        self.refinement_output.encode_to(dest)?;
+        self.refine_output.encode_to(dest)?;
         Ok(())
     }
 }
@@ -627,14 +627,14 @@ impl JamDecode for WorkItemResult {
             service_code_hash: Hash32::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,
-            refinement_output: WorkExecutionOutput::decode(input)?,
+            refine_output: WorkExecutionOutput::decode(input)?,
         })
     }
 }
 
 impl WorkItemResult {
     fn output_bytes(&self) -> usize {
-        match &self.refinement_output {
+        match &self.refine_output {
             WorkExecutionOutput::Output(bytes) => bytes.len(),
             WorkExecutionOutput::Error(_) => 0,
         }

@@ -4,8 +4,12 @@ use rjam_types::common::workloads::WorkExecutionOutput;
 
 #[derive(JamEncode)]
 pub struct AccumulateOperand {
-    pub work_output: WorkExecutionOutput, // o
-    pub work_output_payload_hash: Hash32, // l
-    pub work_package_hash: Hash32,        // k
-    pub authorization_output: Vec<u8>,    // a
+    /// **`o`**: Work output (`refine_output` of `WorkItemResult`)
+    pub work_output: WorkExecutionOutput,
+    /// `l`: Work output payload hash (`payload_hash` of `WorkItemResult`)
+    pub work_output_payload_hash: Hash32,
+    /// `k`: Work package hash (`work_package_hash` or `AvailSpecs`)
+    pub work_package_hash: Hash32,
+    /// **`a`**: Authorization output (`authorization_output` of `WorReport`)
+    pub authorization_output: Vec<u8>,
 }
