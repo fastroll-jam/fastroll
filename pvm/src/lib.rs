@@ -233,11 +233,11 @@ impl PVM {
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;
 
-        let extended_invocation_result = pvm
+        let result = pvm
             .invoke_extended(state_manager, service_address, context)
             .await?;
 
-        match extended_invocation_result.exit_reason {
+        match result.exit_reason {
             ExitReason::OutOfGas => Ok(CommonInvocationResult::OutOfGas(ExitReason::OutOfGas)),
             ExitReason::RegularHalt => {
                 let start_address = pvm.state.read_reg_as_mem_address(10)?;
@@ -475,7 +475,7 @@ impl PVM {
             HostCallType::INVOKE => {
                 HostFunction::host_invoke(self.get_registers(), self.get_memory(), context)?
             }
-            HostCallType::EXPUNGE => HostFunction::host_expunge(self.get_registers(), context)?, // TODO: host call type validation and handling `WHAT` host call result
+            HostCallType::EXPUNGE => HostFunction::host_expunge(self.get_registers(), context)?,
         };
 
         Ok(result)

@@ -8,16 +8,13 @@ use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::RefineInvokeArgs,
+    invoke_args::{AccumulateInvokeArgs, RefineInvokeArgs},
 };
-use rjam_pvm_hostcall::context::types::*;
+use rjam_pvm_hostcall::context::{partial_state::AccumulatePartialState, types::*};
 use rjam_state::StateManager;
-use rjam_types::{
-    common::{
-        transfers::DeferredTransfer,
-        workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
-    },
-    state::timeslot::Timeslot,
+use rjam_types::common::{
+    transfers::DeferredTransfer,
+    workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
 };
 
 // Initial Program Counters
@@ -28,11 +25,13 @@ const ON_TRANSFER_INITIAL_PC: RegValue = 10;
 
 #[derive(JamEncode)]
 pub struct IsAuthorizedArgs {
-    work_package: WorkPackage, // p
-    core_index: CoreIndex,     // c
+    /// **`p`**: Work package
+    package: WorkPackage,
+    /// `c`: Core index to process the work package
+    core_index: CoreIndex,
 }
 
-/// `Ψ_M` invocation function arguments
+/// `Ψ_M` invocation function arguments for `Ψ_R`
 #[derive(JamEncode)]
 pub struct RefineVMArgs {
     /// Associated service index (`s` of `WorkItem`)
@@ -96,9 +95,20 @@ impl RefineResult {
     }
 }
 
-pub enum AccumulateResult {
-    Result(Box<AccumulateHostContext>, Option<Hash32>), // (mutated context, optional result hash)
-    Unchanged,
+/// `Ψ_M` invocation function arguments for `Ψ_A`
+#[derive(JamEncode)]
+pub struct AccumulateVMArgs {
+    timeslot_index: u32,
+    accumulate_host: Address,
+    operands: Vec<AccumulateOperand>,
+}
+
+#[derive(Default)]
+pub struct AccumulateResult {
+    pub partial_state: AccumulatePartialState,
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    pub yielded_accumulate_hash: Option<Hash32>,
+    pub gas_used: UnsignedGas,
 }
 
 #[allow(dead_code)]
@@ -152,25 +162,25 @@ impl PVMInvocation {
         state_manager: &StateManager,
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
-        // retrieve the service account code via the historical lookup function
+        // retrieve the service account code via historical lookup
         let code = match state_manager
-            .lookup_preimage(
-                args.work_package.authorizer_address,
-                &Timeslot::new(args.work_package.context.lookup_anchor_timeslot),
-                &args.work_package.authorizer.auth_code_hash,
+            .get_account_code_by_lookup(
+                args.package.authorizer_address,
+                args.package.context.lookup_anchor_timeslot,
+                &args.package.authorizer.auth_code_hash,
             )
             .await?
         {
             Some(code) => code,
             None => {
-                // failed to get the is_authorized code from the service account
+                // failed to get the `is_authorized` code from the service account
                 return Ok(WorkExecutionOutput::bad());
             }
         };
 
-        let common_invocation_result = PVM::invoke_with_args(
+        let result = PVM::invoke_with_args(
             state_manager,
-            args.work_package.authorizer_address,
+            args.package.authorizer_address,
             &code,
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
@@ -179,7 +189,7 @@ impl PVMInvocation {
         )
         .await?;
 
-        match common_invocation_result {
+        match result {
             CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
             CommonInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
             CommonInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
@@ -197,29 +207,36 @@ impl PVMInvocation {
     /// Represents `Ψ_R` of the GP
     pub async fn refine(
         state_manager: &StateManager,
-        args: RefineInvokeArgs,
+        args: &RefineInvokeArgs,
     ) -> Result<RefineResult, PVMError> {
-        let work_item = &args.package.work_items.clone()[args.item_idx];
+        let Some(work_item) = args.package.work_items.get(args.item_idx) else {
+            return Ok(RefineResult::bad());
+        };
 
-        // Check the account to run refinement exists in the global state
-        let refine_account_exists = !state_manager
+        // Check the service account to run refinement exists in the global state
+        let service_exists = state_manager
             .account_exists(work_item.service_index)
             .await?;
-
-        // Retrieve the service account code via the historical lookup function
-        let maybe_code = state_manager
-            .lookup_preimage(
-                work_item.service_index,
-                &Timeslot(args.package.context.lookup_anchor_timeslot),
-                &work_item.service_code_hash,
-            )
-            .await?;
-
-        if !refine_account_exists || maybe_code.is_none() {
+        if !service_exists {
             return Ok(RefineResult::bad());
         }
 
-        let code = maybe_code.expect("Confirmed code exists");
+        // Retrieve the service account code via the historical lookup function
+        let code = match state_manager
+            .get_account_code_by_lookup(
+                work_item.service_index,
+                args.package.context.lookup_anchor_timeslot,
+                &work_item.service_code_hash,
+            )
+            .await?
+        {
+            Some(code) => code,
+            None => {
+                // failed to get the `refine` code from the service account
+                return Ok(RefineResult::bad());
+            }
+        };
+
         if code.len() > MAX_SERVICE_CODE_SIZE {
             return Ok(RefineResult::big());
         }
@@ -232,7 +249,8 @@ impl PVMInvocation {
             auth_code_hash: args.package.authorizer.auth_code_hash,
         };
 
-        let mut context = InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args));
+        let mut context =
+            InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args.clone()));
         let common_invocation_result = PVM::invoke_with_args(
             state_manager,
             work_item.service_index,
@@ -267,50 +285,46 @@ impl PVMInvocation {
     /// # Arguments
     ///
     /// * `state_manager` - State manager to access to the global state
-    /// * `accumulate_address` - The address of the target service account to run the accumulation process
-    /// * `gas_limit` - The maximum amount of gas allowed for the accumulation process
-    /// * `operands` - A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
+    /// * `args` - Accumulate entry-point function arguments
     ///
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
         state_manager: &StateManager,
-        accumulate_address: Address,
-        gas_limit: UnsignedGas,
-        operands: Vec<AccumulateOperand>,
+        args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
-        let code = state_manager.get_account_code(accumulate_address).await?;
+        let Some(code) = state_manager.get_account_code(args.accumulate_host).await? else {
+            return Ok(AccumulateResult::default());
+        };
 
-        if code.is_none() {
-            return Ok(AccumulateResult::Unchanged);
-        }
-        let code = code.unwrap();
+        let curr_entropy = state_manager.get_entropy_accumulator().await?.current();
+        let curr_timeslot = state_manager.get_timeslot().await?;
 
-        let current_entropy = state_manager.get_entropy_accumulator().await?.current();
-        let current_timeslot = state_manager.get_timeslot().await?;
+        let vm_args = AccumulateVMArgs {
+            timeslot_index: curr_timeslot.slot(),
+            accumulate_host: args.accumulate_host,
+            operands: args.operands.clone(),
+        };
+
         let accumulate_context = AccumulateHostContext::new(
             state_manager,
-            accumulate_address,
-            current_entropy,
-            &current_timeslot,
+            args.accumulate_host,
+            curr_entropy,
+            &curr_timeslot,
         )
         .await?;
-
         let context_pair = AccumulateHostContextPair {
             x: Box::new(accumulate_context.clone()),
             y: Box::new(accumulate_context),
         };
-
         let mut context = InvocationContext::X_A(context_pair);
 
-        // TODO: Accounts subject to mutation due to `read`, `write` and `lookup` host functions must be copied into the partial state (Function G)
-        // TODO: use `AccumulateHostContext::copy_account_to_partial_state_sandbox`, and host functions must return the subject account addresses.
-        let common_invocation_result = PVM::invoke_with_args(
+        let result = PVM::invoke_with_args(
             state_manager,
-            accumulate_address,
+            args.accumulate_host,
             &code,
             ACCUMULATE_INITIAL_PC,
-            gas_limit,
-            &operands.encode()?,
+            args.gas_limit,
+            &vm_args.encode()?,
             &mut context,
         )
         .await?;
@@ -321,13 +335,29 @@ impl PVMInvocation {
             return Err(PVMError::HostCallError(InvalidContext));
         };
 
-        match common_invocation_result {
+        match result {
             CommonInvocationResult::Result(output)
             | CommonInvocationResult::ResultUnavailable(output) => {
-                Ok(AccumulateResult::Result(x, octets_to_hash32(&output)))
+                let accumulate_result_hash = if output.len() == HASH_SIZE {
+                    octets_to_hash32(&output)
+                } else {
+                    x.yielded_accumulate_hash
+                };
+
+                Ok(AccumulateResult {
+                    partial_state: x.partial_state,
+                    deferred_transfers: x.deferred_transfers,
+                    yielded_accumulate_hash: accumulate_result_hash,
+                    gas_used: x.gas_used,
+                })
             }
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
-                Ok(AccumulateResult::Result(y, None))
+                Ok(AccumulateResult {
+                    partial_state: y.partial_state,
+                    deferred_transfers: y.deferred_transfers,
+                    yielded_accumulate_hash: y.yielded_accumulate_hash,
+                    gas_used: x.gas_used, // Note: taking gas usage from the `x` context
+                })
             }
         }
     }

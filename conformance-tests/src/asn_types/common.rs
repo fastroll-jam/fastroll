@@ -15,7 +15,7 @@ use rjam_types::{
         Block,
     },
     common::workloads::{
-        Authorizer, AvailabilitySpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
+        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
         SegmentRootLookupTable,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
@@ -854,7 +854,7 @@ impl From<AsnWorkResult> for WorkItemResult {
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_hash: ByteArray::new(value.payload_hash.0),
             gas_prioritization_ratio: value.accumulate_gas,
-            refinement_output: value.result.into(),
+            refine_output: value.result.into(),
         }
     }
 }
@@ -866,7 +866,7 @@ impl From<WorkItemResult> for AsnWorkResult {
             code_hash: AsnByteArray32(value.service_code_hash.0),
             payload_hash: AsnByteArray32(value.payload_hash.0),
             accumulate_gas: value.gas_prioritization_ratio,
-            result: value.refinement_output.into(),
+            result: value.refine_output.into(),
         }
     }
 }
@@ -880,7 +880,7 @@ pub struct AsnWorkPackageSpec {
     pub exports_count: u16,
 }
 
-impl From<AsnWorkPackageSpec> for AvailabilitySpecs {
+impl From<AsnWorkPackageSpec> for AvailSpecs {
     fn from(value: AsnWorkPackageSpec) -> Self {
         Self {
             work_package_hash: ByteArray::new(value.hash.0),
@@ -892,8 +892,8 @@ impl From<AsnWorkPackageSpec> for AvailabilitySpecs {
     }
 }
 
-impl From<AvailabilitySpecs> for AsnWorkPackageSpec {
-    fn from(value: AvailabilitySpecs) -> Self {
+impl From<AvailSpecs> for AsnWorkPackageSpec {
+    fn from(value: AvailSpecs) -> Self {
         Self {
             hash: AsnByteArray32(value.work_package_hash.0),
             length: value.work_package_length,

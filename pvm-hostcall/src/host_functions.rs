@@ -142,7 +142,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+        let accounts_sandbox = match context.get_mut_accounts_sandbox() {
+            Some(sandbox) => sandbox,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?; // h
@@ -202,7 +209,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+        let accounts_sandbox = match context.get_mut_accounts_sandbox() {
+            Some(sandbox) => sandbox,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let address_reg = regs[7].value();
         let key_offset = regs[8].as_mem_address()?; // k_o
@@ -267,7 +281,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+        let accounts_sandbox = match context.get_mut_accounts_sandbox() {
+            Some(sandbox) => sandbox,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let key_offset = regs[7].as_mem_address()?; // k_o
         let key_size = regs[8].as_usize()?; // k_z
@@ -360,7 +381,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let accounts_sandbox = context.get_mut_accounts_sandbox()?;
+        let accounts_sandbox = match context.get_mut_accounts_sandbox() {
+            Some(sandbox) => sandbox,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let address_reg = regs[7].value();
         let buf_offset = regs[8].as_mem_address()?; // o
@@ -412,7 +440,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let (manager, assign, designate) = match (
             regs[7].as_account_address(),
@@ -458,7 +493,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let core_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?; // o
@@ -493,7 +535,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
 
@@ -523,10 +572,19 @@ impl HostFunction {
         gas: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x_clone = context.get_accumulate_x()?.clone();
-        let y_mut = context.get_mut_accumulate_y()?;
+        let (x_cloned, y_mut) = match (
+            context.get_accumulate_x().cloned(),
+            context.get_mut_accumulate_y(),
+        ) {
+            (Some(x_cloned), Some(y_mut)) => (x_cloned, y_mut),
+            _ => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
-        *y_mut = x_clone; // assign the cloned `x` context to the `y` context
+        *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
 
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
@@ -553,7 +611,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
         let code_lookup_len = regs[8].as_u32()?; // l
@@ -618,7 +683,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
         let gas_limit_g = regs[8].value(); // g
@@ -645,7 +717,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let dest = regs[7].as_account_address()?; // d
         let amount = regs[8].value(); // a
@@ -717,7 +796,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let eject_address = regs[7].as_account_address()?; // d
         let offset = regs[8].as_mem_address()?; // o
@@ -799,7 +885,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
         let preimage_size = regs[8].as_u32()?; // z
@@ -852,7 +945,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
         let lookups_size = regs[8].as_u32()?; // z
@@ -953,7 +1053,14 @@ impl HostFunction {
         state_manager: &StateManager,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
@@ -1068,7 +1175,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_accumulate_x()?;
+        let x = match context.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // o
 
@@ -1101,7 +1215,14 @@ impl HostFunction {
         context: &mut InvocationContext,
         state_manager: &StateManager,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_refine_x()?;
+        let x = match context.get_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let address_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?;
@@ -1166,7 +1287,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_refine_x()?;
+        let x = match context.get_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
         let data_id = regs[10].as_usize()?;
 
         let data = match data_id {
@@ -1282,7 +1410,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let offset = regs[7].as_mem_address()?; // p
         let export_size = regs[8].as_usize()?.min(SEGMENT_SIZE); // z
@@ -1322,7 +1457,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let program_offset = regs[7].as_mem_address()?; // p_o
         let program_size = regs[8].as_usize()?; // p_z
@@ -1360,7 +1502,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_refine_x()?;
+        let x = match context.get_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // o
@@ -1402,7 +1551,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // s
@@ -1438,7 +1594,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let inner_memory_page_offset = regs[8].as_usize()?; // p
@@ -1478,7 +1641,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let inner_memory_page_offset = regs[8].as_usize()?; // p
@@ -1531,7 +1701,14 @@ impl HostFunction {
         memory: &Memory,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // o
@@ -1641,7 +1818,14 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
-        let x = context.get_mut_refine_x()?;
+        let x = match context.get_mut_refine_x() {
+            Some(x) => x,
+            None => {
+                return Ok(HostCallResult::continue_with_vm_change(what_change(
+                    BASE_GAS_CHARGE,
+                )))
+            }
+        };
 
         let inner_vm_id = regs[7].as_usize()?; // n
 

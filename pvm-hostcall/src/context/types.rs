@@ -29,14 +29,18 @@ pub trait AccountsSandboxHolder {
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
 pub enum InvocationContext {
-    X_I,                            // IsAuthorized
-    X_R(RefineHostContext),         // Refine
-    X_A(AccumulateHostContextPair), // Accumulate
-    X_T(OnTransferHostContext),     // OnTransfer
+    /// `is_authorized` host-call context (no context)
+    X_I,
+    /// `refine` host-call context
+    X_R(RefineHostContext),
+    /// `accumulate` host-call context pair
+    X_A(AccumulateHostContextPair),
+    /// `on_transfer` host-call context
+    X_T(OnTransferHostContext),
 }
 
 impl InvocationContext {
-    fn as_refine_context(&mut self) -> Option<&RefineHostContext> {
+    pub fn get_refine_x(&mut self) -> Option<&RefineHostContext> {
         if let InvocationContext::X_R(ref ctx) = self {
             Some(ctx)
         } else {
@@ -44,12 +48,7 @@ impl InvocationContext {
         }
     }
 
-    pub fn get_refine_x(&mut self) -> Result<&RefineHostContext, PVMError> {
-        self.as_refine_context()
-            .ok_or(PVMError::HostCallError(InvalidContext))
-    }
-
-    fn as_refine_context_mut(&mut self) -> Option<&mut RefineHostContext> {
+    pub fn get_mut_refine_x(&mut self) -> Option<&mut RefineHostContext> {
         if let InvocationContext::X_R(ref mut ctx) = self {
             Some(ctx)
         } else {
@@ -57,71 +56,44 @@ impl InvocationContext {
         }
     }
 
-    pub fn get_mut_refine_x(&mut self) -> Result<&mut RefineHostContext, PVMError> {
-        self.as_refine_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))
-    }
-
-    // FIXME: merge methods
-    fn as_accumulate_context(&self) -> Option<&AccumulateHostContextPair> {
+    pub fn get_accumulate_x(&self) -> Option<&AccumulateHostContext> {
         if let InvocationContext::X_A(ref pair) = self {
-            Some(pair)
+            Some(pair.get_x())
         } else {
             None
         }
     }
 
-    fn as_accumulate_context_mut(&mut self) -> Option<&mut AccumulateHostContextPair> {
+    pub fn get_mut_accumulate_x(&mut self) -> Option<&mut AccumulateHostContext> {
         if let InvocationContext::X_A(ref mut pair) = self {
-            Some(pair)
+            Some(pair.get_mut_x())
         } else {
             None
         }
     }
 
-    pub fn get_accumulate_x(&self) -> Result<&AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_x())
-    }
-
-    pub fn get_mut_accumulate_x(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_mut_x())
-    }
-
-    pub fn get_mut_accumulate_y(&mut self) -> Result<&mut AccumulateHostContext, PVMError> {
-        Ok(self
-            .as_accumulate_context_mut()
-            .ok_or(PVMError::HostCallError(InvalidContext))?
-            .get_mut_y())
-    }
-
-    pub fn as_on_transfer_context_mut(&mut self) -> Option<&mut OnTransferHostContext> {
-        if let InvocationContext::X_T(ref mut ctx) = self {
-            Some(ctx)
+    pub fn get_mut_accumulate_y(&mut self) -> Option<&mut AccumulateHostContext> {
+        if let InvocationContext::X_A(ref mut pair) = self {
+            Some(pair.get_mut_y())
         } else {
             None
         }
     }
 
     #[allow(dead_code)]
-    pub fn get_accounts_sandbox(&self) -> Result<&AccountsSandboxMap, PVMError> {
+    pub fn get_accounts_sandbox(&self) -> Option<&AccountsSandboxMap> {
         match self {
-            Self::X_A(ctx_pair) => Ok(ctx_pair.get_accounts_sandbox()),
-            Self::X_T(ctx) => Ok(ctx.get_accounts_sandbox()),
-            _ => Err(PVMError::HostCallError(InvalidContext)),
+            Self::X_A(ctx_pair) => Some(ctx_pair.get_accounts_sandbox()),
+            Self::X_T(ctx) => Some(ctx.get_accounts_sandbox()),
+            _ => None,
         }
     }
 
-    pub fn get_mut_accounts_sandbox(&mut self) -> Result<&mut AccountsSandboxMap, PVMError> {
+    pub fn get_mut_accounts_sandbox(&mut self) -> Option<&mut AccountsSandboxMap> {
         match self {
-            Self::X_A(ctx_pair) => Ok(ctx_pair.get_mut_accounts_sandbox()),
-            Self::X_T(ctx) => Ok(ctx.get_mut_accounts_sandbox()),
-            _ => Err(PVMError::HostCallError(InvalidContext)),
+            Self::X_A(ctx_pair) => Some(ctx_pair.get_mut_accounts_sandbox()),
+            Self::X_T(ctx) => Some(ctx.get_mut_accounts_sandbox()),
+            _ => None,
         }
     }
 }
@@ -201,12 +173,17 @@ impl AccumulateHostContextPair {
 /// proper isolation.
 #[derive(Clone, Default)]
 pub struct AccumulateHostContext {
-    pub accumulate_host: Address,              // s
-    pub partial_state: AccumulatePartialState, // u
+    /// `s`: Accumulate host service account address
+    pub accumulate_host: Address,
+    /// **`u`**: Global state partially copied as an accumulation context
+    pub partial_state: AccumulatePartialState,
     /// TODO: Check how to manage this context in the parallelized accumulation.
-    pub next_new_account_address: Address, // i; used for allocating unique address to a new service
-    pub deferred_transfers: Vec<DeferredTransfer>, // t
-    pub yielded_accumulate_hash: Option<Hash32>, // y
+    /// `i`: Next new service account address, carefully chosen to avoid collision
+    pub next_new_account_address: Address,
+    /// **`t`**: Deferred token transfers
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    /// `y`: Accumulation result hash
+    pub yielded_accumulate_hash: Option<Hash32>,
     pub gas_used: UnsignedGas,
 }
 
@@ -236,37 +213,24 @@ impl AccumulateHostContext {
 
     async fn initialize_new_account_address(
         state_manager: &StateManager,
-        accumulate_address: Address,
+        accumulate_host: Address,
         entropy: Hash32,
         timeslot: &Timeslot,
     ) -> Result<Address, PVMError> {
         let mut buf = vec![];
-        accumulate_address.encode_to(&mut buf)?;
+        accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
-        timeslot.0.encode_to(&mut buf)?;
+        timeslot.slot().encode_to(&mut buf)?;
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
+        let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
         let modulus = (1u64 << 32) - (1 << 9);
-        let initial_check_address =
-            (u64::decode_fixed(&mut &source_hash[..], 4)? % modulus) + (1 << 8);
+        let initial_check_address = (hash_as_u64 % modulus) + (1 << 8);
         let new_account_address = state_manager
             .check(initial_check_address as Address)
             .await?;
 
         Ok(new_account_address)
-    }
-
-    pub async fn copy_account_to_partial_state_sandbox(
-        &mut self,
-        state_manager: &StateManager,
-        address: Address,
-    ) -> Result<(), PVMError> {
-        let account_copy = AccountSandbox::from_address(state_manager, address).await?;
-        self.partial_state
-            .accounts_sandbox
-            .insert(address, account_copy);
-
-        Ok(())
     }
 
     pub async fn get_accumulator_metadata(
