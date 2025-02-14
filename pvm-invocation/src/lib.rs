@@ -196,15 +196,17 @@ impl PVMInvocation {
     /// Represents `Ψ_R` of the GP
     pub async fn refine(
         state_manager: &StateManager,
-        args: RefineInvokeArgs,
+        args: &RefineInvokeArgs,
     ) -> Result<RefineResult, PVMError> {
-        let work_item = &args.package.work_items.clone()[args.item_idx];
+        let Some(work_item) = args.package.work_items.get(args.item_idx) else {
+            return Ok(RefineResult::bad());
+        };
 
-        // Check the account to run refinement exists in the global state
-        let refine_account_exists = !state_manager
+        // Check the service account to run refinement exists in the global state
+        let service_exists = state_manager
             .account_exists(work_item.service_index)
             .await?;
-        if !refine_account_exists {
+        if !service_exists {
             return Ok(RefineResult::bad());
         }
 
@@ -236,7 +238,8 @@ impl PVMInvocation {
             auth_code_hash: args.package.authorizer.auth_code_hash,
         };
 
-        let mut context = InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args));
+        let mut context =
+            InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args.clone()));
         let common_invocation_result = PVM::invoke_with_args(
             state_manager,
             work_item.service_index,
