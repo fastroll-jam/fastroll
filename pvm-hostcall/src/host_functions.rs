@@ -1,6 +1,7 @@
 use crate::{
-    context::types::InvocationContext, host_functions::InnerPVMResultConstant::*,
-    inner_vm::InnerPVM, utils::*,
+    context::types::InvocationContext, continue_cash, continue_core, continue_full, continue_huh,
+    continue_low, continue_none, continue_ok, continue_oob, continue_what, continue_who,
+    host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::*,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
@@ -64,6 +65,31 @@ impl HostCallResult {
         Self {
             exit_reason: ExitReason::Continue,
             vm_change,
+        }
+    }
+
+    pub fn continue_with_return_code(code: HostCallReturnCode) -> Self {
+        Self {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: BASE_GAS_CHARGE,
+                r7_write: Some(code as RegValue),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn continue_with_return_code_and_gas(
+        code: HostCallReturnCode,
+        gas_charge: UnsignedGas,
+    ) -> Self {
+        Self {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge,
+                r7_write: Some(code as RegValue),
+                ..Default::default()
+            },
         }
     }
 
@@ -144,11 +170,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let address_reg = regs[7].value();
@@ -194,9 +216,7 @@ impl HostFunction {
                 },
             ))
         } else {
-            Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )))
+            Ok(continue_none!())
         }
     }
 
@@ -211,11 +231,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let address_reg = regs[7].value();
@@ -264,9 +280,7 @@ impl HostFunction {
                 },
             ))
         } else {
-            Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )))
+            Ok(continue_none!())
         }
     }
 
@@ -283,11 +297,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let key_offset = regs[7].as_mem_address()?; // k_o
@@ -342,9 +352,7 @@ impl HostFunction {
             );
 
         if simulated_threshold_balance > account_metadata.account_info.balance {
-            return Ok(HostCallResult::continue_with_vm_change(full_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_full!());
         }
 
         // Apply the state change
@@ -383,11 +391,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let address_reg = regs[7].value();
@@ -405,18 +409,14 @@ impl HostFunction {
         {
             metadata
         } else {
-            return Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_none!());
         };
 
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
         if !memory.is_address_range_writable(buf_offset, info.len())? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_oob!());
         }
 
         Ok(HostCallResult::continue_with_vm_change(
@@ -442,11 +442,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let (manager, assign, designate) = match (
@@ -456,9 +452,7 @@ impl HostFunction {
         ) {
             (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
             _ => {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )))
+                return Ok(continue_who!());
             }
         };
 
@@ -481,9 +475,7 @@ impl HostFunction {
 
         x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
@@ -495,11 +487,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let core_index = regs[7].as_usize()?;
@@ -510,9 +498,7 @@ impl HostFunction {
         }
 
         if core_index >= CORE_COUNT {
-            return Ok(HostCallResult::continue_with_vm_change(core_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_core!());
         }
 
         let mut queue_assignment = AuthQueue::default();
@@ -524,9 +510,7 @@ impl HostFunction {
 
         x.assign_new_auth_queue(queue_assignment)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
@@ -537,11 +521,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -561,9 +541,7 @@ impl HostFunction {
 
         x.assign_new_staging_set(new_staging_set)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Copies a snapshot of the current accumulate context state into
@@ -577,11 +555,7 @@ impl HostFunction {
             context.get_mut_accumulate_y(),
         ) {
             (Some(x_cloned), Some(y_mut)) => (x_cloned, y_mut),
-            _ => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            _ => return Ok(continue_what!()),
         };
 
         *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
@@ -613,11 +587,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -641,9 +611,7 @@ impl HostFunction {
         if accumulator_balance.saturating_sub(accumulator_threshold_balance)
             < new_account_threshold_balance
         {
-            return Ok(HostCallResult::continue_with_vm_change(cash_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_cash!());
         }
 
         x.subtract_accumulator_balance(state_manager, new_account_threshold_balance)
@@ -685,11 +653,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -705,9 +669,7 @@ impl HostFunction {
         x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
             .await?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Transfers tokens from the accumulating service account to another service account.
@@ -719,11 +681,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let dest = regs[7].as_account_address()?; // d
@@ -762,31 +720,23 @@ impl HostFunction {
         {
             Some(metadata) => &metadata.account_info,
             None => {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    gas_charge,
-                )));
+                return Ok(continue_who!(gas_charge));
             }
         };
 
         if gas_limit < dest_account_info.gas_limit_on_transfer {
-            return Ok(HostCallResult::continue_with_vm_change(low_change(
-                gas_charge,
-            )));
+            return Ok(continue_low!(gas_charge));
         }
 
         if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            return Ok(HostCallResult::continue_with_vm_change(cash_change(
-                gas_charge,
-            )));
+            return Ok(continue_cash!(gas_charge));
         }
 
         x.subtract_accumulator_balance(state_manager, amount)
             .await?;
         x.add_to_deferred_transfers(transfer);
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            gas_charge,
-        )))
+        Ok(continue_ok!(gas_charge))
     }
 
     /// Completely removes a service account from the global state.
@@ -798,11 +748,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let eject_address = regs[7].as_account_address()?; // d
@@ -814,9 +760,7 @@ impl HostFunction {
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         if eject_address == x.accumulate_host {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         }
 
         let eject_account_metadata = match x
@@ -827,26 +771,20 @@ impl HostFunction {
         {
             Some(metadata) => metadata.clone(),
             None => {
-                return Ok(HostCallResult::continue_with_vm_change(who_change(
-                    BASE_GAS_CHARGE,
-                )))
+                return Ok(continue_who!());
             }
         };
 
         let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
             .expect("Should not fail convert 32-byte octets into Hash32");
         if eject_account_metadata.account_info.code_hash != accumulate_host_as_hash {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         }
 
         // TODO: safe type casting
         let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
         if eject_account_metadata.item_counts_footprint() != 2 {
-            return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_huh!());
         }
         let lookups_key = (preimage_hash, preimage_size);
 
@@ -867,15 +805,12 @@ impl HostFunction {
                     .accounts_sandbox
                     .eject_account(state_manager, eject_address)
                     .await?;
-                return Ok(HostCallResult::continue_with_vm_change(ok_change(
-                    BASE_GAS_CHARGE,
-                )));
+
+                return Ok(continue_ok!());
             }
         }
 
-        Ok(HostCallResult::continue_with_vm_change(huh_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_huh!())
     }
 
     /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
@@ -887,11 +822,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -927,9 +858,7 @@ impl HostFunction {
                 },
             ))
         } else {
-            Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )))
+            Ok(continue_none!())
         }
     }
 
@@ -947,11 +876,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -978,9 +903,7 @@ impl HostFunction {
         let new_lookups_entry = match prev_lookups_entry.clone() {
             Some(mut entry) => {
                 if entry.value.len() != 2 {
-                    return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_huh!());
                 }
                 // Add current timeslot to the timeslot vector.
                 entry.value.push(timeslot);
@@ -1020,9 +943,7 @@ impl HostFunction {
             );
 
         if simulated_threshold_balance > accumulator_metadata.balance() {
-            return Ok(HostCallResult::continue_with_vm_change(full_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_full!());
         }
 
         // Apply the state change
@@ -1036,9 +957,7 @@ impl HostFunction {
             )
             .await?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Removes a preimage from the accumulating account's preimage and lookups storage,
@@ -1055,11 +974,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?;
@@ -1078,8 +993,8 @@ impl HostFunction {
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
-        let vm_state_change = match lookups_entry {
-            None => huh_change(BASE_GAS_CHARGE),
+        match lookups_entry {
+            None => Ok(continue_huh!()),
             Some(entry) => {
                 let lookups_timeslots = entry.value.clone();
 
@@ -1102,7 +1017,7 @@ impl HostFunction {
                                 lookups_key,
                             )
                             .await?;
-                        ok_change(BASE_GAS_CHARGE)
+                        Ok(continue_ok!())
                     }
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
@@ -1115,7 +1030,7 @@ impl HostFunction {
                                 timeslot,
                             )
                             .await?;
-                        ok_change(BASE_GAS_CHARGE)
+                        Ok(continue_ok!())
                     }
                     len if len == 2 || len == 3 => {
                         let is_expired = lookups_timeslots[1].slot()
@@ -1160,13 +1075,12 @@ impl HostFunction {
                                     .await?;
                             }
                         }
-                        ok_change(BASE_GAS_CHARGE)
+                        Ok(continue_ok!())
                     }
-                    _ => huh_change(BASE_GAS_CHARGE),
+                    _ => Ok(continue_huh!()),
                 }
             }
-        };
-        Ok(HostCallResult::continue_with_vm_change(vm_state_change))
+        }
     }
 
     /// Yields the accumulation result commitment hash to the accumulate context.
@@ -1177,11 +1091,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -1194,9 +1104,7 @@ impl HostFunction {
 
         x.yielded_accumulate_hash = Some(commitment_hash);
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     //
@@ -1217,11 +1125,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let address_reg = regs[7].value();
@@ -1238,9 +1142,7 @@ impl HostFunction {
         {
             regs[7].as_account_address()?
         } else {
-            return Ok(HostCallResult::continue_with_vm_change(none_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_none!());
         };
 
         if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
@@ -1289,11 +1191,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
         let data_id = regs[10].as_usize()?;
 
@@ -1306,9 +1204,7 @@ impl HostFunction {
                 if item_idx < items.len() {
                     items[item_idx].payload_blob.to_vec()
                 } else {
-                    return Ok(HostCallResult::continue_with_vm_change(none_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_none!());
                 }
             }
             3 => {
@@ -1320,14 +1216,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return Ok(HostCallResult::continue_with_vm_change(none_change(
-                            BASE_GAS_CHARGE,
-                        )));
+                        return Ok(continue_none!());
                     }
                 } else {
-                    return Ok(HostCallResult::continue_with_vm_change(none_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_none!());
                 }
             }
             4 => {
@@ -1339,14 +1231,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return Ok(HostCallResult::continue_with_vm_change(none_change(
-                            BASE_GAS_CHARGE,
-                        )));
+                        return Ok(continue_none!());
                     }
                 } else {
-                    return Ok(HostCallResult::continue_with_vm_change(none_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_none!());
                 }
             }
             5 => {
@@ -1356,9 +1244,7 @@ impl HostFunction {
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return Ok(HostCallResult::continue_with_vm_change(none_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_none!());
                 }
             }
             6 => {
@@ -1368,15 +1254,11 @@ impl HostFunction {
                 if segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return Ok(HostCallResult::continue_with_vm_change(none_change(
-                        BASE_GAS_CHARGE,
-                    )));
+                    return Ok(continue_none!());
                 }
             }
             _ => {
-                return Ok(HostCallResult::continue_with_vm_change(none_change(
-                    BASE_GAS_CHARGE,
-                )));
+                return Ok(continue_none!());
             }
         };
 
@@ -1412,11 +1294,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let offset = regs[7].as_mem_address()?; // p
@@ -1429,9 +1307,7 @@ impl HostFunction {
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
         if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
-            return Ok(HostCallResult::continue_with_vm_change(full_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_full!());
         }
 
         let data_segment: ExportDataSegment =
@@ -1459,11 +1335,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let program_offset = regs[7].as_mem_address()?; // p_o
@@ -1477,9 +1349,7 @@ impl HostFunction {
         let program = memory.read_bytes(program_offset, program_size)?;
         // Validate the program blob can be `deblob`ed properly
         if ProgramDecoder::deblob_program_code(&program).is_err() {
-            return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_huh!());
         }
 
         let inner_vm = InnerPVM::new(program, initial_pc);
@@ -1504,11 +1374,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1521,15 +1387,11 @@ impl HostFunction {
         }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
 
         if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_oob!());
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
 
@@ -1553,11 +1415,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1570,23 +1428,17 @@ impl HostFunction {
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
 
         if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
-            return Ok(HostCallResult::continue_with_vm_change(oob_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_oob!());
         }
         let data = memory.read_bytes(memory_offset, data_size)?;
 
         inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
@@ -1596,11 +1448,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1610,15 +1458,11 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_huh!());
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
 
         // set values
@@ -1631,9 +1475,7 @@ impl HostFunction {
         let page_end = inner_memory_page_offset + pages_count;
         inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
@@ -1643,11 +1485,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1657,24 +1495,18 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_huh!());
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
 
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
         // should not have a page already `Inaccessible` within the range
         if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            return Ok(HostCallResult::continue_with_vm_change(huh_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_huh!());
         }
 
         // set values
@@ -1685,9 +1517,7 @@ impl HostFunction {
         // set access types
         inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
 
-        Ok(HostCallResult::continue_with_vm_change(ok_change(
-            BASE_GAS_CHARGE,
-        )))
+        Ok(continue_ok!())
     }
 
     /// Invokes the inner VM with its program using the PVM general invocation function `Ψ`.
@@ -1703,11 +1533,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1718,9 +1544,7 @@ impl HostFunction {
         }
 
         let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
 
         let gas_limit =
@@ -1820,19 +1644,13 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => {
-                return Ok(HostCallResult::continue_with_vm_change(what_change(
-                    BASE_GAS_CHARGE,
-                )))
-            }
+            None => return Ok(continue_what!()),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
 
         let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
-            return Ok(HostCallResult::continue_with_vm_change(who_change(
-                BASE_GAS_CHARGE,
-            )));
+            return Ok(continue_who!());
         };
         let final_pc = inner_vm.pc;
 

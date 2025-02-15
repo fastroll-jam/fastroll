@@ -1,6 +1,4 @@
-use crate::host_functions::{HostCallReturnCode, HostCallVMStateChange};
-use rjam_common::UnsignedGas;
-use rjam_pvm_core::types::common::RegValue;
+//! PVM host call util functions and macros
 
 // Zero-padding function for octet sequences
 pub fn zero_pad_as_array<const BLOCK_SIZE: usize>(
@@ -14,34 +12,112 @@ pub fn zero_pad_as_array<const BLOCK_SIZE: usize>(
     input.try_into().ok()
 }
 
-// Convenience function for `HostCallVMStateChange` construction
-fn create_host_call_state_change(
-    constant: HostCallReturnCode,
-    gas_charge: UnsignedGas,
-) -> HostCallVMStateChange {
-    HostCallVMStateChange {
-        gas_charge,
-        r7_write: Some(constant as RegValue),
-        ..Default::default()
-    }
-}
-
-macro_rules! define_host_call_state_change_function {
-    ($func_name:ident, $constant:ident) => {
-        pub fn $func_name(gas_charge: UnsignedGas) -> HostCallVMStateChange {
-            create_host_call_state_change(HostCallReturnCode::$constant, gas_charge)
-        }
+#[macro_export]
+macro_rules! continue_with {
+    ($code:ident) => {
+        HostCallResult::continue_with_return_code(HostCallReturnCode::$code)
+    };
+    ($code:ident, $gas:expr) => {
+        HostCallResult::continue_with_return_code_and_gas(HostCallReturnCode::$code, $gas)
     };
 }
 
-// Functions that return VM state changes corresponding to host call result codes
-define_host_call_state_change_function!(none_change, NONE);
-define_host_call_state_change_function!(oob_change, OOB);
-define_host_call_state_change_function!(who_change, WHO);
-define_host_call_state_change_function!(full_change, FULL);
-define_host_call_state_change_function!(core_change, CORE);
-define_host_call_state_change_function!(cash_change, CASH);
-define_host_call_state_change_function!(low_change, LOW);
-define_host_call_state_change_function!(what_change, WHAT);
-define_host_call_state_change_function!(huh_change, HUH);
-define_host_call_state_change_function!(ok_change, OK);
+#[macro_export]
+macro_rules! continue_none {
+    () => {
+        $crate::continue_with!(NONE)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(NONE, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_oob {
+    () => {
+        $crate::continue_with!(OOB)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(OOB, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_who {
+    () => {
+        $crate::continue_with!(WHO)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(WHO, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_full {
+    () => {
+        $crate::continue_with!(FULL)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(FULL, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_core {
+    () => {
+        $crate::continue_with!(CORE)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(CORE, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_cash {
+    () => {
+        $crate::continue_with!(CASH)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(CASH, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_low {
+    () => {
+        $crate::continue_with!(LOW)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(LOW, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_what {
+    () => {
+        $crate::continue_with!(WHAT)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(WHAT, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_huh {
+    () => {
+        $crate::continue_with!(HUH)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(HUH, $gas)
+    };
+}
+
+#[macro_export]
+macro_rules! continue_ok {
+    () => {
+        $crate::continue_with!(OK)
+    };
+    ($gas:expr) => {
+        $crate::continue_with!(OK, $gas)
+    };
+}
