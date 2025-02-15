@@ -121,3 +121,13 @@ macro_rules! continue_ok {
         $crate::continue_with!(OK, $gas)
     };
 }
+
+#[macro_export]
+macro_rules! host_call_panic {
+    () => {
+        HostCallResult::panic()
+    };
+    ($gas:expr) => {
+        HostCallResult::panic_with_gas($gas)
+    };
+}

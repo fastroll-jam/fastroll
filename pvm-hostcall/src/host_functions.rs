@@ -1,7 +1,7 @@
 use crate::{
     context::types::InvocationContext, continue_cash, continue_core, continue_full, continue_huh,
     continue_low, continue_none, continue_ok, continue_oob, continue_what, continue_who,
-    host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::*,
+    host_call_panic, host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::*,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
@@ -93,10 +93,20 @@ impl HostCallResult {
         }
     }
 
-    fn panic() -> Self {
+    pub fn panic() -> Self {
         Self {
             exit_reason: ExitReason::Panic,
             vm_change: Default::default(),
+        }
+    }
+
+    pub fn panic_with_gas(gas_charge: UnsignedGas) -> Self {
+        Self {
+            exit_reason: ExitReason::Panic,
+            vm_change: HostCallVMStateChange {
+                gas_charge,
+                ..Default::default()
+            },
         }
     }
 }
@@ -184,7 +194,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(hash_offset, 32)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         // Read preimage storage key (hash) from the memory
@@ -200,7 +210,7 @@ impl HostFunction {
             let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-                return Ok(HostCallResult::panic());
+                return Ok(host_call_panic!());
             }
 
             Ok(HostCallResult::continue_with_vm_change(
@@ -246,7 +256,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(key_offset, key_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let mut key = service_address.encode_fixed(4)?;
@@ -264,7 +274,7 @@ impl HostFunction {
                 .min(storage_val_size - storage_val_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, read_len)? {
-                return Ok(HostCallResult::panic());
+                return Ok(host_call_panic!());
             }
 
             Ok(HostCallResult::continue_with_vm_change(
@@ -308,7 +318,7 @@ impl HostFunction {
         if !memory.is_address_range_readable(key_offset, key_size)?
             || (value_size > 0 && !memory.is_address_range_readable(value_offset, value_size)?)
         {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let mut key = service_address.encode_fixed(4)?;
@@ -460,7 +470,7 @@ impl HostFunction {
         let always_accumulates_count = regs[11].as_usize()?; // n
 
         if !memory.is_address_range_readable(offset, 12 * always_accumulates_count)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let mut always_accumulate_services = HashMap::with_capacity(always_accumulates_count);
@@ -494,7 +504,7 @@ impl HostFunction {
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         if core_index >= CORE_COUNT {
@@ -527,7 +537,7 @@ impl HostFunction {
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let mut new_staging_set = StagingSet::default();
@@ -596,7 +606,7 @@ impl HostFunction {
         let gas_limit_m = regs[10].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -661,7 +671,7 @@ impl HostFunction {
         let gas_limit_m = regs[9].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -691,7 +701,7 @@ impl HostFunction {
         let gas_charge = BASE_GAS_CHARGE + gas_limit;
 
         if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!(gas_charge));
         }
 
         let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -755,7 +765,7 @@ impl HostFunction {
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
@@ -829,7 +839,7 @@ impl HostFunction {
         let preimage_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
@@ -883,7 +893,7 @@ impl HostFunction {
         let lookups_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -981,7 +991,7 @@ impl HostFunction {
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -1097,7 +1107,7 @@ impl HostFunction {
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
         let commitment_hash =
             Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -1146,7 +1156,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let lookup_hash =
@@ -1165,7 +1175,7 @@ impl HostFunction {
         let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         Ok(HostCallResult::continue_with_vm_change(
@@ -1267,7 +1277,7 @@ impl HostFunction {
         let data_read_size = regs[9].as_usize()?.min(data.len() - data_read_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, data_read_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         Ok(HostCallResult::continue_with_vm_change(
@@ -1301,7 +1311,7 @@ impl HostFunction {
         let export_size = regs[8].as_usize()?.min(SEGMENT_SIZE); // z
 
         if !memory.is_address_range_readable(offset, export_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let next_export_segments_offset =
@@ -1343,7 +1353,7 @@ impl HostFunction {
         let initial_pc = regs[9].value(); // i
 
         if !memory.is_address_range_readable(program_offset, program_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
@@ -1383,7 +1393,7 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_writable(memory_offset, data_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
@@ -1424,7 +1434,7 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_readable(memory_offset, data_size)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
@@ -1540,7 +1550,7 @@ impl HostFunction {
         let memory_offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_writable(memory_offset, 112)? {
-            return Ok(HostCallResult::panic());
+            return Ok(host_call_panic!());
         }
 
         let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
