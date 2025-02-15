@@ -1,7 +1,8 @@
 use crate::{
     context::types::InvocationContext, continue_cash, continue_core, continue_full, continue_huh,
     continue_low, continue_none, continue_ok, continue_oob, continue_what, continue_who,
-    host_call_panic, host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::*,
+    continue_with_vm_change, host_call_panic, host_functions::InnerPVMResultConstant::*,
+    inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
@@ -160,13 +161,7 @@ impl HostFunction {
         // FIXME: `gas_remaining` should be of type `i64`. Explicit conversion might be needed.
         let gas_remaining = gas.wrapping_sub(BASE_GAS_CHARGE);
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(gas_remaining),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: gas_remaining)
     }
 
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
@@ -180,7 +175,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let address_reg = regs[7].value();
@@ -194,7 +189,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(hash_offset, 32)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         // Read preimage storage key (hash) from the memory
@@ -210,23 +205,17 @@ impl HostFunction {
             let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-                return Ok(host_call_panic!());
+                return host_call_panic!();
             }
 
-            Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(preimage_size as RegValue),
-                    memory_write: Some(MemWrite::new(
-                        buf_offset,
-                        lookup_size as u32,
-                        entry.value[preimage_offset..preimage_offset + lookup_size].to_vec(),
-                    )),
-                    ..Default::default()
-                },
-            ))
+            continue_with_vm_change!(
+                r7: preimage_size,
+                mem_offset: buf_offset,
+                mem_size: lookup_size,
+                mem_data: entry.value[preimage_offset..preimage_offset + lookup_size].to_vec()
+            )
         } else {
-            Ok(continue_none!())
+            continue_none!()
         }
     }
 
@@ -241,7 +230,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let address_reg = regs[7].value();
@@ -256,7 +245,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(key_offset, key_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let mut key = service_address.encode_fixed(4)?;
@@ -274,23 +263,17 @@ impl HostFunction {
                 .min(storage_val_size - storage_val_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, read_len)? {
-                return Ok(host_call_panic!());
+                return host_call_panic!();
             }
 
-            Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(storage_val_size as RegValue),
-                    memory_write: Some(MemWrite::new(
-                        buf_offset,
-                        storage_val_size as u32,
-                        entry.value[storage_val_offset..storage_val_offset + read_len].to_vec(),
-                    )),
-                    ..Default::default()
-                },
-            ))
+            continue_with_vm_change!(
+                r7: storage_val_size,
+                mem_offset: buf_offset,
+                mem_size: storage_val_size,
+                mem_data: entry.value[storage_val_offset..storage_val_offset + read_len].to_vec()
+            )
         } else {
-            Ok(continue_none!())
+            continue_none!()
         }
     }
 
@@ -307,7 +290,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let key_offset = regs[7].as_mem_address()?; // k_o
@@ -318,7 +301,7 @@ impl HostFunction {
         if !memory.is_address_range_readable(key_offset, key_size)?
             || (value_size > 0 && !memory.is_address_range_readable(value_offset, value_size)?)
         {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let mut key = service_address.encode_fixed(4)?;
@@ -362,7 +345,7 @@ impl HostFunction {
             );
 
         if simulated_threshold_balance > account_metadata.account_info.balance {
-            return Ok(continue_full!());
+            return continue_full!();
         }
 
         // Apply the state change
@@ -382,13 +365,7 @@ impl HostFunction {
                 .await?;
         }
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(prev_storage_val_size_or_return_code as RegValue),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
     }
 
     /// Retrieves the metadata of the specified account in a serialized format.
@@ -401,7 +378,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = match context.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let address_reg = regs[7].value();
@@ -419,24 +396,22 @@ impl HostFunction {
         {
             metadata
         } else {
-            return Ok(continue_none!());
+            return continue_none!();
         };
 
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
         if !memory.is_address_range_writable(buf_offset, info.len())? {
-            return Ok(continue_oob!());
+            return continue_oob!();
         }
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some(MemWrite::new(buf_offset, info.len() as u32, info)),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(
+            r7: HostCallReturnCode::OK,
+            mem_offset: buf_offset,
+            mem_size: info.len(),
+            mem_data: info
+        )
     }
 
     //
@@ -452,7 +427,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let (manager, assign, designate) = match (
@@ -462,7 +437,7 @@ impl HostFunction {
         ) {
             (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
             _ => {
-                return Ok(continue_who!());
+                return continue_who!();
             }
         };
 
@@ -470,7 +445,7 @@ impl HostFunction {
         let always_accumulates_count = regs[11].as_usize()?; // n
 
         if !memory.is_address_range_readable(offset, 12 * always_accumulates_count)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let mut always_accumulate_services = HashMap::with_capacity(always_accumulates_count);
@@ -485,7 +460,7 @@ impl HostFunction {
 
         x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
@@ -497,18 +472,18 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let core_index = regs[7].as_usize()?;
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         if core_index >= CORE_COUNT {
-            return Ok(continue_core!());
+            return continue_core!();
         }
 
         let mut queue_assignment = AuthQueue::default();
@@ -520,7 +495,7 @@ impl HostFunction {
 
         x.assign_new_auth_queue(queue_assignment)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
@@ -531,13 +506,13 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let mut new_staging_set = StagingSet::default();
@@ -551,7 +526,7 @@ impl HostFunction {
 
         x.assign_new_staging_set(new_staging_set)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Copies a snapshot of the current accumulate context state into
@@ -565,7 +540,7 @@ impl HostFunction {
             context.get_mut_accumulate_y(),
         ) {
             (Some(x_cloned), Some(y_mut)) => (x_cloned, y_mut),
-            _ => return Ok(continue_what!()),
+            _ => return continue_what!(),
         };
 
         *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
@@ -574,13 +549,7 @@ impl HostFunction {
         // returns zero value for the remaining gas limit.
         let post_gas = gas.saturating_sub(BASE_GAS_CHARGE);
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(post_gas as RegValue),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: post_gas)
     }
 
     /// Creates a new service account with an address derived from the hash of
@@ -597,7 +566,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -606,7 +575,7 @@ impl HostFunction {
         let gas_limit_m = regs[10].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -621,7 +590,7 @@ impl HostFunction {
         if accumulator_balance.saturating_sub(accumulator_threshold_balance)
             < new_account_threshold_balance
         {
-            return Ok(continue_cash!());
+            return continue_cash!();
         }
 
         x.subtract_accumulator_balance(state_manager, new_account_threshold_balance)
@@ -644,13 +613,7 @@ impl HostFunction {
         // Update the next new account address in the partial state
         x.rotate_new_account_address(state_manager).await?;
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(new_account_address as RegValue),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: new_account_address)
     }
 
     /// Upgrades three metadata fields of the accumulating service account:
@@ -663,7 +626,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
@@ -671,7 +634,7 @@ impl HostFunction {
         let gas_limit_m = regs[9].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -679,7 +642,7 @@ impl HostFunction {
         x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
             .await?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Transfers tokens from the accumulating service account to another service account.
@@ -691,7 +654,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let dest = regs[7].as_account_address()?; // d
@@ -701,7 +664,7 @@ impl HostFunction {
         let gas_charge = BASE_GAS_CHARGE + gas_limit;
 
         if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return Ok(host_call_panic!(gas_charge));
+            return host_call_panic!(gas_charge);
         }
 
         let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -730,23 +693,23 @@ impl HostFunction {
         {
             Some(metadata) => &metadata.account_info,
             None => {
-                return Ok(continue_who!(gas_charge));
+                return continue_who!(gas_charge);
             }
         };
 
         if gas_limit < dest_account_info.gas_limit_on_transfer {
-            return Ok(continue_low!(gas_charge));
+            return continue_low!(gas_charge);
         }
 
         if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            return Ok(continue_cash!(gas_charge));
+            return continue_cash!(gas_charge);
         }
 
         x.subtract_accumulator_balance(state_manager, amount)
             .await?;
         x.add_to_deferred_transfers(transfer);
 
-        Ok(continue_ok!(gas_charge))
+        continue_ok!(gas_charge)
     }
 
     /// Completely removes a service account from the global state.
@@ -758,19 +721,19 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let eject_address = regs[7].as_account_address()?; // d
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         if eject_address == x.accumulate_host {
-            return Ok(continue_who!());
+            return continue_who!();
         }
 
         let eject_account_metadata = match x
@@ -781,20 +744,20 @@ impl HostFunction {
         {
             Some(metadata) => metadata.clone(),
             None => {
-                return Ok(continue_who!());
+                return continue_who!();
             }
         };
 
         let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
             .expect("Should not fail convert 32-byte octets into Hash32");
         if eject_account_metadata.account_info.code_hash != accumulate_host_as_hash {
-            return Ok(continue_who!());
+            return continue_who!();
         }
 
         // TODO: safe type casting
         let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
         if eject_account_metadata.item_counts_footprint() != 2 {
-            return Ok(continue_huh!());
+            return continue_huh!();
         }
         let lookups_key = (preimage_hash, preimage_size);
 
@@ -816,11 +779,11 @@ impl HostFunction {
                     .eject_account(state_manager, eject_address)
                     .await?;
 
-                return Ok(continue_ok!());
+                return continue_ok!();
             }
         }
 
-        Ok(continue_huh!())
+        continue_huh!()
     }
 
     /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
@@ -832,14 +795,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
         let preimage_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
@@ -860,15 +823,9 @@ impl HostFunction {
                 ),
                 _ => panic!("Should not have more than 3 timeslot values"),
             };
-            Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    r7_write: Some(r7 as RegValue),
-                    r8_write: Some(r8 as RegValue),
-                    ..Default::default()
-                },
-            ))
+            continue_with_vm_change!(r7: r7, r8: r8)
         } else {
-            Ok(continue_none!())
+            continue_none!()
         }
     }
 
@@ -886,14 +843,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
         let lookups_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -913,7 +870,7 @@ impl HostFunction {
         let new_lookups_entry = match prev_lookups_entry.clone() {
             Some(mut entry) => {
                 if entry.value.len() != 2 {
-                    return Ok(continue_huh!());
+                    return continue_huh!();
                 }
                 // Add current timeslot to the timeslot vector.
                 entry.value.push(timeslot);
@@ -953,7 +910,7 @@ impl HostFunction {
             );
 
         if simulated_threshold_balance > accumulator_metadata.balance() {
-            return Ok(continue_full!());
+            return continue_full!();
         }
 
         // Apply the state change
@@ -967,7 +924,7 @@ impl HostFunction {
             )
             .await?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Removes a preimage from the accumulating account's preimage and lookups storage,
@@ -984,14 +941,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?;
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -1004,7 +961,7 @@ impl HostFunction {
 
         let timeslot = state_manager.get_timeslot().await?;
         match lookups_entry {
-            None => Ok(continue_huh!()),
+            None => continue_huh!(),
             Some(entry) => {
                 let lookups_timeslots = entry.value.clone();
 
@@ -1027,7 +984,7 @@ impl HostFunction {
                                 lookups_key,
                             )
                             .await?;
-                        Ok(continue_ok!())
+                        continue_ok!()
                     }
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
@@ -1040,7 +997,7 @@ impl HostFunction {
                                 timeslot,
                             )
                             .await?;
-                        Ok(continue_ok!())
+                        continue_ok!()
                     }
                     len if len == 2 || len == 3 => {
                         let is_expired = lookups_timeslots[1].slot()
@@ -1085,9 +1042,9 @@ impl HostFunction {
                                     .await?;
                             }
                         }
-                        Ok(continue_ok!())
+                        continue_ok!()
                     }
-                    _ => Ok(continue_huh!()),
+                    _ => continue_huh!(),
                 }
             }
         }
@@ -1101,20 +1058,20 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
         let commitment_hash =
             Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         x.yielded_accumulate_hash = Some(commitment_hash);
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     //
@@ -1135,7 +1092,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let address_reg = regs[7].value();
@@ -1152,11 +1109,11 @@ impl HostFunction {
         {
             regs[7].as_account_address()?
         } else {
-            return Ok(continue_none!());
+            return continue_none!();
         };
 
         if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let lookup_hash =
@@ -1175,21 +1132,15 @@ impl HostFunction {
         let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(preimage.len() as RegValue),
-                memory_write: Some(MemWrite::new(
-                    buf_offset,
-                    lookup_size as u32,
-                    preimage[preimage_offset..preimage_offset + lookup_size].to_vec(),
-                )),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(
+            r7: preimage.len(),
+            mem_offset: buf_offset,
+            mem_size: lookup_size,
+            mem_data: preimage[preimage_offset..preimage_offset + lookup_size].to_vec()
+        )
     }
 
     /// Fetches various data types introduced as arguments of the refine invocation.
@@ -1201,7 +1152,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
         let data_id = regs[10].as_usize()?;
 
@@ -1214,7 +1165,7 @@ impl HostFunction {
                 if item_idx < items.len() {
                     items[item_idx].payload_blob.to_vec()
                 } else {
-                    return Ok(continue_none!());
+                    return continue_none!();
                 }
             }
             3 => {
@@ -1226,10 +1177,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return Ok(continue_none!());
+                        return continue_none!();
                     }
                 } else {
-                    return Ok(continue_none!());
+                    return continue_none!();
                 }
             }
             4 => {
@@ -1241,10 +1192,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return Ok(continue_none!());
+                        return continue_none!();
                     }
                 } else {
-                    return Ok(continue_none!());
+                    return continue_none!();
                 }
             }
             5 => {
@@ -1254,7 +1205,7 @@ impl HostFunction {
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return Ok(continue_none!());
+                    return continue_none!();
                 }
             }
             6 => {
@@ -1264,11 +1215,11 @@ impl HostFunction {
                 if segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return Ok(continue_none!());
+                    return continue_none!();
                 }
             }
             _ => {
-                return Ok(continue_none!());
+                return continue_none!();
             }
         };
 
@@ -1277,21 +1228,15 @@ impl HostFunction {
         let data_read_size = regs[9].as_usize()?.min(data.len() - data_read_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, data_read_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(data.len() as RegValue),
-                memory_write: Some(MemWrite::new(
-                    buf_offset,
-                    data_read_size as u32,
-                    data[data_read_offset..data_read_offset + data_read_size].to_vec(),
-                )),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(
+            r7: data.len(),
+            mem_offset: buf_offset,
+            mem_size: data_read_size,
+            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
+        )
     }
 
     /// Appends an entry to the export segments vector using the value loaded from memory.
@@ -1304,20 +1249,20 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let offset = regs[7].as_mem_address()?; // p
         let export_size = regs[8].as_usize()?.min(SEGMENT_SIZE); // z
 
         if !memory.is_address_range_readable(offset, export_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
         if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
-            return Ok(continue_full!());
+            return continue_full!();
         }
 
         let data_segment: ExportDataSegment =
@@ -1326,13 +1271,7 @@ impl HostFunction {
 
         x.export_segments.push(data_segment);
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(next_export_segments_offset as RegValue),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: next_export_segments_offset)
     }
 
     /// Initializes an inner VM with the specified program and the initial program counter.
@@ -1345,7 +1284,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let program_offset = regs[7].as_mem_address()?; // p_o
@@ -1353,25 +1292,19 @@ impl HostFunction {
         let initial_pc = regs[9].value(); // i
 
         if !memory.is_address_range_readable(program_offset, program_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
         // Validate the program blob can be `deblob`ed properly
         if ProgramDecoder::deblob_program_code(&program).is_err() {
-            return Ok(continue_huh!());
+            return continue_huh!();
         }
 
         let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(inner_vm_id as RegValue),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: inner_vm_id)
     }
 
     /// Peeks data from the inner VM memory and copies it to the external host VM memory.
@@ -1384,7 +1317,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1393,26 +1326,19 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_writable(memory_offset, data_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
 
         if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
-            return Ok(continue_oob!());
+            return continue_oob!();
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(HostCallReturnCode::OK as RegValue),
-                memory_write: Some(MemWrite::new(memory_offset, data_size as u32, data)),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_size: data_size, mem_data: data)
     }
 
     /// Pokes data into the inner VM memory from the external host VM memory.
@@ -1425,7 +1351,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1434,21 +1360,21 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_readable(memory_offset, data_size)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
 
         if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
-            return Ok(continue_oob!());
+            return continue_oob!();
         }
         let data = memory.read_bytes(memory_offset, data_size)?;
 
         inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
@@ -1458,7 +1384,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1468,11 +1394,11 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return Ok(continue_huh!());
+            return continue_huh!();
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
 
         // set values
@@ -1485,7 +1411,7 @@ impl HostFunction {
         let page_end = inner_memory_page_offset + pages_count;
         inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
@@ -1495,7 +1421,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1505,18 +1431,18 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return Ok(continue_huh!());
+            return continue_huh!();
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
 
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
         // should not have a page already `Inaccessible` within the range
         if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            return Ok(continue_huh!());
+            return continue_huh!();
         }
 
         // set values
@@ -1527,7 +1453,7 @@ impl HostFunction {
         // set access types
         inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
 
-        Ok(continue_ok!())
+        continue_ok!()
     }
 
     /// Invokes the inner VM with its program using the PVM general invocation function `Ψ`.
@@ -1543,18 +1469,18 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
         let memory_offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_writable(memory_offset, 112)? {
-            return Ok(host_call_panic!());
+            return host_call_panic!();
         }
 
         let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
 
         let gas_limit =
@@ -1601,47 +1527,47 @@ impl HostFunction {
         match inner_vm_exit_reason {
             ExitReason::HostCall(host_call_type) => {
                 inner_vm_mut.pc += 1;
-                Ok(HostCallResult::continue_with_vm_change(
-                    HostCallVMStateChange {
-                        gas_charge: BASE_GAS_CHARGE,
-                        r7_write: Some(HOST as RegValue),
-                        r8_write: Some(host_call_type as RegValue),
-                        memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
-                    },
-                ))
+                continue_with_vm_change!(
+                    r7: HOST,
+                    r8: host_call_type,
+                    mem_offset: memory_offset,
+                    mem_size: 112,
+                    mem_data: host_buf
+                )
             }
-            ExitReason::PageFault(address) => Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(FAULT as RegValue),
-                    r8_write: Some(address as RegValue),
-                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
-                },
-            )),
-            ExitReason::OutOfGas => Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(OOG as RegValue),
-                    r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
-                },
-            )),
-            ExitReason::Panic => Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(PANIC as RegValue),
-                    r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
-                },
-            )),
-            ExitReason::RegularHalt => Ok(HostCallResult::continue_with_vm_change(
-                HostCallVMStateChange {
-                    gas_charge: BASE_GAS_CHARGE,
-                    r7_write: Some(HALT as RegValue),
-                    r8_write: None,
-                    memory_write: Some(MemWrite::new(memory_offset, 112, host_buf)),
-                },
-            )),
+            ExitReason::PageFault(address) => {
+                continue_with_vm_change!(
+                    r7: FAULT,
+                    r8: address,
+                    mem_offset: memory_offset,
+                    mem_size: 112,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::OutOfGas => {
+                continue_with_vm_change!(
+                    r7: OOG,
+                    mem_offset: memory_offset,
+                    mem_size: 112,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::Panic => {
+                continue_with_vm_change!(
+                    r7: PANIC,
+                    mem_offset: memory_offset,
+                    mem_size: 112,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::RegularHalt => {
+                continue_with_vm_change!(
+                    r7: HALT,
+                    mem_offset: memory_offset,
+                    mem_size: 112,
+                    mem_data: host_buf
+                )
+            }
 
             _ => Err(PVMError::HostCallError(InvalidExitReason)),
         }
@@ -1654,24 +1580,18 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = match context.get_mut_refine_x() {
             Some(x) => x,
-            None => return Ok(continue_what!()),
+            None => return continue_what!(),
         };
 
         let inner_vm_id = regs[7].as_usize()?; // n
 
         let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
-            return Ok(continue_who!());
+            return continue_who!();
         };
         let final_pc = inner_vm.pc;
 
         x.remove_pvm_instance(inner_vm_id);
 
-        Ok(HostCallResult::continue_with_vm_change(
-            HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
-                r7_write: Some(final_pc),
-                ..Default::default()
-            },
-        ))
+        continue_with_vm_change!(r7: final_pc)
     }
 }
