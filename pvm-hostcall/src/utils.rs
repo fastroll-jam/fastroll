@@ -13,6 +13,46 @@ pub(crate) fn zero_pad_as_array<const BLOCK_SIZE: usize>(
 }
 
 #[macro_export]
+macro_rules! get_mut_accounts_sandbox {
+    ($ctx:expr) => {
+        match $ctx.get_mut_accounts_sandbox() {
+            Some(sandbox) => sandbox,
+            None => return continue_what!(),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! get_mut_accumulate_x {
+    ($ctx:expr) => {
+        match $ctx.get_mut_accumulate_x() {
+            Some(x) => x,
+            None => return continue_what!(),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! get_refine_x {
+    ($ctx:expr) => {
+        match $ctx.get_refine_x() {
+            Some(x) => x,
+            None => return continue_what!(),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! get_mut_refine_x {
+    ($ctx:expr) => {
+        match $ctx.get_mut_refine_x() {
+            Some(x) => x,
+            None => return continue_what!(),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! gas_or_default {
     () => {
         BASE_GAS_CHARGE
