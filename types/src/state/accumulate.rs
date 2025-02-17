@@ -5,7 +5,7 @@ use crate::{
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Hash32, EPOCH_LENGTH};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
@@ -81,28 +81,23 @@ impl AccumulateQueue {
     }
 }
 
-/// History of accumulated work packages over EPOCH_LENGTH timeslots.
-///
-/// History entries are dynamically indexed. Thus, adding a new history entry will shift the history
-/// sequence by one entry, as defined in the `add` method.
+/// History of accumulated work packages over `EPOCH_LENGTH` timeslots.
 ///
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    items: Vec<HashMap<WorkPackageHash, SegmentRoot>>, // length up to EPOCH_LENGTH
+    items: Vec<BTreeSet<WorkPackageHash>>, // length up to `EPOCH_LENGTH`
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
 impl AccumulateHistory {
     /// Returns a union of all HashMaps in the one-epoch worth of history.
-    pub fn union(&self) -> HashMap<WorkPackageHash, SegmentRoot> {
-        self.items.iter().fold(HashMap::new(), |mut acc, hashmap| {
-            acc.extend(hashmap.iter().map(|(k, v)| (*k, *v)));
-            acc
-        })
+    pub fn union(&self) -> BTreeSet<WorkPackageHash> {
+        self.items.iter().flatten().cloned().collect()
     }
 
-    pub fn add(&mut self, entry: HashMap<WorkPackageHash, SegmentRoot>) {
+    pub fn add(&mut self, entry: BTreeSet<WorkPackageHash>) {
+        // TODO: introduce `BoundedVec`
         if self.items.len() < EPOCH_LENGTH {
             self.items.push(entry);
         } else {

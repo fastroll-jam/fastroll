@@ -3,7 +3,7 @@ use rjam_common::EPOCH_LENGTH;
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, map_segment_roots};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{common::workloads::WorkReport, state::*};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
@@ -55,10 +55,16 @@ pub async fn transition_accumulate_queue(
 pub async fn transition_accumulate_history(
     state_manager: Arc<StateManager>,
     accumulatable_reports: Vec<WorkReport>, // W^*
-    accumulated_reports: usize,             // n
+    accumulate_count: usize,                // n
 ) -> Result<(), TransitionError> {
-    assert!(accumulated_reports <= accumulatable_reports.len());
-    let last_history = map_segment_roots(&accumulatable_reports[..accumulated_reports]);
+    assert!(accumulate_count <= accumulatable_reports.len());
+    let last_history: BTreeSet<WorkPackageHash> = accumulatable_reports[..accumulate_count]
+        .to_vec()
+        .iter()
+        .cloned()
+        .map(|wr| wr.work_package_hash())
+        .collect();
+
     state_manager
         .with_mut_accumulate_history(StateMut::Update, |history| {
             // Add the latest history entry, shifting by one entry if the list is full.
