@@ -272,7 +272,7 @@ impl<'a> GuaranteesXtValidator<'a> {
 
         // Check prerequisite work-packages exist either in the current extrinsic or in the recent
         // block history
-        for prerequisite_hash in work_report.prerequisite().iter() {
+        for prerequisite_hash in work_report.prerequisites().iter() {
             if !work_package_hashes.contains(prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(prerequisite_hash)
             {

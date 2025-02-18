@@ -1,35 +1,29 @@
 use rjam_common::Address;
 use rjam_types::{
     common::{transfers::DeferredTransfer, workloads::WorkReport},
-    state::accumulate::{AccumulateQueue, DeferredWorkReport, SegmentRoot, WorkPackageHash},
+    state::accumulate::{AccumulateQueue, SegmentRoot, WorkPackageHash, WorkReportDeps},
 };
 use std::collections::{BTreeSet, HashMap};
 
 /// Represents function `D` of the GP.
-fn construct_deferred_reports(report: WorkReport) -> DeferredWorkReport {
-    let mut deps = report.prerequisite().clone();
+fn work_report_dependencies(report: &WorkReport) -> WorkReportDeps {
+    let mut deps = report.prerequisites().clone();
     deps.extend(report.segment_roots_lookup().keys().cloned());
 
-    (report, deps)
+    (report.clone(), deps)
 }
 
-/// Edits the queue of pending work reports based on the accumulated history.
+/// Edits the accumulation queue based on the newly accumulated work package hashes.
 ///
-/// There are three main operations:
-/// 1. Removes work reports that are already in the accumulated history.
-/// 2. Removes dependencies that are already in the accumulated history.
-/// 3. Removes work reports whose segment roots conflict with the accumulated history.
-///
-/// As a result, the output queue contains only work reports that:
-/// - Are not already accumulated
-/// - Have updated dependencies (removing those already accumulated)
-/// - Have segment roots that either match or are not present in the accumulated history
+/// An accumulation queue item consists of a work report awaiting accumulation and its unaccumulated
+/// dependencies, represented as work package hashes. When newly accumulated work packages are
+/// introduced, the corresponding work reports and dependency items are removed from the queue.
 ///
 /// Represents function `E` of the GP.
 pub fn edit_queue(
-    queue: Vec<DeferredWorkReport>,
+    queue: Vec<WorkReportDeps>,
     accumulated: &HashMap<WorkPackageHash, SegmentRoot>,
-) -> Vec<DeferredWorkReport> {
+) -> Vec<WorkReportDeps> {
     queue
         .into_iter()
         .filter(|(report, _)| !accumulated.contains_key(&report.work_package_hash()))
@@ -60,7 +54,7 @@ pub fn edit_queue(
 ///
 /// Represents function `Q` of the GP.
 fn filter_accumulatable_deferred_reports(
-    queue: Vec<DeferredWorkReport>,
+    queue: Vec<WorkReportDeps>,
     accumulated: &mut HashMap<WorkPackageHash, SegmentRoot>,
 ) -> Vec<WorkReport> {
     let accumulatable: Vec<WorkReport> = queue
@@ -102,7 +96,7 @@ pub fn partition_reports_by_dependencies(
     available_reports: Vec<WorkReport>,
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
     let (without_deps, with_deps) = available_reports.into_iter().partition(|report| {
-        report.prerequisite().is_empty() && report.segment_roots_lookup().is_empty()
+        report.prerequisites().is_empty() && report.segment_roots_lookup().is_empty()
     });
 
     (without_deps, with_deps)
@@ -112,13 +106,13 @@ pub fn partition_reports_by_dependencies(
 ///
 /// The output represents `W^Q` of the GP.
 fn filter_deferred_reports(
-    reports_with_deps: Vec<WorkReport>,
+    reports_with_deps: &[WorkReport],
     unique_history: &HashMap<WorkPackageHash, SegmentRoot>,
-) -> Vec<DeferredWorkReport> {
+) -> Vec<WorkReportDeps> {
     edit_queue(
         reports_with_deps
-            .into_iter()
-            .map(construct_deferred_reports)
+            .iter()
+            .map(work_report_dependencies)
             .collect(),
         unique_history,
     )
@@ -143,7 +137,7 @@ pub fn process_accumulatable_reports(
     let queue: Vec<_> = accumulate_queue
         .partition_by_slot_phase_and_flatten(header_timeslot_index)
         .into_iter()
-        .chain(filter_deferred_reports(reports_with_deps, &unique_history))
+        .chain(filter_deferred_reports(&reports_with_deps, &unique_history))
         .collect();
 
     let edited_queue = edit_queue(queue.clone(), &new_accumulated);

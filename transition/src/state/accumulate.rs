@@ -8,11 +8,11 @@ use std::{collections::BTreeSet, sync::Arc};
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
     state_manager: Arc<StateManager>,
-    accumulatable_reports: Vec<WorkReport>,    // W^*
-    accumulated_reports: usize,                // n
-    deferred_reports: Vec<DeferredWorkReport>, // W^Q
-    prior_timeslot: Timeslot,                  // tau
-    current_timeslot: Timeslot,                // tau'
+    accumulatable_reports: Vec<WorkReport>, // W^*
+    accumulated_reports: usize,             // n
+    deferred_reports: Vec<WorkReportDeps>,  // W^Q
+    prior_timeslot: Timeslot,               // tau
+    current_timeslot: Timeslot,             // tau'
 ) -> Result<(), TransitionError> {
     // TODO: Check the formal definition of the state transition -
     // TODO: the function `E` takes the history  mapping type as the second argument.
