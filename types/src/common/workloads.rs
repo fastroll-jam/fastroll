@@ -381,7 +381,7 @@ impl WorkReport {
         &self.refinement_context
     }
 
-    pub fn prerequisite(&self) -> &BTreeSet<Hash32> {
+    pub fn prerequisites(&self) -> &BTreeSet<Hash32> {
         &self.refinement_context.prerequisite_work_packages
     }
 

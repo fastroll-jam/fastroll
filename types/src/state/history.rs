@@ -68,8 +68,10 @@ impl BlockHistory {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
+    /// `h` of `AvailSpec` from work report in `GuaranteesXt`
     pub work_package_hash: Hash32,
-    pub segment_root: Hash32, // exports root
+    /// `e` of `AvailSpec` from work report in `GuaranteesXt`
+    pub segment_root: Hash32,
 }
 
 impl Display for ReportedWorkPackage {

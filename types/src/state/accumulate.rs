@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
-pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
+pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 
 /// Queue of work reports pending accumulation due to unresolved dependencies.
 ///
@@ -19,7 +19,7 @@ pub type DeferredWorkReport = (WorkReport, BTreeSet<WorkPackageHash>);
 /// Represents `θ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
-    items: Vec<Vec<DeferredWorkReport>>, // length up to EPOCH_LENGTH
+    items: Vec<Vec<WorkReportDepsMap>>, // length up to EPOCH_LENGTH
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
 
@@ -38,7 +38,7 @@ impl AccumulateQueue {
 
     /// Safely gets the accumulate queue entry at the given signed index.
     /// Implementation of the circular buffer indexing for a queue of length EPOCH_LENGTH.
-    pub fn get_circular(&self, index: isize) -> &Vec<DeferredWorkReport> {
+    pub fn get_circular(&self, index: isize) -> &Vec<WorkReportDepsMap> {
         assert_eq!(
             self.items.len(),
             EPOCH_LENGTH,
@@ -51,7 +51,7 @@ impl AccumulateQueue {
 
     /// Safely gets a mutable reference to the accumulate queue entry at the given signed index.
     /// Implementation of the circular buffer indexing for a queue of length EPOCH_LENGTH.
-    pub fn get_circular_mut(&mut self, index: isize) -> &mut Vec<DeferredWorkReport> {
+    pub fn get_circular_mut(&mut self, index: isize) -> &mut Vec<WorkReportDepsMap> {
         assert_eq!(
             self.items.len(),
             EPOCH_LENGTH,
@@ -70,7 +70,7 @@ impl AccumulateQueue {
     pub fn partition_by_slot_phase_and_flatten(
         &mut self,
         timeslot_index: u32,
-    ) -> Vec<DeferredWorkReport> {
+    ) -> Vec<WorkReportDepsMap> {
         let slot_phase = timeslot_index as usize % EPOCH_LENGTH;
         let older_entries = self.items.split_off(slot_phase);
         older_entries
@@ -104,5 +104,9 @@ impl AccumulateHistory {
             self.items.remove(0);
             self.items.push(entry);
         }
+    }
+
+    pub fn last_history(&self) -> Option<&BTreeSet<WorkPackageHash>> {
+        self.items.last()
     }
 }
