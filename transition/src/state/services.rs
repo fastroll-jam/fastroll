@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::Address;
+use rjam_common::ServiceId;
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
 use rjam_pvm_invocation::{accumulation::utils::select_deferred_transfers, PVMInvocation};
 use rjam_state::StateManager;
@@ -54,7 +54,7 @@ pub async fn transition_on_transfer(
     transfers: Vec<DeferredTransfer>,
 ) -> Result<(), TransitionError> {
     // Gather all unique destination addresses.
-    let destinations: HashSet<Address> = transfers.iter().map(|t| t.to).collect();
+    let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {

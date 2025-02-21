@@ -1,7 +1,7 @@
 use crate::utils::guarantor_rotation::GuarantorAssignmentError;
 use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_codec::JamCodecError;
-use rjam_common::{Address, CoreIndex, ValidatorIndex};
+use rjam_common::{CoreIndex, ServiceId, ValidatorIndex};
 use rjam_crypto::CryptoError;
 use rjam_merkle::common::MerkleError;
 use rjam_state::error::StateManagerError;
@@ -104,10 +104,10 @@ pub enum XtValidationError {
     PrerequisiteNotFound(CoreIndex, String),
     #[error("Work report has too many dependencies (prerequisites and segment-root lookup dictionary items). Core index: {0}")]
     TooManyDependencies(CoreIndex),
-    #[error("Invalid code hash in work result. Core index: {0}, Service index: {1}, Provided code hash: {2}")]
-    InvalidCodeHash(CoreIndex, Address, String),
-    #[error("Subject service account of work result is not found in the global state. Core index: {0}, Service index: {1}")]
-    AccountOfWorkResultNotFound(CoreIndex, Address),
+    #[error("Invalid code hash in work result. Core index: {0}, Service Id: {1}, Provided code hash: {2}")]
+    InvalidCodeHash(CoreIndex, ServiceId, String),
+    #[error("Subject service account of work result is not found in the global state. Core index: {0}, Service Id: {1}")]
+    AccountOfWorkResultNotFound(CoreIndex, ServiceId),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
     #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
@@ -140,12 +140,12 @@ pub enum XtValidationError {
     ServiceAccountGasLimitTooLow,
 
     // Preimages validation errors
-    #[error("Preimage lookups must be sorted by service index")]
+    #[error("Preimage lookups must be sorted by service id")]
     PreimageLookupsNotSorted,
     #[error("Duplicate preimage lookup entry found")]
     DuplicatePreimageLookup,
-    #[error("Preimage already integrated into the state. Service index: {0}")]
-    PreimageAlreadyIntegrated(Address),
+    #[error("Preimage already integrated into the state. Service id: {0}")]
+    PreimageAlreadyIntegrated(ServiceId),
 
     // Ticket validation errors
     #[error("The number of ticket entries ({0}) exceeds the allowed tickets ({1})")]

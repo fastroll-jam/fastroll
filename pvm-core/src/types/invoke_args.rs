@@ -1,5 +1,5 @@
 use crate::types::{accumulation::AccumulateOperand, common::ExportDataSegment};
-use rjam_common::{Address, UnsignedGas};
+use rjam_common::{ServiceId, UnsignedGas};
 use rjam_types::common::{
     transfers::DeferredTransfer,
     workloads::{ExtrinsicInfo, WorkPackage},
@@ -32,7 +32,7 @@ pub struct RefineInvokeArgs {
 /// from the state manager.
 pub struct AccumulateInvokeArgs {
     /// `s`: The address of the service account to run the accumulation process
-    pub accumulate_host: Address,
+    pub accumulate_host: ServiceId,
     /// `g`: The maximum amount of gas allowed for the accumulation process
     pub gas_limit: UnsignedGas,
     /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
@@ -43,8 +43,8 @@ pub struct AccumulateInvokeArgs {
 ///
 /// Note: The timeslot index (`t`) is directly fetched from the state manager.
 pub struct OnTransferInvokeArgs {
-    /// `s`: Destination (recipient) account address of the transfer
-    pub destination: Address,
+    /// `s`: Destination (recipient) service account index of the transfer
+    pub destination: ServiceId,
     /// **`t`**: A vector of `DeferredTransfer`s
     pub transfers: Vec<DeferredTransfer>,
 }

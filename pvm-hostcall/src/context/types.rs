@@ -5,7 +5,7 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use rjam_codec::{JamDecodeFixed, JamEncode};
-use rjam_common::{Address, Balance, Hash32, UnsignedGas};
+use rjam_common::{Balance, Hash32, ServiceId, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
     state::memory::Memory,
@@ -115,10 +115,10 @@ impl AccountsSandboxHolder for OnTransferHostContext {
 }
 
 impl OnTransferHostContext {
-    pub async fn new(state_manager: &StateManager, recipient: Address) -> Result<Self, PVMError> {
+    pub async fn new(state_manager: &StateManager, recipient: ServiceId) -> Result<Self, PVMError> {
         let mut accounts_sandbox = HashMap::new();
         let recipient_account_sandbox =
-            AccountSandbox::from_address(state_manager, recipient).await?;
+            AccountSandbox::from_service_id(state_manager, recipient).await?;
         accounts_sandbox.insert(recipient, recipient_account_sandbox);
         Ok(Self {
             accounts_sandbox: AccountsSandboxMap {
@@ -173,13 +173,13 @@ impl AccumulateHostContextPair {
 /// proper isolation.
 #[derive(Clone, Default)]
 pub struct AccumulateHostContext {
-    /// `s`: Accumulate host service account address
-    pub accumulate_host: Address,
+    /// `s`: Accumulate host service account index
+    pub accumulate_host: ServiceId,
     /// **`u`**: Global state partially copied as an accumulation context
     pub partial_state: AccumulatePartialState,
     /// TODO: Check how to manage this context in the parallelized accumulation.
-    /// `i`: Next new service account address, carefully chosen to avoid collision
-    pub next_new_account_address: Address,
+    /// `i`: Next new service account index, carefully chosen to avoid collision
+    pub next_new_service_id: ServiceId,
     /// **`t`**: Deferred token transfers
     pub deferred_transfers: Vec<DeferredTransfer>,
     /// `y`: Accumulation result hash
@@ -190,19 +190,19 @@ pub struct AccumulateHostContext {
 impl AccumulateHostContext {
     pub async fn new(
         state_manager: &StateManager,
-        accumulate_address: Address,
+        accumulate_address: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
     ) -> Result<Self, PVMError> {
         Ok(Self {
-            next_new_account_address: Self::initialize_new_account_address(
+            next_new_service_id: Self::initialize_new_service_id(
                 state_manager,
                 accumulate_address,
                 entropy,
                 timeslot,
             )
             .await?,
-            partial_state: AccumulatePartialState::new_from_address(
+            partial_state: AccumulatePartialState::new_from_service_id(
                 state_manager,
                 accumulate_address,
             )
@@ -211,12 +211,12 @@ impl AccumulateHostContext {
         })
     }
 
-    async fn initialize_new_account_address(
+    async fn initialize_new_service_id(
         state_manager: &StateManager,
-        accumulate_host: Address,
+        accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
-    ) -> Result<Address, PVMError> {
+    ) -> Result<ServiceId, PVMError> {
         let mut buf = vec![];
         accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
@@ -225,12 +225,10 @@ impl AccumulateHostContext {
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
         let modulus = (1u64 << 32) - (1 << 9);
-        let initial_check_address = (hash_as_u64 % modulus) + (1 << 8);
-        let new_account_address = state_manager
-            .check(initial_check_address as Address)
-            .await?;
+        let initial_check_id = (hash_as_u64 % modulus) + (1 << 8);
+        let new_service_id = state_manager.check(initial_check_id as ServiceId).await?;
 
-        Ok(new_account_address)
+        Ok(new_service_id)
     }
 
     pub async fn get_accumulator_metadata(
@@ -278,21 +276,20 @@ impl AccumulateHostContext {
         Ok(())
     }
 
-    pub fn get_next_new_account_address(&self) -> Address {
-        self.next_new_account_address
+    pub fn get_next_new_account_index(&self) -> ServiceId {
+        self.next_new_service_id
     }
 
     #[allow(clippy::redundant_closure_call)]
-    pub async fn rotate_new_account_address(
+    pub async fn rotate_new_account_index(
         &mut self,
         state_manager: &StateManager,
     ) -> Result<(), PVMError> {
-        let bump = |a: Address| -> Address {
+        let bump = |a: ServiceId| -> ServiceId {
             let modulus = (1u64 << 32) - (1u64 << 9);
-            ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as Address
+            ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as ServiceId
         };
-        self.next_new_account_address =
-            bump(state_manager.check(self.next_new_account_address).await?);
+        self.next_new_service_id = bump(state_manager.check(self.next_new_service_id).await?);
         Ok(())
     }
 
@@ -302,10 +299,10 @@ impl AccumulateHostContext {
 
     pub fn assign_new_privileged_services(
         &mut self,
-        manager_service: Address,
-        assign_service: Address,
-        designate_service: Address,
-        always_accumulate_services: HashMap<Address, UnsignedGas>,
+        manager_service: ServiceId,
+        assign_service: ServiceId,
+        designate_service: ServiceId,
+        always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
     ) -> Result<(), PVMError> {
         self.partial_state.new_privileges = Some(PrivilegedServices {
             manager_service,
@@ -365,7 +362,7 @@ impl AccumulateHostContext {
         state_manager: &StateManager,
         account_info: AccountInfo,
         code_lookups_key: (Hash32, u32),
-    ) -> Result<Address, PVMError> {
+    ) -> Result<ServiceId, PVMError> {
         let new_account = AccountSandbox {
             metadata: StateView::Entry(AccountMetadata::new(account_info)),
             storage: HashMap::new(),
@@ -373,10 +370,10 @@ impl AccumulateHostContext {
             lookups: HashMap::new(),
         };
 
-        let new_account_address = self.next_new_account_address;
+        let new_service_id = self.next_new_service_id;
         self.partial_state
             .accounts_sandbox
-            .insert(new_account_address, new_account);
+            .insert(new_service_id, new_account);
 
         // Lookups dictionary entry for the code hash preimage entry
         let code_lookups_entry = AccountLookupsEntry { value: vec![] };
@@ -385,13 +382,13 @@ impl AccumulateHostContext {
             .accounts_sandbox
             .insert_account_lookups_entry(
                 state_manager,
-                new_account_address,
+                new_service_id,
                 code_lookups_key,
                 code_lookups_entry,
             )
             .await?;
 
-        Ok(new_account_address)
+        Ok(new_service_id)
     }
 
     pub async fn update_accumulator_metadata(

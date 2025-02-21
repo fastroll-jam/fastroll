@@ -168,7 +168,7 @@ impl HostFunction {
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
     /// and writes it into memory.
     pub async fn host_lookup(
-        service_address: Address,
+        service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -176,14 +176,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let address_reg = regs[7].value();
+        let service_id_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?; // h
         let buf_offset = regs[9].as_mem_address()?; // o
 
-        let account_address = if address_reg == u64::MAX || address_reg == service_address as u64 {
-            service_address
+        let service_id = if service_id_reg == u64::MAX || service_id_reg == service_id as u64 {
+            service_id
         } else {
-            address_reg as Address
+            service_id_reg as ServiceId
         };
 
         if !memory.is_address_range_readable(hash_offset, 32)? {
@@ -195,7 +195,7 @@ impl HostFunction {
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_preimages_entry(state_manager, account_address, &hash)
+            .get_or_load_account_preimages_entry(state_manager, service_id, &hash)
             .await?
         {
             let preimage_size = entry.value.len();
@@ -220,7 +220,7 @@ impl HostFunction {
     /// Fetches the storage entry value of the specified storage key from the given service account's
     /// storage and writes it into memory.
     pub async fn host_read(
-        service_address: Address,
+        service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -228,27 +228,27 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let address_reg = regs[7].value();
+        let service_id_reg = regs[7].value();
         let key_offset = regs[8].as_mem_address()?; // k_o
         let key_size = regs[9].as_usize()?; // k_z
         let buf_offset = regs[10].as_mem_address()?; // o
 
-        let account_address = if address_reg == u64::MAX {
-            service_address
+        let service_id = if service_id_reg == u64::MAX {
+            service_id
         } else {
-            address_reg as Address
+            service_id_reg as ServiceId
         };
 
         if !memory.is_address_range_readable(key_offset, key_size)? {
             return host_call_panic!();
         }
 
-        let mut key = service_address.encode_fixed(4)?;
+        let mut key = service_id.encode_fixed(4)?;
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager, account_address, &storage_key)
+            .get_or_load_account_storage_entry(state_manager, service_id, &storage_key)
             .await?
         {
             let storage_val_size = entry.value.len();
@@ -277,7 +277,7 @@ impl HostFunction {
     /// If the value size is zero, the entry corresponding to the key is removed.
     /// The size of the previous value, if any, is returned via the register.
     pub async fn host_write(
-        service_address: Address,
+        service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -296,13 +296,13 @@ impl HostFunction {
             return host_call_panic!();
         }
 
-        let mut key = service_address.encode_fixed(4)?;
+        let mut key = service_id.encode_fixed(4)?;
         key.extend(memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager, service_address, &storage_key)
+            .get_or_load_account_storage_entry(state_manager, service_id, &storage_key)
             .await?;
 
         let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
@@ -324,7 +324,7 @@ impl HostFunction {
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
         let account_metadata = accounts_sandbox
-            .get_account_metadata(state_manager, service_address)
+            .get_account_metadata(state_manager, service_id)
             .await?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
@@ -344,13 +344,13 @@ impl HostFunction {
         if value_size == 0 {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
-                .remove_account_storage_entry(state_manager, service_address, storage_key)
+                .remove_account_storage_entry(state_manager, service_id, storage_key)
                 .await?;
         } else {
             accounts_sandbox
                 .insert_account_storage_entry(
                     state_manager,
-                    service_address,
+                    service_id,
                     storage_key,
                     new_storage_entry,
                 )
@@ -362,7 +362,7 @@ impl HostFunction {
 
     /// Retrieves the metadata of the specified account in a serialized format.
     pub async fn host_info(
-        service_address: Address,
+        service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         state_manager: &StateManager,
@@ -370,17 +370,17 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let address_reg = regs[7].value();
+        let service_id_reg = regs[7].value();
         let buf_offset = regs[8].as_mem_address()?; // o
 
-        let account_address = if address_reg == u64::MAX {
-            service_address
+        let service_id = if service_id_reg == u64::MAX {
+            service_id
         } else {
-            address_reg as Address
+            service_id_reg as ServiceId
         };
 
         let account_metadata = if let Some(metadata) = accounts_sandbox
-            .get_account_metadata(state_manager, account_address)
+            .get_account_metadata(state_manager, service_id)
             .await?
         {
             metadata
@@ -417,9 +417,9 @@ impl HostFunction {
         let x = get_mut_accumulate_x!(context);
 
         let (manager, assign, designate) = match (
-            regs[7].as_account_address(),
-            regs[8].as_account_address(),
-            regs[9].as_account_address(),
+            regs[7].as_service_id(),
+            regs[8].as_service_id(),
+            regs[9].as_service_id(),
         ) {
             (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
             _ => {
@@ -574,7 +574,7 @@ impl HostFunction {
             .await?;
 
         // Add a new account to the partial state
-        let new_account_address = x
+        let new_service_id = x
             .add_new_account(
                 state_manager,
                 AccountInfo {
@@ -587,10 +587,10 @@ impl HostFunction {
             )
             .await?;
 
-        // Update the next new account address in the partial state
-        x.rotate_new_account_address(state_manager).await?;
+        // Update the next new service account index in the partial state
+        x.rotate_new_account_index(state_manager).await?;
 
-        continue_with_vm_change!(r7: new_account_address)
+        continue_with_vm_change!(r7: new_service_id)
     }
 
     /// Upgrades three metadata fields of the accumulating service account:
@@ -628,7 +628,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
 
-        let dest = regs[7].as_account_address()?; // d
+        let dest = regs[7].as_service_id()?; // d
         let amount = regs[8].value(); // a
         let gas_limit = regs[9].value(); // l
         let offset = regs[10].as_mem_address()?; // o
@@ -692,7 +692,7 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
 
-        let eject_address = regs[7].as_account_address()?; // d
+        let eject_address = regs[7].as_service_id()?; // d
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
@@ -1040,7 +1040,7 @@ impl HostFunction {
     /// This is the only stateful operation in the refinement process and allows auditors to access
     /// states required for execution of the refinement through historical lookups.
     pub async fn host_historical_lookup(
-        refine_account_address: Address,
+        refine_service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
@@ -1048,19 +1048,19 @@ impl HostFunction {
     ) -> Result<HostCallResult, PVMError> {
         let x = get_refine_x!(context);
 
-        let address_reg = regs[7].value();
+        let service_id_reg = regs[7].value();
         let hash_offset = regs[8].as_mem_address()?;
         let buf_offset = regs[9].as_mem_address()?;
 
-        let account_address = if address_reg == u64::MAX
-            || state_manager.account_exists(refine_account_address).await?
+        let service_id = if service_id_reg == u64::MAX
+            || state_manager.account_exists(refine_service_id).await?
         {
-            refine_account_address
+            refine_service_id
         } else if state_manager
-            .account_exists(regs[7].as_account_address()?)
+            .account_exists(regs[7].as_service_id()?)
             .await?
         {
-            regs[7].as_account_address()?
+            regs[7].as_service_id()?
         } else {
             return continue_none!();
         };
@@ -1074,7 +1074,7 @@ impl HostFunction {
 
         let preimage = state_manager
             .lookup_preimage(
-                account_address,
+                service_id,
                 &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
                 &lookup_hash,
             )

@@ -10,8 +10,6 @@ use thiserror::Error;
 // PVM Error Codes
 #[derive(Debug, Error)]
 pub enum PVMError {
-    #[error("New account address not initialized")]
-    NewAccountAddressNotInitialized,
     #[error("Account code not found")]
     AccountCodeNotFound,
     #[error("Account not found")]

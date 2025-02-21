@@ -5,7 +5,7 @@ use crate::{
         error::{PVMError, VMCoreError::InvalidRegVal},
     },
 };
-use rjam_common::Address;
+use rjam_common::ServiceId;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Register {
@@ -46,7 +46,7 @@ impl Register {
         self.as_u32()
     }
 
-    pub fn as_account_address(&self) -> Result<Address, PVMError> {
+    pub fn as_service_id(&self) -> Result<ServiceId, PVMError> {
         self.as_u32()
     }
 }

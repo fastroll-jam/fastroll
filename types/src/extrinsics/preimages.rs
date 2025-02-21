@@ -2,7 +2,7 @@ use crate::extrinsics::{XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Address, Octets};
+use rjam_common::{Octets, ServiceId};
 use std::ops::Deref;
 
 /// Represents a sequence of preimage lookups, where each lookup corresponds to
@@ -29,7 +29,7 @@ impl PreimagesXt {
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct PreimagesXtEntry {
-    pub service_index: Address, // requester of the preimage data
+    pub service_id: ServiceId, // requester of the preimage data
     pub preimage_data: Octets,
 }
 
@@ -43,7 +43,7 @@ impl JamEncode for PreimagesXtEntry {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_index.encode_to_fixed(dest, 4)?; // TODO: check - Not fixed encoding in GP
+        self.service_id.encode_to_fixed(dest, 4)?; // TODO: check - Not fixed encoding in GP
         self.preimage_data.encode_to(dest)?;
         Ok(())
     }
@@ -55,7 +55,7 @@ impl JamDecode for PreimagesXtEntry {
         Self: Sized,
     {
         Ok(Self {
-            service_index: Address::decode_fixed(input, 4)?,
+            service_id: ServiceId::decode_fixed(input, 4)?,
             preimage_data: Octets::decode(input)?,
         })
     }

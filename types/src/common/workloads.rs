@@ -2,7 +2,7 @@ use crate::state::ReportedWorkPackage;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Address, CoreIndex, Hash32, Octets, UnsignedGas, HASH_SIZE};
+use rjam_common::{CoreIndex, Hash32, Octets, ServiceId, UnsignedGas, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::{
     cmp::Ordering,
@@ -41,8 +41,8 @@ pub struct Authorizer {
 pub struct WorkPackage {
     /// **`j`**: Authorizer token blob
     pub auth_token: Octets,
-    /// `h`: Authorization code host service address
-    pub authorizer_address: Address,
+    /// `h`: Authorization code host service id
+    pub authorizer_service_id: ServiceId,
     /// `u` & **`p`**: Authorization code hash and param blob
     pub authorizer: Authorizer,
     /// **`x`**: Refinement context
@@ -62,7 +62,7 @@ impl JamEncode for WorkPackage {
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         self.auth_token.encode_to(dest)?;
-        self.authorizer_address.encode_to_fixed(dest, 4)?;
+        self.authorizer_service_id.encode_to_fixed(dest, 4)?;
         self.authorizer.encode_to(dest)?;
         self.context.encode_to(dest)?;
         self.work_items.encode_to(dest)?;
@@ -77,7 +77,7 @@ impl JamDecode for WorkPackage {
     {
         Ok(Self {
             auth_token: Octets::decode(input)?,
-            authorizer_address: Address::decode_fixed(input, 4)?,
+            authorizer_service_id: ServiceId::decode_fixed(input, 4)?,
             authorizer: Authorizer::decode(input)?,
             context: RefinementContext::decode(input)?,
             work_items: Vec::<WorkItem>::decode(input)?,
@@ -180,8 +180,8 @@ impl JamDecode for ExtrinsicInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItem {
-    /// `s`: Associated service index
-    pub service_index: Address,
+    /// `s`: Associated service id
+    pub service_id: ServiceId,
     /// `c`: Code hash of the service, at the time of reporting
     pub service_code_hash: Hash32,
     /// **`y`**: Work item payload blob
@@ -212,7 +212,7 @@ impl JamEncode for WorkItem {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_index.encode_to_fixed(dest, 4)?;
+        self.service_id.encode_to_fixed(dest, 4)?;
         self.service_code_hash.encode_to(dest)?;
         self.payload_blob.encode_to(dest)?;
         self.refine_gas_limit.encode_to_fixed(dest, 8)?;
@@ -230,7 +230,7 @@ impl JamDecode for WorkItem {
         Self: Sized,
     {
         Ok(Self {
-            service_index: Address::decode_fixed(input, 4)?,
+            service_id: ServiceId::decode_fixed(input, 4)?,
             service_code_hash: Hash32::decode(input)?,
             payload_blob: Octets::decode(input)?,
             refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
@@ -571,8 +571,8 @@ impl JamDecode for AvailSpecs {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItemResult {
-    /// `s`: Associated service address
-    pub service_index: Address,
+    /// `s`: Associated service id
+    pub service_id: ServiceId,
     /// `c`: Code hash of the service, at the time of reporting
     pub service_code_hash: Hash32,
     /// `l`: Hash of the associated work item payload
@@ -586,7 +586,7 @@ pub struct WorkItemResult {
 impl Display for WorkItemResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "WorkItemResult: {{")?;
-        writeln!(f, "service_idx: {}", self.service_index)?;
+        writeln!(f, "service_idx: {}", self.service_id)?;
         writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
         writeln!(f, "payload_hash: {}", self.payload_hash)?;
         writeln!(
@@ -608,7 +608,7 @@ impl JamEncode for WorkItemResult {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_index.encode_to_fixed(dest, 4)?;
+        self.service_id.encode_to_fixed(dest, 4)?;
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
         self.gas_prioritization_ratio.encode_to_fixed(dest, 8)?;
@@ -623,7 +623,7 @@ impl JamDecode for WorkItemResult {
         Self: Sized,
     {
         Ok(Self {
-            service_index: Address::decode_fixed(input, 4)?,
+            service_id: ServiceId::decode_fixed(input, 4)?,
             service_code_hash: Hash32::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,

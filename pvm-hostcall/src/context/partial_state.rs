@@ -1,4 +1,4 @@
-use rjam_common::{Address, Hash32};
+use rjam_common::{Hash32, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::*;
@@ -69,12 +69,12 @@ pub struct AccountSandbox {
 }
 
 impl AccountSandbox {
-    pub async fn from_address(
+    pub async fn from_service_id(
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Self, PartialStateError> {
         let account_metadata = state_manager
-            .get_account_metadata(address)
+            .get_account_metadata(service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         Ok(Self {
@@ -89,11 +89,11 @@ impl AccountSandbox {
 /// Represents a collection of service account sandboxes
 #[derive(Clone, Default)]
 pub struct AccountsSandboxMap {
-    pub accounts: HashMap<Address, AccountSandbox>,
+    pub accounts: HashMap<ServiceId, AccountSandbox>,
 }
 
 impl Deref for AccountsSandboxMap {
-    type Target = HashMap<Address, AccountSandbox>;
+    type Target = HashMap<ServiceId, AccountSandbox>;
 
     fn deref(&self) -> &Self::Target {
         &self.accounts
@@ -113,12 +113,12 @@ impl AccountsSandboxMap {
     async fn ensure_account_sandbox_initialized(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<(), PartialStateError> {
-        if !self.contains_key(&address) && state_manager.account_exists(address).await? {
+        if !self.contains_key(&service_id) && state_manager.account_exists(service_id).await? {
             self.insert(
-                address,
-                AccountSandbox::from_address(state_manager, address).await?,
+                service_id,
+                AccountSandbox::from_service_id(state_manager, service_id).await?,
             );
         }
         Ok(())
@@ -127,31 +127,31 @@ impl AccountsSandboxMap {
     pub async fn get_account_sandbox(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<&AccountSandbox>, PartialStateError> {
-        self.ensure_account_sandbox_initialized(state_manager, address)
+        self.ensure_account_sandbox_initialized(state_manager, service_id)
             .await?;
-        Ok(self.get(&address))
+        Ok(self.get(&service_id))
     }
 
     async fn get_mut_account_sandbox(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<&mut AccountSandbox>, PartialStateError> {
-        self.ensure_account_sandbox_initialized(state_manager, address)
+        self.ensure_account_sandbox_initialized(state_manager, service_id)
             .await?;
-        Ok(self.get_mut(&address))
+        Ok(self.get_mut(&service_id))
     }
 
     pub async fn get_account_metadata(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<&AccountMetadata>, PartialStateError> {
         // Returns `None` if the account doesn't exist in the global state or was removed from the
         // partial state.
-        match self.get_account_sandbox(state_manager, address).await? {
+        match self.get_account_sandbox(state_manager, service_id).await? {
             Some(sandbox) => Ok(sandbox.metadata.as_ref()),
             None => Ok(None),
         }
@@ -160,11 +160,14 @@ impl AccountsSandboxMap {
     pub async fn get_mut_account_metadata(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<&mut AccountMetadata>, PartialStateError> {
         // Returns `None` if the account doesn't exist in the global state or was removed from the
         // partial state.
-        match self.get_mut_account_sandbox(state_manager, address).await? {
+        match self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?
+        {
             Some(sandbox) => Ok(sandbox.metadata.as_mut()),
             None => Ok(None),
         }
@@ -218,10 +221,12 @@ impl AccountsSandboxMap {
     pub async fn get_or_load_account_storage_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
-        let account_sandbox = self.get_mut_account_sandbox(state_manager, address).await?;
+        let account_sandbox = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?;
         match account_sandbox {
             Some(sandbox) => {
                 Self::get_or_load_entry(
@@ -229,7 +234,7 @@ impl AccountsSandboxMap {
                     storage_key,
                     async || -> Result<Option<AccountStorageEntry>, StateManagerError> {
                         state_manager
-                            .get_account_storage_entry(address, storage_key)
+                            .get_account_storage_entry(service_id, storage_key)
                             .await
                     },
                 )
@@ -242,12 +247,12 @@ impl AccountsSandboxMap {
     pub async fn insert_account_storage_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         storage_key: Hash32,
         new_entry: AccountStorageEntry,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         let replaced = account_sandbox
@@ -264,11 +269,11 @@ impl AccountsSandboxMap {
     pub async fn remove_account_storage_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         storage_key: Hash32,
     ) -> Result<(), PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         account_sandbox
@@ -280,10 +285,12 @@ impl AccountsSandboxMap {
     pub async fn get_or_load_account_preimages_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
-        let account_sandbox = self.get_mut_account_sandbox(state_manager, address).await?;
+        let account_sandbox = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?;
         match account_sandbox {
             Some(sandbox) => {
                 Self::get_or_load_entry(
@@ -291,7 +298,7 @@ impl AccountsSandboxMap {
                     preimages_key,
                     async || -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
                         state_manager
-                            .get_account_preimages_entry(address, preimages_key)
+                            .get_account_preimages_entry(service_id, preimages_key)
                             .await
                     },
                 )
@@ -304,12 +311,12 @@ impl AccountsSandboxMap {
     pub async fn insert_account_preimages_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: Hash32,
         new_entry: AccountPreimagesEntry,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         let replaced = account_sandbox
@@ -326,11 +333,11 @@ impl AccountsSandboxMap {
     pub async fn remove_account_preimages_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: Hash32,
     ) -> Result<(), PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         account_sandbox
@@ -342,10 +349,12 @@ impl AccountsSandboxMap {
     pub async fn get_or_load_account_lookups_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_storage_key: &(Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
-        let account_sandbox = self.get_mut_account_sandbox(state_manager, address).await?;
+        let account_sandbox = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?;
         match account_sandbox {
             Some(sandbox) => {
                 Self::get_or_load_entry(
@@ -353,7 +362,7 @@ impl AccountsSandboxMap {
                     lookups_storage_key,
                     async || -> Result<Option<AccountLookupsEntry>, StateManagerError> {
                         state_manager
-                            .get_account_lookups_entry(address, lookups_storage_key)
+                            .get_account_lookups_entry(service_id, lookups_storage_key)
                             .await
                     },
                 )
@@ -366,12 +375,12 @@ impl AccountsSandboxMap {
     pub async fn insert_account_lookups_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (Hash32, u32),
         new_entry: AccountLookupsEntry,
     ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         let replaced = account_sandbox
@@ -388,11 +397,11 @@ impl AccountsSandboxMap {
     pub async fn remove_account_lookups_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (Hash32, u32),
     ) -> Result<(), PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         account_sandbox
@@ -406,12 +415,12 @@ impl AccountsSandboxMap {
     pub async fn push_timeslot_to_account_lookups_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (Hash32, u32),
         timeslot: Timeslot,
     ) -> Result<Option<usize>, PartialStateError> {
         let lookups_entry = self
-            .get_or_load_account_lookups_entry(state_manager, address, &lookups_key)
+            .get_or_load_account_lookups_entry(state_manager, service_id, &lookups_key)
             .await?;
         if lookups_entry.is_none() {
             return Ok(None);
@@ -420,7 +429,7 @@ impl AccountsSandboxMap {
         lookups_entry.value.push(timeslot);
 
         let new_timeslot_vec_len = lookups_entry.value.len();
-        self.insert_account_lookups_entry(state_manager, address, lookups_key, lookups_entry)
+        self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(Some(new_timeslot_vec_len))
     }
@@ -428,12 +437,12 @@ impl AccountsSandboxMap {
     pub async fn extend_timeslots_to_account_lookups_entry(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (Hash32, u32),
         timeslots: Vec<Timeslot>,
     ) -> Result<Option<usize>, PartialStateError> {
         let lookups_entry = self
-            .get_or_load_account_lookups_entry(state_manager, address, &lookups_key)
+            .get_or_load_account_lookups_entry(state_manager, service_id, &lookups_key)
             .await?;
         if lookups_entry.is_none() {
             return Ok(None);
@@ -442,7 +451,7 @@ impl AccountsSandboxMap {
         lookups_entry.value.extend(timeslots);
 
         let new_timeslot_vec_len = lookups_entry.value.len();
-        self.insert_account_lookups_entry(state_manager, address, lookups_key, lookups_entry)
+        self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(Some(new_timeslot_vec_len))
     }
@@ -450,18 +459,18 @@ impl AccountsSandboxMap {
     pub async fn drain_account_lookups_entry_timeslots(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (Hash32, u32),
     ) -> Result<bool, PartialStateError> {
         let lookups_entry = self
-            .get_or_load_account_lookups_entry(state_manager, address, &lookups_key)
+            .get_or_load_account_lookups_entry(state_manager, service_id, &lookups_key)
             .await?;
         if lookups_entry.is_none() {
             return Ok(false);
         }
         let mut lookups_entry = lookups_entry.unwrap();
         lookups_entry.value = vec![];
-        self.insert_account_lookups_entry(state_manager, address, lookups_key, lookups_entry)
+        self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(true)
     }
@@ -469,15 +478,15 @@ impl AccountsSandboxMap {
     pub async fn eject_account(
         &mut self,
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<(), PartialStateError> {
         let account_sandbox = self
-            .get_mut_account_sandbox(state_manager, address)
+            .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         account_sandbox.metadata = StateView::Removed;
 
-        // Mark all storage entries associated with the address as removed.
+        // Mark all storage entries associated with the service_id as removed.
         account_sandbox
             .storage
             .values_mut()
@@ -510,13 +519,13 @@ pub struct AccumulatePartialState {
 impl AccumulatePartialState {
     /// Initialize `AccumulatePartialState` with one account sandbox entry, which is supposed to be
     /// the accumulator service account.
-    pub async fn new_from_address(
+    pub async fn new_from_service_id(
         state_manager: &StateManager,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Self, PartialStateError> {
         let mut accounts_sandbox = HashMap::new();
-        let account_sandbox = AccountSandbox::from_address(state_manager, address).await?;
-        accounts_sandbox.insert(address, account_sandbox);
+        let account_sandbox = AccountSandbox::from_service_id(state_manager, service_id).await?;
+        accounts_sandbox.insert(service_id, account_sandbox);
         Ok(Self {
             accounts_sandbox: AccountsSandboxMap {
                 accounts: accounts_sandbox,

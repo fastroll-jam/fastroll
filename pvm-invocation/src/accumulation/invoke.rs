@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::{AccumulateResult, PVMInvocation};
-use rjam_common::{Address, Hash32, UnsignedGas};
+use rjam_common::{Hash32, ServiceId, UnsignedGas};
 use rjam_pvm_core::types::{
     accumulation::AccumulateOperand, error::PVMError, invoke_args::AccumulateInvokeArgs,
 };
@@ -9,7 +9,7 @@ use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashMap;
 
 type AccumulationOutputHash = Hash32;
-type AccumulationOutputPairs = Vec<(Address, AccumulationOutputHash)>;
+type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     gas_used: UnsignedGas,
@@ -24,14 +24,14 @@ pub struct OuterAccumulationResult {
     output_pairs: AccumulationOutputPairs,
 }
 
-fn build_operands(reports: &[WorkReport], service_index: Address) -> Vec<AccumulateOperand> {
+fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<AccumulateOperand> {
     reports
         .iter()
         .flat_map(|report| {
             report
                 .results()
                 .iter()
-                .filter(|result| result.service_index == service_index)
+                .filter(|result| result.service_id == service_id)
                 .map(move |result| AccumulateOperand {
                     work_output: result.refine_output.clone(),
                     work_output_payload_hash: result.payload_hash,
@@ -48,19 +48,19 @@ fn build_operands(reports: &[WorkReport], service_index: Address) -> Vec<Accumul
 async fn accumulate_single_service(
     state_manager: &StateManager,
     reports: &[WorkReport],
-    always_accumulate_services: &HashMap<Address, UnsignedGas>,
-    service_index: Address,
+    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    service_id: ServiceId,
 ) -> Result<AccumulateResult, PVMError> {
-    let operands = build_operands(reports, service_index);
+    let operands = build_operands(reports, service_id);
     let mut gas = always_accumulate_services
-        .get(&service_index)
+        .get(&service_id)
         .cloned()
         .unwrap_or(0);
 
     let reports_gas_aggregated: UnsignedGas = reports
         .iter()
         .flat_map(|report| report.results().iter())
-        .filter(|result| result.service_index == service_index)
+        .filter(|result| result.service_id == service_id)
         .map(|result| result.gas_prioritization_ratio)
         .sum();
 
@@ -69,7 +69,7 @@ async fn accumulate_single_service(
     PVMInvocation::accumulate(
         state_manager,
         &AccumulateInvokeArgs {
-            accumulate_host: service_index,
+            accumulate_host: service_id,
             gas_limit: gas,
             operands,
         },
@@ -81,12 +81,12 @@ async fn accumulate_single_service(
 async fn accumulate_parallelized(
     state_manager: &StateManager,
     reports: &[WorkReport],
-    always_accumulate_services: &HashMap<Address, UnsignedGas>,
+    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
 ) -> Result<ParallelAccumulationResult, PVMError> {
-    let mut services: Vec<Address> = reports
+    let mut services: Vec<ServiceId> = reports
         .iter()
         .flat_map(|report| report.results().iter())
-        .map(|result| result.service_index)
+        .map(|result| result.service_id)
         .collect();
 
     services.append(&mut always_accumulate_services.keys().cloned().collect());

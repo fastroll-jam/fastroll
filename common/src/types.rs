@@ -9,7 +9,7 @@ use std::{
 // Type aliases
 pub type Hash32 = ByteArray<HASH_SIZE>;
 pub type Octets = ByteSequence;
-pub type Address = u32; // service account address (index)
+pub type ServiceId = u32;
 pub type ValidatorIndex = u16;
 pub type CoreIndex = u16;
 pub type Balance = u64;

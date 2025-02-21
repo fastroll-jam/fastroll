@@ -187,7 +187,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             // TODO: error handling for target account being not found?
             let target_service_account_metadata = self
                 .state_manager
-                .get_account_metadata(result_item.service_index)
+                .get_account_metadata(result_item.service_id)
                 .await?;
 
             let target_service_account_min_item_gas = match target_service_account_metadata {
@@ -363,14 +363,14 @@ impl<'a> GuaranteesXtValidator<'a> {
         for result in work_report.results() {
             if let Some(expected_code_hash) = self
                 .state_manager
-                .get_account_code_hash(result.service_index)
+                .get_account_code_hash(result.service_id)
                 .await?
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
                     return Err(InvalidCodeHash(
                         work_report.core_index(),
-                        result.service_index,
+                        result.service_id,
                         result.service_code_hash.encode_hex(),
                     ));
                 }
@@ -378,7 +378,7 @@ impl<'a> GuaranteesXtValidator<'a> {
                 // service account not found
                 return Err(AccountOfWorkResultNotFound(
                     work_report.core_index(),
-                    result.service_index,
+                    result.service_id,
                 ));
             }
         }

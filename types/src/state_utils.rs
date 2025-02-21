@@ -1,6 +1,6 @@
 use crate::state::*;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
-use rjam_common::{Address, ByteArray, Hash32, HASH_SIZE};
+use rjam_common::{ByteArray, Hash32, ServiceId, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Debug;
 
@@ -212,7 +212,7 @@ pub const fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
     STATE_KEYS[key as usize - 1]
 }
 
-pub fn get_account_metadata_state_key(s: Address) -> Hash32 {
+pub fn get_account_metadata_state_key(s: ServiceId) -> Hash32 {
     let mut key = Hash32::default();
     key[0] = StateKeyConstant::AccountMetadata as u8;
     let encoded = s
@@ -225,7 +225,7 @@ pub fn get_account_metadata_state_key(s: Address) -> Hash32 {
     key
 }
 
-fn construct_storage_state_key(s: Address, h: &[u8]) -> Hash32 {
+fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> Hash32 {
     let mut key = Hash32::default();
     let s_bytes = s.to_be_bytes();
     for i in 0..4 {
@@ -237,7 +237,7 @@ fn construct_storage_state_key(s: Address, h: &[u8]) -> Hash32 {
     key
 }
 
-pub fn get_account_storage_state_key(s: Address, key: &Hash32) -> Hash32 {
+pub fn get_account_storage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
     let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
     key_with_prefix[0..4].copy_from_slice(
         &u32::MAX
@@ -248,7 +248,7 @@ pub fn get_account_storage_state_key(s: Address, key: &Hash32) -> Hash32 {
     construct_storage_state_key(s, &key_with_prefix)
 }
 
-pub fn get_account_preimage_state_key(s: Address, key: &Hash32) -> Hash32 {
+pub fn get_account_preimage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
     let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
     key_with_prefix[0..4].copy_from_slice(
         &(u32::MAX - 1)
@@ -260,7 +260,7 @@ pub fn get_account_preimage_state_key(s: Address, key: &Hash32) -> Hash32 {
 }
 
 pub fn get_account_lookups_state_key(
-    s: Address,
+    s: ServiceId,
     h: &Hash32,
     l: u32,
 ) -> Result<Hash32, CryptoError> {

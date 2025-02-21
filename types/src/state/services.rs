@@ -9,7 +9,7 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Address, Balance, Hash32, Octets, UnsignedGas};
+use rjam_common::{Balance, Hash32, Octets, ServiceId, UnsignedGas};
 use std::collections::HashMap;
 
 pub const B_S: Balance = 100; // The basic minimum balance which all services require
@@ -26,7 +26,7 @@ pub struct AccountInfo {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountMetadata {
-    pub address: Address,
+    pub service_id: ServiceId,
     pub account_info: AccountInfo,
     /// The number of entries of the account lookups dictionary
     pub lookups_items_count: u32,
@@ -266,12 +266,12 @@ impl StorageFootprint for AccountLookupsOctetsUsage {
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PrivilegedServices {
     /// `m`: A privileged service that can alter privileged services state.
-    pub manager_service: Address,
+    pub manager_service: ServiceId,
     /// `a`: A privileged service that can alter the auth queue.
-    pub assign_service: Address,
+    pub assign_service: ServiceId,
     /// `v`: A privileged service that can alter the staging validator set.
-    pub designate_service: Address,
+    pub designate_service: ServiceId,
     /// `g`: A mapping of always-accumulate services and their basic gas usages.
-    pub always_accumulate_services: HashMap<Address, UnsignedGas>,
+    pub always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);

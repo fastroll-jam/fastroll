@@ -5,7 +5,7 @@ pub mod test_utils;
 use crate::error::StateManagerError;
 use dashmap::DashMap;
 use rjam_codec::JamEncode;
-use rjam_common::{Address, Hash32};
+use rjam_common::{Hash32, ServiceId};
 use rjam_crypto::octets_to_hash32;
 use rjam_state_merkle::{
     error::StateMerkleError,
@@ -311,27 +311,27 @@ impl StateManager {
         }
     }
 
-    pub async fn account_exists(&self, address: Address) -> Result<bool, StateManagerError> {
-        Ok(self.get_account_metadata(address).await?.is_some())
+    pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
+        Ok(self.get_account_metadata(service_id).await?.is_some())
     }
 
-    pub async fn check(&self, address: Address) -> Result<Address, StateManagerError> {
-        let mut check_address = address;
+    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        let mut check_id = service_id;
         loop {
-            if !self.account_exists(check_address).await? {
-                return Ok(check_address);
+            if !self.account_exists(check_id).await? {
+                return Ok(check_id);
             }
 
-            check_address = ((check_address as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9))
-                + (1 << 8)) as Address;
+            check_id =
+                ((check_id as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9)) + (1 << 8)) as ServiceId;
         }
     }
 
     pub async fn get_account_code_hash(
         &self,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<Hash32>, StateManagerError> {
-        match self.get_account_metadata(address).await? {
+        match self.get_account_metadata(service_id).await? {
             Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
             None => Ok(None),
         }
@@ -344,15 +344,15 @@ impl StateManager {
     /// on-chain state is possible.
     pub async fn get_account_code(
         &self,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        let code_hash = match self.get_account_metadata(address).await? {
+        let code_hash = match self.get_account_metadata(service_id).await? {
             Some(metadata) => metadata.account_info.code_hash,
             None => return Ok(None),
         };
 
         match self
-            .get_account_preimages_entry(address, &code_hash)
+            .get_account_preimages_entry(service_id, &code_hash)
             .await?
         {
             Some(entry) => Ok(Some(entry.value.into_vec())),
@@ -367,23 +367,23 @@ impl StateManager {
     /// to on-chain state is not possible.
     pub async fn get_account_code_by_lookup(
         &self,
-        address: Address,
+        service_id: ServiceId,
         reference_timeslot_index: u32,
         code_hash: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        self.lookup_preimage(address, &Timeslot(reference_timeslot_index), code_hash)
+        self.lookup_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
             .await
     }
 
     /// The historical lookup function `Λ`
     pub async fn lookup_preimage(
         &self,
-        address: Address,
+        service_id: ServiceId,
         reference_timeslot: &Timeslot,
         preimage_hash: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         let preimage = match self
-            .get_account_preimages_entry(address, preimage_hash)
+            .get_account_preimages_entry(service_id, preimage_hash)
             .await?
         {
             Some(preimage) => preimage.value,
@@ -391,7 +391,7 @@ impl StateManager {
         };
         let preimage_length = preimage.len() as u32;
         let lookup_timeslots = match self
-            .get_account_lookups_entry(address, &(*preimage_hash, preimage_length))
+            .get_account_lookups_entry(service_id, &(*preimage_hash, preimage_length))
             .await?
         {
             Some(lookup_timeslots) => lookup_timeslots.value,
@@ -866,32 +866,32 @@ impl StateManager {
 
     pub async fn get_account_metadata(
         &self,
-        address: Address,
+        service_id: ServiceId,
     ) -> Result<Option<AccountMetadata>, StateManagerError> {
-        let state_key = get_account_metadata_state_key(address);
+        let state_key = get_account_metadata_state_key(service_id);
         self.get_account_state_entry(&state_key).await
     }
 
     pub async fn with_mut_account_metadata<F>(
         &self,
         state_mut: StateMut,
-        address: Address,
+        service_id: ServiceId,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountMetadata),
     {
-        let state_key = get_account_metadata_state_key(address);
+        let state_key = get_account_metadata_state_key(service_id);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
 
     pub async fn add_account_metadata(
         &self,
-        address: Address,
+        service_id: ServiceId,
         metadata: AccountMetadata,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_metadata_state_key(address);
+        let state_key = get_account_metadata_state_key(service_id);
         self.add_account_state_entry(&state_key, metadata).await
     }
 
@@ -899,11 +899,13 @@ impl StateManager {
     /// when there is a change in the storage entries.
     pub async fn update_account_storage_footprint(
         &self,
-        address: Address,
+        service_id: ServiceId,
         storage_key: &Hash32,
         new_storage_entry: &AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
-        let prev_storage_entry = self.get_account_storage_entry(address, storage_key).await?;
+        let prev_storage_entry = self
+            .get_account_storage_entry(service_id, storage_key)
+            .await?;
         let (item_count_delta, octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
                 prev_storage_entry.as_ref(),
@@ -918,7 +920,7 @@ impl StateManager {
         };
 
         // Update the footprints
-        self.with_mut_account_metadata(state_mut, address, |metadata| {
+        self.with_mut_account_metadata(state_mut, service_id, |metadata| {
             metadata.update_storage_items_count(item_count_delta);
             metadata.update_storage_total_octets(octets_count_delta);
         })
@@ -929,11 +931,13 @@ impl StateManager {
     /// account metadata when there is a change in the lookups entries.
     pub async fn update_account_lookups_footprint(
         &self,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: &(Hash32, u32),
         new_lookups_entry: &AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
-        let prev_lookups_entry = self.get_account_lookups_entry(address, lookups_key).await?;
+        let prev_lookups_entry = self
+            .get_account_lookups_entry(service_id, lookups_key)
+            .await?;
 
         // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
         let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
@@ -959,7 +963,7 @@ impl StateManager {
         };
 
         // Update the footprints
-        self.with_mut_account_metadata(state_mut, address, |metadata| {
+        self.with_mut_account_metadata(state_mut, service_id, |metadata| {
             metadata.update_lookups_items_count(item_count_delta);
             metadata.update_lookups_total_octets(octets_count_delta);
         })
@@ -968,88 +972,88 @@ impl StateManager {
 
     pub async fn get_account_storage_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
-        let state_key = get_account_storage_state_key(address, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key);
         self.get_account_state_entry(&state_key).await
     }
 
     pub async fn with_mut_account_storage_entry<F>(
         &self,
         state_mut: StateMut,
-        address: Address,
+        service_id: ServiceId,
         storage_key: &Hash32,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountStorageEntry),
     {
-        let state_key = get_account_storage_state_key(address, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
 
     pub async fn add_account_storage_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         storage_key: &Hash32,
         storage_entry: AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_storage_state_key(address, storage_key);
+        let state_key = get_account_storage_state_key(service_id, storage_key);
         self.add_account_state_entry(&state_key, storage_entry)
             .await
     }
 
     pub async fn get_account_preimages_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: &Hash32,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-        let state_key = get_account_preimage_state_key(address, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.get_account_state_entry(&state_key).await
     }
 
     pub async fn with_mut_account_preimages_entry<F>(
         &self,
         state_mut: StateMut,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: &Hash32,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountPreimagesEntry),
     {
-        let state_key = get_account_preimage_state_key(address, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
 
     pub async fn add_account_preimages_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         preimages_key: &Hash32,
         preimages_entry: AccountPreimagesEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_preimage_state_key(address, preimages_key);
+        let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.add_account_state_entry(&state_key, preimages_entry)
             .await
     }
 
     pub async fn get_account_lookups_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: &(Hash32, u32),
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
         let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(address, h, *l)?;
+        let state_key = get_account_lookups_state_key(service_id, h, *l)?;
         self.get_account_state_entry(&state_key).await
     }
 
     pub async fn with_mut_account_lookups_entry<F>(
         &self,
         state_mut: StateMut,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (&Hash32, u32),
         f: F,
     ) -> Result<(), StateManagerError>
@@ -1057,19 +1061,19 @@ impl StateManager {
         F: FnOnce(&mut AccountLookupsEntry),
     {
         let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(address, h, l)?;
+        let state_key = get_account_lookups_state_key(service_id, h, l)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
 
     pub async fn add_account_lookups_entry(
         &self,
-        address: Address,
+        service_id: ServiceId,
         lookups_key: (&Hash32, u32),
         lookups_entry: AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
         let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(address, h, l)?;
+        let state_key = get_account_lookups_state_key(service_id, h, l)?;
         self.add_account_state_entry(&state_key, lookups_entry)
             .await
     }

@@ -80,7 +80,7 @@ mod tests {
 
             for pre_account_metadata in pre_account_metadata_vec {
                 state_manager
-                    .add_account_metadata(pre_account_metadata.address, pre_account_metadata)
+                    .add_account_metadata(pre_account_metadata.service_id, pre_account_metadata)
                     .await?;
             }
 

@@ -398,7 +398,7 @@ impl From<AccountMetadata> for AsnServiceItem {
         };
 
         Self {
-            id: value.address,
+            id: value.service_id,
             data: AsnAccount { service: info },
         }
     }
@@ -416,7 +416,7 @@ impl From<AsnServiceItem> for AccountMetadata {
         };
 
         Self {
-            address: value.id,
+            service_id: value.id,
             account_info,
             lookups_items_count: 0,
             storage_items_count: value.data.service.items,
@@ -717,7 +717,7 @@ pub struct AsnWorkItem {
 impl From<AsnWorkItem> for WorkItem {
     fn from(value: AsnWorkItem) -> Self {
         Self {
-            service_index: value.service,
+            service_id: value.service,
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_blob: ByteSequence::from_vec(value.payload.0),
             refine_gas_limit: value.refine_gas_limit,
@@ -740,7 +740,7 @@ impl From<AsnWorkItem> for WorkItem {
 impl From<WorkItem> for AsnWorkItem {
     fn from(value: WorkItem) -> Self {
         Self {
-            service: value.service_index,
+            service: value.service_id,
             code_hash: value.service_code_hash.into(),
             payload: value.payload_blob.into(),
             refine_gas_limit: value.refine_gas_limit,
@@ -773,7 +773,7 @@ impl From<AsnWorkPackage> for WorkPackage {
     fn from(value: AsnWorkPackage) -> Self {
         Self {
             auth_token: ByteSequence::from_vec(value.authorization.0),
-            authorizer_address: value.auth_code_host,
+            authorizer_service_id: value.auth_code_host,
             authorizer: value.authorizer.into(),
             context: value.context.into(),
             work_items: value.items.into_iter().map(WorkItem::from).collect(),
@@ -785,7 +785,7 @@ impl From<WorkPackage> for AsnWorkPackage {
     fn from(value: WorkPackage) -> Self {
         Self {
             authorization: value.auth_token.into(),
-            auth_code_host: value.authorizer_address,
+            auth_code_host: value.authorizer_service_id,
             authorizer: value.authorizer.into(),
             context: value.context.into(),
             items: value
@@ -850,7 +850,7 @@ pub struct AsnWorkResult {
 impl From<AsnWorkResult> for WorkItemResult {
     fn from(value: AsnWorkResult) -> Self {
         Self {
-            service_index: value.service_id,
+            service_id: value.service_id,
             service_code_hash: ByteArray::new(value.code_hash.0),
             payload_hash: ByteArray::new(value.payload_hash.0),
             gas_prioritization_ratio: value.accumulate_gas,
@@ -862,7 +862,7 @@ impl From<AsnWorkResult> for WorkItemResult {
 impl From<WorkItemResult> for AsnWorkResult {
     fn from(value: WorkItemResult) -> Self {
         Self {
-            service_id: value.service_index,
+            service_id: value.service_id,
             code_hash: AsnByteArray32(value.service_code_hash.0),
             payload_hash: AsnByteArray32(value.payload_hash.0),
             accumulate_gas: value.gas_prioritization_ratio,
@@ -1579,7 +1579,7 @@ pub struct AsnPreimage {
 impl From<AsnPreimage> for PreimagesXtEntry {
     fn from(value: AsnPreimage) -> Self {
         Self {
-            service_index: value.requester,
+            service_id: value.requester,
             preimage_data: ByteSequence::from_vec(value.blob.0),
         }
     }
@@ -1588,7 +1588,7 @@ impl From<AsnPreimage> for PreimagesXtEntry {
 impl From<PreimagesXtEntry> for AsnPreimage {
     fn from(value: PreimagesXtEntry) -> Self {
         Self {
-            requester: value.service_index,
+            requester: value.service_id,
             blob: AsnByteSequence(value.preimage_data.0),
         }
     }

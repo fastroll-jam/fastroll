@@ -37,8 +37,8 @@ pub struct IsAuthorizedArgs {
 /// `Ψ_M` invocation function arguments for `Ψ_R`
 #[derive(JamEncode)]
 pub struct RefineVMArgs {
-    /// Associated service index (`s` of `WorkItem`)
-    refine_address: Address,
+    /// Associated service id (`s` of `WorkItem`)
+    service_id: ServiceId,
     /// Work item payload blob (**`y`** of `WorkItem`)
     work_payload: Vec<u8>,
     /// Work package hash (Hash of `WorkPackage`)
@@ -104,7 +104,7 @@ pub struct AccumulateVMArgs {
     /// Current timeslot index
     timeslot_index: u32,
     /// `s` of `AccumulateInvokeArgs`
-    accumulate_host: Address,
+    accumulate_host: ServiceId,
     /// **`o`** of `AccumulateInvokeArgs`
     operands: Vec<AccumulateOperand>,
 }
@@ -119,7 +119,7 @@ pub struct AccumulateResult {
 
 #[allow(dead_code)]
 pub struct BalanceChangeSet {
-    recipient: Address,
+    recipient: ServiceId,
     added_amount: Balance,
 }
 
@@ -129,7 +129,7 @@ pub struct OnTransferVMArgs {
     /// Current timeslot index
     timeslot_index: u32,
     /// `s` of `OnTransferInvokeArgs`
-    destination: Address,
+    destination: ServiceId,
     /// **`t`** of `OnTransferInvokeArgs`
     transfers: Vec<DeferredTransfer>,
 }
@@ -142,7 +142,7 @@ pub struct OnTransferResult {
 
 impl OnTransferResult {
     pub fn new(
-        recipient: Address,
+        recipient: ServiceId,
         added_amount: Balance,
         recipient_sandbox: Option<AccountSandbox>,
     ) -> Self {
@@ -184,7 +184,7 @@ impl PVMInvocation {
         // retrieve the service account code via historical lookup
         let code = match state_manager
             .get_account_code_by_lookup(
-                args.package.authorizer_address,
+                args.package.authorizer_service_id,
                 args.package.context.lookup_anchor_timeslot,
                 &args.package.authorizer.auth_code_hash,
             )
@@ -199,7 +199,7 @@ impl PVMInvocation {
 
         let result = PVM::invoke_with_args(
             state_manager,
-            args.package.authorizer_address,
+            args.package.authorizer_service_id,
             &code,
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
@@ -233,9 +233,7 @@ impl PVMInvocation {
         };
 
         // Check the service account to run refinement exists in the global state
-        let service_exists = state_manager
-            .account_exists(work_item.service_index)
-            .await?;
+        let service_exists = state_manager.account_exists(work_item.service_id).await?;
         if !service_exists {
             return Ok(RefineResult::bad());
         }
@@ -243,7 +241,7 @@ impl PVMInvocation {
         // Retrieve the service account code via the historical lookup function
         let code = match state_manager
             .get_account_code_by_lookup(
-                work_item.service_index,
+                work_item.service_id,
                 args.package.context.lookup_anchor_timeslot,
                 &work_item.service_code_hash,
             )
@@ -261,7 +259,7 @@ impl PVMInvocation {
         }
 
         let vm_args = RefineVMArgs {
-            refine_address: work_item.service_index,
+            service_id: work_item.service_id,
             work_payload: work_item.payload_blob.clone().into_vec(),
             work_package_hash: args.package.hash()?,
             refinement_context: args.package.context.clone(),
@@ -272,7 +270,7 @@ impl PVMInvocation {
             InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args.clone()));
         let result = PVM::invoke_with_args(
             state_manager,
-            work_item.service_index,
+            work_item.service_id,
             &code,
             REFINE_INITIAL_PC,
             work_item.refine_gas_limit,

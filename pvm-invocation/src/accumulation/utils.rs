@@ -1,4 +1,4 @@
-use rjam_common::Address;
+use rjam_common::ServiceId;
 use rjam_types::{
     common::{transfers::DeferredTransfer, workloads::WorkReport},
     state::{
@@ -145,7 +145,7 @@ pub fn collect_accumulatable_reports(
 /// Represents function `R` of the GP.
 pub fn select_deferred_transfers(
     transfers: &[DeferredTransfer],
-    destination: Address,
+    destination: ServiceId,
 ) -> Vec<DeferredTransfer> {
     let mut selected: Vec<_> = transfers
         .iter()
