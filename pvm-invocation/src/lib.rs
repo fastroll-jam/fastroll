@@ -111,9 +111,13 @@ pub struct AccumulateVMArgs {
 
 #[derive(Default)]
 pub struct AccumulateResult {
+    /// **`o`**: The posterior partial state
     pub partial_state: AccumulatePartialState,
+    /// **`t`**: All transfers deferred by a single-service accumulation
     pub deferred_transfers: Vec<DeferredTransfer>,
+    /// `b`: Accumulation result hash
     pub yielded_accumulate_hash: Option<Hash32>,
+    /// `u`: Amount of gas used by a single-service accumulation
     pub gas_used: UnsignedGas,
 }
 

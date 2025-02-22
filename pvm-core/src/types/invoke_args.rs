@@ -31,7 +31,7 @@ pub struct RefineInvokeArgs {
 /// within host function execution contexts. The timeslot index (`t`) is directly fetched
 /// from the state manager.
 pub struct AccumulateInvokeArgs {
-    /// `s`: The address of the service account to run the accumulation process
+    /// `s`: The id of the service account to run the accumulation process
     pub accumulate_host: ServiceId,
     /// `g`: The maximum amount of gas allowed for the accumulation process
     pub gas_limit: UnsignedGas,

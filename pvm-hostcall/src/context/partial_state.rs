@@ -510,10 +510,14 @@ impl AccountsSandboxMap {
 /// change set of the state on success and discarding the mutations on failure.
 #[derive(Clone, Default)]
 pub struct AccumulatePartialState {
-    pub accounts_sandbox: AccountsSandboxMap,       // d
-    pub new_staging_set: Option<StagingSet>,        // i
-    pub new_auth_queue: Option<AuthQueue>,          // q
-    pub new_privileges: Option<PrivilegedServices>, // x
+    /// **`d`**: Sandboxed copy of service accounts states
+    pub accounts_sandbox: AccountsSandboxMap,
+    /// **`i`**: New allocation of `StagingSet` after accumulation
+    pub new_staging_set: Option<StagingSet>,
+    /// **`q`**: New allocation of `AuthQueue` after accumulation
+    pub new_auth_queue: Option<AuthQueue>,
+    /// **`x`**: New allocation of `PrivilegedServices` after accumulation
+    pub new_privileges: Option<PrivilegedServices>,
 }
 
 impl AccumulatePartialState {

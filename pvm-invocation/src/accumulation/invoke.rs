@@ -12,31 +12,34 @@ type AccumulationOutputHash = Hash32;
 type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
+    /// `g*`: Total amount of gas used while executing `Δ*`.
     gas_used: UnsignedGas,
+    /// **`t*`**: All deferred transfers created while executing `Δ*`.
     deferred_transfers: Vec<DeferredTransfer>,
+    /// **`b*`**: All accumulation outputs created while executing `Δ*`.
     output_pairs: AccumulationOutputPairs,
 }
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {
-    accumulation_counter: usize,
+    accumulated_reports_count: usize,
     deferred_transfers: Vec<DeferredTransfer>,
+    /// The BEEFY commitment map of the accumulation
     output_pairs: AccumulationOutputPairs,
 }
 
 fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<AccumulateOperand> {
     reports
         .iter()
-        .flat_map(|report| {
-            report
-                .results()
+        .flat_map(|wr| {
+            wr.results()
                 .iter()
-                .filter(|result| result.service_id == service_id)
-                .map(move |result| AccumulateOperand {
-                    work_output: result.refine_output.clone(),
-                    work_output_payload_hash: result.payload_hash,
-                    work_package_hash: report.work_package_hash(),
-                    authorization_output: report.authorization_output().to_vec(),
+                .filter(|wir| wir.service_id == service_id)
+                .map(move |wir| AccumulateOperand {
+                    work_output: wir.refine_output.clone(),
+                    work_output_payload_hash: wir.payload_hash,
+                    work_package_hash: wr.work_package_hash(),
+                    authorization_output: wr.authorization_output().to_vec(),
                 })
         })
         .collect()
@@ -52,25 +55,25 @@ async fn accumulate_single_service(
     service_id: ServiceId,
 ) -> Result<AccumulateResult, PVMError> {
     let operands = build_operands(reports, service_id);
-    let mut gas = always_accumulate_services
+    let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()
         .unwrap_or(0);
 
     let reports_gas_aggregated: UnsignedGas = reports
         .iter()
-        .flat_map(|report| report.results().iter())
-        .filter(|result| result.service_id == service_id)
-        .map(|result| result.gas_prioritization_ratio)
+        .flat_map(|wr| wr.results().iter())
+        .filter(|wir| wir.service_id == service_id)
+        .map(|wir| wir.gas_prioritization_ratio)
         .sum();
 
-    gas += reports_gas_aggregated;
+    gas_limit += reports_gas_aggregated;
 
     PVMInvocation::accumulate(
         state_manager,
         &AccumulateInvokeArgs {
             accumulate_host: service_id,
-            gas_limit: gas,
+            gas_limit,
             operands,
         },
     )
@@ -78,23 +81,25 @@ async fn accumulate_single_service(
 }
 
 /// Represents `Δ*` of the GP.
-async fn accumulate_parallelized(
+async fn accumulate_parallel(
     state_manager: &StateManager,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
 ) -> Result<ParallelAccumulationResult, PVMError> {
     let mut services: Vec<ServiceId> = reports
         .iter()
-        .flat_map(|report| report.results().iter())
-        .map(|result| result.service_id)
+        .flat_map(|wr| wr.results().iter())
+        .map(|wir| wir.service_id)
         .collect();
 
-    services.append(&mut always_accumulate_services.keys().cloned().collect());
+    services.extend(always_accumulate_services.keys().cloned());
 
-    let mut gas_used: UnsignedGas = 0; // u
-    let mut output_pairs = Vec::with_capacity(services.len()); // b
-    let mut deferred_transfers = Vec::new(); // t
+    let mut gas_used: UnsignedGas = 0;
+    let mut output_pairs = Vec::with_capacity(services.len());
+    let mut deferred_transfers = Vec::new();
 
+    // TODO: partial state accumulation
+    // Accumulate invocations grouped by service ids.
     for service in services {
         let accumulate_result =
             accumulate_single_service(state_manager, reports, always_accumulate_services, service)
@@ -115,61 +120,72 @@ async fn accumulate_parallelized(
     })
 }
 
-// FIXME: Update recursion to iteration
-// /// Represents `Δ+` of the GP.
-// pub async fn accumulate_outer(
-//     state_manager: &StateManager,
-//     gas_limit: UnsignedGas,
-//     reports: Vec<WorkReport>,
-//     always_accumulate_services: &HashMap<Address, UnsignedGas>,
-// ) -> Result<OuterAccumulationResult, PVMError> {
-//     if reports.is_empty() {
-//         return Ok(OuterAccumulationResult::default());
-//     }
-//
-//     let mut accumulated_reports = 0;
-//     let mut current_gas = 0;
-//     let mut current_reports = Vec::new();
-//
-//     // Find the maximum number of reports that can be accumulated within the gas limit
-//     for report in reports.iter() {
-//         let report_gas: UnsignedGas = report
-//             .results()
-//             .iter()
-//             .map(|r| r.gas_prioritization_ratio)
-//             .sum();
-//         if current_gas + report_gas > gas_limit {
-//             break;
-//         }
-//         current_gas += report_gas;
-//         current_reports.push(report.clone());
-//         accumulated_reports += 1;
-//     }
-//
-//     // Accumulate the reports that fit within the gas limit
-//     let ParallelAccumulationResult {
-//         gas_used,               // g*
-//         mut deferred_transfers, // t*
-//         mut output_pairs,       // b*
-//     } = accumulate_parallelized(state_manager, &current_reports, always_accumulate_services).await?;
-//
-//     // Recursively process remaining reports
-//     if accumulated_reports < reports.len() {
-//         let result = accumulate_outer(
-//             state_manager,
-//             gas_limit - gas_used,
-//             &reports[accumulated_reports..],
-//             &HashMap::new(),
-//         ).await?;
-//
-//         accumulated_reports += result.accumulation_counter;
-//         deferred_transfers.extend(result.deferred_transfers);
-//         output_pairs.extend(result.output_pairs);
-//     }
-//
-//     Ok(OuterAccumulationResult {
-//         accumulation_counter: accumulated_reports,
-//         deferred_transfers,
-//         output_pairs,
-//     })
-// }
+/// Represents `Δ+` of the GP.
+pub async fn accumulate_outer(
+    state_manager: &StateManager,
+    gas_limit: UnsignedGas,
+    reports: &[WorkReport],
+    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+) -> Result<OuterAccumulationResult, PVMError> {
+    let mut always_accumulate_services = Some(always_accumulate_services.clone());
+    let mut report_idx = 0usize; // i
+    let mut remaining_gas_limit = gas_limit;
+
+    let mut deferred_transfers_flattened = Vec::new();
+    let mut output_pairs_flattened = Vec::new();
+
+    loop {
+        // All always accumulate services must be processed in the initial loop.
+        let always_accumulate_services = always_accumulate_services.take().unwrap_or_default();
+
+        let processable_reports_prediction =
+            max_processable_reports(&reports[report_idx..], remaining_gas_limit);
+        if processable_reports_prediction == 0 {
+            break;
+        }
+
+        let ParallelAccumulationResult {
+            gas_used,
+            deferred_transfers,
+            output_pairs,
+        } = accumulate_parallel(
+            state_manager,
+            &reports[report_idx..report_idx + processable_reports_prediction],
+            &always_accumulate_services,
+        )
+        .await?;
+
+        report_idx += processable_reports_prediction;
+        remaining_gas_limit = remaining_gas_limit.saturating_sub(gas_used);
+        deferred_transfers_flattened.extend(deferred_transfers);
+        output_pairs_flattened.extend(output_pairs);
+    }
+
+    Ok(OuterAccumulationResult {
+        accumulated_reports_count: report_idx,
+        deferred_transfers: deferred_transfers_flattened,
+        output_pairs: output_pairs_flattened,
+    })
+}
+
+fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> usize {
+    let mut max_processable = 0;
+    let mut gas_counter = 0;
+
+    for report in reports {
+        let report_gas_usage: UnsignedGas = report
+            .results()
+            .iter()
+            .map(|wir| wir.gas_prioritization_ratio)
+            .sum();
+
+        if gas_counter + report_gas_usage > gas_limit {
+            break;
+        }
+
+        gas_counter += report_gas_usage;
+        max_processable += 1
+    }
+
+    max_processable
+}

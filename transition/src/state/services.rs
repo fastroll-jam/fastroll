@@ -1,44 +1,65 @@
 use crate::error::TransitionError;
-use rjam_common::ServiceId;
+use rjam_common::{
+    ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
+};
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
-use rjam_pvm_invocation::{accumulation::utils::select_deferred_transfers, PVMInvocation};
+use rjam_pvm_invocation::{
+    accumulation::{
+        invoke::{accumulate_outer, OuterAccumulationResult},
+        utils::select_deferred_transfers,
+    },
+    PVMInvocation,
+};
 use rjam_state::StateManager;
-use rjam_types::common::transfers::DeferredTransfer;
+use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashSet;
-// FIXME
-// /// State transition function for Accumulate context state components.
-// ///
-// /// The `accumulate` PVM entrypoint invokes host functions that directly modify state cache entries
-// /// via the `StateManager`:
-// /// - `Service Accounts`:
-// ///     - host_write
-// ///     - host_new
-// ///     - host_upgrade
-// ///     - host_transfer
-// ///     - host_solicit
-// ///     - host_forget
-// /// - `PrivilegedServices`:
-// ///     - host_bless
-// /// - `StagingSet`:
-// ///     - host_designate
-// /// - `AuthQueue`:
-// ///     - host_assign
-// pub async fn transition_accumulate_contexts(
-//     state_manager: &StateManager,
-//     reports: Vec<WorkReport>,
-// ) -> Result<OuterAccumulationResult, TransitionError> {
-//     let always_accumulate_services = &state_manager
-//         .get_privileged_services()
-//         .await?
-//         .always_accumulate_services;
-//
-//     Ok(accumulate_outer(
-//         state_manager,
-//         ACCUMULATION_GAS_ALL_CORES,
-//         reports,
-//         always_accumulate_services,
-//     )?)
-// }
+
+/// Processes state transitions by `accumulate` PVM invocation.
+///
+/// # Transitions
+///
+/// The following state components are copied into `AccumulatePartialState` and then mutated
+/// during the `accumulate` PVM invocation by host functions. After executing `accumulate`,
+/// the mutations in `AccumulatePartialState` are copied back into the `StateManager`.
+///
+/// ### Service Accounts
+/// - `host_write`
+/// - `host_new`
+/// - `host_upgrade`
+/// - `host_transfer`
+/// - `host_eject`
+/// - `host_solicit`
+/// - `host_forget`
+/// - `host_yield`
+/// ### Privileged Services
+/// - `host_bless`
+/// ### Staging Set
+/// - `host_designate`
+/// ### Auth Queue
+/// - `host_assign`
+pub async fn transition_accumulate_contexts(
+    state_manager: &StateManager,
+    reports: &[WorkReport],
+) -> Result<OuterAccumulationResult, TransitionError> {
+    let always_accumulate_services = &state_manager
+        .get_privileged_services()
+        .await?
+        .always_accumulate_services;
+
+    let gas_limit = ACCUMULATION_GAS_ALL_CORES.max(
+        ACCUMULATION_GAS_PER_CORE * CORE_COUNT as UnsignedGas
+            + always_accumulate_services.values().sum::<UnsignedGas>(),
+    );
+
+    accumulate_outer(
+        state_manager,
+        gas_limit,
+        reports,
+        always_accumulate_services,
+    )
+    .await
+    .map_err(TransitionError::PVMError)
+}
 
 /// Processes deferred transfers for service accounts.
 ///

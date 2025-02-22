@@ -310,7 +310,7 @@ impl PVM {
     }
 
     async fn execute_host_function(
-        &mut self,
+        &self,
         state_manager: &StateManager,
         service_id: ServiceId,
         context: &mut InvocationContext,
