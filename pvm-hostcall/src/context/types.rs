@@ -80,15 +80,6 @@ impl InvocationContext {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn get_accounts_sandbox(&self) -> Option<&AccountsSandboxMap> {
-        match self {
-            Self::X_A(ctx_pair) => Some(ctx_pair.get_accounts_sandbox()),
-            Self::X_T(ctx) => Some(ctx.get_accounts_sandbox()),
-            _ => None,
-        }
-    }
-
     pub fn get_mut_accounts_sandbox(&mut self) -> Option<&mut AccountsSandboxMap> {
         match self {
             Self::X_A(ctx_pair) => Some(ctx_pair.get_mut_accounts_sandbox()),

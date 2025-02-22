@@ -283,7 +283,6 @@ impl MerkleDB {
     /// Used only for the merkle trie initialization.
     ///
     /// Returns (new_root, Option<(state_key, state_val)>)
-    #[allow(clippy::type_complexity)]
     pub async fn commit_to_empty_trie(
         &self,
         write_op: &MerkleWriteOp,

@@ -115,7 +115,6 @@ pub async fn transition_reports_clear_availables(
 ///
 /// # Return
 /// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
-#[allow(clippy::type_complexity)]
 pub async fn transition_reports_update_entries(
     state_manager: Arc<StateManager>,
     guarantees_xt: GuaranteesXt,

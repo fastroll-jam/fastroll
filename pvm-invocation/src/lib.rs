@@ -121,10 +121,9 @@ pub struct AccumulateResult {
     pub gas_used: UnsignedGas,
 }
 
-#[allow(dead_code)]
 pub struct BalanceChangeSet {
-    recipient: ServiceId,
-    added_amount: Balance,
+    pub recipient: ServiceId,
+    pub added_amount: Balance,
 }
 
 /// `Ψ_M` invocation function arguments for `Ψ_T`

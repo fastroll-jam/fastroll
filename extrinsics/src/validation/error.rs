@@ -8,7 +8,6 @@ use rjam_state::error::StateManagerError;
 use rjam_types::common::workloads::WorkReportError;
 use thiserror::Error;
 
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum XtValidationError {
     // Common validation errors

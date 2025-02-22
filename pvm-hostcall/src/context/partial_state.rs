@@ -109,7 +109,6 @@ impl DerefMut for AccountsSandboxMap {
 impl AccountsSandboxMap {
     /// Initializes the service account sandbox state by copying the account metadata from the
     /// global state and initializing empty HashMap types for storage types.
-    #[allow(clippy::map_entry)]
     async fn ensure_account_sandbox_initialized(
         &mut self,
         state_manager: &StateManager,

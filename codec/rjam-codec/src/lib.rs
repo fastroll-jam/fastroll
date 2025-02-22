@@ -260,7 +260,6 @@ impl JamDecode for bool {
 }
 
 impl<T: JamEncode> JamEncode for Option<T> {
-    #![allow(clippy::nursery)]
     fn size_hint(&self) -> usize {
         match self {
             None => 1, // 1 byte for the presence marker

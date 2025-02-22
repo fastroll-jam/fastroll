@@ -22,7 +22,6 @@ mod tests {
 
     const PATH_PREFIX: &str = "jamtestvectors/codec/data";
 
-    #[allow(dead_code)]
     pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {
         let mut file = File::open(path)?;
         let mut buffer = vec![];
