@@ -1351,6 +1351,7 @@ dependencies = [
  "rjam-extrinsics",
  "rjam-merkle",
  "rjam-pvm-core",
+ "rjam-pvm-hostcall",
  "rjam-pvm-invocation",
  "rjam-state",
  "rjam-types",

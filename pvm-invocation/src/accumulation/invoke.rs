@@ -9,8 +9,8 @@ use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashMap;
 
-type AccumulationOutputHash = Hash32;
-type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
+pub type AccumulationOutputHash = Hash32;
+pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     /// `g*`: Total amount of gas used while executing `Δ*`.
@@ -23,12 +23,12 @@ struct ParallelAccumulationResult {
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {
-    accumulated_reports_count: usize,
-    deferred_transfers: Vec<DeferredTransfer>,
+    pub accumulated_reports_count: usize,
+    pub deferred_transfers: Vec<DeferredTransfer>,
     /// The BEEFY commitment map of the accumulation
-    output_pairs: AccumulationOutputPairs,
+    pub output_pairs: AccumulationOutputPairs,
     /// The union of posterior partial state of all service accounts
-    partial_state_union: AccumulatePartialState,
+    pub partial_state_union: AccumulatePartialState,
 }
 
 fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<AccumulateOperand> {
