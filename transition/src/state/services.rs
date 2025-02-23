@@ -31,10 +31,13 @@ use std::collections::HashSet;
 /// - `host_solicit`
 /// - `host_forget`
 /// - `host_yield`
+///
 /// ### Privileged Services
 /// - `host_bless`
+///
 /// ### Staging Set
 /// - `host_designate`
+///
 /// ### Auth Queue
 /// - `host_assign`
 pub async fn transition_accumulate_contexts(

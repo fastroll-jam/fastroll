@@ -135,7 +135,7 @@ pub async fn accumulate_outer(
     let mut output_pairs_flattened = Vec::new();
 
     loop {
-        // All always accumulate services must be processed in the initial loop.
+        // All always-accumulate services must be processed in the initial loop.
         let always_accumulate_services = always_accumulate_services.take().unwrap_or_default();
 
         let processable_reports_prediction =

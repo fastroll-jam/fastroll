@@ -172,14 +172,17 @@ impl AccountsSandboxMap {
         }
     }
 
-    /// Attempts to retrieve an entry of type `T` from the provided map using the given key.
+    /// Attempts to retrieve an entry of type `T` from the provided map or the global state using the given key.
     ///
-    /// The map stores entries as `StateView<T>`, which can represent existing (`Entry`) or removed entries.
-    /// If the entry is present as `Entry(...)`, its cloned value is returned.
-    /// If it is `Removed` or not found, this function attempts to load it
-    /// from the global state by invoking `load_from_global`.
+    /// The map stores entries as `StateView<T>`, which can represent existing or removed entries of
+    /// sandboxed account state.
     ///
-    /// - If `load_from_global` returns `Some(value)`, that value is inserted into the map as `Entry(value)`
+    /// If the entry is present as `Entry(T)`, returns its cloned value. Otherwise, returns `None`.
+    ///
+    /// If an item with the given key is not found from the map, it attempts to load the corresponding
+    /// item from the global state by invoking `load_from_global`.
+    ///
+    /// - If `load_from_global` returns `Some(T)`, that value is inserted into the map as `Entry(T)`
     ///   and then returned.
     /// - If it returns `None`, the function concludes that the entry does not exist globally, and returns `None`.
     ///
@@ -198,11 +201,10 @@ impl AccountsSandboxMap {
         Fut: Future<Output = Result<Option<T>, StateManagerError>>,
     {
         // Check if the entry is already in the map of the account sandbox.
-        // If the entry is `Remove` variant of the `StateView`, None is returned
-        {
-            if let Some(view) = map.get(key) {
-                return Ok(view.cloned());
-            }
+        // If the entry is `Removed` variant of the `StateView`, `None` is returned
+
+        if let Some(view) = map.get(key) {
+            return Ok(view.cloned());
         }
 
         // If not found in the map, attempt to load it from the global state
@@ -216,7 +218,6 @@ impl AccountsSandboxMap {
         }
     }
 
-    // TODO: check - should return Ok(None) if the account doesn't exist?
     pub async fn get_or_load_account_storage_entry(
         &mut self,
         state_manager: &StateManager,
