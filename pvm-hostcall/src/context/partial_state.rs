@@ -55,7 +55,7 @@ where
 
 /// Represents a service account, including its metadata and associated storage entries.
 ///
-/// Primarily used in the accumulate and on_transfer context for state mutations involving service accounts.
+/// Primarily used in the `accumulate` and `on_transfer` context for state mutations involving service accounts.
 /// The global state serialization doesn't require the service metadata and storage entries to be
 /// stored together, which makes this type to be specific to the accumulation process.
 ///
@@ -133,6 +133,10 @@ impl AccountsSandboxMap {
         Ok(self.get(&service_id))
     }
 
+    pub fn get_account_sandbox_unchecked(&self, service_id: ServiceId) -> Option<&AccountSandbox> {
+        self.get(&service_id)
+    }
+
     async fn get_mut_account_sandbox(
         &mut self,
         state_manager: &StateManager,
@@ -141,6 +145,13 @@ impl AccountsSandboxMap {
         self.ensure_account_sandbox_initialized(state_manager, service_id)
             .await?;
         Ok(self.get_mut(&service_id))
+    }
+
+    pub fn get_mut_account_sandbox_unchecked(
+        &mut self,
+        service_id: ServiceId,
+    ) -> Option<&mut AccountSandbox> {
+        self.get_mut(&service_id)
     }
 
     pub async fn get_account_metadata(
@@ -521,8 +532,7 @@ pub struct AccumulatePartialState {
 }
 
 impl AccumulatePartialState {
-    /// Initialize `AccumulatePartialState` with one account sandbox entry, which is supposed to be
-    /// the accumulator service account.
+    /// Initializes `AccumulatePartialState` with the accumulator service account sandbox entry.
     pub async fn new_from_service_id(
         state_manager: &StateManager,
         service_id: ServiceId,
