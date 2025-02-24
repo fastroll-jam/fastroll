@@ -3,7 +3,9 @@ use rjam_common::{
     ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
-use rjam_pvm_hostcall::context::partial_state::{AccountSandbox, StateView};
+use rjam_pvm_hostcall::context::partial_state::{
+    AccountSandbox, AccumulatePartialState, StateView,
+};
 use rjam_pvm_invocation::{
     accumulation::{
         invoke::{accumulate_outer, AccumulationOutputPairs},
@@ -70,42 +72,16 @@ pub async fn transition_accumulate_contexts(
     .await
     .map_err(TransitionError::PVMError)?;
 
-    // Transition staging set
-    if let Some(new_staging_set) = outer_accumulate_result.partial_state_union.new_staging_set {
-        state_manager
-            .with_mut_staging_set(StateMut::Update, |staging_set| {
-                *staging_set = new_staging_set;
-            })
-            .await?;
-    }
-
-    // Transition auth queue
-    if let Some(new_auth_queue) = outer_accumulate_result.partial_state_union.new_auth_queue {
-        state_manager
-            .with_mut_auth_queue(StateMut::Update, |auth_queue| {
-                *auth_queue = new_auth_queue;
-            })
-            .await?;
-    }
-
-    // Transition privileged services
-    if let Some(new_privileges) = outer_accumulate_result.partial_state_union.new_privileges {
-        state_manager
-            .with_mut_privileged_services(StateMut::Update, |privileges| {
-                *privileges = new_privileges;
-            })
-            .await?;
-    }
-
-    // TODO: Optimize writes
     // Transition service accounts
     for (&service_id, sandbox) in outer_accumulate_result
         .partial_state_union
         .accounts_sandbox
         .iter()
     {
-        transition_account_state(state_manager, service_id, sandbox).await?;
+        transition_service_accounts(state_manager, service_id, sandbox).await?;
     }
+
+    run_privileged_transitions(state_manager, outer_accumulate_result.partial_state_union).await?;
 
     Ok(AccumulateSummary {
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
@@ -114,7 +90,7 @@ pub async fn transition_accumulate_contexts(
     })
 }
 
-async fn transition_account_state(
+async fn transition_service_accounts(
     state_manager: &StateManager,
     service_id: ServiceId,
     sandbox: &AccountSandbox,
@@ -134,7 +110,7 @@ async fn transition_account_state(
         }
     }
 
-    // TODO: handle `Add` case
+    // FIXME: handle `Add` case and optimize writes
     for (k, v) in sandbox.storage.iter() {
         match v {
             StateView::Entry(new_entry) => {
@@ -192,6 +168,40 @@ async fn transition_account_state(
                     .await?
             }
         }
+    }
+
+    Ok(())
+}
+
+async fn run_privileged_transitions(
+    state_manager: &StateManager,
+    partial_state_union: AccumulatePartialState,
+) -> Result<(), TransitionError> {
+    // Transition staging set
+    if let Some(new_staging_set) = partial_state_union.new_staging_set {
+        state_manager
+            .with_mut_staging_set(StateMut::Update, |staging_set| {
+                *staging_set = new_staging_set;
+            })
+            .await?;
+    }
+
+    // Transition auth queue
+    if let Some(new_auth_queue) = partial_state_union.new_auth_queue {
+        state_manager
+            .with_mut_auth_queue(StateMut::Update, |auth_queue| {
+                *auth_queue = new_auth_queue;
+            })
+            .await?;
+    }
+
+    // Transition privileged services
+    if let Some(new_privileges) = partial_state_union.new_privileges {
+        state_manager
+            .with_mut_privileged_services(StateMut::Update, |privileges| {
+                *privileges = new_privileges;
+            })
+            .await?;
     }
 
     Ok(())
