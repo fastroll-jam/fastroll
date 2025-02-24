@@ -191,6 +191,12 @@ pub struct AccountStorageEntry {
 }
 impl_account_state_component!(AccountStorageEntry, AccountStorageEntry);
 
+impl AccountStorageEntry {
+    pub fn new(value: Octets) -> Self {
+        Self { value }
+    }
+}
+
 impl StorageFootprint for AccountStorageEntry {
     fn storage_octets_usage(&self) -> usize {
         self.value.len()
@@ -206,6 +212,12 @@ pub struct AccountPreimagesEntry {
     pub value: Octets,
 }
 impl_account_state_component!(AccountPreimagesEntry, AccountPreimagesEntry);
+
+impl AccountPreimagesEntry {
+    pub fn new(value: Octets) -> Self {
+        Self { value }
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountLookupsEntry {
@@ -240,6 +252,12 @@ impl JamDecode for AccountLookupsEntry {
         }
 
         Ok(Self { value: timeslots })
+    }
+}
+
+impl AccountLookupsEntry {
+    pub fn new(value: Vec<Timeslot>) -> Self {
+        Self { value }
     }
 }
 

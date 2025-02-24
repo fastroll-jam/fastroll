@@ -2,6 +2,8 @@ use crate::error::TransitionError;
 use rjam_common::{
     ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
+use rjam_crypto::{hash, Blake2b256};
+use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
 use rjam_pvm_hostcall::context::partial_state::{
     AccountSandbox, AccumulatePartialState, StateView,
@@ -14,8 +16,12 @@ use rjam_pvm_invocation::{
     PVMInvocation,
 };
 use rjam_state::{StateManager, StateMut};
-use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
-use std::collections::HashSet;
+use rjam_types::{
+    common::{transfers::DeferredTransfer, workloads::WorkReport},
+    extrinsics::preimages::PreimagesXt,
+    state::AccountPreimagesEntry,
+};
+use std::{collections::HashSet, sync::Arc};
 
 pub struct AccumulateSummary {
     pub accumulated_reports_count: usize,
@@ -23,9 +29,12 @@ pub struct AccumulateSummary {
     pub output_pairs: AccumulationOutputPairs,
 }
 
-/// Processes state transitions by `accumulate` PVM invocation.
+/// Processes state transitions of service accounts, `PrivilegedServices`, `StagingSet`
+/// and `AuthQueue` by invoking `accumulate` PVM entrypoint.
 ///
 /// # Transitions
+///
+/// This handles the first state transition for service accounts, yielding `δ†`.
 ///
 /// The following state components are copied into `AccumulatePartialState` and then mutated
 /// during the `accumulate` PVM invocation by host functions. After executing `accumulate`,
@@ -207,15 +216,17 @@ async fn run_privileged_transitions(
     Ok(())
 }
 
-/// Processes deferred transfers for service accounts.
+/// State transition function of service accounts, processing deferred transfers.
+///
+/// # Transitions
+///
+/// This handles the second state transition for service accounts, invoking `on_transfer`
+/// PVM entrypoint and yielding `δ‡`.
 ///
 /// This function:
 /// 1. Identifies unique destination addresses from the input transfers.
 /// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
 /// 3. Updates service account states based on the PVM invocation results.
-///
-/// This function implements the second state transition for service accounts,
-/// following the `accumulate` PVM invocation.
 pub async fn transition_on_transfer(
     state_manager: &StateManager,
     transfers: Vec<DeferredTransfer>,
@@ -234,6 +245,51 @@ pub async fn transition_on_transfer(
             },
         )
         .await?;
+    }
+
+    Ok(())
+}
+
+/// State transition function of service accounts, integrating provided `PreimagesXt` data into
+/// preimage storages. Preimages must be solicited by services but not provided yet.
+///
+/// # Transitions
+///
+/// This handles the final state transition for service accounts, yielding `δ′`.
+/// Once entries in `PreimagesXt` are validated, preimage octets are integrated into the
+/// preimages storages of relevant service accounts and current timeslot is pushed into the
+/// lookups storages to mark the preimage data became available.
+pub async fn transition_services_integrate_preimages(
+    state_manager: Arc<StateManager>,
+    preimages_xt: &PreimagesXt,
+) -> Result<(), TransitionError> {
+    // TODO: check if this should be explicitly validated against the prior service accounts `δ` as well.
+    // Validate preimages extrinsic data.
+    let preimages_validator = PreimagesXtValidator::new(&state_manager);
+    preimages_validator.validate(preimages_xt).await?;
+
+    let curr_timeslot = state_manager.get_timeslot().await?;
+
+    for xt in preimages_xt.iter() {
+        let preimage_data_hash = hash::<Blake2b256>(&xt.preimage_data)?;
+
+        // Add the preimage data entry
+        state_manager
+            .add_account_preimages_entry(
+                xt.service_id,
+                &preimage_data_hash,
+                AccountPreimagesEntry::new(xt.preimage_data.clone()),
+            )
+            .await?;
+
+        // Push current timeslot value to the lookup map
+        let preimage_data_len = xt.preimage_data_len();
+        let lookups_key = (&preimage_data_hash, preimage_data_len as u32);
+        state_manager
+            .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| {
+                entry.value.push(curr_timeslot);
+            })
+            .await?
     }
 
     Ok(())

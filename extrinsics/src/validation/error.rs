@@ -145,6 +145,8 @@ pub enum XtValidationError {
     DuplicatePreimageLookup,
     #[error("Preimage already integrated into the state. Service id: {0}")]
     PreimageAlreadyIntegrated(ServiceId),
+    #[error("Preimage is not solicited. Service id: {0}")]
+    PreimageNotSolicited(ServiceId),
 
     // Ticket validation errors
     #[error("The number of ticket entries ({0}) exceeds the allowed tickets ({1})")]

@@ -49,24 +49,34 @@ impl<'a> PreimagesXtValidator<'a> {
     }
 
     /// Validates each `PreimagesXtEntry`.
-    pub async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
+    async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
         let service_id = entry.service_id;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
         let lookups_key = &(preimage_data_hash, preimage_data_len as u32);
 
+        // Preimage must not be already integrated
         if self
             .state_manager
             .get_account_preimages_entry(service_id, &preimage_data_hash)
             .await?
             .is_some()
-            || self
-                .state_manager
-                .get_account_lookups_entry(service_id, lookups_key)
-                .await?
-                .is_some()
         {
             return Err(PreimageAlreadyIntegrated(service_id));
+        }
+
+        // Preimage must be solicited
+        match self
+            .state_manager
+            .get_account_lookups_entry(service_id, lookups_key)
+            .await?
+        {
+            Some(entry) => {
+                if !entry.value.is_empty() {
+                    return Err(PreimageNotSolicited(service_id));
+                }
+            }
+            None => return Err(PreimageNotSolicited(service_id)),
         }
 
         Ok(())
