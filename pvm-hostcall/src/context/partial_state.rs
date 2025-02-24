@@ -55,7 +55,7 @@ where
 
 /// Represents a service account, including its metadata and associated storage entries.
 ///
-/// Primarily used in the accumulate and on_transfer context for state mutations involving service accounts.
+/// Primarily used in the `accumulate` and `on_transfer` context for state mutations involving service accounts.
 /// The global state serialization doesn't require the service metadata and storage entries to be
 /// stored together, which makes this type to be specific to the accumulation process.
 ///
@@ -133,6 +133,10 @@ impl AccountsSandboxMap {
         Ok(self.get(&service_id))
     }
 
+    pub fn get_account_sandbox_unchecked(&self, service_id: ServiceId) -> Option<&AccountSandbox> {
+        self.get(&service_id)
+    }
+
     async fn get_mut_account_sandbox(
         &mut self,
         state_manager: &StateManager,
@@ -141,6 +145,13 @@ impl AccountsSandboxMap {
         self.ensure_account_sandbox_initialized(state_manager, service_id)
             .await?;
         Ok(self.get_mut(&service_id))
+    }
+
+    pub fn get_mut_account_sandbox_unchecked(
+        &mut self,
+        service_id: ServiceId,
+    ) -> Option<&mut AccountSandbox> {
+        self.get_mut(&service_id)
     }
 
     pub async fn get_account_metadata(
@@ -172,14 +183,17 @@ impl AccountsSandboxMap {
         }
     }
 
-    /// Attempts to retrieve an entry of type `T` from the provided map using the given key.
+    /// Attempts to retrieve an entry of type `T` from the provided map or the global state using the given key.
     ///
-    /// The map stores entries as `StateView<T>`, which can represent existing (`Entry`) or removed entries.
-    /// If the entry is present as `Entry(...)`, its cloned value is returned.
-    /// If it is `Removed` or not found, this function attempts to load it
-    /// from the global state by invoking `load_from_global`.
+    /// The map stores entries as `StateView<T>`, which can represent existing or removed entries of
+    /// sandboxed account state.
     ///
-    /// - If `load_from_global` returns `Some(value)`, that value is inserted into the map as `Entry(value)`
+    /// If the entry is present as `Entry(T)`, returns its cloned value. Otherwise, returns `None`.
+    ///
+    /// If an item with the given key is not found from the map, it attempts to load the corresponding
+    /// item from the global state by invoking `load_from_global`.
+    ///
+    /// - If `load_from_global` returns `Some(T)`, that value is inserted into the map as `Entry(T)`
     ///   and then returned.
     /// - If it returns `None`, the function concludes that the entry does not exist globally, and returns `None`.
     ///
@@ -198,11 +212,10 @@ impl AccountsSandboxMap {
         Fut: Future<Output = Result<Option<T>, StateManagerError>>,
     {
         // Check if the entry is already in the map of the account sandbox.
-        // If the entry is `Remove` variant of the `StateView`, None is returned
-        {
-            if let Some(view) = map.get(key) {
-                return Ok(view.cloned());
-            }
+        // If the entry is `Removed` variant of the `StateView`, `None` is returned
+
+        if let Some(view) = map.get(key) {
+            return Ok(view.cloned());
         }
 
         // If not found in the map, attempt to load it from the global state
@@ -216,7 +229,6 @@ impl AccountsSandboxMap {
         }
     }
 
-    // TODO: check - should return Ok(None) if the account doesn't exist?
     pub async fn get_or_load_account_storage_entry(
         &mut self,
         state_manager: &StateManager,
@@ -520,8 +532,7 @@ pub struct AccumulatePartialState {
 }
 
 impl AccumulatePartialState {
-    /// Initialize `AccumulatePartialState` with one account sandbox entry, which is supposed to be
-    /// the accumulator service account.
+    /// Initializes `AccumulatePartialState` with the accumulator service account sandbox entry.
     pub async fn new_from_service_id(
         state_manager: &StateManager,
         service_id: ServiceId,

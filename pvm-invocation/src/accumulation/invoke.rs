@@ -4,12 +4,13 @@ use rjam_common::{Hash32, ServiceId, UnsignedGas};
 use rjam_pvm_core::types::{
     accumulation::AccumulateOperand, error::PVMError, invoke_args::AccumulateInvokeArgs,
 };
+use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::collections::HashMap;
 
-type AccumulationOutputHash = Hash32;
-type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
+pub type AccumulationOutputHash = Hash32;
+pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     /// `g*`: Total amount of gas used while executing `Δ*`.
@@ -22,10 +23,12 @@ struct ParallelAccumulationResult {
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {
-    accumulated_reports_count: usize,
-    deferred_transfers: Vec<DeferredTransfer>,
+    pub accumulated_reports_count: usize,
+    pub deferred_transfers: Vec<DeferredTransfer>,
     /// The BEEFY commitment map of the accumulation
-    output_pairs: AccumulationOutputPairs,
+    pub output_pairs: AccumulationOutputPairs,
+    /// The union of posterior partial state of all service accounts
+    pub partial_state_union: AccumulatePartialState,
 }
 
 fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<AccumulateOperand> {
@@ -85,6 +88,7 @@ async fn accumulate_parallel(
     state_manager: &StateManager,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
     let mut services: Vec<ServiceId> = reports
         .iter()
@@ -98,7 +102,7 @@ async fn accumulate_parallel(
     let mut output_pairs = Vec::with_capacity(services.len());
     let mut deferred_transfers = Vec::new();
 
-    // TODO: partial state accumulation
+    // TODO: parallelize
     // Accumulate invocations grouped by service ids.
     for service in services {
         let accumulate_result =
@@ -111,6 +115,11 @@ async fn accumulate_parallel(
         }
 
         deferred_transfers.extend(accumulate_result.deferred_transfers);
+        add_partial_state_change(
+            service,
+            partial_state_union,
+            accumulate_result.partial_state,
+        );
     }
 
     Ok(ParallelAccumulationResult {
@@ -118,6 +127,42 @@ async fn accumulate_parallel(
         deferred_transfers,
         output_pairs,
     })
+}
+
+fn add_partial_state_change(
+    accumulate_service: ServiceId,
+    partial_state_union: &mut AccumulatePartialState,
+    accumulate_result_partial_state: AccumulatePartialState,
+) {
+    if let (None, Some(new_staging_set)) = (
+        &partial_state_union.new_staging_set,
+        accumulate_result_partial_state.new_staging_set,
+    ) {
+        partial_state_union.new_staging_set = Some(new_staging_set);
+    }
+    if let (None, Some(new_auth_queue)) = (
+        &partial_state_union.new_auth_queue,
+        accumulate_result_partial_state.new_auth_queue,
+    ) {
+        partial_state_union.new_auth_queue = Some(new_auth_queue);
+    }
+    if let (None, Some(new_privileges)) = (
+        &partial_state_union.new_privileges,
+        accumulate_result_partial_state.new_privileges,
+    ) {
+        partial_state_union.new_privileges = Some(new_privileges);
+    }
+
+    // TODO: Check if two accumulates to the same service can happen in the same block. (Better merge strategy may needed)
+    let accumulate_host_sandbox = partial_state_union
+        .accounts_sandbox
+        .get_mut_account_sandbox_unchecked(accumulate_service)
+        .expect("should not be None");
+    *accumulate_host_sandbox = accumulate_result_partial_state
+        .accounts_sandbox
+        .get_account_sandbox_unchecked(accumulate_service)
+        .cloned()
+        .expect("should not be None");
 }
 
 /// Represents `Δ+` of the GP.
@@ -134,8 +179,11 @@ pub async fn accumulate_outer(
     let mut deferred_transfers_flattened = Vec::new();
     let mut output_pairs_flattened = Vec::new();
 
+    // Initialize accumulate partial state
+    let mut partial_state_union = AccumulatePartialState::default();
+
     loop {
-        // All always accumulate services must be processed in the initial loop.
+        // All always-accumulate services must be processed in the initial loop.
         let always_accumulate_services = always_accumulate_services.take().unwrap_or_default();
 
         let processable_reports_prediction =
@@ -152,6 +200,7 @@ pub async fn accumulate_outer(
             state_manager,
             &reports[report_idx..report_idx + processable_reports_prediction],
             &always_accumulate_services,
+            &mut partial_state_union,
         )
         .await?;
 
@@ -165,6 +214,7 @@ pub async fn accumulate_outer(
         accumulated_reports_count: report_idx,
         deferred_transfers: deferred_transfers_flattened,
         output_pairs: output_pairs_flattened,
+        partial_state_union,
     })
 }
 

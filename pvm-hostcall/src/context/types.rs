@@ -181,21 +181,21 @@ pub struct AccumulateHostContext {
 impl AccumulateHostContext {
     pub async fn new(
         state_manager: &StateManager,
-        accumulate_address: ServiceId,
+        accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
     ) -> Result<Self, PVMError> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
                 state_manager,
-                accumulate_address,
+                accumulate_host,
                 entropy,
                 timeslot,
             )
             .await?,
             partial_state: AccumulatePartialState::new_from_service_id(
                 state_manager,
-                accumulate_address,
+                accumulate_host,
             )
             .await?,
             ..Default::default()
