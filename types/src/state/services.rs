@@ -69,6 +69,19 @@ impl AccountMetadata {
         self.account_info.balance
     }
 
+    /// Adds balance to the account and returns the updated balance.
+    /// Returns `None` if the balance overflows.
+    #[allow(clippy::manual_inspect)]
+    pub fn add_balance(&mut self, amount: Balance) -> Option<Balance> {
+        self.account_info
+            .balance
+            .checked_add(amount)
+            .map(|new_balance| {
+                self.account_info.balance = new_balance;
+                new_balance
+            })
+    }
+
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
         let i = self.item_counts_footprint() as Balance;

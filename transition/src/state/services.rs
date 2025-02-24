@@ -229,15 +229,15 @@ async fn run_privileged_transitions(
 /// 3. Updates service account states based on the PVM invocation results.
 pub async fn transition_on_transfer(
     state_manager: &StateManager,
-    transfers: Vec<DeferredTransfer>,
+    transfers: &[DeferredTransfer],
 ) -> Result<(), TransitionError> {
     // Gather all unique destination addresses.
     let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
-        let transfers = select_deferred_transfers(&transfers, destination);
-        PVMInvocation::on_transfer(
+        let transfers = select_deferred_transfers(transfers, destination);
+        let on_transfer_result = PVMInvocation::on_transfer(
             state_manager,
             &OnTransferInvokeArgs {
                 destination,
@@ -245,6 +245,22 @@ pub async fn transition_on_transfer(
             },
         )
         .await?;
+
+        if let Some(balance_change_set) = on_transfer_result.balance_change_set {
+            state_manager
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    balance_change_set.recipient,
+                    |metadata| {
+                        metadata.add_balance(balance_change_set.added_amount);
+                    },
+                )
+                .await?;
+        }
+
+        if let Some(recipient_sandbox) = on_transfer_result.recipient_sandbox {
+            transition_service_accounts(state_manager, destination, &recipient_sandbox).await?
+        }
     }
 
     Ok(())

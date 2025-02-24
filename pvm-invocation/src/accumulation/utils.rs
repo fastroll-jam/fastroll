@@ -142,19 +142,17 @@ pub fn collect_accumulatable_reports(
 /// First it filters transfers by the given destination address, then sorts them
 /// primarily by the `from` address and secondarily by their original order in the input slice.
 ///
-/// Represents function `R` of the GP.
+/// Represents function *`R`* of the GP.
 pub fn select_deferred_transfers(
     transfers: &[DeferredTransfer],
     destination: ServiceId,
 ) -> Vec<DeferredTransfer> {
-    let mut selected: Vec<_> = transfers
+    let mut selected = transfers
         .iter()
-        .enumerate()
-        .filter(|(_, transfer)| transfer.to == destination)
-        .collect();
-    selected.sort_by_key(|&(i, transfer)| (transfer.from, i));
+        .filter(|&t| t.to == destination)
+        .cloned()
+        .collect::<Vec<_>>();
+    selected.sort_by_key(|t| t.from); // order within the input slice is preserved
+
     selected
-        .into_iter()
-        .map(|(_, transfer)| *transfer)
-        .collect()
 }
