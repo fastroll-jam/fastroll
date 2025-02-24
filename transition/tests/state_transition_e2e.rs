@@ -33,7 +33,7 @@ where
     tokio::spawn(async move {
         let start = Instant::now();
         let result = fut.await;
-        info!(%task_name, "Transitioned in {:?} micros", start.elapsed().as_micros());
+        info!(%task_name, "Transitioned in {:?} μs", start.elapsed().as_micros());
         result
     })
 }
@@ -76,7 +76,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Timeslot STF
     let state_manager_cloned = state_manager.clone();
     spawn_timed("timeslot_stf", async move {
-        transition_timeslot(state_manager_cloned, header_timeslot).await
+        transition_timeslot(state_manager_cloned, &header_timeslot).await
     })
     .await??;
 
@@ -90,7 +90,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     let disputes_jh = spawn_timed("disputes_stf", async move {
         let offenders_marker = disputes_xt_cloned.collect_offender_keys();
-        transition_disputes(state_manager_cloned, disputes_xt_cloned, prev_timeslot)
+        transition_disputes(state_manager_cloned, &disputes_xt_cloned, prev_timeslot)
             .await
             .unwrap();
 
@@ -132,21 +132,21 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let reports_jh = spawn_timed("reports_stf", async move {
         transition_reports_eliminate_invalid(
             state_manager_cloned.clone(),
-            disputes_xt,
+            &disputes_xt,
             prev_timeslot,
         )
         .await
         .unwrap();
         let _removed_reports = transition_reports_clear_availables(
             state_manager_cloned.clone(),
-            assurances_xt,
+            &assurances_xt,
             parent_hash,
         )
         .await
         .unwrap();
         let (_reported, _reporters) = transition_reports_update_entries(
             state_manager_cloned,
-            guarantees_xt_cloned,
+            &guarantees_xt_cloned,
             curr_timeslot,
         )
         .await
@@ -156,7 +156,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Authorizer STF
     let state_manager_cloned = state_manager.clone();
     let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-        transition_auth_pool(state_manager_cloned, guarantees_xt, header_timeslot)
+        transition_auth_pool(state_manager_cloned, &guarantees_xt, header_timeslot)
             .await
             .unwrap();
     });
@@ -179,7 +179,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
             state_manager_cloned,
             header_hash,
             accumulate_root,
-            reported_packages,
+            &reported_packages,
         )
         .await
         .unwrap();
@@ -193,9 +193,9 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let safrole_jh = spawn_timed("safrole_stf", async move {
         transition_safrole(
             state_manager_cloned.clone(),
-            prev_timeslot,
+            &prev_timeslot,
             epoch_progressed,
-            tickets_xt,
+            &tickets_xt,
         )
         .await
         .unwrap();
@@ -212,7 +212,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
             state_manager_cloned,
             epoch_progressed,
             author_index,
-            xt_cloned,
+            &xt_cloned,
         )
         .await
         .unwrap();

@@ -73,7 +73,7 @@ mod test {
                 state_manager,
                 epoch_progressed,
                 jam_input.author_index,
-                jam_input.extrinsics,
+                &jam_input.extrinsics,
             )
             .await?;
             Ok(())

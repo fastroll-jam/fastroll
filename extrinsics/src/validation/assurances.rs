@@ -74,7 +74,7 @@ impl<'a> AssurancesXtValidator<'a> {
     }
 
     /// Validates each `AssurancesXtEntry`.
-    pub async fn validate_entry(
+    async fn validate_entry(
         &self,
         entry: &AssurancesXtEntry,
         header_parent_hash: &Hash32,

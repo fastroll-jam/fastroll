@@ -25,13 +25,13 @@ use std::sync::Arc;
 /// the on-chain state.
 pub async fn transition_reports_eliminate_invalid(
     state_manager: Arc<StateManager>,
-    disputes_xt: DisputesXt,
+    disputes_xt: &DisputesXt,
     prior_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
     // Validate disputes extrinsic data.
     let disputes_validator = DisputesXtValidator::new(&state_manager);
     disputes_validator
-        .validate(&disputes_xt, &prior_timeslot)
+        .validate(disputes_xt, &prior_timeslot)
         .await?;
 
     let (_good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
@@ -58,13 +58,13 @@ pub async fn transition_reports_eliminate_invalid(
 /// awaiting this condition, it removes entries as soon as they qualify to maintain an efficient state.
 pub async fn transition_reports_clear_availables(
     state_manager: Arc<StateManager>,
-    assurances_xt: AssurancesXt,
+    assurances_xt: &AssurancesXt,
     header_parent_hash: Hash32,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(&state_manager);
     assurances_validator
-        .validate(&assurances_xt, &header_parent_hash)
+        .validate(assurances_xt, &header_parent_hash)
         .await?;
 
     // Get core indices which have been available by introducing the assurances extrinsic.
@@ -117,13 +117,13 @@ pub async fn transition_reports_clear_availables(
 /// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
 pub async fn transition_reports_update_entries(
     state_manager: Arc<StateManager>,
-    guarantees_xt: GuaranteesXt,
+    guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
 ) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesXtValidator::new(&state_manager);
     let all_guarantor_keys = guarantees_validator
-        .validate(&guarantees_xt, current_timeslot.slot())
+        .validate(guarantees_xt, current_timeslot.slot())
         .await?;
 
     let new_valid_reports = guarantees_xt.extract_work_reports();

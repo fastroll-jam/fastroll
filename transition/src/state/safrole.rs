@@ -25,9 +25,9 @@ use std::sync::Arc;
 /// * `gamma_a`: Accumulates new tickets.
 pub async fn transition_safrole(
     state_manager: Arc<StateManager>,
-    prior_timeslot: Timeslot,
+    prior_timeslot: &Timeslot,
     epoch_progressed: bool,
-    tickets_xt: TicketsXt,
+    tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone(), prior_timeslot).await?;
@@ -41,7 +41,7 @@ pub async fn transition_safrole(
 
 async fn handle_new_epoch_transition(
     state_manager: Arc<StateManager>,
-    prior_timeslot: Timeslot,
+    prior_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let current_punish_set = state_manager.get_disputes().await?.punish_set;
     let mut prior_staging_set = state_manager.get_staging_set_clean().await?;
@@ -65,7 +65,7 @@ async fn handle_new_epoch_transition(
             // slot-sealer series transition (gamma_s)
             update_slot_sealers(
                 safrole,
-                &prior_timeslot,
+                prior_timeslot,
                 &current_active_set,
                 &current_entropy,
             );
@@ -104,7 +104,7 @@ fn update_slot_sealers(
 
 async fn handle_ticket_accumulation(
     state_manager: Arc<StateManager>,
-    tickets_xt: TicketsXt,
+    tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if tickets_xt.is_empty() {
         return Ok(());
@@ -120,10 +120,10 @@ async fn handle_ticket_accumulation(
 
     // Validate ticket extrinsic data.
     let ticket_validator = TicketsXtValidator::new(&state_manager);
-    ticket_validator.validate(&tickets_xt).await?;
+    ticket_validator.validate(tickets_xt).await?;
 
     // Construct new tickets from ticket extrinsics.
-    let new_tickets = ticket_xt_to_new_tickets(&tickets_xt);
+    let new_tickets = ticket_xt_to_new_tickets(tickets_xt);
 
     // Check if the ticket accumulator contains the new ticket entry.
     // If not, accumulate the new ticket entry into the accumulator.

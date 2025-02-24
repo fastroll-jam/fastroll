@@ -132,7 +132,7 @@ impl<'a> DisputesXtValidator<'a> {
         active_and_past_keys
     }
 
-    pub async fn validate_verdicts_entry(
+    async fn validate_verdicts_entry(
         &self,
         entry: &Verdict,
         prior_timeslot: &Timeslot,
@@ -223,7 +223,7 @@ impl<'a> DisputesXtValidator<'a> {
         Ok(())
     }
 
-    pub fn validate_culprits_entry(
+    fn validate_culprits_entry(
         entry: &Culprit,
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],

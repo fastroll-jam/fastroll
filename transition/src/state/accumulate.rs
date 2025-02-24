@@ -8,9 +8,9 @@ use std::{collections::BTreeSet, sync::Arc};
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
     state_manager: Arc<StateManager>,
-    queued_reports: Vec<WorkReportDepsMap>, // W^Q
-    prior_timeslot: Timeslot,               // τ
-    curr_timeslot: Timeslot,                // τ'
+    queued_reports: &[WorkReportDepsMap], // W^Q
+    prior_timeslot: Timeslot,             // τ
+    curr_timeslot: Timeslot,              // τ'
 ) -> Result<(), TransitionError> {
     let accumulate_history = state_manager.get_accumulate_history().await?;
     let last_accumulate_set = accumulate_history
@@ -26,7 +26,7 @@ pub async fn transition_accumulate_queue(
         .with_mut_accumulate_queue(StateMut::Update, |queue| {
             // Update accumulate queue for the current timeslot (i = 0).
             let curr_slot_entry = queue.get_circular_mut(slot_phase);
-            let curr_slot_entry_updated = edit_queue(&queued_reports, &last_accumulate_set_vec);
+            let curr_slot_entry_updated = edit_queue(queued_reports, &last_accumulate_set_vec);
             curr_slot_entry.drain(..);
             curr_slot_entry.extend(curr_slot_entry_updated);
 
@@ -53,8 +53,8 @@ pub async fn transition_accumulate_queue(
 /// State transition function of `AccumulateHistory`.
 pub async fn transition_accumulate_history(
     state_manager: Arc<StateManager>,
-    accumulatable_reports: Vec<WorkReport>, // W^*
-    accumulate_count: usize,                // n
+    accumulatable_reports: &[WorkReport], // W^*
+    accumulate_count: usize,              // n
 ) -> Result<(), TransitionError> {
     assert!(accumulate_count <= accumulatable_reports.len());
     // Represents `P(W^*_{...n})`.

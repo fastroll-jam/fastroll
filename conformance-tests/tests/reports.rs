@@ -104,11 +104,11 @@ mod tests {
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_timeslot(state_manager.clone(), jam_input.timeslot).await?;
+            transition_timeslot(state_manager.clone(), &jam_input.timeslot).await?;
 
             let (mut reported, mut reporters) = transition_reports_update_entries(
                 state_manager,
-                jam_input.extrinsic,
+                &jam_input.extrinsic,
                 jam_input.timeslot,
             )
             .await?;

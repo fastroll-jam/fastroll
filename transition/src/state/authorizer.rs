@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// added to the pool, discarding the oldest entry from the pool if it is full.
 pub async fn transition_auth_pool(
     state_manager: Arc<StateManager>,
-    guarantees_xt: GuaranteesXt,
+    guarantees_xt: &GuaranteesXt,
     header_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
     // Get the current auth queue state, after its mutation via the accumulation process.

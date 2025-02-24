@@ -139,7 +139,7 @@ impl<'a> GuaranteesXtValidator<'a> {
     ///
     /// Returns `Ed25519PubKey`s of guarantors of the report entry.
     #[allow(clippy::too_many_arguments)]
-    pub async fn validate_entry(
+    async fn validate_entry(
         &self,
         entry: &GuaranteesXtEntry,
         exports_manifests: &[ReportedWorkPackage],

@@ -72,7 +72,7 @@ impl<'a> TicketsXtValidator<'a> {
     }
 
     /// Validates each `TicketsXtEntry`.
-    pub fn validate_entry(
+    fn validate_entry(
         &self,
         entry: &TicketsXtEntry,
         verifier: &Verifier,

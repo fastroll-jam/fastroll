@@ -80,7 +80,7 @@ mod tests {
                 state_manager,
                 jam_input.header_hash,
                 jam_input.accumulate_root,
-                jam_input.reported_packages,
+                &jam_input.reported_packages,
             )
             .await?;
 

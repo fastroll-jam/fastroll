@@ -15,12 +15,12 @@ use std::sync::Arc;
 /// identified culprits and faults.
 pub async fn transition_disputes(
     state_manager: Arc<StateManager>,
-    disputes_xt: DisputesXt,
+    disputes_xt: &DisputesXt,
     prior_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
     let disputes_validator = DisputesXtValidator::new(&state_manager);
     disputes_validator
-        .validate(&disputes_xt, &prior_timeslot)
+        .validate(disputes_xt, &prior_timeslot)
         .await?;
 
     let (good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
