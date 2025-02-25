@@ -17,7 +17,7 @@ use rjam_pvm_core::{
 };
 use rjam_state::StateManager;
 use rjam_types::{common::transfers::DeferredTransfer, state::*};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 pub trait AccountsSandboxHolder {
     // TODO: check if needed
@@ -106,7 +106,10 @@ impl AccountsSandboxHolder for OnTransferHostContext {
 }
 
 impl OnTransferHostContext {
-    pub async fn new(state_manager: &StateManager, recipient: ServiceId) -> Result<Self, PVMError> {
+    pub async fn new(
+        state_manager: Arc<StateManager>,
+        recipient: ServiceId,
+    ) -> Result<Self, PVMError> {
         let mut accounts_sandbox = HashMap::new();
         let recipient_account_sandbox =
             AccountSandbox::from_service_id(state_manager, recipient).await?;
@@ -180,7 +183,7 @@ pub struct AccumulateHostContext {
 
 impl AccumulateHostContext {
     pub async fn new(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
         entropy: Hash32,
@@ -200,7 +203,7 @@ impl AccumulateHostContext {
     }
 
     async fn initialize_new_service_id(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
@@ -221,7 +224,7 @@ impl AccumulateHostContext {
 
     pub async fn get_accumulator_metadata(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
     ) -> Result<&AccountMetadata, PVMError> {
         self.partial_state
             .accounts_sandbox
@@ -232,7 +235,7 @@ impl AccumulateHostContext {
 
     pub async fn get_mut_accumulator_metadata(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
     ) -> Result<&mut AccountMetadata, PVMError> {
         self.partial_state
             .accounts_sandbox
@@ -271,7 +274,7 @@ impl AccumulateHostContext {
     #[allow(clippy::redundant_closure_call)]
     pub async fn rotate_new_account_index(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
     ) -> Result<(), PVMError> {
         let bump = |a: ServiceId| -> ServiceId {
             let modulus = (1u64 << 32) - (1u64 << 9);
@@ -313,7 +316,7 @@ impl AccumulateHostContext {
 
     pub async fn subtract_accumulator_balance(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         amount: Balance,
     ) -> Result<(), PVMError> {
         let account_metadata = self
@@ -330,7 +333,7 @@ impl AccumulateHostContext {
 
     pub async fn add_accumulator_balance(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         amount: Balance,
     ) -> Result<(), PVMError> {
         let account_metadata = self
@@ -347,7 +350,7 @@ impl AccumulateHostContext {
 
     pub async fn add_new_account(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         account_info: AccountInfo,
         code_lookups_key: (Hash32, u32),
     ) -> Result<ServiceId, PVMError> {
@@ -381,7 +384,7 @@ impl AccumulateHostContext {
 
     pub async fn update_accumulator_metadata(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         code_hash: Hash32,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,

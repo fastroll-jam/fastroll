@@ -7,7 +7,10 @@ use rjam_pvm_core::types::{
 use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 pub type AccumulationOutputHash = Hash32;
 pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
@@ -52,7 +55,7 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
 ///
 /// Represents `Δ1` of the GP.
 async fn accumulate_single_service(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
     service_id: ServiceId,
@@ -87,7 +90,7 @@ async fn accumulate_single_service(
 
 /// Represents `Δ*` of the GP.
 async fn accumulate_parallel(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
     partial_state_union: &mut AccumulatePartialState,
@@ -108,7 +111,7 @@ async fn accumulate_parallel(
     // Accumulate invocations grouped by service ids.
     for service in services {
         let accumulate_result = accumulate_single_service(
-            state_manager,
+            state_manager.clone(),
             reports,
             always_accumulate_services,
             service,
@@ -176,7 +179,7 @@ fn add_partial_state_change(
 
 /// Represents `Δ+` of the GP.
 pub async fn accumulate_outer(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     gas_limit: UnsignedGas,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
@@ -206,7 +209,7 @@ pub async fn accumulate_outer(
             deferred_transfers,
             output_pairs,
         } = accumulate_parallel(
-            state_manager,
+            state_manager.clone(),
             &reports[report_idx..report_idx + processable_reports_prediction],
             &always_accumulate_services,
             &mut partial_state_union,

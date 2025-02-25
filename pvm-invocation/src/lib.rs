@@ -19,6 +19,7 @@ use rjam_types::common::{
     transfers::DeferredTransfer,
     workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
 };
+use std::sync::Arc;
 
 // Initial Program Counters
 const IS_AUTHORIZED_INITIAL_PC: RegValue = 0;
@@ -181,7 +182,7 @@ impl PVMInvocation {
     ///
     /// Represents `Ψ_I` of the GP
     pub async fn is_authorized(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via historical lookup
@@ -228,7 +229,7 @@ impl PVMInvocation {
     ///
     /// Represents `Ψ_R` of the GP
     pub async fn refine(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         args: &RefineInvokeArgs,
     ) -> Result<RefineResult, PVMError> {
         let Some(work_item) = args.package.work_items.get(args.item_idx) else {
@@ -309,7 +310,7 @@ impl PVMInvocation {
     ///
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         partial_state: &AccumulatePartialState,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
@@ -327,7 +328,7 @@ impl PVMInvocation {
         };
 
         let ctx = AccumulateHostContext::new(
-            state_manager,
+            state_manager.clone(),
             partial_state.clone(),
             args.accumulate_host,
             curr_entropy,
@@ -394,7 +395,7 @@ impl PVMInvocation {
     ///
     /// Represents `Ψ_T` of the GP
     pub async fn on_transfer(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         args: &OnTransferInvokeArgs,
     ) -> Result<OnTransferResult, PVMError> {
         if args.transfers.is_empty() {
@@ -416,11 +417,11 @@ impl PVMInvocation {
             transfers: args.transfers.clone(),
         };
 
-        let ctx = OnTransferHostContext::new(state_manager, args.destination).await?;
+        let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination).await?;
         let mut on_transfer_ctx = InvocationContext::X_T(ctx);
 
         let _ = PVM::invoke_with_args(
-            state_manager,
+            state_manager.clone(),
             args.destination,
             &code,
             ON_TRANSFER_INITIAL_PC,

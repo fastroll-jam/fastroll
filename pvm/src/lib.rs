@@ -23,6 +23,7 @@ use rjam_pvm_hostcall::{
     host_functions::{HostCallResult, HostCallVMStateChange, HostFunction, MemWrite},
 };
 use rjam_state::StateManager;
+use std::sync::Arc;
 
 #[allow(dead_code)]
 enum ExecutionResult {
@@ -217,7 +218,7 @@ impl PVM {
     ///
     /// Represents `Ψ_M` of the GP.
     pub async fn invoke_with_args(
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         service_id: ServiceId,
         standard_program: &[u8],
         pc: RegValue,
@@ -266,7 +267,7 @@ impl PVM {
     /// Represents `Ψ_H` of the GP.
     async fn invoke_extended(
         &mut self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         service_id: ServiceId,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
@@ -279,7 +280,7 @@ impl PVM {
 
             let host_call_change_set = match exit_reason {
                 ExitReason::HostCall(h) => {
-                    self.execute_host_function(state_manager, service_id, context, &h)
+                    self.execute_host_function(state_manager.clone(), service_id, context, &h)
                         .await?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
@@ -311,7 +312,7 @@ impl PVM {
 
     async fn execute_host_function(
         &self,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         service_id: ServiceId,
         context: &mut InvocationContext,
         h: &HostCallType,
