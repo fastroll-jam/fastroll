@@ -102,35 +102,43 @@ async fn accumulate_parallel(
         .flat_map(|wr| wr.results().iter())
         .map(|wir| wir.service_id)
         .collect();
-
     services.extend(always_accumulate_services.keys().cloned());
 
     let mut gas_used: UnsignedGas = 0;
     let mut output_pairs = Vec::with_capacity(services.len());
     let mut deferred_transfers = Vec::new();
 
-    // TODO: parallelize
-    // Accumulate invocations grouped by service ids.
+    // Concurrent accumulate invocations grouped by service ids.
+    let mut handles = Vec::with_capacity(services.len());
     for service in services {
-        let accumulate_result = accumulate_single_service(
-            state_manager.clone(),
-            reports.clone(),
-            always_accumulate_services.clone(),
-            service,
-            Arc::new(partial_state_union.clone()), // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
-        )
-        .await?;
+        let state_manager_cloned = state_manager.clone();
+        let reports_cloned = reports.clone();
+        let always_accumulate_services_cloned = always_accumulate_services.clone();
+        // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
+        let partial_state_cloned = Arc::new(partial_state_union.clone());
+
+        let handle = tokio::spawn(async move {
+            accumulate_single_service(
+                state_manager_cloned,
+                reports_cloned,
+                always_accumulate_services_cloned,
+                service,
+                partial_state_cloned,
+            )
+            .await
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        let accumulate_result = handle.await.unwrap()?;
         gas_used += accumulate_result.gas_used;
-
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            output_pairs.push((service, output_hash));
+            output_pairs.push((accumulate_result.accumulate_host, output_hash));
         }
-
         deferred_transfers.extend(accumulate_result.deferred_transfers);
-
-        // TODO: call this from out of the iteration and merge results from different `Δ1`s, mutating `partial_state_union`
         add_partial_state_change(
-            service,
+            accumulate_result.accumulate_host,
             partial_state_union,
             accumulate_result.partial_state,
         );
@@ -144,7 +152,7 @@ async fn accumulate_parallel(
 }
 
 fn add_partial_state_change(
-    accumulate_service: ServiceId,
+    accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState,
     accumulate_result_partial_state: AccumulatePartialState,
 ) {
@@ -167,14 +175,13 @@ fn add_partial_state_change(
         partial_state_union.new_privileges = Some(new_privileges);
     }
 
-    // TODO: Check if two accumulates to the same service can happen in the same block. (Better merge strategy may needed)
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
-        .get_mut_account_sandbox_unchecked(accumulate_service)
+        .get_mut_account_sandbox_unchecked(accumulate_host)
         .expect("should not be None");
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
-        .get_account_sandbox_unchecked(accumulate_service)
+        .get_account_sandbox_unchecked(accumulate_host)
         .cloned()
         .expect("should not be None");
 }

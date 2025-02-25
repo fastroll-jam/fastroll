@@ -120,6 +120,7 @@ pub struct AccumulateResult {
     pub yielded_accumulate_hash: Option<Hash32>,
     /// `u`: Amount of gas used by a single-service accumulation
     pub gas_used: UnsignedGas,
+    pub accumulate_host: ServiceId,
 }
 
 pub struct BalanceChangeSet {
@@ -373,6 +374,7 @@ impl PVMInvocation {
                     deferred_transfers: x.deferred_transfers,
                     yielded_accumulate_hash: accumulate_result_hash,
                     gas_used: x.gas_used,
+                    accumulate_host: x.accumulate_host,
                 })
             }
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
@@ -381,6 +383,7 @@ impl PVMInvocation {
                     deferred_transfers: y.deferred_transfers,
                     yielded_accumulate_hash: y.yielded_accumulate_hash,
                     gas_used: x.gas_used, // Note: taking gas usage from the `x` context
+                    accumulate_host: x.accumulate_host,
                 })
             }
         }
