@@ -59,7 +59,7 @@ pub struct AccumulateSummary {
 /// ### Auth Queue
 /// - `host_assign`
 pub async fn transition_accumulate_contexts(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     reports: &[WorkReport],
 ) -> Result<AccumulateSummary, TransitionError> {
     let always_accumulate_services = &state_manager
@@ -73,7 +73,7 @@ pub async fn transition_accumulate_contexts(
     );
 
     let outer_accumulate_result = accumulate_outer(
-        state_manager,
+        state_manager.clone(),
         gas_limit,
         reports,
         always_accumulate_services,
@@ -87,7 +87,7 @@ pub async fn transition_accumulate_contexts(
         .accounts_sandbox
         .iter()
     {
-        transition_service_accounts(state_manager, service_id, sandbox).await?;
+        transition_service_accounts(state_manager.clone(), service_id, sandbox).await?;
     }
 
     run_privileged_transitions(state_manager, outer_accumulate_result.partial_state_union).await?;
@@ -100,7 +100,7 @@ pub async fn transition_accumulate_contexts(
 }
 
 async fn transition_service_accounts(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     service_id: ServiceId,
     sandbox: &AccountSandbox,
 ) -> Result<(), TransitionError> {
@@ -183,7 +183,7 @@ async fn transition_service_accounts(
 }
 
 async fn run_privileged_transitions(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     partial_state_union: AccumulatePartialState,
 ) -> Result<(), TransitionError> {
     // Transition staging set
@@ -228,7 +228,7 @@ async fn run_privileged_transitions(
 /// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
 /// 3. Updates service account states based on the PVM invocation results.
 pub async fn transition_on_transfer(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     transfers: &[DeferredTransfer],
 ) -> Result<(), TransitionError> {
     // Gather all unique destination addresses.
@@ -238,7 +238,7 @@ pub async fn transition_on_transfer(
     for destination in destinations {
         let transfers = select_deferred_transfers(transfers, destination);
         let on_transfer_result = PVMInvocation::on_transfer(
-            state_manager,
+            state_manager.clone(),
             &OnTransferInvokeArgs {
                 destination,
                 transfers,
@@ -259,7 +259,8 @@ pub async fn transition_on_transfer(
         }
 
         if let Some(recipient_sandbox) = on_transfer_result.recipient_sandbox {
-            transition_service_accounts(state_manager, destination, &recipient_sandbox).await?
+            transition_service_accounts(state_manager.clone(), destination, &recipient_sandbox)
+                .await?
         }
     }
 

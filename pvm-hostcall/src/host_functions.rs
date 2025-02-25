@@ -26,7 +26,7 @@ use rjam_state::{
     StateManager,
 };
 use rjam_types::{common::transfers::DeferredTransfer, state::*};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[repr(u64)]
 pub enum HostCallReturnCode {
@@ -171,7 +171,7 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -223,7 +223,7 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -280,7 +280,7 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -302,7 +302,7 @@ impl HostFunction {
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager, service_id, &storage_key)
+            .get_or_load_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?;
 
         let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
@@ -324,7 +324,7 @@ impl HostFunction {
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
         let account_metadata = accounts_sandbox
-            .get_account_metadata(state_manager, service_id)
+            .get_account_metadata(state_manager.clone(), service_id)
             .await?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
@@ -365,7 +365,7 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -541,7 +541,7 @@ impl HostFunction {
     pub async fn host_new(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -560,7 +560,7 @@ impl HostFunction {
 
         // Check if the accumulate host service account's balance is sufficient
         // and subtract by the initial threshold balance to be transferred to the new account.
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
@@ -570,13 +570,13 @@ impl HostFunction {
             return continue_cash!();
         }
 
-        x.subtract_accumulator_balance(state_manager, new_account_threshold_balance)
+        x.subtract_accumulator_balance(state_manager.clone(), new_account_threshold_balance)
             .await?;
 
         // Add a new account to the partial state
         let new_service_id = x
             .add_new_account(
-                state_manager,
+                state_manager.clone(),
                 AccountInfo {
                     code_hash,
                     balance: new_account_threshold_balance,
@@ -598,7 +598,7 @@ impl HostFunction {
     pub async fn host_upgrade(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -623,7 +623,7 @@ impl HostFunction {
     pub async fn host_transfer(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -650,7 +650,7 @@ impl HostFunction {
             gas_limit,
         };
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
@@ -659,7 +659,7 @@ impl HostFunction {
         let dest_account_info = match x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, dest)
+            .get_account_metadata(state_manager.clone(), dest)
             .await?
         {
             Some(metadata) => &metadata.account_info,
@@ -687,7 +687,7 @@ impl HostFunction {
     pub async fn host_eject(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -707,7 +707,7 @@ impl HostFunction {
         let eject_account_metadata = match x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, eject_address)
+            .get_account_metadata(state_manager.clone(), eject_address)
             .await?
         {
             Some(metadata) => metadata.clone(),
@@ -733,14 +733,14 @@ impl HostFunction {
         if let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, eject_address, &lookups_key)
+            .get_or_load_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
             .await?
         {
             let curr_timeslot = state_manager.get_timeslot().await?.slot();
             if entry.value.len() == 2
                 && entry.value[1].slot() < curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
             {
-                x.add_accumulator_balance(state_manager, eject_account_metadata.balance())
+                x.add_accumulator_balance(state_manager.clone(), eject_account_metadata.balance())
                     .await?;
                 x.partial_state
                     .accounts_sandbox
@@ -758,7 +758,7 @@ impl HostFunction {
     pub async fn host_query(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -803,7 +803,7 @@ impl HostFunction {
     pub async fn host_solicit(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -821,7 +821,11 @@ impl HostFunction {
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .get_or_load_account_lookups_entry(
+                state_manager.clone(),
+                x.accumulate_host,
+                &lookups_key,
+            )
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
@@ -862,7 +866,7 @@ impl HostFunction {
             )
             .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager).await?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
         let simulated_threshold_balance = accumulator_metadata
             .simulate_threshold_balance_after_mutation(
                 lookups_items_count_delta,
@@ -898,7 +902,7 @@ impl HostFunction {
     pub async fn host_forget(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_mut_accumulate_x!(context);
@@ -915,7 +919,11 @@ impl HostFunction {
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .get_or_load_account_lookups_entry(
+                state_manager.clone(),
+                x.accumulate_host,
+                &lookups_key,
+            )
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
@@ -930,7 +938,7 @@ impl HostFunction {
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_preimages_entry(
-                                state_manager,
+                                state_manager.clone(),
                                 x.accumulate_host,
                                 lookup_hash,
                             )
@@ -967,7 +975,7 @@ impl HostFunction {
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_preimages_entry(
-                                        state_manager,
+                                        state_manager.clone(),
                                         x.accumulate_host,
                                         lookup_hash,
                                     )
@@ -985,7 +993,7 @@ impl HostFunction {
                                 x.partial_state
                                     .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
-                                        state_manager,
+                                        state_manager.clone(),
                                         x.accumulate_host,
                                         lookups_key,
                                     )
@@ -1044,7 +1052,7 @@ impl HostFunction {
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
         context: &mut InvocationContext,
-        state_manager: &StateManager,
+        state_manager: Arc<StateManager>,
     ) -> Result<HostCallResult, PVMError> {
         let x = get_refine_x!(context);
 

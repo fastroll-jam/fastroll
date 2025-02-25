@@ -7,7 +7,10 @@ use rjam_pvm_core::types::{
 use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 pub type AccumulationOutputHash = Hash32;
 pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
@@ -52,12 +55,13 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
 ///
 /// Represents `Δ1` of the GP.
 async fn accumulate_single_service(
-    state_manager: &StateManager,
-    reports: &[WorkReport],
-    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    state_manager: Arc<StateManager>,
+    reports: Arc<Vec<WorkReport>>,
+    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
+    partial_state: Arc<AccumulatePartialState>,
 ) -> Result<AccumulateResult, PVMError> {
-    let operands = build_operands(reports, service_id);
+    let operands = build_operands(&reports, service_id);
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()
@@ -72,8 +76,11 @@ async fn accumulate_single_service(
 
     gas_limit += reports_gas_aggregated;
 
+    let local_partial_state = (*partial_state).clone();
+
     PVMInvocation::accumulate(
         state_manager,
+        &local_partial_state,
         &AccumulateInvokeArgs {
             accumulate_host: service_id,
             gas_limit,
@@ -85,38 +92,53 @@ async fn accumulate_single_service(
 
 /// Represents `Δ*` of the GP.
 async fn accumulate_parallel(
-    state_manager: &StateManager,
-    reports: &[WorkReport],
-    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    state_manager: Arc<StateManager>,
+    reports: Arc<Vec<WorkReport>>,
+    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
-    let mut services: Vec<ServiceId> = reports
+    let mut services: HashSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.results().iter())
         .map(|wir| wir.service_id)
         .collect();
-
     services.extend(always_accumulate_services.keys().cloned());
 
     let mut gas_used: UnsignedGas = 0;
     let mut output_pairs = Vec::with_capacity(services.len());
     let mut deferred_transfers = Vec::new();
 
-    // TODO: parallelize
-    // Accumulate invocations grouped by service ids.
+    // Concurrent accumulate invocations grouped by service ids.
+    let mut handles = Vec::with_capacity(services.len());
     for service in services {
-        let accumulate_result =
-            accumulate_single_service(state_manager, reports, always_accumulate_services, service)
-                .await?;
+        let state_manager_cloned = state_manager.clone();
+        let reports_cloned = reports.clone();
+        let always_accumulate_services_cloned = always_accumulate_services.clone();
+        // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
+        let partial_state_cloned = Arc::new(partial_state_union.clone());
+
+        let handle = tokio::spawn(async move {
+            accumulate_single_service(
+                state_manager_cloned,
+                reports_cloned,
+                always_accumulate_services_cloned,
+                service,
+                partial_state_cloned,
+            )
+            .await
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        let accumulate_result = handle.await.unwrap()?;
         gas_used += accumulate_result.gas_used;
-
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            output_pairs.push((service, output_hash));
+            output_pairs.push((accumulate_result.accumulate_host, output_hash));
         }
-
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(
-            service,
+            accumulate_result.accumulate_host,
             partial_state_union,
             accumulate_result.partial_state,
         );
@@ -130,7 +152,7 @@ async fn accumulate_parallel(
 }
 
 fn add_partial_state_change(
-    accumulate_service: ServiceId,
+    accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState,
     accumulate_result_partial_state: AccumulatePartialState,
 ) {
@@ -153,21 +175,20 @@ fn add_partial_state_change(
         partial_state_union.new_privileges = Some(new_privileges);
     }
 
-    // TODO: Check if two accumulates to the same service can happen in the same block. (Better merge strategy may needed)
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
-        .get_mut_account_sandbox_unchecked(accumulate_service)
+        .get_mut_account_sandbox_unchecked(accumulate_host)
         .expect("should not be None");
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
-        .get_account_sandbox_unchecked(accumulate_service)
+        .get_account_sandbox_unchecked(accumulate_host)
         .cloned()
         .expect("should not be None");
 }
 
 /// Represents `Δ+` of the GP.
 pub async fn accumulate_outer(
-    state_manager: &StateManager,
+    state_manager: Arc<StateManager>,
     gas_limit: UnsignedGas,
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
@@ -197,9 +218,9 @@ pub async fn accumulate_outer(
             deferred_transfers,
             output_pairs,
         } = accumulate_parallel(
-            state_manager,
-            &reports[report_idx..report_idx + processable_reports_prediction],
-            &always_accumulate_services,
+            state_manager.clone(),
+            Arc::new(reports[report_idx..report_idx + processable_reports_prediction].to_vec()),
+            Arc::new(always_accumulate_services),
             &mut partial_state_union,
         )
         .await?;

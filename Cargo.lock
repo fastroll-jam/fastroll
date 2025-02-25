@@ -1300,6 +1300,7 @@ dependencies = [
  "rjam-pvm-hostcall",
  "rjam-state",
  "rjam-types",
+ "tokio",
 ]
 
 [[package]]
