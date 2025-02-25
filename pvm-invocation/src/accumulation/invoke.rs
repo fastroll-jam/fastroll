@@ -56,12 +56,12 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
 /// Represents `Δ1` of the GP.
 async fn accumulate_single_service(
     state_manager: Arc<StateManager>,
-    reports: &[WorkReport],
-    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    reports: Arc<Vec<WorkReport>>,
+    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
-    partial_state: &AccumulatePartialState,
+    partial_state: Arc<AccumulatePartialState>,
 ) -> Result<AccumulateResult, PVMError> {
-    let operands = build_operands(reports, service_id);
+    let operands = build_operands(&reports, service_id);
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()
@@ -76,9 +76,11 @@ async fn accumulate_single_service(
 
     gas_limit += reports_gas_aggregated;
 
+    let local_partial_state = (*partial_state).clone();
+
     PVMInvocation::accumulate(
         state_manager,
-        partial_state,
+        &local_partial_state,
         &AccumulateInvokeArgs {
             accumulate_host: service_id,
             gas_limit,
@@ -91,8 +93,8 @@ async fn accumulate_single_service(
 /// Represents `Δ*` of the GP.
 async fn accumulate_parallel(
     state_manager: Arc<StateManager>,
-    reports: &[WorkReport],
-    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    reports: Arc<Vec<WorkReport>>,
+    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
     let mut services: HashSet<ServiceId> = reports
@@ -112,10 +114,10 @@ async fn accumulate_parallel(
     for service in services {
         let accumulate_result = accumulate_single_service(
             state_manager.clone(),
-            reports,
-            always_accumulate_services,
+            reports.clone(),
+            always_accumulate_services.clone(),
             service,
-            &*partial_state_union, // cloned in each `Δ1` and then the post partial state merged later
+            Arc::new(partial_state_union.clone()), // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
         )
         .await?;
         gas_used += accumulate_result.gas_used;
@@ -210,8 +212,8 @@ pub async fn accumulate_outer(
             output_pairs,
         } = accumulate_parallel(
             state_manager.clone(),
-            &reports[report_idx..report_idx + processable_reports_prediction],
-            &always_accumulate_services,
+            Arc::new(reports[report_idx..report_idx + processable_reports_prediction].to_vec()),
+            Arc::new(always_accumulate_services),
             &mut partial_state_union,
         )
         .await?;
