@@ -310,6 +310,7 @@ impl PVMInvocation {
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
         state_manager: &StateManager,
+        partial_state: &AccumulatePartialState,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
         let Some(code) = state_manager.get_account_code(args.accumulate_host).await? else {
@@ -327,6 +328,7 @@ impl PVMInvocation {
 
         let ctx = AccumulateHostContext::new(
             state_manager,
+            partial_state.clone(),
             args.accumulate_host,
             curr_entropy,
             &curr_timeslot,

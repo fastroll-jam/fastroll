@@ -181,6 +181,7 @@ pub struct AccumulateHostContext {
 impl AccumulateHostContext {
     pub async fn new(
         state_manager: &StateManager,
+        partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
@@ -193,11 +194,7 @@ impl AccumulateHostContext {
                 timeslot,
             )
             .await?,
-            partial_state: AccumulatePartialState::new_from_service_id(
-                state_manager,
-                accumulate_host,
-            )
-            .await?,
+            partial_state,
             ..Default::default()
         })
     }

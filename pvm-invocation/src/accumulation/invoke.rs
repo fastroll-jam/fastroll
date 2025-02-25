@@ -56,6 +56,7 @@ async fn accumulate_single_service(
     reports: &[WorkReport],
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
     service_id: ServiceId,
+    partial_state: &AccumulatePartialState,
 ) -> Result<AccumulateResult, PVMError> {
     let operands = build_operands(reports, service_id);
     let mut gas_limit = always_accumulate_services
@@ -74,6 +75,7 @@ async fn accumulate_single_service(
 
     PVMInvocation::accumulate(
         state_manager,
+        partial_state,
         &AccumulateInvokeArgs {
             accumulate_host: service_id,
             gas_limit,
@@ -105,9 +107,14 @@ async fn accumulate_parallel(
     // TODO: parallelize
     // Accumulate invocations grouped by service ids.
     for service in services {
-        let accumulate_result =
-            accumulate_single_service(state_manager, reports, always_accumulate_services, service)
-                .await?;
+        let accumulate_result = accumulate_single_service(
+            state_manager,
+            reports,
+            always_accumulate_services,
+            service,
+            &*partial_state_union, // cloned in each `Δ1` and then the post partial state merged later
+        )
+        .await?;
         gas_used += accumulate_result.gas_used;
 
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
@@ -115,6 +122,8 @@ async fn accumulate_parallel(
         }
 
         deferred_transfers.extend(accumulate_result.deferred_transfers);
+
+        // TODO: call this from out of the iteration and merge results from different `Δ1`s, mutating `partial_state_union`
         add_partial_state_change(
             service,
             partial_state_union,
