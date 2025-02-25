@@ -7,7 +7,7 @@ use rjam_pvm_core::types::{
 use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub type AccumulationOutputHash = Hash32;
 pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
@@ -90,7 +90,7 @@ async fn accumulate_parallel(
     always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
-    let mut services: Vec<ServiceId> = reports
+    let mut services: HashSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.results().iter())
         .map(|wir| wir.service_id)
