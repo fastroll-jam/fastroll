@@ -556,7 +556,8 @@ impl HostFunction {
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let new_account_threshold_balance = AccountMetadata::get_initial_threshold_balance();
+        let new_account_threshold_balance =
+            AccountMetadata::get_initial_threshold_balance(code_lookup_len);
 
         // Check if the accumulate host service account's balance is sufficient
         // and subtract by the initial threshold balance to be transferred to the new account.

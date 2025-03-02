@@ -145,8 +145,8 @@ impl AccountMetadata {
         simulated.threshold_balance()
     }
 
-    pub const fn get_initial_threshold_balance() -> Balance {
-        B_S
+    pub const fn get_initial_threshold_balance(code_lookup_len: u32) -> Balance {
+        B_S + B_I * 2 + B_L * (code_lookup_len as Balance + 81)
     }
 
     pub fn update_lookups_items_count(&mut self, delta: i32) {
