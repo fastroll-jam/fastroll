@@ -18,10 +18,14 @@ pub const B_L: Balance = 1; // The additional minimum balance required per octet
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountInfo {
-    pub code_hash: Hash32,                  // c
-    pub balance: Balance,                   // b
-    pub gas_limit_accumulate: UnsignedGas,  // g
-    pub gas_limit_on_transfer: UnsignedGas, // m
+    /// `c`: Service code hash
+    pub code_hash: Hash32,
+    /// `b`: Service account token balance
+    pub balance: Balance,
+    /// `g`: Service-specific gas limit for `accumulate`
+    pub gas_limit_accumulate: UnsignedGas,
+    /// `m`: Service-specific gas limit for `on_transfer`
+    pub gas_limit_on_transfer: UnsignedGas,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -99,20 +103,20 @@ impl AccountMetadata {
     pub fn calculate_storage_footprint_delta<T>(
         prev_entry: Option<&T>,
         new_entry: &T,
-    ) -> Option<(i32, i128)>
+    ) -> Option<(i32, i64)>
     where
         T: StorageFootprint,
     {
         match (prev_entry, new_entry.is_empty()) {
             (Some(entry), true) => {
                 // Case 1: Deleting the existing storage or lookups entry
-                Some((-1, -(entry.storage_octets_usage() as i128)))
+                Some((-1, -(entry.storage_octets_usage() as i64)))
             }
             (Some(entry), false) => {
                 // Case 2: Updating the existing storage or lookups entry
                 Some((
                     0,
-                    new_entry.storage_octets_usage() as i128 - entry.storage_octets_usage() as i128,
+                    new_entry.storage_octets_usage() as i64 - entry.storage_octets_usage() as i64,
                 ))
             }
             (None, true) => {
@@ -121,7 +125,7 @@ impl AccountMetadata {
             }
             (None, false) => {
                 // Case 4: Adding a new storage or lookups entry
-                Some((1, new_entry.storage_octets_usage() as i128))
+                Some((1, new_entry.storage_octets_usage() as i64))
             }
         }
     }
@@ -133,8 +137,8 @@ impl AccountMetadata {
         &self,
         lookups_items_delta: i32,
         storage_items_delta: i32,
-        lookups_octets_delta: i128,
-        storage_octets_delta: i128,
+        lookups_octets_delta: i64,
+        storage_octets_delta: i64,
     ) -> Balance {
         let mut simulated = self.clone();
         simulated.update_lookups_items_count(lookups_items_delta);
@@ -150,19 +154,43 @@ impl AccountMetadata {
     }
 
     pub fn update_lookups_items_count(&mut self, delta: i32) {
-        self.lookups_items_count += delta as u32;
+        if delta < 0 {
+            self.lookups_items_count = self
+                .lookups_items_count
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.lookups_items_count = self.lookups_items_count.saturating_add(delta as u32);
+        }
     }
 
     pub fn update_storage_items_count(&mut self, delta: i32) {
-        self.storage_items_count += delta as u32;
+        if delta < 0 {
+            self.storage_items_count = self
+                .storage_items_count
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.storage_items_count = self.storage_items_count.saturating_add(delta as u32);
+        }
     }
 
-    pub fn update_lookups_total_octets(&mut self, delta: i128) {
-        self.lookups_total_octets += delta as u64;
+    pub fn update_lookups_total_octets(&mut self, delta: i64) {
+        if delta < 0 {
+            self.lookups_total_octets = self
+                .lookups_total_octets
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.lookups_total_octets = self.lookups_total_octets.saturating_add(delta as u64);
+        }
     }
 
-    pub fn update_storage_total_octets(&mut self, delta: i128) {
-        self.storage_total_octets += delta as u64;
+    pub fn update_storage_total_octets(&mut self, delta: i64) {
+        if delta < 0 {
+            self.storage_total_octets = self
+                .storage_total_octets
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.storage_total_octets = self.storage_total_octets.saturating_add(delta as u64);
+        }
     }
 
     /// Used by the PVM `host_info` execution.
