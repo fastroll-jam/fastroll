@@ -340,10 +340,9 @@ mod tests {
         // Unexpected guarantor for work report core.
         wrong_assignment_1: "wrong_assignment-1.json",
 
-        // FIXME: Credentials signature verification failure
         // Success
         // Work report output is very big, still less than the limit.
-        // big_work_report_output_1: "big_work_report_output-1.json",
+        big_work_report_output_1: "big_work_report_output-1.json",
 
         // Fail
         // Work report output size is over the limit.

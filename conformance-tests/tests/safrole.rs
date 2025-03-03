@@ -236,8 +236,7 @@ mod tests {
 
         // Fail
         // Submit an extrinsic with a bad ticket attempt number.
-        // TODO - check ticket ring proof hashes (bad ticket order error)
-        // publish_tickets_no_mark_1: "publish-tickets-no-mark-1.json",
+        publish_tickets_no_mark_1: "publish-tickets-no-mark-1.json",
 
         // Success
         // Submit good tickets extrinsics from some authorities.
