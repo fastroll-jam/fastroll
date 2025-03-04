@@ -28,6 +28,7 @@ pub trait AccountsSandboxHolder {
 
 /// Host context for different invocation types
 #[allow(non_camel_case_types)]
+#[allow(clippy::large_enum_variant)]
 pub enum InvocationContext {
     /// `is_authorized` host-call context (no context)
     X_I,

@@ -103,6 +103,8 @@ pub enum HostCallError {
 pub enum PartialStateError {
     #[error("Account not found from the global state")]
     AccountNotFoundFromGlobalState,
+    #[error("Attempted to delete account storage/preimage entry that doesn't exist")]
+    MissingAccountEntryDeletion,
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
 }

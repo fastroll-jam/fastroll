@@ -283,14 +283,45 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         storage_key: Hash32,
-    ) -> Result<(), PartialStateError> {
+    ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
         let account_sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        account_sandbox
+        let replaced = account_sandbox
             .storage
             .insert(storage_key, StateView::Removed);
+
+        if let Some(replaced) = replaced {
+            Ok(replaced.cloned())
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Updates service account storage footprints.
+    pub async fn update_account_storage_footprint(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+        prev_storage_entry: Option<&AccountStorageEntry>,
+        new_storage_entry: &AccountStorageEntry,
+    ) -> Result<(), PartialStateError> {
+        let (item_count_delta, octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_storage_entry,
+                new_storage_entry,
+            )
+            .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
+
+        let metadata = self
+            .get_mut_account_metadata(state_manager, service_id)
+            .await?
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+
+        metadata.update_storage_items_count(item_count_delta);
+        metadata.update_storage_total_octets(octets_count_delta);
+
         Ok(())
     }
 
@@ -347,15 +378,20 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         preimages_key: Hash32,
-    ) -> Result<(), PartialStateError> {
+    ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         let account_sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        account_sandbox
+        let replaced = account_sandbox
             .preimages
             .insert(preimages_key, StateView::Removed);
-        Ok(())
+
+        if let Some(replaced) = replaced {
+            Ok(replaced.cloned())
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn get_or_load_account_lookups_entry(
@@ -411,15 +447,20 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: (Hash32, u32),
-    ) -> Result<(), PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
         let account_sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        account_sandbox
+        let replaced = account_sandbox
             .lookups
             .insert(lookups_key, StateView::Removed);
-        Ok(())
+
+        if let Some(replaced) = replaced {
+            Ok(replaced.cloned())
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns the length of the timeslot vector after appending a new entry.
@@ -485,6 +526,46 @@ impl AccountsSandboxMap {
         self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(true)
+    }
+
+    /// Updates service account lookups footprints.
+    pub async fn update_account_lookups_footprint(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+        lookups_key: &(Hash32, u32),
+        prev_lookups_entry: Option<&AccountLookupsEntry>,
+        new_lookups_entry: &AccountLookupsEntry,
+    ) -> Result<(), PartialStateError> {
+        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
+        let prev_lookups_octets_usage =
+            prev_lookups_entry
+                .cloned()
+                .map(|p| AccountLookupsOctetsUsage {
+                    preimage_length: lookups_key.1,
+                    entry: p,
+                });
+        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
+            preimage_length: lookups_key.1,
+            entry: new_lookups_entry.clone(),
+        };
+
+        let (item_count_delta, octets_count_delta) =
+            AccountMetadata::calculate_storage_footprint_delta(
+                prev_lookups_octets_usage.as_ref(),
+                &new_lookups_octets_usage,
+            )
+            .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
+
+        let metadata = self
+            .get_mut_account_metadata(state_manager, service_id)
+            .await?
+            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+
+        metadata.update_lookups_items_count(item_count_delta);
+        metadata.update_lookups_total_octets(octets_count_delta);
+
+        Ok(())
     }
 
     pub async fn eject_account(

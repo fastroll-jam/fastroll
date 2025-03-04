@@ -24,7 +24,7 @@ use rjam_types::{
 use rocksdb::WriteBatch;
 use state_db::StateDB;
 use std::{
-    cmp::{Ordering, PartialEq},
+    cmp::PartialEq,
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -893,81 +893,6 @@ impl StateManager {
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_metadata_state_key(service_id);
         self.add_account_state_entry(&state_key, metadata).await
-    }
-
-    /// Wrapper function of the `with_mut_account_metadata` to update account storage footprints
-    /// when there is a change in the storage entries.
-    pub async fn update_account_storage_footprint(
-        &self,
-        service_id: ServiceId,
-        storage_key: &Hash32,
-        new_storage_entry: &AccountStorageEntry,
-    ) -> Result<(), StateManagerError> {
-        let prev_storage_entry = self
-            .get_account_storage_entry(service_id, storage_key)
-            .await?;
-        let (item_count_delta, octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                prev_storage_entry.as_ref(),
-                new_storage_entry,
-            )
-            .ok_or(StateManagerError::StorageEntryNotFound)?;
-
-        let state_mut = match item_count_delta.cmp(&0) {
-            Ordering::Greater => StateMut::Add,
-            Ordering::Less => StateMut::Remove,
-            Ordering::Equal => StateMut::Update,
-        };
-
-        // Update the footprints
-        self.with_mut_account_metadata(state_mut, service_id, |metadata| {
-            metadata.update_storage_items_count(item_count_delta);
-            metadata.update_storage_total_octets(octets_count_delta);
-        })
-        .await
-    }
-
-    /// Wrapper function of the `with_mut_account_metadata` to update lookups footprints of the
-    /// account metadata when there is a change in the lookups entries.
-    pub async fn update_account_lookups_footprint(
-        &self,
-        service_id: ServiceId,
-        lookups_key: &(Hash32, u32),
-        new_lookups_entry: &AccountLookupsEntry,
-    ) -> Result<(), StateManagerError> {
-        let prev_lookups_entry = self
-            .get_account_lookups_entry(service_id, lookups_key)
-            .await?;
-
-        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
-        let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
-            preimage_length: lookups_key.1,
-            entry: p,
-        });
-        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
-            preimage_length: lookups_key.1,
-            entry: new_lookups_entry.clone(),
-        };
-
-        let (item_count_delta, octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_octets_usage.as_ref(),
-                &new_lookups_octets_usage,
-            )
-            .ok_or(StateManagerError::StorageEntryNotFound)?;
-
-        let state_mut = match item_count_delta.cmp(&0) {
-            Ordering::Greater => StateMut::Add,
-            Ordering::Less => StateMut::Remove,
-            Ordering::Equal => StateMut::Update,
-        };
-
-        // Update the footprints
-        self.with_mut_account_metadata(state_mut, service_id, |metadata| {
-            metadata.update_lookups_items_count(item_count_delta);
-            metadata.update_lookups_total_octets(octets_count_delta);
-        })
-        .await
     }
 
     pub async fn get_account_storage_entry(
