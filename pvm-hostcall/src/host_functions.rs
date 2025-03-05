@@ -195,7 +195,7 @@ impl HostFunction {
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_preimages_entry(state_manager, service_id, &hash)
+            .get_account_preimages_entry(state_manager, service_id, &hash)
             .await?
         {
             let preimage_size = entry.value.len();
@@ -248,7 +248,7 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager, service_id, &storage_key)
+            .get_account_storage_entry(state_manager, service_id, &storage_key)
             .await?
         {
             let storage_val_size = entry.value.len();
@@ -302,7 +302,7 @@ impl HostFunction {
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager.clone(), service_id, &storage_key)
+            .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?;
 
         let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
@@ -733,7 +733,7 @@ impl HostFunction {
         if let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
+            .get_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
             .await?
         {
             let curr_timeslot = state_manager.get_timeslot().await?.slot();
@@ -775,7 +775,7 @@ impl HostFunction {
         if let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .get_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
             .await?
         {
             let (r7, r8) = match entry.value.len() {
@@ -821,11 +821,7 @@ impl HostFunction {
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(
-                state_manager.clone(),
-                x.accumulate_host,
-                &lookups_key,
-            )
+            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
@@ -915,11 +911,7 @@ impl HostFunction {
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(
-                state_manager.clone(),
-                x.accumulate_host,
-                &lookups_key,
-            )
+            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;

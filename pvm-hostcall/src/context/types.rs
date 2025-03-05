@@ -1,6 +1,6 @@
 use crate::{
     context::partial_state::{
-        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, StateView,
+        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, PartialStateEntry,
     },
     inner_vm::InnerPVM,
 };
@@ -111,15 +111,11 @@ impl OnTransferHostContext {
         state_manager: Arc<StateManager>,
         recipient: ServiceId,
     ) -> Result<Self, PVMError> {
-        let mut accounts_sandbox = HashMap::new();
+        let mut accounts_sandbox = AccountsSandboxMap::default();
         let recipient_account_sandbox =
             AccountSandbox::from_service_id(state_manager, recipient).await?;
         accounts_sandbox.insert(recipient, recipient_account_sandbox);
-        Ok(Self {
-            accounts_sandbox: AccountsSandboxMap {
-                accounts: accounts_sandbox,
-            },
-        })
+        Ok(Self { accounts_sandbox })
     }
 }
 
@@ -356,7 +352,7 @@ impl AccumulateHostContext {
         code_lookups_key: (Hash32, u32),
     ) -> Result<ServiceId, PVMError> {
         let new_account = AccountSandbox {
-            metadata: StateView::Entry(AccountMetadata::new(account_info)),
+            metadata: PartialStateEntry::new_added(AccountMetadata::new(account_info)),
             storage: HashMap::new(),
             preimages: HashMap::new(),
             lookups: HashMap::new(),

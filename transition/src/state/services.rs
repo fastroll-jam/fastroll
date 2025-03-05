@@ -6,7 +6,7 @@ use rjam_crypto::{hash, Blake2b256};
 use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
 use rjam_pvm_hostcall::context::partial_state::{
-    AccountSandbox, AccumulatePartialState, StateView,
+    AccountSandbox, AccumulatePartialState, PartialStateEntryStatus,
 };
 use rjam_pvm_invocation::{
     accumulation::{
@@ -48,7 +48,6 @@ pub struct AccumulateSummary {
 /// - `host_eject`
 /// - `host_solicit`
 /// - `host_forget`
-/// - `host_yield`
 ///
 /// ### Privileged Services
 /// - `host_bless`
@@ -104,69 +103,82 @@ async fn transition_service_accounts(
     service_id: ServiceId,
     sandbox: &AccountSandbox,
 ) -> Result<(), TransitionError> {
-    match &sandbox.metadata {
-        StateView::Entry(new_metadata) => {
+    // TODO: Optimize writes
+
+    match &sandbox.metadata.status() {
+        PartialStateEntryStatus::Added => {
+            state_manager
+                .add_account_metadata(
+                    service_id,
+                    sandbox.metadata.get_cloned().expect("Should exist"),
+                )
+                .await?;
+        }
+        PartialStateEntryStatus::Updated => {
             state_manager
                 .with_mut_account_metadata(StateMut::Update, service_id, |metadata| {
-                    *metadata = new_metadata.clone()
+                    *metadata = sandbox.metadata.get_cloned().expect("Should exist")
                 })
                 .await?;
         }
-        StateView::Removed => {
+        PartialStateEntryStatus::Removed => {
             state_manager
                 .with_mut_account_metadata(StateMut::Remove, service_id, |_| {})
                 .await?;
         }
+        _ => (),
     }
 
-    // FIXME: handle `Add` case and optimize writes
+    // FIXME: Remove `Upserted` variant and explicitly mark whether storage entry was `added` or `updated`
     for (k, v) in sandbox.storage.iter() {
-        match v {
-            StateView::Entry(new_entry) => {
+        match v.status() {
+            PartialStateEntryStatus::Upserted => {
                 state_manager
                     .with_mut_account_storage_entry(StateMut::Update, service_id, k, |entry| {
-                        *entry = new_entry.clone()
+                        *entry = v.get_cloned().expect("Should exist")
                     })
                     .await?;
             }
-            StateView::Removed => {
+            PartialStateEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_storage_entry(StateMut::Remove, service_id, k, |_| {})
                     .await?
             }
+            _ => (),
         }
     }
 
     for (k, v) in sandbox.preimages.iter() {
-        match v {
-            StateView::Entry(new_entry) => {
+        match v.status() {
+            PartialStateEntryStatus::Upserted => {
                 state_manager
                     .with_mut_account_preimages_entry(StateMut::Update, service_id, k, |entry| {
-                        *entry = new_entry.clone()
+                        *entry = v.get_cloned().expect("Should exist")
                     })
                     .await?;
             }
-            StateView::Removed => {
+            PartialStateEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_preimages_entry(StateMut::Remove, service_id, k, |_| {})
                     .await?
             }
+            _ => (),
         }
     }
 
     for (&k, v) in sandbox.lookups.iter() {
-        match v {
-            StateView::Entry(new_entry) => {
+        match v.status() {
+            PartialStateEntryStatus::Upserted => {
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Update,
                         service_id,
                         (&k.0, k.1),
-                        |entry| *entry = new_entry.clone(),
+                        |entry| *entry = v.get_cloned().expect("Should exist"),
                     )
                     .await?;
             }
-            StateView::Removed => {
+            PartialStateEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Remove,
@@ -176,6 +188,7 @@ async fn transition_service_accounts(
                     )
                     .await?
             }
+            _ => (),
         }
     }
 
