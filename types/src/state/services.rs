@@ -102,30 +102,30 @@ impl AccountMetadata {
     /// A tuple of (storage items count delta, storage octets count delta).
     pub fn calculate_storage_footprint_delta<T>(
         prev_entry: Option<&T>,
-        new_entry: &T,
+        new_entry: Option<&T>,
     ) -> Option<(i32, i64)>
     where
         T: StorageFootprint,
     {
-        match (prev_entry, new_entry.is_empty()) {
-            (Some(entry), true) => {
+        match (prev_entry, new_entry) {
+            (Some(prev), None) => {
                 // Case 1: Deleting the existing storage or lookups entry
-                Some((-1, -(entry.storage_octets_usage() as i64)))
+                Some((-1, -(prev.storage_octets_usage() as i64)))
             }
-            (Some(entry), false) => {
+            (Some(prev), Some(new)) => {
                 // Case 2: Updating the existing storage or lookups entry
                 Some((
                     0,
-                    new_entry.storage_octets_usage() as i64 - entry.storage_octets_usage() as i64,
+                    new.storage_octets_usage() as i64 - prev.storage_octets_usage() as i64,
                 ))
             }
-            (None, true) => {
+            (None, None) => {
                 // Case 3: Attempted to delete a storage or lookups entry that doesn't exist.
                 None
             }
-            (None, false) => {
+            (None, Some(new)) => {
                 // Case 4: Adding a new storage or lookups entry
-                Some((1, new_entry.storage_octets_usage() as i64))
+                Some((1, new.storage_octets_usage() as i64))
             }
         }
     }
@@ -213,7 +213,6 @@ impl AccountMetadata {
 /// Represents storage entry types that are used for metering storage usage footprint.
 pub trait StorageFootprint {
     fn storage_octets_usage(&self) -> usize;
-    fn is_empty(&self) -> bool;
 }
 
 /// A marker trait for types that represent account state components used in PVM invocation contexts.
@@ -241,10 +240,6 @@ impl AccountStorageEntry {
 impl StorageFootprint for AccountStorageEntry {
     fn storage_octets_usage(&self) -> usize {
         self.value.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.value.is_empty()
     }
 }
 
@@ -315,10 +310,6 @@ impl StorageFootprint for AccountLookupsOctetsUsage {
     /// not the size of the timeslots vector.
     fn storage_octets_usage(&self) -> usize {
         self.preimage_length as usize
-    }
-
-    fn is_empty(&self) -> bool {
-        self.entry.value.is_empty()
     }
 }
 

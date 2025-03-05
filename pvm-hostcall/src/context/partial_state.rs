@@ -305,7 +305,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         prev_storage_entry: Option<&AccountStorageEntry>,
-        new_storage_entry: &AccountStorageEntry,
+        new_storage_entry: Option<&AccountStorageEntry>,
     ) -> Result<(), PartialStateError> {
         let (item_count_delta, octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
@@ -535,7 +535,7 @@ impl AccountsSandboxMap {
         service_id: ServiceId,
         lookups_key: &(Hash32, u32),
         prev_lookups_entry: Option<&AccountLookupsEntry>,
-        new_lookups_entry: &AccountLookupsEntry,
+        new_lookups_entry: Option<&AccountLookupsEntry>,
     ) -> Result<(), PartialStateError> {
         // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
         let prev_lookups_octets_usage =
@@ -545,15 +545,17 @@ impl AccountsSandboxMap {
                     preimage_length: lookups_key.1,
                     entry: p,
                 });
-        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
-            preimage_length: lookups_key.1,
-            entry: new_lookups_entry.clone(),
-        };
+
+        let new_lookups_octets_usage =
+            new_lookups_entry.map(|new_entry| AccountLookupsOctetsUsage {
+                preimage_length: lookups_key.1,
+                entry: new_entry.clone(),
+            });
 
         let (item_count_delta, octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
                 prev_lookups_octets_usage.as_ref(),
-                &new_lookups_octets_usage,
+                new_lookups_octets_usage.as_ref(),
             )
             .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
 
