@@ -15,15 +15,9 @@ pub enum PartialStateEntryStatus {
     /// State entry is copied from the state manager, with no modification.
     Clean,
     /// State entry doesn't exist in the state manager and is created during the execution.
-    /// Only `AccountMetadata` can be `Added`.
     Added,
     /// State entry is copied from the state manager and then modified.
-    /// Only `AccountMetadata` can be `Updated`.
     Updated,
-    /// State entry may or may not exist in the state manager and the entry is upserted.
-    /// `AccountStorageEntry`, `AccountPreimagesEntry` and `AccountLookupsEntry` can either be
-    /// `Upserted` or `Removed`.
-    Upserted,
     /// State entry is copied from the state manager and then removed.
     Removed,
 }
@@ -56,13 +50,6 @@ impl<T: PVMContextState + Clone> PartialStateEntry<T> {
         Self {
             value: Some(entry),
             status: PartialStateEntryStatus::Updated,
-        }
-    }
-
-    pub fn new_upserted(entry: T) -> Self {
-        Self {
-            value: Some(entry),
-            status: PartialStateEntryStatus::Upserted,
         }
     }
 
@@ -298,13 +285,23 @@ impl AccountsSandboxMap {
         storage_key: Hash32,
         new_entry: AccountStorageEntry,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
+        let entry = if self
+            .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
+            .await?
+            .is_some()
+        {
+            // Entry with the key already exists in the global state
+            PartialStateEntry::new_updated(new_entry)
+        } else {
+            PartialStateEntry::new_added(new_entry)
+        };
+
         let sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        let maybe_replaced = sandbox
-            .storage
-            .insert(storage_key, PartialStateEntry::new_upserted(new_entry));
+
+        let maybe_replaced = sandbox.storage.insert(storage_key, entry);
 
         if let Some(replaced) = maybe_replaced {
             Ok(replaced.get_cloned())
@@ -383,13 +380,23 @@ impl AccountsSandboxMap {
         preimages_key: Hash32,
         new_entry: AccountPreimagesEntry,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
+        let entry = if self
+            .get_account_preimages_entry(state_manager.clone(), service_id, &preimages_key)
+            .await?
+            .is_some()
+        {
+            // Entry with the key already exists in the global state
+            PartialStateEntry::new_updated(new_entry)
+        } else {
+            PartialStateEntry::new_added(new_entry)
+        };
+
         let sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        let maybe_replaced = sandbox
-            .preimages
-            .insert(preimages_key, PartialStateEntry::new_upserted(new_entry));
+
+        let maybe_replaced = sandbox.preimages.insert(preimages_key, entry);
 
         if let Some(replaced) = maybe_replaced {
             Ok(replaced.get_cloned())
@@ -455,13 +462,23 @@ impl AccountsSandboxMap {
         lookups_key: (Hash32, u32),
         new_entry: AccountLookupsEntry,
     ) -> Result<(), PartialStateError> {
+        let entry = if self
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .await?
+            .is_some()
+        {
+            // Entry with the key already exists in the global state
+            PartialStateEntry::new_updated(new_entry)
+        } else {
+            PartialStateEntry::new_added(new_entry)
+        };
+
         let sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        sandbox
-            .lookups
-            .insert(lookups_key, PartialStateEntry::new_upserted(new_entry));
+
+        sandbox.lookups.insert(lookups_key, entry);
         Ok(())
     }
 

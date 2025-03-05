@@ -129,10 +129,14 @@ async fn transition_service_accounts(
         _ => (),
     }
 
-    // FIXME: Remove `Upserted` variant and explicitly mark whether storage entry was `added` or `updated`
     for (k, v) in sandbox.storage.iter() {
         match v.status() {
-            PartialStateEntryStatus::Upserted => {
+            PartialStateEntryStatus::Added => {
+                state_manager
+                    .add_account_storage_entry(service_id, k, v.get_cloned().expect("Should exist"))
+                    .await?;
+            }
+            PartialStateEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_storage_entry(StateMut::Update, service_id, k, |entry| {
                         *entry = v.get_cloned().expect("Should exist")
@@ -150,7 +154,16 @@ async fn transition_service_accounts(
 
     for (k, v) in sandbox.preimages.iter() {
         match v.status() {
-            PartialStateEntryStatus::Upserted => {
+            PartialStateEntryStatus::Added => {
+                state_manager
+                    .add_account_preimages_entry(
+                        service_id,
+                        k,
+                        v.get_cloned().expect("Should exist"),
+                    )
+                    .await?;
+            }
+            PartialStateEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_preimages_entry(StateMut::Update, service_id, k, |entry| {
                         *entry = v.get_cloned().expect("Should exist")
@@ -168,7 +181,16 @@ async fn transition_service_accounts(
 
     for (&k, v) in sandbox.lookups.iter() {
         match v.status() {
-            PartialStateEntryStatus::Upserted => {
+            PartialStateEntryStatus::Added => {
+                state_manager
+                    .add_account_lookups_entry(
+                        service_id,
+                        (&k.0, k.1),
+                        v.get_cloned().expect("Should exist"),
+                    )
+                    .await?;
+            }
+            PartialStateEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Update,
