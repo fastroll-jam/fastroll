@@ -47,7 +47,7 @@ pub struct WorkPackage {
     pub authorizer: Authorizer,
     /// **`x`**: Refinement context
     pub context: RefinementContext,
-    /// **`w`**: Sequence of work items (4 items at most)
+    /// **`w`**: Sequence of work items (16 items at most)
     pub work_items: Vec<WorkItem>,
 }
 
@@ -294,7 +294,7 @@ pub struct WorkReport {
     pub authorization_output: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
-    /// **`r`**: Work item results, with at least 1 and no more than 4 items
+    /// **`r`**: Work item results, with at least 1 and no more than 16 items
     pub results: Vec<WorkItemResult>,
 }
 
