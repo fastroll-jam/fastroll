@@ -195,7 +195,7 @@ impl HostFunction {
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_preimages_entry(state_manager, service_id, &hash)
+            .get_account_preimages_entry(state_manager, service_id, &hash)
             .await?
         {
             let preimage_size = entry.value.len();
@@ -248,7 +248,7 @@ impl HostFunction {
         let storage_key = hash::<Blake2b256>(&key)?;
 
         if let Some(entry) = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager, service_id, &storage_key)
+            .get_account_storage_entry(state_manager, service_id, &storage_key)
             .await?
         {
             let storage_val_size = entry.value.len();
@@ -302,7 +302,7 @@ impl HostFunction {
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
-            .get_or_load_account_storage_entry(state_manager.clone(), service_id, &storage_key)
+            .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?;
 
         let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
@@ -312,14 +312,18 @@ impl HostFunction {
             HostCallReturnCode::NONE as u64
         };
 
-        let new_storage_entry = AccountStorageEntry {
-            value: Octets::from_vec(memory.read_bytes(value_offset, value_size)?),
+        let new_storage_entry = if value_size == 0 {
+            None
+        } else {
+            Some(AccountStorageEntry {
+                value: Octets::from_vec(memory.read_bytes(value_offset, value_size)?),
+            })
         };
 
         let (storage_items_count_delta, storage_octets_count_delta) =
             AccountMetadata::calculate_storage_footprint_delta(
                 maybe_prev_storage_entry.as_ref(),
-                &new_storage_entry,
+                new_storage_entry.as_ref(),
             )
             .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
@@ -341,19 +345,14 @@ impl HostFunction {
         }
 
         // Apply the state change
-        if value_size == 0 {
+        if let Some(new_entry) = new_storage_entry {
+            accounts_sandbox
+                .insert_account_storage_entry(state_manager, service_id, storage_key, new_entry)
+                .await?;
+        } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
                 .remove_account_storage_entry(state_manager, service_id, storage_key)
-                .await?;
-        } else {
-            accounts_sandbox
-                .insert_account_storage_entry(
-                    state_manager,
-                    service_id,
-                    storage_key,
-                    new_storage_entry,
-                )
                 .await?;
         }
 
@@ -734,7 +733,7 @@ impl HostFunction {
         if let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
+            .get_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
             .await?
         {
             let curr_timeslot = state_manager.get_timeslot().await?.slot();
@@ -776,7 +775,7 @@ impl HostFunction {
         if let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .get_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
             .await?
         {
             let (r7, r8) = match entry.value.len() {
@@ -822,11 +821,7 @@ impl HostFunction {
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(
-                state_manager.clone(),
-                x.accumulate_host,
-                &lookups_key,
-            )
+            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
@@ -844,41 +839,37 @@ impl HostFunction {
                 entry
             }
             None => {
-                // Add a new entry with an empty timeslot vector.
-                AccountLookupsEntry { value: vec![] }
+                // Simulate the threshold balance change. In this case, a new lookups entry with an
+                // empty timeslot vector is added.
+                let new_lookups_entry = AccountLookupsEntry::default();
+                let new_lookups_octets_usage = Some(AccountLookupsOctetsUsage {
+                    preimage_length: lookups_size,
+                    entry: new_lookups_entry.clone(),
+                });
+                let (lookups_items_count_delta, lookups_octets_count_delta) =
+                    AccountMetadata::calculate_storage_footprint_delta(
+                        None,
+                        new_lookups_octets_usage.as_ref(),
+                    )
+                    .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
+
+                let accumulator_metadata =
+                    x.get_accumulator_metadata(state_manager.clone()).await?;
+                let simulated_threshold_balance = accumulator_metadata
+                    .simulate_threshold_balance_after_mutation(
+                        lookups_items_count_delta,
+                        0,
+                        lookups_octets_count_delta,
+                        0,
+                    );
+
+                if simulated_threshold_balance > accumulator_metadata.balance() {
+                    return continue_full!();
+                }
+
+                new_lookups_entry
             }
         };
-
-        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
-        let prev_lookups_octets_usage = prev_lookups_entry.map(|p| AccountLookupsOctetsUsage {
-            preimage_length: lookups_size,
-            entry: p,
-        });
-        let new_lookups_octets_usage = AccountLookupsOctetsUsage {
-            preimage_length: lookups_size,
-            entry: new_lookups_entry.clone(),
-        };
-
-        // Simulate the threshold balance change
-        let (lookups_items_count_delta, lookups_octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_octets_usage.as_ref(),
-                &new_lookups_octets_usage,
-            )
-            .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
-
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
-        let simulated_threshold_balance = accumulator_metadata
-            .simulate_threshold_balance_after_mutation(
-                lookups_items_count_delta,
-                0,
-                lookups_octets_count_delta,
-                0,
-            );
-
-        if simulated_threshold_balance > accumulator_metadata.balance() {
-            return continue_full!();
-        }
 
         // Apply the state change
         x.partial_state
@@ -920,11 +911,7 @@ impl HostFunction {
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_or_load_account_lookups_entry(
-                state_manager.clone(),
-                x.accumulate_host,
-                &lookups_key,
-            )
+            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         let timeslot = state_manager.get_timeslot().await?;
@@ -990,7 +977,10 @@ impl HostFunction {
                                     )
                                     .await?;
                             } else {
-                                let prev_last_timeslot = lookups_timeslots.last().cloned().unwrap(); // Not empty at this point
+                                let prev_last_timeslot = lookups_timeslots
+                                    .last()
+                                    .cloned()
+                                    .expect("Should not be empty");
                                 x.partial_state
                                     .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
