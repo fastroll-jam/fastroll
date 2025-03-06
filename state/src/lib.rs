@@ -371,12 +371,12 @@ impl StateManager {
         reference_timeslot_index: u32,
         code_hash: &Hash32,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        self.lookup_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
+        self.lookup_historical_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
             .await
     }
 
     /// The historical lookup function `Λ`
-    pub async fn lookup_preimage(
+    pub async fn lookup_historical_preimage(
         &self,
         service_id: ServiceId,
         reference_timeslot: &Timeslot,

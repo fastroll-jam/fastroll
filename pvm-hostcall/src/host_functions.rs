@@ -1072,7 +1072,7 @@ impl HostFunction {
             Hash32::decode(&mut memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
 
         let preimage = state_manager
-            .lookup_preimage(
+            .lookup_historical_preimage(
                 service_id,
                 &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
                 &lookup_hash,

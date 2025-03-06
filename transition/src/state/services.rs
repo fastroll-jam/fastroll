@@ -262,7 +262,7 @@ async fn run_privileged_transitions(
 /// 1. Identifies unique destination addresses from the input transfers.
 /// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
 /// 3. Updates service account states based on the PVM invocation results.
-pub async fn transition_on_transfer(
+pub async fn transition_services_on_transfer(
     state_manager: Arc<StateManager>,
     transfers: &[DeferredTransfer],
 ) -> Result<(), TransitionError> {
