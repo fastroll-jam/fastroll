@@ -17,7 +17,7 @@ macro_rules! get_mut_accounts_sandbox {
     ($ctx:expr) => {
         match $ctx.get_mut_accounts_sandbox() {
             Some(sandbox) => sandbox,
-            None => return continue_what!(),
+            None => continue_what!(),
         }
     };
 }
@@ -27,7 +27,7 @@ macro_rules! get_mut_accumulate_x {
     ($ctx:expr) => {
         match $ctx.get_mut_accumulate_x() {
             Some(x) => x,
-            None => return continue_what!(),
+            None => continue_what!(),
         }
     };
 }
@@ -37,7 +37,7 @@ macro_rules! get_refine_x {
     ($ctx:expr) => {
         match $ctx.get_refine_x() {
             Some(x) => x,
-            None => return continue_what!(),
+            None => continue_what!(),
         }
     };
 }
@@ -47,7 +47,7 @@ macro_rules! get_mut_refine_x {
     ($ctx:expr) => {
         match $ctx.get_mut_refine_x() {
             Some(x) => x,
-            None => return continue_what!(),
+            None => continue_what!(),
         }
     };
 }
@@ -109,12 +109,12 @@ macro_rules! continue_with_vm_change {
 #[macro_export]
 macro_rules! continue_with_code {
     ($code:ident) => {
-        Ok(HostCallResult::continue_with_return_code(
+        return Ok(HostCallResult::continue_with_return_code(
             HostCallReturnCode::$code,
         ))
     };
     ($code:ident, $gas:expr) => {
-        Ok(HostCallResult::continue_with_return_code_and_gas(
+        return Ok(HostCallResult::continue_with_return_code_and_gas(
             HostCallReturnCode::$code,
             $gas,
         ))
@@ -224,10 +224,10 @@ macro_rules! continue_ok {
 #[macro_export]
 macro_rules! host_call_panic {
     () => {
-        Ok(HostCallResult::panic())
+        return Ok(HostCallResult::panic())
     };
     ($gas:expr) => {
-        Ok(HostCallResult::panic_with_gas($gas))
+        return Ok(HostCallResult::panic_with_gas($gas))
     };
 }
 
@@ -235,12 +235,12 @@ macro_rules! host_call_panic {
 macro_rules! check_out_of_gas {
     ($gas_counter:expr) => {
         if $gas_counter < BASE_GAS_CHARGE {
-            return $crate::out_of_gas!();
+            $crate::out_of_gas!()
         }
     };
     ($gas_counter:expr, $gas:expr) => {
         if $gas_counter < $gas {
-            return $crate::out_of_gas!($gas);
+            $crate::out_of_gas!($gas)
         }
     };
 }
@@ -248,9 +248,9 @@ macro_rules! check_out_of_gas {
 #[macro_export]
 macro_rules! out_of_gas {
     () => {
-        Ok(HostCallResult::out_of_gas())
+        return Ok(HostCallResult::out_of_gas())
     };
     ($gas:expr) => {
-        Ok(HostCallResult::out_of_gas_with_gas($gas))
+        return Ok(HostCallResult::out_of_gas_with_gas($gas))
     };
 }

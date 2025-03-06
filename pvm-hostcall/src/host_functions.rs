@@ -224,7 +224,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(hash_offset, 32)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         // Read preimage storage key (hash) from the memory
@@ -240,7 +240,7 @@ impl HostFunction {
             let lookup_size = regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-                return host_call_panic!();
+                host_call_panic!()
             }
 
             continue_with_vm_change!(
@@ -280,7 +280,7 @@ impl HostFunction {
         };
 
         if !memory.is_address_range_readable(key_offset, key_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let mut key = service_id.encode_fixed(4)?;
@@ -298,7 +298,7 @@ impl HostFunction {
                 .min(storage_val_size - storage_val_offset); // l
 
             if !memory.is_address_range_writable(buf_offset, read_len)? {
-                return host_call_panic!();
+                host_call_panic!()
             }
 
             continue_with_vm_change!(
@@ -336,7 +336,7 @@ impl HostFunction {
         if !memory.is_address_range_readable(key_offset, key_size)?
             || (value_size > 0 && !memory.is_address_range_readable(value_offset, value_size)?)
         {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let mut key = service_id.encode_fixed(4)?;
@@ -384,7 +384,7 @@ impl HostFunction {
             );
 
         if simulated_threshold_balance > account_metadata.account_info.balance {
-            return continue_full!();
+            continue_full!()
         }
 
         // Apply the state change
@@ -430,14 +430,14 @@ impl HostFunction {
         {
             metadata
         } else {
-            return continue_none!();
+            continue_none!()
         };
 
         // Encode account metadata with JAM Codec
         let info = account_metadata.encode_for_info_hostcall()?;
 
         if !memory.is_address_range_writable(buf_offset, info.len())? {
-            return continue_oob!();
+            continue_oob!()
         }
 
         continue_with_vm_change!(
@@ -471,7 +471,7 @@ impl HostFunction {
         ) {
             (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
             _ => {
-                return continue_who!();
+                continue_who!()
             }
         };
 
@@ -479,7 +479,7 @@ impl HostFunction {
         let always_accumulates_count = regs[11].as_usize()?; // n
 
         if !memory.is_address_range_readable(offset, 12 * always_accumulates_count)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let mut always_accumulate_services = HashMap::with_capacity(always_accumulates_count);
@@ -513,11 +513,11 @@ impl HostFunction {
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         if core_index >= CORE_COUNT {
-            return continue_core!();
+            continue_core!()
         }
 
         let mut queue_assignment = AuthQueue::default();
@@ -546,7 +546,7 @@ impl HostFunction {
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let mut new_staging_set = StagingSet::default();
@@ -576,7 +576,7 @@ impl HostFunction {
             context.get_mut_accumulate_y(),
         ) {
             (Some(x_cloned), Some(y_mut)) => (x_cloned, y_mut),
-            _ => return continue_what!(),
+            _ => continue_what!(),
         };
 
         *y_mut = x_cloned; // assign the cloned `x` context to the `y` context
@@ -611,7 +611,7 @@ impl HostFunction {
         let gas_limit_m = regs[10].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -627,7 +627,7 @@ impl HostFunction {
         if accumulator_balance.saturating_sub(accumulator_threshold_balance)
             < new_account_threshold_balance
         {
-            return continue_cash!();
+            continue_cash!()
         }
 
         x.subtract_accumulator_balance(state_manager.clone(), new_account_threshold_balance)
@@ -671,7 +671,7 @@ impl HostFunction {
         let gas_limit_m = regs[9].value(); // m
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let code_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -701,7 +701,7 @@ impl HostFunction {
         check_out_of_gas!(gas_counter, gas_charge);
 
         if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
-            return host_call_panic!(gas_charge);
+            host_call_panic!(gas_charge)
         }
 
         let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
@@ -730,16 +730,16 @@ impl HostFunction {
         {
             Some(metadata) => &metadata.account_info,
             None => {
-                return continue_who!(gas_charge);
+                continue_who!(gas_charge)
             }
         };
 
         if gas_limit < dest_account_info.gas_limit_on_transfer {
-            return continue_low!(gas_charge);
+            continue_low!(gas_charge)
         }
 
         if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            return continue_cash!(gas_charge);
+            continue_cash!(gas_charge)
         }
 
         x.subtract_accumulator_balance(state_manager, amount)
@@ -765,12 +765,12 @@ impl HostFunction {
         let offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         if eject_address == x.accumulate_host {
-            return continue_who!();
+            continue_who!()
         }
 
         let eject_account_metadata = match x
@@ -781,20 +781,20 @@ impl HostFunction {
         {
             Some(metadata) => metadata.clone(),
             None => {
-                return continue_who!();
+                continue_who!()
             }
         };
 
         let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
             .expect("Should not fail convert 32-byte octets into Hash32");
         if eject_account_metadata.account_info.code_hash != accumulate_host_as_hash {
-            return continue_who!();
+            continue_who!()
         }
 
         // TODO: safe type casting
         let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
         if eject_account_metadata.item_counts_footprint() != 2 {
-            return continue_huh!();
+            continue_huh!()
         }
         let lookups_key = (preimage_hash, preimage_size);
 
@@ -816,7 +816,7 @@ impl HostFunction {
                     .eject_account(state_manager, eject_address)
                     .await?;
 
-                return continue_ok!();
+                continue_ok!()
             }
         }
 
@@ -839,7 +839,7 @@ impl HostFunction {
         let preimage_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
         let preimage_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
@@ -887,7 +887,7 @@ impl HostFunction {
         let lookups_size = regs[8].as_u32()?; // z
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -907,7 +907,7 @@ impl HostFunction {
         let new_lookups_entry = match prev_lookups_entry.clone() {
             Some(mut entry) => {
                 if entry.value.len() != 2 {
-                    return continue_huh!();
+                    continue_huh!()
                 }
                 // Add current timeslot to the timeslot vector.
                 entry.value.push(timeslot);
@@ -939,7 +939,7 @@ impl HostFunction {
                     );
 
                 if simulated_threshold_balance > accumulator_metadata.balance() {
-                    return continue_full!();
+                    continue_full!()
                 }
 
                 new_lookups_entry
@@ -981,7 +981,7 @@ impl HostFunction {
         let lookup_len = regs[8].as_u32()?;
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let lookup_hash = Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -1100,7 +1100,7 @@ impl HostFunction {
         let offset = regs[7].as_mem_address()?; // o
 
         if !memory.is_address_range_readable(offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
         let commitment_hash =
             Hash32::decode(&mut memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
@@ -1145,11 +1145,11 @@ impl HostFunction {
         {
             regs[7].as_service_id()?
         } else {
-            return continue_none!();
+            continue_none!()
         };
 
         if !memory.is_address_range_readable(hash_offset, HASH_SIZE)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let lookup_hash =
@@ -1168,7 +1168,7 @@ impl HostFunction {
         let lookup_size = regs[11].as_usize()?.min(preimage.len() - preimage_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, lookup_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         continue_with_vm_change!(
@@ -1201,7 +1201,7 @@ impl HostFunction {
                 if item_idx < items.len() {
                     items[item_idx].payload_blob.to_vec()
                 } else {
-                    return continue_none!();
+                    continue_none!()
                 }
             }
             3 => {
@@ -1213,10 +1213,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return continue_none!();
+                        continue_none!()
                     }
                 } else {
-                    return continue_none!();
+                    continue_none!()
                 }
             }
             4 => {
@@ -1228,10 +1228,10 @@ impl HostFunction {
                     if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
                         xt_blob.to_vec()
                     } else {
-                        return continue_none!();
+                        continue_none!()
                     }
                 } else {
-                    return continue_none!();
+                    continue_none!()
                 }
             }
             5 => {
@@ -1241,7 +1241,7 @@ impl HostFunction {
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return continue_none!();
+                    continue_none!()
                 }
             }
             6 => {
@@ -1251,11 +1251,11 @@ impl HostFunction {
                 if segment_idx < imports[item_idx].len() {
                     imports[item_idx][segment_idx].to_vec()
                 } else {
-                    return continue_none!();
+                    continue_none!()
                 }
             }
             _ => {
-                return continue_none!();
+                continue_none!()
             }
         };
 
@@ -1264,7 +1264,7 @@ impl HostFunction {
         let data_read_size = regs[9].as_usize()?.min(data.len() - data_read_offset); // l
 
         if !memory.is_address_range_writable(buf_offset, data_read_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         continue_with_vm_change!(
@@ -1292,13 +1292,13 @@ impl HostFunction {
         let export_size = regs[8].as_usize()?.min(SEGMENT_SIZE); // z
 
         if !memory.is_address_range_readable(offset, export_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
         if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
-            return continue_full!();
+            continue_full!()
         }
 
         let data_segment: ExportDataSegment =
@@ -1328,13 +1328,13 @@ impl HostFunction {
         let initial_pc = regs[9].value(); // i
 
         if !memory.is_address_range_readable(program_offset, program_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let program = memory.read_bytes(program_offset, program_size)?;
         // Validate the program blob can be `deblob`ed properly
         if ProgramDecoder::deblob_program_code(&program).is_err() {
-            return continue_huh!();
+            continue_huh!()
         }
 
         let inner_vm = InnerPVM::new(program, initial_pc);
@@ -1362,15 +1362,15 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_writable(memory_offset, data_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
 
         if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
-            return continue_oob!();
+            continue_oob!()
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
 
@@ -1396,15 +1396,15 @@ impl HostFunction {
         let data_size = regs[10].as_usize()?; // z
 
         if !memory.is_address_range_readable(memory_offset, data_size)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
 
         if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
-            return continue_oob!();
+            continue_oob!()
         }
         let data = memory.read_bytes(memory_offset, data_size)?;
 
@@ -1430,11 +1430,11 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return continue_huh!();
+            continue_huh!()
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
 
         // set values
@@ -1467,18 +1467,18 @@ impl HostFunction {
         if inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
-            return continue_huh!();
+            continue_huh!()
         }
 
         let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
 
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
         // should not have a page already `Inaccessible` within the range
         if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            return continue_huh!();
+            continue_huh!()
         }
 
         // set values
@@ -1512,11 +1512,11 @@ impl HostFunction {
         let memory_offset = regs[8].as_mem_address()?; // o
 
         if !memory.is_address_range_writable(memory_offset, 112)? {
-            return host_call_panic!();
+            host_call_panic!()
         }
 
         let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
 
         let gas_limit =
@@ -1622,7 +1622,7 @@ impl HostFunction {
         let inner_vm_id = regs[7].as_usize()?; // n
 
         let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
-            return continue_who!();
+            continue_who!()
         };
         let final_pc = inner_vm.pc;
 
