@@ -20,9 +20,6 @@ use rjam_types::{common::transfers::DeferredTransfer, state::*};
 use std::{collections::HashMap, sync::Arc};
 
 pub trait AccountsSandboxHolder {
-    // TODO: check if needed
-    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap;
-
     fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap;
 }
 
@@ -97,10 +94,6 @@ pub struct OnTransferHostContext {
 }
 
 impl AccountsSandboxHolder for OnTransferHostContext {
-    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap {
-        &self.accounts_sandbox
-    }
-
     fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap {
         &mut self.accounts_sandbox
     }
@@ -125,10 +118,6 @@ pub struct AccumulateHostContextPair {
 }
 
 impl AccountsSandboxHolder for AccumulateHostContextPair {
-    fn get_accounts_sandbox(&self) -> &AccountsSandboxMap {
-        &self.x.partial_state.accounts_sandbox
-    }
-
     fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap {
         &mut self.x.partial_state.accounts_sandbox
     }
@@ -230,44 +219,6 @@ impl AccumulateHostContext {
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
     }
 
-    pub async fn get_mut_accumulator_metadata(
-        &mut self,
-        state_manager: Arc<StateManager>,
-    ) -> Result<&mut AccountMetadata, PVMError> {
-        self.partial_state
-            .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)
-            .await?
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
-    }
-
-    // TODO: should return reference?
-    pub fn accumulator_account(&self) -> Result<AccountSandbox, PVMError> {
-        self.partial_state
-            .accounts_sandbox
-            .get(&self.accumulate_host)
-            .cloned()
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
-    }
-
-    pub fn accumulator_account_mut(&mut self) -> Result<&mut AccountSandbox, PVMError> {
-        self.partial_state
-            .accounts_sandbox
-            .get_mut(&self.accumulate_host)
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
-    }
-
-    pub fn remove_accumulator_account(&mut self) -> Result<(), PVMError> {
-        self.partial_state
-            .accounts_sandbox
-            .remove(&self.accumulate_host);
-        Ok(())
-    }
-
-    pub fn get_next_new_account_index(&self) -> ServiceId {
-        self.next_new_service_id
-    }
-
     #[allow(clippy::redundant_closure_call)]
     pub async fn rotate_new_account_index(
         &mut self,
@@ -340,7 +291,6 @@ impl AccumulateHostContext {
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
-        // TODO: check overflow
         account_metadata.account_info.balance += amount;
         Ok(())
     }

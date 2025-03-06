@@ -2,9 +2,12 @@ use rjam_pvm_core::{state::memory::Memory, types::common::RegValue};
 
 #[derive(Clone)]
 pub(crate) struct InnerPVM {
-    pub(crate) program_code: Vec<u8>, // p
-    pub(crate) memory: Memory,        // u
-    pub(crate) pc: RegValue,          // i
+    /// **`p`**: Program code blob to run on the inner PVM
+    pub(crate) program_code: Vec<u8>,
+    /// **`u`**: RAM of the inner PVM
+    pub(crate) memory: Memory,
+    /// `i`: Program counter
+    pub(crate) pc: RegValue,
 }
 
 impl InnerPVM {

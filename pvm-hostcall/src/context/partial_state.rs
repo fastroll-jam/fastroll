@@ -77,13 +77,13 @@ impl<T: PVMContextState + Clone> PartialStateEntry<T> {
     }
 }
 
-/// Represents a service account, including its metadata and associated storage entries.
+/// Represents a sandboxed environment of a service account, including its metadata
+/// and associated storage entries.
 ///
-/// Primarily used in the `accumulate` and `on_transfer` context for state mutations involving service accounts.
-/// The global state serialization doesn't require the service metadata and storage entries to be
-/// stored together, which makes this type to be specific to the accumulation process.
-///
-/// Represents type `A` of the GP.
+/// It is primarily used in the `accumulate` and `on_transfer` PVM invocation context for
+/// state mutations of service accounts. The global state serialization doesn't require
+/// the service metadata and storage entries to be placed together,
+/// which makes this type to be specific to the accumulation process.
 #[derive(Clone)]
 pub struct AccountSandbox {
     pub metadata: PartialStateEntry<AccountMetadata>,
@@ -178,26 +178,28 @@ impl AccountsSandboxMap {
         self.get_mut(&service_id)
     }
 
+    /// Gets a reference to an `AccountMetadata` from the account sandbox.
+    /// Returns `None` if the account doesn't exist in the global state or was removed from the
+    /// partial state.
     pub async fn get_account_metadata(
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
     ) -> Result<Option<&AccountMetadata>, PartialStateError> {
-        // Returns `None` if the account doesn't exist in the global state or was removed from the
-        // partial state.
         match self.get_account_sandbox(state_manager, service_id).await? {
             Some(sandbox) => Ok(sandbox.metadata.as_ref()),
             None => Ok(None),
         }
     }
 
+    /// Gets a mutable reference to an `AccountMetadata` from the account sandbox.
+    /// Returns `None` if the account doesn't exist in the global state or was removed from the
+    /// partial state.
     pub async fn get_mut_account_metadata(
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
     ) -> Result<Option<&mut AccountMetadata>, PartialStateError> {
-        // Returns `None` if the account doesn't exist in the global state or was removed from the
-        // partial state.
         match self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
@@ -207,21 +209,15 @@ impl AccountsSandboxMap {
         }
     }
 
-    /// Attempts to retrieve an entry of type `T` from the provided map or the global state using the given key.
+    /// Attempts to retrieve an entry of type `T` from the map or the global state using the given key.
     ///
-    /// The map stores entries as `PartialStateEntry<T>`, which can represent state entry copied from
-    /// the state manager or its mutated version (added, updated or removed) in the sandboxed environment.
+    /// The `map` is one of the account storage types stored in `AccountSandbox`, which stores storage
+    /// entries wrapped with `PartialStateEntry<T>` type. This can represent state entry copied from
+    /// the global state (state manager) or its mutated version (added, updated or removed) in the
+    /// sandboxed environment.
     ///
-    /// If an item with the given key is not found from the map, it attempts to load the corresponding
-    /// item from the global state by invoking `load_from_global`.
-    ///
-    /// - If `load_from_global` returns `Some(T)`, that value is inserted into the map with status
-    ///   of `PartialStateEntryStatus::Clean` and then returned.
-    /// - If it returns `None`, the function concludes that the entry does not exist globally, and returns `None`.
-    ///
-    /// In summary, this function returns:
-    /// - `Some(T)` if the entry is found in the map or successfully loaded from the global state.
-    /// - `None` if the entry is neither found in the map nor retrievable from the global state.
+    /// If an item of the given key is not found from the `map`, it attempts to load it from the global
+    /// state by invoking `load_from_global` and then insert the found entry to the `map` if exists.
     async fn get_or_load_entry<K, T, F, Fut>(
         map: &mut HashMap<K, PartialStateEntry<T>>,
         key: &K,
@@ -234,7 +230,7 @@ impl AccountsSandboxMap {
         Fut: Future<Output = Result<Option<T>, StateManagerError>>,
     {
         // Check if the entry is already in the map of the account sandbox.
-        // If the status of the entry is `PartialStateEntryStatus::Removed`, `None` is returned.
+        // If the entry is removed from the partial state, `None` is returned.
         if let Some(entry) = map.get(key) {
             return Ok(entry.get_cloned());
         }
