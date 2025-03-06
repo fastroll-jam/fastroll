@@ -30,30 +30,47 @@ use std::{collections::HashMap, sync::Arc};
 
 #[repr(u64)]
 pub enum HostCallReturnCode {
-    NONE = u64::MAX,     // An item does not exist.
-    WHAT = u64::MAX - 1, // Name unknown.
-    OOB = u64::MAX - 2, // The inner PVM memory index provided for reading/writing is not accessible.
-    WHO = u64::MAX - 3, // Index unknown.
-    FULL = u64::MAX - 4, // Storage full.
-    CORE = u64::MAX - 5, // Core index unknown.
-    CASH = u64::MAX - 6, // Insufficient funds.
-    LOW = u64::MAX - 7, // Gas limit too low.
-    HUH = u64::MAX - 8, // The item is already solicited or cannot be forgotten.
-    OK = 0,             // The return value indicating general success.
+    /// An item does not exist.
+    NONE = u64::MAX,
+    /// Name unknown.
+    WHAT = u64::MAX - 1,
+    /// The inner PVM memory index provided for reading/writing is not accessible.
+    OOB = u64::MAX - 2,
+    /// Index unknown.
+    WHO = u64::MAX - 3,
+    /// Storage full.
+    FULL = u64::MAX - 4,
+    /// Core index unknown.
+    CORE = u64::MAX - 5,
+    /// Insufficient funds.
+    CASH = u64::MAX - 6,
+    /// Gas limit too low.
+    LOW = u64::MAX - 7,
+    /// The item is already solicited or cannot be forgotten.
+    HUH = u64::MAX - 8,
+    /// The return value indicating general success.
+    OK = 0,
 }
 
 #[repr(u32)]
 pub enum InnerPVMResultConstant {
-    HALT = 0,  // Normal halt
-    PANIC = 1, // Panic
-    FAULT = 2, // Page fault
-    HOST = 3,  // Host-call fault
-    OOG = 4,   // out of gas
+    /// Normal halt
+    HALT = 0,
+    /// Panic
+    PANIC = 1,
+    /// Page fault
+    FAULT = 2,
+    /// Host-call fault
+    HOST = 3,
+    /// out of gas
+    OOG = 4,
 }
 
 pub enum AccumulateResult {
+    /// No change
     Unchanged,
-    Result(Option<Hash32>), // optional result hash
+    /// Accumulate result hash (for BEEFY)
+    Result(Option<Hash32>),
 }
 
 #[derive(Default)]
