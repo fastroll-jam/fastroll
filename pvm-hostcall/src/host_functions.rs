@@ -160,7 +160,7 @@ impl HostFunction {
     /// for executing this instruction.
     pub fn host_gas(gas: UnsignedGas) -> Result<HostCallResult, PVMError> {
         // FIXME: `gas_remaining` should be of type `i64`. Explicit conversion might be needed.
-        let gas_remaining = gas.wrapping_sub(BASE_GAS_CHARGE);
+        let gas_remaining = gas.saturating_sub(BASE_GAS_CHARGE);
 
         continue_with_vm_change!(r7: gas_remaining)
     }

@@ -32,10 +32,14 @@ enum ExecutionResult {
 }
 
 pub enum CommonInvocationResult {
-    Result(Vec<u8>),            // return value
-    ResultUnavailable(Vec<u8>), // empty vector
+    /// Regular halt with return value
+    Result(Vec<u8>),
+    /// Regular halt with no return value
+    ResultUnavailable,
+    /// Out of gas
     OutOfGas(ExitReason),
-    Panic(ExitReason), // panic
+    /// Panic
+    Panic(ExitReason),
 }
 
 struct ExtendedInvocationResult {
@@ -45,9 +49,12 @@ struct ExtendedInvocationResult {
 /// Main stateful PVM struct
 #[derive(Default)]
 pub struct PVM {
+    /// The mutable VM state
     pub state: VMState,
-    pub program_blob: Vec<u8>,       // serialization of `PVM.program`
-    pub program_state: ProgramState, // initialized in the general invocation `Ψ`
+    /// Equivalent to `code` of `FormattedProgram`
+    pub program_blob: Vec<u8>,
+    /// The static program state initialized in the general invocation `Ψ`
+    pub program_state: ProgramState,
 }
 
 impl PVM {
@@ -248,7 +255,7 @@ impl PVM {
                     .memory
                     .is_address_range_readable(start_address, data_len)?
                 {
-                    return Ok(CommonInvocationResult::ResultUnavailable(vec![]));
+                    return Ok(CommonInvocationResult::ResultUnavailable);
                 }
 
                 let bytes = pvm.read_memory_bytes(start_address, data_len)?;
