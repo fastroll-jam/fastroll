@@ -86,7 +86,7 @@ pub async fn transition_accumulate_contexts(
         .accounts_sandbox
         .iter()
     {
-        transition_service_accounts(state_manager.clone(), service_id, sandbox).await?;
+        transition_service_account(state_manager.clone(), service_id, sandbox).await?;
     }
 
     run_privileged_transitions(state_manager, outer_accumulate_result.partial_state_union).await?;
@@ -98,7 +98,7 @@ pub async fn transition_accumulate_contexts(
     })
 }
 
-async fn transition_service_accounts(
+async fn transition_service_account(
     state_manager: Arc<StateManager>,
     service_id: ServiceId,
     sandbox: &AccountSandbox,
@@ -294,7 +294,7 @@ pub async fn transition_services_on_transfer(
         }
 
         if let Some(recipient_sandbox) = on_transfer_result.recipient_sandbox {
-            transition_service_accounts(state_manager.clone(), destination, &recipient_sandbox)
+            transition_service_account(state_manager.clone(), destination, &recipient_sandbox)
                 .await?
         }
     }

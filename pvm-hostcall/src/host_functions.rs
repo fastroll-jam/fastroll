@@ -363,27 +363,25 @@ impl HostFunction {
             })
         };
 
-        let (storage_items_count_delta, storage_octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                maybe_prev_storage_entry.as_ref(),
-                new_storage_entry.as_ref(),
-            )
-            .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
+        let (items_count_delta, octets_delta) = AccountMetadata::calculate_storage_footprint_delta(
+            maybe_prev_storage_entry.as_ref(),
+            new_storage_entry.as_ref(),
+        )
+        .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
 
-        let account_metadata = accounts_sandbox
+        let metadata = accounts_sandbox
             .get_account_metadata(state_manager.clone(), service_id)
             .await?
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
-        let simulated_threshold_balance = account_metadata
-            .simulate_threshold_balance_after_mutation(
-                0,
-                storage_items_count_delta,
-                0,
-                storage_octets_count_delta,
-            );
+        let simulated_threshold_balance = metadata.simulate_threshold_balance_after_mutation(
+            0,
+            items_count_delta,
+            0,
+            octets_delta,
+        );
 
-        if simulated_threshold_balance > account_metadata.account_info.balance {
+        if simulated_threshold_balance > metadata.account_info.balance {
             continue_full!()
         }
 
@@ -406,7 +404,6 @@ impl HostFunction {
     pub async fn host_info(
         service_id: ServiceId,
         vm: &VMState,
-
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -423,7 +420,7 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        let account_metadata = if let Some(metadata) = accounts_sandbox
+        let metadata = if let Some(metadata) = accounts_sandbox
             .get_account_metadata(state_manager, service_id)
             .await?
         {
@@ -433,7 +430,7 @@ impl HostFunction {
         };
 
         // Encode account metadata with JAM Codec
-        let info = account_metadata.encode_for_info_hostcall()?;
+        let info = metadata.encode_for_info_hostcall()?;
 
         if !vm
             .memory
@@ -458,7 +455,6 @@ impl HostFunction {
     /// always-accumulates (g) to the accumulate context partial state.
     pub fn host_bless(
         vm: &VMState,
-
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         check_out_of_gas!(vm.gas_counter);
@@ -541,7 +537,6 @@ impl HostFunction {
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
-
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         check_out_of_gas!(vm.gas_counter);
@@ -604,7 +599,6 @@ impl HostFunction {
     /// The account storage and lookup dictionary are initialized as empty.
     pub async fn host_new(
         vm: &VMState,
-
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -664,7 +658,6 @@ impl HostFunction {
     /// code hash ahs gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         vm: &VMState,
-
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -1459,7 +1452,6 @@ impl HostFunction {
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
     pub fn host_void(
         vm: &VMState,
-
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         check_out_of_gas!(vm.gas_counter);
@@ -1617,7 +1609,6 @@ impl HostFunction {
     /// Removes an inner VM instance from the refine context and returns its final pc.
     pub fn host_expunge(
         vm: &VMState,
-
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
         check_out_of_gas!(vm.gas_counter);

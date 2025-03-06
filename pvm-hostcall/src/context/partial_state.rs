@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum PartialStateEntryStatus {
     /// State entry is copied from the state manager, with no modification.
     Clean,
@@ -75,6 +75,29 @@ impl<T: PVMContextState + Clone> PartialStateEntry<T> {
     pub fn as_mut(&mut self) -> Option<&mut T> {
         self.value.as_mut()
     }
+
+    fn mark_updated(&mut self) {
+        // `Added` status should remain as `Added`
+        if !(self.status == PartialStateEntryStatus::Added
+            || self.status == PartialStateEntryStatus::Updated)
+        {
+            self.status = PartialStateEntryStatus::Updated;
+        }
+    }
+
+    fn mark_removed(&mut self) {
+        if self.status != PartialStateEntryStatus::Removed {
+            self.value = None;
+            self.status = PartialStateEntryStatus::Removed;
+        }
+    }
+}
+
+pub struct AccountFootprintDelta {
+    pub storage_items_count_delta: i32,
+    pub storage_octets_delta: i64,
+    pub lookups_items_count_delta: i32,
+    pub lookups_octets_delta: i64,
 }
 
 /// Represents a sandboxed environment of a service account, including its metadata
@@ -107,6 +130,10 @@ impl AccountSandbox {
             preimages: HashMap::new(),
             lookups: HashMap::new(),
         })
+    }
+
+    pub fn calculate_storage_footprint_delta(&self) -> AccountFootprintDelta {
+        unimplemented!()
     }
 }
 
@@ -207,6 +234,34 @@ impl AccountsSandboxMap {
             Some(sandbox) => Ok(sandbox.metadata.as_mut()),
             None => Ok(None),
         }
+    }
+
+    pub async fn mark_account_metadata_updated(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<(), PartialStateError> {
+        if let Some(sandbox) = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?
+        {
+            sandbox.metadata.mark_updated();
+        }
+        Ok(())
+    }
+
+    pub async fn mark_account_metadata_removed(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<(), PartialStateError> {
+        if let Some(sandbox) = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?
+        {
+            sandbox.metadata.mark_removed();
+        }
+        Ok(())
     }
 
     /// Attempts to retrieve an entry of type `T` from the map or the global state using the given key.
@@ -327,19 +382,6 @@ impl AccountsSandboxMap {
         } else {
             Ok(None)
         }
-    }
-
-    /// Updates service account storage footprints.
-    ///
-    /// Note: `item_count_delta` and `octets_count_delta` can be calculated from
-    /// `AccountMetadata::calculate_storage_footprint_delta`.
-    pub async fn update_account_storage_footprint(
-        metadata: &mut AccountMetadata,
-        item_count_delta: i32,
-        octets_count_delta: i64,
-    ) {
-        metadata.update_storage_items_count(item_count_delta);
-        metadata.update_storage_total_octets(octets_count_delta);
     }
 
     pub async fn get_account_preimages_entry(
@@ -609,21 +651,8 @@ impl AccountsSandboxMap {
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
 
-        Self::update_account_lookups_footprint(metadata, item_count_delta, octets_count_delta);
+        metadata.update_lookups_footprint(item_count_delta, octets_count_delta);
         Ok(())
-    }
-
-    /// Updates service account lookups footprints.
-    ///
-    /// Note: `item_count_delta` and `octets_count_delta` can be calculated from
-    /// `AccountMetadata::calculate_storage_footprint_delta`.
-    pub fn update_account_lookups_footprint(
-        metadata: &mut AccountMetadata,
-        item_count_delta: i32,
-        octets_count_delta: i64,
-    ) {
-        metadata.update_lookups_items_count(item_count_delta);
-        metadata.update_lookups_total_octets(octets_count_delta);
     }
 
     pub async fn eject_account(

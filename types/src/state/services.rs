@@ -153,17 +153,7 @@ impl AccountMetadata {
         B_S + B_I * 2 + B_L * (code_lookup_len as Balance + 81)
     }
 
-    pub fn update_lookups_items_count(&mut self, delta: i32) {
-        if delta < 0 {
-            self.lookups_items_count = self
-                .lookups_items_count
-                .saturating_sub(delta.unsigned_abs());
-        } else {
-            self.lookups_items_count = self.lookups_items_count.saturating_add(delta as u32);
-        }
-    }
-
-    pub fn update_storage_items_count(&mut self, delta: i32) {
+    fn update_storage_items_count(&mut self, delta: i32) {
         if delta < 0 {
             self.storage_items_count = self
                 .storage_items_count
@@ -173,7 +163,27 @@ impl AccountMetadata {
         }
     }
 
-    pub fn update_lookups_total_octets(&mut self, delta: i64) {
+    fn update_storage_total_octets(&mut self, delta: i64) {
+        if delta < 0 {
+            self.storage_total_octets = self
+                .storage_total_octets
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.storage_total_octets = self.storage_total_octets.saturating_add(delta as u64);
+        }
+    }
+
+    fn update_lookups_items_count(&mut self, delta: i32) {
+        if delta < 0 {
+            self.lookups_items_count = self
+                .lookups_items_count
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.lookups_items_count = self.lookups_items_count.saturating_add(delta as u32);
+        }
+    }
+
+    fn update_lookups_total_octets(&mut self, delta: i64) {
         if delta < 0 {
             self.lookups_total_octets = self
                 .lookups_total_octets
@@ -183,14 +193,16 @@ impl AccountMetadata {
         }
     }
 
-    pub fn update_storage_total_octets(&mut self, delta: i64) {
-        if delta < 0 {
-            self.storage_total_octets = self
-                .storage_total_octets
-                .saturating_sub(delta.unsigned_abs());
-        } else {
-            self.storage_total_octets = self.storage_total_octets.saturating_add(delta as u64);
-        }
+    /// Updates service account storage footprints.
+    pub fn update_storage_footprint(&mut self, item_count_delta: i32, octets_count_delta: i64) {
+        self.update_storage_items_count(item_count_delta);
+        self.update_storage_total_octets(octets_count_delta);
+    }
+
+    /// Updates service account lookups footprints.
+    pub fn update_lookups_footprint(&mut self, item_count_delta: i32, octets_count_delta: i64) {
+        self.update_lookups_items_count(item_count_delta);
+        self.update_lookups_total_octets(octets_count_delta);
     }
 
     /// Used by the PVM `host_info` execution.
