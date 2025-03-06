@@ -201,9 +201,6 @@ impl PVM {
             }
         }
 
-        // Apply gas change
-        self.state.gas_counter -= change.gas_charge;
-
         // Check gas counter and apply gas change
         let post_gas = PVMCore::apply_gas_cost(&mut self.state, change.gas_charge)?;
         Ok(post_gas)
@@ -285,7 +282,7 @@ impl PVM {
                 &self.program_blob,
             )?;
 
-            let host_call_change_set = match exit_reason {
+            let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
                     self.execute_host_function(state_manager.clone(), service_id, context, &h)
                         .await?
@@ -293,27 +290,33 @@ impl PVM {
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            match host_call_change_set.exit_reason {
+            match host_call_result.exit_reason {
                 exit_reason @ ExitReason::PageFault(_) => {
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
-                ExitReason::Continue => {}
-                exit_reason @ (ExitReason::Panic | ExitReason::RegularHalt) => {
-                    self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
+                ExitReason::Continue => {
+                    // update the vm states
+                    let post_gas =
+                        self.apply_host_call_state_change(&host_call_result.vm_change)?;
+                    if post_gas < 0 {
+                        // Actually this should never happen, since gas usage is inspected prior to
+                        // the host function execution and the `HostCallResult` with `ExitReason::OutOfGas`
+                        // should be returned if post gas counter could be less than zero.
+                        return Ok(ExtendedInvocationResult {
+                            exit_reason: ExitReason::OutOfGas,
+                        });
+                    }
+                    // increment the pc if the host call completes successfully
+                    self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
+                }
+                exit_reason @ (ExitReason::Panic
+                | ExitReason::RegularHalt
+                | ExitReason::OutOfGas) => {
+                    self.apply_host_call_state_change(&host_call_result.vm_change)?;
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 _ => return Err(PVMError::HostCallError(InvalidExitReason)),
             }
-
-            // update the vm states
-            let post_gas = self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
-            if post_gas < 0 {
-                return Ok(ExtendedInvocationResult {
-                    exit_reason: ExitReason::OutOfGas,
-                });
-            }
-            // increment the pc if the host call completes successfully
-            self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
         }
     }
 

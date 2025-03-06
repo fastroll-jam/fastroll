@@ -25,10 +25,14 @@ pub struct SingleStepResult {
 /// Mutable VM state
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VMState {
-    pub registers: [Register; REGISTERS_COUNT], // omega
-    pub memory: Memory,                         // mu
-    pub pc: RegValue,                           // iota
-    pub gas_counter: UnsignedGas,               // xi
+    /// `ω`: Registers
+    pub registers: [Register; REGISTERS_COUNT],
+    /// `μ`: RAM
+    pub memory: Memory,
+    /// `ı`: Program counter
+    pub pc: RegValue,
+    /// `ρ`: Gas counter
+    pub gas_counter: UnsignedGas,
 }
 
 impl VMState {
@@ -151,11 +155,9 @@ impl PVMCore {
             .try_into()
             .map_err(|_| PVMError::VMCoreError(TooLargeGasCounter))?;
         let post_gas = gas_counter_signed - gas_charge as SignedGas;
-        if vm_state.gas_counter < gas_charge {
-            vm_state.gas_counter = 0;
-        } else {
-            vm_state.gas_counter -= gas_charge;
-        }
+
+        // Keep `gas_counter` of `VMState` as unsigned integer
+        vm_state.gas_counter = vm_state.gas_counter.saturating_sub(gas_charge);
 
         Ok(post_gas)
     }
