@@ -26,7 +26,7 @@ pub struct SingleStepResult {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VMState {
     /// `ω`: Registers
-    pub registers: [Register; REGISTERS_COUNT],
+    pub regs: [Register; REGISTERS_COUNT],
     /// `μ`: RAM
     pub memory: Memory,
     /// `ı`: Program counter
@@ -45,27 +45,27 @@ impl VMState {
     }
 
     pub fn read_reg(&self, index: usize) -> RegValue {
-        self.registers[index].value()
+        self.regs[index].value()
     }
 
     pub fn read_reg_as_mem_address(&self, index: usize) -> Result<MemAddress, PVMError> {
-        self.registers[index].as_mem_address()
+        self.regs[index].as_mem_address()
     }
 
     pub fn read_reg_as_reg_index(&self, index: usize) -> Result<usize, PVMError> {
-        self.registers[index].as_reg_index()
+        self.regs[index].as_reg_index()
     }
 
     pub fn read_rs1(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
-        Ok(self.registers[ins.rs1()?].value())
+        Ok(self.regs[ins.rs1()?].value())
     }
 
     pub fn read_rs2(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
-        Ok(self.registers[ins.rs2()?].value())
+        Ok(self.regs[ins.rs2()?].value())
     }
 
     pub fn read_rd(&self, ins: &Instruction) -> Result<RegValue, PVMError> {
-        Ok(self.registers[ins.rd()?].value())
+        Ok(self.regs[ins.rd()?].value())
     }
 }
 
@@ -177,7 +177,7 @@ impl PVMCore {
             if reg_index >= REGISTERS_COUNT {
                 return Err(PVMError::VMCoreError(InvalidRegIndex(reg_index)));
             }
-            vm_state.registers[reg_index] = Register::new(new_val);
+            vm_state.regs[reg_index] = Register::new(new_val);
         }
 
         // Apply memory change

@@ -145,7 +145,7 @@ impl PVMHarness {
     pub fn parse_test_case(test_case: TestCase) -> ParsedTestCase {
         // --- Initial VM State
         let mut initial_vm = VMState {
-            registers: [Register::default(); 13],
+            regs: [Register::default(); 13],
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.initial_pc as RegValue,
             gas_counter: test_case.initial_gas as UnsignedGas,
@@ -153,7 +153,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.initial_regs.iter().enumerate() {
-            initial_vm.registers[i] = Register::new(*val);
+            initial_vm.regs[i] = Register::new(*val);
         }
 
         // Give ReadWrite access during memory setup
@@ -173,7 +173,7 @@ impl PVMHarness {
 
         // --- Expected VM State after program run
         let mut expected_vm = VMState {
-            registers: [Register::default(); 13],
+            regs: [Register::default(); 13],
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.expected_pc as RegValue,
             gas_counter: test_case.expected_gas as UnsignedGas,
@@ -181,7 +181,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.expected_regs.iter().enumerate() {
-            expected_vm.registers[i] = Register::new(*val);
+            expected_vm.regs[i] = Register::new(*val);
         }
 
         // Give ReadWrite access during memory setup
@@ -250,7 +250,7 @@ pub fn run_test_case(filename: &str) {
     // TODO: test gas counter and pc values
     // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter);
     // assert_eq!(pvm.state.pc, expected_vm.pc);
-    assert_eq!(pvm.state.registers, expected_vm.registers);
+    assert_eq!(pvm.state.regs, expected_vm.regs);
     assert_eq!(pvm.state.memory, expected_vm.memory);
     assert_eq!(actual_status, expected_status);
     assert_eq!(actual_page_fault_address, expected_page_fault_address);
