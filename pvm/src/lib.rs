@@ -153,6 +153,11 @@ impl PVM {
         &self.state.memory
     }
 
+    /// Get a reference to the gas counter. Used as a host call function argument.
+    pub fn get_gas_counter(&self) -> UnsignedGas {
+        self.state.gas_counter
+    }
+
     //
     // VM state read functions
     //
@@ -331,12 +336,13 @@ impl PVM {
             //
             // General Functions
             //
-            HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
+            HostCallType::GAS => HostFunction::host_gas(self.get_gas_counter())?,
             HostCallType::LOOKUP => {
                 HostFunction::host_lookup(
                     service_id,
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -347,6 +353,7 @@ impl PVM {
                     service_id,
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -357,6 +364,7 @@ impl PVM {
                     service_id,
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -367,6 +375,7 @@ impl PVM {
                     service_id,
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -375,15 +384,24 @@ impl PVM {
             //
             // Accumulate Functions
             //
-            HostCallType::BLESS => {
-                HostFunction::host_bless(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::ASSIGN => {
-                HostFunction::host_assign(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::DESIGNATE => {
-                HostFunction::host_designate(self.get_registers(), self.get_memory(), context)?
-            }
+            HostCallType::BLESS => HostFunction::host_bless(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::ASSIGN => HostFunction::host_assign(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::DESIGNATE => HostFunction::host_designate(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
             HostCallType::CHECKPOINT => {
                 HostFunction::host_checkpoint(self.state.gas_counter, context)?
             }
@@ -391,6 +409,7 @@ impl PVM {
                 HostFunction::host_new(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -400,6 +419,7 @@ impl PVM {
                 HostFunction::host_upgrade(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -409,6 +429,7 @@ impl PVM {
                 HostFunction::host_transfer(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -418,6 +439,7 @@ impl PVM {
                 HostFunction::host_eject(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -427,6 +449,7 @@ impl PVM {
                 HostFunction::host_query(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -436,6 +459,7 @@ impl PVM {
                 HostFunction::host_solicit(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
@@ -445,13 +469,20 @@ impl PVM {
                 HostFunction::host_forget(
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     state_manager,
                     context,
                 )
                 .await?
             }
             HostCallType::YIELD => {
-                HostFunction::host_yield(self.get_registers(), self.get_memory(), context).await?
+                HostFunction::host_yield(
+                    self.get_registers(),
+                    self.get_memory(),
+                    self.get_gas_counter(),
+                    context,
+                )
+                .await?
             }
             //
             // Refine Functions
@@ -461,32 +492,57 @@ impl PVM {
                     service_id,
                     self.get_registers(),
                     self.get_memory(),
+                    self.get_gas_counter(),
                     context,
                     state_manager,
                 )
                 .await?
             }
-            HostCallType::FETCH => {
-                HostFunction::host_fetch(self.get_registers(), self.get_memory(), context)?
+            HostCallType::FETCH => HostFunction::host_fetch(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::EXPORT => HostFunction::host_export(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::MACHINE => HostFunction::host_machine(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::PEEK => HostFunction::host_peek(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::POKE => HostFunction::host_poke(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::ZERO => {
+                HostFunction::host_zero(self.get_registers(), self.get_gas_counter(), context)?
             }
-            HostCallType::EXPORT => {
-                HostFunction::host_export(self.get_registers(), self.get_memory(), context)?
+            HostCallType::VOID => {
+                HostFunction::host_void(self.get_registers(), self.get_gas_counter(), context)?
             }
-            HostCallType::MACHINE => {
-                HostFunction::host_machine(self.get_registers(), self.get_memory(), context)?
+            HostCallType::INVOKE => HostFunction::host_invoke(
+                self.get_registers(),
+                self.get_memory(),
+                self.get_gas_counter(),
+                context,
+            )?,
+            HostCallType::EXPUNGE => {
+                HostFunction::host_expunge(self.get_registers(), self.get_gas_counter(), context)?
             }
-            HostCallType::PEEK => {
-                HostFunction::host_peek(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::POKE => {
-                HostFunction::host_poke(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::ZERO => HostFunction::host_zero(self.get_registers(), context)?,
-            HostCallType::VOID => HostFunction::host_void(self.get_registers(), context)?,
-            HostCallType::INVOKE => {
-                HostFunction::host_invoke(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::EXPUNGE => HostFunction::host_expunge(self.get_registers(), context)?,
         };
 
         Ok(result)

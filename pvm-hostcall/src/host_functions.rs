@@ -1,9 +1,9 @@
 use crate::{
-    context::types::InvocationContext, continue_cash, continue_core, continue_full, continue_huh,
-    continue_low, continue_none, continue_ok, continue_oob, continue_what, continue_who,
-    continue_with_vm_change, get_mut_accounts_sandbox, get_mut_accumulate_x, get_mut_refine_x,
-    get_refine_x, host_call_panic, host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM,
-    utils::zero_pad_as_array,
+    check_out_of_gas, context::types::InvocationContext, continue_cash, continue_core,
+    continue_full, continue_huh, continue_low, continue_none, continue_ok, continue_oob,
+    continue_what, continue_who, continue_with_vm_change, get_mut_accounts_sandbox,
+    get_mut_accumulate_x, get_mut_refine_x, get_refine_x, host_call_panic,
+    host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::*;
@@ -175,9 +175,9 @@ impl HostFunction {
 
     /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
     /// for executing this instruction.
-    pub fn host_gas(gas: UnsignedGas) -> Result<HostCallResult, PVMError> {
-        // FIXME: `gas_remaining` should be of type `i64`. Explicit conversion might be needed.
-        let gas_remaining = gas.saturating_sub(BASE_GAS_CHARGE);
+    pub fn host_gas(gas_counter: UnsignedGas) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+        let gas_remaining = gas_counter.saturating_sub(BASE_GAS_CHARGE);
 
         continue_with_vm_change!(r7: gas_remaining)
     }
@@ -188,9 +188,12 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = regs[7].value();
@@ -240,9 +243,12 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = regs[7].value();
@@ -297,9 +303,12 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let key_offset = regs[7].as_mem_address()?; // k_o
@@ -381,9 +390,12 @@ impl HostFunction {
         service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = regs[7].value();
@@ -428,8 +440,11 @@ impl HostFunction {
     pub fn host_bless(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let (manager, assign, designate) = match (
@@ -470,8 +485,11 @@ impl HostFunction {
     pub fn host_assign(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let core_index = regs[7].as_usize()?;
@@ -501,8 +519,11 @@ impl HostFunction {
     pub fn host_designate(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -528,9 +549,11 @@ impl HostFunction {
     /// Copies a snapshot of the current accumulate context state into
     /// the checkpoint context of the context pair.
     pub fn host_checkpoint(
-        gas: UnsignedGas,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let (x_cloned, y_mut) = match (
             context.get_accumulate_x().cloned(),
             context.get_mut_accumulate_y(),
@@ -543,7 +566,7 @@ impl HostFunction {
 
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
-        let post_gas = gas.saturating_sub(BASE_GAS_CHARGE);
+        let post_gas = gas_counter.saturating_sub(BASE_GAS_CHARGE);
 
         continue_with_vm_change!(r7: post_gas)
     }
@@ -557,9 +580,12 @@ impl HostFunction {
     pub async fn host_new(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -615,9 +641,12 @@ impl HostFunction {
     pub async fn host_upgrade(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -640,6 +669,7 @@ impl HostFunction {
     pub async fn host_transfer(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
@@ -650,6 +680,8 @@ impl HostFunction {
         let gas_limit = regs[9].value(); // l
         let offset = regs[10].as_mem_address()?; // o
         let gas_charge = BASE_GAS_CHARGE + gas_limit;
+
+        check_out_of_gas!(gas_counter, gas_charge);
 
         if !memory.is_address_range_readable(offset, TRANSFER_MEMO_SIZE)? {
             return host_call_panic!(gas_charge);
@@ -704,9 +736,12 @@ impl HostFunction {
     pub async fn host_eject(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let eject_address = regs[7].as_service_id()?; // d
@@ -775,9 +810,12 @@ impl HostFunction {
     pub async fn host_query(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -820,9 +858,12 @@ impl HostFunction {
     pub async fn host_solicit(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -911,9 +952,12 @@ impl HostFunction {
     pub async fn host_forget(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?;
@@ -1029,8 +1073,11 @@ impl HostFunction {
     pub async fn host_yield(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_accumulate_x!(context);
 
         let offset = regs[7].as_mem_address()?; // o
@@ -1059,9 +1106,12 @@ impl HostFunction {
         refine_service_id: ServiceId,
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
         state_manager: Arc<StateManager>,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_refine_x!(context);
 
         let service_id_reg = regs[7].value();
@@ -1117,8 +1167,11 @@ impl HostFunction {
     pub fn host_fetch(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_refine_x!(context);
         let data_id = regs[10].as_usize()?;
 
@@ -1211,8 +1264,11 @@ impl HostFunction {
     pub fn host_export(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let offset = regs[7].as_mem_address()?; // p
@@ -1243,8 +1299,11 @@ impl HostFunction {
     pub fn host_machine(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let program_offset = regs[7].as_mem_address()?; // p_o
@@ -1273,8 +1332,11 @@ impl HostFunction {
     pub fn host_peek(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1304,8 +1366,11 @@ impl HostFunction {
     pub fn host_poke(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1334,8 +1399,11 @@ impl HostFunction {
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
     pub fn host_zero(
         regs: &[Register; REGISTERS_COUNT],
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1368,8 +1436,11 @@ impl HostFunction {
     /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
     pub fn host_void(
         regs: &[Register; REGISTERS_COUNT],
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1413,8 +1484,11 @@ impl HostFunction {
     pub fn host_invoke(
         regs: &[Register; REGISTERS_COUNT],
         memory: &Memory,
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n
@@ -1521,8 +1595,11 @@ impl HostFunction {
     /// Removes an inner VM instance from the refine context and returns its final pc.
     pub fn host_expunge(
         regs: &[Register; REGISTERS_COUNT],
+        gas_counter: UnsignedGas,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, PVMError> {
+        check_out_of_gas!(gas_counter);
+
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = regs[7].as_usize()?; // n

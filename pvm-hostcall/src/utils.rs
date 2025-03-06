@@ -232,6 +232,20 @@ macro_rules! host_call_panic {
 }
 
 #[macro_export]
+macro_rules! check_out_of_gas {
+    ($gas_counter:expr) => {
+        if $gas_counter < BASE_GAS_CHARGE {
+            return $crate::out_of_gas!();
+        }
+    };
+    ($gas_counter:expr, $gas:expr) => {
+        if $gas_counter < $gas {
+            return $crate::out_of_gas!($gas);
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! out_of_gas {
     () => {
         Ok(HostCallResult::out_of_gas())
