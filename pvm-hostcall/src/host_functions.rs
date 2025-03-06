@@ -111,6 +111,23 @@ impl HostCallResult {
             },
         }
     }
+
+    pub fn out_of_gas() -> Self {
+        Self {
+            exit_reason: ExitReason::OutOfGas,
+            vm_change: Default::default(),
+        }
+    }
+
+    pub fn out_of_gas_with_gas(gas_charge: UnsignedGas) -> Self {
+        Self {
+            exit_reason: ExitReason::OutOfGas,
+            vm_change: HostCallVMStateChange {
+                gas_charge,
+                ..Default::default()
+            },
+        }
+    }
 }
 
 #[derive(Clone)]

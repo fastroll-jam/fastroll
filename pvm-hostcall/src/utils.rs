@@ -230,3 +230,13 @@ macro_rules! host_call_panic {
         Ok(HostCallResult::panic_with_gas($gas))
     };
 }
+
+#[macro_export]
+macro_rules! out_of_gas {
+    () => {
+        Ok(HostCallResult::out_of_gas())
+    };
+    ($gas:expr) => {
+        Ok(HostCallResult::out_of_gas_with_gas($gas))
+    };
+}
