@@ -3,10 +3,7 @@ use rjam_pvm_core::{
     constants::*,
     core::{PVMCore, VMState},
     program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
-    state::{
-        memory::{AccessType, MemAddress, Memory},
-        register::Register,
-    },
+    state::memory::{AccessType, MemAddress, Memory},
     types::{
         common::{ExitReason, RegValue},
         error::{
@@ -32,10 +29,14 @@ enum ExecutionResult {
 }
 
 pub enum CommonInvocationResult {
-    Result(Vec<u8>),            // return value
-    ResultUnavailable(Vec<u8>), // empty vector
+    /// Regular halt with return value
+    Result(Vec<u8>),
+    /// Regular halt with no return value
+    ResultUnavailable,
+    /// Out of gas
     OutOfGas(ExitReason),
-    Panic(ExitReason), // panic
+    /// Panic
+    Panic(ExitReason),
 }
 
 struct ExtendedInvocationResult {
@@ -45,9 +46,12 @@ struct ExtendedInvocationResult {
 /// Main stateful PVM struct
 #[derive(Default)]
 pub struct PVM {
+    /// The mutable VM state
     pub state: VMState,
-    pub program_blob: Vec<u8>,       // serialization of `PVM.program`
-    pub program_state: ProgramState, // initialized in the general invocation `Ψ`
+    /// Equivalent to `code` of `FormattedProgram`
+    pub program_blob: Vec<u8>,
+    /// The static program state initialized in the general invocation `Ψ`
+    pub program_state: ProgramState,
 }
 
 impl PVM {
@@ -125,25 +129,10 @@ impl PVM {
     }
 
     fn initialize_registers(&mut self, args_len: usize) {
-        self.state.registers[0].value = (1 << 32) - (1 << 16);
-        self.state.registers[1].value =
-            (1 << 32) - (2 * INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
-        self.state.registers[7].value = (1 << 32) - (INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
-        self.state.registers[8].value = args_len as RegValue;
-    }
-
-    //
-    // PVM helper function
-    //
-
-    /// Get a reference to the registers. Used as a host call function argument.
-    pub fn get_registers(&self) -> &[Register; REGISTERS_COUNT] {
-        &self.state.registers
-    }
-
-    /// Get a reference to the memory. Used as a host call function argument.
-    pub fn get_memory(&self) -> &Memory {
-        &self.state.memory
+        self.state.regs[0].value = (1 << 32) - (1 << 16);
+        self.state.regs[1].value = (1 << 32) - (2 * INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
+        self.state.regs[7].value = (1 << 32) - (INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
+        self.state.regs[8].value = args_len as RegValue;
     }
 
     //
@@ -171,10 +160,10 @@ impl PVM {
     ) -> Result<SignedGas, PVMError> {
         // Apply register changes (register index 7 & 8)
         if let Some(r7) = change.r7_write {
-            self.state.registers[7].value = r7;
+            self.state.regs[7].value = r7;
         }
         if let Some(r8) = change.r8_write {
-            self.state.registers[8].value = r8;
+            self.state.regs[8].value = r8;
         }
 
         // Apply memory change
@@ -193,9 +182,6 @@ impl PVM {
                     .write_byte(buf_offset.wrapping_add(offset as u32), byte)?;
             }
         }
-
-        // Apply gas change
-        self.state.gas_counter -= change.gas_charge;
 
         // Check gas counter and apply gas change
         let post_gas = PVMCore::apply_gas_cost(&mut self.state, change.gas_charge)?;
@@ -248,7 +234,7 @@ impl PVM {
                     .memory
                     .is_address_range_readable(start_address, data_len)?
                 {
-                    return Ok(CommonInvocationResult::ResultUnavailable(vec![]));
+                    return Ok(CommonInvocationResult::ResultUnavailable);
                 }
 
                 let bytes = pvm.read_memory_bytes(start_address, data_len)?;
@@ -278,7 +264,7 @@ impl PVM {
                 &self.program_blob,
             )?;
 
-            let host_call_change_set = match exit_reason {
+            let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
                     self.execute_host_function(state_manager.clone(), service_id, context, &h)
                         .await?
@@ -286,27 +272,33 @@ impl PVM {
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
 
-            match host_call_change_set.exit_reason {
+            match host_call_result.exit_reason {
                 exit_reason @ ExitReason::PageFault(_) => {
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
-                ExitReason::Continue => {}
-                exit_reason @ (ExitReason::Panic | ExitReason::RegularHalt) => {
-                    self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
+                ExitReason::Continue => {
+                    // update the vm states
+                    let post_gas =
+                        self.apply_host_call_state_change(&host_call_result.vm_change)?;
+                    if post_gas < 0 {
+                        // Actually this should never happen, since gas usage is inspected prior to
+                        // the host function execution and the `HostCallResult` with `ExitReason::OutOfGas`
+                        // should be returned if post gas counter could be less than zero.
+                        return Ok(ExtendedInvocationResult {
+                            exit_reason: ExitReason::OutOfGas,
+                        });
+                    }
+                    // increment the pc if the host call completes successfully
+                    self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
+                }
+                exit_reason @ (ExitReason::Panic
+                | ExitReason::RegularHalt
+                | ExitReason::OutOfGas) => {
+                    self.apply_host_call_state_change(&host_call_result.vm_change)?;
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 _ => return Err(PVMError::HostCallError(InvalidExitReason)),
             }
-
-            // update the vm states
-            let post_gas = self.apply_host_call_state_change(&host_call_change_set.vm_change)?;
-            if post_gas < 0 {
-                return Ok(ExtendedInvocationResult {
-                    exit_reason: ExitReason::OutOfGas,
-                });
-            }
-            // increment the pc if the host call completes successfully
-            self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
         }
     }
 
@@ -321,162 +313,69 @@ impl PVM {
             //
             // General Functions
             //
-            HostCallType::GAS => HostFunction::host_gas(self.state.gas_counter)?,
+            HostCallType::GAS => HostFunction::host_gas(&self.state)?,
             HostCallType::LOOKUP => {
-                HostFunction::host_lookup(
-                    service_id,
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_lookup(service_id, &self.state, state_manager, context).await?
             }
             HostCallType::READ => {
-                HostFunction::host_read(
-                    service_id,
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_read(service_id, &self.state, state_manager, context).await?
             }
             HostCallType::WRITE => {
-                HostFunction::host_write(
-                    service_id,
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_write(service_id, &self.state, state_manager, context).await?
             }
             HostCallType::INFO => {
-                HostFunction::host_info(
-                    service_id,
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_info(service_id, &self.state, state_manager, context).await?
             }
             //
             // Accumulate Functions
             //
-            HostCallType::BLESS => {
-                HostFunction::host_bless(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::ASSIGN => {
-                HostFunction::host_assign(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::DESIGNATE => {
-                HostFunction::host_designate(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::CHECKPOINT => {
-                HostFunction::host_checkpoint(self.state.gas_counter, context)?
-            }
+            HostCallType::BLESS => HostFunction::host_bless(&self.state, context)?,
+            HostCallType::ASSIGN => HostFunction::host_assign(&self.state, context)?,
+            HostCallType::DESIGNATE => HostFunction::host_designate(&self.state, context)?,
+            HostCallType::CHECKPOINT => HostFunction::host_checkpoint(&self.state, context)?,
             HostCallType::NEW => {
-                HostFunction::host_new(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_new(&self.state, state_manager, context).await?
             }
             HostCallType::UPGRADE => {
-                HostFunction::host_upgrade(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_upgrade(&self.state, state_manager, context).await?
             }
             HostCallType::TRANSFER => {
-                HostFunction::host_transfer(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_transfer(&self.state, state_manager, context).await?
             }
             HostCallType::EJECT => {
-                HostFunction::host_eject(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_eject(&self.state, state_manager, context).await?
             }
             HostCallType::QUERY => {
-                HostFunction::host_query(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_query(&self.state, state_manager, context).await?
             }
             HostCallType::SOLICIT => {
-                HostFunction::host_solicit(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_solicit(&self.state, state_manager, context).await?
             }
             HostCallType::FORGET => {
-                HostFunction::host_forget(
-                    self.get_registers(),
-                    self.get_memory(),
-                    state_manager,
-                    context,
-                )
-                .await?
+                HostFunction::host_forget(&self.state, state_manager, context).await?
             }
-            HostCallType::YIELD => {
-                HostFunction::host_yield(self.get_registers(), self.get_memory(), context).await?
-            }
+            HostCallType::YIELD => HostFunction::host_yield(&self.state, context).await?,
             //
             // Refine Functions
             //
             HostCallType::HISTORICAL_LOOKUP => {
                 HostFunction::host_historical_lookup(
                     service_id,
-                    self.get_registers(),
-                    self.get_memory(),
+                    &self.state,
                     context,
                     state_manager,
                 )
                 .await?
             }
-            HostCallType::FETCH => {
-                HostFunction::host_fetch(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::EXPORT => {
-                HostFunction::host_export(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::MACHINE => {
-                HostFunction::host_machine(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::PEEK => {
-                HostFunction::host_peek(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::POKE => {
-                HostFunction::host_poke(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::ZERO => HostFunction::host_zero(self.get_registers(), context)?,
-            HostCallType::VOID => HostFunction::host_void(self.get_registers(), context)?,
-            HostCallType::INVOKE => {
-                HostFunction::host_invoke(self.get_registers(), self.get_memory(), context)?
-            }
-            HostCallType::EXPUNGE => HostFunction::host_expunge(self.get_registers(), context)?,
+            HostCallType::FETCH => HostFunction::host_fetch(&self.state, context)?,
+            HostCallType::EXPORT => HostFunction::host_export(&self.state, context)?,
+            HostCallType::MACHINE => HostFunction::host_machine(&self.state, context)?,
+            HostCallType::PEEK => HostFunction::host_peek(&self.state, context)?,
+            HostCallType::POKE => HostFunction::host_poke(&self.state, context)?,
+            HostCallType::ZERO => HostFunction::host_zero(&self.state, context)?,
+            HostCallType::VOID => HostFunction::host_void(&self.state, context)?,
+            HostCallType::INVOKE => HostFunction::host_invoke(&self.state, context)?,
+            HostCallType::EXPUNGE => HostFunction::host_expunge(&self.state, context)?,
         };
 
         Ok(result)

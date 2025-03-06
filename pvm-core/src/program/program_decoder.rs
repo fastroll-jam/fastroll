@@ -73,7 +73,7 @@ impl FormattedProgram {
 
 /// Immutable VM state (program components)
 ///
-/// Equivalent to `code` of `FormattedProgram`.
+/// Represents `code` of `FormattedProgram` decoded.
 #[derive(Debug, Default)]
 pub struct ProgramState {
     /// `c`: Serialized instructions blob

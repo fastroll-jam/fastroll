@@ -217,7 +217,7 @@ impl PVMInvocation {
             CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
             CommonInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
             CommonInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
-            CommonInvocationResult::ResultUnavailable(_) => Ok(WorkExecutionOutput::ok_empty()),
+            CommonInvocationResult::ResultUnavailable => Ok(WorkExecutionOutput::ok_empty()),
         }
     }
 
@@ -294,7 +294,7 @@ impl PVMInvocation {
 
         match result {
             CommonInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
-            CommonInvocationResult::ResultUnavailable(_) => {
+            CommonInvocationResult::ResultUnavailable => {
                 Ok(RefineResult::ok_empty(export_segments))
             }
             CommonInvocationResult::OutOfGas(_) => Ok(RefineResult::out_of_gas()),
@@ -361,8 +361,7 @@ impl PVMInvocation {
             };
 
         match result {
-            CommonInvocationResult::Result(output)
-            | CommonInvocationResult::ResultUnavailable(output) => {
+            CommonInvocationResult::Result(output) => {
                 let accumulate_result_hash = if output.len() == HASH_SIZE {
                     octets_to_hash32(&output)
                 } else {
@@ -377,6 +376,13 @@ impl PVMInvocation {
                     accumulate_host: x.accumulate_host,
                 })
             }
+            CommonInvocationResult::ResultUnavailable => Ok(AccumulateResult {
+                partial_state: x.partial_state,
+                deferred_transfers: x.deferred_transfers,
+                yielded_accumulate_hash: x.yielded_accumulate_hash,
+                gas_used: x.gas_used,
+                accumulate_host: x.accumulate_host,
+            }),
             CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
                 Ok(AccumulateResult {
                     partial_state: y.partial_state,
