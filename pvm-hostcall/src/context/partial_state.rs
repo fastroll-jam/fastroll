@@ -1,7 +1,11 @@
 use rjam_common::{Hash32, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
-use rjam_types::state::*;
+use rjam_types::state::{
+    AccountFootprintDelta, AccountLookupsEntryExt, AccountMetadata, AccountPartialState,
+    AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta, PrivilegedServices,
+    StagingSet, StorageFootprint, Timeslot,
+};
 use std::{
     collections::HashMap,
     future::Future,
@@ -10,8 +14,23 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Clone)]
-pub enum PartialStateEntryStatus {
+pub trait SandboxEntryAccessor<T>
+where
+    T: AccountPartialState + Clone,
+{
+    fn from_clean(entry: T) -> Self;
+
+    fn status(&self) -> &SandboxEntryStatus;
+
+    fn get_cloned(&self) -> Option<T>;
+
+    fn as_ref(&self) -> Option<&T>;
+
+    fn as_mut(&mut self) -> Option<&mut T>;
+}
+
+#[derive(Clone, PartialEq)]
+pub enum SandboxEntryStatus {
     /// State entry is copied from the state manager, with no modification.
     Clean,
     /// State entry doesn't exist in the state manager and is created during the execution.
@@ -26,54 +45,162 @@ pub enum PartialStateEntryStatus {
 /// The account state may originate from the global state or be created/updated/removed within the
 /// execution context.
 #[derive(Clone)]
-pub struct PartialStateEntry<T: PVMContextState + Clone> {
+pub struct SandboxEntry<T>
+where
+    T: AccountPartialState + Clone,
+{
     value: Option<T>,
-    status: PartialStateEntryStatus,
+    status: SandboxEntryStatus,
 }
 
-impl<T: PVMContextState + Clone> PartialStateEntry<T> {
-    pub fn new_clean(entry: T) -> Self {
+impl<T> SandboxEntryAccessor<T> for SandboxEntry<T>
+where
+    T: AccountPartialState + Clone,
+{
+    fn from_clean(entry: T) -> Self {
         Self {
             value: Some(entry),
-            status: PartialStateEntryStatus::Clean,
+            status: SandboxEntryStatus::Clean,
         }
     }
 
+    fn status(&self) -> &SandboxEntryStatus {
+        &self.status
+    }
+
+    fn get_cloned(&self) -> Option<T> {
+        self.value.clone()
+    }
+
+    fn as_ref(&self) -> Option<&T> {
+        self.value.as_ref()
+    }
+
+    fn as_mut(&mut self) -> Option<&mut T> {
+        self.value.as_mut()
+    }
+}
+
+impl<T> SandboxEntry<T>
+where
+    T: AccountPartialState + Clone,
+{
     pub fn new_added(entry: T) -> Self {
         Self {
             value: Some(entry),
-            status: PartialStateEntryStatus::Added,
+            status: SandboxEntryStatus::Added,
         }
     }
 
     pub fn new_updated(entry: T) -> Self {
         Self {
             value: Some(entry),
-            status: PartialStateEntryStatus::Updated,
+            status: SandboxEntryStatus::Updated,
         }
     }
 
     pub fn new_removed() -> Self {
         Self {
             value: None,
-            status: PartialStateEntryStatus::Removed,
+            status: SandboxEntryStatus::Removed,
         }
     }
 
-    pub fn status(&self) -> &PartialStateEntryStatus {
-        &self.status
+    pub fn mark_updated(&mut self) {
+        // `Added` status should remain as `Added`
+        if !(self.status == SandboxEntryStatus::Added || self.status == SandboxEntryStatus::Updated)
+        {
+            self.status = SandboxEntryStatus::Updated;
+        }
     }
 
-    pub fn get_cloned(&self) -> Option<T> {
-        self.value.clone()
+    pub fn mark_removed(&mut self) {
+        if self.status != SandboxEntryStatus::Removed {
+            self.value = None;
+            self.status = SandboxEntryStatus::Removed;
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub struct SandboxEntryVersioned<T>
+where
+    T: AccountPartialState + StorageFootprint + Clone,
+{
+    entry: SandboxEntry<T>,
+    clean_snapshot: Option<T>,
+}
+
+impl<T> SandboxEntryAccessor<T> for SandboxEntryVersioned<T>
+where
+    T: AccountPartialState + StorageFootprint + Clone,
+{
+    fn from_clean(entry: T) -> Self {
+        Self {
+            entry: SandboxEntry::from_clean(entry),
+            clean_snapshot: None,
+        }
     }
 
-    pub fn as_ref(&self) -> Option<&T> {
-        self.value.as_ref()
+    fn status(&self) -> &SandboxEntryStatus {
+        &self.entry.status
     }
 
-    pub fn as_mut(&mut self) -> Option<&mut T> {
-        self.value.as_mut()
+    fn get_cloned(&self) -> Option<T> {
+        self.entry.value.clone()
+    }
+
+    fn as_ref(&self) -> Option<&T> {
+        self.entry.value.as_ref()
+    }
+
+    fn as_mut(&mut self) -> Option<&mut T> {
+        self.entry.value.as_mut()
+    }
+}
+
+#[allow(dead_code)]
+impl<T> SandboxEntryVersioned<T>
+where
+    T: AccountPartialState + StorageFootprint + Clone,
+{
+    pub fn new_added(entry: T) -> Self {
+        Self {
+            entry: SandboxEntry::new_added(entry),
+            clean_snapshot: None,
+        }
+    }
+
+    pub fn new_updated(updated: T, clean: T) -> Self {
+        Self {
+            entry: SandboxEntry::new_updated(updated),
+            clean_snapshot: Some(clean),
+        }
+    }
+
+    pub fn new_removed(clean: T) -> Self {
+        Self {
+            entry: SandboxEntry::new_removed(),
+            clean_snapshot: Some(clean),
+        }
+    }
+
+    fn footprint_delta(&self) -> Option<FootprintDelta> {
+        match &self.entry.status {
+            SandboxEntryStatus::Clean => None,
+            SandboxEntryStatus::Added => {
+                AccountMetadata::calculate_storage_footprint_delta(None, self.as_ref())
+            }
+            SandboxEntryStatus::Updated => AccountMetadata::calculate_storage_footprint_delta(
+                self.clean_snapshot.as_ref(),
+                self.as_ref(),
+            ),
+            SandboxEntryStatus::Removed => AccountMetadata::calculate_storage_footprint_delta(
+                self.clean_snapshot.as_ref(),
+                None,
+            ),
+        }
     }
 }
 
@@ -86,10 +213,10 @@ impl<T: PVMContextState + Clone> PartialStateEntry<T> {
 /// which makes this type to be specific to the accumulation process.
 #[derive(Clone)]
 pub struct AccountSandbox {
-    pub metadata: PartialStateEntry<AccountMetadata>,
-    pub storage: HashMap<Hash32, PartialStateEntry<AccountStorageEntry>>,
-    pub preimages: HashMap<Hash32, PartialStateEntry<AccountPreimagesEntry>>,
-    pub lookups: HashMap<(Hash32, u32), PartialStateEntry<AccountLookupsEntry>>,
+    pub metadata: SandboxEntry<AccountMetadata>,
+    pub storage: HashMap<Hash32, SandboxEntryVersioned<AccountStorageEntry>>,
+    pub preimages: HashMap<Hash32, SandboxEntry<AccountPreimagesEntry>>,
+    pub lookups: HashMap<(Hash32, u32), SandboxEntryVersioned<AccountLookupsEntryExt>>,
 }
 
 impl AccountSandbox {
@@ -102,11 +229,38 @@ impl AccountSandbox {
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         Ok(Self {
-            metadata: PartialStateEntry::new_clean(metadata),
+            metadata: SandboxEntry::from_clean(metadata),
             storage: HashMap::new(),
             preimages: HashMap::new(),
             lookups: HashMap::new(),
         })
+    }
+
+    pub fn footprint_delta_aggregated(&self) -> AccountFootprintDelta {
+        // storage footprint delta
+        let mut storage_items_count_delta = 0;
+        let mut storage_octets_delta = 0;
+        self.storage.values().for_each(|entry| {
+            if let Some(delta) = entry.footprint_delta() {
+                storage_items_count_delta += delta.items_count_delta;
+                storage_octets_delta += delta.octets_delta;
+            }
+        });
+
+        // lookups footprint delta
+        let mut lookups_items_count_delta = 0;
+        let mut lookups_octets_delta = 0;
+        self.lookups.values().for_each(|entry| {
+            if let Some(delta) = entry.footprint_delta() {
+                lookups_items_count_delta += delta.items_count_delta;
+                lookups_octets_delta += delta.octets_delta;
+            }
+        });
+
+        AccountFootprintDelta {
+            storage_delta: FootprintDelta::new(storage_items_count_delta, storage_octets_delta),
+            lookups_delta: FootprintDelta::new(lookups_items_count_delta, lookups_octets_delta),
+        }
     }
 }
 
@@ -209,23 +363,52 @@ impl AccountsSandboxMap {
         }
     }
 
+    pub async fn mark_account_metadata_updated(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<(), PartialStateError> {
+        if let Some(sandbox) = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?
+        {
+            sandbox.metadata.mark_updated();
+        }
+        Ok(())
+    }
+
+    pub async fn mark_account_metadata_removed(
+        &mut self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<(), PartialStateError> {
+        if let Some(sandbox) = self
+            .get_mut_account_sandbox(state_manager, service_id)
+            .await?
+        {
+            sandbox.metadata.mark_removed();
+        }
+        Ok(())
+    }
+
     /// Attempts to retrieve an entry of type `T` from the map or the global state using the given key.
     ///
     /// The `map` is one of the account storage types stored in `AccountSandbox`, which stores storage
-    /// entries wrapped with `PartialStateEntry<T>` type. This can represent state entry copied from
-    /// the global state (state manager) or its mutated version (added, updated or removed) in the
-    /// sandboxed environment.
+    /// entries wrapped with types that implement `SandboxEntryAccessor<T>` trait.
+    /// This can represent state entry copied from the global state (state manager)
+    /// or its mutated version (added, updated or removed) in the sandboxed environment.
     ///
     /// If an item of the given key is not found from the `map`, it attempts to load it from the global
     /// state by invoking `load_from_global` and then insert the found entry to the `map` if exists.
-    async fn get_or_load_entry<K, T, F, Fut>(
-        map: &mut HashMap<K, PartialStateEntry<T>>,
+    async fn get_or_load_entry<K, V, T, F, Fut>(
+        map: &mut HashMap<K, V>,
         key: &K,
         load_from_global: F,
     ) -> Result<Option<T>, PartialStateError>
     where
         K: Eq + Hash + Clone,
-        T: PVMContextState + Clone,
+        V: SandboxEntryAccessor<T> + Clone,
+        T: AccountPartialState + Clone,
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Option<T>, StateManagerError>>,
     {
@@ -238,7 +421,7 @@ impl AccountsSandboxMap {
         // If not found in the map, attempt to load it from the global state
         let entry_from_global = load_from_global().await?;
         if let Some(value) = entry_from_global {
-            let clean_entry = PartialStateEntry::new_clean(value);
+            let clean_entry: V = SandboxEntryAccessor::from_clean(value);
             map.insert(key.clone(), clean_entry.clone());
             Ok(clean_entry.get_cloned())
         } else {
@@ -281,15 +464,14 @@ impl AccountsSandboxMap {
         storage_key: Hash32,
         new_entry: AccountStorageEntry,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
-        let entry = if self
+        let entry = if let Some(prev_entry) = self
             .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?
-            .is_some()
         {
             // Entry with the key already exists in the global state
-            PartialStateEntry::new_updated(new_entry)
+            SandboxEntryVersioned::new_updated(new_entry, prev_entry)
         } else {
-            PartialStateEntry::new_added(new_entry)
+            SandboxEntryVersioned::new_added(new_entry)
         };
 
         let sandbox = self
@@ -314,32 +496,25 @@ impl AccountsSandboxMap {
         service_id: ServiceId,
         storage_key: Hash32,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
-        let sandbox = self
-            .get_mut_account_sandbox(state_manager, service_id)
+        if let Some(prev_entry) = self
+            .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        let maybe_removed = sandbox
-            .storage
-            .insert(storage_key, PartialStateEntry::new_removed());
-
-        if let Some(removed) = maybe_removed {
-            Ok(removed.get_cloned())
-        } else {
-            Ok(None)
+        {
+            // Entry with the key already exists in the global state
+            let entry = SandboxEntryVersioned::new_removed(prev_entry);
+            let sandbox = self
+                .get_mut_account_sandbox(state_manager, service_id)
+                .await?
+                .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            let removed = sandbox
+                .storage
+                .insert(storage_key, entry)
+                .expect("Should exist");
+            return Ok(removed.get_cloned());
         }
-    }
 
-    /// Updates service account storage footprints.
-    ///
-    /// Note: `item_count_delta` and `octets_count_delta` can be calculated from
-    /// `AccountMetadata::calculate_storage_footprint_delta`.
-    pub async fn update_account_storage_footprint(
-        metadata: &mut AccountMetadata,
-        item_count_delta: i32,
-        octets_count_delta: i64,
-    ) {
-        metadata.update_storage_items_count(item_count_delta);
-        metadata.update_storage_total_octets(octets_count_delta);
+        // Attempted to remove an entry that is not found in the sandbox
+        Ok(None)
     }
 
     pub async fn get_account_preimages_entry(
@@ -382,9 +557,9 @@ impl AccountsSandboxMap {
             .is_some()
         {
             // Entry with the key already exists in the global state
-            PartialStateEntry::new_updated(new_entry)
+            SandboxEntry::new_updated(new_entry)
         } else {
-            PartialStateEntry::new_added(new_entry)
+            SandboxEntry::new_added(new_entry)
         };
 
         let sandbox = self
@@ -415,7 +590,7 @@ impl AccountsSandboxMap {
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
         let maybe_removed = sandbox
             .preimages
-            .insert(preimages_key, PartialStateEntry::new_removed());
+            .insert(preimages_key, SandboxEntry::new_removed());
 
         if let Some(removed) = maybe_removed {
             Ok(removed.get_cloned())
@@ -429,7 +604,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_storage_key: &(Hash32, u32),
-    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
         let sandbox = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
             .await?;
@@ -438,10 +613,13 @@ impl AccountsSandboxMap {
                 Self::get_or_load_entry(
                     &mut sandbox.lookups,
                     lookups_storage_key,
-                    async || -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-                        state_manager
+                    async || -> Result<Option<AccountLookupsEntryExt>, StateManagerError> {
+                        Ok(state_manager
                             .get_account_lookups_entry(service_id, lookups_storage_key)
-                            .await
+                            .await?
+                            .map(|entry| {
+                                AccountLookupsEntryExt::from_entry(*lookups_storage_key, entry)
+                            }))
                     },
                 )
                 .await
@@ -456,17 +634,16 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: (Hash32, u32),
-        new_entry: AccountLookupsEntry,
+        new_entry: AccountLookupsEntryExt,
     ) -> Result<(), PartialStateError> {
-        let entry = if self
+        let entry = if let Some(prev_entry) = self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
             .await?
-            .is_some()
         {
             // Entry with the key already exists in the global state
-            PartialStateEntry::new_updated(new_entry)
+            SandboxEntryVersioned::new_updated(new_entry, prev_entry)
         } else {
-            PartialStateEntry::new_added(new_entry)
+            SandboxEntryVersioned::new_added(new_entry)
         };
 
         let sandbox = self
@@ -485,20 +662,26 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: (Hash32, u32),
-    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
-        let sandbox = self
-            .get_mut_account_sandbox(state_manager, service_id)
+    ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
+        if let Some(prev_entry) = self
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
             .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        let maybe_removed = sandbox
-            .lookups
-            .insert(lookups_key, PartialStateEntry::new_removed());
-
-        if let Some(removed) = maybe_removed {
-            Ok(removed.get_cloned())
-        } else {
-            Ok(None)
+        {
+            // Entry with the key already exists in the global state
+            let entry = SandboxEntryVersioned::new_removed(prev_entry);
+            let sandbox = self
+                .get_mut_account_sandbox(state_manager, service_id)
+                .await?
+                .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
+            let removed = sandbox
+                .lookups
+                .insert(lookups_key, entry)
+                .expect("Should exist");
+            return Ok(removed.get_cloned());
         }
+
+        // Attempted to remove an entry that is not found in the sandbox
+        Ok(None)
     }
 
     /// Pushes a new timeslot to the lookups entry value sequence and returns
@@ -573,59 +756,6 @@ impl AccountsSandboxMap {
         Ok(true)
     }
 
-    // TODO: Remove if not used
-    pub async fn update_account_lookups_footprint_from_entries(
-        &mut self,
-        state_manager: Arc<StateManager>,
-        service_id: ServiceId,
-        lookups_key: &(Hash32, u32),
-        prev_lookups_entry: Option<&AccountLookupsEntry>,
-        new_lookups_entry: Option<&AccountLookupsEntry>,
-    ) -> Result<(), PartialStateError> {
-        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
-        let prev_lookups_octets_usage =
-            prev_lookups_entry
-                .cloned()
-                .map(|p| AccountLookupsOctetsUsage {
-                    preimage_length: lookups_key.1,
-                    entry: p,
-                });
-
-        let new_lookups_octets_usage =
-            new_lookups_entry.map(|new_entry| AccountLookupsOctetsUsage {
-                preimage_length: lookups_key.1,
-                entry: new_entry.clone(),
-            });
-
-        let (item_count_delta, octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_octets_usage.as_ref(),
-                new_lookups_octets_usage.as_ref(),
-            )
-            .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
-
-        let metadata = self
-            .get_mut_account_metadata(state_manager, service_id)
-            .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-
-        Self::update_account_lookups_footprint(metadata, item_count_delta, octets_count_delta);
-        Ok(())
-    }
-
-    /// Updates service account lookups footprints.
-    ///
-    /// Note: `item_count_delta` and `octets_count_delta` can be calculated from
-    /// `AccountMetadata::calculate_storage_footprint_delta`.
-    pub fn update_account_lookups_footprint(
-        metadata: &mut AccountMetadata,
-        item_count_delta: i32,
-        octets_count_delta: i64,
-    ) {
-        metadata.update_lookups_items_count(item_count_delta);
-        metadata.update_lookups_total_octets(octets_count_delta);
-    }
-
     pub async fn eject_account(
         &mut self,
         state_manager: Arc<StateManager>,
@@ -635,21 +765,23 @@ impl AccountsSandboxMap {
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        sandbox.metadata = PartialStateEntry::new_removed();
+        sandbox.metadata = SandboxEntry::new_removed();
 
         // Mark all storage entries associated with the service_id as removed.
-        sandbox
-            .storage
-            .values_mut()
-            .for_each(|v| *v = PartialStateEntry::new_removed());
+        sandbox.storage.values_mut().for_each(|v| {
+            if let Some(prev_entry) = v.get_cloned() {
+                *v = SandboxEntryVersioned::new_removed(prev_entry)
+            }
+        });
         sandbox
             .preimages
             .values_mut()
-            .for_each(|v| *v = PartialStateEntry::new_removed());
-        sandbox
-            .lookups
-            .values_mut()
-            .for_each(|v| *v = PartialStateEntry::new_removed());
+            .for_each(|v| *v = SandboxEntry::new_removed());
+        sandbox.lookups.values_mut().for_each(|v| {
+            if let Some(prev_entry) = v.get_cloned() {
+                *v = SandboxEntryVersioned::new_removed(prev_entry)
+            }
+        });
 
         Ok(())
     }

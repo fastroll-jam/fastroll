@@ -1,6 +1,6 @@
 use crate::{
     context::partial_state::{
-        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, PartialStateEntry,
+        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntry,
     },
     inner_vm::InnerPVM,
 };
@@ -270,12 +270,17 @@ impl AccumulateHostContext {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         // Explicitly checked from callsites (host functions) that this has positive value.
         account_metadata.account_info.balance -= amount;
+        self.partial_state
+            .accounts_sandbox
+            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .await?;
+
         Ok(())
     }
 
@@ -287,11 +292,16 @@ impl AccumulateHostContext {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         account_metadata.account_info.balance += amount;
+        self.partial_state
+            .accounts_sandbox
+            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .await?;
+
         Ok(())
     }
 
@@ -302,7 +312,7 @@ impl AccumulateHostContext {
         code_lookups_key: (Hash32, u32),
     ) -> Result<ServiceId, PVMError> {
         let new_account = AccountSandbox {
-            metadata: PartialStateEntry::new_added(AccountMetadata::new(account_info)),
+            metadata: SandboxEntry::new_added(AccountMetadata::new(account_info)),
             storage: HashMap::new(),
             preimages: HashMap::new(),
             lookups: HashMap::new(),
@@ -314,7 +324,8 @@ impl AccumulateHostContext {
             .insert(new_service_id, new_account);
 
         // Lookups dictionary entry for the code hash preimage entry
-        let code_lookups_entry = AccountLookupsEntry { value: vec![] };
+        let code_lookups_entry =
+            AccountLookupsEntryExt::from_entry(code_lookups_key, AccountLookupsEntry::default());
 
         self.partial_state
             .accounts_sandbox
@@ -339,13 +350,18 @@ impl AccumulateHostContext {
         let accumulator_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager, self.accumulate_host)
+            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         accumulator_metadata.account_info.code_hash = code_hash;
         accumulator_metadata.account_info.gas_limit_accumulate = gas_limit_accumulate;
         accumulator_metadata.account_info.gas_limit_on_transfer = gas_limit_on_transfer;
+
+        self.partial_state
+            .accounts_sandbox
+            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .await?;
         Ok(())
     }
 }
