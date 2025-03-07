@@ -324,7 +324,8 @@ impl AccumulateHostContext {
             .insert(new_service_id, new_account);
 
         // Lookups dictionary entry for the code hash preimage entry
-        let code_lookups_entry = AccountLookupsEntry { value: vec![] };
+        let code_lookups_entry =
+            AccountLookupsEntryExt::from_entry(code_lookups_key, AccountLookupsEntry::default());
 
         self.partial_state
             .accounts_sandbox

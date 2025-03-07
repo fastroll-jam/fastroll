@@ -186,7 +186,7 @@ async fn transition_service_account(
                     .add_account_lookups_entry(
                         service_id,
                         (&k.0, k.1),
-                        v.get_cloned().expect("Should exist"),
+                        v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
             }
@@ -196,7 +196,7 @@ async fn transition_service_account(
                         StateMut::Update,
                         service_id,
                         (&k.0, k.1),
-                        |entry| *entry = v.get_cloned().expect("Should exist"),
+                        |entry| *entry = v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
             }

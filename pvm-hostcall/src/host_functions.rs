@@ -909,7 +909,7 @@ impl HostFunction {
                 // Simulate the threshold balance change. In this case, a new lookups entry with an
                 // empty timeslot vector is added.
                 let new_lookups_entry = AccountLookupsEntry::default();
-                let new_lookups_octets_usage = Some(AccountLookupsOctetsUsage {
+                let new_lookups_octets_usage = Some(AccountLookupsEntryExt {
                     preimage_length: lookups_size,
                     entry: new_lookups_entry.clone(),
                 });
@@ -928,7 +928,7 @@ impl HostFunction {
                     continue_full!()
                 }
 
-                new_lookups_entry
+                AccountLookupsEntryExt::from_entry(lookups_key, new_lookups_entry)
             }
         };
 

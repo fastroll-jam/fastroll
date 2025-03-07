@@ -10,7 +10,10 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{Balance, Hash32, Octets, ServiceId, UnsignedGas};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 pub const B_S: Balance = 100; // The basic minimum balance which all services require
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
@@ -261,7 +264,7 @@ pub trait AccountPartialState {}
 impl AccountPartialState for AccountMetadata {}
 impl AccountPartialState for AccountStorageEntry {}
 impl AccountPartialState for AccountPreimagesEntry {}
-impl AccountPartialState for AccountLookupsEntry {}
+impl AccountPartialState for AccountLookupsEntryExt {}
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountStorageEntry {
@@ -338,15 +341,43 @@ impl AccountLookupsEntry {
 /// An extended type of `AccountLookupsEntry` that include additional metadata about the preimage
 /// entry size in octets. This is useful for tracking storage usage and calculating threshold balance
 /// of an account. This is NOT serialized as part of the global state.
-pub struct AccountLookupsOctetsUsage {
+#[derive(Clone)]
+pub struct AccountLookupsEntryExt {
     /// Length of the preimage data, which is also part of the lookups key
     pub preimage_length: u32,
     pub entry: AccountLookupsEntry,
 }
 
-impl StorageFootprint for AccountLookupsOctetsUsage {
+impl Deref for AccountLookupsEntryExt {
+    type Target = AccountLookupsEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+impl DerefMut for AccountLookupsEntryExt {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+impl StorageFootprint for AccountLookupsEntryExt {
     fn storage_octets_usage(&self) -> usize {
         self.preimage_length as usize
+    }
+}
+
+impl AccountLookupsEntryExt {
+    pub fn from_entry(key: (Hash32, u32), entry: AccountLookupsEntry) -> Self {
+        Self {
+            preimage_length: key.1,
+            entry,
+        }
+    }
+
+    pub fn into_entry(self) -> AccountLookupsEntry {
+        self.entry
     }
 }
 

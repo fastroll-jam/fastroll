@@ -2,7 +2,7 @@ use rjam_common::{Hash32, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::{
-    AccountFootprintDelta, AccountLookupsEntry, AccountLookupsOctetsUsage, AccountMetadata,
+    AccountFootprintDelta, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
     AccountPartialState, AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta,
     PrivilegedServices, StagingSet, StorageFootprint, Timeslot,
 };
@@ -141,7 +141,7 @@ pub struct AccountSandbox {
     pub metadata: PartialStateEntry<AccountMetadata>,
     pub storage: HashMap<Hash32, PartialStateEntry<AccountStorageEntry>>,
     pub preimages: HashMap<Hash32, PartialStateEntry<AccountPreimagesEntry>>,
-    pub lookups: HashMap<(Hash32, u32), PartialStateEntry<AccountLookupsEntry>>,
+    pub lookups: HashMap<(Hash32, u32), PartialStateEntry<AccountLookupsEntryExt>>,
 }
 
 impl AccountSandbox {
@@ -500,7 +500,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_storage_key: &(Hash32, u32),
-    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
         let sandbox = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
             .await?;
@@ -509,10 +509,13 @@ impl AccountsSandboxMap {
                 Self::get_or_load_entry(
                     &mut sandbox.lookups,
                     lookups_storage_key,
-                    async || -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-                        state_manager
+                    async || -> Result<Option<AccountLookupsEntryExt>, StateManagerError> {
+                        Ok(state_manager
                             .get_account_lookups_entry(service_id, lookups_storage_key)
-                            .await
+                            .await?
+                            .map(|entry| {
+                                AccountLookupsEntryExt::from_entry(*lookups_storage_key, entry)
+                            }))
                     },
                 )
                 .await
@@ -527,7 +530,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: (Hash32, u32),
-        new_entry: AccountLookupsEntry,
+        new_entry: AccountLookupsEntryExt,
     ) -> Result<(), PartialStateError> {
         let entry = if self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
@@ -556,7 +559,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: (Hash32, u32),
-    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
         let sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
@@ -655,18 +658,15 @@ impl AccountsSandboxMap {
     ) -> Result<(), PartialStateError> {
         // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
         let prev_lookups_octets_usage =
-            prev_lookups_entry
-                .cloned()
-                .map(|p| AccountLookupsOctetsUsage {
-                    preimage_length: lookups_key.1,
-                    entry: p,
-                });
-
-        let new_lookups_octets_usage =
-            new_lookups_entry.map(|new_entry| AccountLookupsOctetsUsage {
+            prev_lookups_entry.cloned().map(|p| AccountLookupsEntryExt {
                 preimage_length: lookups_key.1,
-                entry: new_entry.clone(),
+                entry: p,
             });
+
+        let new_lookups_octets_usage = new_lookups_entry.map(|new_entry| AccountLookupsEntryExt {
+            preimage_length: lookups_key.1,
+            entry: new_entry.clone(),
+        });
 
         let footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
             prev_lookups_octets_usage.as_ref(),
