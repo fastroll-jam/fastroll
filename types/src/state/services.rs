@@ -231,11 +231,11 @@ pub trait StorageFootprint {
 ///
 /// This is used to group types that are part of an account's state and are eligible for
 /// manipulation or evaluation in a sandboxed PVM hostcall execution context.
-pub trait PVMContextState {}
-impl PVMContextState for AccountMetadata {}
-impl PVMContextState for AccountStorageEntry {}
-impl PVMContextState for AccountPreimagesEntry {}
-impl PVMContextState for AccountLookupsEntry {}
+pub trait AccountPartialState {}
+impl AccountPartialState for AccountMetadata {}
+impl AccountPartialState for AccountStorageEntry {}
+impl AccountPartialState for AccountPreimagesEntry {}
+impl AccountPartialState for AccountLookupsEntry {}
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountStorageEntry {

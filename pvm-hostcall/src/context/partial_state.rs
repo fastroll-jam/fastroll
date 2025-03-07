@@ -26,12 +26,12 @@ pub enum PartialStateEntryStatus {
 /// The account state may originate from the global state or be created/updated/removed within the
 /// execution context.
 #[derive(Clone)]
-pub struct PartialStateEntry<T: PVMContextState + Clone> {
+pub struct PartialStateEntry<T: AccountPartialState + Clone> {
     value: Option<T>,
     status: PartialStateEntryStatus,
 }
 
-impl<T: PVMContextState + Clone> PartialStateEntry<T> {
+impl<T: AccountPartialState + Clone> PartialStateEntry<T> {
     pub fn new_clean(entry: T) -> Self {
         Self {
             value: Some(entry),
@@ -280,7 +280,7 @@ impl AccountsSandboxMap {
     ) -> Result<Option<T>, PartialStateError>
     where
         K: Eq + Hash + Clone,
-        T: PVMContextState + Clone,
+        T: AccountPartialState + Clone,
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Option<T>, StateManagerError>>,
     {
