@@ -1,7 +1,11 @@
 use rjam_common::{Hash32, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
-use rjam_types::state::*;
+use rjam_types::state::{
+    AccountFootprintDelta, AccountLookupsEntry, AccountLookupsOctetsUsage, AccountMetadata,
+    AccountPartialState, AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta,
+    PrivilegedServices, StagingSet, StorageFootprint, Timeslot,
+};
 use std::{
     collections::HashMap,
     future::Future,
@@ -93,11 +97,36 @@ impl<T: AccountPartialState + Clone> PartialStateEntry<T> {
     }
 }
 
-pub struct AccountFootprintDelta {
-    pub storage_items_count_delta: i32,
-    pub storage_octets_delta: i64,
-    pub lookups_items_count_delta: i32,
-    pub lookups_octets_delta: i64,
+#[allow(dead_code)]
+pub struct FootprintTracker<T>
+where
+    T: AccountPartialState + StorageFootprint + Clone,
+{
+    entry: PartialStateEntry<T>,
+    clean_snapshot: Option<T>,
+}
+
+#[allow(dead_code)]
+impl<T> FootprintTracker<T>
+where
+    T: AccountPartialState + StorageFootprint + Clone,
+{
+    fn footprint_delta(&self) -> Option<FootprintDelta> {
+        match &self.entry.status {
+            PartialStateEntryStatus::Clean => None,
+            PartialStateEntryStatus::Added => {
+                AccountMetadata::calculate_storage_footprint_delta(None, self.entry.as_ref())
+            }
+            PartialStateEntryStatus::Updated => AccountMetadata::calculate_storage_footprint_delta(
+                self.clean_snapshot.as_ref(),
+                self.entry.as_ref(),
+            ),
+            PartialStateEntryStatus::Removed => AccountMetadata::calculate_storage_footprint_delta(
+                self.clean_snapshot.as_ref(),
+                None,
+            ),
+        }
+    }
 }
 
 /// Represents a sandboxed environment of a service account, including its metadata
@@ -132,7 +161,7 @@ impl AccountSandbox {
         })
     }
 
-    pub fn calculate_storage_footprint_delta(&self) -> AccountFootprintDelta {
+    pub fn footprint_delta_aggregated(&self) -> AccountFootprintDelta {
         unimplemented!()
     }
 }
@@ -639,19 +668,18 @@ impl AccountsSandboxMap {
                 entry: new_entry.clone(),
             });
 
-        let (item_count_delta, octets_count_delta) =
-            AccountMetadata::calculate_storage_footprint_delta(
-                prev_lookups_octets_usage.as_ref(),
-                new_lookups_octets_usage.as_ref(),
-            )
-            .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
+        let footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
+            prev_lookups_octets_usage.as_ref(),
+            new_lookups_octets_usage.as_ref(),
+        )
+        .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
 
         let metadata = self
             .get_mut_account_metadata(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
 
-        metadata.update_lookups_footprint(item_count_delta, octets_count_delta);
+        metadata.update_lookups_footprint(footprint_delta);
         Ok(())
     }
 
