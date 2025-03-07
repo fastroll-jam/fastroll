@@ -159,7 +159,7 @@ mod tests {
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;
             let curr_account_metadata_vec: Vec<AccountMetadata> =
-                join_all(pre_state.accounts.iter().map(async |s| -> AccountMetadata {
+                join_all(pre_state.accounts.iter().map(|s| async {
                     state_manager
                         .get_account_metadata(s.id)
                         .await

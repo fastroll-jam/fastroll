@@ -441,15 +441,9 @@ impl AccountsSandboxMap {
             .await?;
         match sandbox {
             Some(sandbox) => {
-                Self::get_or_load_entry(
-                    &mut sandbox.storage,
-                    storage_key,
-                    async || -> Result<Option<AccountStorageEntry>, StateManagerError> {
-                        state_manager
-                            .get_account_storage_entry(service_id, storage_key)
-                            .await
-                    },
-                )
+                Self::get_or_load_entry(&mut sandbox.storage, storage_key, || {
+                    state_manager.get_account_storage_entry(service_id, storage_key)
+                })
                 .await
             }
             None => Ok(None),
@@ -528,15 +522,9 @@ impl AccountsSandboxMap {
             .await?;
         match sandbox {
             Some(sandbox) => {
-                Self::get_or_load_entry(
-                    &mut sandbox.preimages,
-                    preimages_key,
-                    async || -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
-                        state_manager
-                            .get_account_preimages_entry(service_id, preimages_key)
-                            .await
-                    },
-                )
+                Self::get_or_load_entry(&mut sandbox.preimages, preimages_key, || {
+                    state_manager.get_account_preimages_entry(service_id, preimages_key)
+                })
                 .await
             }
             None => Ok(None),
@@ -610,18 +598,14 @@ impl AccountsSandboxMap {
             .await?;
         match sandbox {
             Some(sandbox) => {
-                Self::get_or_load_entry(
-                    &mut sandbox.lookups,
-                    lookups_storage_key,
-                    async || -> Result<Option<AccountLookupsEntryExt>, StateManagerError> {
-                        Ok(state_manager
-                            .get_account_lookups_entry(service_id, lookups_storage_key)
-                            .await?
-                            .map(|entry| {
-                                AccountLookupsEntryExt::from_entry(*lookups_storage_key, entry)
-                            }))
-                    },
-                )
+                Self::get_or_load_entry(&mut sandbox.lookups, lookups_storage_key, || async {
+                    Ok(state_manager
+                        .get_account_lookups_entry(service_id, lookups_storage_key)
+                        .await?
+                        .map(|entry| {
+                            AccountLookupsEntryExt::from_entry(*lookups_storage_key, entry)
+                        }))
+                })
                 .await
             }
             None => Ok(None),
