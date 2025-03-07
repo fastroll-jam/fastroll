@@ -124,10 +124,9 @@ mod tests {
         // Progress with an empty assurances extrinsic.
         no_assurances_1: "no_assurances-1.json",
 
-        // FIXME: Signature verification failure
         // Success
         // Several assurances contributing to establishing availability super-majority for some of the cores.
-        // some_assurances_1: "some_assurances-1.json",
+        some_assurances_1: "some_assurances-1.json",
 
         // Success
         // Progress with an empty assurances extrinsic.
@@ -143,20 +142,18 @@ mod tests {
         // One assurance has a bad validator index.
         // assurances_with_bad_validator_index_1: "assurances_with_bad_validator_index-1.json",
 
-        // FIXME: Signature verification failure
         // Fail
         // One assurance targets a core without any assigned work report.
-        // assurance_for_not_engaged_core_1: "assurance_for_not_engaged_core-1.json",
+        assurance_for_not_engaged_core_1: "assurance_for_not_engaged_core-1.json",
 
         // Fail
         // One assurance has a bad attestation parent hash.
         assurance_with_bad_attestation_parent_1: "assurance_with_bad_attestation_parent-1.json",
 
-        // FIXME: Signature verification failure
         // Fail
         // One assurance targets a core with a stale report.
         // We are lenient on the stale report as far as it is available.
-        // assurances_for_stale_report_1: "assurances_for_stale_report-1.json",
+        assurances_for_stale_report_1: "assurances_for_stale_report-1.json",
 
         // Fail
         // Assurers not sorted.

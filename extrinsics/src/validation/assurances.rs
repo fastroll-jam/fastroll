@@ -1,6 +1,6 @@
 use crate::validation::error::{XtValidationError, XtValidationError::*};
-use rjam_codec::JamEncode;
-use rjam_common::{CoreIndex, Hash32, VALIDATOR_COUNT, X_A};
+use rjam_codec::{JamEncode, JamEncodeFixed};
+use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::StateManager;
 use rjam_types::{
@@ -91,7 +91,9 @@ impl<'a> AssurancesXtValidator<'a> {
         // Verify the signature
         let mut buf = vec![];
         header_parent_hash.encode_to(&mut buf)?;
-        entry.assuring_cores_bitvec.encode_to(&mut buf)?;
+        entry
+            .assuring_cores_bitvec
+            .encode_to_fixed(&mut buf, CORE_COUNT)?;
         let hash = hash::<Blake2b256>(&buf[..])?;
 
         let mut message = Vec::with_capacity(X_A.len() + hash.len());
