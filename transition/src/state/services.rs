@@ -6,7 +6,7 @@ use rjam_crypto::{hash, Blake2b256};
 use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
 use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
 use rjam_pvm_hostcall::context::partial_state::{
-    AccountSandbox, AccumulatePartialState, PartialStateEntryStatus,
+    AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
 };
 use rjam_pvm_invocation::{
     accumulation::{
@@ -106,7 +106,7 @@ async fn transition_service_account(
     // TODO: Optimize writes
 
     match &sandbox.metadata.status() {
-        PartialStateEntryStatus::Added => {
+        SandboxEntryStatus::Added => {
             state_manager
                 .add_account_metadata(
                     service_id,
@@ -114,14 +114,14 @@ async fn transition_service_account(
                 )
                 .await?;
         }
-        PartialStateEntryStatus::Updated => {
+        SandboxEntryStatus::Updated => {
             state_manager
                 .with_mut_account_metadata(StateMut::Update, service_id, |metadata| {
                     *metadata = sandbox.metadata.get_cloned().expect("Should exist")
                 })
                 .await?;
         }
-        PartialStateEntryStatus::Removed => {
+        SandboxEntryStatus::Removed => {
             state_manager
                 .with_mut_account_metadata(StateMut::Remove, service_id, |_| {})
                 .await?;
@@ -131,19 +131,19 @@ async fn transition_service_account(
 
     for (k, v) in sandbox.storage.iter() {
         match v.status() {
-            PartialStateEntryStatus::Added => {
+            SandboxEntryStatus::Added => {
                 state_manager
                     .add_account_storage_entry(service_id, k, v.get_cloned().expect("Should exist"))
                     .await?;
             }
-            PartialStateEntryStatus::Updated => {
+            SandboxEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_storage_entry(StateMut::Update, service_id, k, |entry| {
                         *entry = v.get_cloned().expect("Should exist")
                     })
                     .await?;
             }
-            PartialStateEntryStatus::Removed => {
+            SandboxEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_storage_entry(StateMut::Remove, service_id, k, |_| {})
                     .await?
@@ -154,7 +154,7 @@ async fn transition_service_account(
 
     for (k, v) in sandbox.preimages.iter() {
         match v.status() {
-            PartialStateEntryStatus::Added => {
+            SandboxEntryStatus::Added => {
                 state_manager
                     .add_account_preimages_entry(
                         service_id,
@@ -163,14 +163,14 @@ async fn transition_service_account(
                     )
                     .await?;
             }
-            PartialStateEntryStatus::Updated => {
+            SandboxEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_preimages_entry(StateMut::Update, service_id, k, |entry| {
                         *entry = v.get_cloned().expect("Should exist")
                     })
                     .await?;
             }
-            PartialStateEntryStatus::Removed => {
+            SandboxEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_preimages_entry(StateMut::Remove, service_id, k, |_| {})
                     .await?
@@ -181,7 +181,7 @@ async fn transition_service_account(
 
     for (&k, v) in sandbox.lookups.iter() {
         match v.status() {
-            PartialStateEntryStatus::Added => {
+            SandboxEntryStatus::Added => {
                 state_manager
                     .add_account_lookups_entry(
                         service_id,
@@ -190,7 +190,7 @@ async fn transition_service_account(
                     )
                     .await?;
             }
-            PartialStateEntryStatus::Updated => {
+            SandboxEntryStatus::Updated => {
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Update,
@@ -200,7 +200,7 @@ async fn transition_service_account(
                     )
                     .await?;
             }
-            PartialStateEntryStatus::Removed => {
+            SandboxEntryStatus::Removed => {
                 state_manager
                     .with_mut_account_lookups_entry(
                         StateMut::Remove,

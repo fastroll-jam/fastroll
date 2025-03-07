@@ -1,6 +1,6 @@
 use crate::{
     context::partial_state::{
-        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, PartialStateEntry,
+        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntry,
     },
     inner_vm::InnerPVM,
 };
@@ -312,7 +312,7 @@ impl AccumulateHostContext {
         code_lookups_key: (Hash32, u32),
     ) -> Result<ServiceId, PVMError> {
         let new_account = AccountSandbox {
-            metadata: PartialStateEntry::new_added(AccountMetadata::new(account_info)),
+            metadata: SandboxEntry::new_added(AccountMetadata::new(account_info)),
             storage: HashMap::new(),
             preimages: HashMap::new(),
             lookups: HashMap::new(),
