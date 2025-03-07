@@ -32,11 +32,21 @@ impl FootprintDelta {
             octets_delta,
         }
     }
+
+    fn has_delta(&self) -> bool {
+        self.items_count_delta != 0 || self.octets_delta != 0
+    }
 }
 
 pub struct AccountFootprintDelta {
     pub storage_delta: FootprintDelta,
     pub lookups_delta: FootprintDelta,
+}
+
+impl AccountFootprintDelta {
+    fn has_delta(&self) -> bool {
+        self.storage_delta.has_delta() || self.lookups_delta.has_delta()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -222,16 +232,18 @@ impl AccountMetadata {
         }
     }
 
-    /// Updates service account storage footprints.
-    pub fn update_storage_footprint(&mut self, delta: FootprintDelta) {
-        self.update_storage_items_count(delta.items_count_delta);
-        self.update_storage_total_octets(delta.octets_delta);
-    }
-
-    /// Updates service account lookups footprints.
-    pub fn update_lookups_footprint(&mut self, delta: FootprintDelta) {
-        self.update_lookups_items_count(delta.items_count_delta);
-        self.update_lookups_total_octets(delta.octets_delta);
+    /// Updates service account storage footprints
+    /// and returns a boolean flag to indicate whether footprints are updated.
+    pub fn update_footprints(&mut self, delta: AccountFootprintDelta) -> bool {
+        if delta.has_delta() {
+            self.update_storage_items_count(delta.storage_delta.items_count_delta);
+            self.update_storage_total_octets(delta.storage_delta.octets_delta);
+            self.update_lookups_items_count(delta.lookups_delta.items_count_delta);
+            self.update_lookups_total_octets(delta.lookups_delta.octets_delta);
+            true
+        } else {
+            false
+        }
     }
 
     /// Used by the PVM `host_info` execution.

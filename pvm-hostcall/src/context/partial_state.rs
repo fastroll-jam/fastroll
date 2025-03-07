@@ -2,9 +2,9 @@ use rjam_common::{Hash32, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::{
-    AccountFootprintDelta, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-    AccountPartialState, AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta,
-    PrivilegedServices, StagingSet, StorageFootprint, Timeslot,
+    AccountFootprintDelta, AccountLookupsEntryExt, AccountMetadata, AccountPartialState,
+    AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta, PrivilegedServices,
+    StagingSet, StorageFootprint, Timeslot,
 };
 use std::{
     collections::HashMap,
@@ -106,7 +106,7 @@ where
         }
     }
 
-    fn mark_updated(&mut self) {
+    pub fn mark_updated(&mut self) {
         // `Added` status should remain as `Added`
         if !(self.status == SandboxEntryStatus::Added || self.status == SandboxEntryStatus::Updated)
         {
@@ -114,7 +114,7 @@ where
         }
     }
 
-    fn mark_removed(&mut self) {
+    pub fn mark_removed(&mut self) {
         if self.status != SandboxEntryStatus::Removed {
             self.value = None;
             self.status = SandboxEntryStatus::Removed;
@@ -237,7 +237,30 @@ impl AccountSandbox {
     }
 
     pub fn footprint_delta_aggregated(&self) -> AccountFootprintDelta {
-        unimplemented!()
+        // storage footprint delta
+        let mut storage_items_count_delta = 0;
+        let mut storage_octets_delta = 0;
+        self.storage.values().for_each(|entry| {
+            if let Some(delta) = entry.footprint_delta() {
+                storage_items_count_delta += delta.items_count_delta;
+                storage_octets_delta += delta.octets_delta;
+            }
+        });
+
+        // lookups footprint delta
+        let mut lookups_items_count_delta = 0;
+        let mut lookups_octets_delta = 0;
+        self.lookups.values().for_each(|entry| {
+            if let Some(delta) = entry.footprint_delta() {
+                lookups_items_count_delta += delta.items_count_delta;
+                lookups_octets_delta += delta.octets_delta;
+            }
+        });
+
+        AccountFootprintDelta {
+            storage_delta: FootprintDelta::new(storage_items_count_delta, storage_octets_delta),
+            lookups_delta: FootprintDelta::new(lookups_items_count_delta, lookups_octets_delta),
+        }
     }
 }
 
@@ -731,42 +754,6 @@ impl AccountsSandboxMap {
         self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(true)
-    }
-
-    // TODO: Remove if not used
-    pub async fn update_account_lookups_footprint_from_entries(
-        &mut self,
-        state_manager: Arc<StateManager>,
-        service_id: ServiceId,
-        lookups_key: &(Hash32, u32),
-        prev_lookups_entry: Option<&AccountLookupsEntry>,
-        new_lookups_entry: Option<&AccountLookupsEntry>,
-    ) -> Result<(), PartialStateError> {
-        // Construct `AccountLookupsOctetsUsage` types from the previous and the new entries.
-        let prev_lookups_octets_usage =
-            prev_lookups_entry.cloned().map(|p| AccountLookupsEntryExt {
-                preimage_length: lookups_key.1,
-                entry: p,
-            });
-
-        let new_lookups_octets_usage = new_lookups_entry.map(|new_entry| AccountLookupsEntryExt {
-            preimage_length: lookups_key.1,
-            entry: new_entry.clone(),
-        });
-
-        let footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
-            prev_lookups_octets_usage.as_ref(),
-            new_lookups_octets_usage.as_ref(),
-        )
-        .ok_or(PartialStateError::MissingAccountEntryDeletion)?;
-
-        let metadata = self
-            .get_mut_account_metadata(state_manager, service_id)
-            .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-
-        metadata.update_lookups_footprint(footprint_delta);
-        Ok(())
     }
 
     pub async fn eject_account(
