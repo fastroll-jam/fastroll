@@ -2,9 +2,9 @@ use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::{
-    AccountFootprintDelta, AccountLookupsEntryExt, AccountMetadata, AccountPartialState,
-    AccountPreimagesEntry, AccountStorageEntry, AuthQueue, FootprintDelta, PrivilegedServices,
-    StagingSet, StorageFootprint, Timeslot,
+    AccountLookupsEntryExt, AccountMetadata, AccountPartialState, AccountPreimagesEntry,
+    AccountStorageEntry, AccountStorageUsageDelta, AuthQueue, PrivilegedServices, StagingSet,
+    StorageFootprint, StorageUsageDelta, Timeslot,
 };
 use std::{
     collections::HashMap,
@@ -186,20 +186,19 @@ where
         }
     }
 
-    fn footprint_delta(&self) -> Option<FootprintDelta> {
+    fn storage_usage_delta(&self) -> Option<StorageUsageDelta> {
         match &self.entry.status {
             SandboxEntryStatus::Clean => None,
             SandboxEntryStatus::Added => {
-                AccountMetadata::calculate_storage_footprint_delta(None, self.as_ref())
+                AccountMetadata::calculate_storage_usage_delta(None, self.as_ref())
             }
-            SandboxEntryStatus::Updated => AccountMetadata::calculate_storage_footprint_delta(
+            SandboxEntryStatus::Updated => AccountMetadata::calculate_storage_usage_delta(
                 self.clean_snapshot.as_ref(),
                 self.as_ref(),
             ),
-            SandboxEntryStatus::Removed => AccountMetadata::calculate_storage_footprint_delta(
-                self.clean_snapshot.as_ref(),
-                None,
-            ),
+            SandboxEntryStatus::Removed => {
+                AccountMetadata::calculate_storage_usage_delta(self.clean_snapshot.as_ref(), None)
+            }
         }
     }
 }
@@ -236,30 +235,34 @@ impl AccountSandbox {
         })
     }
 
-    pub fn footprint_delta_aggregated(&self) -> AccountFootprintDelta {
-        // storage footprint delta
-        let mut storage_items_count_delta = 0;
-        let mut storage_octets_delta = 0;
-        self.storage.values().for_each(|entry| {
-            if let Some(delta) = entry.footprint_delta() {
-                storage_items_count_delta += delta.items_count_delta;
-                storage_octets_delta += delta.octets_delta;
-            }
-        });
+    pub fn storage_usage_delta_aggregated(&self) -> AccountStorageUsageDelta {
+        // storage usage delta
+        let (storage_items_count_delta, storage_octets_delta) = self
+            .storage
+            .values()
+            .filter_map(|entry| entry.storage_usage_delta())
+            .fold((0, 0), |(items_acc, octets_acc), delta| {
+                (
+                    items_acc + delta.items_count_delta,
+                    octets_acc + delta.octets_delta,
+                )
+            });
 
-        // lookups footprint delta
-        let mut lookups_items_count_delta = 0;
-        let mut lookups_octets_delta = 0;
-        self.lookups.values().for_each(|entry| {
-            if let Some(delta) = entry.footprint_delta() {
-                lookups_items_count_delta += delta.items_count_delta;
-                lookups_octets_delta += delta.octets_delta;
-            }
-        });
+        // lookups usage delta
+        let (lookups_items_count_delta, lookups_octets_delta) = self
+            .lookups
+            .values()
+            .filter_map(|entry| entry.storage_usage_delta())
+            .fold((0, 0), |(items_acc, octets_acc), delta| {
+                (
+                    items_acc + delta.items_count_delta,
+                    octets_acc + delta.octets_delta,
+                )
+            });
 
-        AccountFootprintDelta {
-            storage_delta: FootprintDelta::new(storage_items_count_delta, storage_octets_delta),
-            lookups_delta: FootprintDelta::new(lookups_items_count_delta, lookups_octets_delta),
+        AccountStorageUsageDelta {
+            storage_delta: StorageUsageDelta::new(storage_items_count_delta, storage_octets_delta),
+            lookups_delta: StorageUsageDelta::new(lookups_items_count_delta, lookups_octets_delta),
         }
     }
 }

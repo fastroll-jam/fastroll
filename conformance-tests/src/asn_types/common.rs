@@ -393,8 +393,8 @@ impl From<AccountMetadata> for AsnServiceItem {
             balance: value.account_info.balance,
             min_item_gas: value.account_info.gas_limit_accumulate,
             min_memo_gas: value.account_info.gas_limit_on_transfer,
-            bytes: value.lookups_total_octets + value.storage_total_octets,
-            items: value.lookups_items_count + value.storage_items_count,
+            bytes: value.octets_footprint,
+            items: value.items_footprint,
         };
 
         Self {
@@ -405,8 +405,6 @@ impl From<AccountMetadata> for AsnServiceItem {
 }
 
 impl From<AsnServiceItem> for AccountMetadata {
-    // Note: assigning all `bytes` and `items` to storage since `ServiceInfo` doesn't track those
-    // for the storage and lookups separately.
     fn from(value: AsnServiceItem) -> Self {
         let account_info = AccountInfo {
             code_hash: value.data.service.code_hash.into(),
@@ -418,10 +416,8 @@ impl From<AsnServiceItem> for AccountMetadata {
         Self {
             service_id: value.id,
             account_info,
-            lookups_items_count: 0,
-            storage_items_count: value.data.service.items,
-            lookups_total_octets: 0,
-            storage_total_octets: value.data.service.bytes,
+            items_footprint: value.data.service.items,
+            octets_footprint: value.data.service.bytes,
         }
     }
 }

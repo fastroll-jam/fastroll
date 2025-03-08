@@ -363,7 +363,7 @@ impl HostFunction {
             })
         };
 
-        let storage_footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
+        let storage_usage_delta = AccountMetadata::calculate_storage_usage_delta(
             maybe_prev_storage_entry.as_ref(),
             new_storage_entry.as_ref(),
         )
@@ -375,7 +375,7 @@ impl HostFunction {
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
         let simulated_threshold_balance =
-            metadata.simulate_threshold_balance_after_mutation(Some(storage_footprint_delta), None);
+            metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
 
         if simulated_threshold_balance > metadata.account_info.balance {
             continue_full!()
@@ -787,8 +787,8 @@ impl HostFunction {
         }
 
         // TODO: safe type casting
-        let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
-        if eject_account_metadata.item_counts_footprint() != 2 {
+        let preimage_size = 81.max(eject_account_metadata.octets_footprint as u32) - 81;
+        if eject_account_metadata.items_footprint != 2 {
             continue_huh!()
         }
         let lookups_key = (preimage_hash, preimage_size);
@@ -913,7 +913,7 @@ impl HostFunction {
                     preimage_length: lookups_size,
                     entry: new_lookups_entry.clone(),
                 });
-                let lookups_footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
+                let lookups_usage_delta = AccountMetadata::calculate_storage_usage_delta(
                     None,
                     new_lookups_octets_usage.as_ref(),
                 )
@@ -922,7 +922,7 @@ impl HostFunction {
                 let accumulator_metadata =
                     x.get_accumulator_metadata(state_manager.clone()).await?;
                 let simulated_threshold_balance = accumulator_metadata
-                    .simulate_threshold_balance_after_mutation(None, Some(lookups_footprint_delta));
+                    .simulate_threshold_balance_after_mutation(None, Some(lookups_usage_delta));
 
                 if simulated_threshold_balance > accumulator_metadata.balance() {
                     continue_full!()
