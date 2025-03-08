@@ -13,6 +13,7 @@ pub type ServiceId = u32;
 pub type ValidatorIndex = u16;
 pub type CoreIndex = u16;
 pub type Balance = u64;
+pub type LookupsKey = (Hash32, u32);
 pub type BandersnatchPubKey = ByteArray<32>;
 pub type BandersnatchSignature = ByteArray<96>; // `F` signature type
 pub type BandersnatchRingRoot = ByteArray<144>;

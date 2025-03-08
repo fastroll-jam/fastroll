@@ -9,7 +9,7 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Balance, Hash32, Octets, ServiceId, UnsignedGas};
+use rjam_common::{Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -381,7 +381,7 @@ impl StorageFootprint for AccountLookupsEntryExt {
 }
 
 impl AccountLookupsEntryExt {
-    pub fn from_entry(key: (Hash32, u32), entry: AccountLookupsEntry) -> Self {
+    pub fn from_entry(key: LookupsKey, entry: AccountLookupsEntry) -> Self {
         Self {
             preimage_length: key.1,
             entry,

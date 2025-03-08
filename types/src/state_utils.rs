@@ -1,6 +1,6 @@
 use crate::state::*;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
-use rjam_common::{ByteArray, Hash32, ServiceId, HASH_SIZE};
+use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Debug;
 
@@ -261,9 +261,9 @@ pub fn get_account_preimage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
 
 pub fn get_account_lookups_state_key(
     s: ServiceId,
-    h: &Hash32,
-    l: u32,
+    lookups_key: &LookupsKey,
 ) -> Result<Hash32, CryptoError> {
+    let (h, l) = lookups_key;
     let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
     key_with_prefix[0..4].copy_from_slice(
         &l.encode_fixed(4)

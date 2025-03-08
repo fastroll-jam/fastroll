@@ -195,29 +195,21 @@ async fn transition_service_account(
                 state_manager
                     .add_account_lookups_entry(
                         service_id,
-                        (&k.0, k.1),
+                        k,
                         v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
             }
             SandboxEntryStatus::Updated => {
                 state_manager
-                    .with_mut_account_lookups_entry(
-                        StateMut::Update,
-                        service_id,
-                        (&k.0, k.1),
-                        |entry| *entry = v.get_cloned().expect("Should exist").into_entry(),
-                    )
+                    .with_mut_account_lookups_entry(StateMut::Update, service_id, k, |entry| {
+                        *entry = v.get_cloned().expect("Should exist").into_entry()
+                    })
                     .await?;
             }
             SandboxEntryStatus::Removed => {
                 state_manager
-                    .with_mut_account_lookups_entry(
-                        StateMut::Remove,
-                        service_id,
-                        (&k.0, k.1),
-                        |_| {},
-                    )
+                    .with_mut_account_lookups_entry(StateMut::Remove, service_id, k, |_| {})
                     .await?
             }
             _ => (),
@@ -346,7 +338,7 @@ pub async fn transition_services_integrate_preimages(
 
         // Push current timeslot value to the lookup map
         let preimage_data_len = xt.preimage_data_len();
-        let lookups_key = (&preimage_data_hash, preimage_data_len as u32);
+        let lookups_key = (preimage_data_hash, preimage_data_len as u32);
         state_manager
             .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| {
                 entry.value.push(curr_timeslot);
