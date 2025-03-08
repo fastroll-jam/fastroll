@@ -30,7 +30,7 @@ use rjam_types::{
     },
     state::{
         AccountInfo, AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
-        DisputesState, EntropyAccumulator, EpochValidatorStats, PendingReport, PendingReports,
+        DisputesState, EpochEntropy, EpochValidatorStats, PendingReport, PendingReports,
         ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
     },
 };
@@ -284,13 +284,13 @@ pub type AsnWorkReportHash = AsnOpaqueHash;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnEntropyBuffer(pub [AsnEntropy; 4]);
 
-impl From<EntropyAccumulator> for AsnEntropyBuffer {
-    fn from(value: EntropyAccumulator) -> Self {
+impl From<EpochEntropy> for AsnEntropyBuffer {
+    fn from(value: EpochEntropy) -> Self {
         Self(value.0.map(|entropy| AsnByteArray32(entropy.0)))
     }
 }
 
-impl From<AsnEntropyBuffer> for EntropyAccumulator {
+impl From<AsnEntropyBuffer> for EpochEntropy {
     fn from(value: AsnEntropyBuffer) -> Self {
         Self(value.0.map(|entropy| ByteArray::new(entropy.0)))
     }

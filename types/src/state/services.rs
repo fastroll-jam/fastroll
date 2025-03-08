@@ -49,6 +49,7 @@ impl AccountFootprintDelta {
     }
 }
 
+/// Basic service account information.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountInfo {
     /// `c`: Service code hash
@@ -61,6 +62,8 @@ pub struct AccountInfo {
     pub gas_limit_on_transfer: UnsignedGas,
 }
 
+/// Extended version of `AccountInfo` that holds metadata about storage usage of the account, which
+/// are used for derivation of components `i` and `o` of the account state.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountMetadata {
     pub service_id: ServiceId,
@@ -85,14 +88,14 @@ impl AccountMetadata {
         }
     }
 
-    /// The number of items in the service storages (i)
+    /// The number of items in the service storages (`i`)
     ///
     /// 2 * `lookups_items_count` + `storage_items_count`
     pub fn item_counts_footprint(&self) -> u32 {
         2 * self.lookups_items_count + self.storage_items_count
     }
 
-    /// The number of total octets used in the service storages (o)
+    /// The number of total octets used in the service storages (`o`)
     ///
     /// Sum({ 81 + preimage_data_len }) + Sum({ 32 + storage_data_len })
     pub fn total_octets_footprint(&self) -> u64 {
@@ -127,12 +130,8 @@ impl AccountMetadata {
         B_S + B_I * i + B_L * o
     }
 
-    /// Calculates the state delta of the storage footprints caused by introducing the `new_entry`
-    /// to the account storages.
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (storage items count delta, storage octets count delta).
+    /// Calculates the state delta of the storage footprints caused by replacing `prev_entry`
+    /// with the `new_entry` in the account storages.
     pub fn calculate_storage_footprint_delta<T>(
         prev_entry: Option<&T>,
         new_entry: Option<&T>,
@@ -271,7 +270,7 @@ pub trait StorageFootprint {
 /// A marker trait for types that represent account state components used in PVM invocation contexts.
 ///
 /// This is used to group types that are part of an account's state and are eligible for
-/// manipulation or evaluation in a sandboxed PVM hostcall execution context.
+/// manipulation or evaluation in a sandboxed PVM host-call execution context.
 pub trait AccountPartialState {}
 impl AccountPartialState for AccountMetadata {}
 impl AccountPartialState for AccountStorageEntry {}
@@ -393,6 +392,10 @@ impl AccountLookupsEntryExt {
     }
 }
 
+/// Identifier of services that are allowed to conduct privileged state transitions,
+/// along with metadata of the always-accumulate services.
+///
+/// Represents `χ` of the GP.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PrivilegedServices {
     /// `m`: A privileged service that can alter privileged services state.
@@ -401,7 +404,7 @@ pub struct PrivilegedServices {
     pub assign_service: ServiceId,
     /// `v`: A privileged service that can alter the staging validator set.
     pub designate_service: ServiceId,
-    /// `g`: A mapping of always-accumulate services and their basic gas usages.
+    /// **`g`**: A mapping of always-accumulate services and their basic gas usages.
     pub always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);

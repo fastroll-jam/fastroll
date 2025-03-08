@@ -18,6 +18,9 @@ pub enum AuthPoolError {
     InvalidCoreIndex(CoreIndex),
 }
 
+/// The authorizer pool.
+///
+/// Represents `α` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
 impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
@@ -54,6 +57,9 @@ impl AuthPool {
     }
 }
 
+/// The authorizer queue.
+///
+/// Represents `φ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthQueue(pub Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(AuthQueue, Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);

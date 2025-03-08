@@ -18,8 +18,8 @@ mod tests {
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
     use rjam_types::state::{
-        AccountMetadata, ActiveSet, AuthPool, BlockHistory, DisputesState, EntropyAccumulator,
-        PastSet, PendingReports, Timeslot,
+        AccountMetadata, ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet,
+        PendingReports, Timeslot,
     };
 
     struct ReportsTest;
@@ -48,7 +48,7 @@ mod tests {
             let pre_past_set = PastSet(validators_data_to_validator_set(
                 &test_pre_state.prev_validators,
             ));
-            let pre_entropy = EntropyAccumulator::from(test_pre_state.entropy.clone());
+            let pre_entropy = EpochEntropy::from(test_pre_state.entropy.clone());
             let offenders: Vec<Ed25519PubKey> = test_pre_state
                 .offenders
                 .iter()
@@ -73,7 +73,7 @@ mod tests {
                 .await?;
             state_manager.add_active_set(pre_active_set).await?;
             state_manager.add_past_set(pre_past_set).await?;
-            state_manager.add_entropy_accumulator(pre_entropy).await?;
+            state_manager.add_epoch_entropy(pre_entropy).await?;
             state_manager.add_disputes(pre_disputes).await?;
             state_manager.add_block_history(pre_block_history).await?;
             state_manager.add_auth_pool(pre_auth_pool).await?;
@@ -154,7 +154,7 @@ mod tests {
             let curr_pending_reports = state_manager.get_pending_reports().await?;
             let curr_active_set = state_manager.get_active_set().await?;
             let curr_past_set = state_manager.get_past_set().await?;
-            let curr_entropy = state_manager.get_entropy_accumulator().await?;
+            let curr_entropy = state_manager.get_epoch_entropy().await?;
             let curr_disputes = state_manager.get_disputes().await?;
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;

@@ -45,10 +45,7 @@ impl GuarantorAssignment {
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {
         let current_timeslot = state_manager.get_timeslot().await?;
-        let entropy_2 = state_manager
-            .get_entropy_accumulator()
-            .await?
-            .second_history();
+        let entropy_2 = state_manager.get_epoch_entropy().await?.second_history();
         let mut active_set = state_manager.get_active_set().await?; // TODO: check whether to get via `get_active_set_clean`
         let punish_set = state_manager.get_disputes().await?.punish_set;
         active_set.nullify_punished_validators(&punish_set);
@@ -67,7 +64,7 @@ impl GuarantorAssignment {
     ) -> Result<Self, GuarantorAssignmentError> {
         let current_timeslot = state_manager.get_timeslot().await?;
         let punish_set = state_manager.get_disputes().await?.punish_set;
-        let entropy = state_manager.get_entropy_accumulator().await?;
+        let entropy = state_manager.get_epoch_entropy().await?;
         let previous_timeslot_value = current_timeslot.slot() - GUARANTOR_ROTATION_PERIOD as u32;
         let within_same_epoch = previous_timeslot_value / EPOCH_LENGTH as u32
             == current_timeslot.slot() / EPOCH_LENGTH as u32;

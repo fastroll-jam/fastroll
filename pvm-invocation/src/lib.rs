@@ -319,7 +319,7 @@ impl PVMInvocation {
             return Ok(AccumulateResult::default());
         };
 
-        let curr_entropy = state_manager.get_entropy_accumulator().await?.current();
+        let curr_entropy = state_manager.get_epoch_entropy().await?.current();
         let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = AccumulateVMArgs {

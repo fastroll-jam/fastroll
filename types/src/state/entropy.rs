@@ -8,14 +8,17 @@ use rjam_codec::{
 use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
+/// The per-epoch entropy accumulator and its historical values.
+///
+/// Represents `η` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct EntropyAccumulator(pub [Hash32; 4]);
-impl_jam_codec_for_newtype!(EntropyAccumulator, [Hash32; 4]);
-impl_simple_state_component!(EntropyAccumulator, EntropyAccumulator);
+pub struct EpochEntropy(pub [Hash32; 4]);
+impl_jam_codec_for_newtype!(EpochEntropy, [Hash32; 4]);
+impl_simple_state_component!(EpochEntropy, EpochEntropy);
 
-impl Display for EntropyAccumulator {
+impl Display for EpochEntropy {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Entropy Accumulator: {{")?;
+        writeln!(f, "Epoch Entropy: {{")?;
         for (i, entropy) in self.0.iter().enumerate() {
             writeln!(f, "\tentropy #{i}: {}", entropy.encode_hex())?;
         }
@@ -24,7 +27,7 @@ impl Display for EntropyAccumulator {
     }
 }
 
-impl EntropyAccumulator {
+impl EpochEntropy {
     /// Entropy value of the current epoch, accumulated with VRF signatures from each block header
     pub fn current(&self) -> Hash32 {
         self.0[0]

@@ -57,7 +57,7 @@ impl<'a> TicketsXtValidator<'a> {
         let pending_set = self.state_manger.get_safrole().await?.pending_set;
         let entropy_2 = self
             .state_manger
-            .get_entropy_accumulator()
+            .get_epoch_entropy()
             .await?
             .second_history();
         let ring = validator_set_to_bandersnatch_ring(&pending_set)?;

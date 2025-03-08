@@ -93,12 +93,12 @@ fn fmt_validator_set(
     write!(f, "}}")
 }
 
-/// Represents a validator set that will become active in a future epoch.
+/// A validator set that will become active in a future epoch.
 ///
-/// At the beginning of each epoch, this set is loaded into the Safrole state `gamma_k`
+/// At the beginning of each epoch, this set is loaded into the Safrole state `γ_k`
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
-/// This is denoted by the Greek letter `iota` in the Graypaper.
+/// Represents `ι` in the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StagingSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
@@ -130,10 +130,9 @@ impl Default for StagingSet {
     }
 }
 
-/// Represents a validator set that is active in the current epoch and determines the authorized
-/// block authors of the current epoch.
+/// A validator set that is active in the current epoch.
 ///
-/// This is denoted by the Greek letter `kappa` in the Graypaper.
+/// Represents `κ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
@@ -165,8 +164,9 @@ impl Default for ActiveSet {
     }
 }
 
-/// Represents the validator set that was active in the previous epoch.
-/// This is denoted by the Greek letter `lambda` in the Graypaper.
+/// A validator set that was active in the previous epoch.
+///
+/// Represents `λ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);

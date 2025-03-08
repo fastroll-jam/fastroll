@@ -7,7 +7,7 @@ use rjam_transition::{
     state::{
         authorizer::transition_auth_pool,
         disputes::transition_disputes,
-        entropy::transition_entropy_accumulator,
+        entropy::transition_epoch_entropy,
         history::{transition_block_history_append, transition_block_history_parent_root},
         reports::{
             transition_reports_clear_availables, transition_reports_eliminate_invalid,
@@ -101,7 +101,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let input_entropy = Hash32::default();
     let state_manager_cloned = state_manager.clone();
     let entropy_jh = spawn_timed("entropy_stf", async move {
-        transition_entropy_accumulator(
+        transition_epoch_entropy(
             state_manager_cloned.clone(),
             epoch_progressed,
             input_entropy,

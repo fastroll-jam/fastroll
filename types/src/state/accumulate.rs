@@ -12,9 +12,9 @@ pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 
-/// Queue of work reports pending accumulation due to unresolved dependencies.
+/// A queue of work reports pending accumulation due to unresolved dependencies.
 ///
-/// Queue entries have fixed indices, by the slot phase `m` within an epoch of length `E`.
+/// The queue entries have fixed indices, by the slot phase `m` within an epoch of length `E`.
 ///
 /// Represents `θ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
@@ -37,7 +37,7 @@ impl AccumulateQueue {
     }
 
     /// Safely gets the accumulate queue entry at the given signed index.
-    /// Implementation of the circular buffer indexing for a queue of length EPOCH_LENGTH.
+    /// Implements the circular buffer indexing for a queue of length `EPOCH_LENGTH`.
     pub fn get_circular(&self, index: isize) -> &Vec<WorkReportDepsMap> {
         assert_eq!(
             self.items.len(),
@@ -50,7 +50,7 @@ impl AccumulateQueue {
     }
 
     /// Safely gets a mutable reference to the accumulate queue entry at the given signed index.
-    /// Implementation of the circular buffer indexing for a queue of length EPOCH_LENGTH.
+    /// Implements the circular buffer indexing for a queue of length `EPOCH_LENGTH`.
     pub fn get_circular_mut(&mut self, index: isize) -> &mut Vec<WorkReportDepsMap> {
         assert_eq!(
             self.items.len(),
@@ -81,7 +81,7 @@ impl AccumulateQueue {
     }
 }
 
-/// History of accumulated work packages over `EPOCH_LENGTH` timeslots.
+/// A history of accumulated work packages over `EPOCH_LENGTH` timeslots.
 ///
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]

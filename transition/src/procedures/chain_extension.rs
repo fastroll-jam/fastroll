@@ -1,7 +1,7 @@
 use crate::{
     error::TransitionError,
     state::{
-        entropy::transition_entropy_accumulator,
+        entropy::transition_epoch_entropy,
         safrole::transition_safrole,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
@@ -27,7 +27,7 @@ pub struct SafroleHeaderMarkers {
 /// Performs the chain extension procedure by executing a series of state transitions in order.
 ///
 /// 1. Timeslot: Updates the current timeslot based on the block header's timeslot index.
-/// 2. Entropy Accumulator: Updates the entropy based on the block header's VRF signature (H_v).
+/// 2. Epoch Entropy: Updates the entropy based on the block header's VRF signature (H_v).
 /// 3. Past Set: Updates the set of past validators.
 /// 4. Active Set: Updates the set of currently active validators.
 /// 5. Safrole: Updates Safrole state components, including ring root calculation and ticket processing.
@@ -46,9 +46,9 @@ pub async fn chain_extension_procedure(
     let current_timeslot = state_manager.get_timeslot().await?;
     let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
 
-    // EntropyAccumulator transition
+    // EpochEntropy transition
     let header_vrf_signature = &header.vrf_signature;
-    transition_entropy_accumulator(
+    transition_epoch_entropy(
         state_manager.clone(),
         epoch_progressed,
         entropy_hash_ietf_vrf(header_vrf_signature),
@@ -84,7 +84,7 @@ pub async fn mark_safrole_header_markers(
     let current_safrole = state_manager.get_safrole().await?;
 
     let epoch_marker = if epoch_progressed {
-        let current_entropy = state_manager.get_entropy_accumulator().await?;
+        let current_entropy = state_manager.get_epoch_entropy().await?;
         let current_pending_set = current_safrole.pending_set;
         Some(EpochMarker {
             entropy: current_entropy.first_history(), // FIXME: update to `current()`

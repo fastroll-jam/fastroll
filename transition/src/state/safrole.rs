@@ -11,18 +11,18 @@ use std::sync::Arc;
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `gamma_k`: Sets the pending set to the prior staging set.
-/// * `gamma_z`: Sets the ring root to the one generated from the current pending set.
-/// * `gamma_s`: Updates the slot-sealer series:
-///     - In ticket mode: Applies the outside-in sequencer function to the prior ticket accumulator.
-///     - In fallback mode: Generates a new fallback key sequence influenced by the current `eta_2`.
-/// * `gamma_a`: Resets the ticket accumulator.
+/// * `γ_k`: Sets the pending set to the prior staging set.
+/// * `γ_z`: Sets the ring root to the one generated from the current pending set.
+/// * `γ_s`: Updates the slot-sealer series:
+///     - In regular (ticket) mode: Applies the outside-in sequencer function to the prior ticket accumulator.
+///     - In fallback mode: Generates a new fallback key sequence influenced by the current `η_2`.
+/// * `γ_a`: Resets the ticket accumulator.
 ///
 /// ## Per-block transitions
-/// * `gamma_k`: None.
-/// * `gamma_z`: None.
-/// * `gamma_s`: None.
-/// * `gamma_a`: Accumulates new tickets.
+/// * `γ_k`: None.
+/// * `γ_z`: None.
+/// * `γ_s`: None.
+/// * `γ_a`: Accumulates new tickets.
 pub async fn transition_safrole(
     state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
@@ -52,17 +52,17 @@ async fn handle_new_epoch_transition(
     // Note: prior_staging_set is equivalent to current_pending_set
     let current_ring_root = generate_ring_root(&prior_staging_set)?;
     let current_active_set = state_manager.get_active_set().await?;
-    let current_entropy = state_manager.get_entropy_accumulator().await?;
+    let current_entropy = state_manager.get_epoch_entropy().await?;
 
     state_manager
         .with_mut_safrole(StateMut::Update, |safrole| {
-            // pending set transition (gamma_k)
+            // pending set transition (γ_k)
             safrole.pending_set = prior_staging_set.0;
 
-            // ring root transition (gamma_z)
+            // ring root transition (γ_z)
             safrole.ring_root = current_ring_root;
 
-            // slot-sealer series transition (gamma_s)
+            // slot-sealer series transition (γ_s)
             update_slot_sealers(
                 safrole,
                 prior_timeslot,
@@ -70,7 +70,7 @@ async fn handle_new_epoch_transition(
                 &current_entropy,
             );
 
-            // reset ticket accumulator (gamma_a)
+            // reset ticket accumulator (γ_a)
             safrole.ticket_accumulator = TicketAccumulator::new();
         })
         .await?;
@@ -82,7 +82,7 @@ fn update_slot_sealers(
     safrole: &mut SafroleState,
     prior_timeslot: &Timeslot,
     current_active_set: &ActiveSet,
-    current_entropy: &EntropyAccumulator,
+    current_entropy: &EpochEntropy,
 ) {
     // Fallback mode triggers when the slot phase hasn't reached the ticket submission deadline
     // or the ticket accumulator is not yet full.

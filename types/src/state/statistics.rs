@@ -10,19 +10,25 @@ use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorStatEntry {
-    pub blocks_produced_count: u32, // b; the number of blocks produced by the validator.
-    pub tickets_count: u32,         // t; the number of tickets introduced by the validator.
-    pub preimages_count: u32,       // p; the number of preimages introduced by the validator.
-    pub preimage_data_octets_count: u32, // d; the total number of octets across all preimages introduced by the validator.
-    pub guarantees_count: u32,           // g; the number of reports guaranteed by the validator.
-    pub assurances_count: u32, // a; the number of availability assurances made by the validator.
+    /// `b`: The number of blocks produced by the validator.
+    pub blocks_produced_count: u32,
+    /// `t`: The number of tickets introduced by the validator.
+    pub tickets_count: u32,
+    /// `p`: The number of preimages introduced by the validator.
+    pub preimages_count: u32,
+    /// `d`: The total number of octets across all preimages introduced by the validator.
+    pub preimage_data_octets_count: u32,
+    /// `g`: The number of reports guaranteed by the validator.
+    pub guarantees_count: u32,
+    /// `a`: The number of availability assurances made by the validator.
+    pub assurances_count: u32,
 }
 
-/// Holds statistics for all validators during a single epoch.
+/// Holds statistics for all validator activities during a single epoch.
 /// Each entry tracks activities such as block production, ticket introduction, and assurances.
 ///
 /// This structure is used both to accumulate statistics for the current epoch
-/// and to store completed statistics for past epochs.
+/// and to store completed statistics for the previous epoch.
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochValidatorStats {
     items: Box<[ValidatorStatEntry; VALIDATOR_COUNT]>,
@@ -67,19 +73,13 @@ impl EpochValidatorStats {
     }
 }
 
-/// `ValidatorStats` tracks validator activities that can be recorded on-chain, such as:
-/// - block production,
-/// - guarantor reports, and
-/// - availability assurances.
+/// The validator activities statistics recorded on-chain, on a per-epoch basis.
 ///
-/// The statistics are recorded on a per-epoch basis.
-///
-/// For activities related to GRANDPA, BEEFY, and auditing systems, these statistics are associated
-/// with validator voting since such activities occur primarily off-chain.
-///
-/// `ValidatorStats` maintains two records:
+/// It maintains two records:
 /// - The first entry accumulates statistics for the current epoch.
 /// - The second entry stores the statistics from the previous epoch.
+///
+/// Represents `π` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ValidatorStats(pub [EpochValidatorStats; 2]);
 impl_jam_codec_for_newtype!(ValidatorStats, [EpochValidatorStats; 2]);

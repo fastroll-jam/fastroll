@@ -4,22 +4,22 @@ use rjam_crypto::{hash, Blake2b256};
 use rjam_state::{StateManager, StateMut};
 use std::sync::Arc;
 
-/// State transition function of `EntropyAccumulator`.
+/// State transition function of `EpochEntropy`.
 ///
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `eta`: Rotates entropy history, shifting each entry.
+/// Rotates entropy history, shifting each entry.
 ///
 /// ## Per-block transitions
-/// * `eta`: Accumulates the VRF output hash of the current block header to the current entropy state.
-pub async fn transition_entropy_accumulator(
+/// Accumulates the VRF output hash of the current block header to the current entropy accumulator.
+pub async fn transition_epoch_entropy(
     state_manager: Arc<StateManager>,
     epoch_progressed: bool,
     source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {
     state_manager
-        .with_mut_entropy_accumulator(StateMut::Update, |entropy| {
+        .with_mut_epoch_entropy(StateMut::Update, |entropy| {
             if epoch_progressed {
                 // Rotate entropy history.
                 // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below

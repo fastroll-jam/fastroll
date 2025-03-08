@@ -11,9 +11,8 @@ use std::sync::Arc;
 ///
 /// This handles the first state transition for `BlockHistory`, yielding `β†`.
 /// When a new block history entry is appended to the sequence, the block's state root field is
-/// initially set to an empty hash, as each block stores the state root of its parent block.
-/// This function performs the necessary update to reflect the correct parent state root
-/// before accumulation occurs for the current block.
+/// initially set to an empty hash, as each block stores the posterior state root of its parent block.
+/// This function updates the parent state root once it gets available.
 pub async fn transition_block_history_parent_root(
     state_manager: Arc<StateManager>,
     root: Hash32,
@@ -39,10 +38,9 @@ pub async fn transition_block_history_parent_root(
 ///
 /// This handles the second state transition for `BlockHistory`, yielding `β′`.
 /// It constructs a new block history entry using the provided block header, work package hashes
-/// from guarantee extrinsics, and the accumulation result history Merkle Mountain Range (MMR).
-/// The new entry is then appended to the `BlockHistory` vector. If the total number of entries
-/// exceeds the maximum allowed (`H = 8`), the oldest entry is removed to maintain the length limit,
-/// ensuring only the most recent block history are retained.
+/// from guarantee extrinsics, and the accumulation result history MMR.
+/// The new entry is then appended to the history, with the max length limit of `H`.
+/// If the `BlockHistory` becomes full, the oldest entry is removed.
 pub async fn transition_block_history_append(
     state_manager: Arc<StateManager>,
     header_hash: Hash32,

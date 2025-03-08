@@ -853,7 +853,7 @@ impl StateManager {
     impl_simple_state_accessors!(BlockHistory, block_history);
     impl_simple_state_accessors!(SafroleState, safrole);
     impl_simple_state_accessors!(DisputesState, disputes);
-    impl_simple_state_accessors!(EntropyAccumulator, entropy_accumulator);
+    impl_simple_state_accessors!(EpochEntropy, epoch_entropy);
     impl_simple_state_accessors!(StagingSet, staging_set);
     impl_simple_state_accessors!(ActiveSet, active_set);
     impl_simple_state_accessors!(PastSet, past_set);

@@ -30,14 +30,15 @@ pub struct AccumulateSummary {
 }
 
 /// Processes state transitions of service accounts, `PrivilegedServices`, `StagingSet`
-/// and `AuthQueue` by invoking `accumulate` PVM entrypoint.
+/// and `AuthQueue` by invoking the `accumulate` PVM entrypoint.
 ///
 /// # Transitions
 ///
 /// This handles the first state transition for service accounts, yielding `δ†`.
+/// Also, it handles privileged service transitions, yielding `χ′`, `ι′` and `φ′`.
 ///
 /// The following state components are copied into `AccumulatePartialState` and then mutated
-/// during the `accumulate` PVM invocation by host functions. After executing `accumulate`,
+/// during the `accumulate` by host functions. After the execution of the `accumulate`,
 /// the mutations in `AccumulatePartialState` are copied back into the `StateManager`.
 ///
 /// ### Service Accounts
@@ -257,10 +258,10 @@ async fn run_privileged_transitions(
 ///
 /// # Transitions
 ///
-/// This handles the second state transition for service accounts, invoking `on_transfer`
+/// This handles the second state transition for service accounts, invoking the `on_transfer`
 /// PVM entrypoint and yielding `δ‡`.
 ///
-/// This function:
+/// Steps:
 /// 1. Identifies unique destination addresses from the input transfers.
 /// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
 /// 3. Updates service account states based on the PVM invocation results.
@@ -305,14 +306,14 @@ pub async fn transition_services_on_transfer(
 }
 
 /// State transition function of service accounts, integrating provided `PreimagesXt` data into
-/// preimage storages. Preimages must be solicited by services but not provided yet.
+/// preimage storages. Preimages must be solicited by services but not yet provided.
 ///
 /// # Transitions
 ///
 /// This handles the final state transition for service accounts, yielding `δ′`.
 /// Once entries in `PreimagesXt` are validated, preimage octets are integrated into the
 /// preimages storages of relevant service accounts and current timeslot is pushed into the
-/// lookups storages to mark the preimage data became available.
+/// lookups storages to mark the preimage data being available.
 pub async fn transition_services_integrate_preimages(
     state_manager: Arc<StateManager>,
     preimages_xt: &PreimagesXt,

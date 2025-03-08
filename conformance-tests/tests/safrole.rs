@@ -16,7 +16,7 @@ mod tests {
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
-            entropy::transition_entropy_accumulator,
+            entropy::transition_epoch_entropy,
             safrole::transition_safrole,
             timeslot::transition_timeslot,
             validators::{transition_active_set, transition_past_set},
@@ -46,7 +46,7 @@ mod tests {
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
             let pre_safrole = SafroleState::from(test_pre_state);
-            let pre_entropy = EntropyAccumulator::from(test_pre_state.eta.clone());
+            let pre_entropy = EpochEntropy::from(test_pre_state.eta.clone());
             let pre_staging_set =
                 StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
             let pre_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
@@ -63,7 +63,7 @@ mod tests {
             state_manager.add_staging_set(pre_staging_set).await?;
             state_manager.add_active_set(pre_active_set).await?;
             state_manager.add_past_set(pre_past_set).await?;
-            state_manager.add_entropy_accumulator(pre_entropy).await?;
+            state_manager.add_epoch_entropy(pre_entropy).await?;
             state_manager.add_timeslot(pre_timeslot).await?;
             state_manager.add_disputes(DisputesState::default()).await?;
             state_manager
@@ -107,12 +107,8 @@ mod tests {
             transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
-            transition_entropy_accumulator(
-                state_manager.clone(),
-                epoch_progressed,
-                jam_input.entropy,
-            )
-            .await?;
+            transition_epoch_entropy(state_manager.clone(), epoch_progressed, jam_input.entropy)
+                .await?;
             transition_past_set(state_manager.clone(), epoch_progressed).await?;
             transition_active_set(state_manager.clone(), epoch_progressed).await?;
             transition_safrole(
@@ -175,7 +171,7 @@ mod tests {
             let curr_staging_set = state_manager.get_staging_set().await?;
             let curr_active_set = state_manager.get_active_set().await?;
             let curr_past_set = state_manager.get_past_set().await?;
-            let curr_entropy = state_manager.get_entropy_accumulator().await?;
+            let curr_entropy = state_manager.get_epoch_entropy().await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let curr_post_offenders = state_manager.get_disputes().await?.punish_set;
 

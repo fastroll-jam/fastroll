@@ -1,7 +1,10 @@
 use crate::asn_types::common::*;
-use rjam_common::{Ed25519PubKey, Hash32};
+use rjam_common::Ed25519PubKey;
 
-use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::Timeslot};
+use rjam_types::{
+    extrinsics::guarantees::GuaranteesXt,
+    state::{ReportedWorkPackage, Timeslot},
+};
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]
@@ -58,7 +61,7 @@ pub struct JamInput {
 
 #[derive(Clone)]
 pub struct JamTransitionOutput {
-    pub reported: Vec<(Hash32, Hash32)>,
+    pub reported: Vec<ReportedWorkPackage>,
     pub reporters: Vec<Ed25519PubKey>,
 }
 
@@ -80,9 +83,9 @@ impl From<JamTransitionOutput> for OutputData {
             reported: output
                 .reported
                 .iter()
-                .map(|(package_hash, segments_root)| AsnReportedPackage {
-                    work_package_hash: AsnByteArray32(package_hash.0),
-                    segment_tree_root: AsnByteArray32(segments_root.0),
+                .map(|reported| AsnReportedPackage {
+                    work_package_hash: AsnByteArray32(reported.work_package_hash.0),
+                    segment_tree_root: AsnByteArray32(reported.segment_root.0),
                 })
                 .collect(),
             reporters: output
