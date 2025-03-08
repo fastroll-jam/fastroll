@@ -11,8 +11,7 @@ use std::sync::Arc;
 ///
 /// Merges the `good set`, `bad set`, and `wonky set` into the `Disputes` state.
 /// Additionally, it compiles entries from the `culprits` and `faults` from the disputes system and
-/// adds them to the `punish set`, ensuring that the effective punishments can be taken against the
-/// identified culprits and faults.
+/// adds them to the `punish set`, identifying them as offenders.
 pub async fn transition_disputes(
     state_manager: Arc<StateManager>,
     disputes_xt: &DisputesXt,

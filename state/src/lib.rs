@@ -5,7 +5,7 @@ pub mod test_utils;
 use crate::error::StateManagerError;
 use dashmap::DashMap;
 use rjam_codec::JamEncode;
-use rjam_common::{Hash32, ServiceId};
+use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
 use rjam_state_merkle::{
     error::StateMerkleError,
@@ -853,7 +853,7 @@ impl StateManager {
     impl_simple_state_accessors!(BlockHistory, block_history);
     impl_simple_state_accessors!(SafroleState, safrole);
     impl_simple_state_accessors!(DisputesState, disputes);
-    impl_simple_state_accessors!(EntropyAccumulator, entropy_accumulator);
+    impl_simple_state_accessors!(EpochEntropy, epoch_entropy);
     impl_simple_state_accessors!(StagingSet, staging_set);
     impl_simple_state_accessors!(ActiveSet, active_set);
     impl_simple_state_accessors!(PastSet, past_set);
@@ -968,10 +968,9 @@ impl StateManager {
     pub async fn get_account_lookups_entry(
         &self,
         service_id: ServiceId,
-        lookups_key: &(Hash32, u32),
+        lookups_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-        let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(service_id, h, *l)?;
+        let state_key = get_account_lookups_state_key(service_id, lookups_key)?;
         self.get_account_state_entry(&state_key).await
     }
 
@@ -979,14 +978,13 @@ impl StateManager {
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
-        lookups_key: (&Hash32, u32),
+        lookups_key: LookupsKey,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         F: FnOnce(&mut AccountLookupsEntry),
     {
-        let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(service_id, h, l)?;
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -994,11 +992,10 @@ impl StateManager {
     pub async fn add_account_lookups_entry(
         &self,
         service_id: ServiceId,
-        lookups_key: (&Hash32, u32),
+        lookups_key: LookupsKey,
         lookups_entry: AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
-        let (h, l) = lookups_key;
-        let state_key = get_account_lookups_state_key(service_id, h, l)?;
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
         self.add_account_state_entry(&state_key, lookups_entry)
             .await
     }

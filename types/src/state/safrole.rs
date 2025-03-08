@@ -27,12 +27,21 @@ pub enum FallbackKeyError {
     ArrayConversion,
 }
 
+/// State components associated with the Safrole protocol.
+///
+/// Represents `γ` of the GP.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct SafroleState {
-    pub pending_set: ValidatorKeySet,          // gamma_k
-    pub ring_root: BandersnatchRingRoot,       // gamma_z
-    pub slot_sealers: SlotSealerType,          // gamma_s
-    pub ticket_accumulator: TicketAccumulator, // gamma_a
+    /// `γ_k`: Pending validator key set, which will be active in the next epoch.
+    /// This set is used to determine the Bandersnatch ring root for the next epoch.
+    pub pending_set: ValidatorKeySet,
+    /// `γ_z`: Bandersnatch ring root of the current epoch.
+    pub ring_root: BandersnatchRingRoot,
+    /// `γ_s`: Slot-sealers of the current epoch.
+    /// Composed of `E` tickets (or `E` Bandersnatch keys in the fallback mode).
+    pub slot_sealers: SlotSealerType,
+    /// `γ_a`: Ticket accumulator.
+    pub ticket_accumulator: TicketAccumulator,
 }
 impl_simple_state_component!(SafroleState, SafroleState);
 
@@ -219,8 +228,7 @@ pub fn generate_fallback_keys(
     Ok(bandersnatch_keys)
 }
 
-/// A data structure used for ticket accumulator which holds submitted tickets sorted by their id
-/// with a length limit defined by `EPOCH_LENGTH`.
+/// The ticket accumulator which holds submitted tickets sorted by their id with a length limit of `EPOCH_LENGTH`.
 ///
 /// This struct maintains a max-heap of tickets, ensuring that the tickets are kept in ascending
 /// order by their id. When the number of tickets reaches `EPOCH_LENGTH`, any new tickets added

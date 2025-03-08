@@ -7,8 +7,8 @@ use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_types::{
     state::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-        DisputesState, EntropyAccumulator, PastSet, PendingReports, PrivilegedServices,
-        SafroleState, StagingSet, Timeslot, ValidatorStats,
+        DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
+        StagingSet, Timeslot, ValidatorStats,
     },
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
 };
@@ -74,7 +74,7 @@ pub async fn add_all_simple_state_entries(
     let block_history = BlockHistory::default();
     let safrole = SafroleState::default();
     let disputes = DisputesState::default();
-    let entropy = EntropyAccumulator::default();
+    let entropy = EpochEntropy::default();
     let staging_set = StagingSet::default();
     let active_set = ActiveSet::default();
     let past_set = PastSet::default();
@@ -90,7 +90,7 @@ pub async fn add_all_simple_state_entries(
     state_manager.add_block_history(block_history).await?;
     state_manager.add_safrole(safrole).await?;
     state_manager.add_disputes(disputes).await?;
-    state_manager.add_entropy_accumulator(entropy).await?;
+    state_manager.add_epoch_entropy(entropy).await?;
     state_manager.add_staging_set(staging_set).await?;
     state_manager.add_active_set(active_set).await?;
     state_manager.add_past_set(past_set).await?;
@@ -145,9 +145,9 @@ pub async fn compare_all_simple_state_cache_and_db(
         .await?
     );
     assert!(
-        compare_cache_and_db::<EntropyAccumulator>(
+        compare_cache_and_db::<EpochEntropy>(
             state_manager,
-            &get_simple_state_key(StateKeyConstant::EntropyAccumulator)
+            &get_simple_state_key(StateKeyConstant::EpochEntropy)
         )
         .await?
     );

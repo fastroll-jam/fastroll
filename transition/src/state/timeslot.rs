@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// # Transitions
 ///
 /// ## Per-block transitions
-/// * `tau`: Sets the most recent timeslot value to the header timeslot index.
+/// * `τ`: Sets the most recent timeslot value to the header timeslot index.
 pub async fn transition_timeslot(
     state_manager: Arc<StateManager>,
     header_timeslot: &Timeslot,

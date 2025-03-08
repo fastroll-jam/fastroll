@@ -1,6 +1,6 @@
 use crate::state::*;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
-use rjam_common::{ByteArray, Hash32, ServiceId, HASH_SIZE};
+use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Debug;
 
@@ -80,28 +80,49 @@ macro_rules! impl_account_state_component {
     };
 }
 
+/// State entry types that are merklized into the global state `σ`.
 #[derive(Debug, Clone)]
 pub enum StateEntryType {
-    AuthPool(AuthPool),                     // alpha
-    AuthQueue(AuthQueue),                   // phi
-    BlockHistory(BlockHistory),             // beta
-    SafroleState(SafroleState),             // gamma
-    DisputesState(DisputesState),           // psi
-    EntropyAccumulator(EntropyAccumulator), // eta
-    StagingSet(StagingSet),                 // iota
-    ActiveSet(ActiveSet),                   // kappa
-    PastSet(PastSet),                       // lambda
-    PendingReports(PendingReports),         // rho
-    Timeslot(Timeslot),                     // tau
-    PrivilegedServices(PrivilegedServices), // chi
-    ValidatorStats(ValidatorStats),         // pi
-    AccumulateQueue(AccumulateQueue),       // theta
-    AccumulateHistory(AccumulateHistory),   // xi
-    AccountMetadata(AccountMetadata),       // sigma (partial)
+    /// `α`: The authorizer pool.
+    AuthPool(AuthPool),
+    /// `φ`: The authorizer queue
+    AuthQueue(AuthQueue),
+    /// `β`: The recent block history.
+    BlockHistory(BlockHistory),
+    /// `γ`: The Safrole state.
+    SafroleState(SafroleState),
+    /// `ψ`: The disputes state.
+    DisputesState(DisputesState),
+    /// `η`: The epoch entropy.
+    EpochEntropy(EpochEntropy),
+    /// `ι`: The staging validator set.
+    StagingSet(StagingSet),
+    /// `κ`: The active validator set.
+    ActiveSet(ActiveSet),
+    /// `λ`: The past validator set.
+    PastSet(PastSet),
+    /// `ρ`: The pending reports.
+    PendingReports(PendingReports),
+    /// `τ`: The timeslot index.
+    Timeslot(Timeslot),
+    /// `χ`: The privileged services.
+    PrivilegedServices(PrivilegedServices),
+    /// `π`: The validator statistics.
+    ValidatorStats(ValidatorStats),
+    /// `θ`: The accumulate ready-queue.
+    AccumulateQueue(AccumulateQueue),
+    /// `ξ`: The accumulate history.
+    AccumulateHistory(AccumulateHistory),
+    /// `δ` (partial): The service accounts.
+    AccountMetadata(AccountMetadata),
+    /// The account storage entries (values of `δ_s`).
     AccountStorageEntry(AccountStorageEntry),
+    /// The account lookups entries (values of `δ_l`).
     AccountLookupsEntry(AccountLookupsEntry),
+    /// The account preimages entries (values of `δ_p`).
     AccountPreimagesEntry(AccountPreimagesEntry),
-    Raw(Vec<u8>), // Test-only
+    /// Test-only type.
+    Raw(Vec<u8>),
 }
 
 impl JamEncode for StateEntryType {
@@ -112,7 +133,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::BlockHistory(inner) => inner.size_hint(),
             StateEntryType::SafroleState(inner) => inner.size_hint(),
             StateEntryType::DisputesState(inner) => inner.size_hint(),
-            StateEntryType::EntropyAccumulator(inner) => inner.size_hint(),
+            StateEntryType::EpochEntropy(inner) => inner.size_hint(),
             StateEntryType::StagingSet(inner) => inner.size_hint(),
             StateEntryType::ActiveSet(inner) => inner.size_hint(),
             StateEntryType::PastSet(inner) => inner.size_hint(),
@@ -137,7 +158,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::BlockHistory(inner) => inner.encode_to(dest)?,
             StateEntryType::SafroleState(inner) => inner.encode_to(dest)?,
             StateEntryType::DisputesState(inner) => inner.encode_to(dest)?,
-            StateEntryType::EntropyAccumulator(inner) => inner.encode_to(dest)?,
+            StateEntryType::EpochEntropy(inner) => inner.encode_to(dest)?,
             StateEntryType::StagingSet(inner) => inner.encode_to(dest)?,
             StateEntryType::ActiveSet(inner) => inner.encode_to(dest)?,
             StateEntryType::PastSet(inner) => inner.encode_to(dest)?,
@@ -160,22 +181,22 @@ impl JamEncode for StateEntryType {
 /// Index of each state component used for state-key (Merkle path) construction
 #[repr(u8)]
 pub enum StateKeyConstant {
-    AuthPool = 1,            // alpha
-    AuthQueue = 2,           // phi
-    BlockHistory = 3,        // beta
-    SafroleState = 4,        // gamma
-    DisputesState = 5,       // psi
-    EntropyAccumulator = 6,  // eta
-    StagingSet = 7,          // iota
-    ActiveSet = 8,           // kappa
-    PastSet = 9,             // lambda
-    PendingReports = 10,     // rho
-    Timeslot = 11,           // tau
-    PrivilegedServices = 12, // chi
-    ValidatorStats = 13,     // pi
-    AccumulateQueue = 14,    // theta
-    AccumulateHistory = 15,  // xi
-    AccountMetadata = 255,   // sigma (partial)
+    AuthPool = 1,            // α
+    AuthQueue = 2,           // φ
+    BlockHistory = 3,        // β
+    SafroleState = 4,        // γ
+    DisputesState = 5,       // ψ
+    EpochEntropy = 6,        // η
+    StagingSet = 7,          // ι
+    ActiveSet = 8,           // κ
+    PastSet = 9,             // λ
+    PendingReports = 10,     // ρ
+    Timeslot = 11,           // τ
+    PrivilegedServices = 12, // χ
+    ValidatorStats = 13,     // π
+    AccumulateQueue = 14,    // θ
+    AccumulateHistory = 15,  // ξ
+    AccountMetadata = 255,   // δ (partial)
 }
 
 impl From<StateKeyConstant> for u8 {
@@ -196,7 +217,7 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::BlockHistory as u8),
     construct_state_key(StateKeyConstant::SafroleState as u8),
     construct_state_key(StateKeyConstant::DisputesState as u8),
-    construct_state_key(StateKeyConstant::EntropyAccumulator as u8),
+    construct_state_key(StateKeyConstant::EpochEntropy as u8),
     construct_state_key(StateKeyConstant::StagingSet as u8),
     construct_state_key(StateKeyConstant::ActiveSet as u8),
     construct_state_key(StateKeyConstant::PastSet as u8),
@@ -261,9 +282,9 @@ pub fn get_account_preimage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
 
 pub fn get_account_lookups_state_key(
     s: ServiceId,
-    h: &Hash32,
-    l: u32,
+    lookups_key: &LookupsKey,
 ) -> Result<Hash32, CryptoError> {
+    let (h, l) = lookups_key;
     let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
     key_with_prefix[0..4].copy_from_slice(
         &l.encode_fixed(4)

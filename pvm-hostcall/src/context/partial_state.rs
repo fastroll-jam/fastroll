@@ -1,4 +1,4 @@
-use rjam_common::{Hash32, ServiceId};
+use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{error::StateManagerError, StateManager};
 use rjam_types::state::{
@@ -216,7 +216,7 @@ pub struct AccountSandbox {
     pub metadata: SandboxEntry<AccountMetadata>,
     pub storage: HashMap<Hash32, SandboxEntryVersioned<AccountStorageEntry>>,
     pub preimages: HashMap<Hash32, SandboxEntry<AccountPreimagesEntry>>,
-    pub lookups: HashMap<(Hash32, u32), SandboxEntryVersioned<AccountLookupsEntryExt>>,
+    pub lookups: HashMap<LookupsKey, SandboxEntryVersioned<AccountLookupsEntryExt>>,
 }
 
 impl AccountSandbox {
@@ -591,7 +591,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_storage_key: &(Hash32, u32),
+        lookups_storage_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
         let sandbox = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
@@ -617,7 +617,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_key: (Hash32, u32),
+        lookups_key: LookupsKey,
         new_entry: AccountLookupsEntryExt,
     ) -> Result<(), PartialStateError> {
         let entry = if let Some(prev_entry) = self
@@ -645,7 +645,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_key: (Hash32, u32),
+        lookups_key: LookupsKey,
     ) -> Result<Option<AccountLookupsEntryExt>, PartialStateError> {
         if let Some(prev_entry) = self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
@@ -675,7 +675,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_key: (Hash32, u32),
+        lookups_key: LookupsKey,
         timeslot: Timeslot,
     ) -> Result<Option<usize>, PartialStateError> {
         let mut lookups_entry = match self
@@ -699,7 +699,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_key: (Hash32, u32),
+        lookups_key: LookupsKey,
         timeslots: Vec<Timeslot>,
     ) -> Result<Option<usize>, PartialStateError> {
         let mut lookups_entry = match self
@@ -723,7 +723,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        lookups_key: (Hash32, u32),
+        lookups_key: LookupsKey,
     ) -> Result<bool, PartialStateError> {
         let mut lookups_entry = match self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)

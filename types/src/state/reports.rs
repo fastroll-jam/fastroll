@@ -23,6 +23,9 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
+/// Work reports pending availability by assurers.
+///
+/// Represents `ρ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);

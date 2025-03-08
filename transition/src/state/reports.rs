@@ -18,11 +18,9 @@ use std::sync::Arc;
 /// # Transitions
 ///
 /// This handles the first state transition for `PendingReports`, yielding `ρ†`.
-/// With dispute extrinsic introduced in the current block, the disputes system categorizes
-/// work reports under judgment into three groups: the `good set`, the `bad set`, and the `wonky set`.
-/// This function removes entries that are either in the `bad set` or the `wonky set` from
-/// `PendingReports`, ensuring that only valid reports remain, which can later be accumulated into
-/// the on-chain state.
+/// This function removes `PendingReports` entries that are either in the `bad set` or the `wonky set`
+/// identified by the disputes system, ensuring that only valid reports remain,
+/// which can later be accumulated into the on-chain state.
 pub async fn transition_reports_eliminate_invalid(
     state_manager: Arc<StateManager>,
     disputes_xt: &DisputesXt,
@@ -83,7 +81,7 @@ pub async fn transition_reports_clear_availables(
         available_reports.push(report);
     }
 
-    // Aggregate the core indices of any timed-out reports so they can be removed silently.
+    // Aggregate the core indices of any timed-out reports, so they can be removed silently.
     let current_timeslot = state_manager.get_timeslot().await?;
     let timed_out_core_indices =
         prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
@@ -111,15 +109,12 @@ pub async fn transition_reports_clear_availables(
 /// This handles the final state transition for `PendingReports`, yielding `ρ′`.
 /// New work reports from the guarantees extrinsic can be added to `PendingReports`.
 /// If a core's slot is empty, the new report fills it. If the slot is occupied, the existing
-/// entry is replaced only if more than `U = 5` timeslots have passed since the report was submitted.
-///
-/// # Return
-/// (Vec<(`work_package_hash`, `segments_root`)>, Vec<`reporter_ed25519_key`>) // TODO: update type
+/// entry is replaced only if more than `U` timeslots have passed since the report was submitted.
 pub async fn transition_reports_update_entries(
     state_manager: Arc<StateManager>,
     guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
-) -> Result<(Vec<(Hash32, Hash32)>, Vec<Ed25519PubKey>), TransitionError> {
+) -> Result<(Vec<ReportedWorkPackage>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesXtValidator::new(&state_manager);
     let all_guarantor_keys = guarantees_validator
@@ -138,9 +133,12 @@ pub async fn transition_reports_update_entries(
         })
         .await?;
 
-    let reported_packages: Vec<(Hash32, Hash32)> = new_valid_reports
+    let reported_packages: Vec<ReportedWorkPackage> = new_valid_reports
         .into_iter()
-        .map(|report| (report.specs.work_package_hash, report.specs.segment_root))
+        .map(|report| ReportedWorkPackage {
+            work_package_hash: report.specs.work_package_hash,
+            segment_root: report.specs.segment_root,
+        })
         .collect();
 
     Ok((reported_packages, all_guarantor_keys))

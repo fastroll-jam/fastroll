@@ -7,10 +7,7 @@ use std::sync::Arc;
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `kappa`: Sets the active set to the prior pending set.
-///
-/// ## Per-block transitions
-/// * `kappa`: None.
+/// * `κ`: Sets the active set to the prior pending set.
 pub async fn transition_active_set(
     state_manager: Arc<StateManager>,
     epoch_progressed: bool,
@@ -31,10 +28,7 @@ pub async fn transition_active_set(
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `lambda`: Sets the past set to the prior active set.
-///
-/// ## Per-block transitions
-/// * `lambda`: None.
+/// * `λ`: Sets the past set to the prior active set.
 pub async fn transition_past_set(
     state_manager: Arc<StateManager>,
     epoch_progressed: bool,

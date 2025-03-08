@@ -30,14 +30,14 @@ pub async fn transition_accumulate_queue(
             curr_slot_entry.drain(..);
             curr_slot_entry.extend(curr_slot_entry_updated);
 
-            // Update accumulate queue for the skipped timeslots (1 <= i < (tau' - tau)).
+            // Update accumulate queue for the skipped timeslots (1 <= i < (τ' - τ)).
             let skipped_slots = (curr_timeslot.slot() - prior_timeslot.slot()) as usize;
             for i in 1..skipped_slots {
                 let skipped_slot_entry = queue.get_circular_mut(slot_phase - i as isize);
                 skipped_slot_entry.drain(..);
             }
 
-            // Update ready accumulate for the older timeslots, within an epoch range (i >= (tau' - tau)).
+            // Update ready accumulate for the older timeslots, within an epoch range (i >= (τ' - τ)).
             for i in skipped_slots..EPOCH_LENGTH {
                 let old_entry = queue.get_circular_mut(slot_phase - i as isize);
                 let old_entry_updated = edit_queue(old_entry.as_ref(), &last_accumulate_set_vec);

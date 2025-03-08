@@ -5,7 +5,7 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use rjam_codec::{JamDecodeFixed, JamEncode};
-use rjam_common::{Balance, Hash32, ServiceId, UnsignedGas};
+use rjam_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::{
     state::memory::Memory,
@@ -309,7 +309,7 @@ impl AccumulateHostContext {
         &mut self,
         state_manager: Arc<StateManager>,
         account_info: AccountInfo,
-        code_lookups_key: (Hash32, u32),
+        code_lookups_key: LookupsKey,
     ) -> Result<ServiceId, PVMError> {
         let new_account = AccountSandbox {
             metadata: SandboxEntry::new_added(AccountMetadata::new(account_info)),

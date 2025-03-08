@@ -5,12 +5,19 @@ use crate::{
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, Hash32};
 
+/// A record of historical dispute verdicts and their associated offenders set.
+///
+/// Represents `ψ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesState {
-    pub good_set: Vec<Hash32>,          // psi_g; hash of correct work-reports
-    pub bad_set: Vec<Hash32>,           // psi_b; hash of incorrect work-reports
-    pub wonky_set: Vec<Hash32>,         // psi_w; hash of work-reports that cannot be judged
-    pub punish_set: Vec<Ed25519PubKey>, // psi_o; Ed25519 public keys of validators which have misjudged.
+    /// `ψ_g`: Hash of correct work-reports.
+    pub good_set: Vec<Hash32>,
+    /// `ψ_b`: Hash of incorrect work-reports.
+    pub bad_set: Vec<Hash32>,
+    /// `ψ_w`: Hash of work-reports that cannot be judged.
+    pub wonky_set: Vec<Hash32>,
+    /// `ψ_o`: Ed25519 public keys of validators who are offenders (culprits or faults).
+    pub punish_set: Vec<Ed25519PubKey>,
 }
 impl_simple_state_component!(DisputesState, DisputesState);
 

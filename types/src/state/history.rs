@@ -10,17 +10,18 @@ use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 use std::fmt::{Display, Formatter};
 
+/// The recent block histories.
+///
+/// Represents `β` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
 impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
 impl_simple_state_component!(BlockHistory, BlockHistory);
 
 impl BlockHistory {
-    /// Appends a new block history entry to the `BlockHistory` vector.
+    /// Appends a new block history entry.
     ///
-    /// This appends a new `BlockHistoryEntry` to the vector. If the total number of entries
-    /// exceeds the maximum allowed (`H = 8`), the oldest entry is removed. The history thus retains
-    /// only the most recent `H` entries.
+    /// The history retains the most recent `H` entries, removing the oldest entries if it's full.
     pub fn append(&mut self, entry: BlockHistoryEntry) {
         self.0.push(entry);
 
@@ -66,7 +67,7 @@ impl BlockHistory {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
     /// `h` of `AvailSpec` from work report in `GuaranteesXt`
     pub work_package_hash: Hash32,
