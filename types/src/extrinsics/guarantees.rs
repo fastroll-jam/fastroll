@@ -87,15 +87,19 @@ impl JamDecode for GuaranteesCredential {
     }
 }
 
-/// Extrinsic entry containing a work report guaranteed by specific validators called `Guarantors`.
+/// Extrinsic entry containing a work report guaranteed by specific validators called **Guarantors**.
 ///
-/// Each block, three `Guarantors` are assigned per core to verify accuracy of the work and this
-/// extrinsic entry carries guaranteeing signature from two or three of the `Guarantors`.
+/// Each block, three **Guarantors** are assigned per core to refine work packages into work reports
+/// and guarantee correctness of the computation. The extrinsic entry carries signatures
+/// signed by two or three of the **Guarantors**.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuaranteesXtEntry {
-    pub work_report: WorkReport,                // w
-    pub timeslot_index: u32,                    // t
-    pub credentials: Vec<GuaranteesCredential>, // a
+    /// `w`: The work report that is subject to the guarantee.
+    pub work_report: WorkReport,
+    /// `t`: The timeslot index used for determining timeout of the work report.
+    pub timeslot_index: u32,
+    /// `a`: The signatures of two or three of the **Guarantors**.
+    pub credentials: Vec<GuaranteesCredential>,
 }
 
 impl XtEntry for GuaranteesXtEntry {

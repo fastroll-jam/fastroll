@@ -26,9 +26,13 @@ pub struct OffendersHeaderMarker {
 /// of validators.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesXt {
-    pub verdicts: Vec<Verdict>, // v
-    pub culprits: Vec<Culprit>, // c
-    pub faults: Vec<Fault>,     // f
+    /// **`v`**: Verdicts; the collection of all judgments coming from
+    /// exactly *two-thirds plus one* of either the `ActiveSet` or the `PastSet`.
+    pub verdicts: Vec<Verdict>,
+    /// **`c`**: Culprits; the information of **Culprits**, who guaranteed incorrect work report(s).
+    pub culprits: Vec<Culprit>,
+    /// **`f`**: Faults; the information of **Faults**, who signed incorrect judgments for disputes.
+    pub faults: Vec<Fault>,
 }
 
 impl Display for DisputesXt {
@@ -55,21 +59,21 @@ impl DisputesXt {
     pub fn count_culprits_with_report_hash(&self, report_hash: &Hash32) -> usize {
         self.culprits
             .iter()
-            .filter(|culprit| &culprit.report_hash == report_hash)
+            .filter(|&culprit| &culprit.report_hash == report_hash)
             .count()
     }
 
     pub fn count_faults_with_report_hash(&self, report_hash: &Hash32) -> usize {
         self.faults
             .iter()
-            .filter(|fault| &fault.report_hash == report_hash)
+            .filter(|&fault| &fault.report_hash == report_hash)
             .count()
     }
 
     pub fn get_verdict_by_report_hash(&self, report_hash: &Hash32) -> Option<&Verdict> {
         self.verdicts
             .iter()
-            .find(|verdict| &verdict.report_hash == report_hash)
+            .find(|&verdict| &verdict.report_hash == report_hash)
     }
 
     pub fn split_report_set(&self) -> (Vec<Hash32>, Vec<Hash32>, Vec<Hash32>) {
@@ -125,9 +129,12 @@ impl DisputesXt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
-    pub report_hash: Hash32,                                   // r
-    pub epoch_index: u32,                                      // a
-    pub judgments: Box<[Judgment; VALIDATORS_SUPER_MAJORITY]>, // j
+    /// `r`: The work report hash.
+    pub report_hash: Hash32,
+    /// `a`: The epoch index.
+    pub epoch_index: u32,
+    /// **`j`**: The judgments.
+    pub judgments: Box<[Judgment; VALIDATORS_SUPER_MAJORITY]>,
 }
 
 impl Display for Verdict {
@@ -173,11 +180,6 @@ impl JamEncode for Verdict {
 
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        // TODO: delete
-        // let mut judgments = Box::new([Judgment::default(); VALIDATORS_SUPER_MAJORITY]);
-        // for judgment in judgments.iter_mut() {
-        //     *judgment = Judgment::decode(input)?;
-        // }
         Ok(Self {
             report_hash: Hash32::decode(input)?,
             epoch_index: u32::decode_fixed(input, 4)?,
@@ -191,7 +193,7 @@ impl Verdict {
         let valid_judgments_count = self
             .judgments
             .iter()
-            .filter(|judgment| judgment.is_report_valid)
+            .filter(|&judgment| judgment.is_report_valid)
             .count();
         if valid_judgments_count == VALIDATORS_SUPER_MAJORITY {
             VerdictEvaluation::IsGood
@@ -207,9 +209,12 @@ impl Verdict {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Judgment {
-    pub is_report_valid: bool,             // v
-    pub voter: ValidatorIndex,             // i
-    pub voter_signature: Ed25519Signature, // s
+    /// `v`: The vote.
+    pub is_report_valid: bool,
+    /// `i`: The voter validator index.
+    pub voter: ValidatorIndex,
+    /// `s`: The voter's Ed25519 signature.
+    pub voter_signature: Ed25519Signature,
 }
 
 impl JamEncode for Judgment {
@@ -261,9 +266,12 @@ impl Ord for Judgment {
 /// Set of validators which have guaranteed a wrong work report.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode, Hash)]
 pub struct Culprit {
-    pub report_hash: Hash32,          // r
-    pub validator_key: Ed25519PubKey, // k; the guarantor
-    pub signature: Ed25519Signature,  // s
+    /// `r`: The work report hash.
+    pub report_hash: Hash32,
+    /// `k`: Ed25519 public key of the **Culprit**.
+    pub validator_key: Ed25519PubKey,
+    /// `s`: The guaranteeing signature that the **Culprit** submitted.
+    pub signature: Ed25519Signature,
 }
 
 impl Display for Culprit {
@@ -290,15 +298,17 @@ impl Ord for Culprit {
     }
 }
 
-/// Set of validators which have cast a wrong vote (judgment) for a dispute, either:
-/// - Cast `is_valid=false` for a good report.
-/// - Cast `is_valid=true` for a bad report.
+/// Set of validators which have cast a wrong vote (judgment) for a dispute.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Fault {
-    pub report_hash: Hash32,          // r
-    pub is_report_valid: bool,        // v
-    pub validator_key: Ed25519PubKey, // k; the voter
-    pub signature: Ed25519Signature,  // s
+    /// `r`: The work report hash.
+    pub report_hash: Hash32,
+    /// `v`: The vote.
+    pub is_report_valid: bool,
+    /// `k`: Ed25519 public key of the **Fault**.
+    pub validator_key: Ed25519PubKey,
+    /// `s`: The judgment signature that the **Fault** submitted.
+    pub signature: Ed25519Signature,
 }
 
 impl Display for Fault {

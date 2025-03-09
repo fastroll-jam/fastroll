@@ -374,7 +374,7 @@ impl Ord for WorkReport {
 
 impl WorkReport {
     pub fn hash(&self) -> Result<Hash32, WorkReportError> {
-        Ok(hash::<Blake2b256>(self.encode()?.as_slice())?)
+        Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
     pub fn refinement_context(&self) -> &RefinementContext {

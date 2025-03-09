@@ -8,7 +8,7 @@ use rjam_common::{
 };
 use std::{cmp::Ordering, ops::Deref};
 
-/// Represents a sequence of validator assurances regarding the availability of work-reports
+/// The assurances extrinsic submitted by validators assuring the availability of work reports
 /// on assigned cores.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AssurancesXt {
@@ -32,33 +32,33 @@ impl AssurancesXt {
     /// Aggregates core indices whose availability is assured by more than two-thirds of the
     /// total validators.
     pub fn available_core_indices(&self) -> Vec<CoreIndex> {
-        let mut available_core_indices = vec![];
-        let mut assurance_counts = vec![0; CORE_COUNT];
-
-        for entry in self.iter() {
-            for (i, bool) in entry.assuring_cores_bitvec.iter().enumerate() {
-                if bool {
-                    assurance_counts[i] += 1;
-                }
-            }
-        }
-
-        for (i, assurance_count) in assurance_counts.into_iter().enumerate() {
-            if assurance_count >= (VALIDATORS_SUPER_MAJORITY as u32) {
-                available_core_indices.push(i as CoreIndex);
-            }
-        }
-
-        available_core_indices
+        let assurance_counts = self.iter().fold(vec![0; CORE_COUNT], |mut counts, entry| {
+            entry
+                .assuring_cores_bitvec
+                .iter()
+                .enumerate()
+                .for_each(|(i, assured)| counts[i] += assured as usize);
+            counts
+        });
+        assurance_counts
+            .into_iter()
+            .enumerate()
+            .filter(|(_, assurance_count)| *assurance_count >= VALIDATORS_SUPER_MAJORITY)
+            .map(|(i, _)| i as CoreIndex)
+            .collect()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssurancesXtEntry {
-    pub anchor_parent_hash: Hash32,      // a
-    pub assuring_cores_bitvec: BitVec, // f; `CORE_COUNT` bits fixed-length encoding without length discriminator
-    pub validator_index: ValidatorIndex, // v;
-    pub signature: Ed25519Signature,   // s
+    /// `a`: The parent block hash.
+    pub anchor_parent_hash: Hash32,
+    /// `f`: A bit sequence of length `CORE_COUNT` representing indices of cores this entry assures.
+    pub assuring_cores_bitvec: BitVec,
+    /// `v`: The validator index.
+    pub validator_index: ValidatorIndex,
+    /// `s`: The signature of the validator.
+    pub signature: Ed25519Signature,
 }
 
 impl XtEntry for AssurancesXtEntry {

@@ -28,16 +28,26 @@ pub struct EpochMarker {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHeader {
-    pub parent_hash: Hash32,                                  // p
-    pub parent_state_root: Hash32,                            // r
-    pub extrinsic_hash: Hash32,                               // x
-    pub timeslot_index: u32,                                  // t
-    pub epoch_marker: Option<EpochMarker>,                    // e
-    pub winning_tickets_marker: Option<WinningTicketsMarker>, // w
-    pub offenders_marker: Vec<Ed25519PubKey>,                 // o
-    pub block_author_index: ValidatorIndex,                   // i
-    pub vrf_signature: BandersnatchSignature,                 // v; the entropy source
-    pub block_seal: BandersnatchSignature,                    // s
+    /// `p`: The parent block hash.
+    pub parent_hash: Hash32,
+    /// `r`: The parent block posterior state root.
+    pub parent_state_root: Hash32,
+    /// `x`: Hash of the extrinsics introduced in the block.
+    pub extrinsic_hash: Hash32,
+    /// `t`: The timeslot index of the block.
+    pub timeslot_index: u32,
+    /// `e`: The epoch marker.
+    pub epoch_marker: Option<EpochMarker>,
+    /// `w`: The winning tickets marker.
+    pub winning_tickets_marker: Option<WinningTicketsMarker>,
+    /// `o`: The offenders marker.
+    pub offenders_marker: Vec<Ed25519PubKey>,
+    /// `i`: The block author index.
+    pub block_author_index: ValidatorIndex,
+    /// `v`: The block VRF signature, which is used as the epoch-entropy source.
+    pub vrf_signature: BandersnatchSignature,
+    /// `s`: The block seal signed by the author.
+    pub block_seal: BandersnatchSignature,
 }
 
 impl JamEncode for BlockHeader {
@@ -134,8 +144,6 @@ impl BlockHeader {
     }
 
     pub fn hash(&self) -> Result<Hash32, BlockHeaderError> {
-        let mut buf = vec![];
-        self.encode_to(&mut buf)?;
-        Ok(hash::<Blake2b256>(&buf[..])?)
+        Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 }

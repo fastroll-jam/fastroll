@@ -214,8 +214,10 @@ impl ValidatorKey {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
-    pub id: Hash32,  // ticket identifier; `Y` hash of the RingVRF proof
-    pub attempt: u8, // `N_N`; 0 or 1
+    /// **`y`**: The ticket identifier, which is the `Y` hash of the RingVRF proof from `TicketsXtEntry`.
+    pub id: Hash32,
+    /// `r`: The ticket entry index, either 0 or 1.
+    pub attempt: u8,
 }
 
 impl Display for Ticket {

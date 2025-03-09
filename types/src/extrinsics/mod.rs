@@ -45,7 +45,7 @@ pub trait XtEntry: JamEncode + JamDecode {
     const XT_TYPE: XtType;
 
     fn hash(&self) -> Result<Hash32, ExtrinsicsError> {
-        hash::<Blake2b256>(&self.encode()?).map_err(|e| e.into())
+        Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 }
 

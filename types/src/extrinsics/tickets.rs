@@ -29,11 +29,12 @@ impl Display for TicketsXt {
     }
 }
 
-// TODO: check - test vector encodes "attempt" first, but GP encodes "signature" first.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsXtEntry {
-    pub entry_index: u8,                            // r; N_N
-    pub ticket_proof: BandersnatchRingVrfSignature, // p; the ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
+    /// `r`: The ticket entry index, either 0 or 1.
+    pub entry_index: u8,
+    /// `p`: The ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
+    pub ticket_proof: BandersnatchRingVrfSignature,
 }
 
 impl Display for TicketsXtEntry {
