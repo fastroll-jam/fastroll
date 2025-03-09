@@ -78,9 +78,8 @@ impl AccountFootprintDelta {
     }
 }
 
-/// FIXME: Fix codec implementation.
 /// Service account metadata.
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountMetadata {
     /// `c`: Service code hash
     pub code_hash: Hash32,
@@ -96,6 +95,38 @@ pub struct AccountMetadata {
     pub octets_footprint: u64,
 }
 impl_account_state_component!(AccountMetadata, AccountMetadata);
+
+impl JamEncode for AccountMetadata {
+    fn size_hint(&self) -> usize {
+        self.code_hash.size_hint() + 8 * 4 + 4
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.code_hash.encode_to(dest)?;
+        self.balance.encode_to_fixed(dest, 8)?;
+        self.gas_limit_accumulate.encode_to_fixed(dest, 8)?;
+        self.gas_limit_on_transfer.encode_to_fixed(dest, 8)?;
+        self.octets_footprint.encode_to_fixed(dest, 8)?;
+        self.items_footprint.encode_to_fixed(dest, 4)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for AccountMetadata {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            code_hash: Hash32::decode(input)?,
+            balance: Balance::decode_fixed(input, 8)?,
+            gas_limit_accumulate: UnsignedGas::decode_fixed(input, 8)?,
+            gas_limit_on_transfer: UnsignedGas::decode_fixed(input, 8)?,
+            octets_footprint: u64::decode_fixed(input, 8)?,
+            items_footprint: u32::decode_fixed(input, 4)?,
+        })
+    }
+}
 
 impl AccountMetadata {
     pub fn balance(&self) -> Balance {
