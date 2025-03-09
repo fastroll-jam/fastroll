@@ -82,7 +82,6 @@ impl AccountFootprintDelta {
 /// Service account metadata.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccountMetadata {
-    pub service_id: ServiceId,
     /// `c`: Service code hash
     pub code_hash: Hash32,
     /// `b`: Service account token balance

@@ -18,8 +18,8 @@ mod tests {
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
     use rjam_types::state::{
-        AccountMetadata, ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet,
-        PendingReports, Timeslot,
+        ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports,
+        Timeslot,
     };
 
     struct ReportsTest;
@@ -60,11 +60,11 @@ mod tests {
             };
             let pre_block_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
             let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
-            let pre_account_metadata_vec: Vec<AccountMetadata> = test_pre_state
+            let pre_accounts: Vec<AccountsMapEntry> = test_pre_state
                 .accounts
                 .clone()
                 .into_iter()
-                .map(AccountMetadata::from)
+                .map(AccountsMapEntry::from)
                 .collect();
 
             // Load pre-state info the state cache.
@@ -78,9 +78,9 @@ mod tests {
             state_manager.add_block_history(pre_block_history).await?;
             state_manager.add_auth_pool(pre_auth_pool).await?;
 
-            for pre_account_metadata in pre_account_metadata_vec {
+            for pre_account in pre_accounts {
                 state_manager
-                    .add_account_metadata(pre_account_metadata.service_id, pre_account_metadata)
+                    .add_account_metadata(pre_account.service_id, pre_account.metadata)
                     .await?;
             }
 
@@ -158,13 +158,17 @@ mod tests {
             let curr_disputes = state_manager.get_disputes().await?;
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;
-            let curr_account_metadata_vec: Vec<AccountMetadata> =
+            let curr_accounts: Vec<AccountsMapEntry> =
                 join_all(pre_state.accounts.iter().map(|s| async {
-                    state_manager
+                    let metadata = state_manager
                         .get_account_metadata(s.id)
                         .await
                         .unwrap()
-                        .unwrap()
+                        .unwrap();
+                    AccountsMapEntry {
+                        service_id: s.id,
+                        metadata,
+                    }
                 }))
                 .await;
 
@@ -180,9 +184,9 @@ mod tests {
                     .collect(),
                 recent_blocks: curr_blocks_history.into(),
                 auth_pools: curr_auth_pool.into(),
-                accounts: curr_account_metadata_vec
+                accounts: curr_accounts
                     .into_iter()
-                    .map(AsnServiceItem::from)
+                    .map(AsnAccountsMapEntry::from)
                     .collect(),
             })
         }

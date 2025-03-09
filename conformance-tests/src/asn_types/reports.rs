@@ -1,9 +1,9 @@
 use crate::asn_types::common::*;
-use rjam_common::Ed25519PubKey;
+use rjam_common::{Ed25519PubKey, ServiceId};
 
 use rjam_types::{
     extrinsics::guarantees::GuaranteesXt,
-    state::{ReportedWorkPackage, Timeslot},
+    state::{AccountMetadata, ReportedWorkPackage, Timeslot},
 };
 use serde::{Deserialize, Serialize};
 
@@ -34,6 +34,12 @@ pub enum ReportsErrorCode {
     bad_signature,
     work_report_too_big,
     reserved,
+}
+
+/// Wrapper of `AccountMetadata` including service id.
+pub struct AccountsMapEntry {
+    pub service_id: ServiceId,
+    pub metadata: AccountMetadata,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

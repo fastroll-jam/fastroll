@@ -318,7 +318,6 @@ impl AccumulateHostContext {
 
         let new_account = AccountSandbox {
             metadata: SandboxEntry::new_added(AccountMetadata {
-                service_id: new_service_id,
                 code_hash,
                 balance,
                 gas_limit_accumulate,
