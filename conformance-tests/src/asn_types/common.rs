@@ -1,6 +1,9 @@
 #![allow(dead_code)]
-use crate::serde_utils::{
-    deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+use crate::{
+    asn_types::reports::AccountsMapEntry,
+    serde_utils::{
+        deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+    },
 };
 use bit_vec::BitVec;
 use rjam_common::{
@@ -29,9 +32,9 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AccountInfo, AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
-        DisputesState, EpochEntropy, EpochValidatorStats, PendingReport, PendingReports,
-        ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
+        AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, DisputesState,
+        EpochEntropy, EpochValidatorStats, PendingReport, PendingReports, ReportedWorkPackage,
+        SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -381,20 +384,20 @@ pub struct AsnAccount {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnServiceItem {
+pub struct AsnAccountsMapEntry {
     pub id: AsnServiceId,
     pub data: AsnAccount,
 }
 
-impl From<AccountMetadata> for AsnServiceItem {
-    fn from(value: AccountMetadata) -> Self {
+impl From<AccountsMapEntry> for AsnAccountsMapEntry {
+    fn from(value: AccountsMapEntry) -> Self {
         let info = AsnServiceInfo {
-            code_hash: value.account_info.code_hash.into(),
-            balance: value.account_info.balance,
-            min_item_gas: value.account_info.gas_limit_accumulate,
-            min_memo_gas: value.account_info.gas_limit_on_transfer,
-            bytes: value.lookups_total_octets + value.storage_total_octets,
-            items: value.lookups_items_count + value.storage_items_count,
+            code_hash: value.metadata.code_hash.into(),
+            balance: value.metadata.balance,
+            min_item_gas: value.metadata.gas_limit_accumulate,
+            min_memo_gas: value.metadata.gas_limit_on_transfer,
+            bytes: value.metadata.octets_footprint,
+            items: value.metadata.items_footprint,
         };
 
         Self {
@@ -404,29 +407,23 @@ impl From<AccountMetadata> for AsnServiceItem {
     }
 }
 
-impl From<AsnServiceItem> for AccountMetadata {
-    // Note: assigning all `bytes` and `items` to storage since `ServiceInfo` doesn't track those
-    // for the storage and lookups separately.
-    fn from(value: AsnServiceItem) -> Self {
-        let account_info = AccountInfo {
-            code_hash: value.data.service.code_hash.into(),
-            balance: value.data.service.balance,
-            gas_limit_accumulate: value.data.service.min_item_gas,
-            gas_limit_on_transfer: value.data.service.min_memo_gas,
-        };
-
+impl From<AsnAccountsMapEntry> for AccountsMapEntry {
+    fn from(value: AsnAccountsMapEntry) -> Self {
         Self {
             service_id: value.id,
-            account_info,
-            lookups_items_count: 0,
-            storage_items_count: value.data.service.items,
-            lookups_total_octets: 0,
-            storage_total_octets: value.data.service.bytes,
+            metadata: AccountMetadata {
+                code_hash: value.data.service.code_hash.into(),
+                balance: value.data.service.balance,
+                gas_limit_accumulate: value.data.service.min_item_gas,
+                gas_limit_on_transfer: value.data.service.min_memo_gas,
+                items_footprint: value.data.service.items,
+                octets_footprint: value.data.service.bytes,
+            },
         }
     }
 }
 
-pub type AsnServices = Vec<AsnServiceItem>;
+pub type AsnServices = Vec<AsnAccountsMapEntry>;
 
 // ----------------------------------------------------
 // -- Availability Assignments

@@ -275,7 +275,7 @@ impl AccumulateHostContext {
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
         // Explicitly checked from callsites (host functions) that this has positive value.
-        account_metadata.account_info.balance -= amount;
+        account_metadata.balance -= amount;
         self.partial_state
             .accounts_sandbox
             .mark_account_metadata_updated(state_manager, self.accumulate_host)
@@ -296,7 +296,7 @@ impl AccumulateHostContext {
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
-        account_metadata.account_info.balance += amount;
+        account_metadata.balance += amount;
         self.partial_state
             .accounts_sandbox
             .mark_account_metadata_updated(state_manager, self.accumulate_host)
@@ -308,17 +308,28 @@ impl AccumulateHostContext {
     pub async fn add_new_account(
         &mut self,
         state_manager: Arc<StateManager>,
-        account_info: AccountInfo,
+        code_hash: Hash32,
+        balance: Balance,
+        gas_limit_accumulate: UnsignedGas,
+        gas_limit_on_transfer: UnsignedGas,
         code_lookups_key: LookupsKey,
     ) -> Result<ServiceId, PVMError> {
+        let new_service_id = self.next_new_service_id;
+
         let new_account = AccountSandbox {
-            metadata: SandboxEntry::new_added(AccountMetadata::new(account_info)),
+            metadata: SandboxEntry::new_added(AccountMetadata {
+                code_hash,
+                balance,
+                gas_limit_accumulate,
+                gas_limit_on_transfer,
+                items_footprint: 0,
+                octets_footprint: 0,
+            }),
             storage: HashMap::new(),
             preimages: HashMap::new(),
             lookups: HashMap::new(),
         };
 
-        let new_service_id = self.next_new_service_id;
         self.partial_state
             .accounts_sandbox
             .insert(new_service_id, new_account);
@@ -354,9 +365,9 @@ impl AccumulateHostContext {
             .await?
             .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
 
-        accumulator_metadata.account_info.code_hash = code_hash;
-        accumulator_metadata.account_info.gas_limit_accumulate = gas_limit_accumulate;
-        accumulator_metadata.account_info.gas_limit_on_transfer = gas_limit_on_transfer;
+        accumulator_metadata.code_hash = code_hash;
+        accumulator_metadata.gas_limit_accumulate = gas_limit_accumulate;
+        accumulator_metadata.gas_limit_on_transfer = gas_limit_on_transfer;
 
         self.partial_state
             .accounts_sandbox

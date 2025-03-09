@@ -363,7 +363,7 @@ impl HostFunction {
             })
         };
 
-        let storage_footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
+        let storage_usage_delta = AccountMetadata::calculate_storage_usage_delta(
             maybe_prev_storage_entry.as_ref(),
             new_storage_entry.as_ref(),
         )
@@ -375,9 +375,9 @@ impl HostFunction {
             .ok_or(PVMError::HostCallError(AccountNotFound))?;
 
         let simulated_threshold_balance =
-            metadata.simulate_threshold_balance_after_mutation(Some(storage_footprint_delta), None);
+            metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
 
-        if simulated_threshold_balance > metadata.account_info.balance {
+        if simulated_threshold_balance > metadata.balance {
             continue_full!()
         }
 
@@ -634,12 +634,10 @@ impl HostFunction {
         let new_service_id = x
             .add_new_account(
                 state_manager.clone(),
-                AccountInfo {
-                    code_hash,
-                    balance: new_account_threshold_balance,
-                    gas_limit_accumulate: gas_limit_g,
-                    gas_limit_on_transfer: gas_limit_m,
-                },
+                code_hash,
+                new_account_threshold_balance,
+                gas_limit_g,
+                gas_limit_m,
                 (code_hash, code_lookup_len),
             )
             .await?;
@@ -718,19 +716,19 @@ impl HostFunction {
 
         // Check the global state and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_account_info = match x
+        let dest_account_metadata = match x
             .partial_state
             .accounts_sandbox
             .get_account_metadata(state_manager.clone(), dest)
             .await?
         {
-            Some(metadata) => &metadata.account_info,
+            Some(metadata) => metadata,
             None => {
                 continue_who!(gas_charge)
             }
         };
 
-        if gas_limit < dest_account_info.gas_limit_on_transfer {
+        if gas_limit < dest_account_metadata.gas_limit_on_transfer {
             continue_low!(gas_charge)
         }
 
@@ -782,13 +780,13 @@ impl HostFunction {
 
         let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
             .expect("Should not fail convert 32-byte octets into Hash32");
-        if eject_account_metadata.account_info.code_hash != accumulate_host_as_hash {
+        if eject_account_metadata.code_hash != accumulate_host_as_hash {
             continue_who!()
         }
 
         // TODO: safe type casting
-        let preimage_size = 81.max(eject_account_metadata.total_octets_footprint() as u32) - 81;
-        if eject_account_metadata.item_counts_footprint() != 2 {
+        let preimage_size = 81.max(eject_account_metadata.octets_footprint as u32) - 81;
+        if eject_account_metadata.items_footprint != 2 {
             continue_huh!()
         }
         let lookups_key = (preimage_hash, preimage_size);
@@ -913,7 +911,7 @@ impl HostFunction {
                     preimage_length: lookups_size,
                     entry: new_lookups_entry.clone(),
                 });
-                let lookups_footprint_delta = AccountMetadata::calculate_storage_footprint_delta(
+                let lookups_usage_delta = AccountMetadata::calculate_storage_usage_delta(
                     None,
                     new_lookups_octets_usage.as_ref(),
                 )
@@ -922,7 +920,7 @@ impl HostFunction {
                 let accumulator_metadata =
                     x.get_accumulator_metadata(state_manager.clone()).await?;
                 let simulated_threshold_balance = accumulator_metadata
-                    .simulate_threshold_balance_after_mutation(None, Some(lookups_footprint_delta));
+                    .simulate_threshold_balance_after_mutation(None, Some(lookups_usage_delta));
 
                 if simulated_threshold_balance > accumulator_metadata.balance() {
                     continue_full!()

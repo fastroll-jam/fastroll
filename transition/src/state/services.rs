@@ -19,7 +19,7 @@ use rjam_state::{StateManager, StateMut};
 use rjam_types::{
     common::{transfers::DeferredTransfer, workloads::WorkReport},
     extrinsics::preimages::PreimagesXt,
-    state::AccountPreimagesEntry,
+    state::{AccountFootprintDelta, AccountPreimagesEntry},
 };
 use std::{collections::HashSet, sync::Arc};
 
@@ -108,9 +108,10 @@ async fn transition_service_account(
 
     // Iterate all storage entries of the account sandbox and update storage footprint fields
     // of the `AccountMetadata` if there is any change.
-    let footprint_delta = sandbox.footprint_delta_aggregated();
+    let storage_usage_delta = sandbox.storage_usage_delta_aggregated();
     if let Some(metadata_mut) = sandbox.metadata.as_mut() {
-        let updated = metadata_mut.update_footprints(footprint_delta);
+        let updated =
+            metadata_mut.update_footprints(AccountFootprintDelta::from(storage_usage_delta));
         if updated {
             sandbox.metadata.mark_updated()
         }

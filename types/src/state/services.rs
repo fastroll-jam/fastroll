@@ -19,28 +19,57 @@ pub const B_S: Balance = 100; // The basic minimum balance which all services re
 pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
 pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
-#[derive(Clone, Copy)]
-pub struct FootprintDelta {
+#[derive(Clone, Copy, Default)]
+pub struct StorageUsageDelta {
     pub items_count_delta: i32,
     pub octets_delta: i64,
 }
 
-impl FootprintDelta {
+impl StorageUsageDelta {
     pub fn new(items_count_delta: i32, octets_delta: i64) -> Self {
         Self {
             items_count_delta,
             octets_delta,
         }
     }
+}
 
+pub struct AccountStorageUsageDelta {
+    pub storage_delta: StorageUsageDelta,
+    pub lookups_delta: StorageUsageDelta,
+}
+
+struct FootprintDelta {
+    items_footprint_delta: i32,
+    octets_footprint_delta: i64,
+}
+
+impl FootprintDelta {
     fn has_delta(&self) -> bool {
-        self.items_count_delta != 0 || self.octets_delta != 0
+        self.items_footprint_delta != 0 || self.octets_footprint_delta != 0
     }
 }
 
 pub struct AccountFootprintDelta {
-    pub storage_delta: FootprintDelta,
-    pub lookups_delta: FootprintDelta,
+    storage_delta: FootprintDelta,
+    lookups_delta: FootprintDelta,
+}
+
+impl From<AccountStorageUsageDelta> for AccountFootprintDelta {
+    fn from(delta: AccountStorageUsageDelta) -> Self {
+        Self {
+            storage_delta: FootprintDelta {
+                items_footprint_delta: delta.storage_delta.items_count_delta,
+                octets_footprint_delta: 32 * delta.storage_delta.items_count_delta as i64
+                    + delta.storage_delta.octets_delta,
+            },
+            lookups_delta: FootprintDelta {
+                items_footprint_delta: 2 * delta.lookups_delta.items_count_delta,
+                octets_footprint_delta: 81 * delta.lookups_delta.items_count_delta as i64
+                    + delta.lookups_delta.octets_delta,
+            },
+        }
+    }
 }
 
 impl AccountFootprintDelta {
@@ -49,9 +78,9 @@ impl AccountFootprintDelta {
     }
 }
 
-/// Basic service account information.
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AccountInfo {
+/// Service account metadata.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AccountMetadata {
     /// `c`: Service code hash
     pub code_hash: Hash32,
     /// `b`: Service account token balance
@@ -60,96 +89,85 @@ pub struct AccountInfo {
     pub gas_limit_accumulate: UnsignedGas,
     /// `m`: Service-specific gas limit for `on_transfer`
     pub gas_limit_on_transfer: UnsignedGas,
-}
-
-/// Extended version of `AccountInfo` that holds metadata about storage usage of the account, which
-/// are used for derivation of components `i` and `o` of the account state.
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AccountMetadata {
-    pub service_id: ServiceId,
-    pub account_info: AccountInfo,
-    /// The number of entries of the account lookups dictionary
-    pub lookups_items_count: u32,
-    /// The number of entries of the account storage
-    pub storage_items_count: u32,
-    /// The number of total octets used by the account preimage lookup storage
-    /// Note: this counts the preimage data octets, not the lookup timestamp octets.
-    pub lookups_total_octets: u64,
-    /// The number of total octets used by the account storage
-    pub storage_total_octets: u64,
+    /// `i`: The number of entries stored in account storages
+    pub items_footprint: u32,
+    /// `o`: The number of total octets used by account storages
+    pub octets_footprint: u64,
 }
 impl_account_state_component!(AccountMetadata, AccountMetadata);
 
+impl JamEncode for AccountMetadata {
+    fn size_hint(&self) -> usize {
+        self.code_hash.size_hint() + 8 * 4 + 4
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.code_hash.encode_to(dest)?;
+        self.balance.encode_to_fixed(dest, 8)?;
+        self.gas_limit_accumulate.encode_to_fixed(dest, 8)?;
+        self.gas_limit_on_transfer.encode_to_fixed(dest, 8)?;
+        self.octets_footprint.encode_to_fixed(dest, 8)?;
+        self.items_footprint.encode_to_fixed(dest, 4)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for AccountMetadata {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            code_hash: Hash32::decode(input)?,
+            balance: Balance::decode_fixed(input, 8)?,
+            gas_limit_accumulate: UnsignedGas::decode_fixed(input, 8)?,
+            gas_limit_on_transfer: UnsignedGas::decode_fixed(input, 8)?,
+            octets_footprint: u64::decode_fixed(input, 8)?,
+            items_footprint: u32::decode_fixed(input, 4)?,
+        })
+    }
+}
+
 impl AccountMetadata {
-    pub fn new(account_info: AccountInfo) -> Self {
-        Self {
-            account_info,
-            ..Default::default()
-        }
-    }
-
-    /// The number of items in the service storages (`i`)
-    ///
-    /// 2 * `lookups_items_count` + `storage_items_count`
-    pub fn item_counts_footprint(&self) -> u32 {
-        2 * self.lookups_items_count + self.storage_items_count
-    }
-
-    /// The number of total octets used in the service storages (`o`)
-    ///
-    /// Sum({ 81 + preimage_data_len }) + Sum({ 32 + storage_data_len })
-    pub fn total_octets_footprint(&self) -> u64 {
-        81 * self.lookups_items_count as u64
-            + self.lookups_total_octets
-            + 32 * self.storage_items_count as u64
-            + self.storage_total_octets
-    }
-
     pub fn balance(&self) -> Balance {
-        self.account_info.balance
+        self.balance
     }
 
     /// Adds balance to the account and returns the updated balance.
     /// Returns `None` if the balance overflows.
     #[allow(clippy::manual_inspect)]
     pub fn add_balance(&mut self, amount: Balance) -> Option<Balance> {
-        self.account_info
-            .balance
-            .checked_add(amount)
-            .map(|new_balance| {
-                self.account_info.balance = new_balance;
-                new_balance
-            })
+        self.balance.checked_add(amount).map(|new_balance| {
+            self.balance = new_balance;
+            new_balance
+        })
     }
 
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
-        let i = self.item_counts_footprint() as Balance;
-        let o = self.total_octets_footprint();
-
-        B_S + B_I * i + B_L * o
+        B_S + B_I * self.items_footprint as Balance + B_L * self.octets_footprint
     }
 
     /// Calculates the state delta of the storage footprints caused by replacing `prev_entry`
     /// with the `new_entry` in the account storages.
-    pub fn calculate_storage_footprint_delta<T>(
+    pub fn calculate_storage_usage_delta<T>(
         prev_entry: Option<&T>,
         new_entry: Option<&T>,
-    ) -> Option<FootprintDelta>
+    ) -> Option<StorageUsageDelta>
     where
         T: StorageFootprint,
     {
         match (prev_entry, new_entry) {
             (Some(prev), None) => {
                 // Case 1: Removing the existing storage or lookups entry
-                Some(FootprintDelta::new(
+                Some(StorageUsageDelta::new(
                     -1,
                     -(prev.storage_octets_usage() as i64),
                 ))
             }
             (Some(prev), Some(new)) => {
                 // Case 2: Updating the existing storage or lookups entry
-                Some(FootprintDelta::new(
+                Some(StorageUsageDelta::new(
                     0,
                     new.storage_octets_usage() as i64 - prev.storage_octets_usage() as i64,
                 ))
@@ -160,7 +178,7 @@ impl AccountMetadata {
             }
             (None, Some(new)) => {
                 // Case 4: Adding a new storage or lookups entry
-                Some(FootprintDelta::new(1, new.storage_octets_usage() as i64))
+                Some(StorageUsageDelta::new(1, new.storage_octets_usage() as i64))
             }
         }
     }
@@ -170,20 +188,16 @@ impl AccountMetadata {
     /// account storages.
     pub fn simulate_threshold_balance_after_mutation(
         &self,
-        storage_footprint_delta: Option<FootprintDelta>,
-        lookups_footprint_delta: Option<FootprintDelta>,
+        storage_usage_delta: Option<StorageUsageDelta>,
+        lookups_usage_delta: Option<StorageUsageDelta>,
     ) -> Balance {
         let mut simulated = self.clone();
+        let account_storage_usage_delta = AccountStorageUsageDelta {
+            storage_delta: storage_usage_delta.unwrap_or_default(),
+            lookups_delta: lookups_usage_delta.unwrap_or_default(),
+        };
 
-        if let Some(delta) = storage_footprint_delta {
-            simulated.update_storage_items_count(delta.items_count_delta);
-            simulated.update_storage_total_octets(delta.octets_delta);
-        }
-        if let Some(delta) = lookups_footprint_delta {
-            simulated.update_lookups_items_count(delta.items_count_delta);
-            simulated.update_lookups_total_octets(delta.octets_delta);
-        }
-
+        simulated.update_footprints(AccountFootprintDelta::from(account_storage_usage_delta));
         simulated.threshold_balance()
     }
 
@@ -191,54 +205,42 @@ impl AccountMetadata {
         B_S + B_I * 2 + B_L * (code_lookup_len as Balance + 81)
     }
 
-    fn update_storage_items_count(&mut self, delta: i32) {
+    fn apply_items_footprint_delta(footprint: &mut u32, delta: i32) {
         if delta < 0 {
-            self.storage_items_count = self
-                .storage_items_count
-                .saturating_sub(delta.unsigned_abs());
+            *footprint = footprint.saturating_sub(delta.unsigned_abs());
         } else {
-            self.storage_items_count = self.storage_items_count.saturating_add(delta as u32);
+            *footprint = footprint.saturating_add(delta as u32);
         }
     }
 
-    fn update_storage_total_octets(&mut self, delta: i64) {
+    fn apply_octets_footprint_delta(footprint: &mut u64, delta: i64) {
         if delta < 0 {
-            self.storage_total_octets = self
-                .storage_total_octets
-                .saturating_sub(delta.unsigned_abs());
+            *footprint = footprint.saturating_sub(delta.unsigned_abs());
         } else {
-            self.storage_total_octets = self.storage_total_octets.saturating_add(delta as u64);
+            *footprint = footprint.saturating_add(delta as u64);
         }
     }
 
-    fn update_lookups_items_count(&mut self, delta: i32) {
-        if delta < 0 {
-            self.lookups_items_count = self
-                .lookups_items_count
-                .saturating_sub(delta.unsigned_abs());
-        } else {
-            self.lookups_items_count = self.lookups_items_count.saturating_add(delta as u32);
-        }
-    }
-
-    fn update_lookups_total_octets(&mut self, delta: i64) {
-        if delta < 0 {
-            self.lookups_total_octets = self
-                .lookups_total_octets
-                .saturating_sub(delta.unsigned_abs());
-        } else {
-            self.lookups_total_octets = self.lookups_total_octets.saturating_add(delta as u64);
-        }
-    }
-
-    /// Updates service account storage footprints
-    /// and returns a boolean flag to indicate whether footprints are updated.
+    /// Updates service account storage footprints and returns a boolean flag
+    /// to indicate whether footprints are updated.
     pub fn update_footprints(&mut self, delta: AccountFootprintDelta) -> bool {
         if delta.has_delta() {
-            self.update_storage_items_count(delta.storage_delta.items_count_delta);
-            self.update_storage_total_octets(delta.storage_delta.octets_delta);
-            self.update_lookups_items_count(delta.lookups_delta.items_count_delta);
-            self.update_lookups_total_octets(delta.lookups_delta.octets_delta);
+            Self::apply_items_footprint_delta(
+                &mut self.items_footprint,
+                delta.storage_delta.items_footprint_delta,
+            );
+            Self::apply_octets_footprint_delta(
+                &mut self.octets_footprint,
+                delta.storage_delta.octets_footprint_delta,
+            );
+            Self::apply_items_footprint_delta(
+                &mut self.items_footprint,
+                delta.lookups_delta.items_footprint_delta,
+            );
+            Self::apply_octets_footprint_delta(
+                &mut self.octets_footprint,
+                delta.lookups_delta.octets_footprint_delta,
+            );
             true
         } else {
             false
@@ -248,15 +250,13 @@ impl AccountMetadata {
     /// Used by the PVM `host_info` execution.
     pub fn encode_for_info_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
         let mut buf = vec![];
-        self.account_info.code_hash.encode_to(&mut buf)?; // c
-        self.account_info.balance.encode_to(&mut buf)?; // b
+        self.code_hash.encode_to(&mut buf)?; // c
+        self.balance.encode_to(&mut buf)?; // b
         self.threshold_balance().encode_to(&mut buf)?; // t
-        self.account_info.gas_limit_accumulate.encode_to(&mut buf)?; // g
-        self.account_info
-            .gas_limit_on_transfer
-            .encode_to(&mut buf)?; // m
-        self.total_octets_footprint().encode_to(&mut buf)?; // o
-        self.item_counts_footprint().encode_to(&mut buf)?; // i
+        self.gas_limit_accumulate.encode_to(&mut buf)?; // g
+        self.gas_limit_on_transfer.encode_to(&mut buf)?; // m
+        self.octets_footprint.encode_to(&mut buf)?; // o
+        self.items_footprint.encode_to(&mut buf)?; // i
 
         Ok(buf)
     }

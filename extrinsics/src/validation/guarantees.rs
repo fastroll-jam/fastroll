@@ -191,7 +191,7 @@ impl<'a> GuaranteesXtValidator<'a> {
                 .await?;
 
             let target_service_account_min_item_gas = match target_service_account_metadata {
-                Some(account) => account.account_info.gas_limit_accumulate,
+                Some(account) => account.gas_limit_accumulate,
                 None => continue,
             };
 
