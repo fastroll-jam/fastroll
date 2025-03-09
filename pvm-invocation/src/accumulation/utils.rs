@@ -110,7 +110,7 @@ fn extract_queued_reports(
 /// The output represents **`W^*`** of the GP.
 pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
-    accumulate_queue: &mut AccumulateQueue,
+    accumulate_queue: &AccumulateQueue,
     accumulate_history: &AccumulateHistory,
     timeslot_index: u32,
 ) -> Vec<WorkReport> {

@@ -5,7 +5,7 @@ use crate::{
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Hash32, EPOCH_LENGTH};
-use std::collections::BTreeSet;
+use std::{array::from_fn, collections::BTreeSet};
 
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
@@ -19,14 +19,15 @@ pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 /// Represents `θ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
-    items: Vec<Vec<WorkReportDepsMap>>, // length up to EPOCH_LENGTH
+    items: Box<[Vec<WorkReportDepsMap>; EPOCH_LENGTH]>,
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
 
 impl Default for AccumulateQueue {
     fn default() -> Self {
+        let arr = from_fn(|_| Vec::with_capacity(EPOCH_LENGTH));
         Self {
-            items: vec![Vec::new(); EPOCH_LENGTH],
+            items: Box::new(arr),
         }
     }
 }
@@ -68,16 +69,13 @@ impl AccumulateQueue {
     /// entries from index `m` to the end represent the oldest `E - m` entries, followed by
     /// the most recent `m` entries at the beginning of the queue (from index `0` to `m-1`).
     pub fn partition_by_slot_phase_and_flatten(
-        &mut self,
+        &self,
         timeslot_index: u32,
     ) -> Vec<WorkReportDepsMap> {
-        let slot_phase = timeslot_index as usize % EPOCH_LENGTH;
-        let older_entries = self.items.split_off(slot_phase);
-        older_entries
-            .into_iter()
-            .chain(self.items.iter().cloned())
-            .flatten()
-            .collect()
+        let slot_phase = timeslot_index as usize % EPOCH_LENGTH; // m
+        let mut queue_ordered = self.items.clone();
+        queue_ordered.rotate_left(slot_phase);
+        queue_ordered.into_iter().flatten().collect()
     }
 }
 
@@ -86,7 +84,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    items: Vec<BTreeSet<WorkPackageHash>>, // length up to `EPOCH_LENGTH`
+    items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
@@ -97,13 +95,8 @@ impl AccumulateHistory {
     }
 
     pub fn add(&mut self, entry: BTreeSet<WorkPackageHash>) {
-        // TODO: introduce `BoundedVec`
-        if self.items.len() < EPOCH_LENGTH {
-            self.items.push(entry);
-        } else {
-            self.items.remove(0);
-            self.items.push(entry);
-        }
+        self.items.rotate_left(1);
+        self.items[EPOCH_LENGTH - 1] = entry;
     }
 
     pub fn last_history(&self) -> Option<&BTreeSet<WorkPackageHash>> {
