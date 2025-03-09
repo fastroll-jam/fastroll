@@ -78,9 +78,11 @@ impl AccountFootprintDelta {
     }
 }
 
-/// Basic service account information.
+/// FIXME: Fix codec implementation.
+/// Service account metadata.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AccountInfo {
+pub struct AccountMetadata {
+    pub service_id: ServiceId,
     /// `c`: Service code hash
     pub code_hash: Hash32,
     /// `b`: Service account token balance
@@ -89,14 +91,6 @@ pub struct AccountInfo {
     pub gas_limit_accumulate: UnsignedGas,
     /// `m`: Service-specific gas limit for `on_transfer`
     pub gas_limit_on_transfer: UnsignedGas,
-}
-
-/// Extended version of `AccountInfo` that holds metadata about storage usage of the account, which
-/// are used for derivation of components `i` and `o` of the account state.
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AccountMetadata {
-    pub service_id: ServiceId,
-    pub account_info: AccountInfo,
     /// `i`: The number of entries stored in account storages
     pub items_footprint: u32,
     /// `o`: The number of total octets used by account storages
@@ -105,28 +99,18 @@ pub struct AccountMetadata {
 impl_account_state_component!(AccountMetadata, AccountMetadata);
 
 impl AccountMetadata {
-    pub fn new(account_info: AccountInfo) -> Self {
-        Self {
-            account_info,
-            ..Default::default()
-        }
-    }
-
     pub fn balance(&self) -> Balance {
-        self.account_info.balance
+        self.balance
     }
 
     /// Adds balance to the account and returns the updated balance.
     /// Returns `None` if the balance overflows.
     #[allow(clippy::manual_inspect)]
     pub fn add_balance(&mut self, amount: Balance) -> Option<Balance> {
-        self.account_info
-            .balance
-            .checked_add(amount)
-            .map(|new_balance| {
-                self.account_info.balance = new_balance;
-                new_balance
-            })
+        self.balance.checked_add(amount).map(|new_balance| {
+            self.balance = new_balance;
+            new_balance
+        })
     }
 
     /// Get the account threshold balance (t)
@@ -236,13 +220,11 @@ impl AccountMetadata {
     /// Used by the PVM `host_info` execution.
     pub fn encode_for_info_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
         let mut buf = vec![];
-        self.account_info.code_hash.encode_to(&mut buf)?; // c
-        self.account_info.balance.encode_to(&mut buf)?; // b
+        self.code_hash.encode_to(&mut buf)?; // c
+        self.balance.encode_to(&mut buf)?; // b
         self.threshold_balance().encode_to(&mut buf)?; // t
-        self.account_info.gas_limit_accumulate.encode_to(&mut buf)?; // g
-        self.account_info
-            .gas_limit_on_transfer
-            .encode_to(&mut buf)?; // m
+        self.gas_limit_accumulate.encode_to(&mut buf)?; // g
+        self.gas_limit_on_transfer.encode_to(&mut buf)?; // m
         self.octets_footprint.encode_to(&mut buf)?; // o
         self.items_footprint.encode_to(&mut buf)?; // i
 

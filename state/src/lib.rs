@@ -332,7 +332,7 @@ impl StateManager {
         service_id: ServiceId,
     ) -> Result<Option<Hash32>, StateManagerError> {
         match self.get_account_metadata(service_id).await? {
-            Some(metadata) => Ok(Some(metadata.account_info.code_hash)),
+            Some(metadata) => Ok(Some(metadata.code_hash)),
             None => Ok(None),
         }
     }
@@ -347,7 +347,7 @@ impl StateManager {
         service_id: ServiceId,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         let code_hash = match self.get_account_metadata(service_id).await? {
-            Some(metadata) => metadata.account_info.code_hash,
+            Some(metadata) => metadata.code_hash,
             None => return Ok(None),
         };
 

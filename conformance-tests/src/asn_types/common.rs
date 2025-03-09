@@ -29,9 +29,9 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AccountInfo, AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
-        DisputesState, EpochEntropy, EpochValidatorStats, PendingReport, PendingReports,
-        ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
+        AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, DisputesState,
+        EpochEntropy, EpochValidatorStats, PendingReport, PendingReports, ReportedWorkPackage,
+        SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -389,10 +389,10 @@ pub struct AsnServiceItem {
 impl From<AccountMetadata> for AsnServiceItem {
     fn from(value: AccountMetadata) -> Self {
         let info = AsnServiceInfo {
-            code_hash: value.account_info.code_hash.into(),
-            balance: value.account_info.balance,
-            min_item_gas: value.account_info.gas_limit_accumulate,
-            min_memo_gas: value.account_info.gas_limit_on_transfer,
+            code_hash: value.code_hash.into(),
+            balance: value.balance,
+            min_item_gas: value.gas_limit_accumulate,
+            min_memo_gas: value.gas_limit_on_transfer,
             bytes: value.octets_footprint,
             items: value.items_footprint,
         };
@@ -406,16 +406,12 @@ impl From<AccountMetadata> for AsnServiceItem {
 
 impl From<AsnServiceItem> for AccountMetadata {
     fn from(value: AsnServiceItem) -> Self {
-        let account_info = AccountInfo {
+        Self {
+            service_id: value.id,
             code_hash: value.data.service.code_hash.into(),
             balance: value.data.service.balance,
             gas_limit_accumulate: value.data.service.min_item_gas,
             gas_limit_on_transfer: value.data.service.min_memo_gas,
-        };
-
-        Self {
-            service_id: value.id,
-            account_info,
             items_footprint: value.data.service.items,
             octets_footprint: value.data.service.bytes,
         }
