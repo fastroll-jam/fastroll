@@ -3,12 +3,13 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
+    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamDecodeFixed, JamEncode,
+    JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{ValidatorIndex, VALIDATOR_COUNT};
 use std::ops::{Deref, DerefMut};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValidatorStatEntry {
     /// `b`: The number of blocks produced by the validator.
     pub blocks_produced_count: u32,
@@ -22,6 +23,38 @@ pub struct ValidatorStatEntry {
     pub guarantees_count: u32,
     /// `a`: The number of availability assurances made by the validator.
     pub assurances_count: u32,
+}
+
+impl JamEncode for ValidatorStatEntry {
+    fn size_hint(&self) -> usize {
+        4 * 6
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.blocks_produced_count.encode_to_fixed(dest, 4)?;
+        self.tickets_count.encode_to_fixed(dest, 4)?;
+        self.preimages_count.encode_to_fixed(dest, 4)?;
+        self.preimage_data_octets_count.encode_to_fixed(dest, 4)?;
+        self.guarantees_count.encode_to_fixed(dest, 4)?;
+        self.assurances_count.encode_to_fixed(dest, 4)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for ValidatorStatEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            blocks_produced_count: u32::decode_fixed(input, 4)?,
+            tickets_count: u32::decode_fixed(input, 4)?,
+            preimages_count: u32::decode_fixed(input, 4)?,
+            preimage_data_octets_count: u32::decode_fixed(input, 4)?,
+            guarantees_count: u32::decode_fixed(input, 4)?,
+            assurances_count: u32::decode_fixed(input, 4)?,
+        })
+    }
 }
 
 /// Holds statistics for all validator activities during a single epoch.
