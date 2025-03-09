@@ -84,7 +84,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    items: Vec<BTreeSet<WorkPackageHash>>, // length = `EPOCH_LENGTH`
+    items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
@@ -95,13 +95,8 @@ impl AccumulateHistory {
     }
 
     pub fn add(&mut self, entry: BTreeSet<WorkPackageHash>) {
-        // TODO: introduce `BoundedVec`
-        if self.items.len() < EPOCH_LENGTH {
-            self.items.push(entry);
-        } else {
-            self.items.remove(0);
-            self.items.push(entry);
-        }
+        self.items.rotate_left(1);
+        self.items[EPOCH_LENGTH - 1] = entry;
     }
 
     pub fn last_history(&self) -> Option<&BTreeSet<WorkPackageHash>> {
