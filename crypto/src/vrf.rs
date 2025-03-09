@@ -1,10 +1,14 @@
+//! # Attribution Notice
+//!
+//! This module is copied from the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec) repository.
 use crate::CryptoError;
-/// The following code originates from the `bandersnatch-vrfs-spec` repository.
-/// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
-use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
-use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use bandersnatch::{IetfProof, Input, Output, Public, RingProof, Secret};
+use ark_ec_vrfs::{
+    reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
+    suites::bandersnatch,
+};
+use bandersnatch::{
+    BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingContext, RingProof, Secret,
+};
 use rjam_common::{BandersnatchRingVrfSignature, Hash32};
 
 // pub const RING_SIZE: usize = 1023;
@@ -62,7 +66,7 @@ pub(crate) fn ring_context() -> &'static RingContext {
         let mut file = File::open(filename).unwrap();
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
-        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&buf[..]).unwrap();
+        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
         RingContext::from_srs(RING_SIZE, pcs_params).unwrap()
     })
 }
@@ -132,7 +136,7 @@ impl Prover {
     }
 }
 
-pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
+pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<BandersnatchSha512Ell2>;
 
 /// Verifier actor (Ring and its commitment).
 pub struct Verifier {

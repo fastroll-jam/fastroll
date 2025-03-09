@@ -1,8 +1,9 @@
-use crate::{ring_context, CryptoError, RingCommitment, Verifier};
+use crate::{CryptoError, RingCommitment, Verifier};
 use ark_ec_vrfs::{
-    codec::point_decode, prelude::ark_serialize::CanonicalSerialize,
-    suites::bandersnatch::edwards::BandersnatchSha512Ell2, Public,
+    codec::point_decode, reexports::ark_serialize::CanonicalSerialize, ring::RingContext,
+    suites::bandersnatch,
 };
+use bandersnatch::{BandersnatchSha512Ell2, Public};
 use rjam_common::{BandersnatchRingRoot, ValidatorKeySet};
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
@@ -28,18 +29,20 @@ fn generate_ring_root_internal(
     Ok(verifier.commitment)
 }
 
-/// Converts JAM ValidatorKeySet type into Vec<Public> type.
+/// Converts `ValidatorKeySet` type into `Vec<Public>` type.
 pub fn validator_set_to_bandersnatch_ring(
     validator_set: &ValidatorKeySet,
-) -> Result<Vec<Public<BandersnatchSha512Ell2>>, CryptoError> {
+) -> Result<Vec<Public>, CryptoError> {
     let mut public_keys = vec![];
     validator_set.iter().for_each(|validator_key| {
         match point_decode::<BandersnatchSha512Ell2>(&*validator_key.bandersnatch_key) {
             Ok(decoded_point) => {
-                public_keys.push(Public(decoded_point));
+                public_keys.push(Public::from(decoded_point));
             }
             Err(_) => {
-                public_keys.push(Public(ring_context().padding_point()));
+                public_keys.push(Public::from(
+                    RingContext::<BandersnatchSha512Ell2>::padding_point(),
+                ));
             } // Use the padding point if the decoding fails.
         };
     });

@@ -1,4 +1,4 @@
-use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
+use ark_ec_vrfs::reexports::ark_serialize::SerializationError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
