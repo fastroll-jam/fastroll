@@ -60,8 +60,7 @@ mod tests {
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
-            transition_auth_pool(state_manager, &jam_input.extrinsic, jam_input.slot).await?;
-            Ok(())
+            transition_auth_pool(state_manager, &jam_input.extrinsic, jam_input.slot).await
         }
 
         fn map_error_code(_e: TransitionError) -> Self::ErrorCode {

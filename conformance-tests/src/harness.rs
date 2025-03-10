@@ -132,7 +132,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 /// }
 /// ```
 ///
-/// The first entry represents type of the stat transition test.
+/// The first entry represents type of the state transition test.
 /// For the following entries, each entry generates a test function
 /// that calls `run_test_case::<TestType>("path/to/case")`.
 ///

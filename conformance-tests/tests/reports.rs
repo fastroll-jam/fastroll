@@ -158,17 +158,17 @@ mod tests {
             let curr_disputes = state_manager.get_disputes().await?;
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;
-            let curr_accounts: Vec<AccountsMapEntry> =
+            let curr_accounts: Vec<AsnAccountsMapEntry> =
                 join_all(pre_state.accounts.iter().map(|s| async {
                     let metadata = state_manager
                         .get_account_metadata(s.id)
                         .await
                         .unwrap()
                         .unwrap();
-                    AccountsMapEntry {
+                    AsnAccountsMapEntry::from(AccountsMapEntry {
                         service_id: s.id,
                         metadata,
-                    }
+                    })
                 }))
                 .await;
 
@@ -184,10 +184,7 @@ mod tests {
                     .collect(),
                 recent_blocks: curr_blocks_history.into(),
                 auth_pools: curr_auth_pool.into(),
-                accounts: curr_accounts
-                    .into_iter()
-                    .map(AsnAccountsMapEntry::from)
-                    .collect(),
+                accounts: curr_accounts,
             })
         }
     }
