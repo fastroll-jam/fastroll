@@ -259,25 +259,25 @@ fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> Hash32 {
 }
 
 pub fn get_account_storage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
-    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    let mut key_with_prefix = Hash32::default();
     key_with_prefix[0..4].copy_from_slice(
         &u32::MAX
             .encode_fixed(4)
             .expect("encoding u32 should always be successful"),
     );
     key_with_prefix[4..].copy_from_slice(&key[0..28]);
-    construct_storage_state_key(s, &key_with_prefix)
+    construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
 pub fn get_account_preimage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
-    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    let mut key_with_prefix = Hash32::default();
     key_with_prefix[0..4].copy_from_slice(
         &(u32::MAX - 1)
             .encode_fixed(4)
             .expect("encoding u32 should always be successful"),
     );
     key_with_prefix[4..].copy_from_slice(&key[1..29]);
-    construct_storage_state_key(s, &key_with_prefix)
+    construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
 pub fn get_account_lookups_state_key(
@@ -285,7 +285,7 @@ pub fn get_account_lookups_state_key(
     lookups_key: &LookupsKey,
 ) -> Result<Hash32, CryptoError> {
     let (h, l) = lookups_key;
-    let mut key_with_prefix = Vec::with_capacity(HASH_SIZE);
+    let mut key_with_prefix = Hash32::default();
     key_with_prefix[0..4].copy_from_slice(
         &l.encode_fixed(4)
             .expect("encoding u32 should always be successful"),
@@ -293,5 +293,5 @@ pub fn get_account_lookups_state_key(
     let hash_slice = &hash::<Blake2b256>(h.as_slice())?[2..30];
     key_with_prefix[4..].copy_from_slice(hash_slice);
 
-    Ok(construct_storage_state_key(s, &key_with_prefix))
+    Ok(construct_storage_state_key(s, key_with_prefix.as_slice()))
 }
