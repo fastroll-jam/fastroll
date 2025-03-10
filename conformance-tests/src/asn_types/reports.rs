@@ -42,6 +42,54 @@ pub struct AccountsMapEntry {
     pub metadata: AccountMetadata,
 }
 
+/// Subset of the `δ` relevant to the reports STF.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnAccount {
+    service: AsnServiceInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnAccountsMapEntry {
+    pub id: AsnServiceId,
+    pub data: AsnAccount,
+}
+
+impl From<AccountsMapEntry> for AsnAccountsMapEntry {
+    fn from(value: AccountsMapEntry) -> Self {
+        let info = AsnServiceInfo {
+            code_hash: value.metadata.code_hash.into(),
+            balance: value.metadata.balance,
+            min_item_gas: value.metadata.gas_limit_accumulate,
+            min_memo_gas: value.metadata.gas_limit_on_transfer,
+            bytes: value.metadata.octets_footprint,
+            items: value.metadata.items_footprint,
+        };
+
+        Self {
+            id: value.service_id,
+            data: AsnAccount { service: info },
+        }
+    }
+}
+
+impl From<AsnAccountsMapEntry> for AccountsMapEntry {
+    fn from(value: AsnAccountsMapEntry) -> Self {
+        Self {
+            service_id: value.id,
+            metadata: AccountMetadata {
+                code_hash: value.data.service.code_hash.into(),
+                balance: value.data.service.balance,
+                gas_limit_accumulate: value.data.service.min_item_gas,
+                gas_limit_on_transfer: value.data.service.min_memo_gas,
+                items_footprint: value.data.service.items,
+                octets_footprint: value.data.service.bytes,
+            },
+        }
+    }
+}
+
+pub type AsnServices = Vec<AsnAccountsMapEntry>;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     pub avail_assignments: AsnAvailAssignments,

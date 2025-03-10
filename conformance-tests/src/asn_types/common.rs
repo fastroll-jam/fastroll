@@ -1,9 +1,6 @@
 #![allow(dead_code)]
-use crate::{
-    asn_types::reports::AccountsMapEntry,
-    serde_utils::{
-        deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
-    },
+use crate::serde_utils::{
+    deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
 use rjam_common::{
@@ -32,9 +29,9 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AccountMetadata, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, DisputesState,
-        EpochEntropy, EpochValidatorStats, PendingReport, PendingReports, ReportedWorkPackage,
-        SlotSealerType, Timeslot, ValidatorStatEntry, ValidatorStats,
+        AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, DisputesState, EpochEntropy,
+        EpochValidatorStats, PendingReport, PendingReports, ReportedWorkPackage, SlotSealerType,
+        Timeslot, ValidatorStatEntry, ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -374,56 +371,9 @@ pub struct AsnServiceInfo {
     pub balance: u64,
     pub min_item_gas: AsnGas,
     pub min_memo_gas: AsnGas,
-    bytes: u64,
-    items: u32,
+    pub bytes: u64,
+    pub items: u32,
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnAccount {
-    service: AsnServiceInfo,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnAccountsMapEntry {
-    pub id: AsnServiceId,
-    pub data: AsnAccount,
-}
-
-impl From<AccountsMapEntry> for AsnAccountsMapEntry {
-    fn from(value: AccountsMapEntry) -> Self {
-        let info = AsnServiceInfo {
-            code_hash: value.metadata.code_hash.into(),
-            balance: value.metadata.balance,
-            min_item_gas: value.metadata.gas_limit_accumulate,
-            min_memo_gas: value.metadata.gas_limit_on_transfer,
-            bytes: value.metadata.octets_footprint,
-            items: value.metadata.items_footprint,
-        };
-
-        Self {
-            id: value.service_id,
-            data: AsnAccount { service: info },
-        }
-    }
-}
-
-impl From<AsnAccountsMapEntry> for AccountsMapEntry {
-    fn from(value: AsnAccountsMapEntry) -> Self {
-        Self {
-            service_id: value.id,
-            metadata: AccountMetadata {
-                code_hash: value.data.service.code_hash.into(),
-                balance: value.data.service.balance,
-                gas_limit_accumulate: value.data.service.min_item_gas,
-                gas_limit_on_transfer: value.data.service.min_memo_gas,
-                items_footprint: value.data.service.items,
-                octets_footprint: value.data.service.bytes,
-            },
-        }
-    }
-}
-
-pub type AsnServices = Vec<AsnAccountsMapEntry>;
 
 // ----------------------------------------------------
 // -- Availability Assignments
