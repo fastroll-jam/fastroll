@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 pub enum PreimagesErrorCode {
     preimage_unneeded,
     preimages_not_sorted_unique,
+    reserved,
 }
 
 /// Wrapper of `AccountPreimagesEntry` including preimages key.
@@ -124,7 +125,7 @@ pub struct Input {
 
 pub struct JamInput {
     pub extrinsic: PreimagesXt,
-    pub slot: AsnTimeSlot,
+    pub slot: Timeslot,
 }
 
 #[allow(non_camel_case_types)]

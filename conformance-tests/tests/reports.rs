@@ -158,6 +158,7 @@ mod tests {
             let curr_disputes = state_manager.get_disputes().await?;
             let curr_blocks_history = state_manager.get_block_history().await?;
             let curr_auth_pool = state_manager.get_auth_pool().await?;
+            // TODO: Convert type here
             let curr_accounts: Vec<AccountsMapEntry> =
                 join_all(pre_state.accounts.iter().map(|s| async {
                     let metadata = state_manager

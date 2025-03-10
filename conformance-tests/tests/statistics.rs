@@ -75,8 +75,7 @@ mod test {
                 jam_input.author_index,
                 &jam_input.extrinsics,
             )
-            .await?;
-            Ok(())
+            .await
         }
 
         fn map_error_code(_e: TransitionError) -> Self::ErrorCode {
