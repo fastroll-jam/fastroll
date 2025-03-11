@@ -80,10 +80,10 @@ mod tests {
         process_one_immediate_report_1: "process_one_immediate_report-1.json",
 
         // Report with unsatisfied dependency added to the ready-queue.
-        enqueue_and_unlock_simple_1: "enqueue_and_unlock-simple-1.json",
+        enqueue_and_unlock_simple_1: "enqueue_and_unlock_simple-1.json",
 
         // Report with no dependencies that resolves previous dependency.
-        enqueue_and_unlock_simple_2: "enqueue_and_unlock-simple-2.json",
+        enqueue_and_unlock_simple_2: "enqueue_and_unlock_simple-2.json",
 
         // Report with unsatisfied segment tree root dependency added to the ready-queue.
         enqueue_and_unlock_with_sr_lookup_1: "enqueue_and_unlock_with_sr_lookup-1.json",

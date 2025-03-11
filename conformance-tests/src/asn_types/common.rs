@@ -1734,30 +1734,24 @@ pub struct AsnAccumulateQueueRecord {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnAccumulateQueue {
-    pub items: Vec<Vec<AsnAccumulateQueueRecord>>, // SIZE(epoch-length)
-}
+pub struct AsnAccumulateQueue(Vec<Vec<AsnAccumulateQueueRecord>>); // SIZE(epoch-length)
 
 impl From<AsnAccumulateQueue> for AccumulateQueue {
     fn from(value: AsnAccumulateQueue) -> Self {
         let mut items_arr = from_fn(|_| Vec::new());
-        value
-            .items
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, records)| {
-                let records_converted = records
-                    .into_iter()
-                    .map(|record| {
-                        let wr = WorkReport::from(record.report);
-                        let deps = BTreeSet::from_iter(
-                            record.dependencies.into_iter().map(|h| ByteArray::new(h.0)),
-                        );
-                        (wr, deps)
-                    })
-                    .collect();
-                items_arr[i] = records_converted;
-            });
+        value.0.into_iter().enumerate().for_each(|(i, records)| {
+            let records_converted = records
+                .into_iter()
+                .map(|record| {
+                    let wr = WorkReport::from(record.report);
+                    let deps = BTreeSet::from_iter(
+                        record.dependencies.into_iter().map(|h| ByteArray::new(h.0)),
+                    );
+                    (wr, deps)
+                })
+                .collect();
+            items_arr[i] = records_converted;
+        });
         Self {
             items: Box::new(items_arr),
         }
@@ -1766,8 +1760,8 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
 
 impl From<AccumulateQueue> for AsnAccumulateQueue {
     fn from(value: AccumulateQueue) -> Self {
-        Self {
-            items: value
+        Self(
+            value
                 .items
                 .into_iter()
                 .map(|records| {
@@ -1780,19 +1774,17 @@ impl From<AccumulateQueue> for AsnAccumulateQueue {
                         .collect()
                 })
                 .collect(),
-        }
+        )
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnAccumulateHistory {
-    pub items: Vec<Vec<AsnWorkPackageHash>>, // SIZE(epoch-length)
-}
+pub struct AsnAccumulateHistory(Vec<Vec<AsnWorkPackageHash>>); // SIZE(epoch-length)
 
 impl From<AsnAccumulateHistory> for AccumulateHistory {
     fn from(value: AsnAccumulateHistory) -> Self {
         let mut items_arr = from_fn(|_| BTreeSet::new());
-        value.items.into_iter().enumerate().for_each(|(i, wps)| {
+        value.0.into_iter().enumerate().for_each(|(i, wps)| {
             let hash_set = BTreeSet::from_iter(wps.into_iter().map(|h| ByteArray::new(h.0)));
             items_arr[i] = hash_set;
         });
@@ -1804,13 +1796,13 @@ impl From<AsnAccumulateHistory> for AccumulateHistory {
 
 impl From<AccumulateHistory> for AsnAccumulateHistory {
     fn from(value: AccumulateHistory) -> Self {
-        Self {
-            items: value
+        Self(
+            value
                 .items
                 .into_iter()
                 .map(|wps| wps.into_iter().map(AsnWorkPackageHash::from).collect())
                 .collect(),
-        }
+        )
     }
 }
 

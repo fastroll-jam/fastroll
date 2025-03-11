@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccount {
     pub service: AsnServiceInfo,
-    pub preimages: AsnPreimagesMapEntry,
+    pub preimages: Vec<AsnPreimagesMapEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
