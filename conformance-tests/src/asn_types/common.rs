@@ -1727,12 +1727,13 @@ impl From<GuaranteesXt> for AsnGuaranteesXt {
 // -- Accumulation
 // ----------------------------------------------------
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccumulateQueueRecord {
     pub report: AsnWorkReport,
     pub dependencies: Vec<AsnWorkPackageHash>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccumulateQueue {
     pub items: Vec<Vec<AsnAccumulateQueueRecord>>, // SIZE(epoch-length)
 }
@@ -1783,6 +1784,7 @@ impl From<AccumulateQueue> for AsnAccumulateQueue {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccumulateHistory {
     pub items: Vec<Vec<AsnWorkPackageHash>>, // SIZE(epoch-length)
 }
@@ -1812,13 +1814,13 @@ impl From<AccumulateHistory> for AsnAccumulateHistory {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AlwaysAccumulateMapItem {
     pub id: AsnServiceId,
     pub gas: AsnGas,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnPrivilegedServices {
     pub bless: AsnServiceId,
     pub assign: AsnServiceId,

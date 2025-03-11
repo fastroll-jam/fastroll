@@ -1,3 +1,4 @@
+pub mod accumulate;
 pub mod assurances;
 pub mod authorizations;
 pub mod common;
