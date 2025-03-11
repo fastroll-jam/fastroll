@@ -29,15 +29,16 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, DisputesState, EpochEntropy,
-        EpochValidatorStats, PendingReport, PendingReports, ReportedWorkPackage, SlotSealerType,
-        Timeslot, ValidatorStatEntry, ValidatorStats,
+        AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
+        DisputesState, EpochEntropy, EpochValidatorStats, PendingReport, PendingReports,
+        PrivilegedServices, ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry,
+        ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fmt,
     fmt::{Debug, Display},
     ops::Deref,
@@ -1721,6 +1722,141 @@ impl From<GuaranteesXt> for AsnGuaranteesXt {
         )
     }
 }
+
+// ----------------------------------------------------
+// -- Accumulation
+// ----------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AsnAccumulateQueueRecord {
+    pub report: AsnWorkReport,
+    pub dependencies: Vec<AsnWorkPackageHash>,
+}
+
+pub struct AsnAccumulateQueue {
+    pub items: Vec<Vec<AsnAccumulateQueueRecord>>, // SIZE(epoch-length)
+}
+
+impl From<AsnAccumulateQueue> for AccumulateQueue {
+    fn from(value: AsnAccumulateQueue) -> Self {
+        let mut items_arr = from_fn(|_| Vec::new());
+        value
+            .items
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, records)| {
+                let records_converted = records
+                    .into_iter()
+                    .map(|record| {
+                        let wr = WorkReport::from(record.report);
+                        let deps = BTreeSet::from_iter(
+                            record.dependencies.into_iter().map(|h| ByteArray::new(h.0)),
+                        );
+                        (wr, deps)
+                    })
+                    .collect();
+                items_arr[i] = records_converted;
+            });
+        Self {
+            items: Box::new(items_arr),
+        }
+    }
+}
+
+impl From<AccumulateQueue> for AsnAccumulateQueue {
+    fn from(value: AccumulateQueue) -> Self {
+        Self {
+            items: value
+                .items
+                .into_iter()
+                .map(|records| {
+                    records
+                        .into_iter()
+                        .map(|(wr, deps)| AsnAccumulateQueueRecord {
+                            report: AsnWorkReport::from(wr),
+                            dependencies: deps.into_iter().map(AsnWorkPackageHash::from).collect(),
+                        })
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+}
+
+pub struct AsnAccumulateHistory {
+    pub items: Vec<Vec<AsnWorkPackageHash>>, // SIZE(epoch-length)
+}
+
+impl From<AsnAccumulateHistory> for AccumulateHistory {
+    fn from(value: AsnAccumulateHistory) -> Self {
+        let mut items_arr = from_fn(|_| BTreeSet::new());
+        value.items.into_iter().enumerate().for_each(|(i, wps)| {
+            let hash_set = BTreeSet::from_iter(wps.into_iter().map(|h| ByteArray::new(h.0)));
+            items_arr[i] = hash_set;
+        });
+        Self {
+            items: Box::new(items_arr),
+        }
+    }
+}
+
+impl From<AccumulateHistory> for AsnAccumulateHistory {
+    fn from(value: AccumulateHistory) -> Self {
+        Self {
+            items: value
+                .items
+                .into_iter()
+                .map(|wps| wps.into_iter().map(AsnWorkPackageHash::from).collect())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AlwaysAccumulateMapItem {
+    pub id: AsnServiceId,
+    pub gas: AsnGas,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AsnPrivilegedServices {
+    pub bless: AsnServiceId,
+    pub assign: AsnServiceId,
+    pub designate: AsnServiceId,
+    pub always_acc: Vec<AlwaysAccumulateMapItem>,
+}
+
+impl From<AsnPrivilegedServices> for PrivilegedServices {
+    fn from(value: AsnPrivilegedServices) -> Self {
+        Self {
+            manager_service: value.bless,
+            assign_service: value.assign,
+            designate_service: value.designate,
+            always_accumulate_services: value
+                .always_acc
+                .into_iter()
+                .map(|item| (item.id, item.gas))
+                .collect(),
+        }
+    }
+}
+
+impl From<PrivilegedServices> for AsnPrivilegedServices {
+    fn from(value: PrivilegedServices) -> Self {
+        Self {
+            bless: value.manager_service,
+            assign: value.assign_service,
+            designate: value.designate_service,
+            always_acc: value
+                .always_accumulate_services
+                .into_iter()
+                .map(|(id, gas)| AlwaysAccumulateMapItem { id, gas })
+                .collect(),
+        }
+    }
+}
+
+pub type AccumulateRoot = AsnOpaqueHash;
 
 // ----------------------------------------------------
 // -- Header
