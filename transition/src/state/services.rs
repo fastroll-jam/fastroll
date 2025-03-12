@@ -60,7 +60,7 @@ pub struct AccumulateSummary {
 /// - `host_assign`
 pub async fn transition_on_accumulate(
     state_manager: Arc<StateManager>,
-    reports: &[WorkReport],
+    reports: &[WorkReport], // W^*
 ) -> Result<AccumulateSummary, TransitionError> {
     let always_accumulate_services = &state_manager
         .get_privileged_services()

@@ -7,6 +7,13 @@ use rjam_types::{
     },
 };
 
+/// Accumulatable work reports in this block.
+/// Represents **`W^!`** of the GP.
+pub type AccumulatableReports = Vec<WorkReport>;
+/// Pairs of newly queued work reports and their dependencies.
+/// Represents **`W^Q`** of the GP.
+pub type QueuedReports = Vec<WorkReportDepsMap>;
+
 /// Returns a tuple of the given work report and its dependencies; prerequisite package hashes
 /// and segment lookup dictionary keys included in the report.
 ///
@@ -62,7 +69,10 @@ fn extract_accumulatables(queue: &[WorkReportDepsMap]) -> Vec<WorkReport> {
         return vec![];
     }
 
-    extract_accumulatables(&edit_queue(queue, &reports_to_package_hashes(&no_deps)))
+    let deps_resolved =
+        extract_accumulatables(&edit_queue(queue, &reports_to_package_hashes(&no_deps)));
+
+    no_deps.into_iter().chain(deps_resolved).collect()
 }
 
 /// Extracts the corresponding work package hashes from the given work reports.
@@ -107,13 +117,13 @@ fn extract_queued_reports(
 /// Returns accumulatable work reports in this block, including reports with no dependency and
 /// queue reports that became accumulatable after their dependencies getting resolved.
 ///
-/// The output represents **`W^*`** of the GP.
+/// The output represents a pair of (**`W^*`**, **`W^Q`**).
 pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,
     accumulate_history: &AccumulateHistory,
     timeslot_index: u32,
-) -> Vec<WorkReport> {
+) -> (AccumulatableReports, QueuedReports) {
     let (mut accumulatables, reports_with_deps) = partition_reports_by_deps(available_reports);
     let mut queue = accumulate_queue.partition_by_slot_phase_and_flatten(timeslot_index);
 
@@ -126,7 +136,7 @@ pub fn collect_accumulatable_reports(
             .as_slice(),
     );
 
-    queue.extend(new_reports_queued);
+    queue.extend(new_reports_queued.clone());
 
     let queue_resolved = extract_accumulatables(&edit_queue(
         &queue,
@@ -134,7 +144,7 @@ pub fn collect_accumulatable_reports(
     ));
 
     accumulatables.extend(queue_resolved);
-    accumulatables
+    (accumulatables, new_reports_queued)
 }
 
 /// Selects and sorts deferred transfers for a specific `destination`.

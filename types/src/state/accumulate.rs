@@ -19,7 +19,7 @@ pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 /// Represents `θ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
-    items: Box<[Vec<WorkReportDepsMap>; EPOCH_LENGTH]>,
+    pub items: Box<[Vec<WorkReportDepsMap>; EPOCH_LENGTH]>,
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
 
@@ -84,7 +84,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
+    pub items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 

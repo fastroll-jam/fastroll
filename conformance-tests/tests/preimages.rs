@@ -107,8 +107,8 @@ mod tests {
             }
 
             // Get the posterior state from the state cache.
-            let post_accounts = join_all(pre_state.accounts.iter().map(|s| async {
-                let post_preimages = join_all(s.data.preimages.iter().map(|e| async {
+            let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
+                let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
                     // Get the key from the pre-state
                     let key = ByteArray::new(e.hash.0);
                     // Get the posterior preimage value
@@ -124,7 +124,7 @@ mod tests {
                 }))
                 .await;
 
-                let post_lookups = join_all(s.data.lookup_meta.iter().map(|e| async {
+                let curr_lookups = join_all(s.data.lookup_meta.iter().map(|e| async {
                     // Get the key from the pre-state
                     let key = LookupsKey::from(e.key.clone());
                     // Get the posterior lookups value
@@ -140,15 +140,15 @@ mod tests {
                 AsnAccountsMapEntry {
                     id: s.id,
                     data: AsnAccount {
-                        preimages: post_preimages,
-                        lookup_meta: post_lookups,
+                        preimages: curr_preimages,
+                        lookup_meta: curr_lookups,
                     },
                 }
             }))
             .await;
 
             Ok(State {
-                accounts: post_accounts,
+                accounts: curr_accounts,
             })
         }
     }

@@ -10,21 +10,14 @@ pub struct WellBalancedMerkleTree<H: Hasher> {
 }
 
 impl<H: Hasher> WellBalancedMerkleTree<H> {
-    /// Constructs a new WellBalancedMerkleTree and returns the tree
-    pub fn new(data: &[Vec<u8>]) -> Result<Self, MerkleError> {
-        let root = Self::compute_root(data)?;
-        Ok(Self {
-            root,
-            _hasher: PhantomData,
-        })
-    }
-
     /// Computes the root of the well-balanced Merkle tree
     pub fn compute_root(data: &[Vec<u8>]) -> Result<Hash32, MerkleError> {
+        if data.is_empty() {
+            return Ok(Hash32::default());
+        }
         if data.len() == 1 {
             return Ok(hash::<H>(&data[0])?);
         }
-
         octets_to_hash32(&node::<H>(data)?).ok_or(MerkleError::CryptoError(CryptoError::HashError))
     }
 }

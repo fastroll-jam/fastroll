@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 use crate::{AccumulateResult, PVMInvocation};
+use rjam_codec::{JamEncode, JamEncodeFixed};
 use rjam_common::{Hash32, ServiceId, UnsignedGas};
+use rjam_crypto::Keccak256;
+use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
 use rjam_pvm_core::types::{
     accumulation::AccumulateOperand, error::PVMError, invoke_args::AccumulateInvokeArgs,
 };
@@ -8,12 +11,12 @@ use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
 use rjam_state::StateManager;
 use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     sync::Arc,
 };
 
 pub type AccumulationOutputHash = Hash32;
-pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
+pub type AccumulationOutputPairs = BTreeSet<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     /// `g*`: Total amount of gas used while executing `Δ*`.
@@ -97,7 +100,7 @@ async fn accumulate_parallel(
     always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
-    let mut services: HashSet<ServiceId> = reports
+    let mut services: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.results().iter())
         .map(|wir| wir.service_id)
@@ -105,7 +108,7 @@ async fn accumulate_parallel(
     services.extend(always_accumulate_services.keys().cloned());
 
     let mut gas_used: UnsignedGas = 0;
-    let mut output_pairs = Vec::with_capacity(services.len());
+    let mut output_pairs = BTreeSet::new();
     let mut deferred_transfers = Vec::new();
 
     // Concurrent accumulate invocations grouped by service ids.
@@ -134,14 +137,16 @@ async fn accumulate_parallel(
         let accumulate_result = handle.await.unwrap()?;
         gas_used += accumulate_result.gas_used;
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            output_pairs.push((accumulate_result.accumulate_host, output_hash));
+            output_pairs.insert((accumulate_result.accumulate_host, output_hash));
         }
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(
+            state_manager.clone(),
             accumulate_result.accumulate_host,
             partial_state_union,
             accumulate_result.partial_state,
-        );
+        )
+        .await;
     }
 
     Ok(ParallelAccumulationResult {
@@ -151,10 +156,11 @@ async fn accumulate_parallel(
     })
 }
 
-fn add_partial_state_change(
+async fn add_partial_state_change(
+    state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState,
-    accumulate_result_partial_state: AccumulatePartialState,
+    mut accumulate_result_partial_state: AccumulatePartialState,
 ) {
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
@@ -177,11 +183,15 @@ fn add_partial_state_change(
 
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
-        .get_mut_account_sandbox_unchecked(accumulate_host)
+        .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
+        .await
+        .unwrap()
         .expect("should not be None");
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
-        .get_account_sandbox_unchecked(accumulate_host)
+        .get_account_sandbox(state_manager, accumulate_host)
+        .await
+        .unwrap()
         .cloned()
         .expect("should not be None");
 }
@@ -198,7 +208,7 @@ pub async fn accumulate_outer(
     let mut remaining_gas_limit = gas_limit;
 
     let mut deferred_transfers_flattened = Vec::new();
-    let mut output_pairs_flattened = Vec::new();
+    let mut output_pairs_flattened = BTreeSet::new();
 
     // Initialize accumulate partial state
     let mut partial_state_union = AccumulatePartialState::default();
@@ -259,4 +269,20 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
     }
 
     max_processable
+}
+
+/// Generates a commitment to `AccumulationOutputPairs` using a simple binary merkle tree.
+/// Used for producing the BEEFY commitment after accumulation.
+pub fn accumulate_result_commitment(output_pairs: AccumulationOutputPairs) -> Hash32 {
+    // Note: `AccumulationOutputPairs` is already ordered by service id.
+    let ordered_encoded_results = output_pairs
+        .into_iter()
+        .map(|(s, h)| {
+            let mut buf = Vec::with_capacity(36);
+            s.encode_to_fixed(&mut buf, 4).expect("Should not fail");
+            h.encode_to(&mut buf).expect("Should not fail");
+            buf
+        })
+        .collect::<Vec<_>>();
+    WellBalancedMerkleTree::<Keccak256>::compute_root(&ordered_encoded_results).unwrap()
 }
