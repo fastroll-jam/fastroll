@@ -74,9 +74,9 @@ mod tests {
 
             // Add service info for privileged services
             let mut privileged_service_ids = HashSet::new();
-            privileged_service_ids.insert(pre_privileged_services.manager_service.clone());
-            privileged_service_ids.insert(pre_privileged_services.assign_service.clone());
-            privileged_service_ids.insert(pre_privileged_services.designate_service.clone());
+            privileged_service_ids.insert(pre_privileged_services.manager_service);
+            privileged_service_ids.insert(pre_privileged_services.assign_service);
+            privileged_service_ids.insert(pre_privileged_services.designate_service);
             for privileged_service_id in privileged_service_ids {
                 state_manager
                     .add_account_metadata(privileged_service_id, AccountMetadata::default())
