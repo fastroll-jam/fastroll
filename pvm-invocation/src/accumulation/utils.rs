@@ -69,7 +69,10 @@ fn extract_accumulatables(queue: &[WorkReportDepsMap]) -> Vec<WorkReport> {
         return vec![];
     }
 
-    extract_accumulatables(&edit_queue(queue, &reports_to_package_hashes(&no_deps)))
+    let deps_resolved =
+        extract_accumulatables(&edit_queue(queue, &reports_to_package_hashes(&no_deps)));
+
+    no_deps.into_iter().chain(deps_resolved).collect()
 }
 
 /// Extracts the corresponding work package hashes from the given work reports.
@@ -114,7 +117,7 @@ fn extract_queued_reports(
 /// Returns accumulatable work reports in this block, including reports with no dependency and
 /// queue reports that became accumulatable after their dependencies getting resolved.
 ///
-/// The output represents the pair of (**`W^*`**, **`W^Q`**).
+/// The output represents a pair of (**`W^*`**, **`W^Q`**).
 pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,
