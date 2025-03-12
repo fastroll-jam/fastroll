@@ -314,11 +314,7 @@ impl AccountsSandboxMap {
         Ok(self.get(&service_id))
     }
 
-    pub fn get_account_sandbox_unchecked(&self, service_id: ServiceId) -> Option<&AccountSandbox> {
-        self.get(&service_id)
-    }
-
-    async fn get_mut_account_sandbox(
+    pub async fn get_mut_account_sandbox(
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
@@ -326,13 +322,6 @@ impl AccountsSandboxMap {
         self.ensure_account_sandbox_initialized(state_manager, service_id)
             .await?;
         Ok(self.get_mut(&service_id))
-    }
-
-    pub fn get_mut_account_sandbox_unchecked(
-        &mut self,
-        service_id: ServiceId,
-    ) -> Option<&mut AccountSandbox> {
-        self.get_mut(&service_id)
     }
 
     /// Gets a reference to an `AccountMetadata` from the account sandbox.

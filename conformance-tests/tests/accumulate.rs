@@ -73,7 +73,6 @@ mod tests {
                 .await?;
 
             // Add service info for privileged services
-            // TODO: check if necessary
             let mut privileged_service_ids = HashSet::new();
             privileged_service_ids.insert(pre_privileged_services.manager_service.clone());
             privileged_service_ids.insert(pre_privileged_services.assign_service.clone());

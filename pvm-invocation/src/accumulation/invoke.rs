@@ -141,10 +141,12 @@ async fn accumulate_parallel(
         }
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(
+            state_manager.clone(),
             accumulate_result.accumulate_host,
             partial_state_union,
             accumulate_result.partial_state,
-        );
+        )
+        .await;
     }
 
     Ok(ParallelAccumulationResult {
@@ -154,10 +156,11 @@ async fn accumulate_parallel(
     })
 }
 
-fn add_partial_state_change(
+async fn add_partial_state_change(
+    state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
     partial_state_union: &mut AccumulatePartialState,
-    accumulate_result_partial_state: AccumulatePartialState,
+    mut accumulate_result_partial_state: AccumulatePartialState,
 ) {
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
@@ -180,11 +183,15 @@ fn add_partial_state_change(
 
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
-        .get_mut_account_sandbox_unchecked(accumulate_host)
+        .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
+        .await
+        .unwrap()
         .expect("should not be None");
     *accumulate_host_sandbox = accumulate_result_partial_state
         .accounts_sandbox
-        .get_account_sandbox_unchecked(accumulate_host)
+        .get_account_sandbox(state_manager, accumulate_host)
+        .await
+        .unwrap()
         .cloned()
         .expect("should not be None");
 }
