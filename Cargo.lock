@@ -1170,6 +1170,7 @@ dependencies = [
  "rjam-merkle",
  "rjam-pvm",
  "rjam-pvm-core",
+ "rjam-pvm-invocation",
  "rjam-state",
  "rjam-state-merkle",
  "rjam-transition",

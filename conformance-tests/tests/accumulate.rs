@@ -2,20 +2,37 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_common::ByteArray;
+    use rjam_common::{ByteArray, Hash32};
     use rjam_conformance_tests::{
-        asn_types::accumulate::*,
+        asn_types::{
+            accumulate::*,
+            common::{AsnOpaqueHash, AsnServiceInfo},
+            preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
+        },
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
+    use rjam_pvm_invocation::accumulation::{
+        invoke::accumulate_result_commitment, utils::collect_accumulatable_reports,
+    };
     use rjam_state::{error::StateManagerError, StateManager};
     use rjam_transition::{
         error::TransitionError,
-        state::{services::transition_on_accumulate, timeslot::transition_timeslot},
+        state::{
+            accumulate::{transition_accumulate_history, transition_accumulate_queue},
+            services::transition_on_accumulate,
+            timeslot::transition_timeslot,
+        },
     };
-    use rjam_types::state::Timeslot;
-    use std::sync::Arc;
+    use rjam_types::{
+        common::workloads::WorkReport,
+        state::{
+            AccountMetadata, AccumulateHistory, AccumulateQueue, EpochEntropy, PrivilegedServices,
+            Timeslot,
+        },
+    };
+    use std::{collections::HashSet, sync::Arc};
 
     struct AccumulateTest;
 
@@ -28,37 +45,138 @@ mod tests {
         type State = State;
         type JamTransitionOutput = JamTransitionOutput;
         type Output = Output;
-        type ErrorCode = ();
-
+        type ErrorCode = AccumulateErrorCode;
         async fn load_pre_state(
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            todo!()
+            // Convert ASN pre-state into RJAM types.
+            let pre_timeslot = Timeslot::new(test_pre_state.slot);
+            // TODO: why do we need entropy here?
+            let pre_entropy = EpochEntropy([
+                Hash32::from(test_pre_state.entropy),
+                Hash32::default(),
+                Hash32::default(),
+                Hash32::default(),
+            ]);
+            let pre_acc_queue = AccumulateQueue::from(test_pre_state.ready_queue.clone());
+            let pre_acc_history = AccumulateHistory::from(test_pre_state.accumulated.clone());
+            let pre_privileged_services =
+                PrivilegedServices::from(test_pre_state.privileges.clone());
+
+            // Load pre-state info the state cache.
+            state_manager.add_timeslot(pre_timeslot).await?;
+            state_manager.add_epoch_entropy(pre_entropy).await?;
+            state_manager.add_accumulate_queue(pre_acc_queue).await?;
+            state_manager
+                .add_accumulate_history(pre_acc_history)
+                .await?;
+
+            // Add service info for privileged services
+            // TODO: check if necessary
+            let mut privileged_service_ids = HashSet::new();
+            privileged_service_ids.insert(pre_privileged_services.manager_service.clone());
+            privileged_service_ids.insert(pre_privileged_services.assign_service.clone());
+            privileged_service_ids.insert(pre_privileged_services.designate_service.clone());
+            for privileged_service_id in privileged_service_ids {
+                state_manager
+                    .add_account_metadata(privileged_service_id, AccountMetadata::default())
+                    .await?;
+            }
+            state_manager
+                .add_privileged_services(pre_privileged_services)
+                .await?;
+
+            // Add regular accounts
+            for account in &test_pre_state.accounts {
+                // Add service info
+                state_manager
+                    .add_account_metadata(
+                        account.id,
+                        AccountMetadata::from(account.data.service.clone()),
+                    )
+                    .await?;
+                // Add preimages entries
+                for preimage in &account.data.preimages {
+                    let key = ByteArray::new(preimage.hash.0);
+                    let val = PreimagesMapEntry::from(preimage.clone()).data;
+                    state_manager
+                        .add_account_preimages_entry(account.id, &key, val)
+                        .await?;
+                }
+            }
+
+            Ok(())
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            todo!()
+            // Convert ASN Input into RJAM types.
+            Ok(JamInput {
+                slot: Timeslot::new(test_input.slot),
+                reports: test_input
+                    .reports
+                    .clone()
+                    .into_iter()
+                    .map(WorkReport::from)
+                    .collect(),
+            })
         }
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            header_db: &mut BlockHeaderDB,
+            _header_db: &mut BlockHeaderDB,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
-            todo!()
+            // Run state transitions.
+            transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
+            let pre_timeslot = state_manager.get_timeslot_clean().await?;
+            let curr_timeslot = state_manager.get_timeslot().await?;
+            let pre_accumulate_queue = state_manager.get_accumulate_queue().await?;
+            let pre_accumulate_history = state_manager.get_accumulate_history().await?;
+            let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
+                jam_input.reports,
+                &pre_accumulate_queue,
+                &pre_accumulate_history,
+                curr_timeslot.slot(),
+            );
+            let acc_summary =
+                transition_on_accumulate(state_manager.clone(), &accumulatable_reports).await?;
+            transition_accumulate_history(
+                state_manager.clone(),
+                &accumulatable_reports,
+                acc_summary.accumulated_reports_count,
+            )
+            .await?;
+            transition_accumulate_queue(
+                state_manager,
+                &queued_reports,
+                pre_timeslot,
+                curr_timeslot,
+            )
+            .await?;
+
+            Ok(JamTransitionOutput {
+                accumulate_root: accumulate_result_commitment(acc_summary.output_pairs),
+            })
         }
 
-        fn map_error_code(e: TransitionError) -> Self::ErrorCode {
-            todo!()
+        fn map_error_code(_e: TransitionError) -> Self::ErrorCode {
+            // Not specifying the exact error type for now
+            AccumulateErrorCode::reserved
         }
 
         fn extract_output(
-            header_db: &BlockHeaderDB,
+            _header_db: &BlockHeaderDB,
             transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
-            todo!()
+            if error_code.is_some() {
+                return Output::err;
+            }
+
+            Output::ok(AsnOpaqueHash::from(
+                transition_output.unwrap().accumulate_root,
+            ))
         }
 
         async fn extract_post_state(
@@ -66,7 +184,60 @@ mod tests {
             pre_state: &Self::State,
             error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {
-            todo!()
+            if error_code.is_some() {
+                // Rollback state transition
+                return Ok(pre_state.clone());
+            }
+
+            // Get the posterior state from the state cache.
+            let curr_timeslot = state_manager.get_timeslot().await?;
+            let curr_entropy = state_manager.get_epoch_entropy().await?.current();
+            let curr_acc_queue = state_manager.get_accumulate_queue().await?;
+            let curr_acc_history = state_manager.get_accumulate_history().await?;
+            let curr_privileged_services = state_manager.get_privileged_services().await?;
+            let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
+                let curr_metadata = AsnServiceInfo::from(
+                    state_manager
+                        .get_account_metadata(s.id)
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                );
+
+                let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
+                    // Get the key from the pre-state
+                    let key = ByteArray::new(e.hash.0);
+                    // Get the posterior preimage value
+                    let preimage = state_manager
+                        .get_account_preimages_entry(s.id, &key)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    AsnPreimagesMapEntry::from(PreimagesMapEntry {
+                        key,
+                        data: preimage,
+                    })
+                }))
+                .await;
+
+                AsnAccountsMapEntry {
+                    id: s.id,
+                    data: AsnAccount {
+                        service: curr_metadata,
+                        preimages: curr_preimages,
+                    },
+                }
+            }))
+            .await;
+
+            Ok(State {
+                slot: curr_timeslot.slot(),
+                entropy: curr_entropy.into(),
+                ready_queue: curr_acc_queue.into(),
+                accumulated: curr_acc_history.into(),
+                privileges: curr_privileged_services.into(),
+                accounts: curr_accounts,
+            })
         }
     }
 

@@ -9,6 +9,12 @@ use rjam_common::Hash32;
 use rjam_types::{common::workloads::WorkReport, state::Timeslot};
 use serde::{Deserialize, Serialize};
 
+#[allow(non_camel_case_types)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum AccumulateErrorCode {
+    reserved,
+}
+
 /// Subset of the `δ` relevant to the accumulate STF.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnAccount {

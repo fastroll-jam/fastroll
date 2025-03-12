@@ -29,10 +29,10 @@ use rjam_types::{
         Extrinsics,
     },
     state::{
-        AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry,
-        DisputesState, EpochEntropy, EpochValidatorStats, PendingReport, PendingReports,
-        PrivilegedServices, ReportedWorkPackage, SlotSealerType, Timeslot, ValidatorStatEntry,
-        ValidatorStats,
+        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
+        BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
+        PendingReports, PrivilegedServices, ReportedWorkPackage, SlotSealerType, Timeslot,
+        ValidatorStatEntry, ValidatorStats,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -374,6 +374,32 @@ pub struct AsnServiceInfo {
     pub min_memo_gas: AsnGas,
     pub bytes: u64,
     pub items: u32,
+}
+
+impl From<AsnServiceInfo> for AccountMetadata {
+    fn from(value: AsnServiceInfo) -> Self {
+        Self {
+            code_hash: ByteArray::from(value.code_hash),
+            balance: value.balance,
+            gas_limit_accumulate: value.min_item_gas,
+            gas_limit_on_transfer: value.min_memo_gas,
+            items_footprint: value.items,
+            octets_footprint: value.bytes,
+        }
+    }
+}
+
+impl From<AccountMetadata> for AsnServiceInfo {
+    fn from(value: AccountMetadata) -> Self {
+        Self {
+            code_hash: AsnByteArray32::from(value.code_hash),
+            balance: value.balance,
+            min_item_gas: value.gas_limit_accumulate,
+            min_memo_gas: value.gas_limit_on_transfer,
+            items: value.items_footprint,
+            bytes: value.octets_footprint,
+        }
+    }
 }
 
 // ----------------------------------------------------
