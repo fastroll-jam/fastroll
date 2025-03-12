@@ -13,7 +13,7 @@ use std::{
 };
 
 pub type AccumulationOutputHash = Hash32;
-pub type AccumulationOutputPairs = Vec<(ServiceId, AccumulationOutputHash)>;
+pub type AccumulationOutputPairs = HashSet<(ServiceId, AccumulationOutputHash)>;
 
 struct ParallelAccumulationResult {
     /// `g*`: Total amount of gas used while executing `Δ*`.
@@ -105,7 +105,7 @@ async fn accumulate_parallel(
     services.extend(always_accumulate_services.keys().cloned());
 
     let mut gas_used: UnsignedGas = 0;
-    let mut output_pairs = Vec::with_capacity(services.len());
+    let mut output_pairs = HashSet::with_capacity(services.len());
     let mut deferred_transfers = Vec::new();
 
     // Concurrent accumulate invocations grouped by service ids.
@@ -134,7 +134,7 @@ async fn accumulate_parallel(
         let accumulate_result = handle.await.unwrap()?;
         gas_used += accumulate_result.gas_used;
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            output_pairs.push((accumulate_result.accumulate_host, output_hash));
+            output_pairs.insert((accumulate_result.accumulate_host, output_hash));
         }
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(
@@ -198,7 +198,7 @@ pub async fn accumulate_outer(
     let mut remaining_gas_limit = gas_limit;
 
     let mut deferred_transfers_flattened = Vec::new();
-    let mut output_pairs_flattened = Vec::new();
+    let mut output_pairs_flattened = HashSet::new();
 
     // Initialize accumulate partial state
     let mut partial_state_union = AccumulatePartialState::default();
