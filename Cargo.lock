@@ -1295,6 +1295,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-merkle",
  "rjam-pvm",
  "rjam-pvm-core",
  "rjam-pvm-hostcall",
