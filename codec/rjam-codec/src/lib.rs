@@ -19,7 +19,7 @@ use std::{
 };
 use thiserror::Error;
 
-/// Error types for JAM Codec
+/// JAM codec error types.
 #[derive(Debug, Error)]
 pub enum JamCodecError {
     #[error("Invalid size: {0}")]
@@ -32,10 +32,12 @@ pub enum JamCodecError {
     EncodingError(String),
 }
 
-/// Trait that allows reading of data into a slice
+/// Trait that allows reading of data into a slice.
 pub trait JamInput {
+    /// Read the exact number of bytes required to fill the given buffer.
     fn read(&mut self, into: &mut [u8]) -> Result<(), JamCodecError>;
 
+    /// Read a single byte from the input.
     fn read_byte(&mut self) -> Result<u8, JamCodecError> {
         let mut buf = [0u8];
         self.read(&mut buf[..])?;
@@ -57,12 +59,12 @@ impl JamInput for &[u8] {
     }
 }
 
-/// Trait that allows writing of data
+/// Trait that allows writing of data.
 pub trait JamOutput {
-    /// Writes to the output
+    /// Writes to the output.
     fn write(&mut self, bytes: &[u8]);
 
-    /// Writes a single byte to the output
+    /// Writes a single byte to the output.
     fn push_byte(&mut self, byte: u8) {
         self.write(&[byte]);
     }
@@ -92,8 +94,11 @@ pub trait JamDecode {
         Self: Sized;
 }
 
-// Variable length little-endian integer type encoding
-// The first byte includes both length-indicator prefix and part of the encoded data
+// Implements a compact little-endian encoding for variable-length unsigned integer types.
+// The first byte includes both length-indicator prefix and partially encoded data.
+//
+// In the first byte, the number of leading ones before 1-bit zero buffer is used to determine
+// the final length of the encoding.
 fn impl_encode_to_for_integers<T: JamOutput, U: Copy + TryInto<u64>>(
     value: &U,
     dest: &mut T,
@@ -111,47 +116,41 @@ where
     }
 
     // Case 2: 1 <= x < 2^56
+    // Here, `l` is used to determine the number of bytes needed for encoding the integer.
+    // The final encoded result is `l + 1` octets in length.
+    //
+    // `l` is defined as an integer in the range of [0, 8) which satisfies:
+    // 2^{7 * l} <= x < 2^{7 * (l + 1)}.
+    //
+    // Therefore, `l` can be calculated as: floor(log2(x) / 7).
     if x < (1 << 56) {
-        // determine l (0 to 7)
-        let l = if (1..(1 << 7)).contains(&x) {
-            0
-        } else if ((1 << 7)..(1 << 14)).contains(&x) {
-            1
-        } else if ((1 << 14)..(1 << 21)).contains(&x) {
-            2
-        } else if ((1 << 21)..(1 << 28)).contains(&x) {
-            3
-        } else if ((1 << 28)..(1 << 35)).contains(&x) {
-            4
-        } else if ((1 << 35)..(1 << 42)).contains(&x) {
-            5
-        } else if ((1 << 42)..(1 << 49)).contains(&x) {
-            6
-        } else {
-            7
-        };
+        let l = if x == 0 { 0u8 } else { (x.ilog2() / 7) as u8 };
 
         // Set the prefix byte
-        let prefix = if l == 0 { 0 } else { 0xFFu8 << (8 - l) };
+        let leading_ones = if l == 0 {
+            0u16
+        } else {
+            (1 << 8) - (1 << (8 - l))
+        };
 
-        // Divide x by 2^8l
         let divisor = 1u64 << (8 * l);
         let quotient = x / divisor;
         let remainder = x % divisor;
 
         // Combine the prefix and quotient in the first byte
-        let first_byte = prefix | (quotient as u8);
+        let first_byte = leading_ones as u8 | (quotient as u8);
         dest.push_byte(first_byte);
 
-        // Encode the remainder in little-endian format
+        // Encode the remainder in little-endian format (fixed length of l)
         for i in 0..l {
+            // Extract the i-th byte
             dest.push_byte(((remainder >> (8 * i)) & 0xFF) as u8);
         }
     }
     // Case 3: 2^56 <= x < 2^64
     else {
-        dest.push_byte(0xFF);
-        dest.write(&x.to_le_bytes());
+        dest.push_byte(0xFF); // prefix
+        dest.write(&x.to_le_bytes()); // little-endian encoding
     }
 
     Ok(())
@@ -162,24 +161,13 @@ where
     <T as TryInto<u64>>::Error: Debug,
 {
     let x: u64 = value.try_into().expect("Value must fit into u64");
-    if (0..(1 << 7)).contains(&x) {
-        1
-    } else if ((1 << 7)..(1 << 14)).contains(&x) {
-        2
-    } else if ((1 << 14)..(1 << 21)).contains(&x) {
-        3
-    } else if ((1 << 21)..(1 << 28)).contains(&x) {
-        4
-    } else if ((1 << 28)..(1 << 35)).contains(&x) {
-        5
-    } else if ((1 << 35)..(1 << 42)).contains(&x) {
-        6
-    } else if ((1 << 42)..(1 << 49)).contains(&x) {
-        7
-    } else if ((1 << 49)..(1 << 56)).contains(&x) {
-        8
+
+    if x == 0 {
+        1 // 1-byte prefix only
+    } else if x < (1 << 56) {
+        x.ilog2().div_ceil(7) as usize
     } else {
-        9
+        9 // 1-byte prefix + 8-byte little-endian encoding
     }
 }
 
@@ -194,7 +182,7 @@ where
         return U::try_from(0).map_err(|e| JamCodecError::ConversionError(e.to_string()));
     }
 
-    // Count the number of leading one(`1`)s to determine the length prefix
+    // Count the number of leading 1-bits to determine the length prefix
     let length_prefix = first_byte.leading_ones() as usize;
 
     if length_prefix == 8 {
@@ -242,8 +230,7 @@ macro_rules! impl_jam_codec_for_uint {
         )*
     }
 }
-
-impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive integer types
+impl_jam_codec_for_uint!(u8, u16, u32, u64, usize); // Implement for primitive unsigned integer types
 
 impl JamEncode for bool {
     fn size_hint(&self) -> usize {
