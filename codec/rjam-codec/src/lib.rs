@@ -1,3 +1,13 @@
+//! # Attribution Notice
+//!
+//! This library is heavily inspired by and incorporates components originally copied from the
+//! [parity-scale-codec](https://github.com/paritytech/parity-scale-codec) repository.
+//!
+//! ## Modifications
+//!
+//! As the JAM protocol utilizes a modified version of the original SCALE codec, this library retains
+//! much of its overall structure while significantly simplifying and adapting the implementation
+//! to conform to the codec specifications defined in the Graypaper.
 use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use rjam_codec_derive::*;
