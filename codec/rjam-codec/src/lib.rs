@@ -99,7 +99,7 @@ pub trait JamDecode {
 //
 // In the first byte, the number of leading ones before 1-bit zero buffer is used to determine
 // the final length of the encoding.
-fn impl_encode_to_for_integers<T: JamOutput, U: Copy + TryInto<u64>>(
+fn integer_encode_to<T: JamOutput, U: Copy + TryInto<u64>>(
     value: &U,
     dest: &mut T,
 ) -> Result<(), JamCodecError>
@@ -156,7 +156,7 @@ where
     Ok(())
 }
 
-fn impl_size_hint_for_integers<T: TryInto<u64>>(value: T) -> usize
+fn integer_size_hint<T: TryInto<u64>>(value: T) -> usize
 where
     <T as TryInto<u64>>::Error: Debug,
 {
@@ -171,7 +171,7 @@ where
     }
 }
 
-fn impl_decode_for_integers<I: JamInput, U: TryFrom<u64>>(input: &mut I) -> Result<U, JamCodecError>
+fn integer_decode<I: JamInput, U: TryFrom<u64>>(input: &mut I) -> Result<U, JamCodecError>
 where
     <U as TryFrom<u64>>::Error: Debug + Display,
 {
@@ -187,22 +187,15 @@ where
 
     if length_prefix == 8 {
         // Case 3: 2^56 <= x < 2^64
-        let mut value: u64 = 0;
-        for i in 0..8 {
-            value |= (input.read_byte()? as u64) << (8 * i);
-        }
+        let value = u64::decode_fixed(input, 8)?;
         return U::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()));
     }
 
     // Case 2: 2^7l <= x < 2^7(l+1)
     let l = length_prefix;
-    let mask = 0xFFu8 >> l;
+    let mask = 0xFFu8 >> (l + 1);
     let quotient = (first_byte & mask) as u64;
-
-    let mut remainder: u64 = 0;
-    for i in 0..l {
-        remainder |= (input.read_byte()? as u64) << (8 * i);
-    }
+    let remainder = u64::decode_fixed(input, l)?;
 
     // Combine quotient and remainder to get the final decoded value
     let value = (quotient << (8 * l)) | remainder;
@@ -214,17 +207,17 @@ macro_rules! impl_jam_codec_for_uint {
         $(
             impl JamEncode for $t {
                 fn size_hint(&self) -> usize {
-                    impl_size_hint_for_integers(*self)
+                    integer_size_hint(*self)
                 }
 
                 fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-                    impl_encode_to_for_integers(self, dest)
+                    integer_encode_to(self, dest)
                 }
             }
 
             impl JamDecode for $t {
                 fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-                    impl_decode_for_integers(input)
+                    integer_decode(input)
                 }
             }
         )*
@@ -522,17 +515,15 @@ macro_rules! impl_jam_fixed_codec_for_uint {
                 const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
 
                 fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size_in_bytes: usize) -> Result<(), JamCodecError> {
-                    let value: u64 = (*self).try_into().expect("The value must fit into u64");
-                    let bytes = value.to_le_bytes();
-
                     if size_in_bytes > 8 {
-                        panic!("Size cannot be larger than 8 bytes for u64");
+                        return Err(JamCodecError::InvalidSize("Fixed encoding supports up to 8 bytes".into()));
                     }
+                    let value: u64 = (*self).try_into().expect("The value must fit into u64");
 
-                    if bytes[size_in_bytes..].iter().any(|&b| b != 0) {
-                        panic!("Value is too large to fit in {} bytes", size_in_bytes);
+                    if value as u128 > (1u128 << size_in_bytes * 8) - 1 {
+                        return Err(JamCodecError::ConversionError(format!("Value {value} too large for {size_in_bytes} bytes")));
                     }
-
+                    let bytes = value.to_le_bytes();
                     dest.write(&bytes[..size_in_bytes]);
                     Ok(())
                 }
@@ -554,14 +545,12 @@ macro_rules! impl_jam_fixed_codec_for_uint {
                     for i in 0..size_in_bytes {
                         value |= (input.read_byte()? as u64) << (8 * i);
                     }
-
                     Self::try_from(value).map_err(|e| JamCodecError::ConversionError(e.to_string()))
                 }
             }
         )*
     }
 }
-
 impl_jam_fixed_codec_for_uint!(u8, u16, u32, u64, usize);
 
 macro_rules! impl_jam_codec_for_tuple {
@@ -608,7 +597,6 @@ impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
-// Macro to implement Jam Codec for state components that are defined as new types.
 #[macro_export]
 macro_rules! impl_jam_codec_for_newtype {
     ($newtype:ident, $inner:ty) => {
@@ -630,7 +618,6 @@ macro_rules! impl_jam_codec_for_newtype {
     };
 }
 
-// Macro to implement Jam Fixed Codec for state components that are defined as new types.
 #[macro_export]
 macro_rules! impl_jam_fixed_codec_for_newtype {
     ($newtype:ident, $inner:ty) => {
@@ -843,13 +830,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Value is too large to fit in 2 bytes")]
     fn test_fixed_encoding_overflow() {
         let value: u32 = 0x12345678;
         let mut dest = Vec::new();
-        value
-            .encode_to_fixed(&mut dest, 2)
-            .expect("Fixed encoding must succeed");
+        assert!(matches!(
+            value.encode_to_fixed(&mut dest, 2),
+            Err(JamCodecError::ConversionError(_))
+        ))
     }
 
     #[test]
