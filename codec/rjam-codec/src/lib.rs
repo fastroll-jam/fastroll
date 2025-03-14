@@ -231,7 +231,7 @@ impl JamEncode for bool {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        dest.push_byte(if *self { 1 } else { 0 });
+        dest.push_byte(*self as u8);
         Ok(())
     }
 }
@@ -251,8 +251,9 @@ impl JamDecode for bool {
 
 impl<T: JamEncode> JamEncode for Option<T> {
     fn size_hint(&self) -> usize {
+        // 1 byte for the presence marker
         match self {
-            None => 1, // 1 byte for the presence marker
+            None => 1,
             Some(value) => 1 + value.size_hint(),
         }
     }
@@ -260,15 +261,11 @@ impl<T: JamEncode> JamEncode for Option<T> {
     fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
         match self {
             None => {
-                // Note: even with smaller integer type, this will be converted to u64 then
-                // dynamically encoded by integer encoders
-                0u64.encode_to(dest)?; // Encode the absence marker (0)
-                Ok(())
+                0u8.encode_to(dest) // Encode the absence marker (0)
             }
             Some(value) => {
-                1u64.encode_to(dest)?; // Encode the presence marker (1)
-                value.encode_to(dest)?; // Encode the value
-                Ok(())
+                1u8.encode_to(dest)?; // Encode the presence marker (1)
+                value.encode_to(dest) // Encode the value
             }
         }
     }
@@ -276,8 +273,7 @@ impl<T: JamEncode> JamEncode for Option<T> {
 
 impl<T: JamDecode> JamDecode for Option<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let presence = input.read_byte()?;
-        match presence {
+        match input.read_byte()? {
             0 => Ok(None),
             1 => Ok(Some(T::decode(input)?)),
             _ => Err(JamCodecError::InputError("Invalid Option encoding".into())),
@@ -292,16 +288,13 @@ impl<E: JamEncode, const N: usize> JamEncode for [E; N] {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        for element in self {
-            element.encode_to(dest)?;
-        }
-        Ok(())
+        self.iter().try_for_each(|e| e.encode_to(dest))
     }
 }
 
 impl<E: JamDecode, const N: usize> JamDecode for [E; N] {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut arr: Vec<E> = Vec::with_capacity(N);
+        let mut arr = Vec::with_capacity(N);
         for _ in 0..N {
             arr.push(E::decode(input)?);
         }
@@ -320,10 +313,7 @@ impl<T: JamEncode> JamEncode for Vec<T> {
 
     fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
         self.len().encode_to(dest)?; // length discriminator
-        for element in self {
-            element.encode_to(dest)?;
-        }
-        Ok(())
+        self.iter().try_for_each(|e| e.encode_to(dest))
     }
 }
 
@@ -346,30 +336,11 @@ impl JamEncode for BitVec {
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         // Encode the length first
-        self.len().encode_to(dest)?; // Note: number of bits used for length discriminator (different from integers using number of bytes)
+        let len = self.len();
+        len.encode_to(dest)?; // Note: number of bits used for length discriminator (different from integers using number of bytes)
 
-        // Pack bits into octets
-        let mut current_byte = 0u8;
-        let mut bit_count = 0;
-
-        for bit in self.iter() {
-            if bit {
-                current_byte |= 1 << bit_count;
-            }
-            bit_count += 1;
-
-            if bit_count == 8 {
-                dest.push_byte(current_byte);
-                current_byte = 0;
-                bit_count = 0;
-            }
-        }
-
-        // Push the last byte if there are remaining bits
-        if bit_count > 0 {
-            dest.push_byte(current_byte);
-        }
-        Ok(())
+        // Fixed encoding of `length` bits
+        self.encode_to_fixed(dest, len)
     }
 }
 
@@ -377,32 +348,18 @@ impl JamDecode for BitVec {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         // Decode the length first
         let len = usize::decode(input)?;
-        let mut bv = Self::with_capacity(len);
-
-        let byte_count = len.div_ceil(8);
-        for _ in 0..byte_count {
-            let byte = input.read_byte()?;
-            for i in 0..8 {
-                if bv.len() < len {
-                    bv.push(byte & (1 << i) != 0);
-                } else {
-                    break;
-                }
-            }
-        }
-
-        Ok(bv)
+        BitVec::decode_fixed(input, len)
     }
 }
 
-// Codec for simple dictionaries (HashMap)
+// Codec for simple dictionaries (HashMap).
 impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
     fn size_hint(&self) -> usize {
         if self.is_empty() {
             return self.len().size_hint();
         }
         // Sampling an entry to get the size hint of keys and values.
-        let (sample_key, sample_value) = self.iter().next().unwrap();
+        let (sample_key, sample_value) = self.iter().next().expect("At least one entry exists.");
         self.len().size_hint() + (sample_key.size_hint() + sample_value.size_hint()) * self.len()
     }
 
@@ -414,7 +371,7 @@ impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
 
         for key in keys_sorted {
             key.encode_to(dest)?;
-            self.get(key).unwrap().encode_to(dest)?;
+            self.get(key).expect("Entry must exist").encode_to(dest)?;
         }
         Ok(())
     }
@@ -434,19 +391,16 @@ impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
     }
 }
 
-// Length discriminated codec for simple ordered sets (BTreeSet)
+// Length discriminated codec for simple ordered sets (BTreeSet).
 // The length discriminator also follows the Jam Codec rules of integer types.
 impl<T: JamEncode + Ord> JamEncode for BTreeSet<T> {
     fn size_hint(&self) -> usize {
-        self.iter().map(|item| item.size_hint()).sum()
+        self.iter().map(|e| e.size_hint()).sum()
     }
 
     fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
         self.len().encode_to(dest)?; // length discriminator
-        for item in self {
-            item.encode_to(dest)?;
-        }
-        Ok(())
+        self.iter().try_for_each(|e| e.encode_to(dest))
     }
 }
 
@@ -473,8 +427,7 @@ impl<T: JamEncode> JamEncode for Box<T> {
 
 impl<T: JamDecode> JamDecode for Box<T> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let value = T::decode(input)?;
-        Ok(Self::new(value))
+        Ok(Self::new(T::decode(input)?))
     }
 }
 
@@ -484,7 +437,7 @@ pub enum SizeUnit {
 }
 
 pub trait JamEncodeFixed {
-    const SIZE_UNIT: SizeUnit; // associate constant to specify the unit of the size (whether it counts the number of bytes or bits)
+    const SIZE_UNIT: SizeUnit; // whether the size counts the number of bytes or bits
 
     fn encode_to_fixed<T: JamOutput>(&self, dest: &mut T, size: usize)
         -> Result<(), JamCodecError>;
@@ -687,19 +640,6 @@ impl JamEncodeFixed for BitVec {
     }
 }
 
-impl JamDecodeFixed for Vec<u8> {
-    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
-
-    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        let mut buffer = vec![0u8; size];
-        input.read(&mut buffer)?;
-        Ok(buffer)
-    }
-}
-
 impl JamDecodeFixed for BitVec {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 
@@ -724,6 +664,19 @@ impl JamDecodeFixed for BitVec {
             }
         }
         Ok(bv)
+    }
+}
+
+impl JamDecodeFixed for Vec<u8> {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut buffer = vec![0u8; size];
+        input.read(&mut buffer)?;
+        Ok(buffer)
     }
 }
 
