@@ -10,7 +10,6 @@ rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 dashmap = { workspace = true }
-dotenv = { workspace = true }
 hex = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }
