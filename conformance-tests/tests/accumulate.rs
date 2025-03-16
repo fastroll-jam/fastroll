@@ -18,11 +18,11 @@ mod tests {
     };
     use rjam_state::{
         error::StateManagerError,
+        manager::StateManager,
         types::{
             AccountMetadata, AccumulateHistory, AccumulateQueue, EpochEntropy, PrivilegedServices,
             Timeslot,
         },
-        StateManager,
     };
     use rjam_transition::{
         error::TransitionError,

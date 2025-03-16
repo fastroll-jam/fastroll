@@ -10,7 +10,7 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, types::Timeslot, StateManager};
+    use rjam_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
     use rjam_transition::{
         error::TransitionError,
         state::{services::transition_services_integrate_preimages, timeslot::transition_timeslot},

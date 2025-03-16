@@ -19,7 +19,7 @@ use rjam_pvm_hostcall::{
     context::types::InvocationContext,
     host_functions::{HostCallResult, HostCallVMStateChange, HostFunction, MemWrite},
 };
-use rjam_state::StateManager;
+use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
 #[allow(dead_code)]

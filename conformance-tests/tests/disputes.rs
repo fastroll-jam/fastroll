@@ -11,8 +11,8 @@ mod tests {
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
         error::StateManagerError,
+        manager::StateManager,
         types::{ActiveSet, DisputesState, PastSet, PendingReports, Timeslot},
-        StateManager,
     };
     use rjam_transition::{
         error::TransitionError,

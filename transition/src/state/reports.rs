@@ -11,8 +11,9 @@ use rjam_extrinsics::validation::{
     guarantees::GuaranteesXtValidator,
 };
 use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
     types::{PendingReport, Timeslot},
-    StateManager, StateMut,
 };
 use std::sync::Arc;
 

@@ -4,11 +4,12 @@ use rjam_common::{ticket::Ticket, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
     types::{
         generate_fallback_keys, outside_in_vec, ActiveSet, EpochEntropy, SafroleState,
         SlotSealerType, TicketAccumulator, Timeslot, ValidatorSet,
     },
-    StateManager, StateMut,
 };
 use std::sync::Arc;
 

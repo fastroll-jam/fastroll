@@ -16,11 +16,11 @@ use rjam_pvm_core::{
     },
 };
 use rjam_state::{
+    manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue,
         PrivilegedServices, StagingSet, Timeslot,
     },
-    StateManager,
 };
 use std::{collections::HashMap, sync::Arc};
 

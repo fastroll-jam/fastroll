@@ -10,8 +10,8 @@ mod test {
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
         error::StateManagerError,
+        manager::StateManager,
         types::{ActiveSet, Timeslot, ValidatorStats},
-        StateManager,
     };
     use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
     use std::sync::Arc;

@@ -5,7 +5,7 @@ use rjam_common::{
     get_validator_ed25519_key_by_index, CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A,
 };
 use rjam_crypto::{hash, verify_signature, Blake2b256};
-use rjam_state::StateManager;
+use rjam_state::manager::StateManager;
 use std::collections::HashSet;
 
 /// Validates contents of `AssurancesXt` type.

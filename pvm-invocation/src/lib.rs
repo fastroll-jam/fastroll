@@ -19,7 +19,7 @@ use rjam_pvm_hostcall::context::{
     partial_state::{AccountSandbox, AccumulatePartialState},
     types::*,
 };
-use rjam_state::StateManager;
+use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
 // Initial Program Counters

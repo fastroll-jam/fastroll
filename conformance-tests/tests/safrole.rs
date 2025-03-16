@@ -11,11 +11,12 @@ mod tests {
     };
     use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
+        cache::StateMut,
         error::StateManagerError,
+        manager::StateManager,
         types::{
             ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
         },
-        StateManager, StateMut,
     };
     use rjam_transition::{
         error::TransitionError,

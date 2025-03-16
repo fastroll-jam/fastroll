@@ -4,7 +4,7 @@ use rjam_common::{
     Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
-use rjam_state::StateManager;
+use rjam_state::manager::StateManager;
 
 /// Validate contents of `TicketsXt` type.
 ///

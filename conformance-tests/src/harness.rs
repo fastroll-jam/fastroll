@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use rjam_db::header_db::BlockHeaderDB;
-use rjam_state::{error::StateManagerError, StateManager};
+use rjam_state::{error::StateManagerError, manager::StateManager};
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{

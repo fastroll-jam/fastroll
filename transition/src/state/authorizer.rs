@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_block::types::extrinsics::guarantees::GuaranteesXt;
 use rjam_common::{CoreIndex, AUTH_QUEUE_SIZE, MAX_AUTH_POOL_SIZE};
-use rjam_state::{types::Timeslot, StateManager, StateMut};
+use rjam_state::{cache::StateMut, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `AuthPool`.

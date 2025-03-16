@@ -1,12 +1,12 @@
 //! MerkleDB Integration Tests
 use rjam_codec::JamDecode;
 use rjam_state::{
+    cache::StateMut,
     state_utils::{get_simple_state_key, StateKeyConstant},
     test_utils::{
         add_all_simple_state_entries, compare_all_simple_state_cache_and_db, init_db_and_manager,
     },
     types::{AuthPool, PendingReport, PendingReports},
-    StateMut,
 };
 use rjam_state_merkle::codec::test_utils::simple_hash;
 use std::error::Error;

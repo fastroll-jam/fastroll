@@ -10,7 +10,7 @@ use rjam_pvm_core::types::{
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
 };
 use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
-use rjam_state::StateManager;
+use rjam_state::manager::StateManager;
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,

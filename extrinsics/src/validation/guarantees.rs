@@ -15,8 +15,8 @@ use rjam_common::{
 };
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::{
+    manager::StateManager,
     types::{AuthPool, BlockHistory, PendingReports},
-    StateManager,
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.

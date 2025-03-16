@@ -8,7 +8,7 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, types::BlockHistory, StateManager};
+    use rjam_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
     use rjam_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},

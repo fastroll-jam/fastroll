@@ -4,7 +4,7 @@ pub(crate) mod timeslot_scheduler;
 use rjam_common::Hash32;
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_extrinsics::pool::XtPool;
-use rjam_state::{state_db::StateDB, StateManager};
+use rjam_state::{manager::StateManager, state_db::StateDB};
 use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, path::PathBuf, sync::Arc};
 

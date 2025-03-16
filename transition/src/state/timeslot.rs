@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_state::{types::Timeslot, StateManager, StateMut};
+use rjam_state::{cache::StateMut, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `Timeslot`.

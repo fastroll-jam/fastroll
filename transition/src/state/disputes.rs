@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use rjam_block::types::extrinsics::disputes::DisputesXt;
 use rjam_common::Ed25519PubKey;
 use rjam_extrinsics::validation::disputes::DisputesXtValidator;
-use rjam_state::{types::Timeslot, StateManager, StateMut};
+use rjam_state::{cache::StateMut, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `Disputes`.

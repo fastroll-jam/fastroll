@@ -24,11 +24,11 @@ use rjam_pvm_core::{
 };
 use rjam_state::{
     error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
+    manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
         AuthQueue, StagingSet, Timeslot,
     },
-    StateManager,
 };
 use std::{collections::HashMap, sync::Arc};
 

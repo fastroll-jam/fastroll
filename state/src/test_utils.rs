@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use crate::{
+    manager::StateManager,
     state_db::StateDB,
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
@@ -7,7 +8,6 @@ use crate::{
         DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
         StagingSet, Timeslot, ValidatorStats,
     },
-    StateManager,
 };
 use rand::{thread_rng, Rng};
 use rjam_common::Hash32;

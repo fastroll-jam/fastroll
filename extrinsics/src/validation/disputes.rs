@@ -7,8 +7,8 @@ use rjam_common::{
 };
 use rjam_crypto::verify_signature;
 use rjam_state::{
+    manager::StateManager,
     types::{ActiveSet, PastSet, Timeslot, ValidatorSet},
-    StateManager,
 };
 use std::collections::HashSet;
 

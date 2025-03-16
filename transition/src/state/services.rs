@@ -18,8 +18,9 @@ use rjam_pvm_invocation::{
     PVMInvocation,
 };
 use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
     types::{AccountFootprintDelta, AccountPreimagesEntry},
-    StateManager, StateMut,
 };
 use std::{collections::HashSet, sync::Arc};
 

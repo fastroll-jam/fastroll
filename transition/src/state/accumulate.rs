@@ -2,8 +2,9 @@ use crate::error::TransitionError;
 use rjam_common::{workloads::work_report::WorkReport, EPOCH_LENGTH};
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, reports_to_package_hashes};
 use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
     types::{Timeslot, WorkReportDepsMap},
-    StateManager, StateMut,
 };
 use std::{collections::BTreeSet, sync::Arc};
 

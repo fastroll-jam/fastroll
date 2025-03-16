@@ -5,8 +5,8 @@ use rjam_common::{
 };
 use rjam_state::{
     error::StateManagerError,
+    manager::StateManager,
     types::{Timeslot, ValidatorSet},
-    StateManager,
 };
 use thiserror::Error;
 

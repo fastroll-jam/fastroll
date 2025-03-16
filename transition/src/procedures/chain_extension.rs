@@ -14,8 +14,8 @@ use rjam_block::types::{
 use rjam_common::{BandersnatchPubKey, ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::{
+    manager::StateManager,
     types::{outside_in_vec, Timeslot},
-    StateManager,
 };
 use std::sync::Arc;
 

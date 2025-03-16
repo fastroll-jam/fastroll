@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_block::types::extrinsics::Extrinsics;
 use rjam_common::{get_validator_ed25519_key_by_index, ValidatorIndex};
-use rjam_state::{StateManager, StateMut};
+use rjam_state::{cache::StateMut, manager::StateManager};
 use std::sync::Arc;
 
 /// State transition function of `ValidatorStats`

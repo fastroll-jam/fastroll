@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_state::{StateManager, StateMut};
+use rjam_state::{cache::StateMut, manager::StateManager};
 use std::sync::Arc;
 
 /// State transition function of `EpochEntropy`.

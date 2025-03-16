@@ -2,12 +2,12 @@ use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_pvm_core::types::error::PartialStateError;
 use rjam_state::{
     error::StateManagerError,
+    manager::StateManager,
     types::{
         AccountLookupsEntryExt, AccountMetadata, AccountPartialState, AccountPreimagesEntry,
         AccountStorageEntry, AccountStorageUsageDelta, AuthQueue, PrivilegedServices, StagingSet,
         StorageFootprint, StorageUsageDelta, Timeslot,
     },
-    StateManager,
 };
 use std::{
     collections::HashMap,
