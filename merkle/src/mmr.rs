@@ -145,14 +145,13 @@ impl<H: Hasher> MerkleMountainRange<H> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rjam_common::ByteArray;
     use rjam_crypto::Blake2b256;
 
     // Helper function to create a Hash32 from a u8 value
     fn create_hash(value: u8) -> Hash32 {
         let mut hash = [0u8; 32];
         hash[0] = value;
-        ByteArray::new(hash)
+        Hash32::new(hash)
     }
 
     #[test]

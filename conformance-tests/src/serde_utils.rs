@@ -4,8 +4,8 @@ use serde::{
 };
 use std::{fmt, fmt::Formatter};
 
-// Helper deserializers to manage `0x` prefix
-pub fn deserialize_hex_array<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
+/// Helper deserializer for bytes array to manage `0x` prefix
+pub fn deserialize_hex_array<'de, D, const N: usize>(der: D) -> Result<[u8; N], D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -30,10 +30,11 @@ where
         }
     }
 
-    deserializer.deserialize_str(HexVisitor)
+    der.deserialize_str(HexVisitor)
 }
 
-pub fn deserialize_hex_vec<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+/// Helper deserializer for bytes sequence to manage `0x` prefix
+pub fn deserialize_hex_vec<'de, D>(der: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -56,25 +57,23 @@ where
         }
     }
 
-    deserializer.deserialize_str(HexVisitor)
+    der.deserialize_str(HexVisitor)
 }
 
-// Helper serializers to manage `0x` prefix
-pub fn serialize_hex_array<S, const N: usize>(
-    bytes: &[u8; N],
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+/// Helper serializer for bytes array to manage `0x` prefix
+pub fn serialize_hex_array<S, const N: usize>(bytes: &[u8; N], ser: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
+    ser.serialize_str(&hex_string)
 }
 
-pub fn serialize_hex_vec<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+/// Helper serializer for bytes sequence to manage `0x` prefix
+pub fn serialize_hex_vec<S>(bytes: &Vec<u8>, ser: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
+    ser.serialize_str(&hex_string)
 }

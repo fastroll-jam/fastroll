@@ -1,7 +1,7 @@
 //! Assurances state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_common::ByteArray;
+    use rjam_common::Hash32;
     use rjam_conformance_tests::{
         asn_types::{assurances::*, common::*},
         err_map::assurances::map_error_to_custom_code,
@@ -57,7 +57,7 @@ mod tests {
             Ok(JamInput {
                 extrinsic: test_input.assurances.clone().into(),
                 timeslot: Timeslot::new(test_input.slot),
-                parent_hash: ByteArray::new(test_input.parent.0),
+                parent_hash: Hash32::from(test_input.parent),
             })
         }
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::{state_db::StateDB, StateManager};
 use rand::{thread_rng, Rng};
-use rjam_common::{ByteArray, Hash32};
+use rjam_common::Hash32;
 use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
 use rjam_state_merkle::merkle_db::MerkleDB;
 use rjam_types::{
@@ -55,7 +55,7 @@ pub fn init_db_and_manager(parent_hash: Option<Hash32>) -> (BlockHeaderDB, State
 
 pub fn random_state_key() -> Hash32 {
     let mut rng = thread_rng();
-    ByteArray::new(rng.gen())
+    Hash32::new(rng.gen())
 }
 
 pub fn random_state_val(max_len: usize) -> Vec<u8> {

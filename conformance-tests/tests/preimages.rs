@@ -2,7 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_common::{ByteArray, LookupsKey};
+    use rjam_common::{Hash32, LookupsKey};
     use rjam_conformance_tests::{
         asn_types::preimages::*,
         err_map::preimages::map_error_to_custom_code,
@@ -39,7 +39,7 @@ mod tests {
             for account in &test_pre_state.accounts {
                 // Add preimages entries
                 for preimage in &account.data.preimages {
-                    let key = ByteArray::new(preimage.hash.0);
+                    let key = Hash32::from(preimage.hash);
                     let val = PreimagesMapEntry::from(preimage.clone()).data;
                     state_manager
                         .add_account_preimages_entry(account.id, &key, val)
@@ -110,7 +110,7 @@ mod tests {
             let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
                 let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
                     // Get the key from the pre-state
-                    let key = ByteArray::new(e.hash.0);
+                    let key = Hash32::from(e.hash);
                     // Get the posterior preimage value
                     let preimage = state_manager
                         .get_account_preimages_entry(s.id, &key)

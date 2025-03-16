@@ -1,7 +1,7 @@
 use crate::asn_types::common::{
     AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot,
 };
-use rjam_common::{ByteSequence, Hash32, LookupsKey};
+use rjam_common::{Hash32, LookupsKey, Octets};
 use rjam_types::{
     extrinsics::preimages::PreimagesXt,
     state::{AccountLookupsEntry, AccountPreimagesEntry, Timeslot},
@@ -41,7 +41,7 @@ impl From<AsnPreimagesMapEntry> for PreimagesMapEntry {
     fn from(value: AsnPreimagesMapEntry) -> Self {
         Self {
             key: value.hash.into(),
-            data: AccountPreimagesEntry::new(ByteSequence::from_vec(value.blob.0)),
+            data: AccountPreimagesEntry::new(Octets::from(value.blob)),
         }
     }
 }

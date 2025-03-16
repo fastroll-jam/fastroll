@@ -2,7 +2,7 @@ use crate::{CryptoError, IetfVrfSignature, RingVrfSignature};
 use ark_ec_vrfs::prelude::ark_serialize;
 use ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, ByteArray, Hash32};
+use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32};
 
 pub type Blake2b256 = Blake2b<U32>;
 pub type Keccak256 = sha3::Keccak256;
@@ -25,7 +25,7 @@ impl Hasher for Blake2b256 {
         result
             .as_slice()
             .try_into()
-            .map(ByteArray::new)
+            .map(Hash32::new)
             .map_err(|_| CryptoError::Blake2bHashError)
     }
 }
@@ -38,7 +38,7 @@ impl Hasher for Keccak256 {
         result
             .as_slice()
             .try_into()
-            .map(ByteArray::new)
+            .map(Hash32::new)
             .map_err(|_| CryptoError::Keccak256HashError)
     }
 }
@@ -53,7 +53,7 @@ pub fn hash_prefix_4<H: Hasher>(value: &[u8]) -> Result<[u8; 4], CryptoError> {
 }
 
 pub fn octets_to_hash32(value: &[u8]) -> Option<Hash32> {
-    value.try_into().map(ByteArray::new).ok()
+    value.try_into().map(Hash32::new).ok()
 }
 
 // `Y` hash function for a VRF signature

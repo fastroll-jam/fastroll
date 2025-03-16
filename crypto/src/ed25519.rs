@@ -1,18 +1,10 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rand::rngs::OsRng;
-use rjam_common::{ByteArray, Ed25519PubKey, Ed25519SecretKey, Ed25519Signature};
-
-// TODO: Better key type handling.
-
-pub fn generate_random_signer() -> SigningKey {
-    let mut rng = OsRng;
-    SigningKey::generate(&mut rng)
-}
+use rjam_common::{Ed25519PubKey, Ed25519SecretKey, Ed25519Signature};
 
 pub fn sign_message(message: &[u8], secret_key: &Ed25519SecretKey) -> Ed25519Signature {
     let signing_key = SigningKey::from_bytes(secret_key);
     let signature = signing_key.sign(message);
-    ByteArray::new(signature.to_bytes())
+    Ed25519Signature::new(signature.to_bytes())
 }
 
 pub fn verify_signature(
@@ -31,17 +23,24 @@ pub fn verify_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::OsRng;
 
     // Helper function to create a message
     fn create_message() -> Vec<u8> {
         b"Some message".to_vec()
     }
 
+    // Helper function to generate a random signer
+    fn generate_random_signer() -> SigningKey {
+        let mut rng = OsRng;
+        SigningKey::generate(&mut rng)
+    }
+
     // Helper function to generate a random secret key and public key
     fn setup() -> (Ed25519SecretKey, Ed25519PubKey, Vec<u8>) {
         let signing_key = generate_random_signer();
-        let secret_key = ByteArray::new(signing_key.to_bytes());
-        let public_key = ByteArray::new(signing_key.verifying_key().to_bytes());
+        let secret_key = Ed25519SecretKey::new(signing_key.to_bytes());
+        let public_key = Ed25519PubKey::new(signing_key.verifying_key().to_bytes());
         let message = create_message();
         (secret_key, public_key, message)
     }
@@ -78,7 +77,7 @@ mod tests {
         assert!(!verify_signature(
             &message,
             &public_key,
-            &ByteArray::new(invalid_signature)
+            &Ed25519Signature::new(invalid_signature)
         ));
     }
 
@@ -89,7 +88,7 @@ mod tests {
         let invalid_public_key = generate_random_signer().verifying_key().to_bytes();
         assert!(!verify_signature(
             &message,
-            &ByteArray::new(invalid_public_key),
+            &Ed25519PubKey::new(invalid_public_key),
             &signature
         ));
     }

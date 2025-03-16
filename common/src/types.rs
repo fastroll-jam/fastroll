@@ -226,7 +226,7 @@ impl Display for ValidatorKey {
 }
 
 impl ValidatorKey {
-    pub fn to_bytes(self) -> ByteArray<PUBLIC_KEY_SIZE> {
+    pub fn to_byte_array(self) -> ByteArray<PUBLIC_KEY_SIZE> {
         let mut result = [0u8; PUBLIC_KEY_SIZE];
 
         result[0..32].copy_from_slice(&self.bandersnatch_key.0);

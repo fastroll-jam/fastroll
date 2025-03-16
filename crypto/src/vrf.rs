@@ -5,7 +5,7 @@ use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bandersnatch::{IetfProof, Input, Output, Public, RingProof, Secret};
-use rjam_common::{ByteArray, Hash32};
+use rjam_common::Hash32;
 
 // pub const RING_SIZE: usize = 1023;
 pub const RING_SIZE: usize = 6;
@@ -21,7 +21,7 @@ impl IetfVrfSignature {
     pub fn output_hash(&self) -> Hash32 {
         self.output.hash()[..32]
             .try_into()
-            .map(ByteArray::new)
+            .map(Hash32::new)
             .unwrap()
     }
 }
@@ -38,7 +38,7 @@ impl RingVrfSignature {
     pub fn output_hash(&self) -> Hash32 {
         self.output.hash()[..32]
             .try_into()
-            .map(ByteArray::new)
+            .map(Hash32::new)
             .unwrap()
     }
 }

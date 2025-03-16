@@ -136,16 +136,16 @@ impl From<JamTransitionOutput> for OutputData {
         Self {
             reported: output
                 .reported
-                .iter()
+                .into_iter()
                 .map(|reported| AsnReportedPackage {
-                    work_package_hash: AsnByteArray32(reported.work_package_hash.0),
-                    segment_tree_root: AsnByteArray32(reported.segment_root.0),
+                    work_package_hash: AsnOpaqueHash::from(reported.work_package_hash),
+                    segment_tree_root: AsnOpaqueHash::from(reported.segment_root),
                 })
                 .collect(),
             reporters: output
                 .reporters
-                .iter()
-                .map(|key| AsnByteArray32(key.0))
+                .into_iter()
+                .map(AsnEd25519Key::from)
                 .collect(),
         }
     }

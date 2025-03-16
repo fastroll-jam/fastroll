@@ -1,5 +1,5 @@
 use crate::asn_types::common::*;
-use rjam_common::ByteArray;
+use rjam_common::Hash32;
 
 use rjam_types::{
     common::workloads::WorkReport,
@@ -34,7 +34,7 @@ impl From<Input> for GuaranteesXt {
         for auth in value.auths {
             let report = WorkReport {
                 core_index: auth.core,
-                authorizer_hash: ByteArray::new(auth.auth_hash.0),
+                authorizer_hash: Hash32::from(auth.auth_hash),
                 ..Default::default()
             };
 

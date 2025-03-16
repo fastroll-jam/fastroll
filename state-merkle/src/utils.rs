@@ -1,6 +1,6 @@
 use crate::error::StateMerkleError;
 use bit_vec::BitVec;
-use rjam_common::{ByteArray, Hash32};
+use rjam_common::Hash32;
 use std::{collections::Bound, ops::RangeBounds};
 
 /// The `bits` function of the GP (MSB-first encoding for each byte)
@@ -39,7 +39,7 @@ pub(crate) fn bitvec_to_hash32(data: &BitVec) -> Result<Hash32, StateMerkleError
     bytes
         .as_slice()
         .try_into()
-        .map(ByteArray::new)
+        .map(Hash32::new)
         .map_err(|_| StateMerkleError::InvalidByteLength(data.len()))
 }
 

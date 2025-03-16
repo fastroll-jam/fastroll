@@ -3,7 +3,7 @@ use ark_ec_vrfs::{
     codec::point_decode, prelude::ark_serialize::CanonicalSerialize,
     suites::bandersnatch::edwards::BandersnatchSha512Ell2, Public,
 };
-use rjam_common::{BandersnatchRingRoot, ByteArray, ValidatorKeySet};
+use rjam_common::{BandersnatchRingRoot, ValidatorKeySet};
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
@@ -16,7 +16,7 @@ pub fn generate_ring_root(
         .map_err(CryptoError::SerializationError)?;
     bytes
         .try_into()
-        .map(ByteArray::new)
+        .map(BandersnatchRingRoot::new)
         .map_err(|_| CryptoError::RingRootError)
 }
 

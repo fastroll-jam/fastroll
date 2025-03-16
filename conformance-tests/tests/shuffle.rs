@@ -1,6 +1,6 @@
 //! Fisher-Yates Shuffle function conformance tests
 mod tests {
-    use rjam_common::{ByteArray, Hash32};
+    use rjam_common::Hash32;
     use rjam_extrinsics::utils::shuffle::shuffle_with_hash;
     use serde::{Deserialize, Serialize};
     use std::{fs, path::PathBuf};
@@ -20,7 +20,7 @@ mod tests {
         }
 
         fn entropy_as_hash(&self) -> Hash32 {
-            ByteArray::new(
+            Hash32::new(
                 hex::decode(&self.entropy)
                     .expect("Failed to decode entropy hexstring")
                     .try_into()

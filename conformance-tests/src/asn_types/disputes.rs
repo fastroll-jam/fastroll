@@ -19,16 +19,21 @@ pub enum DisputesErrorCode {
     offender_already_reported, // not covered
     bad_judgement_age,
     bad_signature,
-    reserved, // Note: not in ASN
+    reserved,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    pub psi: AsnDisputesRecords,   // Disputes verdicts and offenders
-    pub rho: AsnAvailAssignments,  // Availability cores assignments
-    pub tau: AsnTimeSlot,          // Timeslot
-    pub kappa: AsnValidatorsData,  // Validators active in the current epoch
-    pub lambda: AsnValidatorsData, // Validators active in the previous epoch
+    /// Disputes verdicts and offenders
+    pub psi: AsnDisputesRecords,
+    /// Availability cores assignments.
+    pub rho: AsnAvailAssignments,
+    /// Timeslot.
+    pub tau: AsnTimeSlot,
+    /// Validators active in the current epoch.
+    pub kappa: AsnValidatorsData,
+    /// Validators active in the previous epoch.
+    pub lambda: AsnValidatorsData,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

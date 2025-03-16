@@ -2,7 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_common::{ByteArray, Ed25519PubKey};
+    use rjam_common::Ed25519PubKey;
     use rjam_conformance_tests::{
         asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
@@ -52,7 +52,7 @@ mod tests {
             let offenders: Vec<Ed25519PubKey> = test_pre_state
                 .offenders
                 .iter()
-                .map(|k| ByteArray::new(k.0))
+                .map(|k| Ed25519PubKey::from(*k))
                 .collect();
             let pre_disputes = DisputesState {
                 punish_set: offenders,
@@ -179,8 +179,8 @@ mod tests {
                 entropy: curr_entropy.into(),
                 offenders: curr_disputes
                     .punish_set
-                    .iter()
-                    .map(|k| AsnByteArray32(k.0))
+                    .into_iter()
+                    .map(AsnEd25519Key::from)
                     .collect(),
                 recent_blocks: curr_blocks_history.into(),
                 auth_pools: curr_auth_pool.into(),

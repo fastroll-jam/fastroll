@@ -4,7 +4,7 @@ mod tests {
     use rjam_conformance_tests::harness::run_test_case;
     use std::sync::Arc;
 
-    use rjam_common::ByteArray;
+    use rjam_common::Hash32;
     use rjam_conformance_tests::{
         asn_types::history::*, generate_typed_tests, harness::StateTransitionTest,
     };
@@ -43,15 +43,15 @@ mod tests {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            let header_hash = ByteArray::new(test_input.header_hash.0);
-            let parent_state_root = ByteArray::new(test_input.parent_state_root.0);
-            let accumulate_root = ByteArray::new(test_input.accumulate_root.0);
+            let header_hash = Hash32::from(test_input.header_hash);
+            let parent_state_root = Hash32::from(test_input.parent_state_root);
+            let accumulate_root = Hash32::from(test_input.accumulate_root);
             let reported_packages: Vec<ReportedWorkPackage> = test_input
                 .work_packages
                 .iter()
                 .map(|reported| ReportedWorkPackage {
-                    work_package_hash: ByteArray::new(reported.hash.0),
-                    segment_root: ByteArray::new(reported.exports_root.0),
+                    work_package_hash: Hash32::from(reported.hash),
+                    segment_root: Hash32::from(reported.exports_root),
                 })
                 .collect();
 

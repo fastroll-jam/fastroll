@@ -1,7 +1,7 @@
 //! Safrole state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_common::ByteArray;
+    use rjam_common::{Ed25519PubKey, Hash32};
     use rjam_conformance_tests::{
         asn_types::{common::*, safrole::*},
         err_map::safrole::map_error_to_custom_code,
@@ -55,7 +55,7 @@ mod tests {
             let pre_post_offenders = test_pre_state
                 .post_offenders
                 .iter()
-                .map(|key| ByteArray::new(key.0))
+                .map(|k| Ed25519PubKey::from(*k))
                 .collect();
 
             // Load pre-state into the state cache.
@@ -78,7 +78,7 @@ mod tests {
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
             // Convert ASN Input into RJAM types.
             let input_timeslot = Timeslot::new(test_input.slot);
-            let input_header_entropy_hash = test_input.entropy.0;
+            let input_header_entropy_hash = test_input.entropy;
             let input_ticket_entries: Vec<TicketsXtEntry> = test_input
                 .extrinsic
                 .clone()
@@ -88,7 +88,7 @@ mod tests {
 
             Ok(JamInput {
                 slot: input_timeslot,
-                entropy: ByteArray::new(input_header_entropy_hash),
+                entropy: Hash32::from(input_header_entropy_hash),
                 extrinsic: TicketsXt {
                     items: input_ticket_entries,
                 },
@@ -176,7 +176,7 @@ mod tests {
             let curr_post_offenders = state_manager.get_disputes().await?.punish_set;
 
             // Convert RJAM types post-state into ASN post-state
-            let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(&curr_safrole);
+            let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(curr_safrole);
 
             Ok(State {
                 tau: curr_timeslot.slot(),
@@ -190,7 +190,7 @@ mod tests {
                 gamma_z,
                 post_offenders: curr_post_offenders
                     .into_iter()
-                    .map(AsnByteArray32::from)
+                    .map(AsnEd25519Key::from)
                     .collect(),
             })
         }
