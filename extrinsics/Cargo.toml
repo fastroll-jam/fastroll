@@ -4,12 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rjam-block = { workspace = true }
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
-rjam-merkle = { workspace = true }
 rjam-state = { workspace = true }
-rjam-types = { workspace = true }
-ark-ec-vrfs = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }

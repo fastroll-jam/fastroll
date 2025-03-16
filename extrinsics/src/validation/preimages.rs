@@ -1,7 +1,7 @@
-use crate::validation::error::{XtValidationError, XtValidationError::*};
+use crate::validation::error::XtError;
+use rjam_block::types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_state::StateManager;
-use rjam_types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
+use rjam_state::manager::StateManager;
 use std::collections::HashSet;
 
 /// Validate contents of `PreimagesXt` type.
@@ -28,17 +28,17 @@ impl<'a> PreimagesXtValidator<'a> {
     }
 
     /// Validates the entire `PreimagesXt`.
-    pub async fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtValidationError> {
+    pub async fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtError> {
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(PreimageLookupsNotSorted);
+            return Err(XtError::PreimageLookupsNotSorted);
         }
 
         // Duplicate validation of the preimage entries
         let mut entries = HashSet::new();
         let no_duplicate = extrinsic.iter().all(|entry| entries.insert(entry));
         if !no_duplicate {
-            return Err(DuplicatePreimageLookup);
+            return Err(XtError::DuplicatePreimageLookup);
         }
 
         for entry in extrinsic.iter() {
@@ -49,7 +49,7 @@ impl<'a> PreimagesXtValidator<'a> {
     }
 
     /// Validates each `PreimagesXtEntry`.
-    async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtValidationError> {
+    async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtError> {
         let service_id = entry.service_id;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
@@ -62,7 +62,7 @@ impl<'a> PreimagesXtValidator<'a> {
             .await?
             .is_some()
         {
-            return Err(PreimageAlreadyIntegrated(service_id));
+            return Err(XtError::PreimageAlreadyIntegrated(service_id));
         }
 
         // Preimage must be solicited
@@ -73,10 +73,10 @@ impl<'a> PreimagesXtValidator<'a> {
         {
             Some(entry) => {
                 if !entry.value.is_empty() {
-                    return Err(PreimageNotSolicited(service_id));
+                    return Err(XtError::PreimageNotSolicited(service_id));
                 }
             }
-            None => return Err(PreimageNotSolicited(service_id)),
+            None => return Err(XtError::PreimageNotSolicited(service_id)),
         }
 
         Ok(())

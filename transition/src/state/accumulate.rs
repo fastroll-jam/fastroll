@@ -1,8 +1,11 @@
 use crate::error::TransitionError;
-use rjam_common::EPOCH_LENGTH;
+use rjam_common::{workloads::work_report::WorkReport, EPOCH_LENGTH};
 use rjam_pvm_invocation::accumulation::utils::{edit_queue, reports_to_package_hashes};
-use rjam_state::{StateManager, StateMut};
-use rjam_types::{common::workloads::WorkReport, state::*};
+use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
+    types::{Timeslot, WorkReportDepsMap},
+};
 use std::{collections::BTreeSet, sync::Arc};
 
 /// State transition function of `AccumulateQueue`.

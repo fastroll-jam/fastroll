@@ -1,8 +1,8 @@
-use rjam_common::Hash32;
-use rjam_types::extrinsics::{
+use rjam_block::types::extrinsics::{
     disputes::{Culprit, Fault, Verdict},
     ExtrinsicsError, XtEntry, XtType,
 };
+use rjam_common::Hash32;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
@@ -27,7 +27,7 @@ pub enum DisputesEntryType {
     Fault(Fault),
 }
 
-// Extrinsics entry stored to the main `XtPool` in-memory pool
+/// Extrinsics entry stored to the main `XtPool` in-memory pool
 #[derive(Clone)]
 pub struct OpaqueXtEntry {
     pub hash: Hash32,

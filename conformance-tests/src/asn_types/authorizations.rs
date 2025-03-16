@@ -1,11 +1,9 @@
 use crate::asn_types::common::*;
 use rjam_common::Hash32;
 
-use rjam_types::{
-    common::workloads::WorkReport,
-    extrinsics::guarantees::{GuaranteesXt, GuaranteesXtEntry},
-    state::Timeslot,
-};
+use rjam_block::types::extrinsics::guarantees::{GuaranteesXt, GuaranteesXtEntry};
+use rjam_common::workloads::work_report::WorkReport;
+use rjam_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

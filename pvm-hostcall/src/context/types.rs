@@ -12,11 +12,16 @@ use rjam_pvm_core::{
     types::{
         common::ExportDataSegment,
         error::{HostCallError::*, PVMError},
-        invoke_args::RefineInvokeArgs,
+        invoke_args::{DeferredTransfer, RefineInvokeArgs},
     },
 };
-use rjam_state::StateManager;
-use rjam_types::{common::transfers::DeferredTransfer, state::*};
+use rjam_state::{
+    manager::StateManager,
+    types::{
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue,
+        PrivilegedServices, StagingSet, Timeslot,
+    },
+};
 use std::{collections::HashMap, sync::Arc};
 
 pub trait AccountsSandboxHolder {

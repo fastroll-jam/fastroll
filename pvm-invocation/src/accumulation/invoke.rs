@@ -1,15 +1,16 @@
 #![allow(dead_code)]
 use crate::{AccumulateResult, PVMInvocation};
 use rjam_codec::{JamEncode, JamEncodeFixed};
-use rjam_common::{Hash32, ServiceId, UnsignedGas};
+use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
 use rjam_crypto::Keccak256;
 use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
 use rjam_pvm_core::types::{
-    accumulation::AccumulateOperand, error::PVMError, invoke_args::AccumulateInvokeArgs,
+    accumulation::AccumulateOperand,
+    error::PVMError,
+    invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
 };
 use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
-use rjam_state::StateManager;
-use rjam_types::common::{transfers::DeferredTransfer, workloads::WorkReport};
+use rjam_state::manager::StateManager;
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,

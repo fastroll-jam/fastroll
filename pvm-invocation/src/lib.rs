@@ -1,24 +1,25 @@
 pub mod accumulation;
 
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
-use rjam_common::*;
-use rjam_crypto::octets_to_hash32;
+use rjam_common::{
+    workloads::{
+        common::RefinementContext, work_package::WorkPackage, work_report::WorkExecutionOutput,
+    },
+    *,
+};
+use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm::{CommonInvocationResult, PVM};
 use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::{AccumulateInvokeArgs, OnTransferInvokeArgs, RefineInvokeArgs},
+    invoke_args::{AccumulateInvokeArgs, DeferredTransfer, OnTransferInvokeArgs, RefineInvokeArgs},
 };
 use rjam_pvm_hostcall::context::{
     partial_state::{AccountSandbox, AccumulatePartialState},
     types::*,
 };
-use rjam_state::StateManager;
-use rjam_types::common::{
-    transfers::DeferredTransfer,
-    workloads::{RefinementContext, WorkExecutionOutput, WorkPackage},
-};
+use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
 // Initial Program Counters
@@ -266,7 +267,7 @@ impl PVMInvocation {
         let vm_args = RefineVMArgs {
             service_id: work_item.service_id,
             work_payload: work_item.payload_blob.clone().into_vec(),
-            work_package_hash: args.package.hash()?,
+            work_package_hash: hash::<Blake2b256>(&args.package.encode()?)?,
             refinement_context: args.package.context.clone(),
             auth_code_hash: args.package.authorizer.auth_code_hash,
         };

@@ -5,8 +5,8 @@ use crate::asn_types::{
     },
     preimages::AsnPreimagesMapEntry,
 };
-use rjam_common::Hash32;
-use rjam_types::{common::workloads::WorkReport, state::Timeslot};
+use rjam_common::{workloads::work_report::WorkReport, Hash32};
+use rjam_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]

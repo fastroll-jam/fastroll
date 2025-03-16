@@ -1,19 +1,20 @@
 //! Authorizers state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_conformance_tests::harness::run_test_case;
-    use std::sync::Arc;
-
+    use rjam_block::types::extrinsics::guarantees::GuaranteesXt;
     use rjam_conformance_tests::{
-        asn_types::authorizations::*, generate_typed_tests, harness::StateTransitionTest,
+        asn_types::authorizations::*,
+        generate_typed_tests,
+        harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
-    use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
-    use rjam_types::{
-        extrinsics::guarantees::GuaranteesXt,
-        state::{AuthPool, AuthQueue, Timeslot},
+    use rjam_state::{
+        error::StateManagerError,
+        manager::StateManager,
+        types::{AuthPool, AuthQueue, Timeslot},
     };
+    use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
+    use std::sync::Arc;
 
     struct AuthorizationsTest;
 

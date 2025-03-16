@@ -1,10 +1,12 @@
 use crate::error::TransitionError;
+use rjam_block::types::extrinsics::preimages::PreimagesXt;
 use rjam_common::{
-    ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
+    workloads::work_report::WorkReport, ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES,
+    ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256};
 use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
-use rjam_pvm_core::types::invoke_args::OnTransferInvokeArgs;
+use rjam_pvm_core::types::invoke_args::{DeferredTransfer, OnTransferInvokeArgs};
 use rjam_pvm_hostcall::context::partial_state::{
     AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
 };
@@ -15,11 +17,10 @@ use rjam_pvm_invocation::{
     },
     PVMInvocation,
 };
-use rjam_state::{StateManager, StateMut};
-use rjam_types::{
-    common::{transfers::DeferredTransfer, workloads::WorkReport},
-    extrinsics::preimages::PreimagesXt,
-    state::{AccountFootprintDelta, AccountPreimagesEntry},
+use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
+    types::{AccountFootprintDelta, AccountPreimagesEntry},
 };
 use std::{collections::HashSet, sync::Arc};
 

@@ -481,12 +481,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
-
-[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,6 +1122,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rjam-block"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "thiserror",
+]
+
+[[package]]
+name = "rjam-clock"
+version = "0.1.0"
+dependencies = [
+ "rjam-common",
+ "time",
+]
+
+[[package]]
 name = "rjam-codec"
 version = "0.1.0"
 dependencies = [
@@ -1152,6 +1165,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "rjam-codec",
+ "thiserror",
 ]
 
 [[package]]
@@ -1163,6 +1177,7 @@ dependencies = [
  "futures",
  "hex",
  "paste",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1175,7 +1190,6 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "rjam-transition",
- "rjam-types",
  "serde",
  "serde_json",
  "thiserror",
@@ -1201,12 +1215,12 @@ name = "rjam-db"
 version = "0.1.0"
 dependencies = [
  "dashmap",
- "dotenv",
  "hex",
+ "rjam-block",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-types",
  "rocksdb",
  "thiserror",
  "tokio",
@@ -1216,14 +1230,12 @@ dependencies = [
 name = "rjam-extrinsics"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
  "hex",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-merkle",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1241,13 +1253,12 @@ dependencies = [
 name = "rjam-node"
 version = "0.1.0"
 dependencies = [
+ "rjam-block",
  "rjam-common",
  "rjam-db",
  "rjam-extrinsics",
  "rjam-state",
  "rjam-state-merkle",
- "rjam-transition",
- "rjam-types",
  "tokio",
 ]
 
@@ -1260,7 +1271,6 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-hostcall",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1273,7 +1283,6 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1286,7 +1295,6 @@ dependencies = [
  "rjam-crypto",
  "rjam-pvm-core",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1302,7 +1310,6 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-hostcall",
  "rjam-state",
- "rjam-types",
  "tokio",
 ]
 
@@ -1316,12 +1323,13 @@ dependencies = [
  "hex",
  "paste",
  "rand",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
  "rjam-db",
+ "rjam-merkle",
  "rjam-state-merkle",
- "rjam-types",
  "rocksdb",
  "tempfile",
  "thiserror",
@@ -1347,7 +1355,7 @@ dependencies = [
 name = "rjam-transition"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1358,27 +1366,11 @@ dependencies = [
  "rjam-pvm-hostcall",
  "rjam-pvm-invocation",
  "rjam-state",
- "rjam-types",
  "thiserror",
  "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "rjam-types"
-version = "0.1.0"
-dependencies = [
- "ark-ec-vrfs",
- "bit-vec",
- "hex",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-merkle",
- "thiserror",
- "time",
 ]
 
 [[package]]

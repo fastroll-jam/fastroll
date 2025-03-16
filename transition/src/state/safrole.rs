@@ -1,9 +1,16 @@
 use crate::error::TransitionError;
-use rjam_common::{EPOCH_LENGTH, TICKET_CONTEST_DURATION};
+use rjam_block::types::extrinsics::tickets::TicketsXt;
+use rjam_common::{ticket::Ticket, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
-use rjam_extrinsics::validation::{error::XtValidationError::*, tickets::TicketsXtValidator};
-use rjam_state::{StateManager, StateMut};
-use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
+use rjam_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
+use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
+    types::{
+        generate_fallback_keys, outside_in_vec, ActiveSet, EpochEntropy, SafroleState,
+        SlotSealerType, TicketAccumulator, Timeslot, ValidatorSet,
+    },
+};
 use std::sync::Arc;
 
 /// State transition function of `SafroleState`.
@@ -113,9 +120,9 @@ async fn handle_ticket_accumulation(
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot().await?.slot_phase();
     if current_slot_phase as usize >= TICKET_CONTEST_DURATION {
-        return Err(TransitionError::XtValidationError(TicketSubmissionClosed(
-            current_slot_phase,
-        )));
+        return Err(TransitionError::XtValidationError(
+            XtError::TicketSubmissionClosed(current_slot_phase),
+        ));
     }
 
     // Validate ticket extrinsic data.
@@ -130,7 +137,7 @@ async fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole_clean().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::XtValidationError(DuplicateTicket));
+            return Err(TransitionError::XtValidationError(XtError::DuplicateTicket));
         }
         curr_ticket_accumulator.add(ticket);
     }

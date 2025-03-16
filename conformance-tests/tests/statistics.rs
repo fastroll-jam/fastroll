@@ -1,20 +1,20 @@
 //! Statistics state transition conformance tests
 mod test {
     use async_trait::async_trait;
+    use rjam_block::types::extrinsics::Extrinsics;
     use rjam_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use std::sync::Arc;
-
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
-    use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
-    use rjam_types::{
-        extrinsics::Extrinsics,
-        state::{ActiveSet, Timeslot, ValidatorStats},
+    use rjam_state::{
+        error::StateManagerError,
+        manager::StateManager,
+        types::{ActiveSet, Timeslot, ValidatorStats},
     };
+    use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
+    use std::sync::Arc;
 
     struct StatisticsTest;
 

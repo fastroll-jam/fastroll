@@ -1,12 +1,11 @@
-use crate::validation::error::{XtValidationError, XtValidationError::*};
+use crate::validation::error::XtError;
+use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
 use rjam_codec::{JamEncode, JamEncodeFixed};
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
-use rjam_crypto::{hash, verify_signature, Blake2b256};
-use rjam_state::StateManager;
-use rjam_types::{
-    extrinsics::assurances::{AssurancesXt, AssurancesXtEntry},
-    state::validators::get_validator_ed25519_key_by_index,
+use rjam_common::{
+    get_validator_ed25519_key_by_index, CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A,
 };
+use rjam_crypto::{hash, verify_signature, Blake2b256};
+use rjam_state::manager::StateManager;
 use std::collections::HashSet;
 
 /// Validates contents of `AssurancesXt` type.
@@ -42,10 +41,10 @@ impl<'a> AssurancesXtValidator<'a> {
         &self,
         extrinsic: &AssurancesXt,
         header_parent_hash: &Hash32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check the length limit
         if extrinsic.len() > VALIDATOR_COUNT {
-            return Err(AssurancesEntryLimitExceeded(
+            return Err(XtError::AssurancesEntryLimitExceeded(
                 extrinsic.len(),
                 VALIDATOR_COUNT,
             ));
@@ -53,7 +52,7 @@ impl<'a> AssurancesXtValidator<'a> {
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(AssurancesNotSorted);
+            return Err(XtError::AssurancesNotSorted);
         }
 
         // Duplicate validation of assurers' validator indices
@@ -62,7 +61,7 @@ impl<'a> AssurancesXtValidator<'a> {
             .iter()
             .all(|entry| assurers.insert(entry.validator_index));
         if !no_duplicate_assurer {
-            return Err(DuplicateAssurer);
+            return Err(XtError::DuplicateAssurer);
         }
 
         // Validate each entry
@@ -78,10 +77,10 @@ impl<'a> AssurancesXtValidator<'a> {
         &self,
         entry: &AssurancesXtEntry,
         header_parent_hash: &Hash32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check the anchored parent hash
         if &entry.anchor_parent_hash != header_parent_hash {
-            return Err(InvalidAssuranceParentHash(
+            return Err(XtError::InvalidAssuranceParentHash(
                 entry.anchor_parent_hash.encode_hex(),
                 header_parent_hash.encode_hex(),
                 entry.validator_index,
@@ -102,11 +101,13 @@ impl<'a> AssurancesXtValidator<'a> {
 
         let current_active_set = self.state_manager.get_active_set().await?;
         let assurer_public_key =
-            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
-                .map_err(|_| InvalidValidatorIndex)?;
+            match get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index) {
+                Some(key) => key,
+                None => return Err(XtError::InvalidValidatorIndex),
+            };
 
-        if !verify_signature(&message, &assurer_public_key, &entry.signature) {
-            return Err(InvalidAssuranceSignature(entry.validator_index));
+        if !verify_signature(&message, assurer_public_key, &entry.signature) {
+            return Err(XtError::InvalidAssuranceSignature(entry.validator_index));
         }
 
         // Validate the assuring cores bit-vec
@@ -114,7 +115,7 @@ impl<'a> AssurancesXtValidator<'a> {
         for (core_index, bit) in entry.assuring_cores_bitvec.iter().enumerate() {
             // Cannot assure availability of a core without a pending report
             if bit && pending_reports.0[core_index].is_none() {
-                return Err(NoPendingReportForCore(
+                return Err(XtError::NoPendingReportForCore(
                     core_index as CoreIndex,
                     entry.validator_index,
                 ));

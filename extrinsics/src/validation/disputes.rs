@@ -1,10 +1,14 @@
-use crate::validation::error::{XtValidationError, XtValidationError::*};
-use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
+use crate::validation::error::XtError;
+use rjam_block::types::extrinsics::disputes::{
+    Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
+};
+use rjam_common::{
+    get_validator_ed25519_key_by_index, Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G,
+};
 use rjam_crypto::verify_signature;
-use rjam_state::StateManager;
-use rjam_types::{
-    extrinsics::disputes::{Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation},
-    state::*,
+use rjam_state::{
+    manager::StateManager,
+    types::{ActiveSet, PastSet, Timeslot, ValidatorSet},
 };
 use std::collections::HashSet;
 
@@ -46,16 +50,16 @@ impl<'a> DisputesXtValidator<'a> {
         &self,
         extrinsic: &DisputesXt,
         prior_timeslot: &Timeslot,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check if the entries are sorted
         if !extrinsic.verdicts.is_sorted() {
-            return Err(VerdictsNotSorted);
+            return Err(XtError::VerdictsNotSorted);
         }
         if !extrinsic.culprits.is_sorted() {
-            return Err(CulpritsNotSorted);
+            return Err(XtError::CulpritsNotSorted);
         }
         if !extrinsic.faults.is_sorted() {
-            return Err(FaultsNotSorted);
+            return Err(XtError::FaultsNotSorted);
         }
 
         // Used for duplicate validation
@@ -73,7 +77,7 @@ impl<'a> DisputesXtValidator<'a> {
         for verdict in extrinsic.verdicts.iter() {
             // Check for duplicate entry (report_hash)
             if !verdicts_hashes.insert(verdict.report_hash) {
-                return Err(DuplicateVerdict);
+                return Err(XtError::DuplicateVerdict);
             }
 
             self.validate_verdicts_entry(
@@ -96,7 +100,7 @@ impl<'a> DisputesXtValidator<'a> {
         for culprit in extrinsic.culprits.iter() {
             // Check for duplicate entry (validator_key)
             if !culprits_hashes.insert(culprit.validator_key) {
-                return Err(DuplicateCulprit);
+                return Err(XtError::DuplicateCulprit);
             }
 
             Self::validate_culprits_entry(culprit, &valid_set, &punish_set, extrinsic)?;
@@ -106,7 +110,7 @@ impl<'a> DisputesXtValidator<'a> {
         for fault in extrinsic.faults.iter() {
             // Check for duplicate entry (validator_key)
             if !faults_hashes.insert(fault.validator_key) {
-                return Err(DuplicateFault);
+                return Err(XtError::DuplicateFault);
             }
 
             Self::validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
@@ -138,10 +142,10 @@ impl<'a> DisputesXtValidator<'a> {
         prior_timeslot: &Timeslot,
         all_past_report_hashes: &[Hash32],
         extrinsic: &DisputesXt,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check if verdicts contain entries with epoch index older the previous epoch
         if entry.epoch_index + 1 < prior_timeslot.epoch() {
-            return Err(InvalidJudgmentsAge(
+            return Err(XtError::InvalidJudgmentsAge(
                 entry.epoch_index,
                 prior_timeslot.epoch(),
             ));
@@ -149,23 +153,23 @@ impl<'a> DisputesXtValidator<'a> {
 
         // Check the valid votes count
         if let VerdictEvaluation::Invalid(positive_votes) = entry.evaluate_verdict() {
-            return Err(InvalidVotesCount(positive_votes));
+            return Err(XtError::InvalidVotesCount(positive_votes));
         }
 
         // Check the valid votes count and ensure that the minimum number of culprits or faults
         // corresponding to the verdict is included in the extrinsic.
         match entry.evaluate_verdict() {
             VerdictEvaluation::Invalid(positive_votes) => {
-                return Err(InvalidVotesCount(positive_votes))
+                return Err(XtError::InvalidVotesCount(positive_votes))
             }
             VerdictEvaluation::IsGood => {
                 if extrinsic.count_faults_with_report_hash(&entry.report_hash) < 1 {
-                    return Err(NotEnoughFault(entry.report_hash.encode_hex()));
+                    return Err(XtError::NotEnoughFault(entry.report_hash.encode_hex()));
                 }
             }
             VerdictEvaluation::IsBad => {
                 if extrinsic.count_culprits_with_report_hash(&entry.report_hash) < 2 {
-                    return Err(NotEnoughCulprit(entry.report_hash.encode_hex()));
+                    return Err(XtError::NotEnoughCulprit(entry.report_hash.encode_hex()));
                 }
             }
             _ => (),
@@ -174,19 +178,19 @@ impl<'a> DisputesXtValidator<'a> {
         // Verdicts entry must not be present in any past report hashes - neither in the `GoodSet`,
         // `BadSet`, nor `WonkySet`.
         if all_past_report_hashes.contains(&entry.report_hash) {
-            return Err(VerdictAlreadyExists);
+            return Err(XtError::VerdictAlreadyExists);
         }
 
         // Check if judgments are sorted
         if !entry.judgments.is_sorted() {
-            return Err(JudgmentsNotSorted);
+            return Err(XtError::JudgmentsNotSorted);
         }
 
         // Check for duplicate entry
         let mut voters_set = HashSet::new();
         for judgment in entry.judgments.iter() {
             if !voters_set.insert(judgment.voter) {
-                return Err(DuplicateJudgment);
+                return Err(XtError::DuplicateJudgment);
             }
         }
 
@@ -212,11 +216,13 @@ impl<'a> DisputesXtValidator<'a> {
             };
 
             let voter_public_key =
-                get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
-                    .map_err(|_| InvalidValidatorIndex)?;
+                match get_validator_ed25519_key_by_index(&validator_set, judgment.voter) {
+                    Some(key) => key,
+                    None => return Err(XtError::InvalidValidatorIndex),
+                };
 
-            if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
-                return Err(InvalidJudgmentSignature(judgment.voter));
+            if !verify_signature(message, voter_public_key, &judgment.voter_signature) {
+                return Err(XtError::InvalidJudgmentSignature(judgment.voter));
             }
         }
 
@@ -228,19 +234,25 @@ impl<'a> DisputesXtValidator<'a> {
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],
         extrinsic: &DisputesXt,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
-            return Err(CulpritAlreadyReported(entry.validator_key.encode_hex()));
+            return Err(XtError::CulpritAlreadyReported(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         // Check the verdict entry that corresponds to the fault entry exists
         extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
-            .ok_or(InvalidCulpritReportHash(entry.validator_key.encode_hex()))?;
+            .ok_or(XtError::InvalidCulpritReportHash(
+                entry.validator_key.encode_hex(),
+            ))?;
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorKeySet(entry.validator_key.encode_hex()));
+            return Err(XtError::InvalidValidatorKeySet(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         // FIXME: check the message (X_G?)
@@ -251,7 +263,9 @@ impl<'a> DisputesXtValidator<'a> {
         message.extend_from_slice(hash.as_slice());
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidCulpritSignature(entry.validator_key.encode_hex()));
+            return Err(XtError::InvalidCulpritSignature(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         Ok(())
@@ -262,16 +276,20 @@ impl<'a> DisputesXtValidator<'a> {
         valid_set: &HashSet<Ed25519PubKey>,
         punish_set: &[Ed25519PubKey],
         extrinsic: &DisputesXt,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
-            return Err(FaultAlreadyReported(entry.validator_key.encode_hex()));
+            return Err(XtError::FaultAlreadyReported(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         // Verdict entry that corresponds to the fault entry
         let verdict_entry = extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
-            .ok_or(InvalidFaultReportHash(entry.validator_key.encode_hex()))?;
+            .ok_or(XtError::InvalidFaultReportHash(
+                entry.validator_key.encode_hex(),
+            ))?;
 
         let is_fault = match verdict_entry.evaluate_verdict() {
             VerdictEvaluation::IsGood => !entry.is_report_valid,
@@ -280,11 +298,13 @@ impl<'a> DisputesXtValidator<'a> {
         };
 
         if !is_fault {
-            return Err(NotFault(entry.validator_key.encode_hex()));
+            return Err(XtError::NotFault(entry.validator_key.encode_hex()));
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(InvalidValidatorKeySet(entry.validator_key.encode_hex()));
+            return Err(XtError::InvalidValidatorKeySet(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         // Validate the signature
@@ -301,7 +321,9 @@ impl<'a> DisputesXtValidator<'a> {
         };
 
         if !verify_signature(&message, &entry.validator_key, &entry.signature) {
-            return Err(InvalidFaultSignature(entry.validator_key.encode_hex()));
+            return Err(XtError::InvalidFaultSignature(
+                entry.validator_key.encode_hex(),
+            ));
         }
 
         Ok(())

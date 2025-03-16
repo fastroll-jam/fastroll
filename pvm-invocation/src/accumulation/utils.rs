@@ -1,10 +1,8 @@
-use rjam_common::ServiceId;
-use rjam_types::{
-    common::{transfers::DeferredTransfer, workloads::WorkReport},
-    state::{
-        accumulate::{AccumulateQueue, WorkPackageHash, WorkReportDepsMap},
-        AccumulateHistory,
-    },
+use rjam_common::{workloads::work_report::WorkReport, ServiceId};
+use rjam_pvm_core::types::invoke_args::DeferredTransfer;
+use rjam_state::types::{
+    accumulate::{AccumulateQueue, WorkPackageHash, WorkReportDepsMap},
+    AccumulateHistory,
 };
 
 /// Accumulatable work reports in this block.

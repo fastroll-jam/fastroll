@@ -1,10 +1,10 @@
-use crate::validation::error::{XtValidationError, XtValidationError::*};
+use crate::validation::error::XtError;
+use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use rjam_common::{
     Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
-use rjam_state::StateManager;
-use rjam_types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
+use rjam_state::manager::StateManager;
 
 /// Validate contents of `TicketsXt` type.
 ///
@@ -34,15 +34,15 @@ impl<'a> TicketsXtValidator<'a> {
     }
 
     /// Validates the entire `TicketsXt`.
-    pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtValidationError> {
+    pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtError> {
         // Check the slot phase
         let current_slot_phase = self.state_manger.get_timeslot().await?.slot_phase();
         if current_slot_phase >= TICKET_CONTEST_DURATION as u32 && !extrinsic.is_empty() {
-            return Err(TicketSubmissionClosed(current_slot_phase));
+            return Err(XtError::TicketSubmissionClosed(current_slot_phase));
         }
 
         if extrinsic.len() > MAX_TICKETS_PER_EXTRINSIC {
-            return Err(TicketsEntryLimitExceeded(
+            return Err(XtError::TicketsEntryLimitExceeded(
                 extrinsic.len(),
                 MAX_TICKETS_PER_EXTRINSIC,
             ));
@@ -50,7 +50,7 @@ impl<'a> TicketsXtValidator<'a> {
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(TicketsNotSorted);
+            return Err(XtError::TicketsNotSorted);
         }
 
         let pending_set = self.state_manger.get_safrole().await?.pending_set;
@@ -76,10 +76,10 @@ impl<'a> TicketsXtValidator<'a> {
         entry: &TicketsXtEntry,
         verifier: &Verifier,
         entropy_2: &Hash32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check if the ticket attempt number is correct
         if entry.entry_index > TICKETS_PER_VALIDATOR - 1 {
-            return Err(InvalidTicketAttemptNumber(entry.entry_index));
+            return Err(XtError::InvalidTicketAttemptNumber(entry.entry_index));
         }
 
         Self::validate_ticket_proof(entry, verifier, entropy_2)?;
@@ -95,7 +95,7 @@ impl<'a> TicketsXtValidator<'a> {
         entry: &TicketsXtEntry,
         verifier: &Verifier,
         entropy_2: &Hash32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         let mut expected_vrf_input = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
         expected_vrf_input.extend_from_slice(X_T);
         expected_vrf_input.extend_from_slice(entropy_2.as_slice());
@@ -104,7 +104,7 @@ impl<'a> TicketsXtValidator<'a> {
         let aux_data = vec![]; // no aux data for ticket vrf signature
         verifier
             .ring_vrf_verify(&expected_vrf_input, &aux_data, &entry.ticket_proof[..])
-            .map_err(|_| InvalidTicketProof(hex::encode(&entry.ticket_proof[..])))?;
+            .map_err(|_| XtError::InvalidTicketProof(hex::encode(&entry.ticket_proof[..])))?;
 
         Ok(())
     }

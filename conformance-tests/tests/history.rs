@@ -1,20 +1,19 @@
 //! Block history state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_conformance_tests::harness::run_test_case;
-    use std::sync::Arc;
-
-    use rjam_common::Hash32;
+    use rjam_common::{workloads::ReportedWorkPackage, Hash32};
     use rjam_conformance_tests::{
-        asn_types::history::*, generate_typed_tests, harness::StateTransitionTest,
+        asn_types::history::*,
+        generate_typed_tests,
+        harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
     use rjam_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
-    use rjam_types::state::{history::ReportedWorkPackage, BlockHistory};
+    use std::sync::Arc;
 
     struct HistoryTest;
 

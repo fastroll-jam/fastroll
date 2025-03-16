@@ -3,8 +3,11 @@ use rjam_common::{
     CoreIndex, Hash32, ValidatorKeySet, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD,
     VALIDATOR_COUNT,
 };
-use rjam_state::{error::StateManagerError, StateManager};
-use rjam_types::state::*;
+use rjam_state::{
+    error::StateManagerError,
+    manager::StateManager,
+    types::{Timeslot, ValidatorSet},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

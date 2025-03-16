@@ -1,15 +1,12 @@
 use crate::utils::guarantor_rotation::GuarantorAssignmentError;
-use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_codec::JamCodecError;
-use rjam_common::{CoreIndex, ServiceId, ValidatorIndex};
+use rjam_common::{workloads::WorkReportError, CoreIndex, ServiceId, ValidatorIndex};
 use rjam_crypto::CryptoError;
-use rjam_merkle::common::MerkleError;
 use rjam_state::error::StateManagerError;
-use rjam_types::common::workloads::WorkReportError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum XtValidationError {
+pub enum XtError {
     // Common validation errors
     #[error("Invalid validator index (out of range)")]
     InvalidValidatorIndex,
@@ -111,6 +108,8 @@ pub enum XtValidationError {
     AnchorBlockNotFound(CoreIndex, String),
     #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
     InvalidAnchorStateRoot(CoreIndex, String),
+    #[error("Failed to calculate the MMR root.")]
+    MMRCalculationFailed,
     #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block hash: {1}")]
     InvalidAnchorBeefyRoot(CoreIndex, String),
     #[error("Lookup anchor block timed out. Core index: {0}, Provided lookup anchor hash: {1}")]
@@ -169,12 +168,8 @@ pub enum XtValidationError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
-    #[error("MerkleError: {0}")]
-    MerkleError(#[from] MerkleError),
     #[error("WorkReportError: {0}")]
     WorkReportError(#[from] WorkReportError),
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] SerializationError),
     #[error("GuarantorAssignmentError: {0}")]
     GuarantorAssignmentError(#[from] GuarantorAssignmentError),
 }

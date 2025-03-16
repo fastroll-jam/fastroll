@@ -12,14 +12,17 @@ mod tests {
     use std::sync::Arc;
 
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{
+        error::StateManagerError,
+        manager::StateManager,
+        types::{
+            ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet,
+            PendingReports, Timeslot,
+        },
+    };
     use rjam_transition::{
         error::TransitionError,
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
-    };
-    use rjam_types::state::{
-        ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports,
-        Timeslot,
     };
 
     struct ReportsTest;

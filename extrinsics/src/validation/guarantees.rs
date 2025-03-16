@@ -1,18 +1,22 @@
-use crate::{
-    utils::guarantor_rotation::GuarantorAssignment,
-    validation::error::{XtValidationError, XtValidationError::*},
+use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::XtError};
+use rjam_block::types::extrinsics::guarantees::{
+    GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry,
 };
+use rjam_codec::JamEncode;
 use rjam_common::{
+    get_validator_ed25519_key_by_index,
+    workloads::{
+        common::RefinementContext,
+        work_report::{ReportedWorkPackage, WorkReport},
+    },
     CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
     GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
     PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
-use rjam_crypto::verify_signature;
-use rjam_state::StateManager;
-use rjam_types::{
-    common::workloads::{RefinementContext, WorkReport},
-    extrinsics::guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
-    state::*,
+use rjam_crypto::{hash, verify_signature, Blake2b256};
+use rjam_state::{
+    manager::StateManager,
+    types::{AuthPool, BlockHistory, PendingReports},
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.
@@ -71,15 +75,18 @@ impl<'a> GuaranteesXtValidator<'a> {
         &self,
         extrinsic: &GuaranteesXt,
         header_timeslot_index: u32,
-    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, XtError> {
         // Check the length limit
         if extrinsic.len() > CORE_COUNT {
-            return Err(GuaranteesEntryLimitExceeded(extrinsic.len(), CORE_COUNT));
+            return Err(XtError::GuaranteesEntryLimitExceeded(
+                extrinsic.len(),
+                CORE_COUNT,
+            ));
         }
 
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
-            return Err(GuaranteesNotSorted);
+            return Err(XtError::GuaranteesNotSorted);
         }
 
         // Duplicate validation of core indices
@@ -88,7 +95,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             .iter()
             .all(|entry| work_report_cores.insert(entry.work_report.core_index()));
         if !no_duplicate_cores {
-            return Err(DuplicateCoreIndex);
+            return Err(XtError::DuplicateCoreIndex);
         }
 
         // Duplicate validation of work packages
@@ -97,12 +104,12 @@ impl<'a> GuaranteesXtValidator<'a> {
             .iter()
             .all(|entry| work_package_hashes.insert(entry.work_report.work_package_hash()));
         if !no_duplicate_packages {
-            return Err(DuplicateWorkPackageHash);
+            return Err(XtError::DuplicateWorkPackageHash);
         }
 
         // Additionally, check the cardinality of work package hashes and the work reports
         if work_package_hashes.len() != extrinsic.len() {
-            return Err(DuplicateWorkPackageHash);
+            return Err(XtError::DuplicateWorkPackageHash);
         }
 
         // Extract exports manifests from the guarantee extrinsics
@@ -148,7 +155,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, XtError> {
         self.validate_work_report(
             &entry.work_report,
             exports_manifests,
@@ -173,15 +180,15 @@ impl<'a> GuaranteesXtValidator<'a> {
         block_history: &BlockHistory,
         work_package_hashes: &HashSet<Hash32>,
         header_timeslot_index: u32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // Check work report output size limit
         if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
-            return Err(WorkReportOutputSizeLimitExceeded);
+            return Err(XtError::WorkReportOutputSizeLimitExceeded);
         }
 
         // Check gas limit of the work report
         if work_report.total_accumulation_gas_allotted() > ACCUMULATION_GAS_PER_CORE {
-            return Err(WorkReportTotalGasTooHigh);
+            return Err(XtError::WorkReportTotalGasTooHigh);
         }
         for result_item in &work_report.results {
             // TODO: error handling for target account being not found?
@@ -196,31 +203,31 @@ impl<'a> GuaranteesXtValidator<'a> {
             };
 
             if result_item.gas_prioritization_ratio < target_service_account_min_item_gas {
-                return Err(ServiceAccountGasLimitTooLow);
+                return Err(XtError::ServiceAccountGasLimitTooLow);
             }
         }
 
         let core_index = work_report.core_index();
         let core_pending_report = pending_reports
             .get_by_core_index(core_index)
-            .map_err(|_| InvalidCoreIndex)?;
+            .map_err(|_| XtError::InvalidCoreIndex)?;
 
         // Check if there is any work reported in this extrinsic while there is pending report
         // assigned to the core which is not timed-out.
         if let Some(core_report) = core_pending_report {
             let expiration = core_report.reported_timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
             if header_timeslot_index < expiration {
-                return Err(PendingReportExists(core_index));
+                return Err(XtError::PendingReportExists(core_index));
             }
         }
 
         // Check the authorizer hash
         if !auth_pool
             .get_by_core_index(core_index)
-            .map_err(|_| InvalidCoreIndex)?
+            .map_err(|_| XtError::InvalidCoreIndex)?
             .contains(&work_report.authorizer_hash())
         {
-            return Err(InvalidAuthorizerHash(core_index));
+            return Err(XtError::InvalidAuthorizerHash(core_index));
         }
 
         // Validate anchor block
@@ -235,7 +242,7 @@ impl<'a> GuaranteesXtValidator<'a> {
 
         // Check that the work-package hash is not in the block history
         if block_history.check_work_package_hash_exists(&work_report.work_package_hash()) {
-            return Err(WorkPackageAlreadyInHistory(
+            return Err(XtError::WorkPackageAlreadyInHistory(
                 core_index,
                 work_report.work_package_hash().encode_hex(),
             ));
@@ -249,7 +256,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             .len();
         let segment_root_lookup_entries_count = work_report.segment_roots_lookup().len();
         if prerequisites_count + segment_root_lookup_entries_count > MAX_REPORT_DEPENDENCIES {
-            return Err(TooManyDependencies(core_index));
+            return Err(XtError::TooManyDependencies(core_index));
         }
 
         // Check the segment root lookup dictionary entries can be found either in the same extrinsic
@@ -263,10 +270,10 @@ impl<'a> GuaranteesXtValidator<'a> {
                 package_hash,
             ) {
                 if &observed_segment_root != segments_root {
-                    return Err(SegmentsRoofLookupEntryInvalidValue);
+                    return Err(XtError::SegmentsRoofLookupEntryInvalidValue);
                 }
             } else {
-                return Err(SegmentsRootLookupEntryNotFound);
+                return Err(XtError::SegmentsRootLookupEntryNotFound);
             }
         }
 
@@ -276,7 +283,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             if !work_package_hashes.contains(prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(prerequisite_hash)
             {
-                return Err(PrerequisiteNotFound(
+                return Err(XtError::PrerequisiteNotFound(
                     core_index,
                     prerequisite_hash.encode_hex(),
                 ));
@@ -309,7 +316,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         block_history: &BlockHistory,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         let anchor_hash = work_report_context.anchor_header_hash;
         let anchor_state_root = work_report_context.anchor_state_root;
         let anchor_beefy_root = work_report_context.beefy_root;
@@ -320,14 +327,28 @@ impl<'a> GuaranteesXtValidator<'a> {
         // Validate contents of the anchor block if it exists in the recent block history
         if let Some(entry) = anchor_in_block_history {
             if entry.state_root != anchor_state_root {
-                return Err(InvalidAnchorStateRoot(core_index, anchor_hash.encode_hex()));
+                return Err(XtError::InvalidAnchorStateRoot(
+                    core_index,
+                    anchor_hash.encode_hex(),
+                ));
             }
 
-            if entry.accumulation_result_mmr.super_peak()? != anchor_beefy_root {
-                return Err(InvalidAnchorBeefyRoot(core_index, anchor_hash.encode_hex()));
+            if entry
+                .accumulation_result_mmr
+                .super_peak()
+                .map_err(|_| XtError::MMRCalculationFailed)?
+                != anchor_beefy_root
+            {
+                return Err(XtError::InvalidAnchorBeefyRoot(
+                    core_index,
+                    anchor_hash.encode_hex(),
+                ));
             }
         } else {
-            return Err(AnchorBlockNotFound(core_index, anchor_hash.encode_hex()));
+            return Err(XtError::AnchorBlockNotFound(
+                core_index,
+                anchor_hash.encode_hex(),
+            ));
         }
 
         Ok(())
@@ -338,7 +359,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         header_timeslot_index: u32,
-    ) -> Result<(), XtValidationError> {
+    ) -> Result<(), XtError> {
         // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
         let lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
@@ -347,7 +368,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         if lookup_anchor_timeslot
             < header_timeslot_index.saturating_sub(MAX_LOOKUP_ANCHOR_AGE as u32)
         {
-            return Err(LookupAnchorBlockTimeout(
+            return Err(XtError::LookupAnchorBlockTimeout(
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
@@ -356,10 +377,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         Ok(())
     }
 
-    async fn validate_work_results(
-        &self,
-        work_report: &WorkReport,
-    ) -> Result<(), XtValidationError> {
+    async fn validate_work_results(&self, work_report: &WorkReport) -> Result<(), XtError> {
         for result in work_report.results() {
             if let Some(expected_code_hash) = self
                 .state_manager
@@ -368,7 +386,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             {
                 // code hash doesn't match
                 if expected_code_hash != result.service_code_hash {
-                    return Err(InvalidCodeHash(
+                    return Err(XtError::InvalidCodeHash(
                         work_report.core_index(),
                         result.service_id,
                         result.service_code_hash.encode_hex(),
@@ -376,7 +394,7 @@ impl<'a> GuaranteesXtValidator<'a> {
                 }
             } else {
                 // service account not found
-                return Err(AccountOfWorkResultNotFound(
+                return Err(XtError::AccountOfWorkResultNotFound(
                     work_report.core_index(),
                     result.service_id,
                 ));
@@ -389,11 +407,11 @@ impl<'a> GuaranteesXtValidator<'a> {
     async fn validate_credentials(
         &self,
         entry: &GuaranteesXtEntry,
-    ) -> Result<Vec<Ed25519PubKey>, XtValidationError> {
+    ) -> Result<Vec<Ed25519PubKey>, XtError> {
         let credentials = entry.credentials();
         // Check the length limit
         if !(credentials.len() == 2 || credentials.len() == 3) {
-            return Err(InvalidGuarantorCount(
+            return Err(XtError::InvalidGuarantorCount(
                 credentials.len(),
                 entry.work_report.core_index(),
             ));
@@ -401,7 +419,9 @@ impl<'a> GuaranteesXtValidator<'a> {
 
         // Check if the entries are sorted
         if !credentials.is_sorted() {
-            return Err(CredentialsNotSorted(entry.work_report.core_index()));
+            return Err(XtError::CredentialsNotSorted(
+                entry.work_report.core_index(),
+            ));
         }
 
         // Duplicate validation of validator indices
@@ -410,7 +430,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             .iter()
             .all(|c| validator_indices.insert(c.validator_index));
         if !no_duplicate_indices {
-            return Err(DuplicateGuarantor);
+            return Err(XtError::DuplicateGuarantor);
         }
 
         // Validate each credential
@@ -430,9 +450,9 @@ impl<'a> GuaranteesXtValidator<'a> {
         work_report: &WorkReport,
         entry_timeslot_index: u32,
         credential: &GuaranteesCredential,
-    ) -> Result<Ed25519PubKey, XtValidationError> {
+    ) -> Result<Ed25519PubKey, XtError> {
         // Verify the signature
-        let hash = work_report.hash()?;
+        let hash = hash::<Blake2b256>(&work_report.encode()?)?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
         message.extend_from_slice(hash.as_slice());
@@ -442,19 +462,23 @@ impl<'a> GuaranteesXtValidator<'a> {
         let guarantor_assignment = self
             .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
             .await?;
-        let guarantor_public_key = get_validator_ed25519_key_by_index(
+        let guarantor_public_key = match get_validator_ed25519_key_by_index(
             &guarantor_assignment.validator_keys,
             credential.validator_index,
-        )
-        .map_err(|_| InvalidValidatorIndex)?;
+        ) {
+            Some(key) => key,
+            None => return Err(XtError::InvalidValidatorIndex),
+        };
 
-        if !verify_signature(&message, &guarantor_public_key, &credential.signature) {
-            return Err(InvalidGuaranteesSignature(credential.validator_index));
+        if !verify_signature(&message, guarantor_public_key, &credential.signature) {
+            return Err(XtError::InvalidGuaranteesSignature(
+                credential.validator_index,
+            ));
         }
 
         // Verify the timeslot of the work report is within a valid range (not in the future)
         if entry_timeslot_index > current_timeslot_index {
-            return Err(WorkReportTimeslotInFuture);
+            return Err(XtError::WorkReportTimeslotInFuture);
         }
 
         // Verify the timeslot of the work report is within a valid range (not older than the previous guarantor rotation)
@@ -462,27 +486,27 @@ impl<'a> GuaranteesXtValidator<'a> {
             < GUARANTOR_ROTATION_PERIOD as u32
                 * ((current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32) - 1)
         {
-            return Err(WorkReportTimeslotTooOld);
+            return Err(XtError::WorkReportTimeslotTooOld);
         }
 
         // Verify if the guarantor is assigned to the core index specified in the work report
         let assigned_core = guarantor_assignment.core_indices[credential.validator_index as usize];
         if assigned_core != work_report.core_index {
-            return Err(GuarantorNotAssignedForCore(
+            return Err(XtError::GuarantorNotAssignedForCore(
                 credential.validator_index,
                 assigned_core,
                 work_report.core_index,
             ));
         }
 
-        Ok(guarantor_public_key)
+        Ok(*guarantor_public_key)
     }
 
     pub async fn get_guarantor_assignment(
         &self,
         entry_timeslot_index: u32,
         current_timeslot_index: u32,
-    ) -> Result<GuarantorAssignment, XtValidationError> {
+    ) -> Result<GuarantorAssignment, XtError> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
         if within_same_rotation {

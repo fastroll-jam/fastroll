@@ -3,24 +3,8 @@ use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
-use rjam_common::{
-    BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
-    Ed25519Signature, Hash32, Octets, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
-    FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
-};
-use rjam_crypto::Hasher;
-use rjam_merkle::mmr::MerkleMountainRange;
-use rjam_types::{
-    block::{
-        header::{BlockHeader, EpochMarker},
-        Block,
-    },
-    common::workloads::{
-        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
-        SegmentRootLookupTable,
-        WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
-        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
-    },
+use rjam_block::types::{
+    block::{Block, BlockHeader, EpochMarker},
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
         disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
@@ -29,13 +13,28 @@ use rjam_types::{
         tickets::{TicketsXt, TicketsXtEntry},
         Extrinsics,
     },
-    state::{
-        AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-        BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
-        PendingReports, PrivilegedServices, ReportedWorkPackage, SlotSealerType, Ticket, Timeslot,
-        ValidatorStatEntry, ValidatorStats,
-    },
 };
+use rjam_common::{
+    workloads::{
+        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
+        SegmentRootLookupTable,
+        WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
+        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
+    },
+    BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
+    Ed25519Signature, Hash32, Octets, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
+    FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
+};
+use rjam_crypto::Hasher;
+use rjam_merkle::mmr::MerkleMountainRange;
+use rjam_state::types::{
+    AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
+    BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
+    PendingReports, PrivilegedServices, SlotSealerType, Timeslot, ValidatorStatEntry,
+    ValidatorStats,
+};
+
+use rjam_common::{ticket::Ticket, workloads::ReportedWorkPackage};
 use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,

@@ -1,6 +1,7 @@
 //! Safrole state transition conformance tests
 mod tests {
     use async_trait::async_trait;
+    use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
     use rjam_common::{Ed25519PubKey, Hash32};
     use rjam_conformance_tests::{
         asn_types::{common::*, safrole::*},
@@ -8,10 +9,15 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use std::sync::Arc;
-
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager, StateMut};
+    use rjam_state::{
+        cache::StateMut,
+        error::StateManagerError,
+        manager::StateManager,
+        types::{
+            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
+        },
+    };
     use rjam_transition::{
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
@@ -22,10 +28,7 @@ mod tests {
             validators::{transition_active_set, transition_past_set},
         },
     };
-    use rjam_types::{
-        extrinsics::tickets::{TicketsXt, TicketsXtEntry},
-        state::*,
-    };
+    use std::sync::Arc;
 
     struct SafroleTest;
 
