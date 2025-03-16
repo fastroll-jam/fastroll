@@ -1,55 +1,6 @@
 use crate::UnsignedGas;
 
-// --- Chain Spec
-
-/// `V`: The total number of validators.
-#[cfg(not(feature = "tiny"))]
-pub const VALIDATOR_COUNT: usize = 1023;
-/// `V`: The total number of validators.
-#[cfg(feature = "tiny")]
-pub const VALIDATOR_COUNT: usize = 6;
-pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
-pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;
-pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
-
-/// `C`: The total number of cores.
-#[cfg(not(feature = "tiny"))]
-pub const CORE_COUNT: usize = 341;
-/// `C`: The total number of cores.
-#[cfg(feature = "tiny")]
-pub const CORE_COUNT: usize = 2;
-
-/// `E`: The length of an epoch in timeslots.
-#[cfg(not(feature = "tiny"))]
-pub const EPOCH_LENGTH: usize = 600;
-/// `E`: The length of an epoch in timeslots.
-#[cfg(feature = "tiny")]
-pub const EPOCH_LENGTH: usize = 12;
-
-/// The guarantor rotation period in timeslots.
-#[cfg(not(feature = "tiny"))]
-pub const GUARANTOR_ROTATION_PERIOD: usize = 10;
-/// The guarantor rotation period in timeslots.
-#[cfg(feature = "tiny")]
-pub const GUARANTOR_ROTATION_PERIOD: usize = 4;
-
-/// `Y`: The number of slots into an epoch at which ticket-submission ends.
-#[cfg(not(feature = "tiny"))]
-pub const TICKET_CONTEST_DURATION: usize = 500;
-/// `Y`: The number of slots into an epoch at which ticket-submission ends.
-#[cfg(feature = "tiny")]
-pub const TICKET_CONTEST_DURATION: usize = 10;
-
-/// `N`: The number of ticket entries per validator.
-#[cfg(not(feature = "tiny"))]
-pub const TICKETS_PER_VALIDATOR: u8 = 2;
-/// `N`: The number of ticket entries per validator.
-#[cfg(feature = "tiny")]
-pub const TICKETS_PER_VALIDATOR: u8 = 3;
-
-// --- Constants
-
-/// JAM common era UNIX timestamp; 1200 UTC on January 1, 2025.
+/// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;
 
 /// Size of Hash type in bytes.
@@ -57,9 +8,6 @@ pub const HASH_SIZE: usize = 32;
 
 /// Size of validator public key in bytes.
 pub const PUBLIC_KEY_SIZE: usize = 336;
-
-/// `P`: Length of a timeslot in seconds.
-pub const SLOT_DURATION: u64 = 6;
 
 /// `O`: The maximum number of items in the authorizations pool.
 pub const MAX_AUTH_POOL_SIZE: usize = 8;
@@ -75,9 +23,6 @@ pub const PENDING_REPORT_TIMEOUT: usize = 5;
 
 /// `L`: The maximum age in timeslots of the lookup anchor.
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
-
-/// `K`: The maximum number of tickets which may be submitted in a single extrinsic.
-pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16;
 
 /// `J`: The maximum sum of dependency items in a work-report.
 pub const MAX_REPORT_DEPENDENCIES: usize = 8;

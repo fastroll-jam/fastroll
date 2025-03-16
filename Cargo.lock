@@ -1149,6 +1149,7 @@ dependencies = [
 name = "rjam-common"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "hex",
  "rjam-codec",
 ]

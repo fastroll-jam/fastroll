@@ -47,6 +47,7 @@ ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "d90e180", f
 async-trait = "0.1.84"
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
+cfg-if = "1.0.0"
 dashmap = "6.1.0"
 dotenv = "0.15.0"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
