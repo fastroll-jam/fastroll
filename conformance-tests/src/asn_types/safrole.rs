@@ -1,5 +1,5 @@
 use crate::asn_types::common::*;
-use rjam_common::{ByteArray, Hash32, Ticket};
+use rjam_common::{ByteArray, Hash32};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
 use serde::{Deserialize, Serialize};

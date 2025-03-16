@@ -21,6 +21,7 @@ pub enum WorkReportError {
     JamCodecError(#[from] JamCodecError),
 }
 
+// FIXME: according to GP, WPH should be converted to SR and then serialized.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
     /// `h`: Export segments root

@@ -1,9 +1,10 @@
+use crate::state::Ticket;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, Ticket, ValidatorIndex,
-    EPOCH_LENGTH, VALIDATOR_COUNT,
+    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, ValidatorIndex, EPOCH_LENGTH,
+    VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Display;

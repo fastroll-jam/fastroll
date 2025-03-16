@@ -4,8 +4,8 @@ use crate::serde_utils::{
 };
 use bit_vec::BitVec;
 use rjam_common::{
-    BandersnatchPubKey, ByteArray, ByteSequence, Hash32, Octets, Ticket, ValidatorKey,
-    ValidatorKeySet, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, MAX_AUTH_QUEUE_SIZE, VALIDATOR_COUNT,
+    BandersnatchPubKey, ByteArray, ByteSequence, Hash32, Octets, ValidatorKey, ValidatorKeySet,
+    AUTH_QUEUE_SIZE, FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
 };
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
@@ -31,7 +31,7 @@ use rjam_types::{
     state::{
         AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
         BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
-        PendingReports, PrivilegedServices, ReportedWorkPackage, SlotSealerType, Timeslot,
+        PendingReports, PrivilegedServices, ReportedWorkPackage, SlotSealerType, Ticket, Timeslot,
         ValidatorStatEntry, ValidatorStats,
     },
 };
@@ -592,7 +592,7 @@ pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
         let queue = value.0.map(|q| {
-            let mut hashes = [Hash32::default(); MAX_AUTH_QUEUE_SIZE];
+            let mut hashes = [Hash32::default(); AUTH_QUEUE_SIZE];
             for (i, h) in q.0.iter().enumerate() {
                 hashes[i] = ByteArray::new(h.0);
             }

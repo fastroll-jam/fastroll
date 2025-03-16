@@ -5,7 +5,7 @@ use crate::{
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
 };
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
+use rjam_common::{CoreIndex, Hash32, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},
@@ -61,14 +61,12 @@ impl AuthPool {
 ///
 /// Represents `φ` of the GP.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AuthQueue(pub Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);
-impl_jam_codec_for_newtype!(AuthQueue, Box<[[Hash32; MAX_AUTH_QUEUE_SIZE]; CORE_COUNT]>);
+pub struct AuthQueue(pub Box<[[Hash32; AUTH_QUEUE_SIZE]; CORE_COUNT]>);
+impl_jam_codec_for_newtype!(AuthQueue, Box<[[Hash32; AUTH_QUEUE_SIZE]; CORE_COUNT]>);
 impl_simple_state_component!(AuthQueue, AuthQueue);
 
 impl Default for AuthQueue {
     fn default() -> Self {
-        Self(Box::new(
-            [[Hash32::default(); MAX_AUTH_QUEUE_SIZE]; CORE_COUNT],
-        ))
+        Self(Box::new([[Hash32::default(); AUTH_QUEUE_SIZE]; CORE_COUNT]))
     }
 }

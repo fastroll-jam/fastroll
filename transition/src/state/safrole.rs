@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::{Ticket, EPOCH_LENGTH, TICKET_SUBMISSION_DEADLINE_SLOT};
+use rjam_common::{EPOCH_LENGTH, TICKET_CONTEST_DURATION};
 use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
 use rjam_extrinsics::validation::{error::XtValidationError::*, tickets::TicketsXtValidator};
 use rjam_state::{StateManager, StateMut};
@@ -86,7 +86,7 @@ fn update_slot_sealers(
 ) {
     // Fallback mode triggers when the slot phase hasn't reached the ticket submission deadline
     // or the ticket accumulator is not yet full.
-    let is_fallback = (prior_timeslot.slot_phase() as usize) < TICKET_SUBMISSION_DEADLINE_SLOT
+    let is_fallback = (prior_timeslot.slot_phase() as usize) < TICKET_CONTEST_DURATION
         || !safrole.ticket_accumulator.is_full();
 
     if is_fallback {
@@ -112,7 +112,7 @@ async fn handle_ticket_accumulation(
 
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot().await?.slot_phase();
-    if current_slot_phase as usize >= TICKET_SUBMISSION_DEADLINE_SLOT {
+    if current_slot_phase as usize >= TICKET_CONTEST_DURATION {
         return Err(TransitionError::XtValidationError(TicketSubmissionClosed(
             current_slot_phase,
         )));

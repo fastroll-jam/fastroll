@@ -7,9 +7,7 @@ use crate::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use rjam_common::{
-    BandersnatchPubKey, ValidatorKeySet, TICKET_SUBMISSION_DEADLINE_SLOT, VALIDATOR_COUNT,
-};
+use rjam_common::{BandersnatchPubKey, ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
 use rjam_types::{
@@ -96,7 +94,7 @@ pub async fn mark_safrole_header_markers(
     };
 
     let needs_winning_tickets_marker = !epoch_progressed
-        && current_timeslot.slot_phase() >= TICKET_SUBMISSION_DEADLINE_SLOT as u32
+        && current_timeslot.slot_phase() >= TICKET_CONTEST_DURATION as u32
         && current_safrole.ticket_accumulator.is_full();
 
     let winning_tickets_marker = if needs_winning_tickets_marker {

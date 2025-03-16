@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use rjam_common::{CoreIndex, MAX_AUTH_POOL_SIZE, MAX_AUTH_QUEUE_SIZE};
+use rjam_common::{CoreIndex, AUTH_QUEUE_SIZE, MAX_AUTH_POOL_SIZE};
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{extrinsics::guarantees::GuaranteesXt, state::timeslot::Timeslot};
 use std::sync::Arc;
@@ -40,7 +40,7 @@ pub async fn transition_auth_pool(
 
                 // Appends an authorizer hash entry from the queue to the pool.
                 let effective_current_timeslot_index =
-                    header_timeslot.slot() as usize % MAX_AUTH_QUEUE_SIZE;
+                    header_timeslot.slot() as usize % AUTH_QUEUE_SIZE;
                 let queue_entry = auth_queue.0[core][effective_current_timeslot_index];
 
                 if core_pool.len() == MAX_AUTH_POOL_SIZE {

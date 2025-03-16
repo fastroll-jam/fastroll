@@ -1,7 +1,6 @@
 use crate::validation::error::{XtValidationError, XtValidationError::*};
 use rjam_common::{
-    Hash32, MAX_TICKETS_PER_EXTRINSIC, MAX_TICKETS_PER_VALIDATOR, TICKET_SUBMISSION_DEADLINE_SLOT,
-    X_T,
+    Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
 use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
 use rjam_state::StateManager;
@@ -38,7 +37,7 @@ impl<'a> TicketsXtValidator<'a> {
     pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtValidationError> {
         // Check the slot phase
         let current_slot_phase = self.state_manger.get_timeslot().await?.slot_phase();
-        if current_slot_phase >= TICKET_SUBMISSION_DEADLINE_SLOT as u32 && !extrinsic.is_empty() {
+        if current_slot_phase >= TICKET_CONTEST_DURATION as u32 && !extrinsic.is_empty() {
             return Err(TicketSubmissionClosed(current_slot_phase));
         }
 
@@ -79,7 +78,7 @@ impl<'a> TicketsXtValidator<'a> {
         entropy_2: &Hash32,
     ) -> Result<(), XtValidationError> {
         // Check if the ticket attempt number is correct
-        if entry.entry_index > MAX_TICKETS_PER_VALIDATOR - 1 {
+        if entry.entry_index > TICKETS_PER_VALIDATOR - 1 {
             return Err(InvalidTicketAttemptNumber(entry.entry_index));
         }
 

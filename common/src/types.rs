@@ -1,32 +1,69 @@
 use crate::{HASH_SIZE, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
-    cmp::Ordering,
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
 
-// Type aliases
+/// 32-byte Hash type.
 pub type Hash32 = ByteArray<HASH_SIZE>;
+
+/// Octets type; wrapper of `Vec<u8>`.
 pub type Octets = ByteSequence;
+
+/// The service id.
 pub type ServiceId = u32;
+
+/// The validator index.
 pub type ValidatorIndex = u16;
+
+/// The core index.
 pub type CoreIndex = u16;
+
+/// Token balance type.
 pub type Balance = u64;
-pub type LookupsKey = (Hash32, u32);
-pub type BandersnatchPubKey = ByteArray<32>;
-pub type BandersnatchSignature = ByteArray<96>; // `F` signature type
-pub type BandersnatchRingRoot = ByteArray<144>;
-pub type BandersnatchRingVrfSignature = Box<ByteArray<784>>; // `F bar` signature type
-pub type Ed25519PubKey = ByteArray<32>;
-pub type Ed25519SecretKey = ByteArray<32>;
-pub type Ed25519Signature = ByteArray<64>;
-pub type BlsPubKey = ByteArray<144>;
+
+/// Signed integer gas type, representing potentially negative post gas after some execution
+/// implying out-of-gas error.
 pub type SignedGas = i64;
+
+/// Unsigned integer gas type.
 pub type UnsignedGas = u64;
+
+/// Service account preimage lookup metadata map key.
+/// A tuple of the hash and its preimage length in octets.
+pub type LookupsKey = (Hash32, u32);
+
+/// 32-byte Bandersnatch public key type.
+pub type BandersnatchPubKey = ByteArray<32>;
+
+/// 96-byte Bandersnatch signature type.
+/// Represents `F` signature type of the GP.
+pub type BandersnatchSignature = ByteArray<96>;
+
+/// 144-byte Bandersnatch Ring root type.
+pub type BandersnatchRingRoot = ByteArray<144>;
+
+/// 784-byte Bandersnatch Ring VRF signature type.
+/// Represents `F bar` signature type of the GP.
+pub type BandersnatchRingVrfSignature = Box<ByteArray<784>>;
+
+/// 32-byte Ed25519 public key type.
+pub type Ed25519PubKey = ByteArray<32>;
+
+/// 32-byte Ed25519 secret key type.
+pub type Ed25519SecretKey = ByteArray<32>;
+
+/// 64-byte Ed25519 signature type.
+pub type Ed25519Signature = ByteArray<64>;
+
+/// 144-byte BLS public key type.
+pub type BlsPubKey = ByteArray<144>;
+
+/// Set of `VALIDATOR_COUNT` validator keys.
 pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
-// Types
+/// Bytes sequence type with no length limit.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteSequence(pub Vec<u8>);
 
@@ -91,6 +128,7 @@ impl ByteSequence {
     }
 }
 
+/// A bytes array type of size `N`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteArray<const N: usize>(pub [u8; N]);
 
@@ -163,7 +201,7 @@ impl<const N: usize> ByteArray<N> {
 /// The total size of a ValidatorKey is 336 bytes, with each component
 /// stored as a fixed-size byte array.
 ///
-/// The final ValidatorKey type is a simple concatenation of each component.
+/// The final `ValidatorKey` type is a simple concatenation of each component.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
@@ -209,36 +247,5 @@ impl ValidatorKey {
             self.metadata.encode_hex(),
             s = spaces
         )
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, JamEncode, JamDecode)]
-pub struct Ticket {
-    /// **`y`**: The ticket identifier, which is the `Y` hash of the RingVRF proof from `TicketsXtEntry`.
-    pub id: Hash32,
-    /// `r`: The ticket entry index, either 0 or 1.
-    pub attempt: u8,
-}
-
-impl Display for Ticket {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{{ \"attempt\": \"{}\", \"id\": \"{}\" }}",
-            self.attempt,
-            self.id.encode_hex(),
-        )
-    }
-}
-
-impl PartialOrd for Ticket {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Ticket {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
     }
 }

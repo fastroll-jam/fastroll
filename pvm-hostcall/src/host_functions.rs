@@ -508,7 +508,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, HASH_SIZE * MAX_AUTH_QUEUE_SIZE)?
+            .is_address_range_readable(offset, HASH_SIZE * AUTH_QUEUE_SIZE)?
         {
             host_call_panic!()
         }
@@ -518,7 +518,7 @@ impl HostFunction {
         }
 
         let mut queue_assignment = AuthQueue::default();
-        for i in 0..MAX_AUTH_QUEUE_SIZE {
+        for i in 0..AUTH_QUEUE_SIZE {
             let authorizer = vm
                 .memory
                 .read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)?;
