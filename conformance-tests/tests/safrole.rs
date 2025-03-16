@@ -10,7 +10,13 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager, StateMut};
+    use rjam_state::{
+        error::StateManagerError,
+        types::{
+            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
+        },
+        StateManager, StateMut,
+    };
     use rjam_transition::{
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
@@ -21,7 +27,6 @@ mod tests {
             validators::{transition_active_set, transition_past_set},
         },
     };
-    use rjam_types::state::*;
     use std::sync::Arc;
 
     struct SafroleTest;

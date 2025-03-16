@@ -2,16 +2,21 @@ use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::X
 use rjam_block::types::extrinsics::guarantees::{
     GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry,
 };
+use rjam_codec::JamEncode;
 use rjam_common::{
+    get_validator_ed25519_key_by_index,
+    workloads::{
+        common::RefinementContext,
+        work_report::{ReportedWorkPackage, WorkReport},
+    },
     CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
     GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
     PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
-use rjam_crypto::verify_signature;
-use rjam_state::StateManager;
-use rjam_types::{
-    common::workloads::{RefinementContext, WorkReport},
-    state::*,
+use rjam_crypto::{hash, verify_signature, Blake2b256};
+use rjam_state::{
+    types::{AuthPool, BlockHistory, PendingReports},
+    StateManager,
 };
 use std::collections::HashSet;
 // TODO: Add validation over gas allocation.
@@ -447,7 +452,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         credential: &GuaranteesCredential,
     ) -> Result<Ed25519PubKey, XtError> {
         // Verify the signature
-        let hash = work_report.hash()?;
+        let hash = hash::<Blake2b256>(&work_report.encode()?)?;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
         message.extend_from_slice(hash.as_slice());
@@ -457,13 +462,15 @@ impl<'a> GuaranteesXtValidator<'a> {
         let guarantor_assignment = self
             .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
             .await?;
-        let guarantor_public_key = get_validator_ed25519_key_by_index(
+        let guarantor_public_key = match get_validator_ed25519_key_by_index(
             &guarantor_assignment.validator_keys,
             credential.validator_index,
-        )
-        .map_err(|_| XtError::InvalidValidatorIndex)?;
+        ) {
+            Some(key) => key,
+            None => return Err(XtError::InvalidValidatorIndex),
+        };
 
-        if !verify_signature(&message, &guarantor_public_key, &credential.signature) {
+        if !verify_signature(&message, guarantor_public_key, &credential.signature) {
             return Err(XtError::InvalidGuaranteesSignature(
                 credential.validator_index,
             ));
@@ -492,7 +499,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             ));
         }
 
-        Ok(guarantor_public_key)
+        Ok(*guarantor_public_key)
     }
 
     pub async fn get_guarantor_assignment(

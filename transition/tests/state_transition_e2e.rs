@@ -1,7 +1,10 @@
 //! End-to-end state transition tests
 use rjam_block::types::{block::BlockHeader, extrinsics::Extrinsics};
-use rjam_common::Hash32;
-use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
+use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32};
+use rjam_state::{
+    test_utils::{add_all_simple_state_entries, init_db_and_manager},
+    types::Timeslot,
+};
 use rjam_transition::{
     procedures::chain_extension::mark_safrole_header_markers,
     state::{
@@ -19,7 +22,6 @@ use rjam_transition::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use rjam_types::state::ReportedWorkPackage;
 use std::{error::Error, future::Future, sync::Arc, time::Instant};
 use tokio::{join, task::JoinHandle};
 use tracing::{info, subscriber::set_global_default};
@@ -69,7 +71,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
 
     // Prepare Header Fields
     let prev_timeslot = state_manager.get_timeslot().await?;
-    let header_timeslot = header_db.set_timeslot()?;
+    let header_timeslot = Timeslot::new(header_db.set_timeslot()?);
     let header_parent_state_root = state_manager.merkle_root(); // Assuming commitment of the parent stat is done here.
     let author_index = 0;
 

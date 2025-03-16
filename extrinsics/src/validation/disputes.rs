@@ -2,10 +2,14 @@ use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use rjam_common::{Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G};
+use rjam_common::{
+    get_validator_ed25519_key_by_index, Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G,
+};
 use rjam_crypto::verify_signature;
-use rjam_state::StateManager;
-use rjam_types::state::*;
+use rjam_state::{
+    types::{ActiveSet, PastSet, Timeslot, ValidatorSet},
+    StateManager,
+};
 use std::collections::HashSet;
 
 /// Validates contents of `DisputesXt` type.
@@ -212,10 +216,12 @@ impl<'a> DisputesXtValidator<'a> {
             };
 
             let voter_public_key =
-                get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
-                    .map_err(|_| XtError::InvalidValidatorIndex)?;
+                match get_validator_ed25519_key_by_index(&validator_set, judgment.voter) {
+                    Some(key) => key,
+                    None => return Err(XtError::InvalidValidatorIndex),
+                };
 
-            if !verify_signature(message, &voter_public_key, &judgment.voter_signature) {
+            if !verify_signature(message, voter_public_key, &judgment.voter_signature) {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));
             }
         }

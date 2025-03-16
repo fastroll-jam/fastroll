@@ -2,7 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_common::Hash32;
+    use rjam_common::{workloads::WorkReport, Hash32};
     use rjam_conformance_tests::{
         asn_types::{
             accumulate::*,
@@ -16,20 +16,20 @@ mod tests {
     use rjam_pvm_invocation::accumulation::{
         invoke::accumulate_result_commitment, utils::collect_accumulatable_reports,
     };
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{
+        error::StateManagerError,
+        types::{
+            AccountMetadata, AccumulateHistory, AccumulateQueue, EpochEntropy, PrivilegedServices,
+            Timeslot,
+        },
+        StateManager,
+    };
     use rjam_transition::{
         error::TransitionError,
         state::{
             accumulate::{transition_accumulate_history, transition_accumulate_queue},
             services::transition_on_accumulate,
             timeslot::transition_timeslot,
-        },
-    };
-    use rjam_types::{
-        common::workloads::WorkReport,
-        state::{
-            AccountMetadata, AccumulateHistory, AccumulateQueue, EpochEntropy, PrivilegedServices,
-            Timeslot,
         },
     };
     use std::{collections::HashSet, sync::Arc};

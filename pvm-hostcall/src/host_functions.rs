@@ -19,13 +19,17 @@ use rjam_pvm_core::{
     types::{
         common::{ExitReason, ExportDataSegment, RegValue},
         error::{HostCallError::*, PVMError},
+        invoke_args::DeferredTransfer,
     },
 };
 use rjam_state::{
     error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
+    types::{
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
+        AuthQueue, StagingSet, Timeslot,
+    },
     StateManager,
 };
-use rjam_types::{common::transfers::DeferredTransfer, state::*};
 use std::{collections::HashMap, sync::Arc};
 
 #[repr(u64)]

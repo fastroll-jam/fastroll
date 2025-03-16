@@ -3,8 +3,10 @@ use rjam_db::header_db::BlockHeaderDBError;
 use rjam_extrinsics::validation::error::XtError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
-use rjam_state::error::StateManagerError;
-use rjam_types::state::*;
+use rjam_state::{
+    error::StateManagerError,
+    types::{FallbackKeyError, PendingReportsError},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

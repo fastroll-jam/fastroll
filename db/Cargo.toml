@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 rjam-block = { workspace = true }
+rjam-clock = { workspace = true }
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
-rjam-types = { workspace = true }
 dashmap = { workspace = true }
 dotenv = { workspace = true }
 hex = { workspace = true }

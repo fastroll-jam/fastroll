@@ -1,8 +1,18 @@
 pub mod error;
 pub mod state_db;
+pub mod state_utils;
 pub mod test_utils;
+pub mod types;
 
-use crate::error::StateManagerError;
+use crate::{
+    error::StateManagerError,
+    types::{
+        AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
+        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
+        DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
+        StagingSet, Timeslot, ValidatorStats,
+    },
+};
 use dashmap::DashMap;
 use rjam_codec::JamEncode;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
@@ -13,16 +23,13 @@ use rjam_state_merkle::{
     types::{LeafType, MerkleWriteOp},
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
-use rjam_types::{
-    state::*,
-    state_utils::{
-        get_account_lookups_state_key, get_account_metadata_state_key,
-        get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
-        AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
-    },
-};
 use rocksdb::WriteBatch;
 use state_db::StateDB;
+use state_utils::{
+    get_account_lookups_state_key, get_account_metadata_state_key, get_account_preimage_state_key,
+    get_account_storage_state_key, get_simple_state_key, AccountStateComponent,
+    SimpleStateComponent, StateComponent, StateEntryType,
+};
 use std::{
     cmp::PartialEq,
     collections::HashMap,

@@ -8,9 +8,12 @@ mod test {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{
+        error::StateManagerError,
+        types::{ActiveSet, Timeslot, ValidatorStats},
+        StateManager,
+    };
     use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
-    use rjam_types::state::{ActiveSet, Timeslot, ValidatorStats};
     use std::sync::Arc;
 
     struct StatisticsTest;

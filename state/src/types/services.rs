@@ -1,10 +1,10 @@
 use crate::{
     impl_account_state_component, impl_simple_state_component,
-    state::timeslot::Timeslot,
     state_utils::{
         AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
         StateKeyConstant,
     },
+    types::Timeslot,
 };
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,

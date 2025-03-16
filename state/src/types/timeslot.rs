@@ -2,19 +2,12 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
+use rjam_clock::Clock;
 use rjam_codec::{
     impl_jam_codec_for_newtype, impl_jam_fixed_codec_for_newtype, JamCodecError, JamDecode,
     JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput, SizeUnit,
 };
 use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
-use thiserror::Error;
-use time::OffsetDateTime;
-
-#[derive(Debug, Error)]
-pub enum TimeslotError {
-    #[error("Invalid timestamp: prior to the JAM common era")]
-    InvalidTimestamp,
-}
 
 /// Time timeslot index.
 ///
@@ -28,11 +21,6 @@ impl_simple_state_component!(Timeslot, Timeslot);
 impl Timeslot {
     pub fn new(slot: u32) -> Self {
         Self(slot)
-    }
-
-    pub fn from_now() -> Result<Self, TimeslotError> {
-        let current_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
-        Self::from_unix_timestamp(current_timestamp)
     }
 
     pub fn slot(&self) -> u32 {
@@ -56,19 +44,9 @@ impl Timeslot {
         COMMON_ERA_TIMESTAMP + slot_duration_secs
     }
 
-    pub fn from_unix_timestamp(timestamp: u64) -> Result<Self, TimeslotError> {
-        if timestamp < COMMON_ERA_TIMESTAMP {
-            return Err(TimeslotError::InvalidTimestamp);
-        }
-        let slot = (timestamp - COMMON_ERA_TIMESTAMP) / SLOT_DURATION;
-        Ok(Self(slot as u32))
-    }
-
     /// Checks if the timeslot value is in the future compared to the current UTC time
     pub fn is_in_future(&self) -> bool {
-        let current_utc_time = OffsetDateTime::now_utc().unix_timestamp() as u64;
-        let slot_unix_time = self.to_unix_timestamp();
-
-        slot_unix_time > current_utc_time
+        let current_utc_time = Clock::now_unix_timestamp();
+        self.to_unix_timestamp() > current_utc_time
     }
 }

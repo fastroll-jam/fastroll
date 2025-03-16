@@ -1,8 +1,7 @@
 use crate::error::TransitionError;
-use rjam_common::Hash32;
+use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32};
 use rjam_merkle::mmr::MerkleMountainRange;
-use rjam_state::{StateManager, StateMut};
-use rjam_types::state::history::{BlockHistoryEntry, ReportedWorkPackage};
+use rjam_state::{types::BlockHistoryEntry, StateManager, StateMut};
 use std::sync::Arc;
 
 /// State transition function of `BlockHistory`, updating the parent block's state root.

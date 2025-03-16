@@ -1,6 +1,6 @@
 pub mod chain_spec;
 pub mod constants;
-pub mod types;
+mod types;
 
 pub use chain_spec::*;
 pub use constants::*;

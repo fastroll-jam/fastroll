@@ -1,17 +1,18 @@
 #![allow(dead_code)]
-use crate::{state_db::StateDB, StateManager};
-use rand::{thread_rng, Rng};
-use rjam_common::Hash32;
-use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
-use rjam_state_merkle::merkle_db::MerkleDB;
-use rjam_types::{
-    state::{
+use crate::{
+    state_db::StateDB,
+    state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
+    types::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
         DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
         StagingSet, Timeslot, ValidatorStats,
     },
-    state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
+    StateManager,
 };
+use rand::{thread_rng, Rng};
+use rjam_common::Hash32;
+use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
+use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, sync::Arc};
 use tempfile::tempdir;
 

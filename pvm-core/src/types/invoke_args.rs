@@ -1,12 +1,26 @@
 use crate::types::{accumulation::AccumulateOperand, common::ExportDataSegment};
-use rjam_common::{ServiceId, UnsignedGas};
-use rjam_types::common::{
-    transfers::DeferredTransfer,
-    workloads::{ExtrinsicInfo, WorkPackage},
+use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_common::{
+    workloads::work_package::{ExtrinsicInfo, WorkPackage},
+    Balance, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
+// TODO: Find a better location for the following types
 
-// TODO: Find a better location
+#[derive(Clone, JamEncode)]
+pub struct DeferredTransfer {
+    /// `s`: Sender service id
+    pub from: ServiceId,
+    /// `d`: Receiver service id
+    pub to: ServiceId,
+    /// `a`: Token transfer amount
+    pub amount: Balance,
+    /// `m`: A simple memo transferred alongside the balance
+    pub memo: [u8; TRANSFER_MEMO_SIZE],
+    /// `g`: Gas limit for the transfer
+    pub gas_limit: UnsignedGas,
+}
+
 /// Refine entry-point function arguments
 #[derive(Clone, Default)]
 pub struct RefineInvokeArgs {

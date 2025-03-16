@@ -1,10 +1,11 @@
 use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
 use rjam_codec::{JamEncode, JamEncodeFixed};
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
+use rjam_common::{
+    get_validator_ed25519_key_by_index, CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A,
+};
 use rjam_crypto::{hash, verify_signature, Blake2b256};
 use rjam_state::StateManager;
-use rjam_types::state::validators::get_validator_ed25519_key_by_index;
 use std::collections::HashSet;
 
 /// Validates contents of `AssurancesXt` type.
@@ -100,10 +101,12 @@ impl<'a> AssurancesXtValidator<'a> {
 
         let current_active_set = self.state_manager.get_active_set().await?;
         let assurer_public_key =
-            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
-                .map_err(|_| XtError::InvalidValidatorIndex)?;
+            match get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index) {
+                Some(key) => key,
+                None => return Err(XtError::InvalidValidatorIndex),
+            };
 
-        if !verify_signature(&message, &assurer_public_key, &entry.signature) {
+        if !verify_signature(&message, assurer_public_key, &entry.signature) {
             return Err(XtError::InvalidAssuranceSignature(entry.validator_index));
         }
 

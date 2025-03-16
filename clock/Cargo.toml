@@ -1,0 +1,8 @@
+[package]
+name = "rjam-clock"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rjam-common = { workspace = true, features = ["default"] }
+time = { workspace = true }

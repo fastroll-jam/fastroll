@@ -8,6 +8,5 @@ rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 rjam-state = { workspace = true }
-rjam-types = { workspace = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }

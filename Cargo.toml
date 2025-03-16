@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "block",
+    "clock",
     "codec/rjam-codec",
     "codec/rjam-codec-derive",
     "common",
@@ -19,7 +20,6 @@ members = [
     "state",
     "state-merkle",
     "transition",
-    "types",
 ]
 
 [workspace.package]
@@ -28,6 +28,7 @@ edition = "2021"
 [workspace.dependencies]
 # Internal dependencies
 rjam-block = { path = "block" }
+rjam-clock = { path = "clock" }
 rjam-codec = { path = "codec/rjam-codec" }
 rjam-codec-derive = { path = "codec/rjam-codec-derive" }
 rjam-common = { path = "common" }
@@ -43,7 +44,6 @@ rjam-pvm-hostcall = { path = "pvm-hostcall" }
 rjam-state = { path = "state" }
 rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }
-rjam-types = { path = "types" }
 # External dependencies
 ark-ec-vrfs = { git = "https://github.com/davxy/ark-ec-vrfs", rev = "d90e180", features = ["bandersnatch", "ring"] }
 async-trait = "0.1.84"

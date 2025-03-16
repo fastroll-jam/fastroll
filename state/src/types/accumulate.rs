@@ -1,7 +1,7 @@
 use crate::{
-    common::workloads::WorkReport,
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
+    types::work_report::WorkReport,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Hash32, EPOCH_LENGTH};

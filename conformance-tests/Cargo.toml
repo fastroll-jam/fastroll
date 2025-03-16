@@ -17,7 +17,6 @@ rjam-pvm-invocation = { workspace = true }
 rjam-state = { workspace = true }
 rjam-state-merkle = { workspace = true }
 rjam-transition = { workspace = true }
-rjam-types = { workspace = true }
 async-trait = { workspace = true }
 bit-vec = { workspace = true }
 futures = { workspace = true }

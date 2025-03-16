@@ -2,8 +2,11 @@ use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Ed25519PubKey, Ed25519Signature, ValidatorIndex, ValidatorKeySet};
-use rjam_types::{common::workloads::WorkReport, state::get_validator_ed25519_key_by_index};
+use rjam_common::{
+    get_validator_ed25519_key_by_index, workloads::work_report::WorkReport, Ed25519PubKey,
+    Ed25519Signature, ValidatorIndex, ValidatorKeySet,
+};
+use rjam_crypto::{hash, Blake2b256};
 use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
@@ -29,8 +32,8 @@ impl GuaranteesXt {
     pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> Vec<Ed25519PubKey> {
         self.iter()
             .flat_map(|entry| {
-                entry.credentials.iter().map(|c| {
-                    get_validator_ed25519_key_by_index(validator_set, c.validator_index).unwrap()
+                entry.credentials.iter().filter_map(|c| {
+                    get_validator_ed25519_key_by_index(validator_set, c.validator_index).cloned()
                 }) // assuming already passed validations - TODO: revisit
             })
             .collect()
@@ -187,7 +190,7 @@ impl GuaranteesXtEntry {
     /// Used for calculating header extrinsics hash
     pub fn encode_with_hashed_report(&self) -> Result<Vec<u8>, ExtrinsicsError> {
         let mut buf = vec![];
-        self.work_report.hash()?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.work_report.encode()?)?.encode_to(&mut buf)?;
         self.timeslot_index.encode_to_fixed(&mut buf, 4)?;
         self.credentials.encode_to(&mut buf)?;
 

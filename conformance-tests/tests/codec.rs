@@ -8,10 +8,10 @@ mod tests {
         },
     };
     use rjam_codec::{JamDecode, JamEncode};
-    use rjam_conformance_tests::asn_types::common::*;
-    use rjam_types::common::workloads::{
+    use rjam_common::workloads::{
         RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport,
     };
+    use rjam_conformance_tests::asn_types::common::*;
     use serde::{de::DeserializeOwned, Serialize};
     use std::{
         fmt::Debug,

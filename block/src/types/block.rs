@@ -3,11 +3,10 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, ValidatorIndex, EPOCH_LENGTH,
-    VALIDATOR_COUNT,
+    ticket::Ticket, BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32,
+    ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use rjam_types::state::Ticket;
 use std::fmt::Display;
 use thiserror::Error;
 

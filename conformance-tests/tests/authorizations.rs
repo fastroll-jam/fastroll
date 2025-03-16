@@ -8,9 +8,12 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{
+        error::StateManagerError,
+        types::{AuthPool, AuthQueue, Timeslot},
+        StateManager,
+    };
     use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
-    use rjam_types::state::{AuthPool, AuthQueue, Timeslot};
     use std::sync::Arc;
 
     struct AuthorizationsTest;

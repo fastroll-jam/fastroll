@@ -1135,8 +1135,15 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-types",
  "thiserror",
+]
+
+[[package]]
+name = "rjam-clock"
+version = "0.1.0"
+dependencies = [
+ "rjam-common",
+ "time",
 ]
 
 [[package]]
@@ -1164,6 +1171,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "rjam-codec",
+ "thiserror",
 ]
 
 [[package]]
@@ -1188,7 +1196,6 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "rjam-transition",
- "rjam-types",
  "serde",
  "serde_json",
  "thiserror",
@@ -1217,10 +1224,10 @@ dependencies = [
  "dotenv",
  "hex",
  "rjam-block",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-types",
  "rocksdb",
  "thiserror",
  "tokio",
@@ -1236,7 +1243,6 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1261,7 +1267,6 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "rjam-transition",
- "rjam-types",
  "tokio",
 ]
 
@@ -1274,7 +1279,6 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-hostcall",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1287,7 +1291,6 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1300,7 +1303,6 @@ dependencies = [
  "rjam-crypto",
  "rjam-pvm-core",
  "rjam-state",
- "rjam-types",
  "thiserror",
 ]
 
@@ -1316,7 +1318,6 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-hostcall",
  "rjam-state",
- "rjam-types",
  "tokio",
 ]
 
@@ -1330,12 +1331,13 @@ dependencies = [
  "hex",
  "paste",
  "rand",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
  "rjam-db",
+ "rjam-merkle",
  "rjam-state-merkle",
- "rjam-types",
  "rocksdb",
  "tempfile",
  "thiserror",
@@ -1372,24 +1374,11 @@ dependencies = [
  "rjam-pvm-hostcall",
  "rjam-pvm-invocation",
  "rjam-state",
- "rjam-types",
  "thiserror",
  "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "rjam-types"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-merkle",
- "thiserror",
- "time",
 ]
 
 [[package]]

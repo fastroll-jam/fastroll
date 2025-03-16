@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rjam-codec = { workspace = true }
+rjam-codec = { workspace = true, features = ["derive"] }
 cfg-if = { workspace = true }
 hex = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 default = ["tiny"]

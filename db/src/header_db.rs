@@ -4,10 +4,10 @@ use rjam_block::types::{
     block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
     extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
 };
+use rjam_clock::Clock;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use rjam_types::state::{Timeslot, TimeslotError};
 use rocksdb::BoundColumnFamily;
 use std::{
     path::Path,
@@ -23,8 +23,8 @@ pub enum BlockHeaderDBError {
     StagingHeaderNotInitialized,
     #[error("Staging header is already initialized")]
     StagingHeaderAlreadyInitialized,
-    #[error("Timeslot error")]
-    TimeslotError(#[from] TimeslotError),
+    #[error("Invalid timestamp: prior to the JAM common era")]
+    InvalidTimestamp,
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("ExtrinsicsError: {0}")]
@@ -174,13 +174,17 @@ impl BlockHeaderDB {
     }
 
     // Staging header setters
-    pub fn set_timeslot(&mut self) -> Result<Timeslot, BlockHeaderDBError> {
+    pub fn set_timeslot(&mut self) -> Result<u32, BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
-        let curr_timeslot = Timeslot::from_now()?;
-        self.update_staging_header(|h| {
-            h.timeslot_index = curr_timeslot.slot();
-        })?;
-        Ok(curr_timeslot)
+
+        if let Some(curr_timeslot_index) = Clock::now_jam_timeslot() {
+            self.update_staging_header(|h| {
+                h.timeslot_index = curr_timeslot_index;
+            })?;
+            Ok(curr_timeslot_index)
+        } else {
+            Err(BlockHeaderDBError::InvalidTimestamp)
+        }
     }
 
     fn header_extrinsic_hash(xt: &Extrinsics) -> Result<Hash32, BlockHeaderDBError> {

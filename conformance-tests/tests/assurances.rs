@@ -9,12 +9,15 @@ mod tests {
         harness::{run_test_case, StateTransitionTest},
     };
     use rjam_db::header_db::BlockHeaderDB;
-    use rjam_state::{error::StateManagerError, StateManager};
+    use rjam_state::{
+        error::StateManagerError,
+        types::{ActiveSet, PendingReports, Timeslot},
+        StateManager,
+    };
     use rjam_transition::{
         error::TransitionError,
         state::{reports::transition_reports_clear_availables, timeslot::transition_timeslot},
     };
-    use rjam_types::state::{ActiveSet, PendingReports, Timeslot};
     use std::sync::Arc;
 
     struct AssurancesTest;

@@ -5,6 +5,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+pub mod ticket;
+pub mod workloads;
+
 /// 32-byte Hash type.
 pub type Hash32 = ByteArray<HASH_SIZE>;
 
@@ -248,4 +251,22 @@ impl ValidatorKey {
             s = spaces
         )
     }
+}
+
+// Util Functions
+fn get_validator_key_by_index(
+    validator_set: &ValidatorKeySet,
+    validator_index: ValidatorIndex,
+) -> Option<&ValidatorKey> {
+    if validator_index as usize >= VALIDATOR_COUNT {
+        return None;
+    }
+    Some(&validator_set[validator_index as usize])
+}
+
+pub fn get_validator_ed25519_key_by_index(
+    validator_set: &ValidatorKeySet,
+    validator_index: ValidatorIndex,
+) -> Option<&Ed25519PubKey> {
+    get_validator_key_by_index(validator_set, validator_index).map(|v| &v.ed25519_key)
 }
