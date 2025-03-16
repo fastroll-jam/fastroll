@@ -1,7 +1,6 @@
-use ark_ec_vrfs::prelude::ark_serialize::SerializationError;
 use rjam_crypto::CryptoError;
 use rjam_db::header_db::BlockHeaderDBError;
-use rjam_extrinsics::validation::error::XtValidationError;
+use rjam_extrinsics::validation::error::XtError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_core::types::error::PVMError;
 use rjam_state::error::StateManagerError;
@@ -18,11 +17,11 @@ pub enum TransitionError {
     // Pending Work Reports errors
     #[error("PendingReports Error")]
     PendingReportsError(#[from] PendingReportsError),
+    #[error("Crypto Serialization Error")]
+    CryptoSerializationError,
     // External errors
     #[error("Extrinsic validation error: {0}")]
-    XtValidationError(#[from] XtValidationError),
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] SerializationError),
+    XtValidationError(#[from] XtError),
     #[error("Fallback key error: {0}")]
     FallbackKeyError(#[from] FallbackKeyError),
     #[error("Crypto error: {0}")]

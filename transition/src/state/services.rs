@@ -1,4 +1,5 @@
 use crate::error::TransitionError;
+use rjam_block::types::extrinsics::preimages::PreimagesXt;
 use rjam_common::{
     ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
@@ -18,7 +19,6 @@ use rjam_pvm_invocation::{
 use rjam_state::{StateManager, StateMut};
 use rjam_types::{
     common::{transfers::DeferredTransfer, workloads::WorkReport},
-    extrinsics::preimages::PreimagesXt,
     state::{AccountFootprintDelta, AccountPreimagesEntry},
 };
 use std::{collections::HashSet, sync::Arc};

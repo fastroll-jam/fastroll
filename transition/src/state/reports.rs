@@ -1,15 +1,14 @@
 use crate::error::TransitionError;
+use rjam_block::types::extrinsics::{
+    assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+};
 use rjam_common::{Ed25519PubKey, Hash32};
 use rjam_extrinsics::validation::{
     assurances::AssurancesXtValidator, disputes::DisputesXtValidator,
     guarantees::GuaranteesXtValidator,
 };
 use rjam_state::{StateManager, StateMut};
-use rjam_types::{
-    common::workloads::WorkReport,
-    extrinsics::{assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt},
-    state::*,
-};
+use rjam_types::{common::workloads::WorkReport, state::*};
 use std::sync::Arc;
 
 /// State transition function of `PendingReports`, eliminating invalid work reports by consuming

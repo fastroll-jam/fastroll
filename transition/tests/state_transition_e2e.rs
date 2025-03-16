@@ -1,5 +1,5 @@
 //! End-to-end state transition tests
-
+use rjam_block::types::{block::BlockHeader, extrinsics::Extrinsics};
 use rjam_common::Hash32;
 use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use rjam_transition::{
@@ -19,7 +19,7 @@ use rjam_transition::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use rjam_types::{block::header::BlockHeader, extrinsics::Extrinsics, state::ReportedWorkPackage};
+use rjam_types::state::ReportedWorkPackage;
 use std::{error::Error, future::Future, sync::Arc, time::Instant};
 use tokio::{join, task::JoinHandle};
 use tracing::{info, subscriber::set_global_default};

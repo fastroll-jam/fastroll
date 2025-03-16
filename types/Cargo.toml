@@ -8,8 +8,5 @@ rjam-codec = { workspace = true, features = ["derive"] }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 rjam-merkle = { workspace = true }
-ark-ec-vrfs = { workspace = true }
-bit-vec = { workspace = true }
-hex = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }

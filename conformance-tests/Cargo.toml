@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rjam-block = { workspace = true }
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true, features = ["default"] }
 rjam-crypto = { workspace = true }

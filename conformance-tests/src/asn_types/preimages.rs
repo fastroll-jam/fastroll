@@ -1,11 +1,9 @@
 use crate::asn_types::common::{
     AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot,
 };
+use rjam_block::types::extrinsics::preimages::PreimagesXt;
 use rjam_common::{Hash32, LookupsKey, Octets};
-use rjam_types::{
-    extrinsics::preimages::PreimagesXt,
-    state::{AccountLookupsEntry, AccountPreimagesEntry, Timeslot},
-};
+use rjam_types::state::{AccountLookupsEntry, AccountPreimagesEntry, Timeslot};
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]

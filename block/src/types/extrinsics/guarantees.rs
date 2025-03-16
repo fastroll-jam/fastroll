@@ -1,12 +1,9 @@
-use crate::{
-    common::workloads::WorkReport,
-    extrinsics::{ExtrinsicsError, XtEntry, XtType},
-    state::validators::get_validator_ed25519_key_by_index,
-};
+use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{Ed25519PubKey, Ed25519Signature, ValidatorIndex, ValidatorKeySet};
+use rjam_types::{common::workloads::WorkReport, state::get_validator_ed25519_key_by_index};
 use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report

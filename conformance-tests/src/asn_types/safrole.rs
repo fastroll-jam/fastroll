@@ -1,7 +1,8 @@
 use crate::asn_types::common::*;
+use rjam_block::types::extrinsics::tickets::TicketsXt;
 use rjam_common::{BandersnatchRingRoot, Hash32};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
-use rjam_types::{extrinsics::tickets::TicketsXt, state::*};
+use rjam_types::state::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

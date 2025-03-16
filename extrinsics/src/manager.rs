@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use crate::pool::{OpaqueXtEntry, XtPool, XtPoolError};
-use rjam_codec::JamDecode;
-use rjam_types::extrinsics::{
+use rjam_block::types::extrinsics::{
     assurances::{AssurancesXt, AssurancesXtEntry},
     disputes::{Culprit, DisputesXt, Fault, Verdict},
     guarantees::{GuaranteesXt, GuaranteesXtEntry},
@@ -9,6 +8,7 @@ use rjam_types::extrinsics::{
     tickets::{TicketsXt, TicketsXtEntry},
     XtType,
 };
+use rjam_codec::JamDecode;
 
 struct XtManager;
 

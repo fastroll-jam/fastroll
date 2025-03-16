@@ -7,14 +7,14 @@ use crate::{
         validators::{transition_active_set, transition_past_set},
     },
 };
+use rjam_block::types::{
+    block::{BlockHeader, EpochMarker, WinningTicketsMarker},
+    extrinsics::tickets::TicketsXt,
+};
 use rjam_common::{BandersnatchPubKey, ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::StateManager;
-use rjam_types::{
-    block::header::{BlockHeader, EpochMarker, WinningTicketsMarker},
-    extrinsics::tickets::TicketsXt,
-    state::*,
-};
+use rjam_types::state::*;
 use std::sync::Arc;
 
 pub struct SafroleHeaderMarkers {

@@ -1128,6 +1128,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rjam-block"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "rjam-codec",
+ "rjam-common",
+ "rjam-crypto",
+ "rjam-types",
+ "thiserror",
+]
+
+[[package]]
 name = "rjam-codec"
 version = "0.1.0"
 dependencies = [
@@ -1163,6 +1175,7 @@ dependencies = [
  "futures",
  "hex",
  "paste",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1203,6 +1216,7 @@ dependencies = [
  "dashmap",
  "dotenv",
  "hex",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1216,12 +1230,11 @@ dependencies = [
 name = "rjam-extrinsics"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
  "hex",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-merkle",
  "rjam-state",
  "rjam-types",
  "thiserror",
@@ -1241,6 +1254,7 @@ dependencies = [
 name = "rjam-node"
 version = "0.1.0"
 dependencies = [
+ "rjam-block",
  "rjam-common",
  "rjam-db",
  "rjam-extrinsics",
@@ -1347,7 +1361,7 @@ dependencies = [
 name = "rjam-transition"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
+ "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1370,9 +1384,6 @@ dependencies = [
 name = "rjam-types"
 version = "0.1.0"
 dependencies = [
- "ark-ec-vrfs",
- "bit-vec",
- "hex",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",

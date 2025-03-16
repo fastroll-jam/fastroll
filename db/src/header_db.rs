@@ -1,13 +1,13 @@
 use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
 use dashmap::DashMap;
+use rjam_block::types::{
+    block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
+    extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
+};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use rjam_types::{
-    block::header::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
-    extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
-    state::{Timeslot, TimeslotError},
-};
+use rjam_types::state::{Timeslot, TimeslotError};
 use rocksdb::BoundColumnFamily;
 use std::{
     path::Path,

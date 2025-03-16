@@ -1,4 +1,4 @@
-use crate::state::Ticket;
+use crate::types::extrinsics::Extrinsics;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
@@ -7,8 +7,15 @@ use rjam_common::{
     VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_types::state::Ticket;
 use std::fmt::Display;
 use thiserror::Error;
+
+#[derive(Debug, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct Block {
+    pub header: BlockHeader,
+    pub extrinsics: Extrinsics,
+}
 
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 

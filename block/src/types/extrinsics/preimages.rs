@@ -1,4 +1,4 @@
-use crate::extrinsics::{XtEntry, XtType};
+use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };

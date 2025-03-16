@@ -3,6 +3,17 @@ use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
+use rjam_block::types::{
+    block::{Block, BlockHeader, EpochMarker},
+    extrinsics::{
+        assurances::{AssurancesXt, AssurancesXtEntry},
+        disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
+        guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
+        preimages::{PreimagesXt, PreimagesXtEntry},
+        tickets::{TicketsXt, TicketsXtEntry},
+        Extrinsics,
+    },
+};
 use rjam_common::{
     BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
     Ed25519Signature, Hash32, Octets, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
@@ -11,23 +22,11 @@ use rjam_common::{
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_types::{
-    block::{
-        header::{BlockHeader, EpochMarker},
-        Block,
-    },
     common::workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
         SegmentRootLookupTable,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
-    },
-    extrinsics::{
-        assurances::{AssurancesXt, AssurancesXtEntry},
-        disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
-        guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
-        preimages::{PreimagesXt, PreimagesXtEntry},
-        tickets::{TicketsXt, TicketsXtEntry},
-        Extrinsics,
     },
     state::{
         AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,

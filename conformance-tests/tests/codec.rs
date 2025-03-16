@@ -1,14 +1,16 @@
 //! JAM Codec conformance tests
 mod tests {
-    use rjam_codec::{JamDecode, JamEncode};
-    use rjam_conformance_tests::asn_types::common::*;
-    use rjam_types::{
-        block::{header::BlockHeader, Block},
-        common::workloads::{RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport},
+    use rjam_block::types::{
+        block::{Block, BlockHeader},
         extrinsics::{
             assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
             preimages::PreimagesXt, tickets::TicketsXt, Extrinsics,
         },
+    };
+    use rjam_codec::{JamDecode, JamEncode};
+    use rjam_conformance_tests::asn_types::common::*;
+    use rjam_types::common::workloads::{
+        RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport,
     };
     use serde::{de::DeserializeOwned, Serialize};
     use std::{

@@ -1,13 +1,11 @@
-use crate::{
-    common::workloads::WorkReportError,
-    extrinsics::{
-        assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
-        preimages::PreimagesXt, tickets::TicketsXt,
-    },
+use crate::types::extrinsics::{
+    assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+    preimages::PreimagesXt, tickets::TicketsXt,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_types::common::workloads::WorkReportError;
 use thiserror::Error;
 
 pub mod assurances;

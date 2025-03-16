@@ -1,5 +1,4 @@
-use crate::extrinsics::{XtEntry, XtType};
-use ark_ec_vrfs::prelude::ark_serialize::CanonicalDeserialize;
+use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSignature;
 use rjam_crypto::RingVrfSignature;
@@ -43,9 +42,7 @@ impl Display for TicketsXtEntry {
             f,
             "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: {} }}",
             self.entry_index,
-            RingVrfSignature::deserialize_compressed(&self.ticket_proof[..])
-                .unwrap()
-                .output_hash()
+            RingVrfSignature::from_ticket_proof(&self.ticket_proof).output_hash()
         )
     }
 }
@@ -64,12 +61,8 @@ impl Ord for TicketsXtEntry {
     // Compare the ticket extrinsics by the hash of the ticket proofs, which is not explicitly
     // represented by the `TicketsXtEntry`.
     fn cmp(&self, other: &Self) -> Ordering {
-        let self_hash = RingVrfSignature::deserialize_compressed(&self.ticket_proof[..])
-            .unwrap()
-            .output_hash();
-        let other_hash = RingVrfSignature::deserialize_compressed(&other.ticket_proof[..])
-            .unwrap()
-            .output_hash();
+        let self_hash = RingVrfSignature::from_ticket_proof(&self.ticket_proof).output_hash();
+        let other_hash = RingVrfSignature::from_ticket_proof(&other.ticket_proof).output_hash();
         self_hash.cmp(&other_hash)
     }
 }
