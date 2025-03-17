@@ -18,9 +18,9 @@ pub trait SimpleStateComponent: StateComponent {
 pub trait AccountStateComponent: StateComponent {}
 
 pub trait StateComponent: Clone + Debug + Default + PartialEq + Eq + JamEncode + JamDecode {
-    fn from_entry_type(entry: &StateEntryType) -> Option<&Self>;
+    fn from_entry_type(entry_type: &StateEntryType) -> Option<&Self>;
 
-    fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self>;
+    fn from_entry_type_mut(entry_type: &mut StateEntryType) -> Option<&mut Self>;
 
     fn into_entry_type(self) -> StateEntryType;
 }
@@ -29,16 +29,16 @@ pub trait StateComponent: Clone + Debug + Default + PartialEq + Eq + JamEncode +
 macro_rules! impl_simple_state_component {
     ($state_type:ty, $type_name:ident) => {
         impl StateComponent for $state_type {
-            fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-                if let StateEntryType::$type_name(ref entry) = entry {
+            fn from_entry_type(entry_type: &StateEntryType) -> Option<&Self> {
+                if let StateEntryType::$type_name(ref entry) = entry_type {
                     Some(entry)
                 } else {
                     None
                 }
             }
 
-            fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-                if let StateEntryType::$type_name(ref mut entry) = entry {
+            fn from_entry_type_mut(entry_type: &mut StateEntryType) -> Option<&mut Self> {
+                if let StateEntryType::$type_name(ref mut entry) = entry_type {
                     Some(entry)
                 } else {
                     None
@@ -60,16 +60,16 @@ macro_rules! impl_simple_state_component {
 macro_rules! impl_account_state_component {
     ($state_type:ty, $type_name:ident) => {
         impl StateComponent for $state_type {
-            fn from_entry_type(entry: &StateEntryType) -> Option<&Self> {
-                if let StateEntryType::$type_name(ref entry) = entry {
+            fn from_entry_type(entry_type: &StateEntryType) -> Option<&Self> {
+                if let StateEntryType::$type_name(ref entry) = entry_type {
                     Some(entry)
                 } else {
                     None
                 }
             }
 
-            fn from_entry_type_mut(entry: &mut StateEntryType) -> Option<&mut Self> {
-                if let StateEntryType::$type_name(ref mut entry) = entry {
+            fn from_entry_type_mut(entry_type: &mut StateEntryType) -> Option<&mut Self> {
+                if let StateEntryType::$type_name(ref mut entry) = entry_type {
                     Some(entry)
                 } else {
                     None
