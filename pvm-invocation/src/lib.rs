@@ -17,7 +17,8 @@ use rjam_pvm_core::types::{
 };
 use rjam_pvm_hostcall::context::{
     partial_state::{AccountSandbox, AccumulatePartialState},
-    types::*,
+    AccumulateHostContext, AccumulateHostContextPair, InvocationContext, OnTransferHostContext,
+    RefineHostContext,
 };
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
@@ -226,8 +227,8 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the global state. The only allowed access is the historical lookup.
-    /// * `args` - Refine entry-point function arguments
+    /// * `state_manager` - A handle to a `StateManager` to access to the global state. The only allowed access is the historical lookup.
+    /// * `args` - Refine entry-point function arguments.
     ///
     /// Represents `Ψ_R` of the GP
     pub async fn refine(
@@ -307,8 +308,9 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the global state
-    /// * `args` - Accumulate entry-point function arguments
+    /// * `state_manager` - A handle to a `StateManager` to access to the global state.
+    /// * `partial_state` - Partial state copied from the state manager that is free to be read and updated during the accumulation.
+    /// * `args` - Accumulate entry-point function arguments.
     ///
     /// Represents `Ψ_A` of the GP
     pub async fn accumulate(
@@ -400,8 +402,8 @@ impl PVMInvocation {
     ///
     /// # Arguments
     ///
-    /// * `state_manager` - State manager to access to the global state
-    /// * `args` - On-Transfer entry-point function arguments
+    /// * `state_manager` - A handle to a `StateManager` to access to the global state.
+    /// * `args` - On-Transfer entry-point function arguments.
     ///
     /// Represents `Ψ_T` of the GP
     pub async fn on_transfer(

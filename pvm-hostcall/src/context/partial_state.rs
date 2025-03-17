@@ -36,7 +36,7 @@ where
 pub enum SandboxEntryStatus {
     /// State entry is copied from the state manager, with no modification.
     Clean,
-    /// State entry doesn't exist in the state manager and is created during the execution.
+    /// State entry doesn't exist in the state manager and is created during the accumulation.
     Added,
     /// State entry is copied from the state manager and then modified.
     Updated,
