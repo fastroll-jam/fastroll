@@ -17,7 +17,8 @@ use rjam_pvm_core::types::{
 };
 use rjam_pvm_hostcall::context::{
     partial_state::{AccountSandbox, AccumulatePartialState},
-    types::*,
+    AccumulateHostContext, AccumulateHostContextPair, InvocationContext, OnTransferHostContext,
+    RefineHostContext,
 };
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
