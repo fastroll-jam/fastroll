@@ -18,6 +18,8 @@ pub enum PVMError {
     PageFault(MemAddress),
     #[error("Invalid memory zone")]
     InvalidMemZone,
+    #[error("Spawned accumulate task panicked")]
+    AccumulateTaskPanicked,
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]
