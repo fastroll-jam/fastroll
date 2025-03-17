@@ -80,7 +80,7 @@ impl StateManager {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
 
-        self.cache.insert(
+        self.cache.insert_entry(
             *state_key,
             CacheEntry {
                 clean_snapshot: StateEntryType::Raw(state_val.clone()),
@@ -99,7 +99,7 @@ impl StateManager {
         // State entry must exist to be updated
         match self.get_raw_state_entry_from_db(state_key).await? {
             Some(old_state) => {
-                self.cache.insert(
+                self.cache.insert_entry(
                     *state_key,
                     CacheEntry {
                         clean_snapshot: StateEntryType::Raw(old_state),
@@ -120,7 +120,7 @@ impl StateManager {
         // State entry must exist to be removed
         match self.get_raw_state_entry_from_db(state_key).await? {
             Some(old_state) => {
-                self.cache.insert(
+                self.cache.insert_entry(
                     *state_key,
                     CacheEntry {
                         value: StateEntryType::Raw(vec![]),
@@ -141,7 +141,7 @@ impl StateManager {
     where
         T: StateComponent,
     {
-        if let Some(entry) = self.cache.get(state_key) {
+        if let Some(entry) = self.cache.get_entry(state_key) {
             if let Some(state_entry) = T::from_entry_type(&entry.clean_snapshot) {
                 return Ok(Some(state_entry.clone()));
             }
@@ -156,7 +156,7 @@ impl StateManager {
     where
         T: StateComponent,
     {
-        if let Some(entry) = self.cache.get(state_key) {
+        if let Some(entry) = self.cache.get_entry(state_key) {
             if let Some(state_entry) = T::from_entry_type(&entry.value) {
                 return Ok(Some(state_entry.clone()));
             }
@@ -167,7 +167,7 @@ impl StateManager {
     pub fn is_cache_entry_dirty(&self, state_key: &Hash32) -> Result<bool, StateManagerError> {
         let entry = self
             .cache
-            .get(state_key)
+            .get_entry(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
         Ok(entry.is_dirty())
     }
@@ -177,7 +177,7 @@ impl StateManager {
         T: StateComponent,
     {
         self.cache
-            .insert(*state_key, CacheEntry::new(T::into_entry_type(state_entry)));
+            .insert_entry(*state_key, CacheEntry::new(T::into_entry_type(state_entry)));
     }
 
     pub fn clear_state_cache(&self) {
@@ -364,15 +364,16 @@ impl StateManager {
         &self,
         state_key: &Hash32,
     ) -> Result<(), StateManagerError> {
-        let mut cache_entry = self
+        let entry_status = self
             .cache
-            .get_mut(state_key)
+            .get_entry_status(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        if let CacheEntryStatus::Clean = &cache_entry.status {
+        if let CacheEntryStatus::Clean = entry_status {
             return Err(StateManagerError::NotDirtyCache);
         }
-        let write_op = cache_entry.as_merkle_state_mut(state_key)?;
+        let write_op = self.cache.get_entry_as_merkle_write_op(state_key)?;
+
         // Case 1: Trie is empty
         if self.merkle_db.root() == Hash32::default() {
             // Initialize the empty merkle trie by committing the first entry.
@@ -398,8 +399,7 @@ impl StateManager {
             }
 
             // Mark committed entry as clean
-            cache_entry.value_mut().mark_clean_and_snapshot();
-
+            self.cache.mark_entry_clean_and_snapshot(state_key)?;
             return Ok(());
         }
 
@@ -441,8 +441,7 @@ impl StateManager {
         // );
 
         // Mark committed entry as clean
-        cache_entry.value_mut().mark_clean_and_snapshot();
-
+        self.cache.mark_entry_clean_and_snapshot(state_key)?;
         Ok(())
     }
 
@@ -473,7 +472,7 @@ impl StateManager {
             self.merkle_db
                 .collect_leaf_path(
                     state_key,
-                    entry.as_merkle_state_mut(state_key)?,
+                    entry.as_merkle_write_op(state_key)?,
                     &mut affected_nodes_by_depth,
                 )
                 .await?;
@@ -598,30 +597,11 @@ impl StateManager {
             .await?
             .is_some();
 
-        let mut cache_entry = if state_exists {
-            // At this point, it is obvious that an entry corresponding to the `old_state` exists.
-            self.cache.get_mut(state_key).expect("should exist")
-        } else {
+        if !state_exists {
             return Err(StateManagerError::StateKeyNotInitialized);
-        };
-
-        if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
-            f(entry_mut); // Call the closure to apply the state mutation
-
-            // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
-            // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
-            // they get committed to the db.
-            if let CacheEntryStatus::Dirty(StateMut::Add) = cache_entry.status {
-                if state_mut == StateMut::Update {
-                    // do nothing
-                }
-            } else {
-                cache_entry.mark_dirty(state_mut);
-            }
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
         }
+
+        self.cache.with_mut_entry(state_key, state_mut, f)
     }
 
     async fn add_state_entry_internal<T>(
@@ -643,7 +623,7 @@ impl StateManager {
         }
 
         let state_entry_type = state_entry.into_entry_type();
-        self.cache.insert(
+        self.cache.insert_entry(
             *state_key,
             CacheEntry {
                 clean_snapshot: state_entry_type.clone(),

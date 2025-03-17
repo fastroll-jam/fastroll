@@ -1,9 +1,11 @@
-use crate::{error::StateManagerError, state_utils::StateEntryType};
+use crate::{
+    error::StateManagerError,
+    state_utils::{StateComponent, StateEntryType},
+};
 use dashmap::DashMap;
 use rjam_codec::JamEncode;
 use rjam_common::Hash32;
 use rjam_state_merkle::types::MerkleWriteOp;
-use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -12,20 +14,20 @@ pub enum StateMut {
     Remove,
 }
 
-#[derive(Debug, Clone)]
-pub enum CacheEntryStatus {
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum CacheEntryStatus {
     Clean,
     Dirty(StateMut),
 }
 
 #[derive(Debug, Clone)]
-pub struct CacheEntry {
+pub(crate) struct CacheEntry {
     /// Cached snapshot of clean state entry, synchronized with the DB.
     pub(crate) clean_snapshot: StateEntryType,
     /// Latest state cache entry value.
-    pub value: StateEntryType,
+    pub(crate) value: StateEntryType,
     /// State cache status (Clean or Dirty).
-    pub status: CacheEntryStatus,
+    pub(crate) status: CacheEntryStatus,
 }
 
 impl CacheEntry {
@@ -41,16 +43,7 @@ impl CacheEntry {
         matches!(self.status, CacheEntryStatus::Dirty(_))
     }
 
-    pub(crate) fn mark_dirty(&mut self, state_mut: StateMut) {
-        self.status = CacheEntryStatus::Dirty(state_mut);
-    }
-
-    pub(crate) fn mark_clean_and_snapshot(&mut self) {
-        self.status = CacheEntryStatus::Clean;
-        self.clean_snapshot = self.value.clone(); // snapshot clean value
-    }
-
-    pub fn as_merkle_state_mut(
+    pub(crate) fn as_merkle_write_op(
         &self,
         state_key: &Hash32,
     ) -> Result<MerkleWriteOp, StateManagerError> {
@@ -69,24 +62,20 @@ impl CacheEntry {
 
         Ok(merkle_state_mut)
     }
-}
 
-pub struct StateCache {
-    inner: DashMap<Hash32, CacheEntry>, // (state_key, cache_entry)
-}
+    fn mark_dirty(&mut self, state_mut: StateMut) {
+        self.status = CacheEntryStatus::Dirty(state_mut);
+    }
 
-impl Deref for StateCache {
-    type Target = DashMap<Hash32, CacheEntry>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+    pub fn mark_clean_and_snapshot(&mut self) {
+        self.status = CacheEntryStatus::Clean;
+        self.clean_snapshot = self.value.clone(); // snapshot clean value
     }
 }
 
-impl DerefMut for StateCache {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
+/// A thread-safe mapping from state keys to their corresponding cache entries.
+pub(crate) struct StateCache {
+    inner: DashMap<Hash32, CacheEntry>,
 }
 
 impl Default for StateCache {
@@ -100,6 +89,75 @@ impl StateCache {
         Self {
             inner: DashMap::new(),
         }
+    }
+
+    pub(crate) fn get_entry(&self, key: &Hash32) -> Option<CacheEntry> {
+        self.inner.get(key).map(|entry| entry.clone())
+    }
+
+    pub(crate) fn get_entry_status(&self, key: &Hash32) -> Option<CacheEntryStatus> {
+        self.inner.get(key).map(|entry| entry.status.clone())
+    }
+
+    pub(crate) fn get_entry_as_merkle_write_op(
+        &self,
+        key: &Hash32,
+    ) -> Result<MerkleWriteOp, StateManagerError> {
+        let entry = self
+            .get_entry(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        entry.as_merkle_write_op(key)
+    }
+
+    pub(crate) fn insert_entry(&self, key: Hash32, entry: CacheEntry) -> Option<CacheEntry> {
+        self.inner.insert(key, entry)
+    }
+
+    pub(crate) fn clear(&self) {
+        self.inner.clear();
+    }
+
+    pub(crate) fn with_mut_entry<T, F>(
+        &self,
+        state_key: &Hash32,
+        state_mut: StateMut,
+        f: F,
+    ) -> Result<(), StateManagerError>
+    where
+        T: StateComponent,
+        F: FnOnce(&mut T),
+    {
+        let mut cache_entry = self
+            .inner
+            .get_mut(state_key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
+            f(entry_mut); // Call the closure to apply the state mutation
+
+            // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
+            // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
+            // they get committed to the db.
+            if cache_entry.status != CacheEntryStatus::Dirty(StateMut::Add)
+                || state_mut != StateMut::Update
+            {
+                cache_entry.mark_dirty(state_mut)
+            }
+            Ok(())
+        } else {
+            Err(StateManagerError::UnexpectedEntryType)
+        }
+    }
+
+    pub(crate) fn mark_entry_clean_and_snapshot(
+        &self,
+        key: &Hash32,
+    ) -> Result<(), StateManagerError> {
+        let mut cache_entry = self
+            .inner
+            .get_mut(key)
+            .ok_or(StateManagerError::CacheEntryNotFound)?;
+        cache_entry.value_mut().mark_clean_and_snapshot();
+        Ok(())
     }
 
     pub(crate) fn collect_dirty(&self) -> Vec<(Hash32, CacheEntry)> {
