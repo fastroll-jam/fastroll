@@ -35,7 +35,7 @@ impl CoreDB {
     pub fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily, CoreDBError> {
         self.db
             .cf_handle(cf_name)
-            .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
+            .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
     }
 
     pub async fn get_entry(
@@ -67,7 +67,7 @@ impl CoreDB {
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
             let cf = db
                 .cf_handle(cf_name)
-                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+                .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
             db.put_cf(&cf, &key_vec, val_vec)?;
             Ok(())
         })
@@ -80,7 +80,7 @@ impl CoreDB {
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
             let cf = db
                 .cf_handle(cf_name)
-                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+                .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
             db.delete_cf(&cf, key_vec)?;
             Ok(())
         })
