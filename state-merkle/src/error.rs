@@ -1,6 +1,6 @@
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
-use rjam_db::core::CoreDBError;
+use rjam_db::core::core_db::CoreDBError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

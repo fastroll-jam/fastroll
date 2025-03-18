@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use crate::{
     manager::StateManager,
-    state_db::StateDB,
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
@@ -11,29 +10,34 @@ use crate::{
 };
 use rand::{thread_rng, Rng};
 use rjam_common::Hash32;
-use rjam_db::{core::CoreDB, header_db::BlockHeaderDB};
+use rjam_db::{
+    config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
+    core::core_db::CoreDB,
+    header_db::BlockHeaderDB,
+    state_db::StateDB,
+};
 use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, sync::Arc};
 use tempfile::tempdir;
 
 fn init_core_db() -> CoreDB {
     let db_path = tempdir().unwrap().path().join("test_db");
-    CoreDB::open(db_path, true).unwrap()
+    CoreDB::open(db_path, RocksDBOpts::default()).unwrap()
 }
 
 fn init_merkle_db(core_db: Arc<CoreDB>) -> MerkleDB {
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
-    MerkleDB::new(core_db, MERKLE_DB_CACHE_SIZE)
+    MerkleDB::new(core_db, MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE)
 }
 
 fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     const STATE_DB_CACHE_SIZE: usize = 1000;
-    StateDB::new(core_db, STATE_DB_CACHE_SIZE)
+    StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE)
 }
 
 fn init_header_db(core_db: Arc<CoreDB>, parent_hash: Option<Hash32>) -> BlockHeaderDB {
     const HEADER_DB_CACHE_SIZE: usize = 1000;
-    let mut db = BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE);
+    let mut db = BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE);
     // parent block hash is initialized with zeroes if not provided
     db.init_staging_header(parent_hash.unwrap_or_default())
         .unwrap();
