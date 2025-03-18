@@ -1,7 +1,4 @@
-use crate::{
-    core::core_db::{CoreDB, CoreDBError},
-    state_db::StateDBError,
-};
+use crate::core::core_db::{CoreDB, CoreDBError};
 use dashmap::DashMap;
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::{hash::Hash, sync::Arc};
@@ -59,7 +56,7 @@ where
         }
     }
 
-    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateDBError> {
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, CachedDBError> {
         self.core.cf_handle(self.cf_name).map_err(|e| e.into())
     }
 
