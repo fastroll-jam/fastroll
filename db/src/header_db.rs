@@ -1,4 +1,7 @@
-use crate::core::core_db::{CoreDB, CoreDBError};
+use crate::core::{
+    cached_db::CacheItem,
+    core_db::{CoreDB, CoreDBError},
+};
 use dashmap::DashMap;
 use rjam_block::types::{
     block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
@@ -32,6 +35,19 @@ pub enum BlockHeaderDBError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+}
+
+impl CacheItem for BlockHeader {
+    fn into_db_value(self) -> Vec<u8> {
+        self.encode().expect("Failed to encode BlockHeader")
+    }
+
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    where
+        Self: Sized,
+    {
+        Self::decode(&mut val.as_slice()).expect("Failed to decode BlockHeader")
+    }
 }
 
 /// Main storage and cache for block headers.
