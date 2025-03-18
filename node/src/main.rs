@@ -34,10 +34,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("DB initialized successfully");
 
     header_db.init_staging_header(Hash32::default())?;
-    let timeslot_index = header_db.set_timeslot()?;
-    header_db.commit_staging_header().await?;
+    let _timeslot_index = header_db.set_timeslot()?;
+    let header_hash = header_db.commit_staging_header().await?;
 
-    let header_1 = header_db.get_header(timeslot_index).await?;
+    let header_1 = header_db.get_header(&header_hash).await?.unwrap();
     println!("Header 1:");
     println!("{}", header_1);
 
