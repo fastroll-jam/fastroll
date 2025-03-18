@@ -10,7 +10,7 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::{config::MERKLE_CF_NAME, core::core_db::CoreDB};
+use rjam_db::core::core_db::CoreDB;
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::sync::{Arc, Mutex};
 
@@ -56,6 +56,8 @@ pub struct MerkleDB {
     root: Mutex<Hash32>,
     /// RocksDB core.
     core: Arc<CoreDB>,
+    /// RocksDB column family name.
+    cf_name: &'static str,
     /// Cache for storing Merkle trie nodes.
     cache: DashMap<Hash32, MerkleNode>,
     /// Working set of uncommitted Merkle nodes.
@@ -63,17 +65,18 @@ pub struct MerkleDB {
 }
 
 impl MerkleDB {
-    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
+    pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
             root: Mutex::new(Hash32::default()),
             core,
+            cf_name,
             cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
         }
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
-        self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
+        self.core.cf_handle(self.cf_name).map_err(|e| e.into())
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
@@ -163,7 +166,7 @@ impl MerkleDB {
         // fetch node data octets from the db and put into the cache
         let maybe_node = self
             .core
-            .get_entry(MERKLE_CF_NAME, node_hash.as_slice())
+            .get_entry(self.cf_name, node_hash.as_slice())
             .await?
             .map(|data| MerkleNode {
                 hash: *node_hash,
@@ -181,7 +184,7 @@ impl MerkleDB {
     pub(crate) async fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
         // write to DB
         self.core
-            .put_entry(MERKLE_CF_NAME, node.hash.as_slice(), &node.data)
+            .put_entry(self.cf_name, node.hash.as_slice(), &node.data)
             .await?;
         // insert into cache
         self.cache.insert(node.hash, node.clone());

@@ -3,7 +3,10 @@ pub(crate) mod timeslot_scheduler;
 
 use rjam_common::Hash32;
 use rjam_db::{
-    config::RocksDBOpts, core::core_db::CoreDB, header_db::BlockHeaderDB, state_db::StateDB,
+    config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
+    core::core_db::CoreDB,
+    header_db::BlockHeaderDB,
+    state_db::StateDB,
 };
 use rjam_extrinsics::pool::XtPool;
 use rjam_state::manager::StateManager;
@@ -22,9 +25,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         RocksDBOpts::default(),
     )?);
 
-    let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_DB_CACHE_SIZE);
-    let state_db = StateDB::new(core_db.clone(), STATE_DB_CACHE_SIZE);
-    let mut header_db = BlockHeaderDB::new(core_db, HEADER_DB_CACHE_SIZE);
+    let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE);
+    let state_db = StateDB::new(core_db.clone(), STATE_CF_NAME, STATE_DB_CACHE_SIZE);
+    let mut header_db = BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE);
     let _state_manager = StateManager::new(state_db, merkle_db);
     let _extrinsic_pool = XtPool::new(EXTRINSICS_POOL_MAX_SIZE);
 

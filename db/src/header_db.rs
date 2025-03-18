@@ -1,7 +1,4 @@
-use crate::{
-    config::HEADER_CF_NAME,
-    core::core_db::{CoreDB, CoreDBError},
-};
+use crate::core::core_db::{CoreDB, CoreDBError};
 use dashmap::DashMap;
 use rjam_block::types::{
     block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
@@ -43,6 +40,8 @@ pub enum BlockHeaderDBError {
 pub struct BlockHeaderDB {
     /// KeyValueDB type.
     core: Arc<CoreDB>,
+    /// RocksDB column family name.
+    cf_name: &'static str,
     /// Cache for storing block headers, keyed by timeslot index.
     cache: DashMap<u32, BlockHeader>,
     /// Mutable staging header used for block construction.
@@ -50,16 +49,17 @@ pub struct BlockHeaderDB {
 }
 
 impl BlockHeaderDB {
-    pub fn new(core: Arc<CoreDB>, cache_size: usize) -> Self {
+    pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
             core,
+            cf_name,
             cache: DashMap::with_capacity(cache_size),
             staging_header: Mutex::new(None),
         }
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
-        self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
+        self.core.cf_handle(self.cf_name).map_err(|e| e.into())
     }
 
     /// Get a block header by timeslot, either from the DB or the cache.
@@ -73,7 +73,7 @@ impl BlockHeaderDB {
 
         let header_encoded = self
             .core
-            .get_entry(HEADER_CF_NAME, &timeslot_key)
+            .get_entry(self.cf_name, &timeslot_key)
             .await?
             .ok_or(BlockHeaderDBError::HeaderNotFound(
                 timeslot_index.to_string(),
@@ -95,7 +95,7 @@ impl BlockHeaderDB {
 
         let header_encoded = self
             .core
-            .get_entry(HEADER_CF_NAME, &header_hash_key)
+            .get_entry(self.cf_name, &header_hash_key)
             .await?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
@@ -109,10 +109,10 @@ impl BlockHeaderDB {
         let header_encoded = header.encode()?;
 
         self.core
-            .put_entry(HEADER_CF_NAME, &timeslot_key, &header_encoded)
+            .put_entry(self.cf_name, &timeslot_key, &header_encoded)
             .await?;
         self.core
-            .put_entry(HEADER_CF_NAME, &header_hash_key, &header_encoded)
+            .put_entry(self.cf_name, &header_hash_key, &header_encoded)
             .await?;
         self.cache.insert(header.timeslot_index, header.clone());
 
