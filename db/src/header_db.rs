@@ -11,7 +11,7 @@ use rjam_clock::Clock;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use rocksdb::BoundColumnFamily;
+use rocksdb::ColumnFamily;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
@@ -58,7 +58,7 @@ impl BlockHeaderDB {
         }
     }
 
-    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, BlockHeaderDBError> {
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
         self.core.cf_handle(HEADER_CF_NAME).map_err(|e| e.into())
     }
 

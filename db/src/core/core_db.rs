@@ -1,5 +1,5 @@
 use crate::config::RocksDBOpts;
-use rocksdb::{BoundColumnFamily, WriteBatch, WriteOptions, DB};
+use rocksdb::{ColumnFamily, WriteBatch, WriteOptions, DB};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -32,7 +32,7 @@ impl CoreDB {
         })
     }
 
-    pub fn cf_handle(&self, cf_name: &str) -> Result<Arc<BoundColumnFamily>, CoreDBError> {
+    pub fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily, CoreDBError> {
         self.db
             .cf_handle(cf_name)
             .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))

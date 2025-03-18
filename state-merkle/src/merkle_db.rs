@@ -11,7 +11,7 @@ use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_db::{config::MERKLE_CF_NAME, core::core_db::CoreDB};
-use rocksdb::{BoundColumnFamily, WriteBatch};
+use rocksdb::{ColumnFamily, WriteBatch};
 use std::sync::{Arc, Mutex};
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
@@ -72,7 +72,7 @@ impl MerkleDB {
         }
     }
 
-    pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateMerkleError> {
+    pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
         self.core.cf_handle(MERKLE_CF_NAME).map_err(|e| e.into())
     }
 
