@@ -10,7 +10,7 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::{config::MERKLE_CF_NAME, core::CoreDB};
+use rjam_db::{config::MERKLE_CF_NAME, core::core_db::CoreDB};
 use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::sync::{Arc, Mutex};
 

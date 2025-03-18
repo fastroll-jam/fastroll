@@ -10,7 +10,9 @@ use crate::{
 };
 use rand::{thread_rng, Rng};
 use rjam_common::Hash32;
-use rjam_db::{config::RocksDBOpts, core::CoreDB, header_db::BlockHeaderDB, state_db::StateDB};
+use rjam_db::{
+    config::RocksDBOpts, core::core_db::CoreDB, header_db::BlockHeaderDB, state_db::StateDB,
+};
 use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, sync::Arc};
 use tempfile::tempdir;

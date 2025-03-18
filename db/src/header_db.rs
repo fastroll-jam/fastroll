@@ -1,6 +1,6 @@
 use crate::{
     config::HEADER_CF_NAME,
-    core::{CoreDB, CoreDBError},
+    core::core_db::{CoreDB, CoreDBError},
 };
 use dashmap::DashMap;
 use rjam_block::types::{
