@@ -10,7 +10,7 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
+use rjam_db::{config::MERKLE_CF_NAME, core::CoreDB};
 use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::sync::{Arc, Mutex};
 
@@ -163,7 +163,7 @@ impl MerkleDB {
         // fetch node data octets from the db and put into the cache
         let maybe_node = self
             .core
-            .get_merkle(node_hash.as_slice())
+            .get_entry(MERKLE_CF_NAME, node_hash.as_slice())
             .await?
             .map(|data| MerkleNode {
                 hash: *node_hash,
@@ -181,7 +181,7 @@ impl MerkleDB {
     pub(crate) async fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
         // write to DB
         self.core
-            .put_merkle(node.hash.as_slice(), &node.data)
+            .put_entry(MERKLE_CF_NAME, node.hash.as_slice(), &node.data)
             .await?;
         // insert into cache
         self.cache.insert(node.hash, node.clone());

@@ -1,4 +1,7 @@
-use crate::core::{CoreDB, CoreDBError, HEADER_CF_NAME};
+use crate::{
+    config::HEADER_CF_NAME,
+    core::{CoreDB, CoreDBError},
+};
 use dashmap::DashMap;
 use rjam_block::types::{
     block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
@@ -68,9 +71,13 @@ impl BlockHeaderDB {
 
         let timeslot_key = format!("T::{}", timeslot_index).into_bytes();
 
-        let header_encoded = self.core.get_header(&timeslot_key).await?.ok_or(
-            BlockHeaderDBError::HeaderNotFound(timeslot_index.to_string()),
-        )?;
+        let header_encoded = self
+            .core
+            .get_entry(HEADER_CF_NAME, &timeslot_key)
+            .await?
+            .ok_or(BlockHeaderDBError::HeaderNotFound(
+                timeslot_index.to_string(),
+            ))?;
 
         let header = BlockHeader::decode(&mut header_encoded.as_slice())?;
         self.cache.insert(timeslot_index, header.clone());
@@ -88,7 +95,7 @@ impl BlockHeaderDB {
 
         let header_encoded = self
             .core
-            .get_header(&header_hash_key)
+            .get_entry(HEADER_CF_NAME, &header_hash_key)
             .await?
             .ok_or(BlockHeaderDBError::HeaderNotFound(header_hash_string))?;
 
@@ -101,9 +108,11 @@ impl BlockHeaderDB {
 
         let header_encoded = header.encode()?;
 
-        self.core.put_header(&timeslot_key, &header_encoded).await?;
         self.core
-            .put_header(&header_hash_key, &header_encoded)
+            .put_entry(HEADER_CF_NAME, &timeslot_key, &header_encoded)
+            .await?;
+        self.core
+            .put_entry(HEADER_CF_NAME, &header_hash_key, &header_encoded)
             .await?;
         self.cache.insert(header.timeslot_index, header.clone());
 

@@ -1,10 +1,7 @@
-use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Options, WriteBatch, WriteOptions, DB};
+use crate::config::RocksDBOpts;
+use rocksdb::{BoundColumnFamily, WriteBatch, WriteOptions, DB};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
-
-pub const STATE_CF_NAME: &str = "state_cf";
-pub const MERKLE_CF_NAME: &str = "merkle_cf";
-pub const HEADER_CF_NAME: &str = "header_cf";
 
 #[derive(Debug, Error)]
 pub enum CoreDBError {
@@ -24,20 +21,14 @@ pub struct CoreDB {
 
 impl CoreDB {
     /// Opens or creates a RocksDB instance at the given `path` with column families.
-    pub fn open<P: AsRef<Path>>(path: P, create_if_missing: bool) -> Result<Self, CoreDBError> {
-        let mut opts = Options::default();
-        opts.create_if_missing(create_if_missing);
-        opts.create_missing_column_families(true);
-
-        let cfs = vec![
-            ColumnFamilyDescriptor::new(STATE_CF_NAME, Options::default()),
-            ColumnFamilyDescriptor::new(MERKLE_CF_NAME, Options::default()),
-            ColumnFamilyDescriptor::new(HEADER_CF_NAME, Options::default()),
-        ];
-
+    pub fn open<P: AsRef<Path>>(path: P, db_opts: RocksDBOpts) -> Result<Self, CoreDBError> {
         // Open DB with the CF descriptors
         Ok(Self {
-            db: Arc::new(DB::open_cf_descriptors(&opts, path, cfs)?),
+            db: Arc::new(DB::open_cf_descriptors(
+                &db_opts.opts,
+                path,
+                db_opts.column_families,
+            )?),
         })
     }
 
@@ -47,7 +38,7 @@ impl CoreDB {
             .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
     }
 
-    async fn get_entry(
+    pub async fn get_entry(
         &self,
         cf_name: &'static str,
         key: &[u8],
@@ -64,7 +55,7 @@ impl CoreDB {
         .await?)
     }
 
-    async fn put_entry(
+    pub async fn put_entry(
         &self,
         cf_name: &'static str,
         key: &[u8],
@@ -83,7 +74,7 @@ impl CoreDB {
         .await?
     }
 
-    async fn delete_entry(&self, cf_name: &'static str, key: &[u8]) -> Result<(), CoreDBError> {
+    pub async fn delete_entry(&self, cf_name: &'static str, key: &[u8]) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
@@ -96,7 +87,7 @@ impl CoreDB {
         .await?
     }
 
-    fn push_to_write_batch(
+    pub fn push_to_write_batch(
         &self,
         batch: &mut WriteBatch,
         cf_name: &'static str,
@@ -105,66 +96,6 @@ impl CoreDB {
     ) -> Result<(), CoreDBError> {
         batch.put_cf(&self.cf_handle(cf_name)?, key, val);
         Ok(())
-    }
-
-    // --- State CF operations
-
-    pub async fn get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        self.get_entry(STATE_CF_NAME, key).await
-    }
-
-    pub async fn put_state(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        self.put_entry(STATE_CF_NAME, key, val).await
-    }
-
-    pub async fn delete_state(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        self.delete_entry(STATE_CF_NAME, key).await
-    }
-
-    pub fn push_to_state_write_batch(
-        &self,
-        batch: &mut WriteBatch,
-        key: &[u8],
-        val: &[u8],
-    ) -> Result<(), CoreDBError> {
-        self.push_to_write_batch(batch, STATE_CF_NAME, key, val)
-    }
-
-    // --- Merkle CF operations
-
-    pub async fn get_merkle(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        self.get_entry(MERKLE_CF_NAME, key).await
-    }
-
-    pub async fn put_merkle(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        self.put_entry(MERKLE_CF_NAME, key, val).await
-    }
-
-    pub async fn delete_merkle(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        self.delete_entry(MERKLE_CF_NAME, key).await
-    }
-
-    pub fn push_to_merkle_write_batch(
-        &self,
-        batch: &mut WriteBatch,
-        key: &[u8],
-        val: &[u8],
-    ) -> Result<(), CoreDBError> {
-        self.push_to_write_batch(batch, MERKLE_CF_NAME, key, val)
-    }
-
-    // --- Header CF operations
-
-    pub async fn get_header(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreDBError> {
-        self.get_entry(HEADER_CF_NAME, key).await
-    }
-
-    pub async fn put_header(&self, key: &[u8], val: &[u8]) -> Result<(), CoreDBError> {
-        self.put_entry(HEADER_CF_NAME, key, val).await
-    }
-
-    pub async fn delete_header(&self, key: &[u8]) -> Result<(), CoreDBError> {
-        self.delete_entry(HEADER_CF_NAME, key).await
     }
 
     // --- Batch operation

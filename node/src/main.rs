@@ -2,7 +2,7 @@ pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
 use rjam_common::Hash32;
-use rjam_db::{core::CoreDB, header_db::BlockHeaderDB, state_db::StateDB};
+use rjam_db::{config::RocksDBOpts, core::CoreDB, header_db::BlockHeaderDB, state_db::StateDB};
 use rjam_extrinsics::pool::XtPool;
 use rjam_state::manager::StateManager;
 use rjam_state_merkle::merkle_db::MerkleDB;
@@ -15,7 +15,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     const STATE_DB_CACHE_SIZE: usize = 1000;
     const HEADER_DB_CACHE_SIZE: usize = 1000;
 
-    let core_db = Arc::new(CoreDB::open(PathBuf::from("./.rocksdb"), true)?);
+    let core_db = Arc::new(CoreDB::open(
+        PathBuf::from("./.rocksdb"),
+        RocksDBOpts::default(),
+    )?);
 
     let merkle_db = MerkleDB::new(core_db.clone(), MERKLE_DB_CACHE_SIZE);
     let state_db = StateDB::new(core_db.clone(), STATE_DB_CACHE_SIZE);

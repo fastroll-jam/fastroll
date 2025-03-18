@@ -10,14 +10,14 @@ use crate::{
 };
 use rand::{thread_rng, Rng};
 use rjam_common::Hash32;
-use rjam_db::{core::CoreDB, header_db::BlockHeaderDB, state_db::StateDB};
+use rjam_db::{config::RocksDBOpts, core::CoreDB, header_db::BlockHeaderDB, state_db::StateDB};
 use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, sync::Arc};
 use tempfile::tempdir;
 
 fn init_core_db() -> CoreDB {
     let db_path = tempdir().unwrap().path().join("test_db");
-    CoreDB::open(db_path, true).unwrap()
+    CoreDB::open(db_path, RocksDBOpts::default()).unwrap()
 }
 
 fn init_merkle_db(core_db: Arc<CoreDB>) -> MerkleDB {

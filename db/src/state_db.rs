@@ -1,4 +1,7 @@
-use crate::core::{CoreDB, CoreDBError, STATE_CF_NAME};
+use crate::{
+    config::STATE_CF_NAME,
+    core::{CoreDB, CoreDBError},
+};
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rocksdb::{BoundColumnFamily, WriteBatch};
@@ -37,7 +40,7 @@ impl StateDB {
         }
 
         // fetch encoded state data octets from the db and put into the cache
-        let value = self.core.get_state(key.as_slice()).await?;
+        let value = self.core.get_entry(STATE_CF_NAME, key.as_slice()).await?;
 
         // insert into cache if found
         if let Some(data) = &value {
@@ -49,14 +52,18 @@ impl StateDB {
 
     pub async fn put_entry(&self, key: &Hash32, val: &[u8]) -> Result<(), StateDBError> {
         // write to DB
-        self.core.put_state(key.as_slice(), val).await?;
+        self.core
+            .put_entry(STATE_CF_NAME, key.as_slice(), val)
+            .await?;
         // insert into cache
         self.cache.insert(*key, val.to_vec());
         Ok(())
     }
 
     pub async fn delete_entry(&self, key: &Hash32) -> Result<(), StateDBError> {
-        self.core.delete_state(key.as_slice()).await?;
+        self.core
+            .delete_entry(STATE_CF_NAME, key.as_slice())
+            .await?;
         self.cache.remove(key);
         Ok(())
     }
