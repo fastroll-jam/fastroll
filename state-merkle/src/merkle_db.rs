@@ -50,8 +50,12 @@ impl WorkingSet {
     }
 }
 
-/// Database and cache for storing and managing Merkle trie nodes.
+/// The main storage to store State Merkle Trie nodes.
+///
+/// `db` is a cached key-value database to store the trie nodes.
+/// Entries of the `db` are keyed by node hash.
 pub struct MerkleDB {
+    /// A handle to the `CachedDB`.
     db: CachedDB<Hash32, MerkleNode>,
     /// Root hash of the Merkle trie.
     root: Mutex<Hash32>,
@@ -136,7 +140,6 @@ impl MerkleDB {
         if let Some(uncommitted_node) = self.working_set.get_node(node_hash) {
             return Ok(Some(uncommitted_node));
         }
-
         // If not found in the `WorkingSet`, fallback to the real DB
         self.get_node(node_hash).await
     }
@@ -150,7 +153,6 @@ impl MerkleDB {
         if node_hash == &Hash32::default() {
             return Ok(None);
         }
-
         Ok(self.db.get_entry(node_hash).await?)
     }
 

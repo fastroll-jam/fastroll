@@ -12,7 +12,12 @@ pub enum StateDBError {
     CoreDBError(#[from] CoreDBError),
 }
 
+/// A cached key-value database to store serialized state values,
+/// which are not small enough to be embedded within Merkle trie leaves.
+///
+/// Entries of the `db` are keyed by hash of state value.
 pub struct StateDB {
+    /// A handle to the `CachedDB`.
     db: CachedDB<Hash32, Vec<u8>>,
 }
 

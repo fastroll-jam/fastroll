@@ -49,8 +49,12 @@ impl CacheItem for BlockHeader {
     }
 }
 
-/// Main storage and cache for block headers.
+/// The main storage to store block headers.
+///
+/// `db` is a cached key-value database to store block headers.
+/// Entries of the `db` are keyed by block header hash.
 pub struct BlockHeaderDB {
+    /// A handle to the `CachedDB`.
     db: CachedDB<Hash32, BlockHeader>,
     /// Mutable staging header used for block construction.
     staging_header: Mutex<Option<BlockHeader>>,
