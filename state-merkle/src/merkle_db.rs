@@ -12,10 +12,7 @@ use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use rjam_db::core::{CoreDB, MERKLE_CF_NAME};
 use rocksdb::{BoundColumnFamily, WriteBatch};
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
 pub struct WorkingSet {
@@ -73,17 +70,6 @@ impl MerkleDB {
             cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
         }
-    }
-
-    pub fn open<P: AsRef<Path>>(
-        path: P,
-        create_if_missing: bool,
-        cache_size: usize,
-    ) -> Result<Self, StateMerkleError> {
-        Ok(Self::new(
-            Arc::new(CoreDB::open(path, create_if_missing)?),
-            cache_size,
-        ))
     }
 
     pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateMerkleError> {

@@ -2,7 +2,7 @@ use crate::core::{CoreDB, CoreDBError, STATE_CF_NAME};
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rocksdb::{BoundColumnFamily, WriteBatch};
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -24,17 +24,6 @@ impl StateDB {
             core,
             cache: DashMap::with_capacity(cache_size),
         }
-    }
-
-    pub fn open<P: AsRef<Path>>(
-        path: P,
-        create_if_missing: bool,
-        cache_size: usize,
-    ) -> Result<Self, StateDBError> {
-        Ok(Self::new(
-            Arc::new(CoreDB::open(path, create_if_missing)?),
-            cache_size,
-        ))
     }
 
     pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, StateDBError> {

@@ -9,10 +9,7 @@ use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use rocksdb::BoundColumnFamily;
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -56,17 +53,6 @@ impl BlockHeaderDB {
             cache: DashMap::with_capacity(cache_size),
             staging_header: Mutex::new(None),
         }
-    }
-
-    pub fn open<P: AsRef<Path>>(
-        path: P,
-        create_if_missing: bool,
-        cache_size: usize,
-    ) -> Result<Self, BlockHeaderDBError> {
-        Ok(Self::new(
-            Arc::new(CoreDB::open(path, create_if_missing)?),
-            cache_size,
-        ))
     }
 
     pub fn cf_handle(&self) -> Result<Arc<BoundColumnFamily>, BlockHeaderDBError> {
