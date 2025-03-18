@@ -10,7 +10,7 @@ use bit_vec::BitVec;
 use dashmap::DashMap;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
-use rjam_db::core::core_db::CoreDB;
+use rjam_db::core::{cached_db::CachedDB, core_db::CoreDB};
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::sync::{Arc, Mutex};
 
@@ -50,16 +50,15 @@ impl WorkingSet {
     }
 }
 
-/// Database and cache for storing and managing Merkle trie nodes.
+/// The main storage to store State Merkle Trie nodes.
+///
+/// `db` is a cached key-value database to store the trie nodes.
+/// Entries of the `db` are keyed by node hash.
 pub struct MerkleDB {
+    /// A handle to the `CachedDB`.
+    db: CachedDB<Hash32, MerkleNode>,
     /// Root hash of the Merkle trie.
     root: Mutex<Hash32>,
-    /// RocksDB core.
-    core: Arc<CoreDB>,
-    /// RocksDB column family name.
-    cf_name: &'static str,
-    /// Cache for storing Merkle trie nodes.
-    cache: DashMap<Hash32, MerkleNode>,
     /// Working set of uncommitted Merkle nodes.
     pub working_set: WorkingSet,
 }
@@ -67,16 +66,14 @@ pub struct MerkleDB {
 impl MerkleDB {
     pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
+            db: CachedDB::new(core, cf_name, cache_size),
             root: Mutex::new(Hash32::default()),
-            core,
-            cf_name,
-            cache: DashMap::with_capacity(cache_size),
             working_set: WorkingSet::new(),
         }
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
-        self.core.cf_handle(self.cf_name).map_err(|e| e.into())
+        self.db.cf_handle().map_err(|e| e.into())
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {
@@ -143,7 +140,6 @@ impl MerkleDB {
         if let Some(uncommitted_node) = self.working_set.get_node(node_hash) {
             return Ok(Some(uncommitted_node));
         }
-
         // If not found in the `WorkingSet`, fallback to the real DB
         self.get_node(node_hash).await
     }
@@ -157,43 +153,16 @@ impl MerkleDB {
         if node_hash == &Hash32::default() {
             return Ok(None);
         }
-
-        // lookup the cache
-        if let Some(node) = self.cache.get(node_hash) {
-            return Ok(Some(node.clone()));
-        }
-
-        // fetch node data octets from the db and put into the cache
-        let maybe_node = self
-            .core
-            .get_entry(self.cf_name, node_hash.as_slice())
-            .await?
-            .map(|data| MerkleNode {
-                hash: *node_hash,
-                data,
-            });
-
-        // insert into cache if found
-        if let Some(node) = &maybe_node {
-            self.cache.insert(*node_hash, node.clone());
-        }
-
-        Ok(maybe_node)
+        Ok(self.db.get_entry(node_hash).await?)
     }
 
-    pub(crate) async fn put_node(&self, node: &MerkleNode) -> Result<(), StateMerkleError> {
-        // write to DB
-        self.core
-            .put_entry(self.cf_name, node.hash.as_slice(), &node.data)
-            .await?;
-        // insert into cache
-        self.cache.insert(node.hash, node.clone());
-        Ok(())
+    pub(crate) async fn put_node(&self, node: MerkleNode) -> Result<(), StateMerkleError> {
+        Ok(self.db.put_entry(&node.hash.clone(), node).await?)
     }
 
     /// Commit a write batch for node entries into the MerkleDB.
     pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), StateMerkleError> {
-        Ok(self.core.commit_write_batch(batch).await?)
+        Ok(self.db.commit_write_batch(batch).await?)
     }
 
     pub fn clear_working_set(&self) {
@@ -294,8 +263,7 @@ impl MerkleDB {
                         None
                     };
 
-                self.put_node(&new_leaf).await?;
-                self.cache.insert(node_hash, new_leaf); // optional
+                self.put_node(new_leaf).await?;
 
                 Ok((node_hash, maybe_state_db_write))
             }

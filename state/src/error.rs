@@ -1,6 +1,6 @@
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
-use rjam_db::state_db::StateDBError;
+use rjam_db::{core::cached_db::CachedDBError, state_db::StateDBError};
 use rjam_state_merkle::error::StateMerkleError;
 use thiserror::Error;
 
@@ -30,6 +30,8 @@ pub enum StateManagerError {
     StateMerkleError(#[from] StateMerkleError),
     #[error("StateDB error: {0}")]
     StateDBError(#[from] StateDBError),
+    #[error("CachedDB error: {0}")]
+    CachedDBError(#[from] CachedDBError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
 }

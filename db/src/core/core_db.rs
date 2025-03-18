@@ -32,13 +32,13 @@ impl CoreDB {
         })
     }
 
-    pub fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily, CoreDBError> {
+    pub(crate) fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily, CoreDBError> {
         self.db
             .cf_handle(cf_name)
-            .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
+            .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))
     }
 
-    pub async fn get_entry(
+    pub(crate) async fn get_entry(
         &self,
         cf_name: &'static str,
         key: &[u8],
@@ -55,7 +55,7 @@ impl CoreDB {
         .await?)
     }
 
-    pub async fn put_entry(
+    pub(crate) async fn put_entry(
         &self,
         cf_name: &'static str,
         key: &[u8],
@@ -67,27 +67,32 @@ impl CoreDB {
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
             let cf = db
                 .cf_handle(cf_name)
-                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+                .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
             db.put_cf(&cf, &key_vec, val_vec)?;
             Ok(())
         })
         .await?
     }
 
-    pub async fn delete_entry(&self, cf_name: &'static str, key: &[u8]) -> Result<(), CoreDBError> {
+    pub(crate) async fn delete_entry(
+        &self,
+        cf_name: &'static str,
+        key: &[u8],
+    ) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         let key_vec = key.to_vec();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
             let cf = db
                 .cf_handle(cf_name)
-                .ok_or_else(|| CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
+                .ok_or(CoreDBError::ColumnFamilyNotFound(cf_name.to_string()))?;
             db.delete_cf(&cf, key_vec)?;
             Ok(())
         })
         .await?
     }
 
-    pub fn push_to_write_batch(
+    #[allow(dead_code)]
+    pub(crate) fn push_to_write_batch(
         &self,
         batch: &mut WriteBatch,
         cf_name: &'static str,
@@ -98,8 +103,8 @@ impl CoreDB {
         Ok(())
     }
 
-    // --- Batch operation
-    pub async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CoreDBError> {
+    /// Commits write items in the `WriteBatch` into the DB.
+    pub(crate) async fn commit_write_batch(&self, batch: WriteBatch) -> Result<(), CoreDBError> {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || -> Result<(), CoreDBError> {
             let write_opts = WriteOptions::default();

@@ -195,6 +195,27 @@ impl<const N: usize> ByteArray<N> {
     }
 }
 
+impl AsRef<[u8]> for Hash32 {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl TryFrom<&[u8]> for Hash32 {
+    type Error = String;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != HASH_SIZE {
+            return Err("Hash length mismatch".into());
+        }
+
+        let mut arr = Hash32::default();
+        arr.copy_from_slice(value);
+
+        Ok(arr)
+    }
+}
+
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
 /// - Ed25519 public key (32 bytes)

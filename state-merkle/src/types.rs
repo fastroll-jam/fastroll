@@ -3,6 +3,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_common::Hash32;
+use rjam_db::core::cached_db::CacheItem;
 use std::fmt::{Display, Formatter};
 
 pub const NODE_SIZE_BITS: usize = 512;
@@ -32,6 +33,22 @@ impl From<MerkleNodeWrite> for MerkleNode {
         Self {
             hash: value.hash,
             data: value.node_data,
+        }
+    }
+}
+
+impl CacheItem for MerkleNode {
+    fn into_db_value(self) -> Vec<u8> {
+        self.data
+    }
+
+    fn from_db_kv(key: &[u8], val: Vec<u8>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            hash: Hash32::try_from(key).expect("Hash length mismatch"),
+            data: val,
         }
     }
 }
