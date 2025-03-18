@@ -23,11 +23,11 @@ use rjam_state_merkle::{
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
 use rocksdb::WriteBatch;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 pub struct StateManager {
-    state_db: Arc<StateDB>,
-    merkle_db: Arc<MerkleDB>,
+    state_db: StateDB,
+    merkle_db: MerkleDB,
     cache: StateCache,
 }
 
@@ -190,8 +190,8 @@ impl StateManager {
 
     pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
         Self {
-            state_db: Arc::new(state_db),
-            merkle_db: Arc::new(merkle_db),
+            state_db,
+            merkle_db,
             cache: StateCache::default(),
         }
     }
