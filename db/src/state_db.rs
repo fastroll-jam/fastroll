@@ -1,6 +1,6 @@
+use crate::core::{CoreDB, CoreDBError, STATE_CF_NAME};
 use dashmap::DashMap;
 use rjam_common::Hash32;
-use rjam_db::core::{CoreDB, CoreDBError, STATE_CF_NAME};
 use rocksdb::{BoundColumnFamily, WriteBatch};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
