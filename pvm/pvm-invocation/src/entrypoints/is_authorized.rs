@@ -5,7 +5,7 @@ use rjam_common::{
 };
 use rjam_pvm_core::types::{common::RegValue, error::PVMError};
 use rjam_pvm_host::context::InvocationContext;
-use rjam_pvm_interface::{CommonInvocationResult, PVM};
+use rjam_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ impl IsAuthorizedInvocation {
             }
         };
 
-        let result = PVM::invoke_with_args(
+        let result = PVMInterface::invoke_with_args(
             state_manager,
             args.package.authorizer_service_id,
             &code,
@@ -61,10 +61,10 @@ impl IsAuthorizedInvocation {
         .await?;
 
         match result {
-            CommonInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
-            CommonInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
-            CommonInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
-            CommonInvocationResult::ResultUnavailable => Ok(WorkExecutionOutput::ok_empty()),
+            PVMInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
+            PVMInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
+            PVMInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
+            PVMInvocationResult::ResultUnavailable => Ok(WorkExecutionOutput::ok_empty()),
         }
     }
 }

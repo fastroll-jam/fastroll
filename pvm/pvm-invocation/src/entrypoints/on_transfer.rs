@@ -8,7 +8,7 @@ use rjam_pvm_core::types::{
 use rjam_pvm_host::context::{
     partial_state::AccountSandbox, InvocationContext, OnTransferHostContext,
 };
-use rjam_pvm_interface::PVM;
+use rjam_pvm_interface::invoke::PVMInterface;
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
@@ -94,7 +94,7 @@ impl OnTransferInvocation {
         let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination).await?;
         let mut on_transfer_ctx = InvocationContext::X_T(ctx);
 
-        let _ = PVM::invoke_with_args(
+        let _ = PVMInterface::invoke_with_args(
             state_manager.clone(),
             args.destination,
             &code,

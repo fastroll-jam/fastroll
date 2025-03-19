@@ -10,7 +10,7 @@ use rjam_pvm_core::types::{
     invoke_args::RefineInvokeArgs,
 };
 use rjam_pvm_host::context::{InvocationContext, RefineHostContext};
-use rjam_pvm_interface::{CommonInvocationResult, PVM};
+use rjam_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
@@ -134,7 +134,7 @@ impl RefineInvocation {
 
         let mut refine_ctx =
             InvocationContext::X_R(RefineHostContext::new_with_invoke_args(args.clone()));
-        let result = PVM::invoke_with_args(
+        let result = PVMInterface::invoke_with_args(
             state_manager,
             work_item.service_id,
             &code,
@@ -154,12 +154,10 @@ impl RefineInvocation {
         };
 
         match result {
-            CommonInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
-            CommonInvocationResult::ResultUnavailable => {
-                Ok(RefineResult::ok_empty(export_segments))
-            }
-            CommonInvocationResult::OutOfGas(_) => Ok(RefineResult::out_of_gas()),
-            CommonInvocationResult::Panic(_) => Ok(RefineResult::panic()),
+            PVMInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
+            PVMInvocationResult::ResultUnavailable => Ok(RefineResult::ok_empty(export_segments)),
+            PVMInvocationResult::OutOfGas(_) => Ok(RefineResult::out_of_gas()),
+            PVMInvocationResult::Panic(_) => Ok(RefineResult::panic()),
         }
     }
 }

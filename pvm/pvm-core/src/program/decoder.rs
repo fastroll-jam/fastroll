@@ -213,7 +213,6 @@ impl Instruction {
 /// 6. Finally, the single-step execution functions (`Ψ_1`) use these three components
 ///    to interpret and execute the program one instruction at a time.
 pub struct ProgramDecoder;
-
 impl ProgramDecoder {
     /// Decodes program blob into formatted program. Used by `Ψ_M`.
     pub fn decode_standard_program(program_blob: &[u8]) -> Result<FormattedProgram, PVMError> {

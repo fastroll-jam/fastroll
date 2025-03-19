@@ -11,7 +11,7 @@ use rjam_pvm_host::context::{
     partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
     InvocationContext,
 };
-use rjam_pvm_interface::{CommonInvocationResult, PVM};
+use rjam_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 
@@ -84,7 +84,7 @@ impl AccumulateInvocation {
         };
         let mut accumulate_ctx = InvocationContext::X_A(ctx_pair);
 
-        let result = PVM::invoke_with_args(
+        let result = PVMInterface::invoke_with_args(
             state_manager,
             args.accumulate_host,
             &code,
@@ -103,7 +103,7 @@ impl AccumulateInvocation {
             };
 
         match result {
-            CommonInvocationResult::Result(output) => {
+            PVMInvocationResult::Result(output) => {
                 let accumulate_result_hash = if output.len() == HASH_SIZE {
                     octets_to_hash32(&output)
                 } else {
@@ -118,14 +118,14 @@ impl AccumulateInvocation {
                     accumulate_host: x.accumulate_host,
                 })
             }
-            CommonInvocationResult::ResultUnavailable => Ok(AccumulateResult {
+            PVMInvocationResult::ResultUnavailable => Ok(AccumulateResult {
                 partial_state: x.partial_state,
                 deferred_transfers: x.deferred_transfers,
                 yielded_accumulate_hash: x.yielded_accumulate_hash,
                 gas_used: x.gas_used,
                 accumulate_host: x.accumulate_host,
             }),
-            CommonInvocationResult::OutOfGas(_) | CommonInvocationResult::Panic(_) => {
+            PVMInvocationResult::OutOfGas(_) | PVMInvocationResult::Panic(_) => {
                 Ok(AccumulateResult {
                     partial_state: y.partial_state,
                     deferred_transfers: y.deferred_transfers,

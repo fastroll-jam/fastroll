@@ -10,7 +10,7 @@ use rjam_pvm_core::{
     },
     types::common::{ExitReason, RegValue},
 };
-use rjam_pvm_interface::PVM;
+use rjam_pvm_interface::pvm::PVM;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

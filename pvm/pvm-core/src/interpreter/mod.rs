@@ -33,7 +33,6 @@ pub struct StateChange {
 }
 
 pub struct ProgramLoader;
-
 impl ProgramLoader {
     /// Decodes program code blob and loads it into the program state components:
     /// instructions, an opcode bitmask, a dynamic jump table and a basic block bitmask.
@@ -75,7 +74,6 @@ impl ProgramLoader {
 }
 
 pub struct Interpreter;
-
 impl Interpreter {
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask

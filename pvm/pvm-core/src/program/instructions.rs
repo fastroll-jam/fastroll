@@ -40,7 +40,6 @@ fn reg_to_usize(reg: RegValue) -> usize {
 
 /// A collection of single-step PVM instruction execution functions.
 pub struct InstructionSet;
-
 impl InstructionSet {
     //
     // Group 0: Helper functions
