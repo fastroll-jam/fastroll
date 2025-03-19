@@ -169,13 +169,10 @@ impl OnTransferResult {
     }
 }
 
+/// PVM invocation entry-points
 pub struct PVMInvocation;
 
 impl PVMInvocation {
-    //
-    // PVM invocation entry-points
-    //
-
     /// IsAuthorized invocation function
     ///
     /// # Arguments

@@ -14,8 +14,8 @@ use rjam_common::{
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
-    core::PVMCore,
-    program::program_decoder::{ProgramDecoder, ProgramState},
+    interpreter::Interpreter,
+    program::decoder::{ProgramDecoder, ProgramState},
     state::{
         memory::{AccessType, MemAddress},
         register::Register,
@@ -1536,7 +1536,7 @@ impl HostFunction {
         let inner_vm_program_code = &inner_vm_mut.program_code.clone();
         let mut inner_vm_program_state = ProgramState::default();
 
-        let inner_vm_exit_reason = PVMCore::invoke_general(
+        let inner_vm_exit_reason = Interpreter::invoke_general(
             &mut inner_vm_state_copy,
             &mut inner_vm_program_state,
             inner_vm_program_code,

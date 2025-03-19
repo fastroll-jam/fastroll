@@ -1,7 +1,7 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
-    core::{PVMCore, SingleStepResult, StateChange},
-    program::program_decoder::{Instruction, ProgramState},
+    interpreter::{Interpreter, SingleStepResult, StateChange},
+    program::decoder::{Instruction, ProgramState},
     state::{memory::MemAddress, VMState},
     types::{
         common::{ExitReason, RegValue},
@@ -38,7 +38,7 @@ fn reg_to_usize(reg: RegValue) -> usize {
     reg as usize
 }
 
-/// PVM instruction execution functions
+/// A collection of single-step PVM instruction execution functions.
 pub struct InstructionSet;
 
 impl InstructionSet {
@@ -64,12 +64,12 @@ impl InstructionSet {
         ) {
             (false, _) => Ok((
                 ExitReason::Continue,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
+                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             )),
             (true, true) => Ok((ExitReason::Continue, target)),
             (true, false) => Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
+                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             )),
         }
     }
@@ -90,7 +90,7 @@ impl InstructionSet {
         if a == SPECIAL_HALT_VALUE {
             return Ok((
                 ExitReason::RegularHalt,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
+                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             ));
         }
 
@@ -100,7 +100,7 @@ impl InstructionSet {
         if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
             return Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
+                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             ));
         }
 
@@ -116,7 +116,7 @@ impl InstructionSet {
             }
             Some(_) => Ok((
                 ExitReason::Panic,
-                reg_to_mem_address(PVMCore::next_pc(vm_state, program_state)),
+                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             )),
             None => Err(PVMError::VMCoreError(JumpTableOutOfBounds(aligned_index))),
         }
@@ -136,7 +136,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: StateChange {
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -152,7 +152,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -179,7 +179,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: StateChange {
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -200,7 +200,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 register_write: Some((ins.rs1()?, reg_to_u64(ins.imm1()?))),
                 ..Default::default()
             },
@@ -227,7 +227,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -249,7 +249,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -271,7 +271,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -293,7 +293,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -364,7 +364,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, ins.imm1()?)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -385,7 +385,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -407,7 +407,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -429,7 +429,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_decoded)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -452,7 +452,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -474,7 +474,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_decoded)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -497,7 +497,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -519,7 +519,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, val_decoded)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -540,7 +540,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, vec![rs1_val])),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -561,7 +561,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, rs1_val.encode_fixed(2)?)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -582,7 +582,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, rs1_val.encode_fixed(4)?)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -603,7 +603,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((imm_address, rs1_val.encode_fixed(8)?)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -628,7 +628,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -649,7 +649,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -671,7 +671,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -692,7 +692,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -970,7 +970,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, rs1_val)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1004,7 +1004,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, alloc_start as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1025,7 +1025,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, set_bits)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1046,7 +1046,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, set_bits)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1067,7 +1067,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, leading_zeros)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1088,7 +1088,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, leading_zeros)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1109,7 +1109,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, trailing_zeros)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1130,7 +1130,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, trailing_zeros)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1151,7 +1151,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, val)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1172,7 +1172,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, val)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1192,7 +1192,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, rs1_val)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1215,7 +1215,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, rev_val)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1240,7 +1240,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1261,7 +1261,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1282,7 +1282,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1303,7 +1303,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 memory_write: Some((address, value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1324,7 +1324,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, value as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1347,7 +1347,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, unsigned_value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1369,7 +1369,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, value_decoded as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1393,7 +1393,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, unsigned_value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1415,7 +1415,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, value_decoded as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1439,7 +1439,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, unsigned_value)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1461,7 +1461,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, value_decoded as RegValue)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1482,7 +1482,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1502,7 +1502,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1522,7 +1522,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1542,7 +1542,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1563,7 +1563,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1585,7 +1585,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1608,7 +1608,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1630,7 +1630,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1653,7 +1653,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1677,7 +1677,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1701,7 +1701,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1723,7 +1723,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1746,7 +1746,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1769,7 +1769,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1792,7 +1792,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1816,7 +1816,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1840,7 +1840,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1864,7 +1864,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1884,7 +1884,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1904,7 +1904,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1926,7 +1926,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1949,7 +1949,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1973,7 +1973,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -1993,7 +1993,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2014,7 +2014,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2036,7 +2036,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2059,7 +2059,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2080,7 +2080,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2101,7 +2101,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2123,7 +2123,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2145,7 +2145,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rs1()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2346,7 +2346,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2370,7 +2370,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2393,7 +2393,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2419,7 +2419,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2448,7 +2448,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2474,7 +2474,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2500,7 +2500,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2522,7 +2522,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2544,7 +2544,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_extended)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2567,7 +2567,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2589,7 +2589,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2611,7 +2611,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2633,7 +2633,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2659,7 +2659,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2688,7 +2688,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2714,7 +2714,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2740,7 +2740,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2761,7 +2761,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2782,7 +2782,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2805,7 +2805,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2825,7 +2825,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2845,7 +2845,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2865,7 +2865,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2888,7 +2888,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2910,7 +2910,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2932,7 +2932,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result_u)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2954,7 +2954,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -2976,7 +2976,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3001,7 +3001,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3026,7 +3026,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3047,7 +3047,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3069,7 +3069,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3090,7 +3090,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3112,7 +3112,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3132,7 +3132,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3152,7 +3152,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3172,7 +3172,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3194,7 +3194,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3216,7 +3216,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3238,7 +3238,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })
@@ -3260,7 +3260,7 @@ impl InstructionSet {
             exit_reason: ExitReason::Continue,
             state_change: StateChange {
                 register_write: Some((ins.rd()?, result)),
-                new_pc: PVMCore::next_pc(vm_state, program_state),
+                new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
         })

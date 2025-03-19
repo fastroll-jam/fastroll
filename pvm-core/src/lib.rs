@@ -1,5 +1,5 @@
 pub mod constants;
-pub mod core;
+pub mod interpreter;
 pub mod program;
 pub mod state;
 pub mod types;

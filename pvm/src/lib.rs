@@ -1,8 +1,8 @@
 use rjam_common::{ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
-    core::PVMCore,
-    program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
+    interpreter::Interpreter,
+    program::decoder::{FormattedProgram, ProgramDecoder, ProgramState},
     state::{
         memory::{AccessType, MemAddress, Memory},
         VMState,
@@ -187,7 +187,7 @@ impl PVM {
         }
 
         // Check gas counter and apply gas change
-        let post_gas = PVMCore::apply_gas_cost(&mut self.state, change.gas_charge)?;
+        let post_gas = Interpreter::apply_gas_cost(&mut self.state, change.gas_charge)?;
         Ok(post_gas)
     }
 
@@ -261,7 +261,7 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         loop {
-            let exit_reason = PVMCore::invoke_general(
+            let exit_reason = Interpreter::invoke_general(
                 &mut self.state,
                 &mut self.program_state,
                 &self.program_blob,

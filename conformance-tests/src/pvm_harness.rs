@@ -2,8 +2,8 @@ use rjam_common::UnsignedGas;
 use rjam_pvm::PVM;
 use rjam_pvm_core::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
-    core::PVMCore,
-    program::program_decoder::ProgramState,
+    interpreter::{Interpreter, ProgramLoader},
+    program::decoder::ProgramState,
     state::{
         memory::{AccessType, Memory},
         register::Register,
@@ -229,14 +229,14 @@ pub fn run_test_case(filename: &str) {
         program_state: ProgramState::default(),
     };
 
-    PVMCore::set_program_state(&program, &mut pvm.program_state)
+    ProgramLoader::set_program_state(&program, &mut pvm.program_state)
         .expect("Failed to set program state");
 
     // Debugging
     println!("{:?}", pvm.program_state);
 
     // execute PVM
-    let exit_reason = PVMCore::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
+    let exit_reason = Interpreter::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
         .expect("Failed to run PVM");
 
     let (actual_status, actual_page_fault_address) = match exit_reason {
