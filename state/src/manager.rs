@@ -1,6 +1,7 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     error::StateManagerError,
+    state_db::StateDB,
     state_utils::{
         get_account_lookups_state_key, get_account_metadata_state_key,
         get_account_preimage_state_key, get_account_storage_state_key, get_simple_state_key,
@@ -15,14 +16,13 @@ use crate::{
 };
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
-use rjam_db::state_db::StateDB;
+use rjam_db::WriteBatch;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::LeafType,
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
-use rocksdb::WriteBatch;
 use std::collections::HashMap;
 
 pub struct StateManager {

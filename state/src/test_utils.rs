@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::{
     manager::StateManager,
+    state_db::StateDB,
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
@@ -9,12 +10,11 @@ use crate::{
     },
 };
 use rand::{thread_rng, Rng};
+use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::Hash32;
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
     core::core_db::CoreDB,
-    header_db::BlockHeaderDB,
-    state_db::StateDB,
 };
 use rjam_state_merkle::merkle_db::MerkleDB;
 use std::{error::Error, sync::Arc};

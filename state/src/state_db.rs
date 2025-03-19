@@ -1,8 +1,8 @@
-use crate::core::{
+use rjam_common::Hash32;
+use rjam_db::core::{
     cached_db::CachedDB,
     core_db::{CoreDB, CoreDBError},
 };
-use rjam_common::Hash32;
 use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
 

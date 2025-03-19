@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rjam-block = { workspace = true }
 rjam-clock = { workspace = true }
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true, features = ["default"] }
@@ -11,13 +12,11 @@ rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-merkle = { workspace = true }
 rjam-state-merkle = { workspace = true }
-blake2 = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
 hex = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true }
-rocksdb = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

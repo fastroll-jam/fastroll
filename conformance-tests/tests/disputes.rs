@@ -1,14 +1,15 @@
 //! Disputes state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_block::types::extrinsics::disputes::OffendersHeaderMarker;
+    use rjam_block::{
+        header_db::BlockHeaderDB, types::extrinsics::disputes::OffendersHeaderMarker,
+    };
     use rjam_conformance_tests::{
         asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
         error::StateManagerError,
         manager::StateManager,

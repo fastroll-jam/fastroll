@@ -1,6 +1,6 @@
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
-use rjam_db::core::cached_db::CachedDBError;
+use rjam_db::{core::cached_db::CachedDBError, RocksDBError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -38,7 +38,7 @@ pub enum StateMerkleError {
     #[error("Write batch lock error")]
     WriteBatchLockError,
     #[error("RocksDB error: {0}")]
-    RocksDBError(#[from] rocksdb::Error),
+    RocksDBError(#[from] RocksDBError),
     #[error("CachedDB error: {0}")]
     CachedDBError(#[from] CachedDBError),
     #[error("CryptoError: {0}")]
