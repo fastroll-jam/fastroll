@@ -1217,11 +1217,6 @@ name = "rjam-db"
 version = "0.1.0"
 dependencies = [
  "dashmap",
- "hex",
- "rjam-clock",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
  "rocksdb",
  "thiserror",
  "tokio",
@@ -1359,7 +1354,6 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-db",
  "rjam-extrinsics",
  "rjam-merkle",
  "rjam-pvm-core",
