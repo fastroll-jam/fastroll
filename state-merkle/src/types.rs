@@ -6,6 +6,7 @@ use rjam_common::Hash32;
 use rjam_db::core::cached_db::CacheItem;
 use std::fmt::{Display, Formatter};
 
+/// Merkle node data size in bits.
 pub const NODE_SIZE_BITS: usize = 512;
 
 /// Merkle trie node representation.

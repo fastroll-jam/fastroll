@@ -6,10 +6,14 @@ use crate::{
     inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
-use rjam_common::*;
+use rjam_common::{
+    Hash32, Octets, ServiceId, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    WORK_PACKAGE_MANIFEST_SIZE_LIMIT,
+};
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
-    constants::*,
+    constants::{BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     core::{PVMCore, VMState},
     program::program_decoder::{ProgramDecoder, ProgramState},
     state::{

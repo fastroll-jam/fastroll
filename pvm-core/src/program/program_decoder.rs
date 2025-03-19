@@ -1,5 +1,7 @@
 use crate::{
-    constants::*,
+    constants::{
+        INIT_INPUT_SIZE, INIT_ZONE_SIZE, PAGE_SIZE, REGISTERS_COUNT, STANDARD_PROGRAM_SIZE_LIMIT,
+    },
     program::opcode::*,
     state::memory::MemAddress,
     types::{

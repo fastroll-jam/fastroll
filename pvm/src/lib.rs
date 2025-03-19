@@ -1,6 +1,6 @@
-use rjam_common::*;
+use rjam_common::{ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{
-    constants::*,
+    constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
     core::{PVMCore, VMState},
     program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
     state::memory::{AccessType, MemAddress, Memory},
