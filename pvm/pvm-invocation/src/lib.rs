@@ -8,18 +8,18 @@ use rjam_common::{
     *,
 };
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
-use rjam_pvm::{CommonInvocationResult, PVM};
 use rjam_pvm_core::types::{
     accumulation::AccumulateOperand,
     common::{ExportDataSegment, RegValue},
     error::{HostCallError::InvalidContext, PVMError},
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer, OnTransferInvokeArgs, RefineInvokeArgs},
 };
-use rjam_pvm_hostcall::context::{
+use rjam_pvm_host::context::{
     partial_state::{AccountSandbox, AccumulatePartialState},
     AccumulateHostContext, AccumulateHostContextPair, InvocationContext, OnTransferHostContext,
     RefineHostContext,
 };
+use rjam_pvm_interface::{CommonInvocationResult, PVM};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 

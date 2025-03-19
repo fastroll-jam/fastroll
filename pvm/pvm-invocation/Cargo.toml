@@ -1,21 +1,15 @@
 [package]
-name = "rjam-transition"
+name = "rjam-pvm-invocation"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rjam-block = { workspace = true }
 rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
-rjam-extrinsics = { workspace = true }
 rjam-merkle = { workspace = true }
 rjam-pvm-core = { workspace = true }
 rjam-pvm-host = { workspace = true }
-rjam-pvm-invocation = { workspace = true }
+rjam-pvm-interface = { workspace = true }
 rjam-state = { workspace = true }
-thiserror = { workspace = true }
-time = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }

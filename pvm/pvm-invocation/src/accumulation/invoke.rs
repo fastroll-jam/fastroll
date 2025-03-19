@@ -9,7 +9,7 @@ use rjam_pvm_core::types::{
     error::PVMError,
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
 };
-use rjam_pvm_hostcall::context::partial_state::AccumulatePartialState;
+use rjam_pvm_host::context::partial_state::AccumulatePartialState;
 use rjam_state::manager::StateManager;
 use std::{
     collections::{BTreeSet, HashMap},

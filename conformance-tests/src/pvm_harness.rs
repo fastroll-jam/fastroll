@@ -1,5 +1,4 @@
 use rjam_common::UnsignedGas;
-use rjam_pvm::PVM;
 use rjam_pvm_core::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
     interpreter::{Interpreter, ProgramLoader},
@@ -11,6 +10,7 @@ use rjam_pvm_core::{
     },
     types::common::{ExitReason, RegValue},
 };
+use rjam_pvm_interface::PVM;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
