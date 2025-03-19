@@ -1178,23 +1178,19 @@ dependencies = [
  "bit-vec",
  "futures",
  "hex",
- "paste",
  "rjam-block",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
- "rjam-db",
  "rjam-extrinsics",
  "rjam-merkle",
  "rjam-pvm",
  "rjam-pvm-core",
  "rjam-pvm-invocation",
  "rjam-state",
- "rjam-state-merkle",
  "rjam-transition",
  "serde",
  "serde_json",
- "thiserror",
  "tokio",
 ]
 
@@ -1314,7 +1310,6 @@ name = "rjam-state"
 version = "0.1.0"
 dependencies = [
  "bit-vec",
- "blake2",
  "dashmap",
  "hex",
  "paste",

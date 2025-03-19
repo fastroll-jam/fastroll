@@ -12,7 +12,6 @@ rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-merkle = { workspace = true }
 rjam-state-merkle = { workspace = true }
-blake2 = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
 hex = { workspace = true }
