@@ -3,10 +3,10 @@ use crate::{
     program::{
         instruction::{opcode::Opcode, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
+        types::program_state::ProgramState,
     },
     state::{
         memory::{MemAddress, MemoryError},
-        program_state::ProgramState,
         register::Register,
         vm_state::VMState,
     },

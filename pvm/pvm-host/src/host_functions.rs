@@ -15,10 +15,9 @@ use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     interpreter::Interpreter,
-    program::loader::ProgramLoader,
+    program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, MemAddress},
-        program_state::ProgramState,
         register::Register,
         vm_state::VMState,
     },

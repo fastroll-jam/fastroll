@@ -2,10 +2,9 @@ use rjam_common::UnsignedGas;
 use rjam_pvm_core::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
     interpreter::Interpreter,
-    program::loader::ProgramLoader,
+    program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
-        program_state::ProgramState,
         register::Register,
         vm_state::VMState,
     },

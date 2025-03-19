@@ -1,8 +1,8 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
     interpreter::{Interpreter, SingleStepResult, StateChange},
-    program::instruction::Instruction,
-    state::{memory::MemAddress, program_state::ProgramState, vm_state::VMState},
+    program::{instruction::Instruction, types::program_state::ProgramState},
+    state::{memory::MemAddress, vm_state::VMState},
     types::{
         common::{ExitReason, RegValue},
         error::{PVMError, VMCoreError::*},

@@ -1,7 +1,7 @@
 use crate::{
     interpreter::Interpreter,
-    program::instruction::opcode::Opcode,
-    state::{memory::MemAddress, program_state::ProgramState},
+    program::{instruction::opcode::Opcode, types::program_state::ProgramState},
+    state::memory::MemAddress,
     types::error::{PVMError, VMCoreError::InvalidProgram},
 };
 use bit_vec::BitVec;
