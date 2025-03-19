@@ -1,8 +1,4 @@
-use crate::core::{
-    cached_db::{CacheItem, CachedDB, CachedDBError},
-    core_db::CoreDB,
-};
-use rjam_block::types::{
+use crate::types::{
     block::{BlockHeader, BlockHeaderError, EpochMarker, WinningTicketsMarker},
     extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
 };
@@ -10,7 +6,13 @@ use rjam_clock::Clock;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
 use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
-use rocksdb::ColumnFamily;
+use rjam_db::{
+    core::{
+        cached_db::{CacheItem, CachedDB, CachedDBError},
+        core_db::CoreDB,
+    },
+    ColumnFamily,
+};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 

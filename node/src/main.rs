@@ -1,11 +1,11 @@
 pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
+use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::Hash32;
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
     core::core_db::CoreDB,
-    header_db::BlockHeaderDB,
 };
 use rjam_extrinsics::pool::XtPool;
 use rjam_state::{manager::StateManager, state_db::StateDB};

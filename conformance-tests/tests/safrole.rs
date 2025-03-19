@@ -1,7 +1,10 @@
 //! Safrole state transition conformance tests
 mod tests {
     use async_trait::async_trait;
-    use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
+    use rjam_block::{
+        header_db::BlockHeaderDB,
+        types::extrinsics::tickets::{TicketsXt, TicketsXtEntry},
+    };
     use rjam_common::{Ed25519PubKey, Hash32};
     use rjam_conformance_tests::{
         asn_types::{common::*, safrole::*},
@@ -9,7 +12,6 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
         cache::StateMut,
         error::StateManagerError,

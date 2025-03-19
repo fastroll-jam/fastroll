@@ -1,13 +1,12 @@
 //! Statistics state transition conformance tests
 mod test {
     use async_trait::async_trait;
-    use rjam_block::types::extrinsics::Extrinsics;
+    use rjam_block::{header_db::BlockHeaderDB, types::extrinsics::Extrinsics};
     use rjam_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{
         error::StateManagerError,
         manager::StateManager,

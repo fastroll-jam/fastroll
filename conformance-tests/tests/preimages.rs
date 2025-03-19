@@ -2,6 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
+    use rjam_block::header_db::BlockHeaderDB;
     use rjam_common::{Hash32, LookupsKey};
     use rjam_conformance_tests::{
         asn_types::preimages::*,
@@ -9,7 +10,6 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::header_db::BlockHeaderDB;
     use rjam_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
     use rjam_transition::{
         error::TransitionError,

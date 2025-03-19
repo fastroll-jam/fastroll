@@ -1126,9 +1126,11 @@ name = "rjam-block"
 version = "0.1.0"
 dependencies = [
  "bit-vec",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-db",
  "thiserror",
 ]
 
@@ -1216,7 +1218,6 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "hex",
- "rjam-block",
  "rjam-clock",
  "rjam-codec",
  "rjam-common",
@@ -1323,6 +1324,7 @@ dependencies = [
  "hex",
  "paste",
  "rand",
+ "rjam-block",
  "rjam-clock",
  "rjam-codec",
  "rjam-common",

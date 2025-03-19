@@ -2,6 +2,7 @@
 mod tests {
     use async_trait::async_trait;
     use futures::future::join_all;
+    use rjam_block::header_db::BlockHeaderDB;
     use rjam_common::{workloads::WorkReport, Hash32};
     use rjam_conformance_tests::{
         asn_types::{
@@ -12,7 +13,6 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_db::header_db::BlockHeaderDB;
     use rjam_pvm_invocation::accumulation::{
         invoke::accumulate_result_commitment, utils::collect_accumulatable_reports,
     };

@@ -11,7 +11,7 @@ mod tests {
     };
     use std::sync::Arc;
 
-    use rjam_db::header_db::BlockHeaderDB;
+    use rjam_block::header_db::BlockHeaderDB;
     use rjam_state::{
         error::StateManagerError,
         manager::StateManager,
