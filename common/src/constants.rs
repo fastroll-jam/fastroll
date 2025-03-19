@@ -1,12 +1,12 @@
-use crate::UnsignedGas;
+use crate::{Balance, UnsignedGas};
 
 /// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;
 
-/// Size of Hash type in bytes.
+/// Size of Hash type in octets.
 pub const HASH_SIZE: usize = 32;
 
-/// Size of validator public key in bytes.
+/// Size of validator public key in octets.
 pub const PUBLIC_KEY_SIZE: usize = 336;
 
 /// `O`: The maximum number of items in the authorizations pool.
@@ -18,23 +18,35 @@ pub const AUTH_QUEUE_SIZE: usize = 80;
 /// `H`: The size of recent history, in blocks.
 pub const BLOCK_HISTORY_LENGTH: usize = 8;
 
-/// `U`: The period in timeslots after which reported but unavailable work may be replaced.
-pub const PENDING_REPORT_TIMEOUT: usize = 5;
-
-/// `L`: The maximum age in timeslots of the lookup anchor.
-pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
+/// `I`: The maximum amount of work items in a package.
+pub const MAX_WORK_ITEMS_PER_PACKAGE: usize = 16;
 
 /// `J`: The maximum sum of dependency items in a work-report.
 pub const MAX_REPORT_DEPENDENCIES: usize = 8;
 
-/// `W_C`: The maximum size of service code in octets.
-pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+/// `U`: The period in timeslots after which reported but unavailable work may be replaced.
+pub const PENDING_REPORT_TIMEOUT: usize = 5;
 
-/// `W_T`: The size of a transfer memo in octets.
-pub const TRANSFER_MEMO_SIZE: usize = 128;
+/// `T`: The maximum number of extrinsics in a work-package.
+pub const MAX_EXTRINSICS_PER_PACKAGE: usize = 128;
 
-/// `W_R`: The maximum total size of all output blobs in a work-report, in octets.
-pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+/// `L`: The maximum age in timeslots of the lookup anchor.
+pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
+
+/// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
+/// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
+pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
+
+// --- Service Account Balance Requirements
+
+/// `B_I`: The additional minimum balance required per item of elective service state.
+pub const MIN_BALANCE_PER_ITEM: Balance = 10;
+
+/// `B_L`: The additional minimum balance required per octet of elective service state.
+pub const MIN_BALANCE_PER_OCTET: Balance = 1;
+
+/// `B_S`: The basic minimum balance which all services require.
+pub const MIN_BASIC_BALANCE: Balance = 100;
 
 // --- Gas Limits
 
@@ -49,6 +61,32 @@ pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 5_000_000_000;
 
 /// `G_T`: The total gas allocated across for all Accumulation.
 pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
+
+// --- Data Size Limits
+
+/// `W_B`: The maximum size of an encoded work-package together with its extrinsic data and import implications, in octets.
+pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 12 * (1 << 20);
+
+/// `W_C`: The maximum size of service code in octets.
+pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+
+/// `W_E`: Erasure coding basic chunk size in octets.
+pub const ERASURE_CHUNK_SIZE: usize = 684;
+
+/// `W_G`: Data segment size (`W_E` * `W_P`).
+pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
+
+/// `W_M`: The maximum number of imports and exports in a work-package.
+pub const WORK_PACKAGE_MANIFEST_SIZE_LIMIT: usize = 3_072;
+
+/// `W_P`: The number of erasure-coded pieces in a segment.
+pub const DATA_SEGMENTS_CHUNKS: usize = 6;
+
+/// `W_R`: The maximum total size of all output blobs in a work-report, in octets.
+pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+
+/// `W_T`: The size of a transfer memo in octets.
+pub const TRANSFER_MEMO_SIZE: usize = 128;
 
 // --- Signing Contexts
 

@@ -1,7 +1,10 @@
 use crate::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    types::*,
+    types::{
+        BranchType, EmbeddedLeafParsed, LeafParsed, LeafType, MerkleNode, NodeType,
+        RegularLeafParsed, NODE_SIZE_BITS,
+    },
     utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash32, slice_bitvec},
 };
 use bit_vec::BitVec;

@@ -1,5 +1,5 @@
 /// `V`: The total number of validators.
-pub const VALIDATOR_COUNT: usize = 1023;
+pub const VALIDATOR_COUNT: usize = 1_023;
 pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
 pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;
 pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
@@ -22,5 +22,5 @@ pub const TICKETS_PER_VALIDATOR: u8 = 2;
 /// `K`: The maximum number of tickets which may be submitted in a single extrinsic.
 pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16;
 
-/// The guarantor rotation period in timeslots.
+/// `R`: The guarantor rotation period in timeslots.
 pub const GUARANTOR_ROTATION_PERIOD: usize = 10;

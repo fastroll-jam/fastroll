@@ -1,6 +1,6 @@
-use rjam_common::*;
+use rjam_common::{ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{
-    constants::*,
+    constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
     core::{PVMCore, VMState},
     program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
     state::memory::{AccessType, MemAddress, Memory},
@@ -288,8 +288,6 @@ impl PVM {
                             exit_reason: ExitReason::OutOfGas,
                         });
                     }
-                    // increment the pc if the host call completes successfully
-                    self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
                 }
                 exit_reason @ (ExitReason::Panic
                 | ExitReason::RegularHalt

@@ -1,4 +1,5 @@
-use crate::{constants::SEGMENT_SIZE, state::memory::MemAddress, types::hostcall::HostCallType};
+use crate::{state::memory::MemAddress, types::hostcall::HostCallType};
+use rjam_common::SEGMENT_SIZE;
 
 /// PVM Invocation Exit Reasons
 #[derive(Default)]

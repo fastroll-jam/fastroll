@@ -6,10 +6,14 @@ use crate::{
     inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
-use rjam_common::*;
+use rjam_common::{
+    Hash32, Octets, ServiceId, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    WORK_PACKAGE_MANIFEST_SIZE_LIMIT,
+};
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
-    constants::*,
+    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     core::{PVMCore, VMState},
     program::program_decoder::{ProgramDecoder, ProgramState},
     state::{
@@ -95,7 +99,7 @@ impl HostCallResult {
         Self {
             exit_reason: ExitReason::Continue,
             vm_change: HostCallVMStateChange {
-                gas_charge: BASE_GAS_CHARGE,
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                 r7_write: Some(code as RegValue),
                 ..Default::default()
             },
@@ -179,7 +183,7 @@ pub struct HostCallVMStateChange {
 impl Default for HostCallVMStateChange {
     fn default() -> Self {
         Self {
-            gas_charge: BASE_GAS_CHARGE,
+            gas_charge: HOSTCALL_BASE_GAS_CHARGE,
             r7_write: None,
             r8_write: None,
             memory_write: None,
@@ -198,7 +202,7 @@ impl HostFunction {
     /// for executing this instruction.
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, PVMError> {
         check_out_of_gas!(vm.gas_counter);
-        let gas_remaining = vm.gas_counter.saturating_sub(BASE_GAS_CHARGE);
+        let gas_remaining = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
 
         continue_with_vm_change!(r7: gas_remaining)
     }
@@ -586,7 +590,7 @@ impl HostFunction {
 
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
-        let post_gas = vm.gas_counter.saturating_sub(BASE_GAS_CHARGE);
+        let post_gas = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
 
         continue_with_vm_change!(r7: post_gas)
     }
@@ -691,7 +695,7 @@ impl HostFunction {
         let amount = vm.regs[8].value(); // a
         let gas_limit = vm.regs[9].value(); // l
         let offset = vm.regs[10].as_mem_address()?; // o
-        let gas_charge = BASE_GAS_CHARGE + gas_limit;
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
 
         check_out_of_gas!(vm.gas_counter, gas_charge);
 
