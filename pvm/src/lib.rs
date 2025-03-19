@@ -288,8 +288,6 @@ impl PVM {
                             exit_reason: ExitReason::OutOfGas,
                         });
                     }
-                    // increment the pc if the host call completes successfully
-                    self.state.pc = PVMCore::next_pc(&self.state, &self.program_state);
                 }
                 exit_reason @ (ExitReason::Panic
                 | ExitReason::RegularHalt
