@@ -16,13 +16,13 @@ use crate::{
 };
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
+use rjam_db::WriteBatch;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::LeafType,
     write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
-use rocksdb::WriteBatch;
 use std::collections::HashMap;
 
 pub struct StateManager {

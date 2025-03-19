@@ -18,7 +18,6 @@ dashmap = { workspace = true }
 hex = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true }
-rocksdb = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

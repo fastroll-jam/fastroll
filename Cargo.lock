@@ -1332,7 +1332,6 @@ dependencies = [
  "rjam-db",
  "rjam-merkle",
  "rjam-state-merkle",
- "rocksdb",
  "tempfile",
  "thiserror",
  "tokio",
@@ -1349,7 +1348,6 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-db",
- "rocksdb",
  "thiserror",
 ]
 
