@@ -11,11 +11,8 @@ use rjam_pvm_host::context::partial_state::{
     AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
 };
 use rjam_pvm_invocation::{
-    accumulation::{
-        invoke::{accumulate_outer, AccumulationOutputPairs},
-        utils::select_deferred_transfers,
-    },
-    PVMInvocation,
+    entrypoints::on_transfer::OnTransferInvocation,
+    pipeline::{accumulate_outer, utils::select_deferred_transfers, AccumulationOutputPairs},
 };
 use rjam_state::{
     cache::StateMut,
@@ -277,7 +274,7 @@ pub async fn transition_services_on_transfer(
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
         let transfers = select_deferred_transfers(transfers, destination);
-        let mut on_transfer_result = PVMInvocation::on_transfer(
+        let mut on_transfer_result = OnTransferInvocation::on_transfer(
             state_manager.clone(),
             &OnTransferInvokeArgs {
                 destination,

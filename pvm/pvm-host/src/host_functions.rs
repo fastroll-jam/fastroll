@@ -75,13 +75,6 @@ pub enum InnerPVMResultConstant {
     OOG = 4,
 }
 
-pub enum AccumulateResult {
-    /// No change
-    Unchanged,
-    /// Accumulate result hash (for BEEFY)
-    Result(Option<Hash32>),
-}
-
 #[derive(Default)]
 pub struct HostCallResult {
     pub exit_reason: ExitReason,

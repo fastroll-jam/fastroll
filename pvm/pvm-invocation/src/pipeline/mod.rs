@@ -1,5 +1,4 @@
-#![allow(dead_code)]
-use crate::{AccumulateResult, PVMInvocation};
+use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
 use rjam_codec::{JamEncode, JamEncodeFixed};
 use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
 use rjam_crypto::Keccak256;
@@ -15,6 +14,8 @@ use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
+
+pub mod utils;
 
 pub type AccumulationOutputHash = Hash32;
 
@@ -260,7 +261,7 @@ async fn accumulate_single_service(
 
     gas_limit += reports_gas_aggregated;
 
-    PVMInvocation::accumulate(
+    AccumulateInvocation::accumulate(
         state_manager,
         &partial_state,
         &AccumulateInvokeArgs {
