@@ -1,10 +1,8 @@
 use crate::{
     constants::{INIT_ZONE_SIZE, REGISTERS_COUNT},
     program::{
-        decoder::{Instruction, ProgramDecoder},
-        instructions::InstructionSet as IS,
+        instruction::{opcode::Opcode, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
-        opcode::Opcode,
     },
     state::{
         memory::{MemAddress, MemoryError},
@@ -139,7 +137,7 @@ impl Interpreter {
             inst_blob = &inst_blob[..16];
         }
 
-        ProgramDecoder::decode_instruction(inst_blob, curr_pc, skip_distance).ok()
+        Instruction::from_inst_blob(inst_blob, curr_pc, skip_distance).ok()
     }
 
     /// General PVM invocation function.

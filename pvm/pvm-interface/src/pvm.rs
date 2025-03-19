@@ -2,7 +2,7 @@ use rjam_common::SignedGas;
 use rjam_pvm_core::{
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
     interpreter::Interpreter,
-    program::decoder::{FormattedProgram, ProgramDecoder},
+    program::decoder::program::FormattedProgram,
     state::{
         memory::{AccessType, MemAddress, Memory},
         program_state::ProgramState,
@@ -43,7 +43,7 @@ impl PVM {
         }
 
         // Decode program and check program size limit
-        let formatted_program = ProgramDecoder::format_standard_program(standard_program)?;
+        let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
         if !formatted_program.is_program_size_valid() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }

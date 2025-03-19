@@ -1,7 +1,7 @@
 use crate::{
     constants::JUMP_ALIGNMENT,
     interpreter::{Interpreter, SingleStepResult, StateChange},
-    program::decoder::Instruction,
+    program::instruction::Instruction,
     state::{memory::MemAddress, program_state::ProgramState, vm_state::VMState},
     types::{
         common::{ExitReason, RegValue},

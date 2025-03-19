@@ -1,6 +1,6 @@
 use crate::{
     constants::REGISTERS_COUNT,
-    program::decoder::Instruction,
+    program::instruction::Instruction,
     state::{
         memory::{MemAddress, Memory},
         register::Register,

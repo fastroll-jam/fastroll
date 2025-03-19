@@ -1,5 +1,5 @@
 use crate::{
-    program::opcode::Opcode,
+    program::instruction::opcode::Opcode,
     state::memory::{MemAddress, MemoryError},
 };
 use rjam_codec::JamCodecError;

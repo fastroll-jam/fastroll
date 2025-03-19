@@ -15,7 +15,7 @@ use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     interpreter::Interpreter,
-    program::decoder::ProgramDecoder,
+    program::loader::ProgramLoader,
     state::{
         memory::{AccessType, MemAddress},
         program_state::ProgramState,
@@ -1322,7 +1322,7 @@ impl HostFunction {
 
         let program = vm.memory.read_bytes(program_offset, program_size)?;
         // Validate the program blob can be `deblob`ed properly
-        if ProgramDecoder::deblob_program_code(&program).is_err() {
+        if ProgramLoader::deblob_program_code(&program).is_err() {
             continue_huh!()
         }
 

@@ -1,9 +1,11 @@
 use crate::{
     interpreter::Interpreter,
-    program::{decoder::ProgramDecoder, opcode::Opcode},
-    state::program_state::ProgramState,
-    types::error::PVMError,
+    program::instruction::opcode::Opcode,
+    state::{memory::MemAddress, program_state::ProgramState},
+    types::error::{PVMError, VMCoreError::InvalidProgram},
 };
+use bit_vec::BitVec;
+use rjam_codec::JamDecode;
 
 pub struct ProgramLoader;
 impl ProgramLoader {
@@ -14,8 +16,7 @@ impl ProgramLoader {
         program_state: &mut ProgramState,
     ) -> Result<(), PVMError> {
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
-        let (instructions, opcode_bitmask, jump_table) =
-            ProgramDecoder::deblob_program_code(program_code)?;
+        let (instructions, opcode_bitmask, jump_table) = Self::deblob_program_code(program_code)?;
 
         // Initialize immutable PVM states: instructions, opcode_bitmask, jump_table and basic_block_bitmask
         program_state.instructions = instructions;
@@ -24,6 +25,26 @@ impl ProgramLoader {
         Self::set_basic_block_start_indices(program_state)?;
         program_state.is_loaded = true;
         Ok(())
+    }
+
+    /// Decodes code element of the formatted program code into
+    /// instruction sequence (c), opcode bitmask (k) and dynamic jump table (j).
+    /// Used by `Ψ`.
+    pub fn deblob_program_code(
+        code: &[u8],
+    ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), PVMError> {
+        let mut input = code;
+        let program = ProgramState::decode(&mut input)?;
+
+        if !input.is_empty() {
+            return Err(PVMError::VMCoreError(InvalidProgram));
+        }
+
+        Ok((
+            program.instructions,
+            program.opcode_bitmask,
+            program.jump_table,
+        ))
     }
 
     /// Collects opcode indices that indicate beginning of basic blocks and sets the
