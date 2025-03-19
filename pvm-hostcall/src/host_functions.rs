@@ -14,11 +14,12 @@ use rjam_common::{
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
-    core::{PVMCore, VMState},
+    core::PVMCore,
     program::program_decoder::{ProgramDecoder, ProgramState},
     state::{
         memory::{AccessType, MemAddress},
         register::Register,
+        VMState,
     },
     types::{
         common::{ExitReason, ExportDataSegment, RegValue},

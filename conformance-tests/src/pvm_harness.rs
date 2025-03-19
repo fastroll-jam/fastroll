@@ -2,11 +2,12 @@ use rjam_common::UnsignedGas;
 use rjam_pvm::PVM;
 use rjam_pvm_core::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
-    core::{PVMCore, VMState},
+    core::PVMCore,
     program::program_decoder::ProgramState,
     state::{
         memory::{AccessType, Memory},
         register::Register,
+        VMState,
     },
     types::common::{ExitReason, RegValue},
 };

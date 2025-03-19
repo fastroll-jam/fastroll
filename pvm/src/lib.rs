@@ -1,9 +1,12 @@
 use rjam_common::{ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
-    core::{PVMCore, VMState},
+    core::PVMCore,
     program::program_decoder::{FormattedProgram, ProgramDecoder, ProgramState},
-    state::memory::{AccessType, MemAddress, Memory},
+    state::{
+        memory::{AccessType, MemAddress, Memory},
+        VMState,
+    },
     types::{
         common::{ExitReason, RegValue},
         error::{
@@ -62,7 +65,7 @@ impl PVM {
     /// Initialize memory and registers of PVM with provided program and arguments
     ///
     /// Represents `Y` of the GP
-    fn init_with_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
+    fn new_with_standard_program(standard_program: &[u8], args: &[u8]) -> Result<Self, PVMError> {
         let mut pvm = Self::default();
 
         // Check argument data size limit
@@ -213,7 +216,7 @@ impl PVM {
         context: &mut InvocationContext,
     ) -> Result<CommonInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
-        let mut pvm = match Self::init_with_standard_program(standard_program, args) {
+        let mut pvm = match Self::new_with_standard_program(standard_program, args) {
             Ok(pvm) => pvm,
             Err(_) => return Ok(CommonInvocationResult::Panic(ExitReason::Panic)),
         };
