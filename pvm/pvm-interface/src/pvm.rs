@@ -2,10 +2,11 @@ use rjam_common::SignedGas;
 use rjam_pvm_core::{
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
     interpreter::Interpreter,
-    program::decoder::{FormattedProgram, ProgramDecoder, ProgramState},
+    program::decoder::{FormattedProgram, ProgramDecoder},
     state::{
         memory::{AccessType, MemAddress, Memory},
-        VMState,
+        program_state::ProgramState,
+        vm_state::VMState,
     },
     types::{
         common::RegValue,

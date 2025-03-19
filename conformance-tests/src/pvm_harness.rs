@@ -1,12 +1,13 @@
 use rjam_common::UnsignedGas;
 use rjam_pvm_core::{
     constants::{MEMORY_SIZE, PAGE_SIZE},
-    interpreter::{Interpreter, ProgramLoader},
-    program::decoder::ProgramState,
+    interpreter::Interpreter,
+    program::loader::ProgramLoader,
     state::{
         memory::{AccessType, Memory},
+        program_state::ProgramState,
         register::Register,
-        VMState,
+        vm_state::VMState,
     },
     types::common::{ExitReason, RegValue},
 };
@@ -229,8 +230,7 @@ pub fn run_test_case(filename: &str) {
         program_state: ProgramState::default(),
     };
 
-    ProgramLoader::load_program(&program, &mut pvm.program_state)
-        .expect("Failed to load program");
+    ProgramLoader::load_program(&program, &mut pvm.program_state).expect("Failed to load program");
 
     // Debugging
     println!("{:?}", pvm.program_state);
