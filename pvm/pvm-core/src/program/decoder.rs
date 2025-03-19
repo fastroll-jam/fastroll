@@ -78,16 +78,16 @@ impl FormattedProgram {
 /// Represents `code` of `FormattedProgram` decoded.
 #[derive(Debug, Default)]
 pub struct ProgramState {
-    /// `c`: Serialized instructions blob
+    /// `c`: Serialized instructions blob.
     pub instructions: Vec<u8>, // TODO: define instruction_blob with endless zeroes padding
-    /// `j`: Dynamic jump table
+    /// `j`: Dynamic jump table.
     pub jump_table: Vec<MemAddress>,
-    /// `k`: Opcode bitmask
+    /// `k`: Opcode bitmask.
     pub opcode_bitmask: BitVec,
-    /// Opcode indices that are beginning of basic-blocks
+    /// Opcode indices that are beginning of basic-blocks.
     pub basic_block_start_indices: HashSet<usize>,
-    /// Boolean flag indicating program initialization status
-    pub initialized: bool,
+    /// Boolean flag indicating whether program is loaded.
+    pub is_loaded: bool,
 }
 
 impl JamDecode for ProgramState {
@@ -120,7 +120,7 @@ impl JamDecode for ProgramState {
             jump_table,
             opcode_bitmask,
             basic_block_start_indices: HashSet::from([0]),
-            initialized: false,
+            is_loaded: false,
         })
     }
 }
@@ -207,7 +207,7 @@ impl Instruction {
 ///
 /// 4. Internal PVM invocation functions, such as `Ψ_H` and `Ψ`, utilize the `code` stored in the `PVM` state.
 ///
-/// 5. The general invocation function `Ψ` further decodes the `code` into
+/// 5. The general invocation function `Ψ` further "deblob"s the `code` into
 ///    `instructions`, an `opcode_bitmask`, and a `dynamic_jump_table`.
 ///
 /// 6. Finally, the single-step execution functions (`Ψ_1`) use these three components
@@ -215,13 +215,12 @@ impl Instruction {
 pub struct ProgramDecoder;
 impl ProgramDecoder {
     /// Decodes program blob into formatted program. Used by `Ψ_M`.
-    pub fn decode_standard_program(program_blob: &[u8]) -> Result<FormattedProgram, PVMError> {
+    pub fn format_standard_program(program_blob: &[u8]) -> Result<FormattedProgram, PVMError> {
         let mut input = program_blob;
         let formatted_program = FormattedProgram::decode(&mut input)?;
         if !input.is_empty() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
-
         Ok(formatted_program)
     }
 

@@ -34,9 +34,9 @@ pub struct StateChange {
 
 pub struct ProgramLoader;
 impl ProgramLoader {
-    /// Decodes program code blob and loads it into the program state components:
+    /// Decodes a program code blob and loads it into the PVM program state components:
     /// instructions, an opcode bitmask, a dynamic jump table and a basic block bitmask.
-    pub fn set_program_state(
+    pub fn load_program(
         program_code: &[u8],
         program_state: &mut ProgramState,
     ) -> Result<(), PVMError> {
@@ -49,7 +49,7 @@ impl ProgramLoader {
         program_state.opcode_bitmask = opcode_bitmask;
         program_state.jump_table = jump_table;
         Self::set_basic_block_start_indices(program_state)?;
-        program_state.initialized = true;
+        program_state.is_loaded = true;
         Ok(())
     }
 
@@ -199,8 +199,8 @@ impl Interpreter {
     ) -> Result<ExitReason, PVMError> {
         // Ensure the program state is initialized only once, as the general invocation
         // is triggered within a loop during the extended invocation.
-        if !program_state.initialized {
-            ProgramLoader::set_program_state(program_code, program_state)?;
+        if !program_state.is_loaded {
+            ProgramLoader::load_program(program_code, program_state)?;
         }
 
         loop {

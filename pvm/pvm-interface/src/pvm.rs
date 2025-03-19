@@ -42,7 +42,7 @@ impl PVM {
         }
 
         // Decode program and check program size limit
-        let formatted_program = ProgramDecoder::decode_standard_program(standard_program)?;
+        let formatted_program = ProgramDecoder::format_standard_program(standard_program)?;
         if !formatted_program.is_program_size_valid() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }

@@ -229,8 +229,8 @@ pub fn run_test_case(filename: &str) {
         program_state: ProgramState::default(),
     };
 
-    ProgramLoader::set_program_state(&program, &mut pvm.program_state)
-        .expect("Failed to set program state");
+    ProgramLoader::load_program(&program, &mut pvm.program_state)
+        .expect("Failed to load program");
 
     // Debugging
     println!("{:?}", pvm.program_state);
