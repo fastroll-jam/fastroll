@@ -1,3 +1,4 @@
+//! PVM-specific constants
 use rjam_common::UnsignedGas;
 
 pub const BASE_GAS_CHARGE: UnsignedGas = 10;
@@ -21,18 +22,3 @@ pub const PAGE_SIZE: usize = 1 << 12;
 
 /// `Z_Z`: The standard PVM program initialization zone size (64KB)
 pub const INIT_ZONE_SIZE: usize = 1 << 16;
-
-/// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
-pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
-
-/// `W_E`: Erasure coding basic chunk size in octets
-pub const ERASURE_CHUNK_SIZE: usize = 684;
-
-/// `W_P`: The number of erasure-coded pieces in a segment
-pub const DATA_SEGMENTS_CHUNKS: usize = 6;
-
-/// `W_G`: Data segment size (`W_E` * `W_P`)
-pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
-
-/// `W_M`: Work package manifest size limit
-pub const WORK_PACKAGE_MANIFEST_SIZE_LIMIT: usize = 1 << 11;

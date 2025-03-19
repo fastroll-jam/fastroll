@@ -1,4 +1,4 @@
-use crate::UnsignedGas;
+use crate::{Balance, UnsignedGas};
 
 /// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;
@@ -24,17 +24,23 @@ pub const PENDING_REPORT_TIMEOUT: usize = 5;
 /// `L`: The maximum age in timeslots of the lookup anchor.
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
 
+/// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
+/// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
+pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
+
 /// `J`: The maximum sum of dependency items in a work-report.
 pub const MAX_REPORT_DEPENDENCIES: usize = 8;
 
-/// `W_C`: The maximum size of service code in octets.
-pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+// --- Service Account Balance Requirements
 
-/// `W_T`: The size of a transfer memo in octets.
-pub const TRANSFER_MEMO_SIZE: usize = 128;
+/// `B_I`: The additional minimum balance required per item of elective service state.
+pub const MIN_BALANCE_PER_ITEM: Balance = 10;
 
-/// `W_R`: The maximum total size of all output blobs in a work-report, in octets.
-pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+/// `B_L`: The additional minimum balance required per octet of elective service state.
+pub const MIN_BALANCE_PER_OCTET: Balance = 1;
+
+/// `B_S`: The basic minimum balance which all services require.
+pub const MIN_BASIC_BALANCE: Balance = 100;
 
 // --- Gas Limits
 
@@ -49,6 +55,29 @@ pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 5_000_000_000;
 
 /// `G_T`: The total gas allocated across for all Accumulation.
 pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
+
+// --- Data Size Limits
+
+/// `W_C`: The maximum size of service code in octets.
+pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
+
+/// `W_E`: Erasure coding basic chunk size in octets
+pub const ERASURE_CHUNK_SIZE: usize = 684;
+
+/// `W_G`: Data segment size (`W_E` * `W_P`)
+pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
+
+/// `W_M`: Work package manifest size limit
+pub const WORK_PACKAGE_MANIFEST_SIZE_LIMIT: usize = 1 << 11;
+
+/// `W_P`: The number of erasure-coded pieces in a segment
+pub const DATA_SEGMENTS_CHUNKS: usize = 6;
+
+/// `W_R`: The maximum total size of all output blobs in a work-report, in octets.
+pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
+
+/// `W_T`: The size of a transfer memo in octets.
+pub const TRANSFER_MEMO_SIZE: usize = 128;
 
 // --- Signing Contexts
 

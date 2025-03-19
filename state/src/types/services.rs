@@ -9,15 +9,14 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
+use rjam_common::{
+    Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
+    MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
+};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
-
-pub const B_S: Balance = 100; // The basic minimum balance which all services require
-pub const B_I: Balance = 10; // The additional minimum balance required per item of elective service state
-pub const B_L: Balance = 1; // The additional minimum balance required per octet of elective service state
 
 #[derive(Clone, Copy, Default)]
 pub struct StorageUsageDelta {
@@ -145,7 +144,9 @@ impl AccountMetadata {
 
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
-        B_S + B_I * self.items_footprint as Balance + B_L * self.octets_footprint
+        MIN_BASIC_BALANCE
+            + MIN_BALANCE_PER_ITEM * self.items_footprint as Balance
+            + MIN_BALANCE_PER_OCTET * self.octets_footprint
     }
 
     /// Calculates the state delta of the storage footprints caused by replacing `prev_entry`
@@ -202,7 +203,9 @@ impl AccountMetadata {
     }
 
     pub const fn get_initial_threshold_balance(code_lookup_len: u32) -> Balance {
-        B_S + B_I * 2 + B_L * (code_lookup_len as Balance + 81)
+        MIN_BASIC_BALANCE
+            + MIN_BALANCE_PER_ITEM * 2
+            + MIN_BALANCE_PER_OCTET * (code_lookup_len as Balance + 81)
     }
 
     fn apply_items_footprint_delta(footprint: &mut u32, delta: i32) {
