@@ -22,5 +22,5 @@ pub const TICKETS_PER_VALIDATOR: u8 = 3;
 /// `K`: The maximum number of tickets which may be submitted in a single extrinsic.
 pub const MAX_TICKETS_PER_EXTRINSIC: usize = 3;
 
-/// The guarantor rotation period in timeslots.
+/// `R`: The guarantor rotation period in timeslots.
 pub const GUARANTOR_ROTATION_PERIOD: usize = 4;

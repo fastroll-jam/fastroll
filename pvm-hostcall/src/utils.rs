@@ -55,7 +55,7 @@ macro_rules! get_mut_refine_x {
 #[macro_export]
 macro_rules! gas_or_default {
     () => {
-        BASE_GAS_CHARGE
+        HOSTCALL_BASE_GAS_CHARGE
     };
     ($gas:expr) => {
         $gas as UnsignedGas
@@ -234,7 +234,7 @@ macro_rules! host_call_panic {
 #[macro_export]
 macro_rules! check_out_of_gas {
     ($gas_counter:expr) => {
-        if $gas_counter < BASE_GAS_CHARGE {
+        if $gas_counter < HOSTCALL_BASE_GAS_CHARGE {
             $crate::out_of_gas!()
         }
     };
