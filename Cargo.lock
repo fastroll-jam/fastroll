@@ -1365,8 +1365,6 @@ dependencies = [
  "rjam-crypto",
  "rjam-extrinsics",
  "rjam-merkle",
- "rjam-pvm-core",
- "rjam-pvm-host",
  "rjam-pvm-invocation",
  "rjam-pvm-types",
  "rjam-state",

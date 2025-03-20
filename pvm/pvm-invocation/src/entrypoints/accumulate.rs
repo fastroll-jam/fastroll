@@ -49,7 +49,7 @@ impl AccumulateInvocation {
     /// * `args` - Accumulate entry-point function arguments.
     ///
     /// Represents `Ψ_A` of the GP
-    pub async fn accumulate(
+    pub(crate) async fn accumulate(
         state_manager: Arc<StateManager>,
         partial_state: &AccumulatePartialState,
         args: &AccumulateInvokeArgs,
