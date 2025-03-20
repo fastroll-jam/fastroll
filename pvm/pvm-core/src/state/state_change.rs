@@ -1,5 +1,5 @@
 use crate::{
-    error::{PVMError, VMCoreError::InvalidRegIndex},
+    error::VMCoreError,
     gas::GasCharger,
     state::{memory::MemoryError, register::Register, vm_state::VMState},
 };
@@ -63,11 +63,11 @@ impl VMStateMutator {
     pub fn apply_state_change(
         vm_state: &mut VMState,
         change: &VMStateChange,
-    ) -> Result<SignedGas, PVMError> {
+    ) -> Result<SignedGas, VMCoreError> {
         // Apply register changes
         if let Some((reg_index, new_val)) = change.register_write {
             if reg_index >= REGISTERS_COUNT {
-                return Err(PVMError::VMCoreError(InvalidRegIndex(reg_index)));
+                return Err(VMCoreError::InvalidRegIndex(reg_index));
             }
             vm_state.regs[reg_index] = Register::new(new_val);
         }
@@ -79,13 +79,13 @@ impl VMStateMutator {
         }) = &change.memory_write
         {
             if (*buf_offset as usize) < INIT_ZONE_SIZE {
-                return Err(PVMError::InvalidMemZone);
+                return Err(VMCoreError::InvalidMemZone);
             }
 
             match vm_state.memory.write_bytes(*buf_offset, write_data) {
                 Ok(_) => {}
                 Err(MemoryError::AccessViolation(address)) => {
-                    return Err(PVMError::PageFault(address))
+                    return Err(VMCoreError::PageFault(address))
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -101,7 +101,7 @@ impl VMStateMutator {
     pub fn apply_host_call_state_change(
         vm_state: &mut VMState,
         change: &HostCallVMStateChange,
-    ) -> Result<SignedGas, PVMError> {
+    ) -> Result<SignedGas, VMCoreError> {
         // Apply register changes (register index 7 & 8)
         if let Some(r7) = change.r7_write {
             vm_state.regs[7].value = r7;

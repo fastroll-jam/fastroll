@@ -7,10 +7,7 @@ use crate::{
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_core::{
-    error::{HostCallError::*, PVMError},
-    state::memory::Memory,
-};
+use rjam_pvm_core::{error::HostCallError, state::memory::Memory};
 use rjam_pvm_types::{
     common::ExportDataSegment,
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
@@ -110,7 +107,7 @@ impl OnTransferHostContext {
     pub async fn new(
         state_manager: Arc<StateManager>,
         recipient: ServiceId,
-    ) -> Result<Self, PVMError> {
+    ) -> Result<Self, HostCallError> {
         let mut accounts_sandbox = AccountsSandboxMap::default();
         let recipient_account_sandbox =
             AccountSandbox::from_service_id(state_manager, recipient).await?;
@@ -181,7 +178,7 @@ impl AccumulateHostContext {
         accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
-    ) -> Result<Self, PVMError> {
+    ) -> Result<Self, HostCallError> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
                 state_manager,
@@ -200,7 +197,7 @@ impl AccumulateHostContext {
         accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot: &Timeslot,
-    ) -> Result<ServiceId, PVMError> {
+    ) -> Result<ServiceId, HostCallError> {
         let mut buf = vec![];
         accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
@@ -218,19 +215,19 @@ impl AccumulateHostContext {
     pub async fn get_accumulator_metadata(
         &mut self,
         state_manager: Arc<StateManager>,
-    ) -> Result<&AccountMetadata, PVMError> {
+    ) -> Result<&AccountMetadata, HostCallError> {
         self.partial_state
             .accounts_sandbox
             .get_account_metadata(state_manager, self.accumulate_host)
             .await?
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))
+            .ok_or(HostCallError::AccumulatorAccountNotInitialized)
     }
 
     #[allow(clippy::redundant_closure_call)]
     pub async fn rotate_new_account_index(
         &mut self,
         state_manager: Arc<StateManager>,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), HostCallError> {
         let bump = |a: ServiceId| -> ServiceId {
             let modulus = (1u64 << 32) - (1u64 << 9);
             ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as ServiceId
@@ -249,7 +246,7 @@ impl AccumulateHostContext {
         assign_service: ServiceId,
         designate_service: ServiceId,
         always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), HostCallError> {
         self.partial_state.new_privileges = Some(PrivilegedServices {
             manager_service,
             assign_service,
@@ -259,12 +256,12 @@ impl AccumulateHostContext {
         Ok(())
     }
 
-    pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) -> Result<(), PVMError> {
+    pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) -> Result<(), HostCallError> {
         self.partial_state.new_auth_queue = Some(auth_queue);
         Ok(())
     }
 
-    pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) -> Result<(), PVMError> {
+    pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) -> Result<(), HostCallError> {
         self.partial_state.new_staging_set = Some(staging_set);
         Ok(())
     }
@@ -273,13 +270,13 @@ impl AccumulateHostContext {
         &mut self,
         state_manager: Arc<StateManager>,
         amount: Balance,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), HostCallError> {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
             .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
         // Explicitly checked from callsites (host functions) that this has positive value.
         account_metadata.balance -= amount;
@@ -295,13 +292,13 @@ impl AccumulateHostContext {
         &mut self,
         state_manager: Arc<StateManager>,
         amount: Balance,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), HostCallError> {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
             .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
         account_metadata.balance += amount;
         self.partial_state
@@ -320,7 +317,7 @@ impl AccumulateHostContext {
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
         code_lookups_key: LookupsKey,
-    ) -> Result<ServiceId, PVMError> {
+    ) -> Result<ServiceId, HostCallError> {
         let new_service_id = self.next_new_service_id;
 
         let new_account = AccountSandbox {
@@ -364,13 +361,13 @@ impl AccumulateHostContext {
         code_hash: Hash32,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), HostCallError> {
         let accumulator_metadata = self
             .partial_state
             .accounts_sandbox
             .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
             .await?
-            .ok_or(PVMError::HostCallError(AccumulatorAccountNotInitialized))?;
+            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
         accumulator_metadata.code_hash = code_hash;
         accumulator_metadata.gas_limit_accumulate = gas_limit_accumulate;

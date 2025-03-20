@@ -1,4 +1,4 @@
-use crate::error::{PVMError, VMCoreError::InvalidOpcode};
+use crate::error::VMCoreError;
 
 /// PVM Opcodes
 #[repr(u8)]
@@ -148,9 +148,9 @@ pub enum Opcode {
 }
 
 impl TryFrom<u8> for Opcode {
-    type Error = PVMError;
+    type Error = VMCoreError;
 
-    fn try_from(value: u8) -> Result<Opcode, PVMError> {
+    fn try_from(value: u8) -> Result<Opcode, VMCoreError> {
         match value {
             0 => Ok(Opcode::TRAP),
             1 => Ok(Opcode::FALLTHROUGH),
@@ -291,14 +291,14 @@ impl TryFrom<u8> for Opcode {
             228 => Ok(Opcode::MAX_U),
             229 => Ok(Opcode::MIN),
             230 => Ok(Opcode::MIN_U),
-            _ => Err(PVMError::VMCoreError(InvalidOpcode)),
+            _ => Err(VMCoreError::InvalidOpcode),
         }
     }
 }
 
 impl Opcode {
-    pub fn from_u8(value: u8) -> Result<Self, PVMError> {
-        Self::try_from(value).map_err(|_| PVMError::VMCoreError(InvalidOpcode))
+    pub fn from_u8(value: u8) -> Result<Self, VMCoreError> {
+        Self::try_from(value).map_err(|_| VMCoreError::InvalidOpcode)
     }
 
     pub fn is_termination_opcode(&self) -> bool {

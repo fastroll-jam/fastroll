@@ -12,26 +12,22 @@ pub enum PVMError {
     AccountCodeNotFound,
     #[error("Account not found")]
     AccountNotFound,
-    #[error("Page Fault at Address {0}")]
-    PageFault(MemAddress),
-    #[error("Invalid memory zone")]
-    InvalidMemZone,
     #[error("Spawned accumulate task panicked")]
     AccumulateTaskPanicked,
+    #[error("MemoryError: {0}")]
+    MemoryError(#[from] MemoryError),
     #[error("VMCoreError: {0}")]
     VMCoreError(#[from] VMCoreError),
     #[error("HostCallError: {0}")]
     HostCallError(#[from] HostCallError),
-    #[error("MemoryError: {0}")]
-    MemoryError(#[from] MemoryError),
+    #[error("PartialStateError: {0}")]
+    PartialStateError(#[from] PartialStateError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
-    #[error("PartialStateError: {0}")]
-    PartialStateError(#[from] PartialStateError),
 }
 
 /// PVM Core Error Codes
@@ -73,6 +69,14 @@ pub enum VMCoreError {
     InvalidHostCallType,
     #[error("Data length mismatch in memory state changes")]
     MemoryStateChangeDataLengthMismatch,
+    #[error("Page Fault at Address {0}")]
+    PageFault(MemAddress),
+    #[error("Invalid memory zone")]
+    InvalidMemZone,
+    #[error("MemoryError: {0}")]
+    MemoryError(#[from] MemoryError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
 }
 
 /// PVM Host Call Error Codes
@@ -96,6 +100,18 @@ pub enum HostCallError {
     InvalidExitReason,
     #[error("State manager holding polluted data")]
     StateManagerPollution,
+    #[error("VMCoreError: {0}")]
+    VMCoreError(#[from] VMCoreError),
+    #[error("MemoryError: {0}")]
+    MemoryError(#[from] MemoryError),
+    #[error("PartialStateError: {0}")]
+    PartialStateError(#[from] PartialStateError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("StateManagerError: {0}")]
+    StateManagerError(#[from] StateManagerError),
 }
 
 /// PVM Host Call Partial State Error Codes

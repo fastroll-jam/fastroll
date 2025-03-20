@@ -13,7 +13,7 @@ use rjam_common::{
 };
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
-    error::{HostCallError::*, PVMError},
+    error::HostCallError,
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
@@ -157,7 +157,7 @@ impl HostFunction {
 
     /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
     /// for executing this instruction.
-    pub fn host_gas(vm: &VMState) -> Result<HostCallResult, PVMError> {
+    pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
         let gas_remaining = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
 
@@ -171,7 +171,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -226,7 +226,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -283,7 +283,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -330,12 +330,12 @@ impl HostFunction {
             maybe_prev_storage_entry.as_ref(),
             new_storage_entry.as_ref(),
         )
-        .ok_or(PVMError::StateManagerError(StorageEntryNotFound))?;
+        .ok_or(HostCallError::StateManagerError(StorageEntryNotFound))?;
 
         let metadata = accounts_sandbox
             .get_account_metadata(state_manager.clone(), service_id)
             .await?
-            .ok_or(PVMError::HostCallError(AccountNotFound))?;
+            .ok_or(HostCallError::AccountNotFound)?;
 
         let simulated_threshold_balance =
             metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
@@ -365,7 +365,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
@@ -414,7 +414,7 @@ impl HostFunction {
     pub fn host_bless(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -460,7 +460,7 @@ impl HostFunction {
     pub fn host_assign(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -496,7 +496,7 @@ impl HostFunction {
     pub fn host_designate(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -529,7 +529,7 @@ impl HostFunction {
     pub fn host_checkpoint(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let (x_cloned, y_mut) = match (
@@ -559,7 +559,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -616,7 +616,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -642,7 +642,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         let x = get_mut_accumulate_x!(context);
 
         let dest = vm.regs[7].as_service_id()?; // d
@@ -710,7 +710,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -783,7 +783,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -830,7 +830,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -877,7 +877,7 @@ impl HostFunction {
                     None,
                     new_lookups_octets_usage.as_ref(),
                 )
-                .ok_or(PVMError::StateManagerError(LookupsEntryNotFound))?;
+                .ok_or(HostCallError::StateManagerError(LookupsEntryNotFound))?;
 
                 let accumulator_metadata =
                     x.get_accumulator_metadata(state_manager.clone()).await?;
@@ -916,7 +916,7 @@ impl HostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -1034,7 +1034,7 @@ impl HostFunction {
     pub async fn host_yield(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_accumulate_x!(context);
@@ -1066,7 +1066,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
         state_manager: Arc<StateManager>,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_refine_x!(context);
@@ -1131,7 +1131,7 @@ impl HostFunction {
     pub fn host_fetch(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_refine_x!(context);
@@ -1228,7 +1228,7 @@ impl HostFunction {
     pub fn host_export(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1248,7 +1248,7 @@ impl HostFunction {
 
         let data_segment: ExportDataSegment =
             zero_pad_as_array::<SEGMENT_SIZE>(vm.memory.read_bytes(offset, export_size)?)
-                .ok_or(PVMError::HostCallError(DataSegmentTooLarge))?;
+                .ok_or(HostCallError::DataSegmentTooLarge)?;
 
         x.export_segments.push(data_segment);
 
@@ -1261,7 +1261,7 @@ impl HostFunction {
     pub fn host_machine(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1295,7 +1295,7 @@ impl HostFunction {
     pub fn host_peek(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_refine_x!(context);
@@ -1330,7 +1330,7 @@ impl HostFunction {
     pub fn host_poke(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1365,7 +1365,7 @@ impl HostFunction {
     pub fn host_zero(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1401,7 +1401,7 @@ impl HostFunction {
     pub fn host_void(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1447,7 +1447,7 @@ impl HostFunction {
     pub fn host_invoke(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
@@ -1546,7 +1546,7 @@ impl HostFunction {
                 )
             }
 
-            _ => Err(PVMError::HostCallError(InvalidExitReason)),
+            _ => Err(HostCallError::InvalidExitReason),
         }
     }
 
@@ -1554,7 +1554,7 @@ impl HostFunction {
     pub fn host_expunge(
         vm: &VMState,
         context: &mut InvocationContext,
-    ) -> Result<HostCallResult, PVMError> {
+    ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
 
         let x = get_mut_refine_x!(context);
