@@ -1262,9 +1262,7 @@ dependencies = [
  "bit-vec",
  "rjam-codec",
  "rjam-common",
- "rjam-crypto",
  "rjam-pvm-types",
- "rjam-state",
  "thiserror",
 ]
 
@@ -1285,6 +1283,7 @@ dependencies = [
 name = "rjam-pvm-interface"
 version = "0.1.0"
 dependencies = [
+ "rjam-codec",
  "rjam-common",
  "rjam-crypto",
  "rjam-pvm-core",

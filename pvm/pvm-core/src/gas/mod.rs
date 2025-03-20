@@ -1,7 +1,4 @@
-use crate::{
-    error::{PVMError, VMCoreError::TooLargeGasCounter},
-    state::vm_state::VMState,
-};
+use crate::{error::VMCoreError, state::vm_state::VMState};
 use rjam_common::{SignedGas, UnsignedGas};
 
 pub struct GasCharger;
@@ -11,11 +8,11 @@ impl GasCharger {
     pub fn apply_gas_cost(
         vm_state: &mut VMState,
         gas_charge: UnsignedGas,
-    ) -> Result<SignedGas, PVMError> {
+    ) -> Result<SignedGas, VMCoreError> {
         let gas_counter_signed: SignedGas = vm_state
             .gas_counter
             .try_into()
-            .map_err(|_| PVMError::VMCoreError(TooLargeGasCounter))?;
+            .map_err(|_| VMCoreError::TooLargeGasCounter)?;
         let post_gas = gas_counter_signed - gas_charge as SignedGas;
 
         // Keep `gas_counter` of `VMState` as unsigned integer

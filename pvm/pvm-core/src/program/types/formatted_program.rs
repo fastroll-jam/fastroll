@@ -1,7 +1,4 @@
-use crate::{
-    error::{PVMError, VMCoreError::*},
-    utils::VMUtils,
-};
+use crate::{error::VMCoreError, utils::VMUtils};
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
 use rjam_pvm_types::constants::{
     INIT_INPUT_SIZE, INIT_ZONE_SIZE, PAGE_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
@@ -55,11 +52,11 @@ impl JamDecode for FormattedProgram {
 
 impl FormattedProgram {
     /// Decodes program blob into formatted program. Used by `Ψ_M`.
-    pub fn from_standard_program(program_blob: &[u8]) -> Result<Self, PVMError> {
+    pub fn from_standard_program(program_blob: &[u8]) -> Result<Self, VMCoreError> {
         let mut input = program_blob;
         let formatted_program = Self::decode(&mut input)?;
         if !input.is_empty() {
-            return Err(PVMError::VMCoreError(InvalidProgram));
+            return Err(VMCoreError::InvalidProgram);
         }
         Ok(formatted_program)
     }

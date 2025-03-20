@@ -1,11 +1,7 @@
 pub mod opcode;
 pub mod set;
 
-use crate::{
-    error::{PVMError, VMCoreError::*},
-    program::instruction::opcode::Opcode,
-    utils::VMUtils,
-};
+use crate::{error::VMCoreError, program::instruction::opcode::Opcode, utils::VMUtils};
 use rjam_codec::JamDecodeFixed;
 use rjam_pvm_types::{common::RegValue, constants::REGISTERS_COUNT};
 
@@ -33,11 +29,11 @@ impl Instruction {
         rd: Option<usize>,
         imm1: Option<RegValue>,
         imm2: Option<RegValue>,
-    ) -> Result<Self, PVMError> {
+    ) -> Result<Self, VMCoreError> {
         // Validate register indices
         for &reg in [rd, rs1, rs2].iter().flatten() {
             if reg > (REGISTERS_COUNT - 1) {
-                return Err(PVMError::VMCoreError(InvalidInstructionFormat));
+                return Err(VMCoreError::InvalidInstructionFormat);
             }
         }
         Ok(Self {
@@ -62,14 +58,14 @@ impl Instruction {
         single_inst_blob: &[u8],
         current_pc: RegValue,
         skip_distance: usize,
-    ) -> Result<Self, PVMError> {
+    ) -> Result<Self, VMCoreError> {
         use crate::program::instruction::opcode::Opcode::*;
         let op = Opcode::from_u8(single_inst_blob[0])?;
 
         // Note: the `single_inst_blob` is an octet slice that represents a single instruction.
         // Validate instruction blob length
         if single_inst_blob.len() > 16 {
-            return Err(PVMError::VMCoreError(InvalidInstructionFormat));
+            return Err(VMCoreError::InvalidInstructionFormat);
         }
 
         match op {
@@ -254,29 +250,25 @@ impl Instruction {
         }
     }
 
-    pub fn imm1(&self) -> Result<RegValue, PVMError> {
-        self.imm1
-            .ok_or(PVMError::VMCoreError(ImmValNotFound(self.op)))
+    pub fn imm1(&self) -> Result<RegValue, VMCoreError> {
+        self.imm1.ok_or(VMCoreError::ImmValNotFound(self.op))
     }
 
-    pub fn imm2(&self) -> Result<RegValue, PVMError> {
-        self.imm2
-            .ok_or(PVMError::VMCoreError(ImmValNotFound(self.op)))
+    pub fn imm2(&self) -> Result<RegValue, VMCoreError> {
+        self.imm2.ok_or(VMCoreError::ImmValNotFound(self.op))
     }
 
-    pub fn rs1(&self) -> Result<usize, PVMError> {
-        self.rs1
-            .ok_or(PVMError::VMCoreError(SourceRegIdxNotFound(self.op)))
+    pub fn rs1(&self) -> Result<usize, VMCoreError> {
+        self.rs1.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
-    pub fn rs2(&self) -> Result<usize, PVMError> {
-        self.rs2
-            .ok_or(PVMError::VMCoreError(SourceRegIdxNotFound(self.op)))
+    pub fn rs2(&self) -> Result<usize, VMCoreError> {
+        self.rs2.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
-    pub fn rd(&self) -> Result<usize, PVMError> {
+    pub fn rd(&self) -> Result<usize, VMCoreError> {
         self.rd
-            .ok_or(PVMError::VMCoreError(DestinationRegIdxNotFound(self.op)))
+            .ok_or(VMCoreError::DestinationRegIdxNotFound(self.op))
     }
 
     /// Extracts and processes an immediate value from the instruction blob.
@@ -284,7 +276,7 @@ impl Instruction {
         single_inst_blob: &[u8],
         imm_size: usize,
         start_index: usize,
-    ) -> Result<RegValue, PVMError> {
+    ) -> Result<RegValue, VMCoreError> {
         // `imm_size` is at most 4 by the specification,
         if imm_size > 0 {
             let mut buffer = [0u8; 4];
@@ -294,7 +286,7 @@ impl Instruction {
                 u32::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
                 imm_size,
             )
-            .ok_or(PVMError::VMCoreError(InvalidInstructionFormat))?)
+            .ok_or(VMCoreError::InvalidInstructionFormat)?)
         } else {
             Ok(0)
         }
@@ -306,7 +298,7 @@ impl Instruction {
         single_inst_blob: &[u8],
         imm_size: usize,
         start_index: usize,
-    ) -> Result<RegValue, PVMError> {
+    ) -> Result<RegValue, VMCoreError> {
         let pc_offset = if imm_size > 0 {
             let mut buffer = [0u8; 4];
             buffer[..imm_size]
@@ -315,7 +307,7 @@ impl Instruction {
                 u64::decode_fixed(&mut &buffer[..imm_size], imm_size)?,
                 imm_size,
             )
-            .ok_or(PVMError::VMCoreError(InvalidInstructionFormat))?
+            .ok_or(VMCoreError::InvalidInstructionFormat)?
         } else {
             0
         };
@@ -326,7 +318,7 @@ impl Instruction {
     fn extract_imm_extended_width(
         single_inst_blob: &[u8],
         start_index: usize,
-    ) -> Result<RegValue, PVMError> {
+    ) -> Result<RegValue, VMCoreError> {
         let mut buffer = [0u8; 8];
         buffer[..8].copy_from_slice(&single_inst_blob[start_index..(start_index + 8)]);
         let imm = u64::decode_fixed(&mut &buffer[..8], 8)?;

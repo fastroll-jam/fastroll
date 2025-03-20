@@ -1,5 +1,5 @@
 use crate::{
-    error::PVMError,
+    error::VMCoreError,
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
@@ -86,7 +86,7 @@ impl Interpreter {
         vm_state: &mut VMState,
         program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
         program_code: &[u8],
-    ) -> Result<ExitReason, PVMError> {
+    ) -> Result<ExitReason, VMCoreError> {
         // Ensure the program state is initialized only once, as the general invocation
         // is triggered within a loop during the extended invocation.
         if !program_state.is_loaded {
@@ -110,8 +110,8 @@ impl Interpreter {
                 match Self::invoke_single_step(vm_state, program_state, &inst) {
                     Ok(result) => result,
                     // TODO: better error type conversion
-                    Err(PVMError::PageFault(address))
-                    | Err(PVMError::MemoryError(MemoryError::AccessViolation(address))) => {
+                    Err(VMCoreError::PageFault(address))
+                    | Err(VMCoreError::MemoryError(MemoryError::AccessViolation(address))) => {
                         return Ok(ExitReason::PageFault(address))
                     }
                     Err(e) => return Err(e),
@@ -122,8 +122,8 @@ impl Interpreter {
                 &single_invocation_result.state_change,
             ) {
                 Ok(post_gas) => post_gas,
-                Err(PVMError::InvalidMemZone) => return Ok(ExitReason::Panic),
-                Err(PVMError::PageFault(address)) => return Ok(ExitReason::PageFault(address)),
+                Err(VMCoreError::InvalidMemZone) => return Ok(ExitReason::Panic),
+                Err(VMCoreError::PageFault(address)) => return Ok(ExitReason::PageFault(address)),
                 Err(e) => return Err(e),
             };
             if post_gas < 0 {
@@ -154,7 +154,7 @@ impl Interpreter {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),

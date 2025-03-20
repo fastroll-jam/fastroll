@@ -1,5 +1,5 @@
 use crate::{
-    error::{PVMError, VMCoreError::*},
+    error::VMCoreError,
     interpreter::{Interpreter, SingleStepResult},
     program::{instruction::Instruction, types::program_state::ProgramState},
     state::{
@@ -58,7 +58,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         target: MemAddress,
         condition: bool,
-    ) -> Result<(ExitReason, MemAddress), PVMError> {
+    ) -> Result<(ExitReason, MemAddress), VMCoreError> {
         match (
             condition,
             program_state
@@ -87,7 +87,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         a: usize,
-    ) -> Result<(ExitReason, MemAddress), PVMError> {
+    ) -> Result<(ExitReason, MemAddress), VMCoreError> {
         const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
 
         if a == SPECIAL_HALT_VALUE {
@@ -121,7 +121,7 @@ impl InstructionSet {
                 ExitReason::Panic,
                 reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
             )),
-            None => Err(PVMError::VMCoreError(JumpTableOutOfBounds(aligned_index))),
+            None => Err(VMCoreError::JumpTableOutOfBounds(aligned_index)),
         }
     }
 
@@ -135,7 +135,7 @@ impl InstructionSet {
     pub fn trap(
         vm_state: &VMState,
         program_state: &ProgramState,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
@@ -151,7 +151,7 @@ impl InstructionSet {
     pub fn fallthrough(
         vm_state: &VMState,
         program_state: &ProgramState,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
@@ -172,11 +172,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_host_call_type = reg_to_u8(ins.imm1()?);
 
         let exit_reason = ExitReason::HostCall(
-            HostCallType::from_u8(imm_host_call_type).ok_or(InvalidHostCallType)?,
+            HostCallType::from_u8(imm_host_call_type).ok_or(VMCoreError::InvalidHostCallType)?,
         );
 
         Ok(SingleStepResult {
@@ -199,7 +199,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
@@ -221,7 +221,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
@@ -243,7 +243,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
@@ -265,7 +265,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
@@ -287,7 +287,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = imm_value.encode_fixed(8)?;
@@ -313,7 +313,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
@@ -340,7 +340,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let imm1 = ins.imm1()?;
         let jump_address = reg_to_usize(rs1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
@@ -362,7 +362,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
@@ -380,7 +380,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_byte(imm_address)?;
 
@@ -401,10 +401,10 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_byte(imm_address)?;
-        let val_extended = VMUtils::sext(val, 1).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val, 1).ok_or(VMCoreError::InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -423,7 +423,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 2)?;
@@ -445,11 +445,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
-        let val_extended = VMUtils::sext(val_decoded, 2).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, 2).ok_or(VMCoreError::InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -468,7 +468,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 4)?;
@@ -490,11 +490,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
-        let val_extended = VMUtils::sext(val_decoded, 4).ok_or(InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, 4).ok_or(VMCoreError::InvalidMemVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -513,7 +513,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 8)?;
         let val_decoded = RegValue::decode_fixed(&mut &val[..], 8)?;
@@ -535,7 +535,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
 
@@ -556,7 +556,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
 
@@ -577,7 +577,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
 
@@ -598,7 +598,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u64(vm_state.read_rs1(ins)?);
 
@@ -623,7 +623,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
 
@@ -644,7 +644,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
 
@@ -665,7 +665,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         // TODO: check the GP if `mod 2^32` not needed here
         let value = reg_to_u32(ins.imm2()?).encode_fixed(4)?;
@@ -687,7 +687,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
 
@@ -712,7 +712,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
@@ -733,7 +733,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? == ins.imm1()?;
 
@@ -755,7 +755,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? != ins.imm1()?;
 
@@ -777,7 +777,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? < ins.imm1()?;
 
@@ -799,7 +799,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? <= ins.imm1()?;
 
@@ -821,7 +821,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? >= ins.imm1()?;
 
@@ -843,7 +843,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? > ins.imm1()?;
 
@@ -865,7 +865,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
@@ -889,7 +889,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
@@ -914,7 +914,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
@@ -938,7 +938,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
@@ -966,7 +966,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
 
         Ok(SingleStepResult {
@@ -993,7 +993,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let requested_size = vm_state.read_rs1(ins)? as usize;
 
         // find the first sequence of unavailable memory cells that can satisfy the request
@@ -1020,7 +1020,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let set_bits = VMUtils::u64_to_bits(rs1_val).count_ones();
 
@@ -1041,7 +1041,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let set_bits = VMUtils::u32_to_bits(rs1_val).count_ones();
 
@@ -1062,7 +1062,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let leading_zeros = rs1_val.leading_zeros() as u64;
 
@@ -1083,7 +1083,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let leading_zeros = rs1_val.leading_zeros() as u64;
 
@@ -1104,7 +1104,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let trailing_zeros = rs1_val.trailing_zeros() as u64;
 
@@ -1125,7 +1125,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
         let trailing_zeros = rs1_val.trailing_zeros() as u64;
 
@@ -1146,7 +1146,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
         let val = VMUtils::i64_to_u64(VMUtils::u8_to_i8(rs1_val) as i64);
 
@@ -1167,7 +1167,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
         let val = VMUtils::i64_to_u64(VMUtils::u16_to_i16(rs1_val) as i64);
 
@@ -1188,7 +1188,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)? & 0xFFFF;
 
         Ok(SingleStepResult {
@@ -1208,7 +1208,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let mut rs1_val_encoded = rs1_val.encode_fixed(8)?;
         rs1_val_encoded.reverse();
@@ -1235,7 +1235,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
 
@@ -1256,7 +1256,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
 
@@ -1277,7 +1277,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
 
@@ -1298,7 +1298,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
 
@@ -1319,7 +1319,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_byte(address)?;
 
@@ -1340,7 +1340,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_byte(address)?;
         let signed_value = VMUtils::u8_to_i8(value);
@@ -1363,7 +1363,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
@@ -1385,7 +1385,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 2)?;
         let value_decoded = u16::decode_fixed(&mut &value[..], 2)?;
@@ -1409,7 +1409,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
@@ -1431,7 +1431,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 4)?;
         let value_decoded = u32::decode_fixed(&mut &value[..], 4)?;
@@ -1455,7 +1455,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vm_state.memory.read_bytes(address, 8)?;
         let value_decoded = u64::decode_fixed(&mut &value[..], 8)?;
@@ -1477,9 +1477,10 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1498,7 +1499,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? & ins.imm1()?;
 
         Ok(SingleStepResult {
@@ -1518,7 +1519,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? ^ ins.imm1()?;
 
         Ok(SingleStepResult {
@@ -1538,7 +1539,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)? | ins.imm1()?;
 
         Ok(SingleStepResult {
@@ -1558,9 +1559,10 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1579,7 +1581,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val = vm_state.read_rs2(ins)?;
         let imm1_val = ins.imm1()?;
         let result = if rs2_val < imm1_val { 1 } else { 0 };
@@ -1601,7 +1603,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
@@ -1624,10 +1626,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let result = vm_state.read_rs2(ins)? << shift;
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1646,11 +1649,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = (rs2_val & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1669,7 +1672,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let rs2_val = vm_state.read_rs2(ins)?;
         let rs2_val_s = VMUtils::u32_to_i32((rs2_val & 0xFFFF_FFFF) as u32);
@@ -1693,12 +1696,13 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = ins
             .imm1()?
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)?);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1717,7 +1721,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val = vm_state.read_rs2(ins)?;
         let imm1_val = ins.imm1()?;
         let result = if rs2_val > imm1_val { 1 } else { 0 };
@@ -1739,7 +1743,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
 
@@ -1762,11 +1766,12 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = ins.imm1()? << shift;
 
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidImmVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1785,11 +1790,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let imm1 = ins.imm1()?;
         let result = (imm1 & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1808,7 +1813,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let imm1 = ins.imm1()?;
         let imm1_val_s = VMUtils::u32_to_i32((imm1 & 0xFFFF_FFFF) as u32);
@@ -1832,7 +1837,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = if vm_state.read_rs2(ins)? == 0 {
             ins.imm1()?
         } else {
@@ -1856,7 +1861,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = if vm_state.read_rs2(ins)? != 0 {
             ins.imm1()?
         } else {
@@ -1880,7 +1885,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
 
         Ok(SingleStepResult {
@@ -1900,7 +1905,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
 
         Ok(SingleStepResult {
@@ -1920,10 +1925,10 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let result = vm_state.read_rs2(ins)? << shift;
-        let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 8).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1942,11 +1947,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs2_val >> shift;
-        let result_extended = VMUtils::sext(result, 8).ok_or(InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, 8).ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1965,7 +1970,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let rs2_val = vm_state.read_rs2(ins)?;
         let rs2_val_s = VMUtils::u64_to_i64(rs2_val);
@@ -1989,7 +1994,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = ins.imm1()?.wrapping_sub(vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
@@ -2009,7 +2014,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = ins.imm1()? << shift;
 
@@ -2030,7 +2035,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let imm1 = ins.imm1()?;
         let result = imm1 >> shift;
@@ -2052,7 +2057,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let imm1_val_s = VMUtils::u64_to_i64(ins.imm1()?);
         let result = imm1_val_s >> shift;
@@ -2075,7 +2080,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(ins.imm1()?);
         let result = vm_state.read_rs2(ins)?.rotate_right(rotate);
 
@@ -2096,7 +2101,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = ins.imm1()?.rotate_right(rotate);
 
@@ -2117,10 +2122,10 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(ins.imm1()?);
         let result = VMUtils::sext(reg_to_u32(vm_state.read_rs2(ins)?).rotate_right(rotate), 4)
-            .ok_or(InvalidImmVal)?;
+            .ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2139,10 +2144,10 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
-        let result =
-            VMUtils::sext(reg_to_u32(ins.imm1()?).rotate_right(rotate), 4).ok_or(InvalidImmVal)?;
+        let result = VMUtils::sext(reg_to_u32(ins.imm1()?).rotate_right(rotate), 4)
+            .ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2165,7 +2170,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
@@ -2189,7 +2194,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
@@ -2213,7 +2218,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
@@ -2236,7 +2241,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
@@ -2261,7 +2266,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
@@ -2285,7 +2290,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
@@ -2313,7 +2318,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let jump_address =
             reg_to_usize(vm_state.read_rs2(ins)?.wrapping_add(ins.imm2()?) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
@@ -2339,11 +2344,12 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_add(vm_state.read_rs2(ins)?);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2362,12 +2368,13 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)? & 0xFFFF_FFFF);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2386,11 +2393,12 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_mul(vm_state.read_rs2(ins)?);
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2409,13 +2417,13 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = vm_state.read_rs1(ins)? & 0xFFFF_FFFF;
         let divisor = vm_state.read_rs2(ins)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
             u64::MAX
         } else {
-            VMUtils::sext(dividend / divisor, 4).ok_or(InvalidRegVal)?
+            VMUtils::sext(dividend / divisor, 4).ok_or(VMCoreError::InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2435,7 +2443,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = VMUtils::u32_to_i32((vm_state.read_rs1(ins)? & 0xFFFF_FFFF) as u32);
         let divisor = VMUtils::u32_to_i32((vm_state.read_rs2(ins)? & 0xFFFF_FFFF) as u32);
 
@@ -2464,13 +2472,13 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = vm_state.read_rs1(ins)? & 0xFFFF_FFFF;
         let divisor = vm_state.read_rs2(ins)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
-            VMUtils::sext(dividend, 4).ok_or(InvalidRegVal)?
+            VMUtils::sext(dividend, 4).ok_or(VMCoreError::InvalidRegVal)?
         } else {
-            VMUtils::sext(dividend % divisor, 4).ok_or(InvalidRegVal)?
+            VMUtils::sext(dividend % divisor, 4).ok_or(VMCoreError::InvalidRegVal)?
         };
 
         Ok(SingleStepResult {
@@ -2490,7 +2498,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = VMUtils::u32_to_i32((vm_state.read_rs1(ins)? & 0xFFFF_FFFF) as u32);
         let divisor = VMUtils::u32_to_i32((vm_state.read_rs2(ins)? & 0xFFFF_FFFF) as u32);
         let result = if dividend == i32::MIN && divisor == -1 {
@@ -2516,10 +2524,11 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = vm_state.read_rs1(ins)? << shift;
-        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(InvalidRegVal)?;
+        let result_extended =
+            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2538,10 +2547,10 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = (vm_state.read_rs1(ins)? & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidRegVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2560,7 +2569,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let value = VMUtils::u32_to_i32(((vm_state.read_rs1(ins)?) & 0xFFFF_FFFF) as u32);
         let result = value >> shift;
@@ -2583,7 +2592,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_add(vm_state.read_rs2(ins)?);
@@ -2605,7 +2614,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_sub(vm_state.read_rs2(ins)?);
@@ -2627,7 +2636,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_mul(vm_state.read_rs2(ins)?);
@@ -2649,7 +2658,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = vm_state.read_rs1(ins)?;
         let divisor = vm_state.read_rs2(ins)?;
         let result = if divisor == 0 {
@@ -2675,7 +2684,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let divisor = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
 
@@ -2704,7 +2713,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = vm_state.read_rs1(ins)?;
         let divisor = vm_state.read_rs2(ins)?;
         let result = if divisor == 0 {
@@ -2730,7 +2739,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let dividend = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let divisor = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = if dividend == i64::MIN && divisor == -1 {
@@ -2756,7 +2765,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = vm_state.read_rs1(ins)? << shift;
 
@@ -2777,7 +2786,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let result = vm_state.read_rs1(ins)? >> shift;
 
@@ -2798,7 +2807,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x3F; // mod 64
         let value = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let result = value >> shift;
@@ -2821,7 +2830,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? & vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
@@ -2841,7 +2850,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
@@ -2861,7 +2870,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? | vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
@@ -2881,7 +2890,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = ((rs1_val_s as i128 * rs2_val_s as i128) >> 64) as i64;
@@ -2904,7 +2913,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = ((rs1_val as u128 * rs2_val as u128) >> 64) as u64;
@@ -2926,7 +2935,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = ((rs1_val_s as i128 * rs2_val as i128) >> 64) as i64;
@@ -2948,7 +2957,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = if rs1_val < rs2_val { 1 } else { 0 };
@@ -2970,7 +2979,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = if rs1_val_s < rs2_val_s { 1 } else { 0 };
@@ -2992,7 +3001,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = if rs2_val == 0 {
             vm_state.read_rs1(ins)?
@@ -3017,7 +3026,7 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = if rs2_val != 0 {
             vm_state.read_rs1(ins)?
@@ -3042,7 +3051,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = vm_state.read_rs1(ins)?.rotate_left(rotate);
 
@@ -3063,10 +3072,10 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_left(rotate), 4)
-            .ok_or(InvalidImmVal)?;
+            .ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3085,7 +3094,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = vm_state.read_rs1(ins)?.rotate_right(rotate);
 
@@ -3106,10 +3115,10 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
         let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_right(rotate), 4)
-            .ok_or(InvalidImmVal)?;
+            .ok_or(VMCoreError::InvalidImmVal)?;
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3128,7 +3137,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? & !vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
@@ -3148,7 +3157,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs1(ins)? | !vm_state.read_rs2(ins)?;
 
         Ok(SingleStepResult {
@@ -3168,7 +3177,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let result = !(vm_state.read_rs1(ins)? ^ vm_state.read_rs2(ins)?);
 
         Ok(SingleStepResult {
@@ -3188,7 +3197,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = VMUtils::i64_to_u64(rs1_val.max(rs2_val));
@@ -3210,7 +3219,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs1_val.max(rs2_val);
@@ -3232,7 +3241,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let result = VMUtils::i64_to_u64(rs1_val.min(rs2_val));
@@ -3254,7 +3263,7 @@ impl InstructionSet {
         vm_state: &mut VMState,
         program_state: &ProgramState,
         ins: &Instruction,
-    ) -> Result<SingleStepResult, PVMError> {
+    ) -> Result<SingleStepResult, VMCoreError> {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs1_val.min(rs2_val);

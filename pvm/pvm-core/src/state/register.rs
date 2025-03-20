@@ -1,4 +1,4 @@
-use crate::error::{PVMError, VMCoreError::InvalidRegVal};
+use crate::error::VMCoreError;
 use rjam_common::ServiceId;
 use rjam_pvm_types::common::{MemAddress, RegValue};
 
@@ -16,32 +16,32 @@ impl Register {
         self.value
     }
 
-    pub fn as_u8(&self) -> Result<u8, PVMError> {
-        u8::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+    pub fn as_u8(&self) -> Result<u8, VMCoreError> {
+        u8::try_from(self.value).map_err(|_| VMCoreError::InvalidRegVal)
     }
 
-    pub fn as_usize(&self) -> Result<usize, PVMError> {
-        usize::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+    pub fn as_usize(&self) -> Result<usize, VMCoreError> {
+        usize::try_from(self.value).map_err(|_| VMCoreError::InvalidRegVal)
     }
 
-    pub fn as_reg_index(&self) -> Result<usize, PVMError> {
+    pub fn as_reg_index(&self) -> Result<usize, VMCoreError> {
         self.as_usize()
     }
 
-    pub fn as_u32(&self) -> Result<u32, PVMError> {
-        u32::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+    pub fn as_u32(&self) -> Result<u32, VMCoreError> {
+        u32::try_from(self.value).map_err(|_| VMCoreError::InvalidRegVal)
     }
 
     #[allow(clippy::useless_conversion)]
-    pub fn as_u64(&self) -> Result<u64, PVMError> {
-        u64::try_from(self.value).map_err(|_| PVMError::VMCoreError(InvalidRegVal))
+    pub fn as_u64(&self) -> Result<u64, VMCoreError> {
+        u64::try_from(self.value).map_err(|_| VMCoreError::InvalidRegVal)
     }
 
-    pub fn as_mem_address(&self) -> Result<MemAddress, PVMError> {
+    pub fn as_mem_address(&self) -> Result<MemAddress, VMCoreError> {
         self.as_u32()
     }
 
-    pub fn as_service_id(&self) -> Result<ServiceId, PVMError> {
+    pub fn as_service_id(&self) -> Result<ServiceId, VMCoreError> {
         self.as_u32()
     }
 }

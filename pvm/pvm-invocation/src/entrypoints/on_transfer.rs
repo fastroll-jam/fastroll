@@ -1,10 +1,10 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{Balance, ServiceId};
-use rjam_pvm_core::error::{HostCallError::InvalidContext, PVMError};
-use rjam_pvm_host::context::{
-    partial_state::AccountSandbox, InvocationContext, OnTransferHostContext,
+use rjam_pvm_host::{
+    context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
+    error::HostCallError::InvalidContext,
 };
-use rjam_pvm_interface::invoke::PVMInterface;
+use rjam_pvm_interface::{error::PVMError, invoke::PVMInterface};
 use rjam_pvm_types::{
     constants::ON_TRANSFER_INITIAL_PC,
     invoke_args::{DeferredTransfer, OnTransferInvokeArgs},

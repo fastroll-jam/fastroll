@@ -1,5 +1,6 @@
+use crate::error::PVMError;
 use rjam_pvm_core::{
-    error::{PVMError, VMCoreError::*},
+    error::VMCoreError::*,
     program::types::{formatted_program::FormattedProgram, program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},

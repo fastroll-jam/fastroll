@@ -1,5 +1,5 @@
 use crate::{
-    error::{PVMError, VMCoreError::InvalidProgram},
+    error::VMCoreError,
     interpreter::Interpreter,
     program::{instruction::opcode::Opcode, types::program_state::ProgramState},
 };
@@ -14,7 +14,7 @@ impl ProgramLoader {
     pub fn load_program(
         program_code: &[u8],
         program_state: &mut ProgramState,
-    ) -> Result<(), PVMError> {
+    ) -> Result<(), VMCoreError> {
         // Decode program code into (instructions blob, opcode bitmask, dynamic jump table)
         let (instructions, opcode_bitmask, jump_table) = Self::deblob_program_code(program_code)?;
 
@@ -32,12 +32,12 @@ impl ProgramLoader {
     /// Used by `Ψ`.
     pub fn deblob_program_code(
         code: &[u8],
-    ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), PVMError> {
+    ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), VMCoreError> {
         let mut input = code;
         let program = ProgramState::decode(&mut input)?;
 
         if !input.is_empty() {
-            return Err(PVMError::VMCoreError(InvalidProgram));
+            return Err(VMCoreError::InvalidProgram);
         }
 
         Ok((
@@ -49,7 +49,7 @@ impl ProgramLoader {
 
     /// Collects opcode indices that indicate beginning of basic blocks and sets the
     /// `basic_block_start_indices` of the `ProgramState`.
-    fn set_basic_block_start_indices(program: &mut ProgramState) -> Result<(), PVMError> {
+    fn set_basic_block_start_indices(program: &mut ProgramState) -> Result<(), VMCoreError> {
         program.basic_block_start_indices.insert(0);
         let instructions_len = program.instructions.len();
         for n in 1..instructions_len {
