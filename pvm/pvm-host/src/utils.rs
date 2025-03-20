@@ -90,7 +90,7 @@ macro_rules! continue_with_vm_change {
                 gas_charge: $crate::gas_or_default!($($gas)?),
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
-                memory_write: Some(MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
+                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
             },
         ))
     };
@@ -100,7 +100,7 @@ macro_rules! continue_with_vm_change {
                 gas_charge: $crate::gas_or_default!($($gas)?),
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
-                memory_write: Some(MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
+                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
             },
         ))
     };

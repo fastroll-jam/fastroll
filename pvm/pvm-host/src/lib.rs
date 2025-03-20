@@ -2,3 +2,5 @@ pub mod context;
 pub mod host_functions;
 mod inner_vm;
 pub(crate) mod utils;
+
+pub use rjam_pvm_core::state::state_change::MemWrite;

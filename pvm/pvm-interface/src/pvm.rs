@@ -1,7 +1,5 @@
-use rjam_common::SignedGas;
 use rjam_pvm_core::{
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
-    interpreter::Interpreter,
     program::types::{formatted_program::FormattedProgram, program_state::ProgramState},
     state::{
         memory::{AccessType, MemAddress, Memory},
@@ -9,11 +7,10 @@ use rjam_pvm_core::{
     },
     types::{
         common::RegValue,
-        error::{HostCallError::InvalidMemoryWrite, PVMError, VMCoreError::*},
+        error::{PVMError, VMCoreError::*},
     },
     utils::VMUtils,
 };
-use rjam_pvm_host::host_functions::{HostCallVMStateChange, MemWrite};
 
 /// Main stateful PVM struct.
 #[derive(Default)]
@@ -113,39 +110,5 @@ impl PVM {
         length: usize,
     ) -> Result<Vec<u8>, PVMError> {
         Ok(self.state.memory.read_bytes(address, length)?)
-    }
-
-    pub(crate) fn apply_host_call_state_change(
-        &mut self,
-        change: &HostCallVMStateChange,
-    ) -> Result<SignedGas, PVMError> {
-        // Apply register changes (register index 7 & 8)
-        if let Some(r7) = change.r7_write {
-            self.state.regs[7].value = r7;
-        }
-        if let Some(r8) = change.r8_write {
-            self.state.regs[8].value = r8;
-        }
-
-        // Apply memory change
-        if let Some(MemWrite {
-            buf_offset,
-            write_len,
-            write_data,
-        }) = change.memory_write.clone()
-        {
-            if write_len as usize > write_data.len() {
-                return Err(PVMError::HostCallError(InvalidMemoryWrite));
-            }
-            for (offset, &byte) in write_data.iter().take(write_len as usize).enumerate() {
-                self.state
-                    .memory
-                    .write_byte(buf_offset.wrapping_add(offset as u32), byte)?;
-            }
-        }
-
-        // Check gas counter and apply gas change
-        let post_gas = Interpreter::apply_gas_cost(&mut self.state, change.gas_charge)?;
-        Ok(post_gas)
     }
 }

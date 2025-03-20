@@ -19,6 +19,7 @@ use rjam_pvm_core::{
     state::{
         memory::{AccessType, MemAddress},
         register::Register,
+        state_change::HostCallVMStateChange,
         vm_state::VMState,
     },
     types::{
@@ -149,44 +150,7 @@ impl HostCallResult {
     }
 }
 
-#[derive(Clone)]
-pub struct MemWrite {
-    pub buf_offset: MemAddress,
-    pub write_len: u32,
-    pub write_data: Vec<u8>,
-}
-
-impl MemWrite {
-    pub fn new(buf_offset: MemAddress, write_len: u32, write_data: Vec<u8>) -> Self {
-        Self {
-            buf_offset,
-            write_len,
-            write_data,
-        }
-    }
-}
-
-/// Represents the state changes in the PVM resulting from a single host function execution.
-pub struct HostCallVMStateChange {
-    pub gas_charge: UnsignedGas,
-    pub r7_write: Option<RegValue>,
-    pub r8_write: Option<RegValue>,
-    pub memory_write: Option<MemWrite>, // (start_address, data_len, data)
-}
-
-impl Default for HostCallVMStateChange {
-    fn default() -> Self {
-        Self {
-            gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-            r7_write: None,
-            r8_write: None,
-            memory_write: None,
-        }
-    }
-}
-
 pub struct HostFunction;
-
 impl HostFunction {
     //
     // General Functions

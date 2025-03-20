@@ -2,6 +2,7 @@ use crate::pvm::PVM;
 use rjam_common::{ServiceId, UnsignedGas};
 use rjam_pvm_core::{
     interpreter::Interpreter,
+    state::state_change::VMStateMutator,
     types::{
         common::{ExitReason, RegValue},
         error::{HostCallError::InvalidExitReason, PVMError},
@@ -116,7 +117,10 @@ impl PVMInterface {
                 }
                 ExitReason::Continue => {
                     // update the vm states
-                    let post_gas = pvm.apply_host_call_state_change(&host_call_result.vm_change)?;
+                    let post_gas = VMStateMutator::apply_host_call_state_change(
+                        &mut pvm.state,
+                        &host_call_result.vm_change,
+                    )?;
                     if post_gas < 0 {
                         // Actually this should never happen, since gas usage is inspected prior to
                         // the host function execution and the `HostCallResult` with `ExitReason::OutOfGas`
@@ -129,7 +133,10 @@ impl PVMInterface {
                 exit_reason @ (ExitReason::Panic
                 | ExitReason::RegularHalt
                 | ExitReason::OutOfGas) => {
-                    pvm.apply_host_call_state_change(&host_call_result.vm_change)?;
+                    VMStateMutator::apply_host_call_state_change(
+                        &mut pvm.state,
+                        &host_call_result.vm_change,
+                    )?;
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 _ => return Err(PVMError::HostCallError(InvalidExitReason)),
