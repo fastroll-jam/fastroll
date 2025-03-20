@@ -213,7 +213,6 @@ impl HostFunction {
             continue_with_vm_change!(
                 r7: preimage_size,
                 mem_offset: buf_offset,
-                mem_size: lookup_size,
                 mem_data: entry.value[preimage_offset..preimage_offset + lookup_size].to_vec()
             )
         } else {
@@ -269,7 +268,6 @@ impl HostFunction {
             continue_with_vm_change!(
                 r7: storage_val_size,
                 mem_offset: buf_offset,
-                mem_size: storage_val_size,
                 mem_data: entry.value[storage_val_offset..storage_val_offset + read_len].to_vec()
             )
         } else {
@@ -404,7 +402,6 @@ impl HostFunction {
         continue_with_vm_change!(
             r7: HostCallReturnCode::OK,
             mem_offset: buf_offset,
-            mem_size: info.len(),
             mem_data: info
         )
     }
@@ -1126,7 +1123,6 @@ impl HostFunction {
         continue_with_vm_change!(
             r7: preimage.len(),
             mem_offset: buf_offset,
-            mem_size: lookup_size,
             mem_data: preimage[preimage_offset..preimage_offset + lookup_size].to_vec()
         )
     }
@@ -1223,7 +1219,6 @@ impl HostFunction {
         continue_with_vm_change!(
             r7: data.len(),
             mem_offset: buf_offset,
-            mem_size: data_read_size,
             mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
         )
     }
@@ -1327,7 +1322,7 @@ impl HostFunction {
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
 
-        continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_size: data_size, mem_data: data)
+        continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_data: data)
     }
 
     /// Pokes data into the inner VM memory from the external host VM memory.
@@ -1503,6 +1498,7 @@ impl HostFunction {
         inner_vm_mut.pc = inner_vm_state_copy.pc;
         inner_vm_mut.memory = inner_vm_state_copy.memory;
 
+        // 112-byte mem write
         let mut host_buf = vec![];
         inner_vm_state_copy
             .gas_counter
@@ -1518,7 +1514,6 @@ impl HostFunction {
                     r7: HOST,
                     r8: host_call_type,
                     mem_offset: memory_offset,
-                    mem_size: 112,
                     mem_data: host_buf
                 )
             }
@@ -1527,7 +1522,6 @@ impl HostFunction {
                     r7: FAULT,
                     r8: address,
                     mem_offset: memory_offset,
-                    mem_size: 112,
                     mem_data: host_buf
                 )
             }
@@ -1535,7 +1529,6 @@ impl HostFunction {
                 continue_with_vm_change!(
                     r7: OOG,
                     mem_offset: memory_offset,
-                    mem_size: 112,
                     mem_data: host_buf
                 )
             }
@@ -1543,7 +1536,6 @@ impl HostFunction {
                 continue_with_vm_change!(
                     r7: PANIC,
                     mem_offset: memory_offset,
-                    mem_size: 112,
                     mem_data: host_buf
                 )
             }
@@ -1551,7 +1543,6 @@ impl HostFunction {
                 continue_with_vm_change!(
                     r7: HALT,
                     mem_offset: memory_offset,
-                    mem_size: 112,
                     mem_data: host_buf
                 )
             }

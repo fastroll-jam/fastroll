@@ -84,23 +84,23 @@ macro_rules! continue_with_vm_change {
             },
         ))
     };
-    ($(gas: $gas:expr,)? r7: $r7:expr, mem_offset: $mem_offset:expr, mem_size: $mem_size:expr, mem_data: $mem_data:expr) => {
+    ($(gas: $gas:expr,)? r7: $r7:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
                 r7_write: Some($r7 as RegValue),
                 r8_write: None,
-                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
+                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
             },
         ))
     };
-    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_size: $mem_size:expr, mem_data: $mem_data:expr) => {
+    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
                 r7_write: Some($r7 as RegValue),
                 r8_write: Some($r8 as RegValue),
-                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_size as u32, $mem_data)),
+                memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
             },
         ))
     };

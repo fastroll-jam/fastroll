@@ -2,7 +2,11 @@ use crate::{
     constants::JUMP_ALIGNMENT,
     interpreter::{Interpreter, SingleStepResult},
     program::{instruction::Instruction, types::program_state::ProgramState},
-    state::{memory::MemAddress, state_change::VMStateChange, vm_state::VMState},
+    state::{
+        memory::MemAddress,
+        state_change::{MemWrite, VMStateChange},
+        vm_state::VMState,
+    },
     types::{
         common::{ExitReason, RegValue},
         error::{PVMError, VMCoreError::*},
@@ -225,7 +229,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, value)),
+                memory_write: Some(MemWrite::new(imm_address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -247,7 +251,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, value)),
+                memory_write: Some(MemWrite::new(imm_address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -269,7 +273,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, value)),
+                memory_write: Some(MemWrite::new(imm_address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -291,7 +295,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, value)),
+                memory_write: Some(MemWrite::new(imm_address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -538,7 +542,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, vec![rs1_val])),
+                memory_write: Some(MemWrite::new(imm_address, vec![rs1_val])),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -559,7 +563,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, rs1_val.encode_fixed(2)?)),
+                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(2)?)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -580,7 +584,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, rs1_val.encode_fixed(4)?)),
+                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(4)?)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -601,7 +605,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((imm_address, rs1_val.encode_fixed(8)?)),
+                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(8)?)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -626,7 +630,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -647,7 +651,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -669,7 +673,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -690,7 +694,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1238,7 +1242,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1259,7 +1263,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1280,7 +1284,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },
@@ -1301,7 +1305,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
             state_change: VMStateChange {
-                memory_write: Some((address, value)),
+                memory_write: Some(MemWrite::new(address, value)),
                 new_pc: Interpreter::next_pc(vm_state, program_state),
                 ..Default::default()
             },

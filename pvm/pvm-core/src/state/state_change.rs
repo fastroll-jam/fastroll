@@ -8,35 +8,33 @@ use crate::{
     },
     types::{
         common::RegValue,
-        error::{HostCallError::InvalidMemoryWrite, PVMError, VMCoreError::InvalidRegIndex},
+        error::{PVMError, VMCoreError::InvalidRegIndex},
     },
 };
 use rjam_common::{SignedGas, UnsignedGas};
+
+#[derive(Clone, Debug, Default)]
+pub struct MemWrite {
+    pub buf_offset: MemAddress,
+    pub write_data: Vec<u8>,
+}
+
+impl MemWrite {
+    pub fn new(buf_offset: MemAddress, write_data: Vec<u8>) -> Self {
+        Self {
+            buf_offset,
+            write_data,
+        }
+    }
+}
 
 /// VM state change set resulting from a single instruction execution.
 #[derive(Debug, Default)]
 pub struct VMStateChange {
     pub register_write: Option<(usize, RegValue)>,
-    pub memory_write: Option<(MemAddress, Vec<u8>)>, // (start_address, data)
+    pub memory_write: Option<MemWrite>,
     pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
-}
-
-#[derive(Clone)]
-pub struct MemWrite {
-    pub buf_offset: MemAddress,
-    pub write_len: u32,
-    pub write_data: Vec<u8>,
-}
-
-impl MemWrite {
-    pub fn new(buf_offset: MemAddress, write_len: u32, write_data: Vec<u8>) -> Self {
-        Self {
-            buf_offset,
-            write_len,
-            write_data,
-        }
-    }
 }
 
 /// VM state change set resulting from a single host function execution.
@@ -44,7 +42,7 @@ pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,
     pub r8_write: Option<RegValue>,
-    pub memory_write: Option<MemWrite>, // (start_address, data_len, data)
+    pub memory_write: Option<MemWrite>,
 }
 
 impl Default for HostCallVMStateChange {
@@ -79,12 +77,16 @@ impl VMStateMutator {
         }
 
         // Apply memory change
-        if let Some((start_address, data)) = &change.memory_write {
-            if (*start_address as usize) < INIT_ZONE_SIZE {
+        if let Some(MemWrite {
+            buf_offset,
+            write_data,
+        }) = &change.memory_write
+        {
+            if (*buf_offset as usize) < INIT_ZONE_SIZE {
                 return Err(PVMError::InvalidMemZone);
             }
 
-            match vm_state.memory.write_bytes(*start_address, data) {
+            match vm_state.memory.write_bytes(*buf_offset, write_data) {
                 Ok(_) => {}
                 Err(MemoryError::AccessViolation(address)) => {
                     return Err(PVMError::PageFault(address))
@@ -115,18 +117,10 @@ impl VMStateMutator {
         // Apply memory change
         if let Some(MemWrite {
             buf_offset,
-            write_len,
             write_data,
         }) = change.memory_write.clone()
         {
-            if write_len as usize > write_data.len() {
-                return Err(PVMError::HostCallError(InvalidMemoryWrite));
-            }
-            for (offset, &byte) in write_data.iter().take(write_len as usize).enumerate() {
-                vm_state
-                    .memory
-                    .write_byte(buf_offset.wrapping_add(offset as u32), byte)?;
-            }
+            vm_state.memory.write_bytes(buf_offset, &write_data)?;
         }
 
         // Check gas counter and apply gas change
