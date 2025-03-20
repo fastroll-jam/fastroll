@@ -2,9 +2,9 @@ use crate::pvm::PVM;
 use rjam_common::{ServiceId, UnsignedGas};
 use rjam_pvm_core::{
     interpreter::Interpreter,
-    state::state_change::VMStateMutator,
+    state::{register::RegValue, state_change::VMStateMutator},
     types::{
-        common::{ExitReason, RegValue},
+        common::ExitReason,
         error::{HostCallError::InvalidExitReason, PVMError},
         hostcall::HostCallType,
     },

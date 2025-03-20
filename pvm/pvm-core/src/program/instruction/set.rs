@@ -4,11 +4,12 @@ use crate::{
     program::{instruction::Instruction, types::program_state::ProgramState},
     state::{
         memory::MemAddress,
+        register::RegValue,
         state_change::{MemWrite, VMStateChange},
         vm_state::VMState,
     },
     types::{
-        common::{ExitReason, RegValue},
+        common::ExitReason,
         error::{PVMError, VMCoreError::*},
         hostcall::HostCallType,
     },

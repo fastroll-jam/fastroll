@@ -4,9 +4,8 @@ use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, Unsigne
 use rjam_crypto::Keccak256;
 use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
 use rjam_pvm_core::types::{
-    accumulation::AccumulateOperand,
     error::PVMError,
-    invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
+    invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
 };
 use rjam_pvm_host::context::partial_state::AccumulatePartialState;
 use rjam_state::manager::StateManager;

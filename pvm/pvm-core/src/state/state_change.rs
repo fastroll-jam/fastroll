@@ -3,13 +3,10 @@ use crate::{
     gas::GasCharger,
     state::{
         memory::{MemAddress, MemoryError},
-        register::Register,
+        register::{RegValue, Register},
         vm_state::VMState,
     },
-    types::{
-        common::RegValue,
-        error::{PVMError, VMCoreError::InvalidRegIndex},
-    },
+    types::error::{PVMError, VMCoreError::InvalidRegIndex},
 };
 use rjam_common::{SignedGas, UnsignedGas};
 

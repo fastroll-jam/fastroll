@@ -4,10 +4,13 @@ use rjam_common::{
     Hash32, Octets, ServiceId, MAX_SERVICE_CODE_SIZE,
 };
 use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_core::types::{
-    common::{ExportDataSegment, RegValue},
-    error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::RefineInvokeArgs,
+use rjam_pvm_core::{
+    state::register::RegValue,
+    types::{
+        common::ExportDataSegment,
+        error::{HostCallError::InvalidContext, PVMError},
+        invoke_args::RefineInvokeArgs,
+    },
 };
 use rjam_pvm_host::context::{InvocationContext, RefineHostContext};
 use rjam_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};

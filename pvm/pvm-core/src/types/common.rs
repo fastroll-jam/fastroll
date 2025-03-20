@@ -13,5 +13,4 @@ pub enum ExitReason {
     HostCall(HostCallType),
 }
 
-pub type RegValue = u64;
 pub type ExportDataSegment = Box<[u8; SEGMENT_SIZE]>;

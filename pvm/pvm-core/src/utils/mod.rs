@@ -1,6 +1,6 @@
 use crate::{
     constants::{INIT_ZONE_SIZE, PAGE_SIZE},
-    types::common::RegValue,
+    state::register::RegValue,
 };
 use bit_vec::BitVec;
 

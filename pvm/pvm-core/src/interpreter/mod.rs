@@ -6,13 +6,11 @@ use crate::{
     },
     state::{
         memory::MemoryError,
+        register::RegValue,
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
-    types::{
-        common::{ExitReason, RegValue},
-        error::PVMError,
-    },
+    types::{common::ExitReason, error::PVMError},
 };
 use bit_vec::BitVec;
 

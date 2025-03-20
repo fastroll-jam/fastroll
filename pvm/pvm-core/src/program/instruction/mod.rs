@@ -4,10 +4,8 @@ pub mod set;
 use crate::{
     constants::REGISTERS_COUNT,
     program::instruction::opcode::Opcode,
-    types::{
-        common::RegValue,
-        error::{PVMError, VMCoreError::*},
-    },
+    state::register::RegValue,
+    types::error::{PVMError, VMCoreError::*},
     utils::VMUtils,
 };
 use rjam_codec::JamDecodeFixed;

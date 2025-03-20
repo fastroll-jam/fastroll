@@ -1,4 +1,3 @@
-pub mod accumulation;
 pub mod common;
 pub mod error;
 pub mod hostcall;

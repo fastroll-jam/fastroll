@@ -5,10 +5,10 @@ use rjam_pvm_core::{
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
-        register::Register,
+        register::{RegValue, Register},
         vm_state::VMState,
     },
-    types::common::{ExitReason, RegValue},
+    types::common::ExitReason,
 };
 use rjam_pvm_interface::pvm::PVM;
 use serde::{Deserialize, Serialize};

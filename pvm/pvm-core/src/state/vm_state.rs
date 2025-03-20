@@ -3,12 +3,9 @@ use crate::{
     program::instruction::Instruction,
     state::{
         memory::{MemAddress, Memory},
-        register::Register,
+        register::{RegValue, Register},
     },
-    types::{
-        common::RegValue,
-        error::{PVMError, VMCoreError::InvalidRegVal},
-    },
+    types::error::{PVMError, VMCoreError::InvalidRegVal},
 };
 use rjam_common::UnsignedGas;
 

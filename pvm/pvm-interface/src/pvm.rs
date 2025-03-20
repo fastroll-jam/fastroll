@@ -3,12 +3,10 @@ use rjam_pvm_core::{
     program::types::{formatted_program::FormattedProgram, program_state::ProgramState},
     state::{
         memory::{AccessType, MemAddress, Memory},
+        register::RegValue,
         vm_state::VMState,
     },
-    types::{
-        common::RegValue,
-        error::{PVMError, VMCoreError::*},
-    },
+    types::error::{PVMError, VMCoreError::*},
     utils::VMUtils,
 };
 

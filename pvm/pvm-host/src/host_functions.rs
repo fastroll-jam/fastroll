@@ -18,12 +18,12 @@ use rjam_pvm_core::{
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, MemAddress},
-        register::Register,
+        register::{RegValue, Register},
         state_change::HostCallVMStateChange,
         vm_state::VMState,
     },
     types::{
-        common::{ExitReason, ExportDataSegment, RegValue},
+        common::{ExitReason, ExportDataSegment},
         error::{HostCallError::*, PVMError},
         invoke_args::DeferredTransfer,
     },

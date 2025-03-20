@@ -1,11 +1,12 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE};
 use rjam_crypto::octets_to_hash32;
-use rjam_pvm_core::types::{
-    accumulation::AccumulateOperand,
-    common::RegValue,
-    error::{HostCallError::InvalidContext, PVMError},
-    invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
+use rjam_pvm_core::{
+    state::register::RegValue,
+    types::{
+        error::{HostCallError::InvalidContext, PVMError},
+        invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
+    },
 };
 use rjam_pvm_host::context::{
     partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,

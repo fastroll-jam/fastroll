@@ -3,7 +3,7 @@ use rjam_common::{
     workloads::{WorkExecutionOutput, WorkPackage},
     CoreIndex, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
 };
-use rjam_pvm_core::types::{common::RegValue, error::PVMError};
+use rjam_pvm_core::{state::register::RegValue, types::error::PVMError};
 use rjam_pvm_host::context::InvocationContext;
 use rjam_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
 use rjam_state::manager::StateManager;
