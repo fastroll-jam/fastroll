@@ -13,8 +13,8 @@ mod tests {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_pvm_invocation::accumulation::{
-        invoke::accumulate_result_commitment, utils::collect_accumulatable_reports,
+    use rjam_pvm_invocation::pipeline::{
+        accumulate_result_commitment, utils::collect_accumulatable_reports,
     };
     use rjam_state::{
         error::StateManagerError,

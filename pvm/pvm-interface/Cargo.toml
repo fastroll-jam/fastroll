@@ -1,0 +1,13 @@
+[package]
+name = "rjam-pvm-interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-pvm-core = { workspace = true }
+rjam-pvm-host = { workspace = true }
+rjam-pvm-types = { workspace = true }
+rjam-state = { workspace = true }
+thiserror = { workspace = true }

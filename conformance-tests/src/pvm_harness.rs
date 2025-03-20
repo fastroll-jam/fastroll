@@ -1,14 +1,18 @@
 use rjam_common::UnsignedGas;
-use rjam_pvm::PVM;
 use rjam_pvm_core::{
-    constants::{MEMORY_SIZE, PAGE_SIZE},
-    core::{PVMCore, VMState},
-    program::program_decoder::ProgramState,
+    interpreter::Interpreter,
+    program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
         register::Register,
+        vm_state::VMState,
     },
-    types::common::{ExitReason, RegValue},
+};
+use rjam_pvm_interface::pvm::PVM;
+use rjam_pvm_types::{
+    common::RegValue,
+    constants::{MEMORY_SIZE, PAGE_SIZE},
+    exit_reason::ExitReason,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -228,14 +232,13 @@ pub fn run_test_case(filename: &str) {
         program_state: ProgramState::default(),
     };
 
-    PVMCore::set_program_state(&program, &mut pvm.program_state)
-        .expect("Failed to set program state");
+    ProgramLoader::load_program(&program, &mut pvm.program_state).expect("Failed to load program");
 
     // Debugging
     println!("{:?}", pvm.program_state);
 
     // execute PVM
-    let exit_reason = PVMCore::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
+    let exit_reason = Interpreter::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
         .expect("Failed to run PVM");
 
     let (actual_status, actual_page_fault_address) = match exit_reason {

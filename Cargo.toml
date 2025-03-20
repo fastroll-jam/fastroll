@@ -13,10 +13,11 @@ members = [
     "extrinsics",
     "merkle",
     "node",
-    "pvm",
-    "pvm-core",
-    "pvm-hostcall",
-    "pvm-invocation",
+    "pvm/pvm-core",
+    "pvm/pvm-host",
+    "pvm/pvm-interface",
+    "pvm/pvm-invocation",
+    "pvm/pvm-types",
     "state",
     "state-merkle",
     "transition",
@@ -37,10 +38,11 @@ rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-merkle = { path = "merkle" }
 rjam-node = { path = "node" }
-rjam-pvm = { path = "pvm" }
-rjam-pvm-core = { path = "pvm-core" }
-rjam-pvm-invocation = { path = "pvm-invocation" }
-rjam-pvm-hostcall = { path = "pvm-hostcall" }
+rjam-pvm-core = { path = "pvm/pvm-core" }
+rjam-pvm-host = { path = "pvm/pvm-host" }
+rjam-pvm-interface = { path = "pvm/pvm-interface" }
+rjam-pvm-invocation = { path = "pvm/pvm-invocation" }
+rjam-pvm-types = { path = "pvm/pvm-types" }
 rjam-state = { path = "state" }
 rjam-state-merkle = { path = "state-merkle" }
 rjam-transition = { path = "transition" }

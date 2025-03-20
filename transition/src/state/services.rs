@@ -6,17 +6,12 @@ use rjam_common::{
 };
 use rjam_crypto::{hash, Blake2b256};
 use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
-use rjam_pvm_core::types::invoke_args::{DeferredTransfer, OnTransferInvokeArgs};
-use rjam_pvm_hostcall::context::partial_state::{
-    AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus,
-};
 use rjam_pvm_invocation::{
-    accumulation::{
-        invoke::{accumulate_outer, AccumulationOutputPairs},
-        utils::select_deferred_transfers,
-    },
-    PVMInvocation,
+    entrypoints::on_transfer::OnTransferInvocation,
+    pipeline::{accumulate_outer, utils::select_deferred_transfers, AccumulationOutputPairs},
+    prelude::{AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus},
 };
+use rjam_pvm_types::invoke_args::{DeferredTransfer, OnTransferInvokeArgs};
 use rjam_state::{
     cache::StateMut,
     manager::StateManager,
@@ -277,7 +272,7 @@ pub async fn transition_services_on_transfer(
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
         let transfers = select_deferred_transfers(transfers, destination);
-        let mut on_transfer_result = PVMInvocation::on_transfer(
+        let mut on_transfer_result = OnTransferInvocation::on_transfer(
             state_manager.clone(),
             &OnTransferInvokeArgs {
                 destination,
