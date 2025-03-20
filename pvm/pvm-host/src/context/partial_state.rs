@@ -1,5 +1,5 @@
+use crate::error::PartialStateError;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
-use rjam_pvm_core::error::PartialStateError;
 use rjam_state::{
     error::StateManagerError,
     manager::StateManager,

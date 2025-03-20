@@ -2,12 +2,13 @@ use crate::{
     context::partial_state::{
         AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntry,
     },
+    error::HostCallError,
     inner_vm::InnerPVM,
 };
 use rjam_codec::{JamDecodeFixed, JamEncode};
 use rjam_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_core::{error::HostCallError, state::memory::Memory};
+use rjam_pvm_core::state::memory::Memory;
 use rjam_pvm_types::{
     common::ExportDataSegment,
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
