@@ -1,13 +1,15 @@
 use rjam_pvm_core::{
-    constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
+    error::{PVMError, VMCoreError::*},
     program::types::{formatted_program::FormattedProgram, program_state::ProgramState},
     state::{
-        memory::{AccessType, MemAddress, Memory},
-        register::RegValue,
+        memory::{AccessType, Memory},
         vm_state::VMState,
     },
-    types::error::{PVMError, VMCoreError::*},
     utils::VMUtils,
+};
+use rjam_pvm_types::{
+    common::{MemAddress, RegValue},
+    constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
 };
 
 /// Main stateful PVM struct.

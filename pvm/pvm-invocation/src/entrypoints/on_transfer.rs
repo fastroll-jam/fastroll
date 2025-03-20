@@ -1,20 +1,16 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{Balance, ServiceId};
-use rjam_pvm_core::{
-    state::register::RegValue,
-    types::{
-        error::{HostCallError::InvalidContext, PVMError},
-        invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
-    },
-};
+use rjam_pvm_core::error::{HostCallError::InvalidContext, PVMError};
 use rjam_pvm_host::context::{
     partial_state::AccountSandbox, InvocationContext, OnTransferHostContext,
 };
 use rjam_pvm_interface::invoke::PVMInterface;
+use rjam_pvm_types::{
+    constants::ON_TRANSFER_INITIAL_PC,
+    invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
+};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
-
-const ON_TRANSFER_INITIAL_PC: RegValue = 10;
 
 pub struct BalanceChangeSet {
     pub recipient: ServiceId,

@@ -1,10 +1,6 @@
-use crate::{
-    state::memory::MemAddress,
-    types::error::{PVMError, VMCoreError::InvalidRegVal},
-};
+use crate::error::{PVMError, VMCoreError::InvalidRegVal};
 use rjam_common::ServiceId;
-
-pub type RegValue = u64;
+use rjam_pvm_types::common::{MemAddress, RegValue};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Register {

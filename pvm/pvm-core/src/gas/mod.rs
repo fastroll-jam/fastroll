@@ -1,6 +1,6 @@
 use crate::{
+    error::{PVMError, VMCoreError::TooLargeGasCounter},
     state::vm_state::VMState,
-    types::error::{PVMError, VMCoreError::TooLargeGasCounter},
 };
 use rjam_common::{SignedGas, UnsignedGas};
 

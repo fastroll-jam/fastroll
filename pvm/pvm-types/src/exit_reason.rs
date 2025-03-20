@@ -1,5 +1,4 @@
-use crate::{state::memory::MemAddress, types::hostcall::HostCallType};
-use rjam_common::SEGMENT_SIZE;
+use crate::{common::MemAddress, hostcall::HostCallType};
 
 /// PVM Invocation Exit Reasons
 #[derive(Default)]
@@ -12,5 +11,3 @@ pub enum ExitReason {
     PageFault(MemAddress), // FIXME: return the lowest address of the page (GP v0.6.0)
     HostCall(HostCallType),
 }
-
-pub type ExportDataSegment = Box<[u8; SEGMENT_SIZE]>;

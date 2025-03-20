@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 thiserror = { workspace = true }

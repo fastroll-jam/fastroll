@@ -1,18 +1,15 @@
 use crate::pvm::PVM;
 use rjam_common::{ServiceId, UnsignedGas};
 use rjam_pvm_core::{
+    error::{HostCallError::InvalidExitReason, PVMError},
     interpreter::Interpreter,
-    state::{register::RegValue, state_change::VMStateMutator},
-    types::{
-        common::ExitReason,
-        error::{HostCallError::InvalidExitReason, PVMError},
-        hostcall::HostCallType,
-    },
+    state::state_change::VMStateMutator,
 };
 use rjam_pvm_host::{
     context::InvocationContext,
     host_functions::{HostCallResult, HostFunction},
 };
+use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
 use rjam_state::manager::StateManager;
 use std::sync::Arc;
 

@@ -1,16 +1,19 @@
 use rjam_common::UnsignedGas;
 use rjam_pvm_core::{
-    constants::{MEMORY_SIZE, PAGE_SIZE},
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
-        register::{RegValue, Register},
+        register::Register,
         vm_state::VMState,
     },
-    types::common::ExitReason,
 };
 use rjam_pvm_interface::pvm::PVM;
+use rjam_pvm_types::{
+    common::RegValue,
+    constants::{MEMORY_SIZE, PAGE_SIZE},
+    exit_reason::ExitReason,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

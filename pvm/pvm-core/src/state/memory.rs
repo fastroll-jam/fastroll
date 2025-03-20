@@ -1,8 +1,6 @@
-use crate::constants::PAGE_SIZE;
+use rjam_pvm_types::{common::MemAddress, constants::PAGE_SIZE};
 use std::{collections::HashMap, fmt::Display, ops::Range};
 use thiserror::Error;
-
-pub type MemAddress = u32;
 
 #[derive(Debug, Error)]
 pub enum MemoryError {

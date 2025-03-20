@@ -1,5 +1,3 @@
-use crate::types::error::{PVMError, VMCoreError::InvalidHostCallType};
-
 #[repr(u8)]
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
@@ -37,7 +35,7 @@ pub enum HostCallType {
 }
 
 impl TryFrom<u8> for HostCallType {
-    type Error = PVMError;
+    type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -68,7 +66,7 @@ impl TryFrom<u8> for HostCallType {
             24 => Ok(HostCallType::VOID),
             25 => Ok(HostCallType::INVOKE),
             26 => Ok(HostCallType::EXPUNGE),
-            _ => Err(PVMError::VMCoreError(InvalidHostCallType)),
+            _ => Err(()),
         }
     }
 }

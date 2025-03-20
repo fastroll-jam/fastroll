@@ -1,13 +1,13 @@
 use crate::{
-    constants::REGISTERS_COUNT,
+    error::{PVMError, VMCoreError::InvalidRegVal},
     program::instruction::Instruction,
-    state::{
-        memory::{MemAddress, Memory},
-        register::{RegValue, Register},
-    },
-    types::error::{PVMError, VMCoreError::InvalidRegVal},
+    state::{memory::Memory, register::Register},
 };
 use rjam_common::UnsignedGas;
+use rjam_pvm_types::{
+    common::{MemAddress, RegValue},
+    constants::REGISTERS_COUNT,
+};
 
 /// Mutable VM state
 #[derive(Clone, Debug, Default, PartialEq)]

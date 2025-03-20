@@ -1,6 +1,6 @@
-use crate::state::memory::MemAddress;
 use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use rjam_pvm_types::common::MemAddress;
 use std::collections::HashSet;
 
 /// Immutable VM state (program components)

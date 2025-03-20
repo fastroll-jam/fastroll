@@ -1,21 +1,20 @@
 use crate::{
-    constants::JUMP_ALIGNMENT,
+    error::{PVMError, VMCoreError::*},
     interpreter::{Interpreter, SingleStepResult},
     program::{instruction::Instruction, types::program_state::ProgramState},
     state::{
-        memory::MemAddress,
-        register::RegValue,
         state_change::{MemWrite, VMStateChange},
         vm_state::VMState,
-    },
-    types::{
-        common::ExitReason,
-        error::{PVMError, VMCoreError::*},
-        hostcall::HostCallType,
     },
     utils::VMUtils,
 };
 use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
+use rjam_pvm_types::{
+    common::{MemAddress, RegValue},
+    constants::JUMP_ALIGNMENT,
+    exit_reason::ExitReason,
+    hostcall::HostCallType,
+};
 
 // Convert RegValue to smaller int types by taking the lower bits
 fn reg_to_mem_address(reg: RegValue) -> MemAddress {

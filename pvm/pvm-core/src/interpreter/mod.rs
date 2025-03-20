@@ -1,4 +1,5 @@
 use crate::{
+    error::PVMError,
     program::{
         instruction::{opcode::Opcode as OP, set::InstructionSet as IS, Instruction},
         loader::ProgramLoader,
@@ -6,13 +7,12 @@ use crate::{
     },
     state::{
         memory::MemoryError,
-        register::RegValue,
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
-    types::{common::ExitReason, error::PVMError},
 };
 use bit_vec::BitVec;
+use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason};
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,

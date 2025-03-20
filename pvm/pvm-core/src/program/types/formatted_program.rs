@@ -1,9 +1,11 @@
 use crate::{
-    constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, PAGE_SIZE, STANDARD_PROGRAM_SIZE_LIMIT},
-    types::error::{PVMError, VMCoreError::*},
+    error::{PVMError, VMCoreError::*},
     utils::VMUtils,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use rjam_pvm_types::constants::{
+    INIT_INPUT_SIZE, INIT_ZONE_SIZE, PAGE_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
+};
 
 pub struct FormattedProgram {
     /// `|o|`: Read-only data size

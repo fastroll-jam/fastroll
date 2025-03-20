@@ -1,8 +1,8 @@
-use crate::{
-    constants::{INIT_ZONE_SIZE, PAGE_SIZE},
-    state::register::RegValue,
-};
 use bit_vec::BitVec;
+use rjam_pvm_types::{
+    common::RegValue,
+    constants::{INIT_ZONE_SIZE, PAGE_SIZE},
+};
 
 pub struct VMUtils;
 

@@ -2,7 +2,7 @@ use rjam_block::header_db::BlockHeaderDBError;
 use rjam_crypto::CryptoError;
 use rjam_extrinsics::validation::error::XtError;
 use rjam_merkle::common::MerkleError;
-use rjam_pvm_core::types::error::PVMError;
+use rjam_pvm_core::error::PVMError;
 use rjam_state::{
     error::StateManagerError,
     types::{FallbackKeyError, PendingReportsError},

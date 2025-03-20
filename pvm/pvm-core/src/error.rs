@@ -1,9 +1,7 @@
-use crate::{
-    program::instruction::opcode::Opcode,
-    state::memory::{MemAddress, MemoryError},
-};
+use crate::{program::instruction::opcode::Opcode, state::memory::MemoryError};
 use rjam_codec::JamCodecError;
 use rjam_crypto::CryptoError;
+use rjam_pvm_types::common::MemAddress;
 use rjam_state::error::StateManagerError;
 use thiserror::Error;
 

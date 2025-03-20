@@ -1,11 +1,11 @@
 use crate::{
+    error::{PVMError, VMCoreError::InvalidProgram},
     interpreter::Interpreter,
     program::{instruction::opcode::Opcode, types::program_state::ProgramState},
-    state::memory::MemAddress,
-    types::error::{PVMError, VMCoreError::InvalidProgram},
 };
 use bit_vec::BitVec;
 use rjam_codec::JamDecode;
+use rjam_pvm_types::common::MemAddress;
 
 pub struct ProgramLoader;
 impl ProgramLoader {

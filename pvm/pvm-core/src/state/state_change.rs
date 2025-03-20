@@ -1,14 +1,13 @@
 use crate::{
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
+    error::{PVMError, VMCoreError::InvalidRegIndex},
     gas::GasCharger,
-    state::{
-        memory::{MemAddress, MemoryError},
-        register::{RegValue, Register},
-        vm_state::VMState,
-    },
-    types::error::{PVMError, VMCoreError::InvalidRegIndex},
+    state::{memory::MemoryError, register::Register, vm_state::VMState},
 };
 use rjam_common::{SignedGas, UnsignedGas};
+use rjam_pvm_types::{
+    common::{MemAddress, RegValue},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct MemWrite {

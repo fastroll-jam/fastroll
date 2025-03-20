@@ -13,20 +13,19 @@ use rjam_common::{
 };
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
-    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
+    error::{HostCallError::*, PVMError},
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
-        memory::{AccessType, MemAddress},
-        register::{RegValue, Register},
-        state_change::HostCallVMStateChange,
+        memory::AccessType, register::Register, state_change::HostCallVMStateChange,
         vm_state::VMState,
     },
-    types::{
-        common::{ExitReason, ExportDataSegment},
-        error::{HostCallError::*, PVMError},
-        invoke_args::DeferredTransfer,
-    },
+};
+use rjam_pvm_types::{
+    common::{ExportDataSegment, MemAddress, RegValue},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
+    exit_reason::ExitReason,
+    invoke_args::DeferredTransfer,
 };
 use rjam_state::{
     error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},

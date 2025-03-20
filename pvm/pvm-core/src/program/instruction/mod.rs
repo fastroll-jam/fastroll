@@ -2,13 +2,12 @@ pub mod opcode;
 pub mod set;
 
 use crate::{
-    constants::REGISTERS_COUNT,
+    error::{PVMError, VMCoreError::*},
     program::instruction::opcode::Opcode,
-    state::register::RegValue,
-    types::error::{PVMError, VMCoreError::*},
     utils::VMUtils,
 };
 use rjam_codec::JamDecodeFixed;
+use rjam_pvm_types::{common::RegValue, constants::REGISTERS_COUNT};
 
 #[derive(Debug, Default)]
 pub struct Instruction {

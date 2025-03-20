@@ -1,4 +1,4 @@
-use crate::types::error::{PVMError, VMCoreError::InvalidOpcode};
+use crate::error::{PVMError, VMCoreError::InvalidOpcode};
 
 /// PVM Opcodes
 #[repr(u8)]

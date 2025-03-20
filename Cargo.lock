@@ -1187,6 +1187,7 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-interface",
  "rjam-pvm-invocation",
+ "rjam-pvm-types",
  "rjam-state",
  "rjam-transition",
  "serde",
@@ -1262,6 +1263,7 @@ dependencies = [
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
+ "rjam-pvm-types",
  "rjam-state",
  "thiserror",
 ]
@@ -1274,6 +1276,7 @@ dependencies = [
  "rjam-common",
  "rjam-crypto",
  "rjam-pvm-core",
+ "rjam-pvm-types",
  "rjam-state",
  "thiserror",
 ]
@@ -1286,6 +1289,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-pvm-core",
  "rjam-pvm-host",
+ "rjam-pvm-types",
  "rjam-state",
  "thiserror",
 ]
@@ -1301,6 +1305,7 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-host",
  "rjam-pvm-interface",
+ "rjam-pvm-types",
  "rjam-state",
  "tokio",
 ]
@@ -1309,6 +1314,7 @@ dependencies = [
 name = "rjam-pvm-types"
 version = "0.1.0"
 dependencies = [
+ "rjam-codec",
  "rjam-common",
  "thiserror",
 ]
@@ -1362,6 +1368,7 @@ dependencies = [
  "rjam-pvm-core",
  "rjam-pvm-host",
  "rjam-pvm-invocation",
+ "rjam-pvm-types",
  "rjam-state",
  "thiserror",
  "time",

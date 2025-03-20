@@ -3,11 +3,9 @@ use rjam_codec::{JamEncode, JamEncodeFixed};
 use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
 use rjam_crypto::Keccak256;
 use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
-use rjam_pvm_core::types::{
-    error::PVMError,
-    invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
-};
+use rjam_pvm_core::error::PVMError;
 use rjam_pvm_host::context::partial_state::AccumulatePartialState;
+use rjam_pvm_types::invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer};
 use rjam_state::manager::StateManager;
 use std::{
     collections::{BTreeSet, HashMap},
