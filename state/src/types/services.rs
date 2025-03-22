@@ -77,6 +77,24 @@ impl AccountFootprintDelta {
     }
 }
 
+#[derive(Clone)]
+pub struct AccountCode {
+    pub metadata: Vec<u8>,
+    pub code: Vec<u8>,
+}
+
+impl JamDecode for AccountCode {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let metadata = Vec::<u8>::decode(input)?;
+        let code_len = input.remaining_len();
+        let code = Vec::<u8>::decode_fixed(input, code_len)?;
+        Ok(Self { metadata, code })
+    }
+}
+
 /// Service account metadata.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountMetadata {
