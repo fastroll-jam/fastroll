@@ -77,7 +77,7 @@ impl OnTransferInvocation {
         let total_amount = args.transfers.iter().map(|t| t.amount).sum();
         let total_gas_limit = args.transfers.iter().map(|t| t.gas_limit).sum();
 
-        let Some(code) = state_manager.get_account_code(args.destination).await? else {
+        let Some(account_code) = state_manager.get_account_code(args.destination).await? else {
             return Ok(OnTransferResult::default());
         };
 
@@ -95,7 +95,7 @@ impl OnTransferInvocation {
         let _ = PVMInterface::invoke_with_args(
             state_manager.clone(),
             args.destination,
-            &code,
+            account_code.code(),
             ON_TRANSFER_INITIAL_PC,
             total_gas_limit,
             &vm_args.encode()?,

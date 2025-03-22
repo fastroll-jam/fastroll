@@ -43,6 +43,9 @@ pub trait JamInput {
         self.read(&mut buf[..])?;
         Ok(buf[0])
     }
+
+    /// Returns the remaining length of bytes in the input.
+    fn remaining_len(&self) -> usize;
 }
 
 impl JamInput for &[u8] {
@@ -56,6 +59,10 @@ impl JamInput for &[u8] {
         into.copy_from_slice(&self[..len]);
         *self = &self[len..];
         Ok(())
+    }
+
+    fn remaining_len(&self) -> usize {
+        self.len()
     }
 }
 

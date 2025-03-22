@@ -35,7 +35,7 @@ impl IsAuthorizedInvocation {
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via historical lookup
-        let code = match state_manager
+        let account_code = match state_manager
             .get_account_code_by_lookup(
                 args.package.authorizer_service_id,
                 args.package.context.lookup_anchor_timeslot,
@@ -53,7 +53,7 @@ impl IsAuthorizedInvocation {
         let result = PVMInterface::invoke_with_args(
             state_manager,
             args.package.authorizer_service_id,
-            &code,
+            account_code.code(),
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
             &args.encode()?,
