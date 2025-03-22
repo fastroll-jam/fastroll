@@ -8,12 +8,13 @@ use crate::{
         AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
     },
     types::{
-        AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
-        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-        DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
-        StagingSet, Timeslot, ValidatorStats,
+        AccountCode, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
+        AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
+        BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices,
+        SafroleState, StagingSet, Timeslot, ValidatorStats,
     },
 };
+use rjam_codec::JamDecode;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
 use rjam_db::WriteBatch;
@@ -230,19 +231,17 @@ impl StateManager {
     pub async fn get_account_code(
         &self,
         service_id: ServiceId,
-    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+    ) -> Result<Option<AccountCode>, StateManagerError> {
         let code_hash = match self.get_account_metadata(service_id).await? {
             Some(metadata) => metadata.code_hash,
             None => return Ok(None),
         };
-
-        match self
+        let code_preimage = self
             .get_account_preimages_entry(service_id, &code_hash)
-            .await?
-        {
-            Some(entry) => Ok(Some(entry.value.into_vec())),
-            None => Ok(None),
-        }
+            .await?;
+        Ok(code_preimage
+            .map(|code| AccountCode::decode(&mut code.value.as_slice()))
+            .transpose()?)
     }
 
     /// Retrieves service account code (preimage of the code hash)
@@ -255,9 +254,13 @@ impl StateManager {
         service_id: ServiceId,
         reference_timeslot_index: u32,
         code_hash: &Hash32,
-    ) -> Result<Option<Vec<u8>>, StateManagerError> {
-        self.lookup_historical_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
-            .await
+    ) -> Result<Option<AccountCode>, StateManagerError> {
+        let code_preimage = self
+            .lookup_historical_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
+            .await?;
+        Ok(code_preimage
+            .map(|code| AccountCode::decode(&mut code.as_slice()))
+            .transpose()?)
     }
 
     /// The historical lookup function `Λ`

@@ -59,7 +59,7 @@ impl AccumulateInvocation {
         partial_state: &AccumulatePartialState,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
-        let Some(code) = state_manager.get_account_code(args.accumulate_host).await? else {
+        let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             return Ok(AccumulateResult::default());
         };
 
@@ -89,7 +89,7 @@ impl AccumulateInvocation {
         let result = PVMInterface::invoke_with_args(
             state_manager,
             args.accumulate_host,
-            &code,
+            account_code.code(),
             ACCUMULATE_INITIAL_PC,
             args.gas_limit,
             &vm_args.encode()?,

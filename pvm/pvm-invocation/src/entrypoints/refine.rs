@@ -107,7 +107,7 @@ impl RefineInvocation {
         }
 
         // Retrieve the service account code via the historical lookup function
-        let code = match state_manager
+        let account_code = match state_manager
             .get_account_code_by_lookup(
                 work_item.service_id,
                 args.package.context.lookup_anchor_timeslot,
@@ -122,7 +122,7 @@ impl RefineInvocation {
             }
         };
 
-        if code.len() > MAX_SERVICE_CODE_SIZE {
+        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
             return Ok(RefineResult::big());
         }
 
@@ -139,7 +139,7 @@ impl RefineInvocation {
         let result = PVMInterface::invoke_with_args(
             state_manager,
             work_item.service_id,
-            &code,
+            account_code.code(),
             REFINE_INITIAL_PC,
             work_item.refine_gas_limit,
             &vm_args.encode()?,
