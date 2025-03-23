@@ -107,19 +107,16 @@ impl RefineInvocation {
         }
 
         // Retrieve the service account code via the historical lookup function
-        let account_code = match state_manager
+        let Some(account_code) = state_manager
             .get_account_code_by_lookup(
                 work_item.service_id,
                 args.package.context.lookup_anchor_timeslot,
                 &work_item.service_code_hash,
             )
             .await?
-        {
-            Some(code) => code,
-            None => {
-                // failed to get the `refine` code from the service account
-                return Ok(RefineResult::bad());
-            }
+        else {
+            // Failed to get the `refine` code from the service account
+            return Ok(RefineResult::bad());
         };
 
         if account_code.code().len() > MAX_SERVICE_CODE_SIZE {

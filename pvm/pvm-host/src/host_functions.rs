@@ -159,7 +159,6 @@ impl HostFunction {
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
         let gas_remaining = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
-
         continue_with_vm_change!(r7: gas_remaining)
     }
 
@@ -172,7 +171,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
@@ -193,29 +191,29 @@ impl HostFunction {
         let hash = octets_to_hash32(&vm.memory.read_bytes(hash_offset, 32)?)
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
-        if let Some(entry) = accounts_sandbox
+        let Some(entry) = accounts_sandbox
             .get_account_preimages_entry(state_manager, service_id, &hash)
             .await?
-        {
-            let preimage_size = entry.value.len();
-            let preimage_offset = vm.regs[10].as_usize()?.min(preimage_size); // f
-            let lookup_size = vm.regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
-
-            if !vm
-                .memory
-                .is_address_range_writable(buf_offset, lookup_size)?
-            {
-                host_call_panic!()
-            }
-
-            continue_with_vm_change!(
-                r7: preimage_size,
-                mem_offset: buf_offset,
-                mem_data: entry.value[preimage_offset..preimage_offset + lookup_size].to_vec()
-            )
-        } else {
+        else {
             continue_none!()
+        };
+
+        let preimage_size = entry.value.len();
+        let preimage_offset = vm.regs[10].as_usize()?.min(preimage_size); // f
+        let lookup_size = vm.regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, lookup_size)?
+        {
+            host_call_panic!()
         }
+
+        continue_with_vm_change!(
+            r7: preimage_size,
+            mem_offset: buf_offset,
+            mem_data: entry.value[preimage_offset..preimage_offset + lookup_size].to_vec()
+        )
     }
 
     /// Fetches the storage entry value of the specified storage key from the given service account's
@@ -227,7 +225,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
@@ -249,28 +246,28 @@ impl HostFunction {
         key.extend(vm.memory.read_bytes(key_offset, key_size)?);
         let storage_key = hash::<Blake2b256>(&key)?;
 
-        if let Some(entry) = accounts_sandbox
+        let Some(entry) = accounts_sandbox
             .get_account_storage_entry(state_manager, service_id, &storage_key)
             .await?
-        {
-            let storage_val_size = entry.value.len();
-            let storage_val_offset = vm.regs[11].as_usize()?.min(storage_val_size); // f
-            let read_len = vm.regs[12]
-                .as_usize()?
-                .min(storage_val_size - storage_val_offset); // l
-
-            if !vm.memory.is_address_range_writable(buf_offset, read_len)? {
-                host_call_panic!()
-            }
-
-            continue_with_vm_change!(
-                r7: storage_val_size,
-                mem_offset: buf_offset,
-                mem_data: entry.value[storage_val_offset..storage_val_offset + read_len].to_vec()
-            )
-        } else {
+        else {
             continue_none!()
+        };
+
+        let storage_val_size = entry.value.len();
+        let storage_val_offset = vm.regs[11].as_usize()?.min(storage_val_size); // f
+        let read_len = vm.regs[12]
+            .as_usize()?
+            .min(storage_val_size - storage_val_offset); // l
+
+        if !vm.memory.is_address_range_writable(buf_offset, read_len)? {
+            host_call_panic!()
         }
+
+        continue_with_vm_change!(
+            r7: storage_val_size,
+            mem_offset: buf_offset,
+            mem_data: entry.value[storage_val_offset..storage_val_offset + read_len].to_vec()
+        )
     }
 
     /// Writes an entry to the storage of the service account hosting the code being executed,
@@ -284,7 +281,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let key_offset = vm.regs[7].as_mem_address()?; // k_o
@@ -366,7 +362,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
@@ -378,12 +373,10 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        let metadata = if let Some(metadata) = accounts_sandbox
+        let Some(metadata) = accounts_sandbox
             .get_account_metadata(state_manager, service_id)
             .await?
-        {
-            metadata
-        } else {
+        else {
             continue_none!()
         };
 
@@ -415,7 +408,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let (manager, assign, designate) = match (
@@ -450,7 +442,6 @@ impl HostFunction {
         }
 
         x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services)?;
-
         continue_ok!()
     }
 
@@ -461,7 +452,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let core_index = vm.regs[7].as_usize()?;
@@ -487,7 +477,6 @@ impl HostFunction {
         }
 
         x.assign_new_auth_queue(queue_assignment)?;
-
         continue_ok!()
     }
 
@@ -497,7 +486,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -519,7 +507,6 @@ impl HostFunction {
         }
 
         x.assign_new_staging_set(new_staging_set)?;
-
         continue_ok!()
     }
 
@@ -530,7 +517,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let (x_cloned, y_mut) = match (
             context.get_accumulate_x().cloned(),
             context.get_mut_accumulate_y(),
@@ -544,7 +530,6 @@ impl HostFunction {
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
         let post_gas = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
-
         continue_with_vm_change!(r7: post_gas)
     }
 
@@ -560,7 +545,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -605,7 +589,6 @@ impl HostFunction {
 
         // Update the next new service account index in the partial state
         x.rotate_new_account_index(state_manager).await?;
-
         continue_with_vm_change!(r7: new_service_id)
     }
 
@@ -617,7 +600,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -632,7 +614,6 @@ impl HostFunction {
 
         x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
             .await?;
-
         continue_ok!()
     }
 
@@ -677,16 +658,13 @@ impl HostFunction {
 
         // Check the global state and the accumulate context partial state to confirm that the
         // destination account exists.
-        let dest_account_metadata = match x
+        let Some(dest_account_metadata) = x
             .partial_state
             .accounts_sandbox
             .get_account_metadata(state_manager.clone(), dest)
             .await?
-        {
-            Some(metadata) => metadata,
-            None => {
-                continue_who!(gas_charge)
-            }
+        else {
+            continue_who!(gas_charge)
         };
 
         if gas_limit < dest_account_metadata.gas_limit_on_transfer {
@@ -700,7 +678,6 @@ impl HostFunction {
         x.subtract_accumulator_balance(state_manager, amount)
             .await?;
         x.add_to_deferred_transfers(transfer);
-
         continue_ok!(gas_charge)
     }
 
@@ -711,7 +688,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let eject_address = vm.regs[7].as_service_id()?; // d
@@ -727,16 +703,14 @@ impl HostFunction {
             continue_who!()
         }
 
-        let eject_account_metadata = match x
+        let Some(eject_account_metadata) = x
             .partial_state
             .accounts_sandbox
             .get_account_metadata(state_manager.clone(), eject_address)
             .await?
-        {
-            Some(metadata) => metadata.clone(),
-            None => {
-                continue_who!()
-            }
+            .cloned()
+        else {
+            continue_who!()
         };
 
         let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
@@ -752,29 +726,30 @@ impl HostFunction {
         }
         let lookups_key = (preimage_hash, preimage_size);
 
-        // FIXME: use header timeslot value instead
-        if let Some(entry) = x
+        let Some(entry) = x
             .partial_state
             .accounts_sandbox
             .get_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
             .await?
-        {
-            let curr_timeslot = state_manager.get_timeslot().await?.slot();
-            if entry.value.len() == 2
-                && entry.value[1].slot() < curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
-            {
-                x.add_accumulator_balance(state_manager.clone(), eject_account_metadata.balance())
-                    .await?;
-                x.partial_state
-                    .accounts_sandbox
-                    .eject_account(state_manager, eject_address)
-                    .await?;
+        else {
+            continue_huh!()
+        };
 
-                continue_ok!()
-            }
+        // TODO: Note: this should be header timeslot value (transitioned)
+        let curr_timeslot = state_manager.get_timeslot().await?.slot();
+        if entry.value.len() != 2
+            || entry.value[1].slot() >= curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
+        {
+            continue_huh!()
         }
 
-        continue_huh!()
+        x.add_accumulator_balance(state_manager.clone(), eject_account_metadata.balance())
+            .await?;
+        x.partial_state
+            .accounts_sandbox
+            .eject_account(state_manager, eject_address)
+            .await?;
+        continue_ok!()
     }
 
     /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
@@ -784,7 +759,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -797,26 +771,26 @@ impl HostFunction {
             Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         let lookups_key = (preimage_hash, preimage_size);
-        if let Some(entry) = x
+        let Some(entry) = x
             .partial_state
             .accounts_sandbox
             .get_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
             .await?
-        {
-            let (r7, r8) = match entry.value.len() {
-                0 => (0, 0),
-                1 => (1 + entry.value[0].slot() * (1 << 32), 0),
-                2 => (2 + entry.value[0].slot() * (1 << 32), entry.value[1].slot()),
-                3 => (
-                    3 + entry.value[0].slot() * (1 << 32),
-                    entry.value[1].slot() + entry.value[2].slot() * (1 << 32),
-                ),
-                _ => panic!("Should not have more than 3 timeslot values"),
-            };
-            continue_with_vm_change!(r7: r7, r8: r8)
-        } else {
+        else {
             continue_none!()
-        }
+        };
+
+        let (r7, r8) = match entry.value.len() {
+            0 => (0, 0),
+            1 => (1 + entry.value[0].slot() * (1 << 32), 0),
+            2 => (2 + entry.value[0].slot() * (1 << 32), entry.value[1].slot()),
+            3 => (
+                3 + entry.value[0].slot() * (1 << 32),
+                entry.value[1].slot() + entry.value[2].slot() * (1 << 32),
+            ),
+            _ => panic!("Should not have more than 3 timeslot values"),
+        };
+        continue_with_vm_change!(r7: r7, r8: r8)
     }
 
     /// Marks the accumulating account's lookup dictionary entry, which references a preimage entry
@@ -831,7 +805,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -901,7 +874,6 @@ impl HostFunction {
                 new_lookups_entry,
             )
             .await?;
-
         continue_ok!()
     }
 
@@ -917,7 +889,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?;
@@ -1035,7 +1006,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_accumulate_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // o
@@ -1047,7 +1017,6 @@ impl HostFunction {
             Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
 
         x.yielded_accumulate_hash = Some(commitment_hash);
-
         continue_ok!()
     }
 
@@ -1067,7 +1036,6 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_refine_x!(context);
 
         let service_id_reg = vm.regs[7].value();
@@ -1132,7 +1100,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_refine_x!(context);
         let data_id = vm.regs[10].as_usize()?;
 
@@ -1229,7 +1196,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let offset = vm.regs[7].as_mem_address()?; // p
@@ -1262,7 +1228,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let program_offset = vm.regs[7].as_mem_address()?; // p_o
@@ -1296,7 +1261,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
@@ -1331,7 +1295,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
@@ -1366,7 +1329,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
@@ -1402,7 +1364,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
@@ -1448,7 +1409,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
@@ -1555,7 +1515,6 @@ impl HostFunction {
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-
         let x = get_mut_refine_x!(context);
 
         let inner_vm_id = vm.regs[7].as_usize()?; // n
