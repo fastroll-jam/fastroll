@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::{
     manager::StateManager,
     state_db::StateDB,
