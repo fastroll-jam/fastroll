@@ -14,13 +14,13 @@ impl VMUtils {
     /// Represents `P` of the GP
     pub fn page_align(x: usize) -> usize {
         // P(x) = Z_P * ceil(x / Z_P)
-        x.div_ceil(PAGE_SIZE)
+        PAGE_SIZE * x.div_ceil(PAGE_SIZE)
     }
 
     /// Represents `Z` of the GP
     pub fn zone_align(x: usize) -> usize {
         // Z(x) = Z_Z * ceil(x / Z_Z)
-        x.div_ceil(INIT_ZONE_SIZE)
+        INIT_ZONE_SIZE * x.div_ceil(INIT_ZONE_SIZE)
     }
 
     //
