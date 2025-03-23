@@ -35,19 +35,16 @@ impl IsAuthorizedInvocation {
         args: &IsAuthorizedArgs,
     ) -> Result<WorkExecutionOutput, PVMError> {
         // retrieve the service account code via historical lookup
-        let account_code = match state_manager
+        let Some(account_code) = state_manager
             .get_account_code_by_lookup(
                 args.package.authorizer_service_id,
                 args.package.context.lookup_anchor_timeslot,
                 &args.package.authorizer.auth_code_hash,
             )
             .await?
-        {
-            Some(code) => code,
-            None => {
-                // failed to get the `is_authorized` code from the service account
-                return Ok(WorkExecutionOutput::bad());
-            }
+        else {
+            // failed to get the `is_authorized` code from the service account
+            return Ok(WorkExecutionOutput::bad());
         };
 
         let result = PVMInterface::invoke_with_args(

@@ -200,7 +200,6 @@ impl Memory {
             Ok(Some(page)) => page,
             _ => return Ok(false), // Not found entry implies `Inaccessible`
         };
-
         Ok(page.access == AccessType::ReadOnly || page.access == AccessType::ReadWrite)
     }
 

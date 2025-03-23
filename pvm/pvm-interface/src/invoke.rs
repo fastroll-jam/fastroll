@@ -48,9 +48,8 @@ impl PVMInterface {
         context: &mut InvocationContext,
     ) -> Result<PVMInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
-        let mut pvm = match PVM::new_with_standard_program(standard_program, args) {
-            Ok(pvm) => pvm,
-            Err(_) => return Ok(PVMInvocationResult::Panic(ExitReason::Panic)),
+        let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
+            return Ok(PVMInvocationResult::Panic(ExitReason::Panic));
         };
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas;

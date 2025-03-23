@@ -96,14 +96,10 @@ impl Interpreter {
         loop {
             let curr_pc = vm_state.pc;
             let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
-
-            let inst = match Self::extract_single_inst(
-                &program_state.instructions,
-                curr_pc,
-                skip_distance,
-            ) {
-                Some(inst) => inst,
-                None => return Ok(ExitReason::Panic),
+            let Some(inst) =
+                Self::extract_single_inst(&program_state.instructions, curr_pc, skip_distance)
+            else {
+                return Ok(ExitReason::Panic);
             };
 
             let single_invocation_result =
