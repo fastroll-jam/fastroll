@@ -56,10 +56,11 @@ impl PVM {
         let mut memory = Memory::new(MEMORY_SIZE, PAGE_SIZE);
 
         // Program-specific read-only static data (o)
-        let o_start = INIT_ZONE_SIZE as MemAddress; // Z_Z
+        let o_start = INIT_ZONE_SIZE as MemAddress;
         let o_padding_end = o_start + VMUtils::page_align(fp.static_size as usize) as MemAddress;
-        memory.set_address_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
+        memory.set_address_range_access(o_start..o_padding_end, AccessType::ReadWrite)?;
         memory.write_bytes(o_start, &fp.static_data)?;
+        memory.set_address_range_access(o_start..o_padding_end, AccessType::ReadOnly)?;
 
         // Read-write heap data (w)
         let w_start =
@@ -82,8 +83,9 @@ impl PVM {
         // Arguments (a)
         let a_start = ((1 << 32) - INIT_ZONE_SIZE - INIT_INPUT_SIZE) as MemAddress;
         let a_padding_end = a_start + VMUtils::page_align(args.len()) as MemAddress;
-        memory.set_address_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
+        memory.set_address_range_access(a_start..a_padding_end, AccessType::ReadWrite)?;
         memory.write_bytes(a_start, args)?;
+        memory.set_address_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
 
         // Other addresses are inaccessible
         memory.set_address_range_access(0..o_start, AccessType::Inaccessible)?;
