@@ -34,7 +34,10 @@ use rjam_state::types::{
     ValidatorStats,
 };
 
-use rjam_common::{ticket::Ticket, workloads::ReportedWorkPackage};
+use rjam_common::{
+    ticket::Ticket,
+    workloads::{RefineStats, ReportedWorkPackage},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,
@@ -689,12 +692,46 @@ impl From<WorkExecutionOutput> for AsnWorkExecResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RefineLoad {
+    pub gas_used: u64,
+    pub imports: u16,
+    pub extrinsic_count: u16,
+    pub extrinsic_size: u32,
+    pub exports: u16,
+}
+
+impl From<RefineLoad> for RefineStats {
+    fn from(value: RefineLoad) -> Self {
+        Self {
+            refine_gas_used: value.gas_used,
+            imports_count: value.imports,
+            extrinsics_count: value.extrinsic_count,
+            extrinsics_octets: value.extrinsic_size,
+            exports_count: value.exports,
+        }
+    }
+}
+
+impl From<RefineStats> for RefineLoad {
+    fn from(value: RefineStats) -> Self {
+        Self {
+            gas_used: value.refine_gas_used,
+            imports: value.imports_count,
+            extrinsic_count: value.extrinsics_count,
+            extrinsic_size: value.extrinsics_octets,
+            exports: value.exports_count,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnWorkResult {
     pub service_id: u32,
     pub code_hash: AsnOpaqueHash,
     pub payload_hash: AsnOpaqueHash,
     pub accumulate_gas: u64,
     pub result: AsnWorkExecResult,
+    pub refine_load: RefineLoad,
 }
 
 impl From<AsnWorkResult> for WorkItemResult {
@@ -705,6 +742,7 @@ impl From<AsnWorkResult> for WorkItemResult {
             payload_hash: Hash32::from(value.payload_hash),
             gas_prioritization_ratio: value.accumulate_gas,
             refine_output: value.result.into(),
+            refine_stats: value.refine_load.into(),
         }
     }
 }
@@ -717,6 +755,7 @@ impl From<WorkItemResult> for AsnWorkResult {
             payload_hash: AsnOpaqueHash::from(value.payload_hash),
             accumulate_gas: value.gas_prioritization_ratio,
             result: value.refine_output.into(),
+            refine_load: value.refine_stats.into(),
         }
     }
 }

@@ -39,6 +39,7 @@ pub struct WorkReport {
     pub segment_roots_lookup: SegmentRootLookupTable,
     /// **`r`**: Work item results, with at least 1 and no more than 16 items
     pub results: Vec<WorkItemResult>,
+    // TODO: add `g` field, gas used in `IsAuthorized`
 }
 
 impl Display for WorkReport {
@@ -285,18 +286,44 @@ impl Display for ReportedWorkPackage {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct RefineStats {
+    /// `u`: The actual amount of gas used during refinement.
+    pub refine_gas_used: UnsignedGas,
+    /// `i`: The number of imported segments by the work item.
+    pub imports_count: u16,
+    /// `x`: The number of extrinsics items used by the work item.
+    pub extrinsics_count: u16,
+    /// `z`: The total size of extrinsics used by the work item, in octets.
+    pub extrinsics_octets: u32,
+    /// `e`: The number of exported segments by the work item.
+    pub exports_count: u16,
+}
+
+impl Display for RefineStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "refine_gas_used: {}", self.refine_gas_used)?;
+        writeln!(f, "imports_count: {}", self.imports_count)?;
+        writeln!(f, "extrinsics_count: {}", self.extrinsics_count)?;
+        writeln!(f, "extrinsics_octets: {}", self.extrinsics_octets)?;
+        write!(f, "exports_count: {}", self.exports_count)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkItemResult {
-    /// `s`: Associated service id
+    /// `s`: Associated service id.
     pub service_id: ServiceId,
-    /// `c`: Code hash of the service, at the time of reporting
+    /// `c`: Code hash of the service, at the time of reporting.
     pub service_code_hash: Hash32,
-    /// `l`: Hash of the associated work item payload
+    /// `y`: Hash of the associated work item payload.
     pub payload_hash: Hash32,
-    /// `g`: A ratio to calculate the gas allocated to the work item's accumulation
+    /// `g`: A ratio to calculate the gas allocated to the work item's accumulation.
     pub gas_prioritization_ratio: UnsignedGas,
-    /// **`o`**: Output or error of the execution of the work item
+    /// **`d`**: Output or error of the execution of the work item.
     pub refine_output: WorkExecutionOutput,
+    /// Statistics on gas usage and data referenced in the refinement process.
+    pub refine_stats: RefineStats,
 }
 
 impl Display for WorkItemResult {
@@ -311,6 +338,7 @@ impl Display for WorkItemResult {
             self.gas_prioritization_ratio
         )?;
         writeln!(f, "refine_output: {}", self.refine_output)?;
+        writeln!(f, "refine_stats: {}", self.refine_stats)?;
         write!(f, "}}")
     }
 }
@@ -321,6 +349,7 @@ impl JamEncode for WorkItemResult {
             + self.payload_hash.size_hint()
             + 8
             + self.refine_output.size_hint()
+            + self.refine_stats.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -329,6 +358,7 @@ impl JamEncode for WorkItemResult {
         self.payload_hash.encode_to(dest)?;
         self.gas_prioritization_ratio.encode_to_fixed(dest, 8)?;
         self.refine_output.encode_to(dest)?;
+        self.refine_stats.encode_to(dest)?;
         Ok(())
     }
 }
@@ -344,6 +374,7 @@ impl JamDecode for WorkItemResult {
             payload_hash: Hash32::decode(input)?,
             gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,
             refine_output: WorkExecutionOutput::decode(input)?,
+            refine_stats: RefineStats::decode(input)?,
         })
     }
 }
