@@ -18,23 +18,28 @@ pub type AccumulationOutputHash = Hash32;
 
 pub type AccumulationOutputPairs = BTreeSet<(ServiceId, AccumulationOutputHash)>;
 
+pub type AccumulationGasPairs = Vec<(ServiceId, UnsignedGas)>;
+
 #[derive(Default)]
 pub struct OuterAccumulationResult {
     pub accumulated_reports_count: usize,
-    pub deferred_transfers: Vec<DeferredTransfer>,
-    /// The BEEFY commitment map of the accumulation
-    pub output_pairs: AccumulationOutputPairs,
-    /// The union of posterior partial state of all service accounts
+    /// The union of posterior partial state of all service accounts.
     pub partial_state_union: AccumulatePartialState,
+    /// The deferred transfers created by the accumulation.
+    pub deferred_transfers: Vec<DeferredTransfer>,
+    /// Pairs of service ids and BEEFY commitments.
+    pub service_output_pairs: AccumulationOutputPairs,
+    /// Pairs of service ids and gas usages.
+    pub service_gas_pairs: AccumulationGasPairs,
 }
 
 struct ParallelAccumulationResult {
-    /// `g*`: Total amount of gas used while executing `Δ*`.
-    gas_used: UnsignedGas,
+    /// `u*`: Amount of gas used for each service while executing `Δ*`.
+    service_gas_pairs: AccumulationGasPairs,
     /// **`t*`**: All deferred transfers created while executing `Δ*`.
     deferred_transfers: Vec<DeferredTransfer>,
     /// **`b*`**: All accumulation outputs created while executing `Δ*`.
-    output_pairs: AccumulationOutputPairs,
+    service_output_pairs: AccumulationOutputPairs,
 }
 
 /// Generates a commitment to `AccumulationOutputPairs` using a simple binary merkle tree.
@@ -65,7 +70,8 @@ pub async fn accumulate_outer(
     let mut remaining_gas_limit = gas_limit;
 
     let mut deferred_transfers_flattened = Vec::new();
-    let mut output_pairs_flattened = BTreeSet::new();
+    let mut service_gas_pairs_flattened = Vec::new();
+    let mut service_output_pairs_flattened = BTreeSet::new();
 
     // Initialize accumulate partial state
     let mut partial_state_union = AccumulatePartialState::default();
@@ -81,9 +87,9 @@ pub async fn accumulate_outer(
         }
 
         let ParallelAccumulationResult {
-            gas_used,
+            service_gas_pairs,
             deferred_transfers,
-            output_pairs,
+            service_output_pairs: output_pairs,
         } = accumulate_parallel(
             state_manager.clone(),
             Arc::new(reports[report_idx..report_idx + processable_reports_prediction].to_vec()),
@@ -93,15 +99,18 @@ pub async fn accumulate_outer(
         .await?;
 
         report_idx += processable_reports_prediction;
-        remaining_gas_limit = remaining_gas_limit.saturating_sub(gas_used);
+        remaining_gas_limit =
+            remaining_gas_limit.saturating_sub(service_gas_pairs.iter().map(|p| p.1).sum());
         deferred_transfers_flattened.extend(deferred_transfers);
-        output_pairs_flattened.extend(output_pairs);
+        service_gas_pairs_flattened.extend(service_gas_pairs);
+        service_output_pairs_flattened.extend(output_pairs);
     }
 
     Ok(OuterAccumulationResult {
         accumulated_reports_count: report_idx,
         deferred_transfers: deferred_transfers_flattened,
-        output_pairs: output_pairs_flattened,
+        service_gas_pairs: service_gas_pairs_flattened,
+        service_output_pairs: service_output_pairs_flattened,
         partial_state_union,
     })
 }
@@ -142,8 +151,8 @@ async fn accumulate_parallel(
         .collect();
     services.extend(always_accumulate_services.keys().cloned());
 
-    let mut gas_used: UnsignedGas = 0;
-    let mut output_pairs = BTreeSet::new();
+    let mut service_gas_pairs = Vec::new();
+    let mut service_output_pairs = BTreeSet::new();
     let mut deferred_transfers = Vec::new();
 
     // Concurrent accumulate invocations grouped by service ids.
@@ -172,9 +181,12 @@ async fn accumulate_parallel(
         let accumulate_result = handle
             .await
             .map_err(|_| PVMError::AccumulateTaskPanicked)??;
-        gas_used += accumulate_result.gas_used;
+        service_gas_pairs.push((
+            accumulate_result.accumulate_host,
+            accumulate_result.gas_used,
+        ));
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            output_pairs.insert((accumulate_result.accumulate_host, output_hash));
+            service_output_pairs.insert((accumulate_result.accumulate_host, output_hash));
         }
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(
@@ -187,9 +199,9 @@ async fn accumulate_parallel(
     }
 
     Ok(ParallelAccumulationResult {
-        gas_used,
+        service_gas_pairs,
         deferred_transfers,
-        output_pairs,
+        service_output_pairs,
     })
 }
 

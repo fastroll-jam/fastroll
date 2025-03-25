@@ -91,7 +91,7 @@ pub async fn transition_on_accumulate(
     Ok(AccumulateSummary {
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
         deferred_transfers: outer_accumulate_result.deferred_transfers,
-        output_pairs: outer_accumulate_result.output_pairs,
+        output_pairs: outer_accumulate_result.service_output_pairs,
     })
 }
 
