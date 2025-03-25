@@ -278,10 +278,12 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
                 .iter()
                 .filter(|wir| wir.service_id == service_id)
                 .map(move |wir| AccumulateOperand {
-                    work_output: wir.refine_output.clone(),
-                    work_output_payload_hash: wir.payload_hash,
                     work_package_hash: wr.work_package_hash(),
+                    segment_root: wr.segment_root(),
+                    authorizer_hash: wr.authorizer_hash(),
                     authorization_output: wr.authorization_output().to_vec(),
+                    work_item_payload_hash: wir.payload_hash,
+                    work_output: wir.refine_output.clone(),
                 })
         })
         .collect()
