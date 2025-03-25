@@ -1,4 +1,3 @@
-use rjam_common::UnsignedGas;
 use rjam_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
@@ -152,7 +151,7 @@ impl PVMHarness {
             regs: [Register::default(); 13],
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.initial_pc as RegValue,
-            gas_counter: test_case.initial_gas as UnsignedGas,
+            gas_counter: test_case.initial_gas,
         };
 
         // Setup registers
@@ -180,7 +179,7 @@ impl PVMHarness {
             regs: [Register::default(); 13],
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.expected_pc as RegValue,
-            gas_counter: test_case.expected_gas as UnsignedGas,
+            gas_counter: test_case.expected_gas,
         };
 
         // Setup registers

@@ -1,5 +1,5 @@
 use crate::{error::PVMError, pvm::PVM};
-use rjam_common::{workloads::WorkExecutionOutput, ServiceId, UnsignedGas};
+use rjam_common::{workloads::WorkExecutionOutput, ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
 use rjam_pvm_host::{
     context::InvocationContext,
@@ -98,10 +98,10 @@ impl PVMInterface {
             return Ok(PVMInvocationResult::panic(0));
         };
         pvm.state.pc = pc;
-        pvm.state.gas_counter = gas_limit;
+        pvm.state.gas_counter = gas_limit as SignedGas;
 
         let result = Self::invoke_extended(&mut pvm, state_manager, service_id, context).await?;
-        let gas_used = gas_limit - 0.max(pvm.state.gas_counter);
+        let gas_used = gas_limit - 0.max(pvm.state.gas_counter) as UnsignedGas;
 
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),

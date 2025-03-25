@@ -234,12 +234,15 @@ macro_rules! host_call_panic {
 #[macro_export]
 macro_rules! check_out_of_gas {
     ($gas_counter:expr) => {
-        if $gas_counter < HOSTCALL_BASE_GAS_CHARGE {
+        if $gas_counter < HOSTCALL_BASE_GAS_CHARGE as SignedGas {
             $crate::out_of_gas!()
         }
     };
     ($gas_counter:expr, $gas:expr) => {
-        if $gas_counter < $gas {
+        let gas_signed: SignedGas = $gas
+            .try_into()
+            .expect("Gas charge should fit in `SignedGas`");
+        if $gas_counter < gas_signed {
             $crate::out_of_gas!($gas)
         }
     };

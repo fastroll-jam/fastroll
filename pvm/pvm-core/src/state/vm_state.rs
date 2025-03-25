@@ -3,7 +3,7 @@ use crate::{
     program::instruction::Instruction,
     state::{memory::Memory, register::Register},
 };
-use rjam_common::UnsignedGas;
+use rjam_common::SignedGas;
 use rjam_pvm_types::{
     common::{MemAddress, RegValue},
     constants::REGISTERS_COUNT,
@@ -19,7 +19,7 @@ pub struct VMState {
     /// `ı`: Program counter
     pub pc: RegValue,
     /// `ρ`: Gas counter
-    pub gas_counter: UnsignedGas,
+    pub gas_counter: SignedGas,
 }
 
 impl VMState {
