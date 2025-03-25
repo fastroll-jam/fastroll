@@ -10,7 +10,7 @@ use rjam_pvm_host::{
 };
 use rjam_pvm_interface::{
     error::PVMError,
-    invoke::{PVMInterface, PVMInvocationResult},
+    invoke::{PVMInterface, PVMInvocationOutput},
 };
 use rjam_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
@@ -104,8 +104,8 @@ impl AccumulateInvocation {
                 return Err(PVMError::HostCallError(InvalidContext));
             };
 
-        match result {
-            PVMInvocationResult::Result(output) => {
+        match result.output {
+            PVMInvocationOutput::Output(output) => {
                 let accumulate_result_hash = if output.len() == HASH_SIZE {
                     octets_to_hash32(&output)
                 } else {
@@ -120,14 +120,14 @@ impl AccumulateInvocation {
                     accumulate_host: x.accumulate_host,
                 })
             }
-            PVMInvocationResult::ResultUnavailable => Ok(AccumulateResult {
+            PVMInvocationOutput::OutputUnavailable => Ok(AccumulateResult {
                 partial_state: x.partial_state,
                 deferred_transfers: x.deferred_transfers,
                 yielded_accumulate_hash: x.yielded_accumulate_hash,
                 gas_used: x.gas_used,
                 accumulate_host: x.accumulate_host,
             }),
-            PVMInvocationResult::OutOfGas(_) | PVMInvocationResult::Panic(_) => {
+            PVMInvocationOutput::OutOfGas(_) | PVMInvocationOutput::Panic(_) => {
                 Ok(AccumulateResult {
                     partial_state: y.partial_state,
                     deferred_transfers: y.deferred_transfers,

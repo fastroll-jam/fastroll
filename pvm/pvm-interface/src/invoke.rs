@@ -1,5 +1,5 @@
 use crate::{error::PVMError, pvm::PVM};
-use rjam_common::{ServiceId, UnsignedGas};
+use rjam_common::{workloads::WorkExecutionOutput, ServiceId, UnsignedGas};
 use rjam_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
 use rjam_pvm_host::{
     context::InvocationContext,
@@ -14,15 +14,61 @@ struct ExtendedInvocationResult {
     exit_reason: ExitReason,
 }
 
-pub enum PVMInvocationResult {
+pub struct PVMInvocationResult {
+    pub gas_used: UnsignedGas,
+    pub output: PVMInvocationOutput,
+}
+
+impl PVMInvocationResult {
+    pub fn with_output(output: Vec<u8>, gas_used: UnsignedGas) -> Self {
+        Self {
+            gas_used,
+            output: PVMInvocationOutput::Output(output),
+        }
+    }
+
+    pub fn no_output(gas_used: UnsignedGas) -> Self {
+        Self {
+            gas_used,
+            output: PVMInvocationOutput::OutputUnavailable,
+        }
+    }
+
+    pub fn out_of_gas(gas_used: UnsignedGas) -> Self {
+        Self {
+            gas_used,
+            output: PVMInvocationOutput::OutOfGas(ExitReason::OutOfGas),
+        }
+    }
+
+    pub fn panic(gas_used: UnsignedGas) -> Self {
+        Self {
+            gas_used,
+            output: PVMInvocationOutput::Panic(ExitReason::Panic),
+        }
+    }
+}
+
+pub enum PVMInvocationOutput {
     /// Regular halt with return value
-    Result(Vec<u8>),
+    Output(Vec<u8>),
     /// Regular halt with no return value
-    ResultUnavailable,
+    OutputUnavailable,
     /// Out of gas
     OutOfGas(ExitReason),
     /// Panic
     Panic(ExitReason),
+}
+
+impl From<PVMInvocationOutput> for WorkExecutionOutput {
+    fn from(output: PVMInvocationOutput) -> Self {
+        match output {
+            PVMInvocationOutput::OutOfGas(_) => Self::out_of_gas(),
+            PVMInvocationOutput::Panic(_) => Self::panic(),
+            PVMInvocationOutput::Output(output) => Self::ok(output),
+            PVMInvocationOutput::OutputUnavailable => Self::ok_empty(),
+        }
+    }
 }
 
 pub struct PVMInterface;
@@ -43,21 +89,22 @@ impl PVMInterface {
         service_id: ServiceId,
         standard_program: &[u8],
         pc: RegValue,
-        gas: UnsignedGas,
+        gas_limit: UnsignedGas,
         args: &[u8],
         context: &mut InvocationContext,
     ) -> Result<PVMInvocationResult, PVMError> {
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
-            return Ok(PVMInvocationResult::Panic(ExitReason::Panic));
+            return Ok(PVMInvocationResult::panic(0));
         };
         pvm.state.pc = pc;
-        pvm.state.gas_counter = gas;
+        pvm.state.gas_counter = gas_limit;
 
         let result = Self::invoke_extended(&mut pvm, state_manager, service_id, context).await?;
+        let gas_used = gas_limit - 0.max(pvm.state.gas_counter);
 
         match result.exit_reason {
-            ExitReason::OutOfGas => Ok(PVMInvocationResult::OutOfGas(ExitReason::OutOfGas)),
+            ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
                 let start_address = pvm.state.read_reg_as_mem_address(10)?;
                 let data_len = pvm.state.read_reg(11) as usize;
@@ -66,13 +113,13 @@ impl PVMInterface {
                     .memory
                     .is_address_range_readable(start_address, data_len)?
                 {
-                    return Ok(PVMInvocationResult::ResultUnavailable);
+                    return Ok(PVMInvocationResult::no_output(gas_used));
                 }
 
                 let bytes = pvm.read_memory_bytes(start_address, data_len)?;
-                Ok(PVMInvocationResult::Result(bytes))
+                Ok(PVMInvocationResult::with_output(bytes, gas_used))
             }
-            _ => Ok(PVMInvocationResult::Panic(ExitReason::Panic)),
+            _ => Ok(PVMInvocationResult::panic(gas_used)),
         }
     }
 
