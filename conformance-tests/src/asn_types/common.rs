@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
 use rjam_block::types::{
-    block::{Block, BlockHeader, EpochMarker},
+    block::{Block, BlockHeader, EpochMarker, EpochMarkerValidatorKey},
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
         disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
@@ -15,9 +14,10 @@ use rjam_block::types::{
     },
 };
 use rjam_common::{
+    ticket::Ticket,
     workloads::{
-        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
-        SegmentRootLookupTable,
+        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
+        ReportedWorkPackage, SegmentRootLookupTable,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
@@ -32,11 +32,6 @@ use rjam_state::types::{
     BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
     PendingReports, PrivilegedServices, SlotSealerType, Timeslot, ValidatorStatEntry,
     ValidatorStats,
-};
-
-use rjam_common::{
-    ticket::Ticket,
-    workloads::{RefineStats, ReportedWorkPackage},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1785,17 +1780,41 @@ pub type AccumulateRoot = AsnOpaqueHash;
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnEpochMarkValidatorKeys {
+    pub bandersnatch: AsnBandersnatchKey,
+    pub ed25519: AsnEd25519Key,
+}
+
+impl From<AsnEpochMarkValidatorKeys> for EpochMarkerValidatorKey {
+    fn from(value: AsnEpochMarkValidatorKeys) -> Self {
+        Self {
+            bandersnatch_key: BandersnatchPubKey::from(value.bandersnatch),
+            ed25519_key: Ed25519PubKey::from(value.ed25519),
+        }
+    }
+}
+
+impl From<EpochMarkerValidatorKey> for AsnEpochMarkValidatorKeys {
+    fn from(value: EpochMarkerValidatorKey) -> Self {
+        Self {
+            bandersnatch: AsnBandersnatchKey::from(value.bandersnatch_key),
+            ed25519: AsnEd25519Key::from(value.ed25519_key),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnEpochMark {
     pub entropy: AsnOpaqueHash,
     pub tickets_entropy: AsnOpaqueHash,
-    pub validators: Vec<AsnBandersnatchKey>, // SIZE(validators-count)
+    pub validators: Vec<AsnEpochMarkValidatorKeys>, // SIZE(validators-count)
 }
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = [BandersnatchPubKey::default(); VALIDATOR_COUNT];
+        let mut validators_array = [EpochMarkerValidatorKey::default(); VALIDATOR_COUNT];
         for (i, key) in value.validators.into_iter().enumerate() {
-            validators_array[i] = BandersnatchPubKey::from(key);
+            validators_array[i] = EpochMarkerValidatorKey::from(key);
         }
         Self {
             entropy: Hash32::from(value.entropy),
@@ -1813,7 +1832,7 @@ impl From<EpochMarker> for AsnEpochMark {
             validators: marker
                 .validators
                 .into_iter()
-                .map(AsnBandersnatchKey::from)
+                .map(AsnEpochMarkValidatorKeys::from)
                 .collect(),
         }
     }
