@@ -850,6 +850,7 @@ pub struct AsnWorkReport {
     pub auth_output: AsnByteSequence,
     pub segment_root_lookup: AsnSegmentRootLookupTable,
     pub results: Vec<AsnWorkResult>, // SIZE(1..4)
+    pub auth_gas_used: u64,
 }
 
 impl From<AsnWorkReport> for WorkReport {
@@ -866,6 +867,7 @@ impl From<AsnWorkReport> for WorkReport {
                 .into_iter()
                 .map(WorkItemResult::from)
                 .collect(),
+            auth_gas_used: value.auth_gas_used,
         }
     }
 }
@@ -880,6 +882,7 @@ impl From<WorkReport> for AsnWorkReport {
             auth_output: AsnByteSequence::from(value.authorization_output),
             segment_root_lookup: value.segment_roots_lookup.into(),
             results: value.results.into_iter().map(AsnWorkResult::from).collect(),
+            auth_gas_used: value.auth_gas_used,
         }
     }
 }

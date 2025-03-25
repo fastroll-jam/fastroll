@@ -39,7 +39,8 @@ pub struct WorkReport {
     pub segment_roots_lookup: SegmentRootLookupTable,
     /// **`r`**: Work item results, with at least 1 and no more than 16 items
     pub results: Vec<WorkItemResult>,
-    // TODO: add `g` field, gas used in `IsAuthorized`
+    /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
+    pub auth_gas_used: UnsignedGas,
 }
 
 impl Display for WorkReport {
@@ -73,6 +74,7 @@ impl JamEncode for WorkReport {
             + self.authorization_output.size_hint()
             + self.segment_roots_lookup.size_hint()
             + self.results.size_hint()
+            + self.auth_gas_used.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -83,6 +85,7 @@ impl JamEncode for WorkReport {
         self.authorization_output.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;
         self.results.encode_to(dest)?;
+        self.auth_gas_used.encode_to(dest)?;
         Ok(())
     }
 }
@@ -100,6 +103,7 @@ impl JamDecode for WorkReport {
             authorization_output: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
             results: Vec::<WorkItemResult>::decode(input)?,
+            auth_gas_used: UnsignedGas::decode(input)?,
         })
     }
 }
