@@ -5,7 +5,12 @@ use rjam_crypto::Keccak256;
 use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
 use rjam_pvm_host::context::partial_state::AccumulatePartialState;
 use rjam_pvm_interface::error::PVMError;
-use rjam_pvm_types::invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer};
+use rjam_pvm_types::{
+    invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
+    invoke_results::{
+        AccumulationGasPair, AccumulationGasPairs, AccumulationOutputPair, AccumulationOutputPairs,
+    },
+};
 use rjam_state::manager::StateManager;
 use std::{
     collections::{BTreeSet, HashMap},
@@ -14,22 +19,17 @@ use std::{
 
 pub mod utils;
 
-pub type AccumulationOutputHash = Hash32;
-
-pub type AccumulationOutputPairs = BTreeSet<(ServiceId, AccumulationOutputHash)>;
-
-pub type AccumulationGasPairs = Vec<(ServiceId, UnsignedGas)>;
-
 #[derive(Default)]
 pub struct OuterAccumulationResult {
+    /// `n`: The total number of work reports accumulated.
     pub accumulated_reports_count: usize,
-    /// The union of posterior partial state of all service accounts.
+    /// **`o`**: The union of posterior partial state of all service accounts.
     pub partial_state_union: AccumulatePartialState,
-    /// The deferred transfers created by the accumulation.
+    /// **`t`**: The deferred transfers created by the accumulation.
     pub deferred_transfers: Vec<DeferredTransfer>,
-    /// Pairs of service ids and BEEFY commitments.
+    /// **`C`**: Pairs of service ids and BEEFY commitments.
     pub service_output_pairs: AccumulationOutputPairs,
-    /// Pairs of service ids and gas usages.
+    /// **`u`**: Pairs of service ids and gas usages.
     pub service_gas_pairs: AccumulationGasPairs,
 }
 
@@ -48,10 +48,14 @@ pub fn accumulate_result_commitment(output_pairs: AccumulationOutputPairs) -> Ha
     // Note: `AccumulationOutputPairs` is already ordered by service id.
     let ordered_encoded_results = output_pairs
         .into_iter()
-        .map(|(s, h)| {
+        .map(|pair| {
             let mut buf = Vec::with_capacity(36);
-            s.encode_to_fixed(&mut buf, 4).expect("Should not fail");
-            h.encode_to(&mut buf).expect("Should not fail");
+            pair.service
+                .encode_to_fixed(&mut buf, 4)
+                .expect("Should not fail");
+            pair.output_hash
+                .encode_to(&mut buf)
+                .expect("Should not fail");
             buf
         })
         .collect::<Vec<_>>();
@@ -100,7 +104,7 @@ pub async fn accumulate_outer(
 
         report_idx += processable_reports_prediction;
         remaining_gas_limit =
-            remaining_gas_limit.saturating_sub(service_gas_pairs.iter().map(|p| p.1).sum());
+            remaining_gas_limit.saturating_sub(service_gas_pairs.iter().map(|pair| pair.gas).sum());
         deferred_transfers_flattened.extend(deferred_transfers);
         service_gas_pairs_flattened.extend(service_gas_pairs);
         service_output_pairs_flattened.extend(output_pairs);
@@ -181,12 +185,15 @@ async fn accumulate_parallel(
         let accumulate_result = handle
             .await
             .map_err(|_| PVMError::AccumulateTaskPanicked)??;
-        service_gas_pairs.push((
-            accumulate_result.accumulate_host,
-            accumulate_result.gas_used,
-        ));
+        service_gas_pairs.push(AccumulationGasPair {
+            service: accumulate_result.accumulate_host,
+            gas: accumulate_result.gas_used,
+        });
         if let Some(output_hash) = accumulate_result.yielded_accumulate_hash {
-            service_output_pairs.insert((accumulate_result.accumulate_host, output_hash));
+            service_output_pairs.insert(AccumulationOutputPair {
+                service: accumulate_result.accumulate_host,
+                output_hash,
+            });
         }
         deferred_transfers.extend(accumulate_result.deferred_transfers);
         add_partial_state_change(

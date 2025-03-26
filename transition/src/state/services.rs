@@ -8,10 +8,14 @@ use rjam_crypto::{hash, Blake2b256};
 use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
 use rjam_pvm_invocation::{
     entrypoints::on_transfer::OnTransferInvocation,
-    pipeline::{accumulate_outer, utils::select_deferred_transfers, AccumulationOutputPairs},
+    pipeline::{accumulate_outer, utils::select_deferred_transfers},
     prelude::{AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus},
 };
-use rjam_pvm_types::invoke_args::{DeferredTransfer, OnTransferInvokeArgs};
+use rjam_pvm_types::{
+    invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
+    invoke_results::AccumulationOutputPairs,
+    stats::{AccumulateStats, OnTransferStats, OnTransferStatsEntry},
+};
 use rjam_state::{
     cache::StateMut,
     manager::StateManager,
@@ -23,6 +27,7 @@ pub struct AccumulateSummary {
     pub accumulated_reports_count: usize,
     pub deferred_transfers: Vec<DeferredTransfer>,
     pub output_pairs: AccumulationOutputPairs,
+    pub accumulate_stats: AccumulateStats,
 }
 
 /// Processes state transitions of service accounts, `PrivilegedServices`, `StagingSet`
@@ -92,6 +97,10 @@ pub async fn transition_on_accumulate(
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
         deferred_transfers: outer_accumulate_result.deferred_transfers,
         output_pairs: outer_accumulate_result.service_output_pairs,
+        accumulate_stats: AccumulateStats::from_accumulated_reports(
+            &reports[..outer_accumulate_result.accumulated_reports_count],
+            &outer_accumulate_result.service_gas_pairs,
+        ),
     })
 }
 
@@ -265,13 +274,15 @@ async fn run_privileged_transitions(
 pub async fn transition_services_on_transfer(
     state_manager: Arc<StateManager>,
     transfers: &[DeferredTransfer],
-) -> Result<(), TransitionError> {
+) -> Result<OnTransferStats, TransitionError> {
     // Gather all unique destination addresses.
     let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
+    let mut stats = OnTransferStats::default();
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
         let transfers = select_deferred_transfers(transfers, destination);
+        let transfers_count = transfers.len();
         let mut on_transfer_result = OnTransferInvocation::on_transfer(
             state_manager.clone(),
             &OnTransferInvokeArgs {
@@ -297,9 +308,19 @@ pub async fn transition_services_on_transfer(
             transition_service_account(state_manager.clone(), destination, recipient_sandbox)
                 .await?
         }
+
+        if transfers_count != 0 {
+            stats.insert(
+                destination,
+                OnTransferStatsEntry {
+                    transfers_count: transfers_count as u32,
+                    gas_used: on_transfer_result.gas_used,
+                },
+            );
+        }
     }
 
-    Ok(())
+    Ok(stats)
 }
 
 /// State transition function of service accounts, integrating provided `PreimagesXt` data into
