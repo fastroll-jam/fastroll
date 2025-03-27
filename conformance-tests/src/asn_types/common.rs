@@ -30,8 +30,8 @@ use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
     BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
-    PendingReports, PrivilegedServices, SlotSealerType, Timeslot, ValidatorStatEntry,
-    ValidatorStats,
+    PendingReports, PrivilegedServices, SlotSealerType, Timeslot, ValidatorStats,
+    ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -768,7 +768,7 @@ impl From<AsnWorkPackageSpec> for AvailSpecs {
     fn from(value: AsnWorkPackageSpec) -> Self {
         Self {
             work_package_hash: Hash32::from(value.hash),
-            work_package_length: value.length,
+            work_bundle_length: value.length,
             erasure_root: Hash32::from(value.erasure_root),
             segment_root: Hash32::from(value.exports_root),
             segment_count: value.exports_count,
@@ -780,7 +780,7 @@ impl From<AvailSpecs> for AsnWorkPackageSpec {
     fn from(value: AvailSpecs) -> Self {
         Self {
             hash: AsnOpaqueHash::from(value.work_package_hash),
-            length: value.work_package_length,
+            length: value.work_bundle_length,
             erasure_root: AsnOpaqueHash::from(value.erasure_root),
             exports_root: AsnOpaqueHash::from(value.segment_root),
             exports_count: value.segment_count,
@@ -999,8 +999,8 @@ pub struct AsnActivityRecord {
     pub assurances: u32,
 }
 
-impl From<ValidatorStatEntry> for AsnActivityRecord {
-    fn from(value: ValidatorStatEntry) -> Self {
+impl From<ValidatorStatsEntry> for AsnActivityRecord {
+    fn from(value: ValidatorStatsEntry) -> Self {
         Self {
             blocks: value.blocks_produced_count,
             tickets: value.tickets_count,
@@ -1012,7 +1012,7 @@ impl From<ValidatorStatEntry> for AsnActivityRecord {
     }
 }
 
-impl From<AsnActivityRecord> for ValidatorStatEntry {
+impl From<AsnActivityRecord> for ValidatorStatsEntry {
     fn from(value: AsnActivityRecord) -> Self {
         Self {
             blocks_produced_count: value.blocks,
@@ -1040,9 +1040,9 @@ impl From<EpochValidatorStats> for AsnActivityRecords {
 
 impl From<AsnActivityRecords> for EpochValidatorStats {
     fn from(value: AsnActivityRecords) -> Self {
-        let mut stats = from_fn(|_| ValidatorStatEntry::default());
+        let mut stats = from_fn(|_| ValidatorStatsEntry::default());
         for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = ValidatorStatEntry::from(record);
+            stats[i] = ValidatorStatsEntry::from(record);
         }
         Self::new(Box::new(stats))
     }

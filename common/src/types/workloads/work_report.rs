@@ -220,7 +220,7 @@ pub struct AvailSpecs {
     /// `h`: Work package hash
     pub work_package_hash: Hash32,
     /// `l`: Auditable work bundle length
-    pub work_package_length: u32,
+    pub work_bundle_length: u32,
     /// `u`: Erasure root of the work package
     pub erasure_root: Hash32,
     /// `e`: Export segment root of the work package
@@ -233,10 +233,10 @@ impl Display for AvailSpecs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AvailSpecs {{ wp_hash: {}, wp_len: {}, erasure_root: {}, \
+            "AvailSpecs {{ wp_hash: {}, wp_bundle_len: {}, erasure_root: {}, \
              segment_root: {}, segment_count: {} }}",
             self.work_package_hash,
-            self.work_package_length,
+            self.work_bundle_length,
             self.erasure_root,
             self.segment_root,
             self.segment_count,
@@ -255,7 +255,7 @@ impl JamEncode for AvailSpecs {
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         self.work_package_hash.encode_to(dest)?;
-        self.work_package_length.encode_to_fixed(dest, 4)?;
+        self.work_bundle_length.encode_to_fixed(dest, 4)?;
         self.erasure_root.encode_to(dest)?;
         self.segment_root.encode_to(dest)?;
         self.segment_count.encode_to_fixed(dest, 2)?;
@@ -267,7 +267,7 @@ impl JamDecode for AvailSpecs {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             work_package_hash: Hash32::decode(input)?,
-            work_package_length: u32::decode_fixed(input, 4)?,
+            work_bundle_length: u32::decode_fixed(input, 4)?,
             erasure_root: Hash32::decode(input)?,
             segment_root: Hash32::decode(input)?,
             segment_count: u16::decode_fixed(input, 2)?,
