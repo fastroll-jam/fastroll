@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     /// Prior statistics
-    pub pi: AsnStatistics,
+    pub statistics: AsnStatistics,
     /// Prior timeslot
-    pub tau: AsnTimeSlot,
+    pub slot: AsnTimeSlot,
     /// Posterior active validators
-    pub kappa_prime: AsnValidatorsData,
+    pub curr_validators: AsnValidatorsData,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

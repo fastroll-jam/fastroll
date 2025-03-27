@@ -1174,14 +1174,12 @@ struct AsnServiceActivityRecordMapEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnServiceActivityRecords {
-    items: Vec<AsnServiceActivityRecordMapEntry>,
-}
+pub struct AsnServiceActivityRecords(Vec<AsnServiceActivityRecordMapEntry>);
 
 impl From<AsnServiceActivityRecords> for ServiceStats {
     fn from(value: AsnServiceActivityRecords) -> Self {
         let mut stats = HashMap::new();
-        for entry in value.items {
+        for entry in value.0 {
             stats.insert(entry.id as ServiceId, ServiceStatsEntry::from(entry.record));
         }
         Self(stats)
@@ -1197,7 +1195,7 @@ impl From<ServiceStats> for AsnServiceActivityRecords {
                 record: AsnServiceActivityRecord::from(stats_entry),
             })
         });
-        Self { items }
+        Self(items)
     }
 }
 

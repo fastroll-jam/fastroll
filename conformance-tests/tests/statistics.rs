@@ -35,10 +35,10 @@ mod test {
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
-            let pre_onchain_stats = OnChainStatistics::from(test_pre_state.pi.clone());
-            let pre_timeslot = Timeslot::new(test_pre_state.tau);
+            let pre_onchain_stats = OnChainStatistics::from(test_pre_state.statistics.clone());
+            let pre_timeslot = Timeslot::new(test_pre_state.slot);
             let posterior_active_set = ActiveSet(validators_data_to_validator_set(
-                &test_pre_state.kappa_prime,
+                &test_pre_state.curr_validators,
             ));
 
             // Load pre-state info the state cache.
@@ -103,9 +103,9 @@ mod test {
 
             // Convert RJAM types post-state into ASN post-state
             Ok(State {
-                pi: curr_onchain_stats.into(),
-                tau: curr_timeslot.slot(),
-                kappa_prime: validator_set_to_validators_data(&posterior_active_set),
+                statistics: curr_onchain_stats.into(),
+                slot: curr_timeslot.slot(),
+                curr_validators: validator_set_to_validators_data(&posterior_active_set),
             })
         }
     }
