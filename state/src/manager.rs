@@ -10,8 +10,8 @@ use crate::{
     types::{
         AccountCode, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
         AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
-        BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices,
-        SafroleState, StagingSet, Timeslot, ValidatorStats,
+        BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
+        PrivilegedServices, SafroleState, StagingSet, Timeslot,
     },
 };
 use rjam_codec::JamDecode;
@@ -728,7 +728,7 @@ impl StateManager {
     impl_simple_state_accessors!(PendingReports, pending_reports);
     impl_simple_state_accessors!(Timeslot, timeslot);
     impl_simple_state_accessors!(PrivilegedServices, privileged_services);
-    impl_simple_state_accessors!(ValidatorStats, validator_stats);
+    impl_simple_state_accessors!(OnChainStatistics, onchain_statistics);
     impl_simple_state_accessors!(AccumulateQueue, accumulate_queue);
     impl_simple_state_accessors!(AccumulateHistory, accumulate_history);
 

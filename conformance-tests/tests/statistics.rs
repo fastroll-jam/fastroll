@@ -10,9 +10,11 @@ mod test {
     use rjam_state::{
         error::StateManagerError,
         manager::StateManager,
-        types::{ActiveSet, Timeslot, ValidatorStats},
+        types::{ActiveSet, OnChainStatistics, Timeslot},
     };
-    use rjam_transition::{error::TransitionError, state::statistics::transition_validator_stats};
+    use rjam_transition::{
+        error::TransitionError, state::statistics::transition_onchain_statistics,
+    };
     use std::sync::Arc;
 
     struct StatisticsTest;
@@ -33,7 +35,7 @@ mod test {
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into RJAM types.
-            let pre_validator_stats = ValidatorStats::from(test_pre_state.pi.clone());
+            let pre_onchain_stats = OnChainStatistics::from(test_pre_state.pi.clone());
             let pre_timeslot = Timeslot::new(test_pre_state.tau);
             let posterior_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.kappa_prime,
@@ -41,7 +43,7 @@ mod test {
 
             // Load pre-state info the state cache.
             state_manager
-                .add_validator_stats(pre_validator_stats)
+                .add_onchain_statistics(pre_onchain_stats)
                 .await?;
             state_manager.add_timeslot(pre_timeslot).await?;
             state_manager.add_active_set(posterior_active_set).await?;
@@ -68,7 +70,7 @@ mod test {
             let next_timeslot = jam_input.timeslot;
             let epoch_progressed = pre_timeslot.epoch() < next_timeslot.epoch();
 
-            transition_validator_stats(
+            transition_onchain_statistics(
                 state_manager,
                 epoch_progressed,
                 jam_input.author_index,
@@ -95,13 +97,13 @@ mod test {
             _error_code: &Option<Self::ErrorCode>,
         ) -> Result<Self::State, StateManagerError> {
             // Get the posterior state from the state cache.
-            let curr_validator_stats = state_manager.get_validator_stats().await?;
+            let curr_onchain_stats = state_manager.get_onchain_statistics().await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let posterior_active_set = state_manager.get_active_set().await?;
 
             // Convert RJAM types post-state into ASN post-state
             Ok(State {
-                pi: curr_validator_stats.into(),
+                pi: curr_onchain_stats.into(),
                 tau: curr_timeslot.slot(),
                 kappa_prime: validator_set_to_validators_data(&posterior_active_set),
             })

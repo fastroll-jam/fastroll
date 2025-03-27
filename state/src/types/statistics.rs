@@ -25,6 +25,7 @@ pub struct OnChainStatistics {
     /// `π_S`: Per-block service statistics.
     pub service_stats: ServiceStats,
 }
+impl_simple_state_component!(OnChainStatistics, OnChainStatistics);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValidatorStatsEntry {
@@ -133,7 +134,6 @@ pub struct ValidatorStats {
     pub curr: EpochValidatorStats,
     pub prev: EpochValidatorStats,
 }
-impl_simple_state_component!(ValidatorStats, ValidatorStats);
 
 impl ValidatorStats {
     pub fn current_epoch_stats(&self) -> &EpochValidatorStats {
@@ -187,7 +187,7 @@ pub struct CoreStatsEntry {
 
 /// The core activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CoreStats(Box<[CoreStatsEntry; CORE_COUNT]>);
+pub struct CoreStats(pub Box<[CoreStatsEntry; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(CoreStats, Box<[CoreStatsEntry; CORE_COUNT]>);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -220,5 +220,5 @@ pub struct ServiceStatsEntry {
 
 /// The service activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ServiceStats(HashMap<ServiceId, ServiceStatsEntry>);
+pub struct ServiceStats(pub HashMap<ServiceId, ServiceStatsEntry>);
 impl_jam_codec_for_newtype!(ServiceStats, HashMap<ServiceId, ServiceStatsEntry>);

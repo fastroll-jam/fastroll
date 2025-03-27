@@ -17,7 +17,7 @@ use rjam_transition::{
             transition_reports_update_entries,
         },
         safrole::transition_safrole,
-        statistics::transition_validator_stats,
+        statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
     },
@@ -207,10 +207,10 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
             .unwrap()
     });
 
-    // ValidatorStats STF
+    // OnChainStatistics STF
     let state_manager_cloned = state_manager.clone();
     let stats_jh = spawn_timed("stats_stf", async move {
-        transition_validator_stats(
+        transition_onchain_statistics(
             state_manager_cloned,
             epoch_progressed,
             author_index,
