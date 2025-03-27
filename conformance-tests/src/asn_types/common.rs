@@ -1057,19 +1057,18 @@ pub struct AsnStatistics {
 impl From<ValidatorStats> for AsnStatistics {
     fn from(value: ValidatorStats) -> Self {
         Self {
-            current: AsnActivityRecords::from(value.0[0].clone()),
-            last: AsnActivityRecords::from(value.0[1].clone()),
+            current: AsnActivityRecords::from(value.curr.clone()),
+            last: AsnActivityRecords::from(value.prev.clone()),
         }
     }
 }
 
 impl From<AsnStatistics> for ValidatorStats {
     fn from(value: AsnStatistics) -> Self {
-        let mut array = from_fn(|_| EpochValidatorStats::default());
-        array[0] = EpochValidatorStats::from(value.current);
-        array[1] = EpochValidatorStats::from(value.last);
-
-        Self(array)
+        Self {
+            curr: EpochValidatorStats::from(value.current),
+            prev: EpochValidatorStats::from(value.last),
+        }
     }
 }
 

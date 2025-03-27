@@ -12,6 +12,20 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+/// The on-chain activity statistics for validators, cores and services.
+/// Validator statistics is tracked in a per-epoch basis, whereas cores and services statistics is
+/// tracked in a per-block basis.
+///
+/// Represents `π` of the GP.
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct OnChainStatistics {
+    pub validator_stats: ValidatorStats,
+    /// `π_C`: Per-block core statistics.
+    pub core_stats: CoreStats,
+    /// `π_S`: Per-block service statistics.
+    pub service_stats: ServiceStats,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValidatorStatsEntry {
     /// `b`: The number of blocks produced by the validator.
@@ -112,22 +126,22 @@ impl EpochValidatorStats {
 /// The validator activities statistics recorded on-chain, on a per-epoch basis.
 ///
 /// It maintains two records:
-/// - The first entry accumulates statistics for the current epoch.
-/// - The second entry stores the statistics from the previous epoch.
-///
-/// Represents `π` of the GP.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ValidatorStats(pub [EpochValidatorStats; 2]);
-impl_jam_codec_for_newtype!(ValidatorStats, [EpochValidatorStats; 2]);
+/// - `curr` (`π_V`): Accumulates statistics for the current epoch.
+/// - `prev` (`π_L`): Stores the statistics from the previous epoch.
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct ValidatorStats {
+    pub curr: EpochValidatorStats,
+    pub prev: EpochValidatorStats,
+}
 impl_simple_state_component!(ValidatorStats, ValidatorStats);
 
 impl ValidatorStats {
     pub fn current_epoch_stats(&self) -> &EpochValidatorStats {
-        &self.0[0]
+        &self.curr
     }
 
     pub fn current_epoch_stats_mut(&mut self) -> &mut EpochValidatorStats {
-        &mut self.0[0]
+        &mut self.curr
     }
 
     pub fn current_epoch_validator_stats_mut(
@@ -139,19 +153,19 @@ impl ValidatorStats {
     }
 
     pub fn previous_epoch_stats(&self) -> &EpochValidatorStats {
-        &self.0[1]
+        &self.prev
     }
 
     pub fn replace_previous_epoch_stats(&mut self, new_epoch_stats: EpochValidatorStats) {
-        self.0[1] = new_epoch_stats
+        self.prev = new_epoch_stats
     }
 
     pub fn clear_current_epoch_stats(&mut self) {
-        self.0[0] = EpochValidatorStats::default()
+        self.curr = EpochValidatorStats::default()
     }
 }
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct CoreStatsEntry {
     /// `i`: The number of imported segments in the core.
     pub imports_count: u16,
@@ -172,10 +186,11 @@ pub struct CoreStatsEntry {
 }
 
 /// The core activities statistics recorded on-chain, on a per-block basis.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CoreStats(Box<[CoreStatsEntry; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(CoreStats, Box<[CoreStatsEntry; CORE_COUNT]>);
 
-#[derive(JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ServiceStatsEntry {
     /// `i`: The number of imported segments by the service.
     pub imports_count: u16,
@@ -204,5 +219,6 @@ pub struct ServiceStatsEntry {
 }
 
 /// The service activities statistics recorded on-chain, on a per-block basis.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ServiceStats(HashMap<ServiceId, ServiceStatsEntry>);
 impl_jam_codec_for_newtype!(ServiceStats, HashMap<ServiceId, ServiceStatsEntry>);
