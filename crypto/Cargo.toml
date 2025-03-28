@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 rjam-common = { workspace = true }
-ark-ec-vrfs = { workspace = true }
+ark-vrf = { workspace = true }
 blake2 = { workspace = true }
 ed25519-dalek = { workspace = true }
 hex = { workspace = true }

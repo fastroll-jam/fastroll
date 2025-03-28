@@ -1,6 +1,5 @@
 use crate::{CryptoError, IetfVrfSignature, RingVrfSignature};
-use ark_ec_vrfs::prelude::ark_serialize;
-use ark_serialize::CanonicalDeserialize;
+use ark_vrf::reexports::ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
 use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32};
 

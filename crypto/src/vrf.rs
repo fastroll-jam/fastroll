@@ -1,14 +1,17 @@
+//! # Attribution Notice
+//!
+//! This module is copied from the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec) repository.
 use crate::CryptoError;
-/// The following code originates from the `bandersnatch-vrfs-spec` repository.
-/// Source: `https://github.com/davxy/bandersnatch-vrfs-spec/tree/main`
-use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
-use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use bandersnatch::{IetfProof, Input, Output, Public, RingProof, Secret};
-use rjam_common::{BandersnatchRingVrfSignature, Hash32};
+use ark_vrf::{
+    reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
+    suites::bandersnatch,
+};
+use bandersnatch::{
+    BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
+};
+use rjam_common::{BandersnatchRingVrfSignature, Hash32, VALIDATOR_COUNT};
 
-// pub const RING_SIZE: usize = 1023;
-pub const RING_SIZE: usize = 6;
+pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct IetfVrfSignature {
@@ -47,10 +50,10 @@ impl RingVrfSignature {
     }
 }
 
-pub(crate) fn ring_context() -> &'static RingContext {
+pub(crate) fn ring_proof_params() -> &'static RingProofParams {
     use std::sync::OnceLock;
-    static RING_CTX: OnceLock<RingContext> = OnceLock::new();
-    RING_CTX.get_or_init(|| {
+    static PARAMS: OnceLock<RingProofParams> = OnceLock::new();
+    PARAMS.get_or_init(|| {
         use bandersnatch::PcsParams;
         use std::{fs::File, io::Read};
         let manifest_dir =
@@ -62,8 +65,8 @@ pub(crate) fn ring_context() -> &'static RingContext {
         let mut file = File::open(filename).unwrap();
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
-        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&buf[..]).unwrap();
-        RingContext::from_srs(RING_SIZE, pcs_params).unwrap()
+        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
+        RingProofParams::from_pcs_params(RING_SIZE, pcs_params).unwrap()
     })
 }
 
@@ -93,7 +96,7 @@ impl Prover {
     ///
     /// Returns 784-octet sequence.
     pub fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
-        use ark_ec_vrfs::ring::Prover as _;
+        use ark_vrf::ring::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
         let output = self.secret.output(input);
@@ -101,9 +104,9 @@ impl Prover {
         let pts: Vec<_> = self.ring.iter().map(|pk| pk.0).collect();
 
         // Proof construction
-        let ring_ctx = ring_context();
-        let prover_key = ring_ctx.prover_key(&pts);
-        let prover = ring_ctx.prover(prover_key, self.prover_idx);
+        let params = ring_proof_params();
+        let prover_key = params.prover_key(&pts);
+        let prover = params.prover(prover_key, self.prover_idx);
         let proof = self.secret.prove(input, output, aux_data, &prover);
 
         let signature = RingVrfSignature { output, proof };
@@ -119,7 +122,7 @@ impl Prover {
     ///
     /// Returns 96-octet sequence.
     pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
-        use ark_ec_vrfs::ietf::Prover as _;
+        use ark_vrf::ietf::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
         let output = self.secret.output(input);
@@ -132,7 +135,7 @@ impl Prover {
     }
 }
 
-pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
+pub type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
 
 /// Verifier actor (Ring and its commitment).
 pub struct Verifier {
@@ -143,7 +146,7 @@ pub struct Verifier {
 impl Verifier {
     pub fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
-        let verifier_key = ring_context().verifier_key(&pts);
+        let verifier_key = ring_proof_params().verifier_key(&pts);
         let commitment = verifier_key.commitment(); // The Ring Root
         Self { ring, commitment }
     }
@@ -159,17 +162,17 @@ impl Verifier {
         aux_data: &[u8],
         signature: &[u8],
     ) -> Result<[u8; 32], CryptoError> {
-        use ark_ec_vrfs::ring::Verifier as _;
+        use ark_vrf::ring::Verifier as _;
 
         let signature = RingVrfSignature::deserialize_compressed(signature).unwrap();
 
         let input = vrf_input_point(vrf_input_data);
         let output = signature.output; // extracted from the signature
 
-        let ring_ctx = ring_context();
+        let params = ring_proof_params();
 
-        let verifier_key = ring_ctx.verifier_key_from_commitment(self.commitment.clone());
-        let verifier = ring_ctx.verifier(verifier_key);
+        let verifier_key = params.verifier_key_from_commitment(self.commitment.clone());
+        let verifier = params.verifier(verifier_key);
         if Public::verify(input, output, aux_data, &signature.proof, &verifier).is_err() {
             println!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
@@ -195,7 +198,7 @@ impl Verifier {
         signature: &[u8],
         signer_key_index: usize,
     ) -> Result<[u8; 32], CryptoError> {
-        use ark_ec_vrfs::ietf::Verifier as _;
+        use ark_vrf::ietf::Verifier as _;
 
         let signature = IetfVrfSignature::deserialize_compressed(signature).unwrap();
 
