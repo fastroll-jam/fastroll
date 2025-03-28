@@ -1,8 +1,8 @@
 use crate::types::{
     AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
     AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-    DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
-    StagingSet, Timeslot, ValidatorStats,
+    DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports, PrivilegedServices,
+    SafroleState, StagingSet, Timeslot,
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
@@ -112,8 +112,8 @@ pub enum StateEntryType {
     Timeslot(Timeslot),
     /// `χ`: The privileged services.
     PrivilegedServices(PrivilegedServices),
-    /// `π`: The validator statistics.
-    ValidatorStats(ValidatorStats),
+    /// `π`: The on-chain statistics.
+    OnChainStatistics(OnChainStatistics),
     /// `θ`: The accumulate ready-queue.
     AccumulateQueue(AccumulateQueue),
     /// `ξ`: The accumulate history.
@@ -145,7 +145,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::PendingReports(inner) => inner.size_hint(),
             StateEntryType::Timeslot(inner) => inner.size_hint(),
             StateEntryType::PrivilegedServices(inner) => inner.size_hint(),
-            StateEntryType::ValidatorStats(inner) => inner.size_hint(),
+            StateEntryType::OnChainStatistics(inner) => inner.size_hint(),
             StateEntryType::AccumulateQueue(inner) => inner.size_hint(),
             StateEntryType::AccumulateHistory(inner) => inner.size_hint(),
             StateEntryType::AccountMetadata(inner) => inner.size_hint(),
@@ -170,7 +170,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::PendingReports(inner) => inner.encode_to(dest)?,
             StateEntryType::Timeslot(inner) => inner.encode_to(dest)?,
             StateEntryType::PrivilegedServices(inner) => inner.encode_to(dest)?,
-            StateEntryType::ValidatorStats(inner) => inner.encode_to(dest)?,
+            StateEntryType::OnChainStatistics(inner) => inner.encode_to(dest)?,
             StateEntryType::AccumulateQueue(inner) => inner.encode_to(dest)?,
             StateEntryType::AccumulateHistory(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountMetadata(inner) => inner.encode_to(dest)?,
@@ -198,7 +198,7 @@ pub enum StateKeyConstant {
     PendingReports = 10,     // ρ
     Timeslot = 11,           // τ
     PrivilegedServices = 12, // χ
-    ValidatorStats = 13,     // π
+    OnChainStatistics = 13,  // π
     AccumulateQueue = 14,    // θ
     AccumulateHistory = 15,  // ξ
     AccountMetadata = 255,   // δ (partial)
@@ -229,7 +229,7 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::PendingReports as u8),
     construct_state_key(StateKeyConstant::Timeslot as u8),
     construct_state_key(StateKeyConstant::PrivilegedServices as u8),
-    construct_state_key(StateKeyConstant::ValidatorStats as u8),
+    construct_state_key(StateKeyConstant::OnChainStatistics as u8),
     construct_state_key(StateKeyConstant::AccumulateQueue as u8),
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
 ];

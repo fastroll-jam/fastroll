@@ -156,7 +156,7 @@ impl BlockHeaderDB {
     fn header_extrinsic_hash(xt: &Extrinsics) -> Result<Hash32, BlockHeaderDBError> {
         let mut buf = vec![];
         hash::<Blake2b256>(&xt.tickets.encode()?)?.encode_to(&mut buf)?;
-        hash::<Blake2b256>(&xt.preimage_lookups.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&xt.preimages.encode()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&xt.guarantees.encode_with_hashed_reports()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&xt.assurances.encode()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&xt.disputes.encode()?)?.encode_to(&mut buf)?;

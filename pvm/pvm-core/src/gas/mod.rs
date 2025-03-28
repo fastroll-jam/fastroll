@@ -9,14 +9,10 @@ impl GasCharger {
         vm_state: &mut VMState,
         gas_charge: UnsignedGas,
     ) -> Result<SignedGas, VMCoreError> {
-        let gas_counter_signed: SignedGas = vm_state
-            .gas_counter
+        let gas_charge_signed: SignedGas = gas_charge
             .try_into()
-            .map_err(|_| VMCoreError::TooLargeGasCounter)?;
-        let post_gas = gas_counter_signed - gas_charge as SignedGas;
-
-        // Keep `gas_counter` of `VMState` as unsigned integer
-        vm_state.gas_counter = vm_state.gas_counter.saturating_sub(gas_charge);
-        Ok(post_gas)
+            .expect("Gas charge should fit in `SignedGas`");
+        vm_state.gas_counter -= gas_charge_signed;
+        Ok(vm_state.gas_counter)
     }
 }

@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
 use rjam_block::types::{
-    block::{Block, BlockHeader, EpochMarker},
+    block::{Block, BlockHeader, EpochMarker, EpochMarkerValidatorKey},
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
         disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
@@ -15,26 +14,25 @@ use rjam_block::types::{
     },
 };
 use rjam_common::{
+    ticket::Ticket,
     workloads::{
-        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefinementContext,
-        SegmentRootLookupTable,
+        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
+        ReportedWorkPackage, SegmentRootLookupTable,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
     },
     BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
-    Ed25519Signature, Hash32, Octets, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
+    Ed25519Signature, Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
     FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
 };
 use rjam_crypto::Hasher;
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-    BlockHistoryEntry, DisputesState, EpochEntropy, EpochValidatorStats, PendingReport,
-    PendingReports, PrivilegedServices, SlotSealerType, Timeslot, ValidatorStatEntry,
-    ValidatorStats,
+    BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochValidatorStats,
+    OnChainStatistics, PendingReport, PendingReports, PrivilegedServices, ServiceStats,
+    ServiceStatsEntry, SlotSealerType, Timeslot, ValidatorStats, ValidatorStatsEntry,
 };
-
-use rjam_common::{ticket::Ticket, workloads::ReportedWorkPackage};
 use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,
@@ -689,12 +687,46 @@ impl From<WorkExecutionOutput> for AsnWorkExecResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RefineLoad {
+    pub gas_used: u64,
+    pub imports: u16,
+    pub extrinsic_count: u16,
+    pub extrinsic_size: u32,
+    pub exports: u16,
+}
+
+impl From<RefineLoad> for RefineStats {
+    fn from(value: RefineLoad) -> Self {
+        Self {
+            refine_gas_used: value.gas_used,
+            imports_count: value.imports,
+            extrinsics_count: value.extrinsic_count,
+            extrinsics_octets: value.extrinsic_size,
+            exports_count: value.exports,
+        }
+    }
+}
+
+impl From<RefineStats> for RefineLoad {
+    fn from(value: RefineStats) -> Self {
+        Self {
+            gas_used: value.refine_gas_used,
+            imports: value.imports_count,
+            extrinsic_count: value.extrinsics_count,
+            extrinsic_size: value.extrinsics_octets,
+            exports: value.exports_count,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnWorkResult {
     pub service_id: u32,
     pub code_hash: AsnOpaqueHash,
     pub payload_hash: AsnOpaqueHash,
     pub accumulate_gas: u64,
     pub result: AsnWorkExecResult,
+    pub refine_load: RefineLoad,
 }
 
 impl From<AsnWorkResult> for WorkItemResult {
@@ -705,6 +737,7 @@ impl From<AsnWorkResult> for WorkItemResult {
             payload_hash: Hash32::from(value.payload_hash),
             gas_prioritization_ratio: value.accumulate_gas,
             refine_output: value.result.into(),
+            refine_stats: value.refine_load.into(),
         }
     }
 }
@@ -717,6 +750,7 @@ impl From<WorkItemResult> for AsnWorkResult {
             payload_hash: AsnOpaqueHash::from(value.payload_hash),
             accumulate_gas: value.gas_prioritization_ratio,
             result: value.refine_output.into(),
+            refine_load: value.refine_stats.into(),
         }
     }
 }
@@ -734,7 +768,7 @@ impl From<AsnWorkPackageSpec> for AvailSpecs {
     fn from(value: AsnWorkPackageSpec) -> Self {
         Self {
             work_package_hash: Hash32::from(value.hash),
-            work_package_length: value.length,
+            work_bundle_length: value.length,
             erasure_root: Hash32::from(value.erasure_root),
             segment_root: Hash32::from(value.exports_root),
             segment_count: value.exports_count,
@@ -746,7 +780,7 @@ impl From<AvailSpecs> for AsnWorkPackageSpec {
     fn from(value: AvailSpecs) -> Self {
         Self {
             hash: AsnOpaqueHash::from(value.work_package_hash),
-            length: value.work_package_length,
+            length: value.work_bundle_length,
             erasure_root: AsnOpaqueHash::from(value.erasure_root),
             exports_root: AsnOpaqueHash::from(value.segment_root),
             exports_count: value.segment_count,
@@ -811,6 +845,7 @@ pub struct AsnWorkReport {
     pub auth_output: AsnByteSequence,
     pub segment_root_lookup: AsnSegmentRootLookupTable,
     pub results: Vec<AsnWorkResult>, // SIZE(1..4)
+    pub auth_gas_used: u64,
 }
 
 impl From<AsnWorkReport> for WorkReport {
@@ -827,6 +862,7 @@ impl From<AsnWorkReport> for WorkReport {
                 .into_iter()
                 .map(WorkItemResult::from)
                 .collect(),
+            auth_gas_used: value.auth_gas_used,
         }
     }
 }
@@ -841,6 +877,7 @@ impl From<WorkReport> for AsnWorkReport {
             auth_output: AsnByteSequence::from(value.authorization_output),
             segment_root_lookup: value.segment_roots_lookup.into(),
             results: value.results.into_iter().map(AsnWorkResult::from).collect(),
+            auth_gas_used: value.auth_gas_used,
         }
     }
 }
@@ -962,8 +999,8 @@ pub struct AsnActivityRecord {
     pub assurances: u32,
 }
 
-impl From<ValidatorStatEntry> for AsnActivityRecord {
-    fn from(value: ValidatorStatEntry) -> Self {
+impl From<ValidatorStatsEntry> for AsnActivityRecord {
+    fn from(value: ValidatorStatsEntry) -> Self {
         Self {
             blocks: value.blocks_produced_count,
             tickets: value.tickets_count,
@@ -975,7 +1012,7 @@ impl From<ValidatorStatEntry> for AsnActivityRecord {
     }
 }
 
-impl From<AsnActivityRecord> for ValidatorStatEntry {
+impl From<AsnActivityRecord> for ValidatorStatsEntry {
     fn from(value: AsnActivityRecord) -> Self {
         Self {
             blocks_produced_count: value.blocks,
@@ -1003,36 +1040,194 @@ impl From<EpochValidatorStats> for AsnActivityRecords {
 
 impl From<AsnActivityRecords> for EpochValidatorStats {
     fn from(value: AsnActivityRecords) -> Self {
-        let mut stats = from_fn(|_| ValidatorStatEntry::default());
+        let mut stats = from_fn(|_| ValidatorStatsEntry::default());
         for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = ValidatorStatEntry::from(record);
+            stats[i] = ValidatorStatsEntry::from(record);
         }
         Self::new(Box::new(stats))
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnStatistics {
-    current: AsnActivityRecords,
-    last: AsnActivityRecords,
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+pub struct AsnCoreActivityRecord {
+    pub gas_used: u64,
+    pub imports: u16,
+    pub extrinsic_count: u16,
+    pub extrinsic_size: u32,
+    pub exports: u16,
+    pub bundle_size: u32,
+    pub da_load: u32,
+    pub popularity: u16,
 }
 
-impl From<ValidatorStats> for AsnStatistics {
-    fn from(value: ValidatorStats) -> Self {
+impl From<AsnCoreActivityRecord> for CoreStatsEntry {
+    fn from(value: AsnCoreActivityRecord) -> Self {
         Self {
-            current: AsnActivityRecords::from(value.0[0].clone()),
-            last: AsnActivityRecords::from(value.0[1].clone()),
+            refine_gas_used: value.gas_used,
+            imports_count: value.imports,
+            extrinsics_count: value.extrinsic_count,
+            extrinsics_octets: value.extrinsic_size,
+            exports_count: value.exports,
+            work_bundle_length: value.bundle_size,
+            da_items_size: value.da_load,
+            assurers_count: value.popularity,
         }
     }
 }
 
-impl From<AsnStatistics> for ValidatorStats {
-    fn from(value: AsnStatistics) -> Self {
-        let mut array = from_fn(|_| EpochValidatorStats::default());
-        array[0] = EpochValidatorStats::from(value.current);
-        array[1] = EpochValidatorStats::from(value.last);
+impl From<CoreStatsEntry> for AsnCoreActivityRecord {
+    fn from(value: CoreStatsEntry) -> Self {
+        Self {
+            gas_used: value.refine_gas_used,
+            imports: value.imports_count,
+            extrinsic_count: value.extrinsics_count,
+            extrinsic_size: value.extrinsics_octets,
+            exports: value.exports_count,
+            bundle_size: value.work_bundle_length,
+            da_load: value.da_items_size,
+            popularity: value.assurers_count,
+        }
+    }
+}
 
-        Self(array)
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnCoreActivityRecords([AsnCoreActivityRecord; ASN_CORE_COUNT]);
+
+impl From<AsnCoreActivityRecords> for CoreStats {
+    fn from(value: AsnCoreActivityRecords) -> Self {
+        let mut stats = from_fn(|_| CoreStatsEntry::default());
+        for (i, record) in value.0.into_iter().enumerate() {
+            stats[i] = CoreStatsEntry::from(record);
+        }
+        Self(Box::new(stats))
+    }
+}
+
+impl From<CoreStats> for AsnCoreActivityRecords {
+    fn from(value: CoreStats) -> Self {
+        let mut records = from_fn(|_| AsnCoreActivityRecord::default());
+        for (i, entry) in value.0.iter().enumerate() {
+            records[i] = AsnCoreActivityRecord::from(entry.clone());
+        }
+        Self(records)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnServiceActivityRecord {
+    pub provided_count: u16,
+    pub provided_size: u32,
+    pub refinement_count: u32,
+    pub refinement_gas_used: u64,
+    pub imports: u32,
+    pub extrinsic_count: u32,
+    pub extrinsic_size: u32,
+    pub exports: u32,
+    pub accumulate_count: u32,
+    pub accumulate_gas_used: u64,
+    pub on_transfers_count: u32,
+    pub on_transfers_gas_used: u64,
+}
+
+impl From<AsnServiceActivityRecord> for ServiceStatsEntry {
+    fn from(value: AsnServiceActivityRecord) -> Self {
+        Self {
+            preimage_xts_count: value.provided_count,
+            preimage_blob_size: value.provided_size,
+            work_item_results_count: value.refinement_count as u16,
+            refine_gas_used: value.refinement_gas_used,
+            imports_count: value.imports as u16,
+            extrinsics_count: value.extrinsic_count as u16,
+            extrinsics_octets: value.extrinsic_size,
+            exports_count: value.exports as u16,
+            accumulate_reports_count: value.accumulate_count,
+            accumulate_gas_used: value.accumulate_gas_used,
+            on_transfer_transfers_count: value.on_transfers_count,
+            on_transfer_gas_used: value.on_transfers_gas_used,
+        }
+    }
+}
+
+impl From<ServiceStatsEntry> for AsnServiceActivityRecord {
+    fn from(value: ServiceStatsEntry) -> Self {
+        Self {
+            provided_count: value.preimage_xts_count,
+            provided_size: value.preimage_blob_size,
+            refinement_count: value.work_item_results_count as u32,
+            refinement_gas_used: value.refine_gas_used,
+            imports: value.imports_count as u32,
+            extrinsic_count: value.extrinsics_count as u32,
+            extrinsic_size: value.extrinsics_octets,
+            exports: value.exports_count as u32,
+            accumulate_count: value.accumulate_reports_count,
+            accumulate_gas_used: value.accumulate_gas_used,
+            on_transfers_count: value.on_transfer_transfers_count,
+            on_transfers_gas_used: value.on_transfer_gas_used,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct AsnServiceActivityRecordMapEntry {
+    id: AsnServiceId,
+    record: AsnServiceActivityRecord,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnServiceActivityRecords(Vec<AsnServiceActivityRecordMapEntry>);
+
+impl From<AsnServiceActivityRecords> for ServiceStats {
+    fn from(value: AsnServiceActivityRecords) -> Self {
+        let mut stats = HashMap::new();
+        for entry in value.0 {
+            stats.insert(entry.id as ServiceId, ServiceStatsEntry::from(entry.record));
+        }
+        Self(stats)
+    }
+}
+
+impl From<ServiceStats> for AsnServiceActivityRecords {
+    fn from(value: ServiceStats) -> Self {
+        let mut items = Vec::new();
+        value.0.into_iter().for_each(|(id, stats_entry)| {
+            items.push(AsnServiceActivityRecordMapEntry {
+                id,
+                record: AsnServiceActivityRecord::from(stats_entry),
+            })
+        });
+        Self(items)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnStatistics {
+    vals_current: AsnActivityRecords,
+    vals_last: AsnActivityRecords,
+    cores: AsnCoreActivityRecords,
+    services: AsnServiceActivityRecords,
+}
+
+impl From<OnChainStatistics> for AsnStatistics {
+    fn from(value: OnChainStatistics) -> Self {
+        Self {
+            vals_current: AsnActivityRecords::from(value.validator_stats.curr.clone()),
+            vals_last: AsnActivityRecords::from(value.validator_stats.prev.clone()),
+            cores: AsnCoreActivityRecords::from(value.core_stats.clone()),
+            services: AsnServiceActivityRecords::from(value.service_stats.clone()),
+        }
+    }
+}
+
+impl From<AsnStatistics> for OnChainStatistics {
+    fn from(value: AsnStatistics) -> Self {
+        Self {
+            validator_stats: ValidatorStats {
+                curr: EpochValidatorStats::from(value.vals_current),
+                prev: EpochValidatorStats::from(value.vals_last),
+            },
+            core_stats: CoreStats::from(value.cores),
+            service_stats: ServiceStats::from(value.services),
+        }
     }
 }
 
@@ -1743,17 +1938,41 @@ pub type AccumulateRoot = AsnOpaqueHash;
 // ----------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnEpochMarkValidatorKeys {
+    pub bandersnatch: AsnBandersnatchKey,
+    pub ed25519: AsnEd25519Key,
+}
+
+impl From<AsnEpochMarkValidatorKeys> for EpochMarkerValidatorKey {
+    fn from(value: AsnEpochMarkValidatorKeys) -> Self {
+        Self {
+            bandersnatch_key: BandersnatchPubKey::from(value.bandersnatch),
+            ed25519_key: Ed25519PubKey::from(value.ed25519),
+        }
+    }
+}
+
+impl From<EpochMarkerValidatorKey> for AsnEpochMarkValidatorKeys {
+    fn from(value: EpochMarkerValidatorKey) -> Self {
+        Self {
+            bandersnatch: AsnBandersnatchKey::from(value.bandersnatch_key),
+            ed25519: AsnEd25519Key::from(value.ed25519_key),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnEpochMark {
     pub entropy: AsnOpaqueHash,
     pub tickets_entropy: AsnOpaqueHash,
-    pub validators: Vec<AsnBandersnatchKey>, // SIZE(validators-count)
+    pub validators: Vec<AsnEpochMarkValidatorKeys>, // SIZE(validators-count)
 }
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = [BandersnatchPubKey::default(); VALIDATOR_COUNT];
+        let mut validators_array = [EpochMarkerValidatorKey::default(); VALIDATOR_COUNT];
         for (i, key) in value.validators.into_iter().enumerate() {
-            validators_array[i] = BandersnatchPubKey::from(key);
+            validators_array[i] = EpochMarkerValidatorKey::from(key);
         }
         Self {
             entropy: Hash32::from(value.entropy),
@@ -1771,7 +1990,7 @@ impl From<EpochMarker> for AsnEpochMark {
             validators: marker
                 .validators
                 .into_iter()
-                .map(AsnBandersnatchKey::from)
+                .map(AsnEpochMarkValidatorKeys::from)
                 .collect(),
         }
     }
@@ -1867,7 +2086,7 @@ impl From<AsnExtrinsic> for Extrinsics {
         Self {
             tickets: value.tickets.into(),
             disputes: value.disputes.into(),
-            preimage_lookups: value.preimages.into(),
+            preimages: value.preimages.into(),
             assurances: value.assurances.into(),
             guarantees: value.guarantees.into(),
         }
@@ -1879,7 +2098,7 @@ impl From<Extrinsics> for AsnExtrinsic {
         Self {
             tickets: value.tickets.into(),
             disputes: value.disputes.into(),
-            preimages: value.preimage_lookups.into(),
+            preimages: value.preimages.into(),
             assurances: value.assurances.into(),
             guarantees: value.guarantees.into(),
         }

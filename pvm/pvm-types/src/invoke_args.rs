@@ -50,14 +50,18 @@ pub struct RefineInvokeArgs {
 
 #[derive(Clone, JamEncode)]
 pub struct AccumulateOperand {
-    /// **`o`**: Work output (`refine_output` of `WorkItemResult`)
-    pub work_output: WorkExecutionOutput,
-    /// `l`: Work output payload hash (`payload_hash` of `WorkItemResult`)
-    pub work_output_payload_hash: Hash32,
-    /// `k`: Work package hash (`work_package_hash` or `AvailSpecs`)
+    /// `h`: Work package hash (`work_package_hash` of `AvailSpecs`)
     pub work_package_hash: Hash32,
-    /// **`a`**: Authorization output (`authorization_output` of `WorReport`)
+    /// `e`: Work report segment root (`segment_root` of `AvailSpecs`)
+    pub segment_root: Hash32,
+    /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
+    pub authorizer_hash: Hash32,
+    /// **`o`**: Authorization output (`authorization_output` of `WorReport`)
     pub authorization_output: Vec<u8>,
+    /// `y`: Work item payload hash (`payload_hash` of `WorkItemResult`)
+    pub work_item_payload_hash: Hash32,
+    /// **`d`**: Work output (`refine_output` of `WorkItemResult`)
+    pub work_output: WorkExecutionOutput,
 }
 
 #[derive(Clone, JamEncode)]

@@ -1,7 +1,7 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{
     workloads::{WorkExecutionOutput, WorkPackage},
-    CoreIndex, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
+    CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
 };
 use rjam_pvm_host::context::InvocationContext;
 use rjam_pvm_interface::{
@@ -20,6 +20,20 @@ pub struct IsAuthorizedArgs {
     pub core_index: CoreIndex,
 }
 
+pub struct IsAuthorizedResult {
+    pub gas_used: UnsignedGas,
+    pub work_execution_output: WorkExecutionOutput,
+}
+
+impl From<PVMInvocationResult> for IsAuthorizedResult {
+    fn from(result: PVMInvocationResult) -> Self {
+        Self {
+            gas_used: result.gas_used,
+            work_execution_output: WorkExecutionOutput::from(result.output),
+        }
+    }
+}
+
 pub struct IsAuthorizedInvocation;
 impl IsAuthorizedInvocation {
     /// IsAuthorized invocation function
@@ -33,7 +47,7 @@ impl IsAuthorizedInvocation {
     pub async fn is_authorized(
         state_manager: Arc<StateManager>,
         args: &IsAuthorizedArgs,
-    ) -> Result<WorkExecutionOutput, PVMError> {
+    ) -> Result<IsAuthorizedResult, PVMError> {
         // retrieve the service account code via historical lookup
         let Some(account_code) = state_manager
             .get_account_code_by_lookup(
@@ -44,7 +58,10 @@ impl IsAuthorizedInvocation {
             .await?
         else {
             // failed to get the `is_authorized` code from the service account
-            return Ok(WorkExecutionOutput::bad());
+            return Ok(IsAuthorizedResult {
+                gas_used: 0,
+                work_execution_output: WorkExecutionOutput::bad(),
+            });
         };
 
         let result = PVMInterface::invoke_with_args(
@@ -58,11 +75,6 @@ impl IsAuthorizedInvocation {
         )
         .await?;
 
-        match result {
-            PVMInvocationResult::OutOfGas(_) => Ok(WorkExecutionOutput::out_of_gas()),
-            PVMInvocationResult::Panic(_) => Ok(WorkExecutionOutput::panic()),
-            PVMInvocationResult::Result(output) => Ok(WorkExecutionOutput::ok(output)),
-            PVMInvocationResult::ResultUnavailable => Ok(WorkExecutionOutput::ok_empty()),
-        }
+        Ok(IsAuthorizedResult::from(result))
     }
 }

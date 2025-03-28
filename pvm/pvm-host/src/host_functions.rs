@@ -7,9 +7,9 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Hash32, Octets, ServiceId, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
-    WORK_PACKAGE_MANIFEST_SIZE_LIMIT,
+    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT,
+    HASH_SIZE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE,
+    VALIDATOR_COUNT, WORK_PACKAGE_MANIFEST_SIZE_LIMIT,
 };
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
@@ -158,7 +158,8 @@ impl HostFunction {
     /// for executing this instruction.
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-        let gas_remaining = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
+        let gas_remaining =
+            (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
         continue_with_vm_change!(r7: gas_remaining)
     }
 
@@ -529,7 +530,7 @@ impl HostFunction {
 
         // If execution of this function results in `ExitReason::OutOfGas`,
         // returns zero value for the remaining gas limit.
-        let post_gas = vm.gas_counter.saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
+        let post_gas = (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
         continue_with_vm_change!(r7: post_gas)
     }
 
@@ -1441,7 +1442,9 @@ impl HostFunction {
             regs,
             memory: inner_vm_mut.memory.clone(),
             pc: inner_vm_mut.pc,
-            gas_counter: gas_limit,
+            gas_counter: gas_limit
+                .try_into()
+                .expect("Gas limit should fit in `SignedGas`"),
         };
         let inner_vm_program_code = &inner_vm_mut.program_code.clone();
         let mut inner_vm_program_state = ProgramState::default();
@@ -1458,9 +1461,7 @@ impl HostFunction {
 
         // 112-byte mem write
         let mut host_buf = vec![];
-        inner_vm_state_copy
-            .gas_counter
-            .encode_to_fixed(&mut host_buf, 8)?;
+        (inner_vm_state_copy.gas_counter as UnsignedGas).encode_to_fixed(&mut host_buf, 8)?;
         for reg in inner_vm_state_copy.regs {
             reg.value.encode_to_fixed(&mut host_buf, 8)?;
         }

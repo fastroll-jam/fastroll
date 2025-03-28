@@ -1,5 +1,5 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
-use rjam_common::{Balance, ServiceId};
+use rjam_common::{Balance, ServiceId, UnsignedGas};
 use rjam_pvm_host::{
     context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
     error::HostCallError::InvalidContext,
@@ -30,6 +30,7 @@ struct OnTransferVMArgs {
 
 #[derive(Default)]
 pub struct OnTransferResult {
+    pub gas_used: UnsignedGas,
     pub balance_change_set: Option<BalanceChangeSet>,
     pub recipient_sandbox: Option<AccountSandbox>,
 }
@@ -39,6 +40,7 @@ impl OnTransferResult {
         recipient: ServiceId,
         added_amount: Balance,
         recipient_sandbox: Option<AccountSandbox>,
+        gas_used: UnsignedGas,
     ) -> Self {
         let balance_change_set = if added_amount > 0 {
             Some(BalanceChangeSet {
@@ -50,6 +52,7 @@ impl OnTransferResult {
         };
 
         Self {
+            gas_used,
             balance_change_set,
             recipient_sandbox,
         }
@@ -92,7 +95,7 @@ impl OnTransferInvocation {
         let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination).await?;
         let mut on_transfer_ctx = InvocationContext::X_T(ctx);
 
-        let _ = PVMInterface::invoke_with_args(
+        let result = PVMInterface::invoke_with_args(
             state_manager.clone(),
             args.destination,
             account_code.code(),
@@ -120,6 +123,7 @@ impl OnTransferInvocation {
             args.destination,
             total_amount,
             recipient_sandbox,
+            result.gas_used,
         ))
     }
 }

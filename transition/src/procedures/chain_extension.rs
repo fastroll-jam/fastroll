@@ -8,10 +8,10 @@ use crate::{
     },
 };
 use rjam_block::types::{
-    block::{BlockHeader, EpochMarker, WinningTicketsMarker},
+    block::{BlockHeader, EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use rjam_common::{BandersnatchPubKey, ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use rjam_common::{ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use rjam_crypto::entropy_hash_ietf_vrf;
 use rjam_state::{
     manager::StateManager,
@@ -89,7 +89,7 @@ pub async fn mark_safrole_header_markers(
         Some(EpochMarker {
             entropy: current_entropy.first_history(), // FIXME: update to `current()`
             tickets_entropy: current_entropy.second_history(), // FIXME: update to `first_history()`
-            validators: extract_bandersnatch_keys(&current_pending_set),
+            validators: extract_epoch_marker_keys(&current_pending_set),
         })
     } else {
         None
@@ -112,14 +112,15 @@ pub async fn mark_safrole_header_markers(
     })
 }
 
-fn extract_bandersnatch_keys(
+fn extract_epoch_marker_keys(
     validator_set: &ValidatorKeySet,
-) -> Box<[BandersnatchPubKey; VALIDATOR_COUNT]> {
-    let mut result = Box::new([BandersnatchPubKey::default(); VALIDATOR_COUNT]);
-
+) -> Box<[EpochMarkerValidatorKey; VALIDATOR_COUNT]> {
+    let mut result = Box::new([EpochMarkerValidatorKey::default(); VALIDATOR_COUNT]);
     for (index, validator) in validator_set.iter().enumerate() {
-        result[index] = validator.bandersnatch_key;
+        result[index] = EpochMarkerValidatorKey {
+            bandersnatch_key: validator.bandersnatch_key,
+            ed25519_key: validator.ed25519_key,
+        }
     }
-
     result
 }

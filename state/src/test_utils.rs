@@ -4,8 +4,8 @@ use crate::{
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-        DisputesState, EpochEntropy, PastSet, PendingReports, PrivilegedServices, SafroleState,
-        StagingSet, Timeslot, ValidatorStats,
+        DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
+        PrivilegedServices, SafroleState, StagingSet, Timeslot,
     },
 };
 use rand::{thread_rng, Rng};
@@ -85,7 +85,7 @@ pub async fn add_all_simple_state_entries(
     let reports = PendingReports::default();
     let timeslot = Timeslot::default();
     let privileges = PrivilegedServices::default();
-    let validator_stats = ValidatorStats::default();
+    let onchain_statistics = OnChainStatistics::default();
     let accumulate_queue = AccumulateQueue::default();
     let accumulate_history = AccumulateHistory::default();
 
@@ -101,7 +101,9 @@ pub async fn add_all_simple_state_entries(
     state_manager.add_pending_reports(reports).await?;
     state_manager.add_timeslot(timeslot).await?;
     state_manager.add_privileged_services(privileges).await?;
-    state_manager.add_validator_stats(validator_stats).await?;
+    state_manager
+        .add_onchain_statistics(onchain_statistics)
+        .await?;
     state_manager.add_accumulate_queue(accumulate_queue).await?;
     state_manager
         .add_accumulate_history(accumulate_history)
@@ -198,9 +200,9 @@ pub async fn compare_all_simple_state_cache_and_db(
         .await?
     );
     assert!(
-        compare_cache_and_db::<ValidatorStats>(
+        compare_cache_and_db::<OnChainStatistics>(
             state_manager,
-            &get_simple_state_key(StateKeyConstant::ValidatorStats)
+            &get_simple_state_key(StateKeyConstant::OnChainStatistics)
         )
         .await?
     );

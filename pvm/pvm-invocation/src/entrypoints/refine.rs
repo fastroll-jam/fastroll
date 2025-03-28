@@ -1,7 +1,7 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{
     workloads::{RefinementContext, WorkExecutionOutput},
-    Hash32, Octets, ServiceId, MAX_SERVICE_CODE_SIZE,
+    Hash32, Octets, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE,
 };
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_host::{
@@ -10,7 +10,7 @@ use rjam_pvm_host::{
 };
 use rjam_pvm_interface::{
     error::PVMError,
-    invoke::{PVMInterface, PVMInvocationResult},
+    invoke::{PVMInterface, PVMInvocationOutput},
 };
 use rjam_pvm_types::{
     common::ExportDataSegment, constants::REFINE_INITIAL_PC, invoke_args::RefineInvokeArgs,
@@ -34,20 +34,27 @@ struct RefineVMArgs {
 }
 
 pub struct RefineResult {
+    pub gas_used: UnsignedGas,
     pub output: WorkExecutionOutput,
     pub export_segments: Vec<ExportDataSegment>,
 }
 
 impl RefineResult {
-    pub fn ok(output: Vec<u8>, export_segments: Vec<ExportDataSegment>) -> Self {
+    pub fn ok(
+        gas_used: UnsignedGas,
+        output: Vec<u8>,
+        export_segments: Vec<ExportDataSegment>,
+    ) -> Self {
         Self {
+            gas_used,
             output: WorkExecutionOutput::Output(Octets::from_vec(output)),
             export_segments,
         }
     }
 
-    pub fn ok_empty(export_segments: Vec<ExportDataSegment>) -> Self {
+    pub fn ok_empty(gas_used: UnsignedGas, export_segments: Vec<ExportDataSegment>) -> Self {
         Self {
+            gas_used,
             output: WorkExecutionOutput::ok_empty(),
             export_segments,
         }
@@ -55,6 +62,7 @@ impl RefineResult {
 
     pub fn bad() -> Self {
         Self {
+            gas_used: 0,
             output: WorkExecutionOutput::bad(),
             export_segments: vec![],
         }
@@ -62,20 +70,23 @@ impl RefineResult {
 
     pub fn big() -> Self {
         Self {
+            gas_used: 0,
             output: WorkExecutionOutput::big(),
             export_segments: vec![],
         }
     }
 
-    pub fn out_of_gas() -> Self {
+    pub fn out_of_gas(gas_used: UnsignedGas) -> Self {
         Self {
+            gas_used,
             output: WorkExecutionOutput::out_of_gas(),
             export_segments: vec![],
         }
     }
 
-    pub fn panic() -> Self {
+    pub fn panic(gas_used: UnsignedGas) -> Self {
         Self {
+            gas_used,
             output: WorkExecutionOutput::panic(),
             export_segments: vec![],
         }
@@ -152,11 +163,15 @@ impl RefineInvocation {
             return Err(PVMError::HostCallError(InvalidContext));
         };
 
-        match result {
-            PVMInvocationResult::Result(output) => Ok(RefineResult::ok(output, export_segments)),
-            PVMInvocationResult::ResultUnavailable => Ok(RefineResult::ok_empty(export_segments)),
-            PVMInvocationResult::OutOfGas(_) => Ok(RefineResult::out_of_gas()),
-            PVMInvocationResult::Panic(_) => Ok(RefineResult::panic()),
+        match result.output {
+            PVMInvocationOutput::Output(output) => {
+                Ok(RefineResult::ok(result.gas_used, output, export_segments))
+            }
+            PVMInvocationOutput::OutputUnavailable => {
+                Ok(RefineResult::ok_empty(result.gas_used, export_segments))
+            }
+            PVMInvocationOutput::OutOfGas(_) => Ok(RefineResult::out_of_gas(result.gas_used)),
+            PVMInvocationOutput::Panic(_) => Ok(RefineResult::panic(result.gas_used)),
         }
     }
 }

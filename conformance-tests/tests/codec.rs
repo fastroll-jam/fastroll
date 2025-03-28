@@ -22,7 +22,7 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    const PATH_PREFIX: &str = "jamtestvectors/codec/data";
+    const PATH_PREFIX: &str = "jamtestvectors-polkajam/codec/data";
 
     pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {
         let mut file = File::open(path)?;
