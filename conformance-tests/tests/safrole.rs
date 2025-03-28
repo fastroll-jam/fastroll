@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 //! Safrole state transition conformance tests
 mod tests {
     use async_trait::async_trait;
