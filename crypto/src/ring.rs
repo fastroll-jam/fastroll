@@ -1,9 +1,8 @@
 use crate::{CryptoError, RingCommitment, Verifier};
-use ark_ec_vrfs::{
-    codec::point_decode, reexports::ark_serialize::CanonicalSerialize, ring::RingContext,
-    suites::bandersnatch,
+use ark_vrf::{
+    codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
-use bandersnatch::{BandersnatchSha512Ell2, Public};
+use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
 use rjam_common::{BandersnatchRingRoot, ValidatorKeySet};
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
@@ -40,9 +39,7 @@ pub fn validator_set_to_bandersnatch_ring(
                 public_keys.push(Public::from(decoded_point));
             }
             Err(_) => {
-                public_keys.push(Public::from(
-                    RingContext::<BandersnatchSha512Ell2>::padding_point(),
-                ));
+                public_keys.push(Public::from(RingProofParams::padding_point()));
             } // Use the padding point if the decoding fails.
         };
     });
