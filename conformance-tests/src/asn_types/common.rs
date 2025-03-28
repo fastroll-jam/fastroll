@@ -2086,7 +2086,7 @@ impl From<AsnExtrinsic> for Extrinsics {
         Self {
             tickets: value.tickets.into(),
             disputes: value.disputes.into(),
-            preimage_lookups: value.preimages.into(),
+            preimages: value.preimages.into(),
             assurances: value.assurances.into(),
             guarantees: value.guarantees.into(),
         }
@@ -2098,7 +2098,7 @@ impl From<Extrinsics> for AsnExtrinsic {
         Self {
             tickets: value.tickets.into(),
             disputes: value.disputes.into(),
-            preimages: value.preimage_lookups.into(),
+            preimages: value.preimages.into(),
             assurances: value.assurances.into(),
             guarantees: value.guarantees.into(),
         }

@@ -50,7 +50,7 @@ pub trait XtEntry: JamEncode + JamDecode {
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Extrinsics {
     pub tickets: TicketsXt,
-    pub preimage_lookups: PreimagesXt,
+    pub preimages: PreimagesXt,
     pub guarantees: GuaranteesXt,
     pub assurances: AssurancesXt,
     pub disputes: DisputesXt,

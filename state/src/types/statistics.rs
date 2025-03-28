@@ -2,11 +2,15 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
+use rjam_block::types::extrinsics::preimages::PreimagesXtEntry;
 use rjam_codec::{
     impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamDecodeFixed, JamEncode,
     JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT, VALIDATOR_COUNT};
+use rjam_common::{
+    workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
+    VALIDATOR_COUNT,
+};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -185,10 +189,26 @@ pub struct CoreStatsEntry {
     pub assurers_count: u16,
 }
 
+impl CoreStatsEntry {
+    pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
+        self.imports_count += refine_stats.imports_count;
+        self.extrinsics_count += refine_stats.extrinsics_count;
+        self.extrinsics_octets += refine_stats.extrinsics_octets;
+        self.exports_count += refine_stats.exports_count;
+        self.refine_gas_used += refine_stats.refine_gas_used;
+    }
+}
+
 /// The core activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CoreStats(pub Box<[CoreStatsEntry; CORE_COUNT]>);
 impl_jam_codec_for_newtype!(CoreStats, Box<[CoreStatsEntry; CORE_COUNT]>);
+
+impl CoreStats {
+    pub fn core_stats_entry_mut(&mut self, core_index: CoreIndex) -> &mut CoreStatsEntry {
+        &mut self.0[core_index as usize]
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ServiceStatsEntry {
@@ -218,7 +238,29 @@ pub struct ServiceStatsEntry {
     pub on_transfer_gas_used: UnsignedGas,
 }
 
+impl ServiceStatsEntry {
+    pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
+        self.imports_count += refine_stats.imports_count;
+        self.extrinsics_count += refine_stats.extrinsics_count;
+        self.extrinsics_octets += refine_stats.extrinsics_octets;
+        self.exports_count += refine_stats.exports_count;
+        self.refine_gas_used += refine_stats.refine_gas_used;
+        self.work_item_results_count += 1;
+    }
+
+    pub fn add_preimage_load(&mut self, preimage: &PreimagesXtEntry) {
+        self.preimage_xts_count += 1;
+        self.preimage_blob_size += preimage.preimage_data.len() as u32
+    }
+}
+
 /// The service activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ServiceStats(pub HashMap<ServiceId, ServiceStatsEntry>);
 impl_jam_codec_for_newtype!(ServiceStats, HashMap<ServiceId, ServiceStatsEntry>);
+
+impl ServiceStats {
+    pub fn service_stats_entry_mut(&mut self, service_id: ServiceId) -> &mut ServiceStatsEntry {
+        self.0.entry(service_id).or_default()
+    }
+}

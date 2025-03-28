@@ -1,23 +1,35 @@
 use crate::invoke_results::AccumulationGasPairs;
 use rjam_common::{workloads::WorkReport, ServiceId, UnsignedGas};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 pub type OnTransferStats = HashMap<ServiceId, OnTransferStatsEntry>;
 
+#[derive(Default)]
 pub struct OnTransferStatsEntry {
     pub transfers_count: u32,
     pub gas_used: UnsignedGas,
 }
 
-#[allow(dead_code)]
-struct AccumulateStatsEntry {
-    gas_used: UnsignedGas,
-    reports_count: u32,
+#[derive(Default)]
+pub struct AccumulateStatsEntry {
+    pub gas_used: UnsignedGas,
+    pub reports_count: u32,
 }
 
-#[allow(dead_code)]
+#[derive(Default)]
 pub struct AccumulateStats {
     inner: HashMap<ServiceId, AccumulateStatsEntry>,
+}
+
+impl Deref for AccumulateStats {
+    type Target = HashMap<ServiceId, AccumulateStatsEntry>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl AccumulateStats {

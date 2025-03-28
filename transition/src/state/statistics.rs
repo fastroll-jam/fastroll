@@ -1,7 +1,17 @@
 use crate::error::TransitionError;
-use rjam_block::types::extrinsics::Extrinsics;
-use rjam_common::{get_validator_ed25519_key_by_index, ValidatorIndex};
-use rjam_state::{cache::StateMut, manager::StateManager};
+use rjam_block::types::extrinsics::{
+    assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
+};
+use rjam_common::{
+    get_validator_ed25519_key_by_index, workloads::WorkReport, CoreIndex, ValidatorIndex,
+    SEGMENT_SIZE,
+};
+use rjam_pvm_types::stats::{AccumulateStats, OnTransferStats};
+use rjam_state::{
+    cache::StateMut,
+    manager::StateManager,
+    types::{CoreStats, ServiceStats},
+};
 use std::sync::Arc;
 
 /// State transition function of `OnChainStatistics`
@@ -16,7 +26,22 @@ pub async fn transition_onchain_statistics(
     }
 
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
-    handle_validator_stats_accumulation(state_manager, header_block_author_index, xts).await?;
+    handle_validator_stats_accumulation(state_manager.clone(), header_block_author_index, xts)
+        .await?;
+    // FIXME: Available reports, accumulate stats and on-transfer stats should be passes as args of the stats STF.
+    let available_reports: Vec<WorkReport> = Vec::new();
+    let accumulate_stats: AccumulateStats = AccumulateStats::default();
+    let on_transfer_stats: OnTransferStats = OnTransferStats::default();
+    handle_per_block_transition(
+        state_manager,
+        &xts.assurances,
+        &xts.guarantees,
+        &xts.preimages,
+        &available_reports,
+        &accumulate_stats,
+        &on_transfer_stats,
+    )
+    .await?;
 
     Ok(())
 }
@@ -54,9 +79,9 @@ async fn handle_validator_stats_accumulation(
 
             current_epoch_author_stats.blocks_produced_count += 1;
             current_epoch_author_stats.tickets_count += xts.tickets.len() as u32;
-            current_epoch_author_stats.preimages_count += xts.preimage_lookups.len() as u32;
+            current_epoch_author_stats.preimages_count += xts.preimages.len() as u32;
             current_epoch_author_stats.preimage_data_octets_count +=
-                xts.preimage_lookups.total_preimage_data_len() as u32;
+                xts.preimages.total_preimage_data_len() as u32;
 
             for (validator_index, validator_stats) in stats
                 .validator_stats
@@ -88,6 +113,66 @@ async fn handle_validator_stats_accumulation(
                 }
             }
         })
+        .await?;
+
+    Ok(())
+}
+
+async fn handle_per_block_transition(
+    state_manager: Arc<StateManager>,
+    assurances: &AssurancesXt,
+    guarantees: &GuaranteesXt,
+    preimages: &PreimagesXt,
+    available_reports: &[WorkReport],
+    accumulate_stats: &AccumulateStats,
+    on_transfer_stats: &OnTransferStats,
+) -> Result<(), TransitionError> {
+    // Update core stats
+    let mut core_stats = CoreStats::default();
+    for report in guarantees.extract_work_reports() {
+        let entry = core_stats.core_stats_entry_mut(report.core_index);
+        entry.work_bundle_length += report.specs.work_bundle_length;
+        for result in report.results {
+            entry.accumulate_refine_stats(&result.refine_stats);
+        }
+    }
+    for report in available_reports {
+        let entry = core_stats.core_stats_entry_mut(report.core_index);
+        entry.da_items_size += report.specs.work_bundle_length
+            + SEGMENT_SIZE as u32 * 65 * (report.specs.segment_count as u32).div_ceil(64);
+    }
+    for (i, count) in assurances.cores_assurances_counts().iter().enumerate() {
+        let entry = core_stats.core_stats_entry_mut(i as CoreIndex);
+        entry.assurers_count = *count as u16;
+    }
+
+    // Update service stats
+    let mut service_stats = ServiceStats::default();
+    for result in guarantees
+        .extract_work_reports()
+        .into_iter()
+        .flat_map(|wr| wr.results)
+    {
+        let entry = service_stats.service_stats_entry_mut(result.service_id);
+        entry.accumulate_refine_stats(&result.refine_stats);
+    }
+    for preimage in &preimages.items {
+        let entry = service_stats.service_stats_entry_mut(preimage.service_id);
+        entry.add_preimage_load(preimage)
+    }
+    for (service_id, stats_entry) in accumulate_stats.iter() {
+        let entry = service_stats.service_stats_entry_mut(*service_id);
+        entry.accumulate_gas_used += stats_entry.gas_used;
+        entry.accumulate_reports_count += stats_entry.reports_count;
+    }
+    for (service_id, stats_entry) in on_transfer_stats.iter() {
+        let entry = service_stats.service_stats_entry_mut(*service_id);
+        entry.on_transfer_transfers_count += stats_entry.transfers_count;
+        entry.on_transfer_gas_used += stats_entry.gas_used;
+    }
+
+    state_manager
+        .with_mut_onchain_statistics(StateMut::Update, |stats| stats.core_stats = core_stats)
         .await?;
 
     Ok(())

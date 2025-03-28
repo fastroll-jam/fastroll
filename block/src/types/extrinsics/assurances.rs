@@ -32,20 +32,24 @@ impl AssurancesXt {
     /// Aggregates core indices whose availability is assured by more than two-thirds of the
     /// total validators.
     pub fn available_core_indices(&self) -> Vec<CoreIndex> {
-        let assurance_counts = self.iter().fold(vec![0; CORE_COUNT], |mut counts, entry| {
+        self.cores_assurances_counts()
+            .into_iter()
+            .enumerate()
+            .filter(|(_, assurance_count)| *assurance_count >= VALIDATORS_SUPER_MAJORITY)
+            .map(|(i, _)| i as CoreIndex)
+            .collect()
+    }
+
+    /// Returns the number of assurances a core received within the collection of extrinsics.
+    pub fn cores_assurances_counts(&self) -> Vec<usize> {
+        self.iter().fold(vec![0; CORE_COUNT], |mut counts, entry| {
             entry
                 .assuring_cores_bitvec
                 .iter()
                 .enumerate()
                 .for_each(|(i, assured)| counts[i] += assured as usize);
             counts
-        });
-        assurance_counts
-            .into_iter()
-            .enumerate()
-            .filter(|(_, assurance_count)| *assurance_count >= VALIDATORS_SUPER_MAJORITY)
-            .map(|(i, _)| i as CoreIndex)
-            .collect()
+        })
     }
 }
 
