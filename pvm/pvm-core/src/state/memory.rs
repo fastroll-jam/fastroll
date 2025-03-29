@@ -392,11 +392,12 @@ impl Memory {
     }
 
     /// Get the break address (end of the heap) of current memory layout
-    pub fn get_break(&self, expand_size: usize) -> Result<MemAddress, MemoryError> {
+    pub fn get_break(&self, _expand_size: usize) -> Result<MemAddress, MemoryError> {
         // the area between heap and the stack start should be inaccessible
-        if self.is_address_range_readable(self.heap_end, expand_size)? {
-            return Err(MemoryError::InvalidSbrk(self.heap_end, expand_size));
-        }
+        // FIXME: `sbrk` lacks padding, breaking page access check.
+        // if self.is_address_range_readable(self.heap_end, expand_size)? {
+        //     return Err(MemoryError::InvalidSbrk(self.heap_end, expand_size));
+        // }
         Ok(self.heap_end)
     }
 
