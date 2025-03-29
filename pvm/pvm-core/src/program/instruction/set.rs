@@ -979,14 +979,11 @@ impl InstructionSet {
         })
     }
 
-    /// System break (allocate memory)
+    /// System break (allocate heap memory)
     ///
-    /// Expands heap memory to the area which is between the end of the current heap padding area
-    /// and the start of the stack area, which were initially inaccessible.
+    /// Expands the heap memory by the requested size.
     ///
-    /// This instruction directly mutates the VM memory state unlike other instructions
-    ///
-    /// Note: might be replaced or modified.
+    /// Note: this instruction directly mutates the VM memory state unlike other instructions.
     ///
     /// Opcode: 101
     pub fn sbrk(
@@ -994,13 +991,13 @@ impl InstructionSet {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        let requested_size = vm_state.read_rs1(ins)? as usize;
+        let expand_size = vm_state.read_rs1(ins)? as usize;
 
-        // find the first sequence of unavailable memory cells that can satisfy the request
-        let alloc_start = vm_state.memory.get_break(requested_size)?;
+        // find the first sequence of inaccessible memory cells that can satisfy the requested size
+        let alloc_start = vm_state.memory.get_break(expand_size)?;
 
         // try expanding the heap area
-        vm_state.memory.expand_heap(alloc_start, requested_size)?;
+        vm_state.memory.expand_heap(alloc_start, expand_size)?;
 
         // returns the start of the newly allocated heap memory
         Ok(SingleStepResult {

@@ -71,6 +71,7 @@ impl PVM {
         memory.set_address_range_access(w_start..w_padding_end, AccessType::ReadWrite)?;
         memory.write_bytes(w_start, &fp.heap_data)?;
         memory.heap_start = w_start;
+        memory.heap_end = w_padding_end;
 
         // Stack (s)
         let s_start = ((1 << 32)
@@ -79,6 +80,7 @@ impl PVM {
             - VMUtils::page_align(fp.stack_size as usize)) as MemAddress;
         let s_end = ((1 << 32) - 2 * INIT_ZONE_SIZE - INIT_INPUT_SIZE) as MemAddress;
         memory.set_address_range_access(s_start..s_end, AccessType::ReadWrite)?;
+        memory.stack_start = s_start;
 
         // Arguments (a)
         let a_start = ((1 << 32) - INIT_ZONE_SIZE - INIT_INPUT_SIZE) as MemAddress;
