@@ -38,7 +38,6 @@ impl AccumulateStats {
         gas_pairs: &AccumulationGasPairs,
     ) -> Self {
         let mut inner = HashMap::new();
-        let service_ids = gas_pairs.iter().map(|e| e.service).collect::<HashSet<_>>();
         let service_reports_counts: HashMap<ServiceId, usize> = reports
             .iter()
             .flat_map(|wr| wr.results.clone())
@@ -53,6 +52,11 @@ impl AccumulateStats {
                 *service_gas_count += pair.gas;
                 map
             });
+        let service_ids: HashSet<ServiceId> = service_reports_counts
+            .keys()
+            .cloned()
+            .chain(service_gas_counts.keys().cloned())
+            .collect();
 
         for service_id in service_ids {
             inner.insert(

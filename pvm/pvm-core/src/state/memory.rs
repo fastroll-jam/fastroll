@@ -12,6 +12,10 @@ pub enum MemoryError {
     PageNotInitialized(usize),
     #[error("Memory access violation: (address: {0})")]
     AccessViolation(MemAddress),
+    #[error("Heap stack collision occurred during SBRK. Break: {0}, Requested Size: {1}, Stack Start: {2}")]
+    SbrkHeapStackCollision(MemAddress, usize, MemAddress),
+    #[error("Tried to SBRK to already allocated memory. Heap End: {0}, Requested Size: {1}")]
+    InvalidSbrk(MemAddress, usize),
 }
 
 /// Memory Cell Access Types
@@ -97,6 +101,8 @@ pub struct Memory {
     page_size: usize,
     total_pages: usize,
     pub heap_start: MemAddress,
+    pub heap_end: MemAddress,
+    pub stack_start: MemAddress,
 }
 
 impl Default for Memory {
@@ -110,6 +116,8 @@ impl Default for Memory {
             page_size: PAGE_SIZE,
             total_pages: 0,
             heap_start: 0,
+            heap_end: 0,
+            stack_start: 0,
         }
     }
 }
@@ -123,6 +131,8 @@ impl Memory {
             page_size,
             total_pages,
             heap_start: 0,
+            heap_end: 0,
+            stack_start: 0,
         }
     }
 
@@ -227,7 +237,10 @@ impl Memory {
 
     /// Check if a range of memory pages is readable
     pub fn is_page_range_readable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
-        for page_index in page_range {
+        if page_range.is_empty() {
+            return Ok(false);
+        }
+        for page_index in page_range.clone() {
             if !self.is_page_readable(page_index)? {
                 return Ok(false);
             }
@@ -241,12 +254,12 @@ impl Memory {
         start: MemAddress,
         length: usize,
     ) -> Result<bool, MemoryError> {
+        if length == 0 {
+            return Ok(false);
+        }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
-
-        self.is_page_range_readable(start_page..end_page + 1)?;
-
-        Ok(true)
+        self.is_page_range_readable(start_page..end_page + 1)
     }
 
     /// Check if a memory page is writable
@@ -283,6 +296,9 @@ impl Memory {
 
     /// Check if a range of memory pages is writable
     pub fn is_page_range_writable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
+        if page_range.is_empty() {
+            return Ok(false);
+        }
         for page_index in page_range {
             if !self.is_page_writable(page_index)? {
                 return Ok(false);
@@ -297,11 +313,13 @@ impl Memory {
         start: MemAddress,
         length: usize,
     ) -> Result<bool, MemoryError> {
+        if length == 0 {
+            return Ok(false);
+        }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
 
-        self.check_not_writable_in_range(start_page..end_page + 1)?;
-        Ok(true)
+        self.is_page_range_writable(start_page..end_page + 1)
     }
 
     /// Read a byte from a memory cell at the given address
@@ -374,12 +392,27 @@ impl Memory {
     }
 
     /// Get the break address (end of the heap) of current memory layout
-    pub fn get_break(&self, _requested_size: usize) -> Result<MemAddress, MemoryError> {
-        todo!()
+    pub fn get_break(&self, _expand_size: usize) -> Result<MemAddress, MemoryError> {
+        // the area between heap and the stack start should be inaccessible
+        // FIXME: `sbrk` lacks padding, breaking page access check.
+        // if self.is_address_range_readable(self.heap_end, expand_size)? {
+        //     return Err(MemoryError::InvalidSbrk(self.heap_end, expand_size));
+        // }
+        Ok(self.heap_end)
     }
 
     /// Expand the heap area for the `sbrk` instruction
-    pub fn expand_heap(&mut self, _start: MemAddress, _size: usize) -> Result<(), MemoryError> {
-        todo!()
+    pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
+        let end = start + size as MemAddress;
+        if self.heap_start != 0 && end >= self.stack_start {
+            return Err(MemoryError::SbrkHeapStackCollision(
+                start,
+                size,
+                self.stack_start,
+            ));
+        }
+        self.set_address_range_access(start..end, AccessType::ReadWrite)?;
+        self.heap_end = end;
+        Ok(())
     }
 }

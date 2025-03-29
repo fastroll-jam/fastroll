@@ -188,6 +188,7 @@ impl AccumulateHostContext {
                 timeslot,
             )
             .await?,
+            accumulate_host,
             partial_state,
             ..Default::default()
         })
