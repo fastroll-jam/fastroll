@@ -1,7 +1,7 @@
 [package]
 name = "rjam-pvm-host"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 rjam-codec = { workspace = true }
