@@ -1,6 +1,6 @@
 //! Accumulate state transition conformance tests
 #![allow(unused_imports)]
-mod tests {
+mod accumulate {
     use async_trait::async_trait;
     use futures::future::join_all;
     use rjam_block::header_db::BlockHeaderDB;

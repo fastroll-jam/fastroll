@@ -1,5 +1,5 @@
 //! JAM Codec conformance tests
-mod tests {
+mod codec {
     use rjam_block::types::{
         block::{Block, BlockHeader},
         extrinsics::{

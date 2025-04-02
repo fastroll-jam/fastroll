@@ -23,7 +23,7 @@ jobs:
       - name: Install nextest
         run: cargo install cargo-nextest --locked
       - name: Run tests
-        run: cargo nextest run --workspace
+        run: cargo nextest run --workspace --profile ci
 
   fmt:
     name: Format

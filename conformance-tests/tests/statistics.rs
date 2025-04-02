@@ -1,5 +1,5 @@
 //! Statistics state transition conformance tests
-mod test {
+mod statistics {
     use async_trait::async_trait;
     use rjam_block::{header_db::BlockHeaderDB, types::extrinsics::Extrinsics};
     use rjam_conformance_tests::{

@@ -1,5 +1,5 @@
 //! Block history state transition conformance tests
-mod tests {
+mod history {
     use async_trait::async_trait;
     use rjam_block::header_db::BlockHeaderDB;
     use rjam_common::{workloads::ReportedWorkPackage, Hash32};

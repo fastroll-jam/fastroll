@@ -1,5 +1,5 @@
 //! Preimages state transition conformance tests
-mod tests {
+mod preimages {
     use async_trait::async_trait;
     use futures::future::join_all;
     use rjam_block::header_db::BlockHeaderDB;

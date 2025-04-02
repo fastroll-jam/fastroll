@@ -1,5 +1,5 @@
 //! Fisher-Yates Shuffle function conformance tests
-mod tests {
+mod shuffle {
     use rjam_common::Hash32;
     use rjam_extrinsics::utils::shuffle::shuffle_with_hash;
     use serde::{Deserialize, Serialize};
