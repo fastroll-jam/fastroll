@@ -1,0 +1,19 @@
+[test-groups]
+accumulate = { max-threads = 2 }
+accumulate-ci = { max-threads = 1 }
+others = { max-threads = "num-cpus" }
+
+[[profile.default.overrides]]
+filter = 'test(accumulate)'
+test-group = 'accumulate'
+
+[[profile.default.overrides]]
+filter = 'not (test(accumulate))'
+test-group = 'others'
+
+[profile.ci]
+fail-fast = false
+
+[[profile.ci.overrides]]
+filter = 'test(accumulate)'
+test-group = 'accumulate-ci'
