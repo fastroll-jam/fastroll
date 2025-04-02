@@ -1,5 +1,5 @@
 //! Safrole state transition conformance tests
-mod tests {
+mod safrole {
     use async_trait::async_trait;
     use rjam_block::{
         header_db::BlockHeaderDB,
