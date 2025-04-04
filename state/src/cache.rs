@@ -131,21 +131,20 @@ impl StateCache {
             .inner
             .get_mut(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
-        if let Some(entry_mut) = T::from_entry_type_mut(&mut cache_entry.value) {
-            f(entry_mut); // Call the closure to apply the state mutation
 
-            // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
-            // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
-            // they get committed to the db.
-            if cache_entry.status != CacheEntryStatus::Dirty(StateMut::Add)
-                || state_mut != StateMut::Update
-            {
-                cache_entry.mark_dirty(state_mut)
-            }
-            Ok(())
-        } else {
-            Err(StateManagerError::UnexpectedEntryType)
+        let entry_mut = T::from_entry_type_mut(&mut cache_entry.value)
+            .ok_or(StateManagerError::UnexpectedEntryType)?;
+        f(entry_mut); // Call the closure to apply the state mutation
+
+        // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
+        // keep the entry marked with `StateMut::Add`. This allows mutating new entries before
+        // they get committed to the db.
+        if cache_entry.status != CacheEntryStatus::Dirty(StateMut::Add)
+            || state_mut != StateMut::Update
+        {
+            cache_entry.mark_dirty(state_mut)
         }
+        Ok(())
     }
 
     pub(crate) fn mark_entry_clean_and_snapshot(

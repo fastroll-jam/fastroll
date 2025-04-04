@@ -101,10 +101,8 @@ impl<'a> AssurancesXtValidator<'a> {
 
         let current_active_set = self.state_manager.get_active_set().await?;
         let assurer_public_key =
-            match get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index) {
-                Some(key) => key,
-                None => return Err(XtError::InvalidValidatorIndex),
-            };
+            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
+                .ok_or(XtError::InvalidValidatorIndex)?;
 
         if !verify_signature(&message, assurer_public_key, &entry.signature) {
             return Err(XtError::InvalidAssuranceSignature(entry.validator_index));

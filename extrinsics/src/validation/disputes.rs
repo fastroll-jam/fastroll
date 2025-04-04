@@ -216,10 +216,8 @@ impl<'a> DisputesXtValidator<'a> {
             };
 
             let voter_public_key =
-                match get_validator_ed25519_key_by_index(&validator_set, judgment.voter) {
-                    Some(key) => key,
-                    None => return Err(XtError::InvalidValidatorIndex),
-                };
+                get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
+                    .ok_or(XtError::InvalidValidatorIndex)?;
 
             if !verify_signature(message, voter_public_key, &judgment.voter_signature) {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));

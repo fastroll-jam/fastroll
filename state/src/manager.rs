@@ -98,20 +98,19 @@ impl StateManager {
         new_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be updated
-        match self.get_raw_state_entry_from_db(state_key).await? {
-            Some(old_state) => {
-                self.cache.insert_entry(
-                    *state_key,
-                    CacheEntry {
-                        clean_snapshot: StateEntryType::Raw(old_state),
-                        value: StateEntryType::Raw(new_val),
-                        status: CacheEntryStatus::Dirty(StateMut::Update),
-                    },
-                );
-                Ok(())
-            }
-            None => Err(StateManagerError::StateKeyNotInitialized),
-        }
+        let old_state = self
+            .get_raw_state_entry_from_db(state_key)
+            .await?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
+        self.cache.insert_entry(
+            *state_key,
+            CacheEntry {
+                clean_snapshot: StateEntryType::Raw(old_state),
+                value: StateEntryType::Raw(new_val),
+                status: CacheEntryStatus::Dirty(StateMut::Update),
+            },
+        );
+        Ok(())
     }
 
     pub async fn remove_raw_state_entry(
@@ -119,20 +118,19 @@ impl StateManager {
         state_key: &Hash32,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be removed
-        match self.get_raw_state_entry_from_db(state_key).await? {
-            Some(old_state) => {
-                self.cache.insert_entry(
-                    *state_key,
-                    CacheEntry {
-                        value: StateEntryType::Raw(vec![]),
-                        clean_snapshot: StateEntryType::Raw(old_state),
-                        status: CacheEntryStatus::Dirty(StateMut::Remove),
-                    },
-                );
-                Ok(())
-            }
-            None => Err(StateManagerError::StateKeyNotInitialized),
-        }
+        let old_state = self
+            .get_raw_state_entry_from_db(state_key)
+            .await?
+            .ok_or(StateManagerError::StateKeyNotInitialized)?;
+        self.cache.insert_entry(
+            *state_key,
+            CacheEntry {
+                value: StateEntryType::Raw(vec![]),
+                clean_snapshot: StateEntryType::Raw(old_state),
+                status: CacheEntryStatus::Dirty(StateMut::Remove),
+            },
+        );
+        Ok(())
     }
 
     fn get_clean_cache_snapshot_as_state<T>(
@@ -217,10 +215,10 @@ impl StateManager {
         &self,
         service_id: ServiceId,
     ) -> Result<Option<Hash32>, StateManagerError> {
-        match self.get_account_metadata(service_id).await? {
-            Some(metadata) => Ok(Some(metadata.code_hash)),
-            None => Ok(None),
-        }
+        Ok(self
+            .get_account_metadata(service_id)
+            .await?
+            .map(|metadata| metadata.code_hash))
     }
 
     /// Retrieves service account code (preimage of the code hash)
@@ -232,12 +230,11 @@ impl StateManager {
         &self,
         service_id: ServiceId,
     ) -> Result<Option<AccountCode>, StateManagerError> {
-        let code_hash = match self.get_account_metadata(service_id).await? {
-            Some(metadata) => metadata.code_hash,
-            None => return Ok(None),
+        let Some(metadata) = self.get_account_metadata(service_id).await? else {
+            return Ok(None);
         };
         let code_preimage = self
-            .get_account_preimages_entry(service_id, &code_hash)
+            .get_account_preimages_entry(service_id, &metadata.code_hash)
             .await?;
         Ok(code_preimage
             .map(|code| AccountCode::decode(&mut code.value.as_slice()))

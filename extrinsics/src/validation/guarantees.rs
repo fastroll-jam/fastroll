@@ -332,7 +332,6 @@ impl<'a> GuaranteesXtValidator<'a> {
                     anchor_hash.encode_hex(),
                 ));
             }
-
             if entry
                 .accumulation_result_mmr
                 .super_peak()
@@ -462,13 +461,12 @@ impl<'a> GuaranteesXtValidator<'a> {
         let guarantor_assignment = self
             .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
             .await?;
-        let guarantor_public_key = match get_validator_ed25519_key_by_index(
+
+        let guarantor_public_key = get_validator_ed25519_key_by_index(
             &guarantor_assignment.validator_keys,
             credential.validator_index,
-        ) {
-            Some(key) => key,
-            None => return Err(XtError::InvalidValidatorIndex),
-        };
+        )
+        .ok_or(XtError::InvalidValidatorIndex)?;
 
         if !verify_signature(&message, guarantor_public_key, &credential.signature) {
             return Err(XtError::InvalidGuaranteesSignature(

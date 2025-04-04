@@ -71,14 +71,8 @@ impl<'a> PreimagesXtValidator<'a> {
             .get_account_lookups_entry(service_id, lookups_key)
             .await?
         {
-            Some(entry) => {
-                if !entry.value.is_empty() {
-                    return Err(XtError::PreimageNotSolicited(service_id));
-                }
-            }
-            None => return Err(XtError::PreimageNotSolicited(service_id)),
+            Some(entry) if entry.value.is_empty() => Ok(()),
+            _ => Err(XtError::PreimageNotSolicited(service_id)),
         }
-
-        Ok(())
     }
 }
