@@ -325,14 +325,12 @@ impl Memory {
     /// Read a byte from a memory cell at the given address
     pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
         let (page_index, offset) = self.get_page_and_offset(address);
-        if let Some(page) = self.get_page(page_index)? {
-            page.read_byte(offset)
-        } else {
-            // Inaccessible page
-            Err(MemoryError::AccessViolation(mem_address(
+        let page = self
+            .get_page(page_index)?
+            .ok_or(MemoryError::AccessViolation(mem_address(
                 page_index, offset,
-            )))
-        }
+            )))?;
+        page.read_byte(offset)
     }
 
     /// Read a specified number of bytes from memory starting at the given address
@@ -355,14 +353,12 @@ impl Memory {
     /// Write a byte to a memory cell at the given address
     pub fn write_byte(&mut self, address: MemAddress, value: u8) -> Result<(), MemoryError> {
         let (page_index, offset) = self.get_page_and_offset(address);
-        if let Some(page) = self.get_page_mut(page_index)? {
-            page.write_byte(offset, value)
-        } else {
-            // Inaccessible page
-            Err(MemoryError::AccessViolation(mem_address(
+        let page = self
+            .get_page_mut(page_index)?
+            .ok_or(MemoryError::AccessViolation(mem_address(
                 page_index, offset,
-            )))
-        }
+            )))?;
+        page.write_byte(offset, value)
     }
 
     /// Write a slice of bytes to memory starting at the given address
