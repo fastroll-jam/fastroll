@@ -1,3 +1,4 @@
+use crate::utils::VMUtils;
 use rjam_pvm_types::{common::MemAddress, constants::PAGE_SIZE};
 use std::{collections::HashMap, fmt::Display, ops::Range};
 use thiserror::Error;
@@ -388,18 +389,18 @@ impl Memory {
     }
 
     /// Get the break address (end of the heap) of current memory layout
-    pub fn get_break(&self, _expand_size: usize) -> Result<MemAddress, MemoryError> {
+    pub fn get_break(&self, expand_size: usize) -> Result<MemAddress, MemoryError> {
         // the area between heap and the stack start should be inaccessible
-        // FIXME: `sbrk` lacks padding, breaking page access check.
-        // if self.is_address_range_readable(self.heap_end, expand_size)? {
-        //     return Err(MemoryError::InvalidSbrk(self.heap_end, expand_size));
-        // }
+        if self.is_address_range_readable(self.heap_end, expand_size)? {
+            return Err(MemoryError::InvalidSbrk(self.heap_end, expand_size));
+        }
         Ok(self.heap_end)
     }
 
     /// Expand the heap area for the `sbrk` instruction
     pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
-        let end = start + size as MemAddress;
+        let page_aligned_size = VMUtils::page_align(size);
+        let end = start + page_aligned_size as MemAddress;
         if self.heap_start != 0 && end >= self.stack_start {
             return Err(MemoryError::SbrkHeapStackCollision(
                 start,
