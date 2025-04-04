@@ -209,10 +209,10 @@ impl MerkleDB {
         // println!("\n----- Retrieval");
         let state_key_bv = bits_encode_msb(state_key.as_slice());
 
-        let mut current_node = match self.get_node(&self.root()).await? {
-            Some(node) => node,
-            None => return Ok(None),
-        }; // initialize with the root node
+        // initialize with the root node
+        let Some(mut current_node) = self.get_node(&self.root()).await? else {
+            return Ok(None);
+        };
 
         // `b` determines the next sub-trie to traverse (0 for left and 1 for right)
         for b in &state_key_bv {
@@ -222,10 +222,10 @@ impl MerkleDB {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
                     let child_hash = if b { right } else { left };
                     // print_node(&Some(current_node.clone()), self).await;
-                    current_node = match self.get_node(&child_hash).await? {
-                        Some(node) => node,
-                        None => return Ok(None),
+                    let Some(node) = self.get_node(&child_hash).await? else {
+                        return Ok(None);
                     };
+                    current_node = node;
                 }
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
@@ -282,12 +282,11 @@ impl MerkleDB {
     ) -> Result<(), StateMerkleError> {
         // Initialize local state variables
         let state_key_bv = bits_encode_msb(state_key.as_slice());
-        let mut current_node = match self
+        let Some(mut current_node) = self
             .get_node_with_working_set(&self.root_with_working_set())
             .await?
-        {
-            Some(node) => node,
-            None => return Ok(()),
+        else {
+            return Ok(());
         };
 
         // Accumulator for bits of the state key bitvec. Represents the partial merkle path
@@ -370,10 +369,11 @@ impl MerkleDB {
                         }));
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
-                    current_node = match self.get_node_with_working_set(child_hash).await? {
-                        Some(node) => node,
-                        None => return Ok(()), // TODO: This implies pollution
+                    let Some(node) = self.get_node_with_working_set(child_hash).await? else {
+                        // TODO: This implies pollution
+                        return Ok(());
                     };
+                    current_node = node;
                 }
                 NodeType::Leaf(_) => {
                     // If `write_op` is `Update` or `Remove`, check the state key encoded in the node
