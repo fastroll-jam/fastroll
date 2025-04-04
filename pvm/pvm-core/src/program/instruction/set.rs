@@ -108,20 +108,21 @@ impl InstructionSet {
         }
 
         let aligned_index = (a / JUMP_ALIGNMENT) - 1;
+        let &target = program_state
+            .jump_table
+            .get(aligned_index)
+            .ok_or(VMCoreError::JumpTableOutOfBounds(aligned_index))?;
 
-        match program_state.jump_table.get(aligned_index) {
-            Some(&target)
-                if program_state
-                    .basic_block_start_indices
-                    .contains(&(target as usize)) =>
-            {
-                Ok((ExitReason::Continue, target))
-            }
-            Some(_) => Ok((
+        if program_state
+            .basic_block_start_indices
+            .contains(&(target as usize))
+        {
+            Ok((ExitReason::Continue, target))
+        } else {
+            Ok((
                 ExitReason::Panic,
                 reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
-            )),
-            None => Err(VMCoreError::JumpTableOutOfBounds(aligned_index)),
+            ))
         }
     }
 
