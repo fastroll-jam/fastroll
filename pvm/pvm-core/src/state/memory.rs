@@ -19,7 +19,7 @@ pub enum MemoryError {
     InvalidSbrk(MemAddress, usize),
 }
 
-/// Memory Cell Access Types
+/// Memory Cell Access Types.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum AccessType {
     #[default]
@@ -98,7 +98,7 @@ impl MemoryPage {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Memory {
-    pages: HashMap<usize, MemoryPage>, // (page index, page)
+    pages: HashMap<usize, MemoryPage>,
     page_size: usize,
     total_pages: usize,
     pub heap_start: MemAddress,
@@ -162,7 +162,7 @@ impl Memory {
         Ok(self.pages.get_mut(&page_index))
     }
 
-    /// Initializes and sets the access type for the memory page at the given index
+    /// Initializes and sets the access type for the memory page at the given index.
     fn set_page_access(
         &mut self,
         page_index: usize,
@@ -179,7 +179,7 @@ impl Memory {
         Ok(())
     }
 
-    /// Initializes and sets the access type for the memory pages for the given range
+    /// Initializes and sets the access type for the memory pages for the given range.
     pub fn set_page_range_access(
         &mut self,
         page_range: Range<usize>,
@@ -194,7 +194,7 @@ impl Memory {
         Ok(())
     }
 
-    /// Initializes and sets the access type for the memory pages for the given address range
+    /// Initializes and sets the access type for the memory pages for the given address range.
     pub fn set_address_range_access(
         &mut self,
         address_range: Range<MemAddress>,
@@ -210,7 +210,7 @@ impl Memory {
         Ok(())
     }
 
-    /// Check if a memory page is readable
+    /// Check if a memory page is readable.
     fn is_page_readable(&self, page_index: usize) -> Result<bool, MemoryError> {
         self.validate_page_index_bound(page_index)?;
         let page = match self.get_page(page_index) {
@@ -220,7 +220,7 @@ impl Memory {
         Ok(page.access == AccessType::ReadOnly || page.access == AccessType::ReadWrite)
     }
 
-    /// Check if a memory cell at the given address is in a readable page
+    /// Check if a memory cell at the given address is in a readable page.
     #[allow(dead_code)]
     fn is_address_readable(&self, address: MemAddress) -> Result<bool, MemoryError> {
         let (page_index, _) = self.get_page_and_offset(address);
@@ -242,7 +242,7 @@ impl Memory {
         Ok(None)
     }
 
-    /// Check if a range of memory pages is readable
+    /// Check if a range of memory pages is readable.
     pub fn is_page_range_readable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
         if page_range.is_empty() {
             return Ok(false);
@@ -255,7 +255,7 @@ impl Memory {
         Ok(true)
     }
 
-    /// Check if a range of memory cells is readable
+    /// Check if a range of memory cells is readable.
     pub fn is_address_range_readable(
         &self,
         start: MemAddress,
@@ -269,7 +269,7 @@ impl Memory {
         self.is_page_range_readable(start_page..end_page + 1)
     }
 
-    /// Check if a memory page is writable
+    /// Check if a memory page is writable.
     fn is_page_writable(&self, page_index: usize) -> Result<bool, MemoryError> {
         self.validate_page_index_bound(page_index)?;
         let page = match self.get_page(page_index) {
@@ -279,7 +279,7 @@ impl Memory {
         Ok(page.access == AccessType::ReadWrite)
     }
 
-    /// Check if a memory cell at the given address is in a writable page
+    /// Check if a memory cell at the given address is in a writable page.
     #[allow(dead_code)]
     fn is_address_writable(&self, address: MemAddress) -> Result<bool, MemoryError> {
         let (page_index, _) = self.get_page_and_offset(address);
@@ -301,7 +301,7 @@ impl Memory {
         Ok(None)
     }
 
-    /// Check if a range of memory pages is writable
+    /// Check if a range of memory pages is writable.
     pub fn is_page_range_writable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
         if page_range.is_empty() {
             return Ok(false);
@@ -314,7 +314,7 @@ impl Memory {
         Ok(true)
     }
 
-    /// Check if a range of memory cells is writable
+    /// Check if a range of memory cells is writable.
     pub fn is_address_range_writable(
         &self,
         start: MemAddress,
@@ -329,7 +329,7 @@ impl Memory {
         self.is_page_range_writable(start_page..end_page + 1)
     }
 
-    /// Read a byte from a memory cell at the given address
+    /// Read a byte from a memory cell at the given address.
     pub fn read_byte(&self, address: MemAddress) -> Result<u8, MemoryError> {
         let (page_index, offset) = self.get_page_and_offset(address);
         let page = self
@@ -340,7 +340,7 @@ impl Memory {
         page.read_byte(offset)
     }
 
-    /// Read a specified number of bytes from memory starting at the given address
+    /// Read a specified number of bytes from memory starting at the given address.
     pub fn read_bytes(&self, address: MemAddress, length: usize) -> Result<Vec<u8>, MemoryError> {
         if length == 0 {
             return Ok(Vec::new());
@@ -357,7 +357,7 @@ impl Memory {
         }
     }
 
-    /// Write a byte to a memory cell at the given address
+    /// Write a byte to a memory cell at the given address.
     pub fn write_byte(&mut self, address: MemAddress, value: u8) -> Result<(), MemoryError> {
         let (page_index, offset) = self.get_page_and_offset(address);
         let page = self
@@ -368,7 +368,7 @@ impl Memory {
         page.write_byte(offset, value)
     }
 
-    /// Write a slice of bytes to memory starting at the given address
+    /// Write a slice of bytes to memory starting at the given address.
     pub fn write_bytes(
         &mut self,
         start_address: MemAddress,
@@ -394,7 +394,7 @@ impl Memory {
         }
     }
 
-    /// Get the break address (end of the heap) of current memory layout
+    /// Get the break address (end of the heap) of current memory layout.
     pub fn get_break(&self, expand_size: usize) -> Result<MemAddress, MemoryError> {
         // the area between heap and the stack start should be inaccessible
         if self.is_address_range_readable(self.heap_end, expand_size)? {
@@ -403,7 +403,7 @@ impl Memory {
         Ok(self.heap_end)
     }
 
-    /// Expand the heap area for the `sbrk` instruction
+    /// Expand the heap area for the `sbrk` instruction.
     pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
         let end = VMUtils::page_align(start as usize + size) as MemAddress;
         if self.heap_start != 0 && end >= self.stack_start {
