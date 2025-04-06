@@ -61,7 +61,7 @@ proc-macro2 = "1.0.86"
 quote = "1.0.37"
 rand = "0.8.5"
 rocksdb = { version = "0.23.0", features = ["default"] }
-serde = { version = "1.0.216", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 sha3 = "0.10.8"
 syn = { version = "2.0.79", features = ["full", "extra-traits"] }
 tempfile = "3.14.0"
