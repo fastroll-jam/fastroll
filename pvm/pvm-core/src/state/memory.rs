@@ -405,8 +405,7 @@ impl Memory {
 
     /// Expand the heap area for the `sbrk` instruction
     pub fn expand_heap(&mut self, start: MemAddress, size: usize) -> Result<(), MemoryError> {
-        let page_aligned_size = VMUtils::page_align(size);
-        let end = start + page_aligned_size as MemAddress;
+        let end = VMUtils::page_align(start as usize + size) as MemAddress;
         if self.heap_start != 0 && end >= self.stack_start {
             return Err(MemoryError::SbrkHeapStackCollision(
                 start,
