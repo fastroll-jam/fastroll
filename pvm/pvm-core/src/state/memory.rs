@@ -185,6 +185,9 @@ impl Memory {
         page_range: Range<usize>,
         access: AccessType,
     ) -> Result<(), MemoryError> {
+        if page_range.is_empty() {
+            return Ok(());
+        }
         for page_index in page_range {
             self.set_page_access(page_index, access)?;
         }
@@ -197,6 +200,9 @@ impl Memory {
         address_range: Range<MemAddress>,
         access: AccessType,
     ) -> Result<(), MemoryError> {
+        if address_range.is_empty() {
+            return Ok(());
+        }
         let (start_page_index, _) = self.get_page_and_offset(address_range.start);
         let (end_page_index, _) = self.get_page_and_offset(address_range.end - 1);
 
@@ -222,8 +228,8 @@ impl Memory {
     }
 
     /// Returns the lowest memory address that is not readable, if found any.
-    /// If all pages in the range is writable, returns `None`.
-    pub fn check_not_readable_in_range(
+    /// If all pages in the range is readable, returns `None`.
+    fn check_not_readable_in_range(
         &self,
         page_range: Range<usize>,
     ) -> Result<Option<MemAddress>, MemoryError> {
@@ -282,7 +288,7 @@ impl Memory {
 
     /// Returns the lowest memory address that is not writable, if found any.
     /// If all pages in the range is writable, returns `None`.
-    pub fn check_not_writable_in_range(
+    fn check_not_writable_in_range(
         &self,
         page_range: Range<usize>,
     ) -> Result<Option<MemAddress>, MemoryError> {
