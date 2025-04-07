@@ -20,7 +20,10 @@ use rjam_state::{
         PrivilegedServices, StagingSet, Timeslot,
     },
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 pub mod partial_state;
 
@@ -247,7 +250,7 @@ impl AccumulateHostContext {
         manager_service: ServiceId,
         assign_service: ServiceId,
         designate_service: ServiceId,
-        always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
+        always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) -> Result<(), HostCallError> {
         self.partial_state.new_privileges = Some(PrivilegedServices {
             manager_service,

@@ -12,7 +12,7 @@ use rjam_common::{
     VALIDATOR_COUNT,
 };
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     ops::{Deref, DerefMut},
 };
 
@@ -256,8 +256,8 @@ impl ServiceStatsEntry {
 
 /// The service activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ServiceStats(pub HashMap<ServiceId, ServiceStatsEntry>);
-impl_jam_codec_for_newtype!(ServiceStats, HashMap<ServiceId, ServiceStatsEntry>);
+pub struct ServiceStats(pub BTreeMap<ServiceId, ServiceStatsEntry>);
+impl_jam_codec_for_newtype!(ServiceStats, BTreeMap<ServiceId, ServiceStatsEntry>);
 
 impl ServiceStats {
     pub fn service_stats_entry_mut(&mut self, service_id: ServiceId) -> &mut ServiceStatsEntry {

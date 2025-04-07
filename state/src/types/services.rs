@@ -14,7 +14,7 @@ use rjam_common::{
     MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     ops::{Deref, DerefMut},
 };
 
@@ -440,6 +440,6 @@ pub struct PrivilegedServices {
     /// `v`: A privileged service that can alter the staging validator set.
     pub designate_service: ServiceId,
     /// **`g`**: A mapping of always-accumulate services and their basic gas usages.
-    pub always_accumulate_services: HashMap<ServiceId, UnsignedGas>,
+    pub always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);
