@@ -36,7 +36,7 @@ use rjam_state::types::{
 use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fmt,
     fmt::{Debug, Display},
     ops::Deref,
@@ -810,7 +810,7 @@ impl Deref for AsnSegmentRootLookupTable {
 
 impl From<AsnSegmentRootLookupTable> for SegmentRootLookupTable {
     fn from(value: AsnSegmentRootLookupTable) -> Self {
-        let mut map: HashMap<Hash32, Hash32> = HashMap::with_capacity(value.len());
+        let mut map: BTreeMap<Hash32, Hash32> = BTreeMap::new();
 
         for item in value.iter() {
             let map_key = Hash32::from(item.work_package_hash);
@@ -1178,7 +1178,7 @@ pub struct AsnServiceActivityRecords(Vec<AsnServiceActivityRecordMapEntry>);
 
 impl From<AsnServiceActivityRecords> for ServiceStats {
     fn from(value: AsnServiceActivityRecords) -> Self {
-        let mut stats = HashMap::new();
+        let mut stats = BTreeMap::new();
         for entry in value.0 {
             stats.insert(entry.id as ServiceId, ServiceStatsEntry::from(entry.record));
         }

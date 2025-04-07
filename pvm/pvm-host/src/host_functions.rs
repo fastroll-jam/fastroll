@@ -34,7 +34,7 @@ use rjam_state::{
         AuthQueue, StagingSet, Timeslot,
     },
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[repr(u64)]
 pub enum HostCallReturnCode {
@@ -432,7 +432,7 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let mut always_accumulate_services = HashMap::with_capacity(always_accumulates_count);
+        let mut always_accumulate_services = BTreeMap::new();
 
         for i in 0..always_accumulates_count {
             let always_accumulate_serialized =

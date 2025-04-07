@@ -13,7 +13,7 @@ use rjam_pvm_types::{
 };
 use rjam_state::manager::StateManager;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -67,7 +67,7 @@ pub async fn accumulate_outer(
     state_manager: Arc<StateManager>,
     gas_limit: UnsignedGas,
     reports: &[WorkReport],
-    always_accumulate_services: &HashMap<ServiceId, UnsignedGas>,
+    always_accumulate_services: &BTreeMap<ServiceId, UnsignedGas>,
 ) -> Result<OuterAccumulationResult, PVMError> {
     let mut always_accumulate_services = Some(always_accumulate_services.clone());
     let mut report_idx = 0usize; // i
@@ -145,7 +145,7 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
 async fn accumulate_parallel(
     state_manager: Arc<StateManager>,
     reports: Arc<Vec<WorkReport>>,
-    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
+    always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
     let mut services: BTreeSet<ServiceId> = reports
@@ -258,7 +258,7 @@ async fn add_partial_state_change(
 async fn accumulate_single_service(
     state_manager: Arc<StateManager>,
     reports: Arc<Vec<WorkReport>>,
-    always_accumulate_services: Arc<HashMap<ServiceId, UnsignedGas>>,
+    always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
     partial_state: AccumulatePartialState,
 ) -> Result<AccumulateResult, PVMError> {

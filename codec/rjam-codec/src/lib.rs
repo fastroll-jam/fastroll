@@ -12,9 +12,8 @@ use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use rjam_codec_derive::*;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
-    hash::Hash,
     mem::size_of,
 };
 use thiserror::Error;
@@ -359,8 +358,8 @@ impl JamDecode for BitVec {
     }
 }
 
-// Codec for simple dictionaries (HashMap).
-impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
+// Codec for simple dictionaries (BTreeMap).
+impl<K: JamEncode + Eq + Ord, V: JamEncode> JamEncode for BTreeMap<K, V> {
     fn size_hint(&self) -> usize {
         if self.is_empty() {
             return self.len().size_hint();
@@ -384,10 +383,10 @@ impl<K: JamEncode + Eq + Hash + Ord, V: JamEncode> JamEncode for HashMap<K, V> {
     }
 }
 
-impl<K: JamDecode + Eq + Hash, V: JamDecode> JamDecode for HashMap<K, V> {
+impl<K: JamDecode + Eq + Ord, V: JamDecode> JamDecode for BTreeMap<K, V> {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        let mut map = Self::new();
         let len = usize::decode(input)?;
-        let mut map = Self::with_capacity(len);
 
         for _ in 0..len {
             let key = K::decode(input)?;
@@ -1112,59 +1111,59 @@ mod tests {
     }
 
     #[test]
-    fn test_hashmap_empty() {
-        let map: HashMap<u32, Vec<u8>> = HashMap::new();
+    fn test_map_empty() {
+        let map: BTreeMap<u32, Vec<u8>> = BTreeMap::new();
         let encoded = map.encode().unwrap();
         assert_eq!(encoded, vec![0]);
 
         let mut slice = &encoded[..];
-        let decoded = HashMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
         assert_eq!(map, decoded);
     }
 
     #[test]
-    fn test_hashmap_simple() {
-        let mut map = HashMap::new();
+    fn test_map_simple() {
+        let mut map = BTreeMap::new();
         map.insert(1u32, vec![1, 2, 3]);
         map.insert(2u32, vec![4, 5, 6]);
         map.insert(3u32, vec![7, 8, 9]);
 
         let encoded = map.encode().unwrap();
         let mut slice = &encoded[..];
-        let decoded = HashMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, Vec<u8>>::decode(&mut slice).unwrap();
         assert_eq!(map, decoded);
     }
 
     #[test]
-    fn test_hashmap_complex() {
-        let mut map = HashMap::new();
+    fn test_map_complex() {
+        let mut map = BTreeMap::new();
         map.insert(10u32, BitVec::from_bytes(&[0b10101010]));
         map.insert(20u32, BitVec::from_bytes(&[0b11001100, 0b11110000]));
         map.insert(30u32, BitVec::from_bytes(&[0b11111111]));
 
         let encoded = map.encode().unwrap();
         let mut slice = &encoded[..];
-        let decoded = HashMap::<u32, BitVec>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, BitVec>::decode(&mut slice).unwrap();
         assert_eq!(map, decoded);
     }
 
     #[test]
-    fn test_hashmap_nested() {
-        let mut inner_map1 = HashMap::new();
+    fn test_map_nested() {
+        let mut inner_map1 = BTreeMap::new();
         inner_map1.insert(1u8, vec![1, 2, 3]);
         inner_map1.insert(2u8, vec![4, 5, 6]);
 
-        let mut inner_map2 = HashMap::new();
+        let mut inner_map2 = BTreeMap::new();
         inner_map2.insert(3u8, vec![7, 8, 9]);
         inner_map2.insert(4u8, vec![10, 11, 12]);
 
-        let mut outer_map = HashMap::new();
+        let mut outer_map = BTreeMap::new();
         outer_map.insert(100u32, inner_map1);
         outer_map.insert(200u32, inner_map2);
 
         let encoded = outer_map.encode().unwrap();
         let mut slice = &encoded[..];
-        let decoded = HashMap::<u32, HashMap<u8, Vec<u8>>>::decode(&mut slice).unwrap();
+        let decoded = BTreeMap::<u32, BTreeMap<u8, Vec<u8>>>::decode(&mut slice).unwrap();
         assert_eq!(outer_map, decoded);
     }
 }

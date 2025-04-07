@@ -6,7 +6,7 @@ use rjam_codec::{
 };
 use std::{
     cmp::Ordering,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter},
     ops::Deref,
 };
@@ -129,7 +129,7 @@ impl WorkReport {
         &self.refinement_context.prerequisite_work_packages
     }
 
-    pub fn segment_roots_lookup(&self) -> &HashMap<Hash32, Hash32> {
+    pub fn segment_roots_lookup(&self) -> &BTreeMap<Hash32, Hash32> {
         &self.segment_roots_lookup
     }
 
@@ -183,7 +183,7 @@ impl WorkReport {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct SegmentRootLookupTable {
-    items: HashMap<Hash32, Hash32>,
+    items: BTreeMap<Hash32, Hash32>,
 }
 
 impl Display for SegmentRootLookupTable {
@@ -202,7 +202,7 @@ impl Display for SegmentRootLookupTable {
 }
 
 impl Deref for SegmentRootLookupTable {
-    type Target = HashMap<Hash32, Hash32>;
+    type Target = BTreeMap<Hash32, Hash32>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -210,7 +210,7 @@ impl Deref for SegmentRootLookupTable {
 }
 
 impl SegmentRootLookupTable {
-    pub fn new(items: HashMap<Hash32, Hash32>) -> Self {
+    pub fn new(items: BTreeMap<Hash32, Hash32>) -> Self {
         Self { items }
     }
 }
