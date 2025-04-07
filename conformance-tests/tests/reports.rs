@@ -271,11 +271,9 @@ mod reports {
         // Accumulate gas is below the service minimum.
         service_item_gas_too_low_1: "service_item_gas_too_low-1.json",
 
-        // FIXME: Currently, type conversion between `AsnSegmentRootLookupTable` and `SegmentRootLookupTable`
-        // FIXME: loses ordering, thus resulting post_state mismatch (`segment_root_lookup`)
         // Success
         // Work report has many dependencies, still less than the limit.
-        // many_dependencies_1: "many_dependencies-1.json",
+        many_dependencies_1: "many_dependencies-1.json",
 
         // Fail
         // Work report has too many dependencies.
