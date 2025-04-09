@@ -248,7 +248,7 @@ impl<'a> DisputesXtValidator<'a> {
             ))?;
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(XtError::InvalidValidatorKeySet(
+            return Err(XtError::InvalidCulpritsGuarantorKey(
                 entry.validator_key.encode_hex(),
             ));
         }
@@ -300,7 +300,7 @@ impl<'a> DisputesXtValidator<'a> {
         }
 
         if !valid_set.contains(&entry.validator_key) {
-            return Err(XtError::InvalidValidatorKeySet(
+            return Err(XtError::InvalidFaultsAuditorKey(
                 entry.validator_key.encode_hex(),
             ));
         }

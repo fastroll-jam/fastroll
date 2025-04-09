@@ -19,6 +19,8 @@ pub enum DisputesErrorCode {
     offender_already_reported, // not covered
     bad_judgement_age,
     bad_signature,
+    bad_guarantor_key,
+    bad_auditor_key,
     reserved,
 }
 
