@@ -51,6 +51,12 @@ pub fn map_error_to_custom_code(e: TransitionError) -> DisputesErrorCode {
         | TransitionError::XtValidationError(XtError::FaultAlreadyReported(_)) => {
             DisputesErrorCode::offender_already_reported
         }
+        TransitionError::XtValidationError(XtError::InvalidCulpritsGuarantorKey(_)) => {
+            DisputesErrorCode::bad_guarantor_key
+        }
+        TransitionError::XtValidationError(XtError::InvalidFaultsAuditorKey(_)) => {
+            DisputesErrorCode::bad_auditor_key
+        }
         _ => DisputesErrorCode::reserved,
     }
 }
