@@ -233,6 +233,14 @@ mod disputes {
         // Bad signature within the culprits sequence.
         // progress_with_bad_signatures_2: "progress_with_bad_signatures-2.json",
 
+        // Fail
+        // Unexpected key found in the culprits sequence.
+        progress_with_invalid_keys_1: "progress_with_invalid_keys-1.json",
+
+        // Fail
+        // Unexpected key found in the faults sequence
+        progress_with_invalid_keys_2: "progress_with_invalid_keys-2.json",
+
         // Success
         // Use previous epoch validators set for verdict signatures verification.
         progress_with_verdict_signatures_from_previous_set_1: "progress_with_verdict_signatures_from_previous_set-1.json",
