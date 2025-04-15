@@ -65,6 +65,7 @@ pub async fn chain_extension_procedure(
     transition_safrole(
         state_manager.clone(),
         &prior_timeslot,
+        &current_timeslot,
         epoch_progressed,
         &tickets,
     )

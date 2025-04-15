@@ -33,11 +33,12 @@ use std::sync::Arc;
 pub async fn transition_safrole(
     state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
+    curr_timeslot: &Timeslot,
     epoch_progressed: bool,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
-        handle_new_epoch_transition(state_manager.clone(), prior_timeslot).await?;
+        handle_new_epoch_transition(state_manager.clone(), prior_timeslot, curr_timeslot).await?;
     }
 
     // Ticket accumulator transition
@@ -49,6 +50,7 @@ pub async fn transition_safrole(
 async fn handle_new_epoch_transition(
     state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
+    curr_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
     let current_punish_set = state_manager.get_disputes().await?.punish_set;
     let mut prior_staging_set = state_manager.get_staging_set_clean().await?;
@@ -73,6 +75,7 @@ async fn handle_new_epoch_transition(
             update_slot_sealers(
                 safrole,
                 prior_timeslot,
+                curr_timeslot,
                 &current_active_set,
                 &current_entropy,
             );
@@ -88,12 +91,16 @@ async fn handle_new_epoch_transition(
 fn update_slot_sealers(
     safrole: &mut SafroleState,
     prior_timeslot: &Timeslot,
+    curr_timeslot: &Timeslot,
     current_active_set: &ActiveSet,
     current_entropy: &EpochEntropy,
 ) {
-    // Fallback mode triggers when the slot phase hasn't reached the ticket submission deadline
-    // or the ticket accumulator is not yet full.
-    let is_fallback = (prior_timeslot.slot_phase() as usize) < TICKET_CONTEST_DURATION
+    // Fallback mode triggers under following conditions:
+    // 1. One or more epochs are skipped (e′ > e + 1).
+    // 2. The slot phase hasn't reached the ticket submission deadline.
+    // 3. The ticket accumulator is not yet full.
+    let is_fallback = curr_timeslot.epoch() > prior_timeslot.epoch() + 1
+        || (prior_timeslot.slot_phase() as usize) < TICKET_CONTEST_DURATION
         || !safrole.ticket_accumulator.is_full();
 
     if is_fallback {
