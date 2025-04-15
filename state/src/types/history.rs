@@ -2,9 +2,7 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
-};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HISTORY_LENGTH};
 use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
@@ -12,9 +10,8 @@ use rjam_merkle::mmr::MerkleMountainRange;
 /// The recent block histories.
 ///
 /// Represents `β` of the GP.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
-impl_jam_codec_for_newtype!(BlockHistory, Vec<BlockHistoryEntry>);
 impl_simple_state_component!(BlockHistory, BlockHistory);
 
 impl BlockHistory {

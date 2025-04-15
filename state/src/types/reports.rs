@@ -7,8 +7,7 @@ use crate::{
     },
 };
 use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamDecodeFixed, JamEncode,
-    JamEncodeFixed, JamInput, JamOutput,
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use rjam_crypto::{hash, Blake2b256};
@@ -29,9 +28,8 @@ pub enum PendingReportsError {
 /// Work reports pending availability by assurers.
 ///
 /// Represents `ρ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
-impl_jam_codec_for_newtype!(PendingReports, Box<[Option<PendingReport>; CORE_COUNT]>);
 impl_simple_state_component!(PendingReports, PendingReports);
 
 impl Default for PendingReports {

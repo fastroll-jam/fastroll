@@ -2,9 +2,7 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
-};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{Ed25519PubKey, ValidatorKey, ValidatorKeySet, VALIDATOR_COUNT};
 use std::{
     collections::HashSet,
@@ -92,9 +90,8 @@ fn fmt_validator_set(
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// Represents `ι` in the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct StagingSet(pub ValidatorKeySet);
-impl_jam_codec_for_newtype!(StagingSet, ValidatorKeySet);
 impl_simple_state_component!(StagingSet, StagingSet);
 
 impl Deref for StagingSet {
@@ -126,9 +123,8 @@ impl Default for StagingSet {
 /// A validator set that is active in the current epoch.
 ///
 /// Represents `κ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ActiveSet(pub ValidatorKeySet);
-impl_jam_codec_for_newtype!(ActiveSet, ValidatorKeySet);
 impl_simple_state_component!(ActiveSet, ActiveSet);
 
 impl Deref for ActiveSet {
@@ -160,9 +156,8 @@ impl Default for ActiveSet {
 /// A validator set that was active in the previous epoch.
 ///
 /// Represents `λ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PastSet(pub ValidatorKeySet);
-impl_jam_codec_for_newtype!(PastSet, ValidatorKeySet);
 impl_simple_state_component!(PastSet, PastSet);
 
 impl Deref for PastSet {

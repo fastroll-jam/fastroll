@@ -2,18 +2,15 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
-};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
 /// The per-epoch entropy accumulator and its historical values.
 ///
 /// Represents `η` of the GP.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochEntropy(pub [Hash32; 4]);
-impl_jam_codec_for_newtype!(EpochEntropy, [Hash32; 4]);
 impl_simple_state_component!(EpochEntropy, EpochEntropy);
 
 impl Display for EpochEntropy {

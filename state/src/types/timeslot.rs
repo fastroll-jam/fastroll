@@ -4,19 +4,40 @@ use crate::{
 };
 use rjam_clock::Clock;
 use rjam_codec::{
-    impl_jam_codec_for_newtype, impl_jam_fixed_codec_for_newtype, JamCodecError, JamDecode,
-    JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput, SizeUnit,
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+    SizeUnit,
 };
 use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 
 /// Time timeslot index.
 ///
 /// Represents `τ` of the GP.
-#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Timeslot(pub u32);
-impl_jam_codec_for_newtype!(Timeslot, u32);
-impl_jam_fixed_codec_for_newtype!(Timeslot, u32);
 impl_simple_state_component!(Timeslot, Timeslot);
+
+impl JamEncodeFixed for Timeslot {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn encode_to_fixed<T: JamOutput>(
+        &self,
+        dest: &mut T,
+        size: usize,
+    ) -> Result<(), JamCodecError> {
+        self.0.encode_to_fixed(dest, size)
+    }
+}
+
+impl JamDecodeFixed for Timeslot {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self(u32::decode_fixed(input, size)?))
+    }
+}
 
 impl Timeslot {
     pub fn new(slot: u32) -> Self {

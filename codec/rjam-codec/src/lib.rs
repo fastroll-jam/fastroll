@@ -556,55 +556,6 @@ impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 impl_jam_codec_for_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
-#[macro_export]
-macro_rules! impl_jam_codec_for_newtype {
-    ($newtype:ident, $inner:ty) => {
-        impl JamEncode for $newtype {
-            fn size_hint(&self) -> usize {
-                self.0.size_hint()
-            }
-
-            fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-                self.0.encode_to(dest)
-            }
-        }
-
-        impl JamDecode for $newtype {
-            fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-                Ok($newtype(<$inner>::decode(input)?))
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_jam_fixed_codec_for_newtype {
-    ($newtype:ident, $inner:ty) => {
-        impl JamEncodeFixed for $newtype {
-            const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
-
-            fn encode_to_fixed<T: JamOutput>(
-                &self,
-                dest: &mut T,
-                size_in_bytes: usize,
-            ) -> Result<(), JamCodecError> {
-                self.0.encode_to_fixed(dest, size_in_bytes)
-            }
-        }
-
-        impl JamDecodeFixed for $newtype {
-            const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
-
-            fn decode_fixed<I: JamInput>(
-                input: &mut I,
-                size_in_bytes: usize,
-            ) -> Result<Self, JamCodecError> {
-                Ok($newtype(<$inner>::decode_fixed(input, size_in_bytes)?))
-            }
-        }
-    };
-}
-
 impl JamEncodeFixed for BitVec {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bits;
 

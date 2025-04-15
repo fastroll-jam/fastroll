@@ -2,9 +2,7 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamEncode, JamInput, JamOutput,
-};
+use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{CoreIndex, Hash32, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
 use std::{
     array::from_fn,
@@ -21,9 +19,8 @@ pub enum AuthPoolError {
 /// The authorizer pool.
 ///
 /// Represents `α` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
-impl_jam_codec_for_newtype!(AuthPool, Box<[Vec<Hash32>; CORE_COUNT]>);
 impl_simple_state_component!(AuthPool, AuthPool);
 
 impl Default for AuthPool {
@@ -60,9 +57,8 @@ impl AuthPool {
 /// The authorizer queue.
 ///
 /// Represents `φ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AuthQueue(pub Box<[[Hash32; AUTH_QUEUE_SIZE]; CORE_COUNT]>);
-impl_jam_codec_for_newtype!(AuthQueue, Box<[[Hash32; AUTH_QUEUE_SIZE]; CORE_COUNT]>);
 impl_simple_state_component!(AuthQueue, AuthQueue);
 
 impl Default for AuthQueue {

@@ -4,8 +4,7 @@ use crate::{
 };
 use rjam_block::types::extrinsics::preimages::PreimagesXtEntry;
 use rjam_codec::{
-    impl_jam_codec_for_newtype, JamCodecError, JamDecode, JamDecodeFixed, JamEncode,
-    JamEncodeFixed, JamInput, JamOutput,
+    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
@@ -200,9 +199,8 @@ impl CoreStatsEntry {
 }
 
 /// The core activities statistics recorded on-chain, on a per-block basis.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct CoreStats(pub Box<[CoreStatsEntry; CORE_COUNT]>);
-impl_jam_codec_for_newtype!(CoreStats, Box<[CoreStatsEntry; CORE_COUNT]>);
 
 impl CoreStats {
     pub fn core_stats_entry_mut(&mut self, core_index: CoreIndex) -> &mut CoreStatsEntry {
@@ -255,9 +253,8 @@ impl ServiceStatsEntry {
 }
 
 /// The service activities statistics recorded on-chain, on a per-block basis.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ServiceStats(pub BTreeMap<ServiceId, ServiceStatsEntry>);
-impl_jam_codec_for_newtype!(ServiceStats, BTreeMap<ServiceId, ServiceStatsEntry>);
 
 impl ServiceStats {
     pub fn service_stats_entry_mut(&mut self, service_id: ServiceId) -> &mut ServiceStatsEntry {
