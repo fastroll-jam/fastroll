@@ -16,7 +16,7 @@ use rjam_state::manager::StateManager;
 /// ## Length Limit
 /// - The submission of tickets is limited to timeslots earlier than the ticket submission deadline
 ///   slot phase within an epoch. Thus, the current slot phase `m′` must be less than the ticket
-///   submission deadline slot index, `TICKET_SUBMISSION_DEADLINE_SLOT`.
+///   submission deadline slot index, `TICKET_CONTEST_DURATION`.
 /// - Within the submission deadline, length of the extrinsic must not exceed `MAX_TICKETS_PER_EXTRINSIC`.
 ///
 /// ## Entry Validation

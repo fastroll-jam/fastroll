@@ -196,6 +196,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         transition_safrole(
             state_manager_cloned.clone(),
             &prev_timeslot,
+            &curr_timeslot,
             epoch_progressed,
             &tickets_xt,
         )

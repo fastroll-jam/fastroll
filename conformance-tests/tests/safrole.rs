@@ -119,6 +119,7 @@ mod safrole {
             transition_safrole(
                 state_manager.clone(),
                 &pre_timeslot,
+                &curr_timeslot,
                 epoch_progressed,
                 &jam_input.extrinsic,
             )
@@ -227,8 +228,7 @@ mod safrole {
         // Success
         // Progress skipping epochs with a full tickets accumulator.
         // Tickets mark is not generated. Accumulated tickets discarded. Fallback method enacted.
-        // TODO - check `TICKET_SUBMISSION_DEADLINE_SLOT` value (it seems this case should not run in fallback mode)
-        // skip_epochs_1: "skip-epochs-1.json",
+        skip_epochs_1: "skip-epochs-1.json",
 
         // Success
         // Progress to next epoch by skipping epochs tail with a full tickets accumulator.
