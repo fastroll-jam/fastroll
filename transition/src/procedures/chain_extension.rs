@@ -85,11 +85,11 @@ pub async fn mark_safrole_header_markers(
     let current_safrole = state_manager.get_safrole().await?;
 
     let epoch_marker = if epoch_progressed {
-        let current_entropy = state_manager.get_epoch_entropy().await?;
+        let prior_entropy = state_manager.get_epoch_entropy_clean().await?;
         let current_pending_set = current_safrole.pending_set;
         Some(EpochMarker {
-            entropy: current_entropy.first_history(), // FIXME: update to `current()`
-            tickets_entropy: current_entropy.second_history(), // FIXME: update to `first_history()`
+            entropy: prior_entropy.current(),
+            tickets_entropy: prior_entropy.first_history(),
             validators: extract_epoch_marker_keys(&current_pending_set),
         })
     } else {
