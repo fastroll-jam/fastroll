@@ -40,14 +40,18 @@ where
     })
 }
 
-#[tokio::test]
-async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
-    // Config tracing subscriber
+fn setup_tracing() {
     let fmt_layer = fmt::layer()
         .with_target(false)
         .with_timer(fmt::time::uptime());
     let sub = Registry::default().with(fmt_layer);
-    set_global_default(sub)?;
+    set_global_default(sub).expect("Failed to set tracing subscriber");
+}
+
+#[tokio::test]
+async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
+    // Config tracing subscriber
+    setup_tracing();
 
     // Parent block context
     let parent_block = BlockHeader::default();

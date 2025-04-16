@@ -13,6 +13,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason};
+use tracing::trace;
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -151,6 +152,7 @@ impl Interpreter {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
+        trace!("{:?}", ins);
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),

@@ -1,7 +1,9 @@
+use crate::program::instruction::opcode::Opcode;
 use bit_vec::BitVec;
 use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
 use rjam_pvm_types::common::MemAddress;
 use std::collections::HashSet;
+use tracing::info;
 
 /// Immutable VM state (program components)
 ///
@@ -52,5 +54,19 @@ impl JamDecode for ProgramState {
             basic_block_start_indices: HashSet::from([0]),
             is_loaded: false,
         })
+    }
+}
+
+impl ProgramState {
+    pub fn print_all_opcodes(&self) {
+        info!("All Opcodes");
+        self.instructions
+            .iter()
+            .zip(self.opcode_bitmask.iter())
+            .for_each(|(byte, opcode)| {
+                if opcode {
+                    info!("Op: {:?}", Opcode::from_u8(*byte).unwrap());
+                }
+            })
     }
 }
