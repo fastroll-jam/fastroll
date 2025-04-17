@@ -59,6 +59,8 @@ impl AccumulateInvocation {
         partial_state: &AccumulatePartialState,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
+        tracing::info!("Ψ_A (accumulate) invoked.");
+
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             return Ok(AccumulateResult::default());
         };

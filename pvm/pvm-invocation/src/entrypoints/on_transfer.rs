@@ -73,6 +73,8 @@ impl OnTransferInvocation {
         state_manager: Arc<StateManager>,
         args: &OnTransferInvokeArgs,
     ) -> Result<OnTransferResult, PVMError> {
+        tracing::info!("Ψ_T (on_transfer) invoked.");
+
         if args.transfers.is_empty() {
             return Ok(OnTransferResult::default());
         }

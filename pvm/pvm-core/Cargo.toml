@@ -9,3 +9,4 @@ rjam-common = { workspace = true }
 rjam-pvm-types = { workspace = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -87,6 +87,8 @@ impl Interpreter {
         program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
         program_code: &[u8],
     ) -> Result<ExitReason, VMCoreError> {
+        tracing::info!("Ψ invoked.");
+
         // Ensure the program state is initialized only once, as the general invocation
         // is triggered within a loop during the extended invocation.
         if !program_state.is_loaded {
@@ -151,6 +153,7 @@ impl Interpreter {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
+        tracing::trace!("{:?}", ins);
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),

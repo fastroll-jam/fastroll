@@ -23,6 +23,8 @@ impl ProgramLoader {
         program_state.opcode_bitmask = opcode_bitmask;
         program_state.jump_table = jump_table;
         Self::set_basic_block_start_indices(program_state)?;
+        tracing::info!("Program loaded.");
+        program_state.print_all_opcodes();
         program_state.is_loaded = true;
         Ok(())
     }

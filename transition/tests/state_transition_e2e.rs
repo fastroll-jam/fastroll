@@ -24,7 +24,7 @@ use rjam_transition::{
 };
 use std::{error::Error, future::Future, sync::Arc, time::Instant};
 use tokio::{join, task::JoinHandle};
-use tracing::{info, subscriber::set_global_default};
+use tracing::subscriber::set_global_default;
 use tracing_subscriber::{fmt, prelude::*, Registry};
 
 fn spawn_timed<F, T>(task_name: &'static str, fut: F) -> JoinHandle<T>
@@ -35,19 +35,23 @@ where
     tokio::spawn(async move {
         let start = Instant::now();
         let result = fut.await;
-        info!(%task_name, "Transitioned in {:?} μs", start.elapsed().as_micros());
+        tracing::info!(%task_name, "Transitioned in {:?} μs", start.elapsed().as_micros());
         result
     })
+}
+
+fn setup_tracing() {
+    let fmt_layer = fmt::layer()
+        .with_target(false)
+        .with_timer(fmt::time::uptime());
+    let sub = Registry::default().with(fmt_layer);
+    set_global_default(sub).expect("Failed to set tracing subscriber");
 }
 
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
-    let fmt_layer = fmt::layer()
-        .with_target(false)
-        .with_timer(fmt::time::uptime());
-    let sub = Registry::default().with(fmt_layer);
-    set_global_default(sub)?;
+    setup_tracing();
 
     // Parent block context
     let parent_block = BlockHeader::default();

@@ -33,6 +33,7 @@ impl PVM {
         args: &[u8],
     ) -> Result<Self, PVMError> {
         let mut pvm = Self::default();
+        tracing::info!("PVM initialized.");
 
         // Check argument data size limit
         if args.len() > INIT_INPUT_SIZE {
@@ -46,7 +47,9 @@ impl PVM {
         }
 
         pvm.setup_memory_layout(&formatted_program, args)?;
+        tracing::info!("PVM memory setup.");
         pvm.initialize_registers(args.len());
+        tracing::info!("PVM registers setup.");
         pvm.program_blob = formatted_program.code;
 
         Ok(pvm)
