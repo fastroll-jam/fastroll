@@ -93,6 +93,7 @@ impl PVMInterface {
         args: &[u8],
         context: &mut InvocationContext,
     ) -> Result<PVMInvocationResult, PVMError> {
+        tracing::info!("Ψ_M invoked.");
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
             return Ok(PVMInvocationResult::panic(0));
@@ -103,6 +104,7 @@ impl PVMInterface {
         let result = Self::invoke_extended(&mut pvm, state_manager, service_id, context).await?;
         let gas_used = gas_limit - 0.max(pvm.state.gas_counter) as UnsignedGas;
 
+        tracing::info!("Ψ_M Exit Reason: {:?}", result.exit_reason);
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
@@ -136,6 +138,7 @@ impl PVMInterface {
         service_id: ServiceId,
         context: &mut InvocationContext,
     ) -> Result<ExtendedInvocationResult, PVMError> {
+        tracing::info!("Ψ_H invoked.");
         loop {
             let exit_reason = Interpreter::invoke_general(
                 &mut pvm.state,
@@ -191,6 +194,7 @@ impl PVMInterface {
         context: &mut InvocationContext,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
+        tracing::trace!("{:?}", h);
         let result = match h {
             // --- General Functions
             HostCallType::GAS => HostFunction::host_gas(&pvm.state)?,

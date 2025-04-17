@@ -12,3 +12,4 @@ rjam-pvm-host = { workspace = true }
 rjam-pvm-types = { workspace = true }
 rjam-state = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }

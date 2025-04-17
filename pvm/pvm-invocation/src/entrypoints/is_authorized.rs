@@ -48,6 +48,8 @@ impl IsAuthorizedInvocation {
         state_manager: Arc<StateManager>,
         args: &IsAuthorizedArgs,
     ) -> Result<IsAuthorizedResult, PVMError> {
+        tracing::info!("Ψ_I (is_authorized) invoked.");
+
         // retrieve the service account code via historical lookup
         let Some(account_code) = state_manager
             .get_account_code_by_lookup(

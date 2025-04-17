@@ -1,5 +1,5 @@
 #[repr(u8)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(non_camel_case_types)]
 pub enum HostCallType {
     // General Functions

@@ -1334,6 +1334,7 @@ dependencies = [
  "rjam-pvm-types",
  "rjam-state",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1350,6 +1351,7 @@ dependencies = [
  "rjam-pvm-types",
  "rjam-state",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

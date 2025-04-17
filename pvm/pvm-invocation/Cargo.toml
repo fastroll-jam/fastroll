@@ -14,3 +14,4 @@ rjam-pvm-interface = { workspace = true }
 rjam-pvm-types = { workspace = true }
 rjam-state = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }

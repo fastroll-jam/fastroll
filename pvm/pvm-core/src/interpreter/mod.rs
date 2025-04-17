@@ -13,7 +13,6 @@ use crate::{
 };
 use bit_vec::BitVec;
 use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason};
-use tracing::trace;
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -88,6 +87,8 @@ impl Interpreter {
         program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
         program_code: &[u8],
     ) -> Result<ExitReason, VMCoreError> {
+        tracing::info!("Ψ invoked.");
+
         // Ensure the program state is initialized only once, as the general invocation
         // is triggered within a loop during the extended invocation.
         if !program_state.is_loaded {
@@ -152,7 +153,7 @@ impl Interpreter {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        trace!("{:?}", ins);
+        tracing::trace!("{:?}", ins);
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),

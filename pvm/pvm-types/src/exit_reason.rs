@@ -1,7 +1,7 @@
 use crate::{common::MemAddress, hostcall::HostCallType};
 
 /// PVM Invocation Exit Reasons
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum ExitReason {
     #[default]
     Continue,
