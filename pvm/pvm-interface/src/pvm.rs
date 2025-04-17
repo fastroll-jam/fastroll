@@ -92,14 +92,30 @@ impl PVM {
         memory.write_bytes(a_start, args)?;
         memory.set_address_range_access(a_start..a_padding_end, AccessType::ReadOnly)?;
 
-        // Other addresses are inaccessible
-        memory.set_address_range_access(0..o_start, AccessType::Inaccessible)?;
-        memory.set_address_range_access(o_padding_end..w_start, AccessType::Inaccessible)?;
-        memory.set_address_range_access(w_padding_end..s_start, AccessType::Inaccessible)?;
-        memory.set_address_range_access(s_end..a_start, AccessType::Inaccessible)?;
-        memory
-            .set_address_range_access(a_padding_end..MemAddress::MAX, AccessType::Inaccessible)?;
+        // Other addresses are inaccessible by default
 
+        tracing::info!("----------------- Memory Layout -----------------");
+        tracing::info!(
+            "Static    (o) page range: {}..{}",
+            memory.get_page_and_offset(o_start).0,
+            memory.get_page_and_offset(o_padding_end).0
+        );
+        tracing::info!(
+            "Heap      (w) page range: {}..{}",
+            memory.get_page_and_offset(w_start).0,
+            memory.get_page_and_offset(w_padding_end).0
+        );
+        tracing::info!(
+            "Stack     (s) page range: {}..{}",
+            memory.get_page_and_offset(s_start).0,
+            memory.get_page_and_offset(s_end).0
+        );
+        tracing::info!(
+            "Arguments (a) page range: {}..{}",
+            memory.get_page_and_offset(a_start).0,
+            memory.get_page_and_offset(a_padding_end).0
+        );
+        tracing::info!("-------------------------------------------------");
         self.state.memory = memory;
         Ok(())
     }
