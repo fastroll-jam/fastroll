@@ -146,7 +146,7 @@ impl Memory {
         }
     }
 
-    fn get_page_and_offset(&self, address: MemAddress) -> (usize, usize) {
+    pub fn get_page_and_offset(&self, address: MemAddress) -> (usize, usize) {
         let page_index = (address as usize) / self.page_size;
         let offset = (address as usize) % self.page_size;
         (page_index, offset)
