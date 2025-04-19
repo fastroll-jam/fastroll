@@ -56,11 +56,11 @@ pub struct AccumulateOperand {
     pub segment_root: Hash32,
     /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
     pub authorizer_hash: Hash32,
-    /// **`o`**: Authorization output (`authorization_output` of `WorReport`)
+    /// **`o`**: Authorization output (`authorization_output` of `WorkReport`)
     pub authorization_output: Vec<u8>,
-    /// `y`: Work item payload hash (`payload_hash` of `WorkItemResult`)
+    /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
-    /// **`d`**: Work output (`refine_output` of `WorkItemResult`)
+    /// **`d`**: Work output (`refine_output` of `WorkDigest`)
     pub work_output: WorkExecutionOutput,
 }
 

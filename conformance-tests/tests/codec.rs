@@ -9,7 +9,7 @@ mod codec {
     };
     use rjam_codec::{JamDecode, JamEncode};
     use rjam_common::workloads::{
-        RefinementContext, WorkItem, WorkItemResult, WorkPackage, WorkReport,
+        RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport,
     };
     use rjam_conformance_tests::asn_types::common::*;
     use serde::{de::DeserializeOwned, Serialize};
@@ -99,7 +99,7 @@ mod codec {
         work_item: ("work_item", WorkItem, AsnWorkItem),
         work_package: ("work_package", WorkPackage, AsnWorkPackage),
         work_report: ("work_report", WorkReport, AsnWorkReport),
-        work_result_0: ("work_result_0", WorkItemResult, AsnWorkResult),
-        work_result_1: ("work_result_1", WorkItemResult, AsnWorkResult),
+        work_digest_0: ("work_result_0", WorkDigest, AsnWorkDigest),
+        work_digest_1: ("work_result_1", WorkDigest, AsnWorkDigest),
     }
 }

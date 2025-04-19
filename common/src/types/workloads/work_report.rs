@@ -37,8 +37,8 @@ pub struct WorkReport {
     pub authorization_output: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
-    /// **`r`**: Work item results, with at least 1 and no more than 16 items
-    pub results: Vec<WorkItemResult>,
+    /// **`r`**: Work digests, with at least 1 and no more than 16 items
+    pub digests: Vec<WorkDigest>,
     /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
     pub auth_gas_used: UnsignedGas,
 }
@@ -52,12 +52,12 @@ impl Display for WorkReport {
         writeln!(f, "\tauth_hash: {}", self.authorizer_hash)?;
         writeln!(f, "\tauth_output: {}", self.authorization_output)?;
         writeln!(f, "\tsegment_roots_lookup: {}", self.segment_roots_lookup)?;
-        if self.results.is_empty() {
-            writeln!(f, "\tresults: []")?;
+        if self.digests.is_empty() {
+            writeln!(f, "\tdigests: []")?;
         } else {
-            writeln!(f, "\tresults: [")?;
-            for result in self.results.iter() {
-                writeln!(f, "\t  {}", result)?;
+            writeln!(f, "\tdigests: [")?;
+            for digest in self.digests.iter() {
+                writeln!(f, "\t  {}", digest)?;
             }
             writeln!(f, "\t]")?;
         }
@@ -73,7 +73,7 @@ impl JamEncode for WorkReport {
             + self.authorizer_hash.size_hint()
             + self.authorization_output.size_hint()
             + self.segment_roots_lookup.size_hint()
-            + self.results.size_hint()
+            + self.digests.size_hint()
             + self.auth_gas_used.size_hint()
     }
 
@@ -84,7 +84,7 @@ impl JamEncode for WorkReport {
         self.authorizer_hash.encode_to(dest)?;
         self.authorization_output.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;
-        self.results.encode_to(dest)?;
+        self.digests.encode_to(dest)?;
         self.auth_gas_used.encode_to(dest)?;
         Ok(())
     }
@@ -102,7 +102,7 @@ impl JamDecode for WorkReport {
             authorizer_hash: Hash32::decode(input)?,
             authorization_output: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
-            results: Vec::<WorkItemResult>::decode(input)?,
+            digests: Vec::<WorkDigest>::decode(input)?,
             auth_gas_used: UnsignedGas::decode(input)?,
         })
     }
@@ -141,8 +141,8 @@ impl WorkReport {
         self.specs.segment_root
     }
 
-    pub fn results(&self) -> &[WorkItemResult] {
-        &self.results
+    pub fn digests(&self) -> &[WorkDigest] {
+        &self.digests
     }
 
     pub fn authorization_output(&self) -> &[u8] {
@@ -160,16 +160,16 @@ impl WorkReport {
     pub fn total_output_size(&self) -> usize {
         self.authorization_output.len()
             + self
-                .results
+                .digests
                 .iter()
-                .map(|result| result.output_bytes())
+                .map(|wd| wd.output_bytes())
                 .sum::<usize>()
     }
 
     pub fn total_accumulation_gas_allotted(&self) -> UnsignedGas {
-        self.results
+        self.digests
             .iter()
-            .map(|result| result.gas_prioritization_ratio)
+            .map(|wd| wd.gas_limit_for_accumulate)
             .sum()
     }
 
@@ -315,31 +315,31 @@ impl Display for RefineStats {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkItemResult {
+pub struct WorkDigest {
     /// `s`: Associated service id.
     pub service_id: ServiceId,
     /// `c`: Code hash of the service, at the time of reporting.
     pub service_code_hash: Hash32,
     /// `y`: Hash of the associated work item payload.
     pub payload_hash: Hash32,
-    /// `g`: A ratio to calculate the gas allocated to the work item's accumulation.
-    pub gas_prioritization_ratio: UnsignedGas,
+    /// `g`: A gas limit allocated to the work item's accumulation.
+    pub gas_limit_for_accumulate: UnsignedGas,
     /// **`d`**: Output or error of the execution of the work item.
     pub refine_output: WorkExecutionOutput,
     /// Statistics on gas usage and data referenced in the refinement process.
     pub refine_stats: RefineStats,
 }
 
-impl Display for WorkItemResult {
+impl Display for WorkDigest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "WorkItemResult: {{")?;
+        writeln!(f, "WorkDigest: {{")?;
         writeln!(f, "service_idx: {}", self.service_id)?;
         writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
         writeln!(f, "payload_hash: {}", self.payload_hash)?;
         writeln!(
             f,
-            "gas_prioritization_ratio: {}",
-            self.gas_prioritization_ratio
+            "gas_limit_for_accumulate: {}",
+            self.gas_limit_for_accumulate
         )?;
         writeln!(f, "refine_output: {}", self.refine_output)?;
         writeln!(f, "refine_stats: {}", self.refine_stats)?;
@@ -347,7 +347,7 @@ impl Display for WorkItemResult {
     }
 }
 
-impl JamEncode for WorkItemResult {
+impl JamEncode for WorkDigest {
     fn size_hint(&self) -> usize {
         4 + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
@@ -360,14 +360,14 @@ impl JamEncode for WorkItemResult {
         self.service_id.encode_to_fixed(dest, 4)?;
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
-        self.gas_prioritization_ratio.encode_to_fixed(dest, 8)?;
+        self.gas_limit_for_accumulate.encode_to_fixed(dest, 8)?;
         self.refine_output.encode_to(dest)?;
         self.refine_stats.encode_to(dest)?;
         Ok(())
     }
 }
 
-impl JamDecode for WorkItemResult {
+impl JamDecode for WorkDigest {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: Sized,
@@ -376,14 +376,14 @@ impl JamDecode for WorkItemResult {
             service_id: ServiceId::decode_fixed(input, 4)?,
             service_code_hash: Hash32::decode(input)?,
             payload_hash: Hash32::decode(input)?,
-            gas_prioritization_ratio: UnsignedGas::decode_fixed(input, 8)?,
+            gas_limit_for_accumulate: UnsignedGas::decode_fixed(input, 8)?,
             refine_output: WorkExecutionOutput::decode(input)?,
             refine_stats: RefineStats::decode(input)?,
         })
     }
 }
 
-impl WorkItemResult {
+impl WorkDigest {
     fn output_bytes(&self) -> usize {
         match &self.refine_output {
             WorkExecutionOutput::Output(bytes) => bytes.len(),

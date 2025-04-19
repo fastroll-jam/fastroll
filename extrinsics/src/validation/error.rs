@@ -104,10 +104,10 @@ pub enum XtError {
     PrerequisiteNotFound(CoreIndex, String),
     #[error("Work report has too many dependencies (prerequisites and segment-root lookup dictionary items). Core index: {0}")]
     TooManyDependencies(CoreIndex),
-    #[error("Invalid code hash in work result. Core index: {0}, Service Id: {1}, Provided code hash: {2}")]
+    #[error("Invalid code hash in work digest. Core index: {0}, Service Id: {1}, Provided code hash: {2}")]
     InvalidCodeHash(CoreIndex, ServiceId, String),
-    #[error("Subject service account of work result is not found in the global state. Core index: {0}, Service Id: {1}")]
-    AccountOfWorkResultNotFound(CoreIndex, ServiceId),
+    #[error("Subject service account of work digest is not found in the global state. Core index: {0}, Service Id: {1}")]
+    AccountOfWorkDigestNotFound(CoreIndex, ServiceId),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
     #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
@@ -138,7 +138,7 @@ pub enum XtError {
     WorkReportOutputSizeLimitExceeded,
     #[error("Work report's total gas allotted for accumulation exceeds its limit")]
     WorkReportTotalGasTooHigh,
-    #[error("Service account's accumulate gas limit is too low to process work result item")]
+    #[error("Service account's accumulate gas limit is too low to process work digest")]
     ServiceAccountGasLimitTooLow,
 
     // Preimages validation errors

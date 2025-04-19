@@ -17,9 +17,9 @@ use rjam_common::{
     ticket::Ticket,
     workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
-        ReportedWorkPackage, SegmentRootLookupTable,
+        ReportedWorkPackage, SegmentRootLookupTable, WorkDigest,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
-        WorkExecutionOutput, WorkItem, WorkItemResult, WorkPackage, WorkPackageId, WorkReport,
+        WorkExecutionOutput, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
     BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
     Ed25519Signature, Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
@@ -720,7 +720,7 @@ impl From<RefineStats> for RefineLoad {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnWorkResult {
+pub struct AsnWorkDigest {
     pub service_id: u32,
     pub code_hash: AsnOpaqueHash,
     pub payload_hash: AsnOpaqueHash,
@@ -729,26 +729,26 @@ pub struct AsnWorkResult {
     pub refine_load: RefineLoad,
 }
 
-impl From<AsnWorkResult> for WorkItemResult {
-    fn from(value: AsnWorkResult) -> Self {
+impl From<AsnWorkDigest> for WorkDigest {
+    fn from(value: AsnWorkDigest) -> Self {
         Self {
             service_id: value.service_id,
             service_code_hash: Hash32::from(value.code_hash),
             payload_hash: Hash32::from(value.payload_hash),
-            gas_prioritization_ratio: value.accumulate_gas,
+            gas_limit_for_accumulate: value.accumulate_gas,
             refine_output: value.result.into(),
             refine_stats: value.refine_load.into(),
         }
     }
 }
 
-impl From<WorkItemResult> for AsnWorkResult {
-    fn from(value: WorkItemResult) -> Self {
+impl From<WorkDigest> for AsnWorkDigest {
+    fn from(value: WorkDigest) -> Self {
         Self {
             service_id: value.service_id,
             code_hash: AsnOpaqueHash::from(value.service_code_hash),
             payload_hash: AsnOpaqueHash::from(value.payload_hash),
-            accumulate_gas: value.gas_prioritization_ratio,
+            accumulate_gas: value.gas_limit_for_accumulate,
             result: value.refine_output.into(),
             refine_load: value.refine_stats.into(),
         }
@@ -844,7 +844,7 @@ pub struct AsnWorkReport {
     pub authorizer_hash: AsnOpaqueHash,
     pub auth_output: AsnByteSequence,
     pub segment_root_lookup: AsnSegmentRootLookupTable,
-    pub results: Vec<AsnWorkResult>, // SIZE(1..4)
+    pub results: Vec<AsnWorkDigest>, // SIZE(1..4)
     pub auth_gas_used: u64,
 }
 
@@ -857,11 +857,7 @@ impl From<AsnWorkReport> for WorkReport {
             authorizer_hash: Hash32::from(value.authorizer_hash),
             authorization_output: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
-            results: value
-                .results
-                .into_iter()
-                .map(WorkItemResult::from)
-                .collect(),
+            digests: value.results.into_iter().map(WorkDigest::from).collect(),
             auth_gas_used: value.auth_gas_used,
         }
     }
@@ -876,7 +872,7 @@ impl From<WorkReport> for AsnWorkReport {
             authorizer_hash: AsnOpaqueHash::from(value.authorizer_hash),
             auth_output: AsnByteSequence::from(value.authorization_output),
             segment_root_lookup: value.segment_roots_lookup.into(),
-            results: value.results.into_iter().map(AsnWorkResult::from).collect(),
+            results: value.digests.into_iter().map(AsnWorkDigest::from).collect(),
             auth_gas_used: value.auth_gas_used,
         }
     }
@@ -1134,7 +1130,7 @@ impl From<AsnServiceActivityRecord> for ServiceStatsEntry {
         Self {
             preimage_xts_count: value.provided_count,
             preimage_blob_size: value.provided_size,
-            work_item_results_count: value.refinement_count as u16,
+            work_digests_count: value.refinement_count as u16,
             refine_gas_used: value.refinement_gas_used,
             imports_count: value.imports as u16,
             extrinsics_count: value.extrinsic_count as u16,
@@ -1153,7 +1149,7 @@ impl From<ServiceStatsEntry> for AsnServiceActivityRecord {
         Self {
             provided_count: value.preimage_xts_count,
             provided_size: value.preimage_blob_size,
-            refinement_count: value.work_item_results_count as u32,
+            refinement_count: value.work_digests_count as u32,
             refinement_gas_used: value.refine_gas_used,
             imports: value.imports_count as u32,
             extrinsic_count: value.extrinsics_count as u32,

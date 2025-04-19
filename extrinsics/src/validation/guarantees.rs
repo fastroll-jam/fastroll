@@ -49,7 +49,7 @@ use std::collections::HashSet;
 ///     already made in the past and thus should not be present in `β`.
 ///   - If the work-report depends on a prerequisite work-package, the prerequisite must either be
 ///     present in the current extrinsic or in the recent block history (`β`).
-///   - All work results within each work-report must predict the correct code hash for the
+///   - All work digests within each work-report must predict the correct code hash for the
 ///     corresponding service at the time of report submission.
 /// - `credentials`
 ///   - The length of the `credentials` array for each work-report must be either 2 or 3
@@ -190,11 +190,11 @@ impl<'a> GuaranteesXtValidator<'a> {
         if work_report.total_accumulation_gas_allotted() > ACCUMULATION_GAS_PER_CORE {
             return Err(XtError::WorkReportTotalGasTooHigh);
         }
-        for result_item in &work_report.results {
+        for digest in &work_report.digests {
             // TODO: error handling for target account being not found?
             let target_service_account_metadata = self
                 .state_manager
-                .get_account_metadata(result_item.service_id)
+                .get_account_metadata(digest.service_id)
                 .await?;
 
             let target_service_account_min_item_gas = match target_service_account_metadata {
@@ -202,7 +202,7 @@ impl<'a> GuaranteesXtValidator<'a> {
                 None => continue,
             };
 
-            if result_item.gas_prioritization_ratio < target_service_account_min_item_gas {
+            if digest.gas_limit_for_accumulate < target_service_account_min_item_gas {
                 return Err(XtError::ServiceAccountGasLimitTooLow);
             }
         }
@@ -290,8 +290,8 @@ impl<'a> GuaranteesXtValidator<'a> {
             }
         }
 
-        // Validate work results' code hashes
-        self.validate_work_results(work_report).await?;
+        // Validate work digests' code hashes
+        self.validate_work_digests(work_report).await?;
 
         Ok(())
     }
@@ -376,26 +376,26 @@ impl<'a> GuaranteesXtValidator<'a> {
         Ok(())
     }
 
-    async fn validate_work_results(&self, work_report: &WorkReport) -> Result<(), XtError> {
-        for result in work_report.results() {
+    async fn validate_work_digests(&self, work_report: &WorkReport) -> Result<(), XtError> {
+        for digest in work_report.digests() {
             if let Some(expected_code_hash) = self
                 .state_manager
-                .get_account_code_hash(result.service_id)
+                .get_account_code_hash(digest.service_id)
                 .await?
             {
                 // code hash doesn't match
-                if expected_code_hash != result.service_code_hash {
+                if expected_code_hash != digest.service_code_hash {
                     return Err(XtError::InvalidCodeHash(
                         work_report.core_index(),
-                        result.service_id,
-                        result.service_code_hash.encode_hex(),
+                        digest.service_id,
+                        digest.service_code_hash.encode_hex(),
                     ));
                 }
             } else {
                 // service account not found
-                return Err(XtError::AccountOfWorkResultNotFound(
+                return Err(XtError::AccountOfWorkDigestNotFound(
                     work_report.core_index(),
-                    result.service_id,
+                    digest.service_id,
                 ));
             }
         }

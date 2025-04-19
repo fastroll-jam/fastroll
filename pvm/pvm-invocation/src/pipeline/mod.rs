@@ -125,9 +125,9 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
 
     for report in reports {
         let report_gas_usage: UnsignedGas = report
-            .results()
+            .digests()
             .iter()
-            .map(|wir| wir.gas_prioritization_ratio)
+            .map(|wd| wd.gas_limit_for_accumulate)
             .sum();
 
         if gas_counter + report_gas_usage > gas_limit {
@@ -150,8 +150,8 @@ async fn accumulate_parallel(
 ) -> Result<ParallelAccumulationResult, PVMError> {
     let mut services: BTreeSet<ServiceId> = reports
         .iter()
-        .flat_map(|wr| wr.results().iter())
-        .map(|wir| wir.service_id)
+        .flat_map(|wr| wr.digests().iter())
+        .map(|wd| wd.service_id)
         .collect();
     services.extend(always_accumulate_services.keys().cloned());
 
@@ -270,9 +270,9 @@ async fn accumulate_single_service(
 
     let reports_gas_aggregated: UnsignedGas = reports
         .iter()
-        .flat_map(|wr| wr.results().iter())
-        .filter(|wir| wir.service_id == service_id)
-        .map(|wir| wir.gas_prioritization_ratio)
+        .flat_map(|wr| wr.digests().iter())
+        .filter(|wd| wd.service_id == service_id)
+        .map(|wd| wd.gas_limit_for_accumulate)
         .sum();
 
     gas_limit += reports_gas_aggregated;
@@ -293,16 +293,16 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
     reports
         .iter()
         .flat_map(|wr| {
-            wr.results()
+            wr.digests()
                 .iter()
-                .filter(|wir| wir.service_id == service_id)
-                .map(move |wir| AccumulateOperand {
+                .filter(|wd| wd.service_id == service_id)
+                .map(move |wd| AccumulateOperand {
                     work_package_hash: wr.work_package_hash(),
                     segment_root: wr.segment_root(),
                     authorizer_hash: wr.authorizer_hash(),
                     authorization_output: wr.authorization_output().to_vec(),
-                    work_item_payload_hash: wir.payload_hash,
-                    work_output: wir.refine_output.clone(),
+                    work_item_payload_hash: wd.payload_hash,
+                    work_output: wd.refine_output.clone(),
                 })
         })
         .collect()

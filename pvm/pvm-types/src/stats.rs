@@ -40,7 +40,7 @@ impl AccumulateStats {
         let mut inner = HashMap::new();
         let service_reports_counts: HashMap<ServiceId, usize> = reports
             .iter()
-            .flat_map(|wr| wr.results.clone())
+            .flat_map(|wr| wr.digests.clone())
             .fold(HashMap::new(), |mut map, result| {
                 let service_reports_count = map.entry(result.service_id).or_default();
                 *service_reports_count += 1;

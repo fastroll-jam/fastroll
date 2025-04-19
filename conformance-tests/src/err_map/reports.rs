@@ -34,7 +34,7 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
         TransitionError::XtValidationError(XtError::AnchorBlockNotFound(_, _)) => {
             ReportsErrorCode::anchor_not_recent
         }
-        TransitionError::XtValidationError(XtError::AccountOfWorkResultNotFound(_, _)) => {
+        TransitionError::XtValidationError(XtError::AccountOfWorkDigestNotFound(_, _)) => {
             ReportsErrorCode::bad_service_id
         }
         TransitionError::XtValidationError(XtError::InvalidCodeHash(_, _, _)) => {
