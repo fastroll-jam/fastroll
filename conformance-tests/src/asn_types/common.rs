@@ -735,7 +735,7 @@ impl From<AsnWorkDigest> for WorkDigest {
             service_id: value.service_id,
             service_code_hash: Hash32::from(value.code_hash),
             payload_hash: Hash32::from(value.payload_hash),
-            gas_limit_for_accumulate: value.accumulate_gas,
+            accumulate_gas_limit: value.accumulate_gas,
             refine_result: value.result.into(),
             refine_stats: value.refine_load.into(),
         }
@@ -748,7 +748,7 @@ impl From<WorkDigest> for AsnWorkDigest {
             service_id: value.service_id,
             code_hash: AsnOpaqueHash::from(value.service_code_hash),
             payload_hash: AsnOpaqueHash::from(value.payload_hash),
-            accumulate_gas: value.gas_limit_for_accumulate,
+            accumulate_gas: value.accumulate_gas_limit,
             result: value.refine_result.into(),
             refine_load: value.refine_stats.into(),
         }

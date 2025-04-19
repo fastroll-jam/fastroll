@@ -127,7 +127,7 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
         let report_gas_usage: UnsignedGas = report
             .digests()
             .iter()
-            .map(|wd| wd.gas_limit_for_accumulate)
+            .map(|wd| wd.accumulate_gas_limit)
             .sum();
 
         if gas_counter + report_gas_usage > gas_limit {
@@ -272,7 +272,7 @@ async fn accumulate_single_service(
         .iter()
         .flat_map(|wr| wr.digests().iter())
         .filter(|wd| wd.service_id == service_id)
-        .map(|wd| wd.gas_limit_for_accumulate)
+        .map(|wd| wd.accumulate_gas_limit)
         .sum();
 
     gas_limit += reports_gas_aggregated;
@@ -302,6 +302,7 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
                     authorizer_hash: wr.authorizer_hash(),
                     auth_trace: wr.auth_trace().to_vec(),
                     work_item_payload_hash: wd.payload_hash,
+                    accumulate_gas_limit: wd.accumulate_gas_limit,
                     refine_result: wd.refine_result.clone(),
                 })
         })
