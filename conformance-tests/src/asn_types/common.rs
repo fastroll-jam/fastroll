@@ -412,7 +412,7 @@ impl From<AsnAuthorizer> for Authorizer {
     fn from(value: AsnAuthorizer) -> Self {
         Self {
             auth_code_hash: Hash32::from(value.code_hash),
-            param_blob: Octets::from(value.params),
+            config_blob: Octets::from(value.params),
         }
     }
 }
@@ -421,7 +421,7 @@ impl From<Authorizer> for AsnAuthorizer {
     fn from(value: Authorizer) -> Self {
         Self {
             code_hash: value.auth_code_hash.into(),
-            params: value.param_blob.into(),
+            params: value.config_blob.into(),
         }
     }
 }
@@ -855,7 +855,7 @@ impl From<AsnWorkReport> for WorkReport {
             refinement_context: value.context.into(),
             core_index: value.core_index,
             authorizer_hash: Hash32::from(value.authorizer_hash),
-            authorization_output: Octets::from(value.auth_output),
+            auth_trace: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
             digests: value.results.into_iter().map(WorkDigest::from).collect(),
             auth_gas_used: value.auth_gas_used,
@@ -870,7 +870,7 @@ impl From<WorkReport> for AsnWorkReport {
             context: value.refinement_context.into(),
             core_index: value.core_index,
             authorizer_hash: AsnOpaqueHash::from(value.authorizer_hash),
-            auth_output: AsnByteSequence::from(value.authorization_output),
+            auth_output: AsnByteSequence::from(value.auth_trace),
             segment_root_lookup: value.segment_roots_lookup.into(),
             results: value.digests.into_iter().map(AsnWorkDigest::from).collect(),
             auth_gas_used: value.auth_gas_used,

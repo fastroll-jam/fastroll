@@ -37,8 +37,8 @@ pub struct RefineInvokeArgs {
     pub item_idx: usize,
     /// `p`: Work package that contains the work item to be refined
     pub package: WorkPackage,
-    /// **`o`**: Authorization output blob
-    pub auth_output: Vec<u8>,
+    /// **`o`**: Authorization trace blob
+    pub auth_trace: Vec<u8>,
     /// **`ī`**: Fixed-length data segments imported from the import DA
     pub import_segments: Vec<Vec<ExportDataSegment>>,
     /// `ς`: Initial offset index of the export segments array
@@ -56,8 +56,8 @@ pub struct AccumulateOperand {
     pub segment_root: Hash32,
     /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
     pub authorizer_hash: Hash32,
-    /// **`o`**: Authorization output (`authorization_output` of `WorkReport`)
-    pub authorization_output: Vec<u8>,
+    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
+    pub auth_trace: Vec<u8>,
     /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
     /// **`d`**: Work output (`refine_output` of `WorkDigest`)
