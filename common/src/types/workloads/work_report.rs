@@ -325,7 +325,7 @@ pub struct WorkDigest {
     /// `g`: A gas limit allocated to the work item's accumulation.
     pub gas_limit_for_accumulate: UnsignedGas,
     /// **`d`**: Output or error of the execution of the work item.
-    pub refine_output: WorkExecutionOutput,
+    pub refine_result: WorkExecutionResult,
     /// Statistics on gas usage and data referenced in the refinement process.
     pub refine_stats: RefineStats,
 }
@@ -341,7 +341,7 @@ impl Display for WorkDigest {
             "gas_limit_for_accumulate: {}",
             self.gas_limit_for_accumulate
         )?;
-        writeln!(f, "refine_output: {}", self.refine_output)?;
+        writeln!(f, "refine_result: {}", self.refine_result)?;
         writeln!(f, "refine_stats: {}", self.refine_stats)?;
         write!(f, "}}")
     }
@@ -352,7 +352,7 @@ impl JamEncode for WorkDigest {
         4 + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
             + 8
-            + self.refine_output.size_hint()
+            + self.refine_result.size_hint()
             + self.refine_stats.size_hint()
     }
 
@@ -361,7 +361,7 @@ impl JamEncode for WorkDigest {
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
         self.gas_limit_for_accumulate.encode_to_fixed(dest, 8)?;
-        self.refine_output.encode_to(dest)?;
+        self.refine_result.encode_to(dest)?;
         self.refine_stats.encode_to(dest)?;
         Ok(())
     }
@@ -377,7 +377,7 @@ impl JamDecode for WorkDigest {
             service_code_hash: Hash32::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             gas_limit_for_accumulate: UnsignedGas::decode_fixed(input, 8)?,
-            refine_output: WorkExecutionOutput::decode(input)?,
+            refine_result: WorkExecutionResult::decode(input)?,
             refine_stats: RefineStats::decode(input)?,
         })
     }
@@ -385,20 +385,20 @@ impl JamDecode for WorkDigest {
 
 impl WorkDigest {
     fn output_bytes(&self) -> usize {
-        match &self.refine_output {
-            WorkExecutionOutput::Output(bytes) => bytes.len(),
-            WorkExecutionOutput::Error(_) => 0,
+        match &self.refine_result {
+            WorkExecutionResult::Output(bytes) => bytes.len(),
+            WorkExecutionResult::Error(_) => 0,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkExecutionOutput {
+pub enum WorkExecutionResult {
     Output(Octets),
     Error(WorkExecutionError),
 }
 
-impl Display for WorkExecutionOutput {
+impl Display for WorkExecutionResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Output(octets) => {
@@ -411,24 +411,24 @@ impl Display for WorkExecutionOutput {
     }
 }
 
-impl JamEncode for WorkExecutionOutput {
+impl JamEncode for WorkExecutionResult {
     fn size_hint(&self) -> usize {
         match self {
-            WorkExecutionOutput::Output(data) => {
+            WorkExecutionResult::Output(data) => {
                 1 + data.size_hint() // with 1 byte prefix
             }
-            WorkExecutionOutput::Error(_) => 1, // 1 byte succinct encoding
+            WorkExecutionResult::Error(_) => 1, // 1 byte succinct encoding
         }
     }
 
     fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
         match self {
-            WorkExecutionOutput::Output(data) => {
+            WorkExecutionResult::Output(data) => {
                 0u8.encode_to(dest)?; // prefix (0) for Output
                 data.encode_to(dest)?;
                 Ok(())
             }
-            WorkExecutionOutput::Error(error) => match error {
+            WorkExecutionResult::Error(error) => match error {
                 WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
                 WorkExecutionError::Panic => 2u8.encode_to(dest),
                 WorkExecutionError::BadExports => 3u8.encode_to(dest),
@@ -439,26 +439,26 @@ impl JamEncode for WorkExecutionOutput {
     }
 }
 
-impl JamDecode for WorkExecutionOutput {
+impl JamDecode for WorkExecutionResult {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         match u8::decode(input)? {
             0 => {
                 let data = Octets::decode(input)?;
-                Ok(WorkExecutionOutput::Output(data))
+                Ok(WorkExecutionResult::Output(data))
             }
-            1 => Ok(WorkExecutionOutput::Error(WorkExecutionError::OutOfGas)),
-            2 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Panic)),
-            3 => Ok(WorkExecutionOutput::Error(WorkExecutionError::BadExports)),
-            4 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Bad)),
-            5 => Ok(WorkExecutionOutput::Error(WorkExecutionError::Big)),
+            1 => Ok(WorkExecutionResult::Error(WorkExecutionError::OutOfGas)),
+            2 => Ok(WorkExecutionResult::Error(WorkExecutionError::Panic)),
+            3 => Ok(WorkExecutionResult::Error(WorkExecutionError::BadExports)),
+            4 => Ok(WorkExecutionResult::Error(WorkExecutionError::Bad)),
+            5 => Ok(WorkExecutionResult::Error(WorkExecutionError::Big)),
             _ => Err(JamCodecError::InputError(
-                "Invalid WorkExecutionOutput prefix".into(),
+                "Invalid WorkExecutionResult prefix".into(),
             )),
         }
     }
 }
 
-impl WorkExecutionOutput {
+impl WorkExecutionResult {
     pub fn ok(output: Vec<u8>) -> Self {
         Self::Output(Octets::from_vec(output))
     }

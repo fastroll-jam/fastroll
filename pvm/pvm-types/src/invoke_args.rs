@@ -1,7 +1,7 @@
 use crate::common::ExportDataSegment;
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{
-    workloads::{ExtrinsicInfo, WorkExecutionOutput, WorkPackage},
+    workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
     Balance, Hash32, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
@@ -60,8 +60,8 @@ pub struct AccumulateOperand {
     pub auth_trace: Vec<u8>,
     /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
-    /// **`d`**: Work output (`refine_output` of `WorkDigest`)
-    pub work_output: WorkExecutionOutput,
+    /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
+    pub refine_result: WorkExecutionResult,
 }
 
 #[derive(Clone, JamEncode)]

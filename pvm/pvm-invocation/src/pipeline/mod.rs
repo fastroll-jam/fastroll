@@ -302,7 +302,7 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
                     authorizer_hash: wr.authorizer_hash(),
                     auth_trace: wr.auth_trace().to_vec(),
                     work_item_payload_hash: wd.payload_hash,
-                    work_output: wd.refine_output.clone(),
+                    refine_result: wd.refine_result.clone(),
                 })
         })
         .collect()

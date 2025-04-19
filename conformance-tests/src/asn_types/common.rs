@@ -19,7 +19,7 @@ use rjam_common::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         ReportedWorkPackage, SegmentRootLookupTable, WorkDigest,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
-        WorkExecutionOutput, WorkItem, WorkPackage, WorkPackageId, WorkReport,
+        WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
     BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
     Ed25519Signature, Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
@@ -660,7 +660,7 @@ pub enum AsnWorkExecResult {
     code_oversize,
 }
 
-impl From<AsnWorkExecResult> for WorkExecutionOutput {
+impl From<AsnWorkExecResult> for WorkExecutionResult {
     fn from(value: AsnWorkExecResult) -> Self {
         match value {
             AsnWorkExecResult::ok(bytes) => Self::Output(Octets::from(bytes)),
@@ -673,15 +673,15 @@ impl From<AsnWorkExecResult> for WorkExecutionOutput {
     }
 }
 
-impl From<WorkExecutionOutput> for AsnWorkExecResult {
-    fn from(value: WorkExecutionOutput) -> Self {
+impl From<WorkExecutionResult> for AsnWorkExecResult {
+    fn from(value: WorkExecutionResult) -> Self {
         match value {
-            WorkExecutionOutput::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
-            WorkExecutionOutput::Error(OutOfGas) => Self::out_of_gas,
-            WorkExecutionOutput::Error(Panic) => Self::panic,
-            WorkExecutionOutput::Error(BadExports) => Self::bad_exports,
-            WorkExecutionOutput::Error(Bad) => Self::bad_code,
-            WorkExecutionOutput::Error(Big) => Self::code_oversize,
+            WorkExecutionResult::Output(bytes) => Self::ok(AsnByteSequence(bytes.0)),
+            WorkExecutionResult::Error(OutOfGas) => Self::out_of_gas,
+            WorkExecutionResult::Error(Panic) => Self::panic,
+            WorkExecutionResult::Error(BadExports) => Self::bad_exports,
+            WorkExecutionResult::Error(Bad) => Self::bad_code,
+            WorkExecutionResult::Error(Big) => Self::code_oversize,
         }
     }
 }
@@ -736,7 +736,7 @@ impl From<AsnWorkDigest> for WorkDigest {
             service_code_hash: Hash32::from(value.code_hash),
             payload_hash: Hash32::from(value.payload_hash),
             gas_limit_for_accumulate: value.accumulate_gas,
-            refine_output: value.result.into(),
+            refine_result: value.result.into(),
             refine_stats: value.refine_load.into(),
         }
     }
@@ -749,7 +749,7 @@ impl From<WorkDigest> for AsnWorkDigest {
             code_hash: AsnOpaqueHash::from(value.service_code_hash),
             payload_hash: AsnOpaqueHash::from(value.payload_hash),
             accumulate_gas: value.gas_limit_for_accumulate,
-            result: value.refine_output.into(),
+            result: value.refine_result.into(),
             refine_load: value.refine_stats.into(),
         }
     }

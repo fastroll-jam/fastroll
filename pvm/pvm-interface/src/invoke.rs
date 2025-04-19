@@ -1,5 +1,5 @@
 use crate::{error::PVMError, pvm::PVM};
-use rjam_common::{workloads::WorkExecutionOutput, ServiceId, SignedGas, UnsignedGas};
+use rjam_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, UnsignedGas};
 use rjam_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
 use rjam_pvm_host::{
     context::InvocationContext,
@@ -60,7 +60,7 @@ pub enum PVMInvocationOutput {
     Panic(ExitReason),
 }
 
-impl From<PVMInvocationOutput> for WorkExecutionOutput {
+impl From<PVMInvocationOutput> for WorkExecutionResult {
     fn from(output: PVMInvocationOutput) -> Self {
         match output {
             PVMInvocationOutput::OutOfGas(_) => Self::out_of_gas(),
