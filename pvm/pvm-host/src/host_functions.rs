@@ -8,8 +8,8 @@ use crate::{
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
     Hash32, Octets, ServiceId, SignedGas, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT,
-    HASH_SIZE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE,
-    VALIDATOR_COUNT, WORK_PACKAGE_MANIFEST_SIZE_LIMIT,
+    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
+    TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
 use rjam_pvm_core::{
@@ -1208,7 +1208,7 @@ impl HostFunction {
 
         let next_export_segments_offset =
             x.export_segments.len() + x.invoke_args.export_segments_offset;
-        if next_export_segments_offset >= WORK_PACKAGE_MANIFEST_SIZE_LIMIT {
+        if next_export_segments_offset >= MAX_EXPORTS_PER_PACKAGE {
             continue_full!()
         }
 

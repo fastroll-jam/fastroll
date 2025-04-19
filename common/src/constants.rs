@@ -76,8 +76,8 @@ pub const ERASURE_CHUNK_SIZE: usize = 684;
 /// `W_G`: Data segment size (`W_E` * `W_P`).
 pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
 
-/// `W_M`: The maximum number of imports and exports in a work-package.
-pub const WORK_PACKAGE_MANIFEST_SIZE_LIMIT: usize = 3_072;
+/// `W_M`: The maximum number of imports in a work-package.
+pub const MAX_IMPORTS_PER_PACKAGE: usize = 3_072;
 
 /// `W_P`: The number of erasure-coded pieces in a segment.
 pub const DATA_SEGMENTS_CHUNKS: usize = 6;
@@ -87,6 +87,9 @@ pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
 
 /// `W_T`: The size of a transfer memo in octets.
 pub const TRANSFER_MEMO_SIZE: usize = 128;
+
+/// `W_X`: The maximum number of exports in a work-package.
+pub const MAX_EXPORTS_PER_PACKAGE: usize = 3_072;
 
 // --- Signing Contexts
 
