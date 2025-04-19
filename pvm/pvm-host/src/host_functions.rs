@@ -829,7 +829,7 @@ impl HostFunction {
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
         // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
-        let new_lookups_entry = match prev_lookups_entry.clone() {
+        let new_lookups_entry = match prev_lookups_entry {
             Some(mut entry) => {
                 if entry.value.len() != 2 {
                     continue_huh!()
@@ -911,8 +911,7 @@ impl HostFunction {
         match lookups_entry {
             None => continue_huh!(),
             Some(entry) => {
-                let lookups_timeslots = entry.value.clone();
-
+                let lookups_timeslots = &entry.value;
                 match lookups_timeslots.len() {
                     0 => {
                         // Remove preimage and lookups storage entry
@@ -1447,7 +1446,7 @@ impl HostFunction {
                 .try_into()
                 .expect("Gas limit should fit in `SignedGas`"),
         };
-        let inner_vm_program_code = &inner_vm_mut.program_code.clone();
+        let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
 
         let inner_vm_exit_reason = Interpreter::invoke_general(
