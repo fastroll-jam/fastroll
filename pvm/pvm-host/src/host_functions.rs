@@ -1104,26 +1104,26 @@ impl HostFunction {
         let x = get_refine_x!(context);
         let data_id = vm.regs[10].as_usize()?;
 
-        let data = match data_id {
-            0 => x.invoke_args.package.clone().encode()?,
-            1 => x.invoke_args.auth_trace.clone(),
+        let data: &[u8] = match data_id {
+            0 => &x.invoke_args.package.encode()?,
+            1 => &x.invoke_args.auth_trace,
             2 => {
-                let items = x.invoke_args.package.work_items.clone();
                 let item_idx = vm.regs[11].as_usize()?;
-                if item_idx < items.len() {
-                    items[item_idx].payload_blob.to_vec()
+                let items_len = x.invoke_args.package.work_items.len();
+                if item_idx < items_len {
+                    &x.invoke_args.package.work_items[item_idx].payload_blob
                 } else {
                     continue_none!()
                 }
             }
             3 => {
-                let items = x.invoke_args.package.work_items.clone();
+                let items = &x.invoke_args.package.work_items;
                 let item_idx = vm.regs[11].as_usize()?;
                 let xt_idx = vm.regs[12].as_usize()?;
                 if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
-                        xt_blob.to_vec()
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
                     } else {
                         continue_none!()
                     }
@@ -1132,13 +1132,13 @@ impl HostFunction {
                 }
             }
             4 => {
-                let items = x.invoke_args.package.work_items.clone();
+                let items = &x.invoke_args.package.work_items;
                 let item_idx = x.invoke_args.item_idx;
                 let xt_idx = vm.regs[11].as_usize()?;
                 if xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = items[item_idx].extrinsic_data_info[xt_idx].clone();
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(&xt_info) {
-                        xt_blob.to_vec()
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
                     } else {
                         continue_none!()
                     }
@@ -1147,25 +1147,26 @@ impl HostFunction {
                 }
             }
             5 => {
-                let imports = x.invoke_args.import_segments.clone();
+                let imports = &x.invoke_args.import_segments;
                 let item_idx = vm.regs[11].as_usize()?;
                 let segment_idx = vm.regs[12].as_usize()?;
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].to_vec()
+                    &*imports[item_idx][segment_idx]
                 } else {
                     continue_none!()
                 }
             }
             6 => {
-                let imports = x.invoke_args.import_segments.clone();
+                let imports = &x.invoke_args.import_segments;
                 let item_idx = x.invoke_args.item_idx;
                 let segment_idx = vm.regs[11].as_usize()?;
                 if segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].to_vec()
+                    &*imports[item_idx][segment_idx]
                 } else {
                     continue_none!()
                 }
             }
+            7 => &x.invoke_args.package.authorizer.config_blob,
             _ => {
                 continue_none!()
             }
