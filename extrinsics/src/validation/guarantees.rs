@@ -202,7 +202,7 @@ impl<'a> GuaranteesXtValidator<'a> {
                 None => continue,
             };
 
-            if digest.gas_limit_for_accumulate < target_service_account_min_item_gas {
+            if digest.accumulate_gas_limit < target_service_account_min_item_gas {
                 return Err(XtError::ServiceAccountGasLimitTooLow);
             }
         }

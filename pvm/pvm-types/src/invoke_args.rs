@@ -60,6 +60,8 @@ pub struct AccumulateOperand {
     pub auth_trace: Vec<u8>,
     /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
+    /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)
+    pub accumulate_gas_limit: UnsignedGas,
     /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
     pub refine_result: WorkExecutionResult,
 }
