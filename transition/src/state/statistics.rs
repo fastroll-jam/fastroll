@@ -132,8 +132,8 @@ async fn handle_per_block_transition(
     for report in guarantees.extract_work_reports() {
         let entry = core_stats.core_stats_entry_mut(report.core_index);
         entry.work_bundle_length += report.specs.work_bundle_length;
-        for result in report.results {
-            entry.accumulate_refine_stats(&result.refine_stats);
+        for digest in report.digests {
+            entry.accumulate_refine_stats(&digest.refine_stats);
         }
     }
     for report in available_reports {
@@ -148,13 +148,13 @@ async fn handle_per_block_transition(
 
     // Update service stats
     let mut service_stats = ServiceStats::default();
-    for result in guarantees
+    for digest in guarantees
         .extract_work_reports()
         .into_iter()
-        .flat_map(|wr| wr.results)
+        .flat_map(|wr| wr.digests)
     {
-        let entry = service_stats.service_stats_entry_mut(result.service_id);
-        entry.accumulate_refine_stats(&result.refine_stats);
+        let entry = service_stats.service_stats_entry_mut(digest.service_id);
+        entry.accumulate_refine_stats(&digest.refine_stats);
     }
     for preimage in &preimages.items {
         let entry = service_stats.service_stats_entry_mut(preimage.service_id);

@@ -216,7 +216,7 @@ mod reports {
         bad_beefy_mmr_1: "bad_beefy_mmr-1.json",
 
         // Fail
-        // Work result code hash doesn't match the one expected for the service.
+        // Work digest code hash doesn't match the one expected for the service.
         bad_code_hash_1: "bad_code_hash-1.json",
 
         // Fail
@@ -224,7 +224,7 @@ mod reports {
         bad_core_index_1: "bad_core_index-1.json",
 
         // Fail
-        // Work result service identifier doesn't have any associated account in state.
+        // Work digest service identifier doesn't have any associated account in state.
         bad_service_id_1: "bad_service_id-1.json",
 
         // Fail

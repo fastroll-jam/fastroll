@@ -82,7 +82,7 @@ pub const WORK_PACKAGE_MANIFEST_SIZE_LIMIT: usize = 3_072;
 /// `W_P`: The number of erasure-coded pieces in a segment.
 pub const DATA_SEGMENTS_CHUNKS: usize = 6;
 
-/// `W_R`: The maximum total size of all output blobs in a work-report, in octets.
+/// `W_R`: The maximum total size of all unbounded blobs in a work-report, in octets.
 pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
 
 /// `W_T`: The size of a transfer memo in octets.

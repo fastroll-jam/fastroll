@@ -1,6 +1,6 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{
-    workloads::{WorkExecutionOutput, WorkPackage},
+    workloads::{WorkExecutionResult, WorkPackage},
     CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
 };
 use rjam_pvm_host::context::InvocationContext;
@@ -22,14 +22,14 @@ pub struct IsAuthorizedArgs {
 
 pub struct IsAuthorizedResult {
     pub gas_used: UnsignedGas,
-    pub work_execution_output: WorkExecutionOutput,
+    pub work_execution_result: WorkExecutionResult,
 }
 
 impl From<PVMInvocationResult> for IsAuthorizedResult {
     fn from(result: PVMInvocationResult) -> Self {
         Self {
             gas_used: result.gas_used,
-            work_execution_output: WorkExecutionOutput::from(result.output),
+            work_execution_result: WorkExecutionResult::from(result.output),
         }
     }
 }
@@ -62,7 +62,7 @@ impl IsAuthorizedInvocation {
             // failed to get the `is_authorized` code from the service account
             return Ok(IsAuthorizedResult {
                 gas_used: 0,
-                work_execution_output: WorkExecutionOutput::bad(),
+                work_execution_result: WorkExecutionResult::bad(),
             });
         };
 

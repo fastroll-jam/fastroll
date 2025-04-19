@@ -1,6 +1,6 @@
 use rjam_codec::{JamCodecError, JamEncode, JamOutput};
 use rjam_common::{
-    workloads::{RefinementContext, WorkExecutionOutput},
+    workloads::{RefinementContext, WorkExecutionResult},
     Hash32, Octets, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE,
 };
 use rjam_crypto::{hash, Blake2b256};
@@ -35,7 +35,7 @@ struct RefineVMArgs {
 
 pub struct RefineResult {
     pub gas_used: UnsignedGas,
-    pub output: WorkExecutionOutput,
+    pub output: WorkExecutionResult,
     pub export_segments: Vec<ExportDataSegment>,
 }
 
@@ -47,7 +47,7 @@ impl RefineResult {
     ) -> Self {
         Self {
             gas_used,
-            output: WorkExecutionOutput::Output(Octets::from_vec(output)),
+            output: WorkExecutionResult::Output(Octets::from_vec(output)),
             export_segments,
         }
     }
@@ -55,7 +55,7 @@ impl RefineResult {
     pub fn ok_empty(gas_used: UnsignedGas, export_segments: Vec<ExportDataSegment>) -> Self {
         Self {
             gas_used,
-            output: WorkExecutionOutput::ok_empty(),
+            output: WorkExecutionResult::ok_empty(),
             export_segments,
         }
     }
@@ -63,7 +63,7 @@ impl RefineResult {
     pub fn bad() -> Self {
         Self {
             gas_used: 0,
-            output: WorkExecutionOutput::bad(),
+            output: WorkExecutionResult::bad(),
             export_segments: vec![],
         }
     }
@@ -71,7 +71,7 @@ impl RefineResult {
     pub fn big() -> Self {
         Self {
             gas_used: 0,
-            output: WorkExecutionOutput::big(),
+            output: WorkExecutionResult::big(),
             export_segments: vec![],
         }
     }
@@ -79,7 +79,7 @@ impl RefineResult {
     pub fn out_of_gas(gas_used: UnsignedGas) -> Self {
         Self {
             gas_used,
-            output: WorkExecutionOutput::out_of_gas(),
+            output: WorkExecutionResult::out_of_gas(),
             export_segments: vec![],
         }
     }
@@ -87,7 +87,7 @@ impl RefineResult {
     pub fn panic(gas_used: UnsignedGas) -> Self {
         Self {
             gas_used,
-            output: WorkExecutionOutput::panic(),
+            output: WorkExecutionResult::panic(),
             export_segments: vec![],
         }
     }

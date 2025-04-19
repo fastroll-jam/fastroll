@@ -218,8 +218,8 @@ pub struct ServiceStatsEntry {
     pub extrinsics_octets: u32,
     /// `e`: The number of exported segments by the service.
     pub exports_count: u16,
-    /// `r.0`: The number of work item results associated with the service.
-    pub work_item_results_count: u16,
+    /// `r.0`: The number of work digests associated with the service.
+    pub work_digests_count: u16,
     /// `r.1`: The actual amount of gas used during refinement of the service.
     pub refine_gas_used: UnsignedGas,
     /// `p.0`: The number of preimage extrinsics introduced in the block, requested by the service.
@@ -243,7 +243,7 @@ impl ServiceStatsEntry {
         self.extrinsics_octets += refine_stats.extrinsics_octets;
         self.exports_count += refine_stats.exports_count;
         self.refine_gas_used += refine_stats.refine_gas_used;
-        self.work_item_results_count += 1;
+        self.work_digests_count += 1;
     }
 
     pub fn add_preimage_load(&mut self, preimage: &PreimagesXtEntry) {

@@ -11,7 +11,7 @@ pub struct WorkPackage {
     pub auth_token: Octets,
     /// `h`: Authorization code host service id
     pub authorizer_service_id: ServiceId,
-    /// `u` & **`p`**: Authorization code hash and param blob
+    /// `u` & **`p`**: Authorization code hash and config blob
     pub authorizer: Authorizer,
     /// **`x`**: Refinement context
     pub context: RefinementContext,
@@ -57,8 +57,8 @@ impl JamDecode for WorkPackage {
 pub struct Authorizer {
     /// `u`: Authorization code hash
     pub auth_code_hash: Hash32,
-    /// **`p`**: Authorization param blob
-    pub param_blob: Octets,
+    /// **`p`**: Authorization config blob
+    pub config_blob: Octets,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

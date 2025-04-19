@@ -1095,7 +1095,7 @@ impl HostFunction {
     }
 
     /// Fetches various data types introduced as arguments of the refine invocation.
-    /// This includes work-package data, authorizer output and imports data.
+    /// This includes work-package data, authorizer trace and imports data.
     pub fn host_fetch(
         vm: &VMState,
         context: &mut InvocationContext,
@@ -1106,7 +1106,7 @@ impl HostFunction {
 
         let data = match data_id {
             0 => x.invoke_args.package.clone().encode()?,
-            1 => x.invoke_args.auth_output.clone(),
+            1 => x.invoke_args.auth_trace.clone(),
             2 => {
                 let items = x.invoke_args.package.work_items.clone();
                 let item_idx = vm.regs[11].as_usize()?;
