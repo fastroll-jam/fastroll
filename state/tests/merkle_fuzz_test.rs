@@ -14,7 +14,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager(None);
 
     // Test with N random state entries
-    const N: usize = 100;
+    const N: usize = 1000;
     const MAX_VAL_SIZE: usize = 1000;
 
     // Generate random state entries
@@ -22,7 +22,8 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let mut expected_state_values = Vec::with_capacity(N); // In-memory values
 
     // Add to the Cache
-    for _ in 0..N {
+    for i in 0..N {
+        tracing::debug!("Adding entry #{i}");
         let state_key = random_state_key();
         let state_val = random_state_val(MAX_VAL_SIZE);
 
@@ -40,6 +41,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Verify the Additions
     for i in 0..N {
+        tracing::debug!("Verifying added entry #{i}");
         let state_val_db_encoded = state_manager
             .get_raw_state_entry_from_db(&state_keys[i])
             .await?
@@ -64,6 +66,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let mut updated_values = HashMap::new();
 
     for i in update_indices {
+        tracing::debug!("Updating entry #{i}");
         let key = state_keys[*i];
         let new_val = random_state_val(MAX_VAL_SIZE);
         state_manager
@@ -77,6 +80,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let mut removed_keys = Vec::with_capacity(num_removes);
 
     for i in remove_indices {
+        tracing::debug!("Removing entry #{i}");
         let key = state_keys[*i];
         state_manager.remove_raw_state_entry(&key).await?;
         removed_keys.push(key);
@@ -89,6 +93,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Verify the Updates
     for (key, val_expected) in updated_values {
+        tracing::debug!("Verifying updated entry with key {key}");
         let state_val_db_encoded = state_manager
             .get_raw_state_entry_from_db(&key)
             .await?
@@ -100,6 +105,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Verify the Removals
     for key in removed_keys {
+        tracing::debug!("Verifying removed entry with key {key}");
         let maybe_state_val = state_manager.get_raw_state_entry_from_db(&key).await?;
         assert!(
             maybe_state_val.is_none(),

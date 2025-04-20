@@ -64,7 +64,7 @@ pub fn random_state_key() -> Hash32 {
 
 pub fn random_state_val(max_len: usize) -> Vec<u8> {
     let mut rng = thread_rng();
-    let len = rng.gen_range(0..max_len);
+    let len = rng.gen_range(max_len / 2..max_len);
     let mut data = vec![0u8; len];
     rng.fill(&mut data[..]);
     data
