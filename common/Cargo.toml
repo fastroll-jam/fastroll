@@ -8,6 +8,8 @@ rjam-codec = { workspace = true, features = ["derive"] }
 cfg-if = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [features]
 default = ["tiny"]

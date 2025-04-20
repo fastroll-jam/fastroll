@@ -11,3 +11,4 @@ rjam-extrinsics = { workspace = true }
 rjam-state = { workspace = true }
 rjam-state-merkle = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }

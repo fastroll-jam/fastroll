@@ -54,7 +54,7 @@ impl MerkleNodeWrite {
 }
 
 /// A collection of merkle node entries to be written into the `MerkleDB`. Also includes the
-/// new merkle root that represents the posterior state of the merkle trie after commiting it.
+/// new merkle root that represents the posterior state of the merkle trie after committing them.
 ///
 /// The `map` is keyed by the node hash that previously existed at the position in the merkle trie
 /// before the write operation represented by `MerkleNodeWrite`, so that parent nodes can look up

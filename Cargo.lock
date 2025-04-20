@@ -1208,6 +1208,8 @@ dependencies = [
  "hex",
  "rjam-codec",
  "thiserror",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1234,7 +1236,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1295,6 +1296,7 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1383,6 +1385,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1416,7 +1419,6 @@ dependencies = [
  "time",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

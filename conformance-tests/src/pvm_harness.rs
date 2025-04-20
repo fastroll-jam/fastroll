@@ -234,7 +234,7 @@ pub fn run_test_case(filename: &str) {
     ProgramLoader::load_program(&program, &mut pvm.program_state).expect("Failed to load program");
 
     // Debugging
-    println!("{:?}", pvm.program_state);
+    tracing::trace!("{:?}", pvm.program_state);
 
     // execute PVM
     let exit_reason = Interpreter::invoke_general(&mut pvm.state, &mut pvm.program_state, &program)
