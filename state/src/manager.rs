@@ -415,12 +415,9 @@ impl StateManager {
         } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
         // Debugging
-        // println!("AffectedNodesByDepth: ");
-        // println!("{}", &affected_nodes_by_depth);
-        // println!("MerkleDBWriteSet: ");
-        // println!("{}", &merkle_db_write_set);
-        // println!("StateDBWriteSet: ");
-        // println!("{}", &state_db_write_set);
+        tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
+        tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
+        tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 
         // Commit the write batch to the MerkleDB
         let mut merkle_db_wb = WriteBatch::default();
@@ -435,10 +432,10 @@ impl StateManager {
         // Update the merkle root of the MerkleDB
         self.merkle_db
             .update_root(merkle_db_write_set.get_new_root());
-        // println!(
-        //     "Merkle root updated: {}",
-        //     &merkle_db_write_set.get_new_root()
-        // );
+        tracing::debug!(
+            "Merkle root updated: {}",
+            &merkle_db_write_set.get_new_root()
+        );
 
         // Mark committed entry as clean
         self.cache.mark_entry_clean_and_snapshot(state_key)?;
@@ -483,6 +480,11 @@ impl StateManager {
                 state_db_write_set,
             } = affected_nodes_by_depth.generate_merkle_write_set()?;
 
+            // Debugging
+            tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
+            tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
+            tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
+
             self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
             self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
 
@@ -498,6 +500,10 @@ impl StateManager {
             // Update the WorkingSet root
             self.merkle_db
                 .update_root(merkle_db_write_set.get_new_root());
+            tracing::debug!(
+                "Merkle root updated: {}",
+                &merkle_db_write_set.get_new_root()
+            );
         }
 
         // Commit the write batch to the MerkleDB

@@ -1235,6 +1235,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1295,6 +1296,7 @@ dependencies = [
  "rjam-state",
  "rjam-state-merkle",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -2,11 +2,15 @@
 #![allow(unused_imports)]
 use rand::{seq::SliceRandom, thread_rng};
 use rjam_codec::JamDecode;
+use rjam_common::utils::tracing::setup_timed_tracing;
 use rjam_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
 use std::{collections::HashMap, error::Error};
 
 #[tokio::test]
 async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
+    // Config tracing subscriber
+    setup_timed_tracing();
+
     let (_, state_manager) = init_db_and_manager(None);
 
     // Test with N random state entries
@@ -32,7 +36,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     // Commit Additions
     state_manager.commit_dirty_cache().await?;
-    println!("--- Committed to the DB: Add");
+    tracing::info!("--- Committed to the DB: Add");
 
     // Verify the Additions
     for i in 0..N {
@@ -45,7 +49,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
         assert_eq!(state_val_db, state_val_expected);
     }
-    println!("--- Verified Additions");
+    tracing::info!("--- Verified Additions");
 
     // State Mutation: 33% Updates, 20% Removals
     let num_updates = N / 3;
@@ -81,7 +85,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Commit Updates and Removals
     state_manager.commit_dirty_cache().await?;
 
-    println!("--- Committed to the DB: Update/Remove");
+    tracing::info!("--- Committed to the DB: Update/Remove");
 
     // Verify the Updates
     for (key, val_expected) in updated_values {
@@ -92,7 +96,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         assert_eq!(state_val_db, val_expected);
     }
-    println!("--- Verified Updates");
+    tracing::info!("--- Verified Updates");
 
     // Verify the Removals
     for key in removed_keys {
@@ -102,7 +106,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
             "Removed key ({key}) still found in DB"
         );
     }
-    println!("--- Verified Removed keys");
+    tracing::info!("--- Verified Removed keys");
 
     // Verify the unchanged entries
     let unchanged_keys = indices[(num_updates + num_removes)..].to_vec();
@@ -115,7 +119,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         assert_eq!(state_val_db, expected_state_values[i]);
     }
-    println!("--- Verified Unchanged entries");
+    tracing::info!("--- Verified Unchanged entries");
 
     Ok(())
 }
