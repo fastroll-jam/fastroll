@@ -313,7 +313,8 @@ impl MerkleDB {
                     // `Add` write operation.
                     if child_hash == &Hash32::default() && branch_type.has_single_child() {
                         if let MerkleWriteOp::Add(state_key, state_value) = &write_op {
-                            affected_nodes.entry(depth).or_default().insert(
+                            affected_nodes.insert(
+                                depth,
                                 AffectedNode::Endpoint(AffectedEndpoint {
                                     hash: current_node.hash,
                                     depth,
@@ -345,7 +346,8 @@ impl MerkleDB {
                     if let MerkleWriteOp::Remove(_state_key) = &write_op {
                         let remove_ctx = remove_ctx.clone().expect("should exist for removal case");
                         if current_node.hash == remove_ctx.post_parent_hash {
-                            affected_nodes.entry(depth).or_default().insert(
+                            affected_nodes.insert(
+                                depth,
                                 AffectedNode::Endpoint(AffectedEndpoint {
                                     hash: current_node.hash, // post parent node
                                     depth,
@@ -358,15 +360,15 @@ impl MerkleDB {
 
                     // Simply collect the branch node as affected node.
                     // Here, affected node stored at `depth = 0` is the root node.
-                    affected_nodes
-                        .entry(depth)
-                        .or_default()
-                        .insert(AffectedNode::PathNode(AffectedPathNode {
+                    affected_nodes.insert(
+                        depth,
+                        AffectedNode::PathNode(AffectedPathNode {
                             hash: current_node.hash,
                             depth,
                             left,
                             right,
-                        }));
+                        }),
+                    );
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
                     let Some(node) = self.get_node_with_working_set(child_hash).await? else {
@@ -398,7 +400,8 @@ impl MerkleDB {
                             let leaf_state_key_248 =
                                 current_node.extract_partial_leaf_state_key()?;
 
-                            affected_nodes.entry(depth).or_default().insert(
+                            affected_nodes.insert(
+                                depth,
                                 AffectedNode::Endpoint(AffectedEndpoint {
                                     hash: current_node.hash,
                                     depth,
@@ -422,7 +425,8 @@ impl MerkleDB {
                             Ok(())
                         }
                         MerkleWriteOp::Update(state_key, state_value) => {
-                            affected_nodes.entry(depth).or_default().insert(
+                            affected_nodes.insert(
+                                depth,
                                 AffectedNode::Endpoint(AffectedEndpoint {
                                     hash: current_node.hash,
                                     depth,

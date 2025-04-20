@@ -3,7 +3,7 @@ use bit_vec::BitVec;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
@@ -162,14 +162,17 @@ impl StateDBWriteSet {
     }
 }
 
-/// FIXME: Remove `HashSet` since only one `AffectedNode` exists per depth (see `StateManager::commit_dirty_cache`)
+/// Collection of merkle trie nodes affected by state write operations.
+///
+/// * Key: Depth of the node in the trie.
+/// * Value: `AffectedNode`, which contains necessary contexts for updating the trie.
 #[derive(Debug, Default)]
 pub struct AffectedNodesByDepth {
-    inner: BTreeMap<usize, HashSet<AffectedNode>>,
+    inner: BTreeMap<usize, AffectedNode>,
 }
 
 impl Deref for AffectedNodesByDepth {
-    type Target = BTreeMap<usize, HashSet<AffectedNode>>;
+    type Target = BTreeMap<usize, AffectedNode>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -188,18 +191,15 @@ impl Display for AffectedNodesByDepth {
             return writeln!(f, "AffectedNodesByDepth is empty");
         }
 
-        for (depth, affected_nodes) in &self.inner {
-            writeln!(f, "Depth: {}", depth)?;
-            for node in affected_nodes {
-                writeln!(f, "  {}", node)?;
-            }
+        for (depth, affected_node) in &self.inner {
+            writeln!(f, "Depth: {depth}, Affected Node: {affected_node}")?;
         }
         Ok(())
     }
 }
 
 impl AffectedNodesByDepth {
-    pub fn new(inner: BTreeMap<usize, HashSet<AffectedNode>>) -> Self {
+    pub fn new(inner: BTreeMap<usize, AffectedNode>) -> Self {
         Self { inner }
     }
 
@@ -213,21 +213,19 @@ impl AffectedNodesByDepth {
 
         let mut iter_rev = self.iter().rev().peekable();
 
-        while let Some((_depth, affected_nodes)) = iter_rev.next() {
+        while let Some((_depth, affected_node)) = iter_rev.next() {
             // The final iteration will handle the root node (reverse iteration starting from the leaf).
             let is_root_node = iter_rev.peek().is_none();
 
-            for affected_node in affected_nodes {
-                let maybe_new_root = Self::process_affected_node(
-                    affected_node,
-                    &mut merkle_db_write_set,
-                    &mut state_db_write_set,
-                    is_root_node,
-                )?;
-                if let Some(new_root) = maybe_new_root {
-                    // Contain the new root hash to the `MerkleDBWriteSet` struct.
-                    merkle_db_write_set.set_new_root(new_root);
-                }
+            let maybe_new_root = Self::process_affected_node(
+                affected_node,
+                &mut merkle_db_write_set,
+                &mut state_db_write_set,
+                is_root_node,
+            )?;
+            if let Some(new_root) = maybe_new_root {
+                // Contain the new root hash to the `MerkleDBWriteSet` struct.
+                merkle_db_write_set.set_new_root(new_root);
             }
         }
 
