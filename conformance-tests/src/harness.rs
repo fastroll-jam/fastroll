@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use rjam_block::header_db::BlockHeaderDB;
+use rjam_common::utils::tracing::setup_timed_tracing;
 use rjam_state::{error::StateManagerError, manager::StateManager};
 use rjam_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -9,8 +10,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tracing::subscriber::set_global_default;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase<I, O, S> {
@@ -71,19 +70,9 @@ pub trait StateTransitionTest {
     ) -> Result<Self::State, StateManagerError>;
 }
 
-fn setup_tracing() {
-    let fmt_layer = fmt::layer()
-        .with_target(false)
-        .with_timer(fmt::time::uptime());
-    let sub = Registry::default()
-        .with(EnvFilter::from_default_env())
-        .with(fmt_layer);
-    set_global_default(sub).expect("Failed to set tracing subscriber");
-}
-
 pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), TransitionError> {
     // Config tracing subscriber
-    setup_tracing();
+    setup_timed_tracing();
 
     // load test case
     let filename = PathBuf::from(filename);

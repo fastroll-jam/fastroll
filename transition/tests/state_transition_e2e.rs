@@ -1,6 +1,8 @@
 //! End-to-end state transition tests
 use rjam_block::types::{block::BlockHeader, extrinsics::Extrinsics};
-use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32};
+use rjam_common::{
+    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
+};
 use rjam_state::{
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
     types::Timeslot,
@@ -24,8 +26,6 @@ use rjam_transition::{
 };
 use std::{error::Error, future::Future, sync::Arc, time::Instant};
 use tokio::{join, task::JoinHandle};
-use tracing::subscriber::set_global_default;
-use tracing_subscriber::{fmt, prelude::*, Registry};
 
 fn spawn_timed<F, T>(task_name: &'static str, fut: F) -> JoinHandle<T>
 where
@@ -40,18 +40,10 @@ where
     })
 }
 
-fn setup_tracing() {
-    let fmt_layer = fmt::layer()
-        .with_target(false)
-        .with_timer(fmt::time::uptime());
-    let sub = Registry::default().with(fmt_layer);
-    set_global_default(sub).expect("Failed to set tracing subscriber");
-}
-
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
-    setup_tracing();
+    setup_timed_tracing();
 
     // Parent block context
     let parent_block = BlockHeader::default();
