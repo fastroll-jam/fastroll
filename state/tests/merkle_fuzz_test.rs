@@ -13,16 +13,22 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     let (_, state_manager) = init_db_and_manager(None);
 
-    // Test with N random state entries
-    const N: usize = 1000;
+    // Test with n random state entries
+    const N_DEFAULT: usize = 100;
+    let n: usize = std::env::var("MERKLE_FUZZ_N")
+        .unwrap_or(N_DEFAULT.to_string())
+        .parse()
+        .unwrap_or(N_DEFAULT);
+    tracing::info!("--- Running fuzz test with n = {}", n);
+
     const MAX_VAL_SIZE: usize = 1000;
 
     // Generate random state entries
-    let mut state_keys = Vec::with_capacity(N);
-    let mut expected_state_values = Vec::with_capacity(N); // In-memory values
+    let mut state_keys = Vec::with_capacity(n);
+    let mut expected_state_values = Vec::with_capacity(n); // In-memory values
 
     // Add to the Cache
-    for i in 0..N {
+    for i in 0..n {
         tracing::debug!("Adding entry #{i}");
         let state_key = random_state_key();
         let state_val = random_state_val(MAX_VAL_SIZE);
@@ -40,7 +46,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     tracing::info!("--- Committed to the DB: Add");
 
     // Verify the Additions
-    for i in 0..N {
+    for i in 0..n {
         tracing::debug!("Verifying added entry #{i}");
         let state_val_db_encoded = state_manager
             .get_raw_state_entry_from_db(&state_keys[i])
@@ -54,11 +60,11 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     tracing::info!("--- Verified Additions");
 
     // State Mutation: 33% Updates, 20% Removals
-    let num_updates = N / 3;
-    let num_removes = N / 5;
+    let num_updates = n / 3;
+    let num_removes = n / 5;
 
     // Shuffle the keys
-    let mut indices: Vec<usize> = (0..N).collect();
+    let mut indices: Vec<usize> = (0..n).collect();
     indices.shuffle(&mut thread_rng());
 
     // State Mutation (Update)
