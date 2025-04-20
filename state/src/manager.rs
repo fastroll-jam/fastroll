@@ -22,7 +22,7 @@ use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::LeafType,
-    write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
+    write_set::{MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
 use std::collections::HashMap;
 
@@ -404,18 +404,15 @@ impl StateManager {
         }
 
         // Case 2: Trie is not empty
-        let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-        self.merkle_db
-            .collect_leaf_path(state_key, write_op, &mut affected_nodes_by_depth)
-            .await?;
-
         let MerkleWriteSet {
             merkle_db_write_set,
             state_db_write_set,
-        } = affected_nodes_by_depth.generate_merkle_write_set()?;
+        } = self
+            .merkle_db
+            .collect_leaf_path(state_key, write_op)
+            .await?;
 
         // Debugging
-        tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
         tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
         tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 
@@ -465,23 +462,16 @@ impl StateManager {
         let mut state_db_wb = WriteBatch::default();
 
         for (state_key, entry) in &dirty_entries {
-            let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-            self.merkle_db
-                .collect_leaf_path(
-                    state_key,
-                    entry.as_merkle_write_op(state_key)?,
-                    &mut affected_nodes_by_depth,
-                )
-                .await?;
-
             // Convert dirty cache entries into write batch and commit to the MerkleDB
             let MerkleWriteSet {
                 merkle_db_write_set,
                 state_db_write_set,
-            } = affected_nodes_by_depth.generate_merkle_write_set()?;
+            } = self
+                .merkle_db
+                .collect_leaf_path(state_key, entry.as_merkle_write_op(state_key)?)
+                .await?;
 
             // Debugging
-            tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
             tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
             tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 

@@ -1,3 +1,4 @@
+use crate::write_set::MerkleWriteSet;
 #[allow(unused_imports)]
 use crate::{
     codec::{test_utils::print_node, NodeCodec},
@@ -274,19 +275,21 @@ impl MerkleDB {
         }
     }
 
+    /// Collects nodes that are affected by state write operations along the way to the leaf node,
+    /// and returns `MerkleWriteSet`.
     pub async fn collect_leaf_path(
         &self,
         state_key: &Hash32,
         write_op: MerkleWriteOp,
-        affected_nodes: &mut AffectedNodesByDepth,
-    ) -> Result<(), StateMerkleError> {
+    ) -> Result<MerkleWriteSet, StateMerkleError> {
         // Initialize local state variables
+        let mut affected_nodes = AffectedNodesByDepth::default();
         let state_key_bv = bits_encode_msb(state_key.as_slice());
         let Some(mut current_node) = self
             .get_node_with_working_set(&self.root_with_working_set())
             .await?
         else {
-            return Ok(());
+            return Ok(MerkleWriteSet::default());
         };
 
         // Accumulator for bits of the state key bitvec. Represents the partial merkle path
@@ -329,7 +332,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            return Ok(());
+                            return affected_nodes.generate_merkle_write_set();
                         }
 
                         // If child_hash of chosen on the merkle path (following the bit `b`) is
@@ -354,7 +357,7 @@ impl MerkleDB {
                                     leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
                                 }),
                             );
-                            return Ok(());
+                            return affected_nodes.generate_merkle_write_set();
                         }
                     }
 
@@ -373,7 +376,7 @@ impl MerkleDB {
                     // Update local state variables for the next iteration (move forward along the merkle path).
                     let Some(node) = self.get_node_with_working_set(child_hash).await? else {
                         // TODO: This implies pollution
-                        return Ok(());
+                        return affected_nodes.generate_merkle_write_set();
                     };
                     current_node = node;
                 }
@@ -422,7 +425,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            Ok(())
+                            affected_nodes.generate_merkle_write_set()
                         }
                         MerkleWriteOp::Update(state_key, state_value) => {
                             affected_nodes.insert(
@@ -439,7 +442,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            Ok(())
+                            affected_nodes.generate_merkle_write_set()
                         }
                         MerkleWriteOp::Remove(_state_key) => {
                             Err(StateMerkleError::MerkleRemovalFailed)

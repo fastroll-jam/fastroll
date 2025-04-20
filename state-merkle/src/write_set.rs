@@ -8,6 +8,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+#[derive(Default)]
 pub struct MerkleWriteSet {
     pub merkle_db_write_set: MerkleDBWriteSet,
     pub state_db_write_set: StateDBWriteSet,
@@ -167,7 +168,7 @@ impl StateDBWriteSet {
 /// * Key: Depth of the node in the trie.
 /// * Value: `AffectedNode`, which contains necessary contexts for updating the trie.
 #[derive(Debug, Default)]
-pub struct AffectedNodesByDepth {
+pub(crate) struct AffectedNodesByDepth {
     inner: BTreeMap<usize, AffectedNode>,
 }
 
@@ -199,11 +200,7 @@ impl Display for AffectedNodesByDepth {
 }
 
 impl AffectedNodesByDepth {
-    pub fn new(inner: BTreeMap<usize, AffectedNode>) -> Self {
-        Self { inner }
-    }
-
-    pub fn generate_merkle_write_set(&self) -> Result<MerkleWriteSet, StateMerkleError> {
+    pub(crate) fn generate_merkle_write_set(&self) -> Result<MerkleWriteSet, StateMerkleError> {
         let mut merkle_db_write_set = MerkleDBWriteSet::default();
         let mut state_db_write_set = StateDBWriteSet::default();
 
