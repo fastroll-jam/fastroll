@@ -57,7 +57,7 @@ where
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, CachedDBError> {
-        self.core.cf_handle(self.cf_name).map_err(|e| e.into())
+        Ok(self.core.cf_handle(self.cf_name)?)
     }
 
     pub async fn get_entry(&self, key: &K) -> Result<Option<V>, CachedDBError> {

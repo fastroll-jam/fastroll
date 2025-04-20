@@ -75,7 +75,7 @@ impl MerkleDB {
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, StateMerkleError> {
-        self.db.cf_handle().map_err(|e| e.into())
+        Ok(self.db.cf_handle()?)
     }
 
     pub fn root_with_working_set(&self) -> Hash32 {

@@ -71,7 +71,7 @@ impl BlockHeaderDB {
     }
 
     pub fn cf_handle(&self) -> Result<&ColumnFamily, BlockHeaderDBError> {
-        self.db.cf_handle().map_err(|e| e.into())
+        Ok(self.db.cf_handle()?)
     }
 
     /// Get a block header by its hash from the cache or the DB.

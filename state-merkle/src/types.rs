@@ -25,7 +25,7 @@ pub struct MerkleNode {
     /// Full node structures:
     /// - Branch node:        [0]  + [255-bit left child hash (partial)] + [256-bit right child hash]
     /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key (partial)] + [encoded state value] + [zero padding]
-    /// - Regular leaf node:  [11] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
+    /// - Regular leaf node:  [11] + [000000] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
     pub data: Vec<u8>,
 }
 
