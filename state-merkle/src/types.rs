@@ -90,32 +90,22 @@ impl MerkleNode {
     /// cannot recover the full state key by parsing the leaf node data.
     pub fn extract_partial_leaf_state_key(&self) -> Result<BitVec, StateMerkleError> {
         match self.check_node_type()? {
-            NodeType::Leaf(LeafType::Embedded) => Ok(self.parse_embedded_leaf()?.partial_state_key),
-            NodeType::Leaf(LeafType::Regular) => Ok(self.parse_regular_leaf()?.partial_state_key),
+            NodeType::Leaf(_) => Ok(self.parse_leaf()?.partial_state_key().clone()),
             _ => Err(StateMerkleError::InvalidNodeType),
         }
     }
-
-    // TODO: merge `parse_embedded_leaf` and `parse_regular_leaf`
-    fn parse_embedded_leaf(&self) -> Result<EmbeddedLeafParsed, StateMerkleError> {
+    fn parse_leaf(&self) -> Result<LeafParsed, StateMerkleError> {
         match NodeCodec::decode_leaf(self)? {
-            LeafParsed::EmbeddedLeaf(parsed) => Ok(EmbeddedLeafParsed {
+            LeafParsed::EmbeddedLeaf(parsed) => Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
                 node_hash: self.hash,
                 value: parsed.value,
                 partial_state_key: parsed.partial_state_key,
-            }),
-            _ => Err(StateMerkleError::InvalidNodeType),
-        }
-    }
-
-    fn parse_regular_leaf(&self) -> Result<RegularLeafParsed, StateMerkleError> {
-        match NodeCodec::decode_leaf(self)? {
-            LeafParsed::RegularLeaf(parsed) => Ok(RegularLeafParsed {
+            })),
+            LeafParsed::RegularLeaf(parsed) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
                 node_hash: self.hash,
                 value_hash: parsed.value_hash,
                 partial_state_key: parsed.partial_state_key,
-            }),
-            _ => Err(StateMerkleError::InvalidNodeType),
+            })),
         }
     }
 
@@ -125,12 +115,7 @@ impl MerkleNode {
     ) -> Result<NodeDataParsed, StateMerkleError> {
         match self.check_node_type()? {
             NodeType::Branch(_) => Ok(NodeDataParsed::Branch(self.parse_branch(merkle_db).await?)),
-            NodeType::Leaf(LeafType::Embedded) => Ok(NodeDataParsed::Leaf(
-                LeafParsed::EmbeddedLeaf(self.parse_embedded_leaf()?),
-            )),
-            NodeType::Leaf(LeafType::Regular) => Ok(NodeDataParsed::Leaf(LeafParsed::RegularLeaf(
-                self.parse_regular_leaf()?,
-            ))),
+            NodeType::Leaf(_) => Ok(NodeDataParsed::Leaf(self.parse_leaf()?)),
         }
     }
 }
@@ -243,6 +228,15 @@ impl Display for LeafParsed {
         match self {
             Self::EmbeddedLeaf(leaf) => write!(f, "{}", leaf),
             Self::RegularLeaf(leaf) => write!(f, "{}", leaf),
+        }
+    }
+}
+
+impl LeafParsed {
+    fn partial_state_key(&self) -> &BitVec {
+        match self {
+            Self::EmbeddedLeaf(leaf) => &leaf.partial_state_key,
+            Self::RegularLeaf(leaf) => &leaf.partial_state_key,
         }
     }
 }
