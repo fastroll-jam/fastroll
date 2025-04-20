@@ -332,7 +332,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            return affected_nodes.generate_merkle_write_set();
+                            return affected_nodes.into_merkle_write_set();
                         }
 
                         // If child_hash of chosen on the merkle path (following the bit `b`) is
@@ -357,7 +357,7 @@ impl MerkleDB {
                                     leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
                                 }),
                             );
-                            return affected_nodes.generate_merkle_write_set();
+                            return affected_nodes.into_merkle_write_set();
                         }
                     }
 
@@ -376,7 +376,7 @@ impl MerkleDB {
                     // Update local state variables for the next iteration (move forward along the merkle path).
                     let Some(node) = self.get_node_with_working_set(child_hash).await? else {
                         // TODO: This implies pollution
-                        return affected_nodes.generate_merkle_write_set();
+                        return affected_nodes.into_merkle_write_set();
                     };
                     current_node = node;
                 }
@@ -425,7 +425,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            affected_nodes.generate_merkle_write_set()
+                            affected_nodes.into_merkle_write_set()
                         }
                         MerkleWriteOp::Update(state_key, state_value) => {
                             affected_nodes.insert(
@@ -442,7 +442,7 @@ impl MerkleDB {
                                     ),
                                 }),
                             );
-                            affected_nodes.generate_merkle_write_set()
+                            affected_nodes.into_merkle_write_set()
                         }
                         MerkleWriteOp::Remove(_state_key) => {
                             Err(StateMerkleError::MerkleRemovalFailed)

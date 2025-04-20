@@ -200,16 +200,15 @@ impl Display for AffectedNodesByDepth {
 }
 
 impl AffectedNodesByDepth {
-    pub(crate) fn generate_merkle_write_set(&self) -> Result<MerkleWriteSet, StateMerkleError> {
+    pub(crate) fn into_merkle_write_set(self) -> Result<MerkleWriteSet, StateMerkleError> {
+        if self.is_empty() {
+            return Ok(MerkleWriteSet::default());
+        }
+
         let mut merkle_db_write_set = MerkleDBWriteSet::default();
         let mut state_db_write_set = StateDBWriteSet::default();
 
-        if self.is_empty() {
-            return Ok(MerkleWriteSet::new(merkle_db_write_set, state_db_write_set));
-        }
-
         let mut iter_rev = self.iter().rev().peekable();
-
         while let Some((_depth, affected_node)) = iter_rev.next() {
             // The final iteration will handle the root node (reverse iteration starting from the leaf).
             let is_root_node = iter_rev.peek().is_none();
