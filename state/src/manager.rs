@@ -1,5 +1,6 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
+    config::StateManagerConfig,
     error::StateManagerError,
     state_db::StateDB,
     state_utils::{
@@ -17,14 +18,14 @@ use crate::{
 use rjam_codec::JamDecode;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
-use rjam_db::WriteBatch;
+use rjam_db::{core::core_db::CoreDB, WriteBatch};
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::nodes::LeafType,
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 pub struct StateManager {
     state_db: StateDB,
@@ -62,6 +63,25 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
+    pub fn from_core_db(core_db: Arc<CoreDB>, config: StateManagerConfig) -> Self {
+        Self::new(
+            StateDB::new(
+                core_db.clone(),
+                config.state_cf_name,
+                config.state_db_cache_size,
+            ),
+            MerkleDB::new(core_db, config.merkle_cf_name, config.merkle_db_cache_size),
+        )
+    }
+
+    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
+        Self {
+            state_db,
+            merkle_db,
+            cache: StateCache::default(),
+        }
+    }
+
     /// Always retrieves state entry from the DB for test purpose.
     pub async fn get_raw_state_entry_from_db(
         &self,
@@ -185,14 +205,6 @@ impl StateManager {
 
     pub fn merkle_root(&self) -> Hash32 {
         self.merkle_db.root()
-    }
-
-    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
-        Self {
-            state_db,
-            merkle_db,
-            cache: StateCache::default(),
-        }
     }
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
