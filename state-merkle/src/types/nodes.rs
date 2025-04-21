@@ -1,6 +1,5 @@
 use crate::{
-    codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB,
-    types::write_context::LeafWriteOpContext, write_set::MerkleNodeWrite,
+    codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB, write_set::MerkleNodeWrite,
 };
 use bit_vec::BitVec;
 use rjam_common::Hash32;
@@ -286,85 +285,6 @@ impl Display for RegularLeafParsed {
             \tState Key: 0b{},\n\
             }}",
             self.node_hash, self.value_hash, self.partial_state_key
-        )
-    }
-}
-
-//
-// Affected Node Types
-//
-
-/// Leaf node write operations.
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub enum MerkleWriteOp {
-    Add(Hash32, Vec<u8>),    // (state_key, state_value)
-    Update(Hash32, Vec<u8>), // (state_key, state_value)
-    Remove(Hash32),          // state_key
-}
-
-/// Snapshot of the current state of the nodes to be affected by the state transition.
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub enum AffectedNode {
-    PathNode(AffectedPathNode),
-    Endpoint(AffectedEndpoint),
-}
-
-impl Display for AffectedNode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::PathNode({})", branch),
-            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Endpoint({})", leaf),
-        }
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct AffectedPathNode {
-    /// Hash identifier of the current node.
-    pub hash: Hash32,
-    /// Depth of the current node in the trie.
-    pub depth: usize,
-    /// Hash of the left child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
-    pub left: Hash32,
-    /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
-    pub right: Hash32,
-}
-
-impl Display for AffectedPathNode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "AffectedPathNode {{ \
-            \thash: {},\n\
-            \tdepth: {},\n\
-            \tleft: {},\n\
-            \tright: {},\n\
-            }}
-            ",
-            self.hash, self.depth, self.left, self.right,
-        )
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct AffectedEndpoint {
-    /// Hash identifier of the current node.
-    pub hash: Hash32,
-    /// Depth of the current node in the trie.
-    pub depth: usize,
-    /// Context of the write operation.
-    pub leaf_write_op_context: LeafWriteOpContext,
-}
-
-impl Display for AffectedEndpoint {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "AffectedEndpoint {{ \n\
-            \tdepth: {},\n\
-            \tleaf_write_op_context: {}\n\
-            }}",
-            self.depth, self.leaf_write_op_context
         )
     }
 }

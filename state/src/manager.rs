@@ -22,7 +22,7 @@ use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::nodes::LeafType,
-    write_set::{MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
+    write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
 use std::collections::HashMap;
 
@@ -404,7 +404,7 @@ impl StateManager {
         }
 
         // Case 2: Trie is not empty
-        let MerkleWriteSet {
+        let DBWriteSet {
             merkle_db_write_set,
             state_db_write_set,
         } = self
@@ -463,7 +463,7 @@ impl StateManager {
 
         for (state_key, entry) in &dirty_entries {
             // Convert dirty cache entries into write batch and commit to the MerkleDB
-            let MerkleWriteSet {
+            let DBWriteSet {
                 merkle_db_write_set,
                 state_db_write_set,
             } = self
