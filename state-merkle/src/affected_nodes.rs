@@ -118,6 +118,8 @@ impl Display for AffectedNodesByDepth {
 }
 
 impl AffectedNodesByDepth {
+    /// Converts a collection of `AffectedNode`s into a `DBWriteSet`
+    /// for committing changes to the `MerkleDB` and `StateDB`.
     pub(crate) fn into_merkle_write_set(self) -> Result<DBWriteSet, StateMerkleError> {
         if self.is_empty() {
             return Ok(DBWriteSet::default());
@@ -169,7 +171,7 @@ impl AffectedNodesByDepth {
                     .get(&path_node.right)
                     .map_or(path_node.right, |right_updated| right_updated.hash);
 
-                // the branch node data after state transition
+                // Updated branch node data after the partial merkle write.
                 let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
                 let node_hash = hash::<Blake2b256>(&node_data)?;
 
@@ -185,13 +187,30 @@ impl AffectedNodesByDepth {
             AffectedNode::Endpoint(endpoint) => {
                 match &endpoint.leaf_write_op_context {
                     LeafWriteOpContext::Add(ctx) => {
-                        // `AffectedNode` is the future sibling leaf of the added leaf.
-
-                        // FIXME: Mention decompressing path bits
-                        // By adding a new state entry, two new entries will be added to the `MerkleDB`.
-                        // One for the new leaf node that holds the new state data and the other
-                        // for the new branch node that will replace the position of the sibling leaf node of the new leaf node,
-                        // pointing to the new leaf node and its sibling node as child nodes.
+                        // Endpoint `AffectedNode` for `Add` operation can be either a leaf node or
+                        // a single-child branch, which will be a future sibling leaf of the new leaf
+                        // being added.
+                        //
+                        // Case 1: Endpoint `AffectedNode` is a leaf node.
+                        // In this case, the endpoint must be "split", decompressing the merkle path
+                        // which was compressed under the endpoint leaf node.
+                        // If the newly added leaf node and its future sibling leaf share `N` more
+                        // common merkle path bits from the endpoint leaf node's original position,
+                        // (`N` + 2) new entries will be added into the `MerkleDB`:
+                        //
+                        // One for the new leaf that holds the new state data,
+                        // one for the new branch node which will be a parent of the new leaf and
+                        // its sibling, and `N` more single-child branches to represent the decompressed
+                        // path.
+                        //
+                        //
+                        // Case 2: Endpoint `AffectedNode` is a single-child branch.
+                        // In this case, two new entries will be added into the `MerkleDB`:
+                        //
+                        // One for the new leaf that holds the new state data,
+                        // and the other for the new branch node that will replace the position of
+                        // the endpoint `AffectedNode`, pointing the new leaf node and its sibling
+                        // node as children.
 
                         // Create a new leaf node as a merkle write.
                         let state_value_slice = ctx.leaf_state_value.as_slice();
@@ -205,7 +224,7 @@ impl AffectedNodesByDepth {
                             MerkleNodeWrite::new(added_leaf_node_hash, added_leaf_node_data);
 
                         // Create a new branch node as a merkle write. This branch has the
-                        // new leaf node and its sibling candidate node as child nodes.
+                        // new leaf node and its sibling candidate node as its children.
 
                         let (new_branch_left_hash, new_branch_right_hash) = match ctx
                             .added_leaf_child_side
