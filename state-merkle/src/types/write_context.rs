@@ -25,7 +25,7 @@ pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
     pub leaf_state_key: Hash32,
     /// State value of the leaf node to be updated.
-    pub leaf_state_value: Vec<u8>,
+    pub leaf_state_val: Vec<u8>,
     /// Leaf hash prior to the update.
     pub leaf_prior_hash: Hash32,
 }
@@ -36,11 +36,11 @@ impl Display for LeafUpdateContext {
             f,
             "LeafUpdateContext {{ \n\
             \tleaf_state_key: {},\n\
-            \tleaf_state_value: 0x{},\n\
+            \tleaf_state_val: 0x{},\n\
             \tleaf_prior_hash: {}\n\
             }}",
             self.leaf_state_key,
-            hex::encode(&self.leaf_state_value),
+            hex::encode(&self.leaf_state_val),
             self.leaf_prior_hash
         )
     }
@@ -62,7 +62,7 @@ pub struct LeafAddContext {
     /// State key of the leaf node to be added.
     pub leaf_state_key: Hash32,
     /// State value of the leaf node to be added.
-    pub leaf_state_value: Vec<u8>,
+    pub leaf_state_val: Vec<u8>,
     /// Hash of the leaf node to be the sibling node after adding a new leaf node.
     pub sibling_candidate_hash: Hash32,
     /// Child type (Left/Right) of the new leaf node.
@@ -77,13 +77,13 @@ impl Display for LeafAddContext {
             f,
             "LeafAddContext {{ \n\
             \tleaf_state_key: {},\n\
-            \tleaf_state_value: 0x{},\n\
+            \tleaf_state_val: 0x{},\n\
             \tsibling_candidate_hash: {},\n\
             \tadded_leaf_child_side: {:?}\n\
             \tleaf_split_context: {:?}\n\
             }}",
             self.leaf_state_key,
-            hex::encode(&self.leaf_state_value),
+            hex::encode(&self.leaf_state_val),
             self.sibling_candidate_hash,
             self.added_leaf_child_side,
             self.leaf_split_context,

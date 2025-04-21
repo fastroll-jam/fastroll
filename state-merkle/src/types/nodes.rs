@@ -94,6 +94,7 @@ impl MerkleNode {
             _ => Err(StateMerkleError::InvalidNodeType),
         }
     }
+
     fn parse_leaf(&self) -> Result<LeafParsed, StateMerkleError> {
         match NodeCodec::decode_leaf(self)? {
             LeafParsed::EmbeddedLeaf(parsed) => Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
@@ -103,7 +104,7 @@ impl MerkleNode {
             })),
             LeafParsed::RegularLeaf(parsed) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
                 node_hash: self.hash,
-                value_hash: parsed.value_hash,
+                val_hash: parsed.val_hash,
                 partial_state_key: parsed.partial_state_key,
             })),
         }
@@ -271,7 +272,7 @@ pub struct RegularLeafParsed {
     /// Node hash identifier.
     pub node_hash: Hash32,
     /// Hash of the state value. Used  as a key for the `StateDB` to retrieve the full encoded state value.
-    pub value_hash: Hash32,
+    pub val_hash: Hash32,
     /// 248-bit partial state key of the entry that the leaf node represents.
     pub partial_state_key: BitVec,
 }
@@ -281,10 +282,10 @@ impl Display for RegularLeafParsed {
         write!(
             f,
             "Regular Leaf ({}) {{\n\
-            \tvalue_hash: {},\n\
+            \tval_hash: {},\n\
             \tState Key: 0b{},\n\
             }}",
-            self.node_hash, self.value_hash, self.partial_state_key
+            self.node_hash, self.val_hash, self.partial_state_key
         )
     }
 }

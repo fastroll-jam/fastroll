@@ -250,10 +250,10 @@ impl AffectedNodesByDepth {
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
         // Create a new leaf node as a merkle write.
-        let state_value_slice = ctx.leaf_state_value.as_slice();
-        let added_leaf_node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+        let state_val_slice = ctx.leaf_state_val.as_slice();
+        let added_leaf_node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_val_slice)?;
 
-        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
+        state_db_write_set.insert_if_regular_leaf(state_val_slice)?;
 
         let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
         let added_leaf_write = MerkleNodeWrite::new(added_leaf_node_hash, added_leaf_node_data);
@@ -334,10 +334,10 @@ impl AffectedNodesByDepth {
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
         // the leaf node data after the state transition
-        let state_value_slice = ctx.leaf_state_value.as_slice();
-        let node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+        let state_val_slice = ctx.leaf_state_val.as_slice();
+        let node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_val_slice)?;
 
-        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
+        state_db_write_set.insert_if_regular_leaf(state_val_slice)?;
 
         let hash = hash::<Blake2b256>(&node_data)?;
         let merkle_write = MerkleNodeWrite::new(hash, node_data);
@@ -352,7 +352,7 @@ impl AffectedNodesByDepth {
 
     /// Endpoint `AffectedNode` for `Remove` operation is always a full-branch node.
     ///
-    /// In thie case, only one new entry is added into the `MerkleDB`.
+    /// In this case, only one new entry is added into the `MerkleDB`.
     ///
     /// However, the merkle trie update behavior is different by the node type of the sibling
     /// of the removing node.

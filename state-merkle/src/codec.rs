@@ -43,17 +43,17 @@ impl NodeCodec {
     /// (0 for embedded leaf and 1 for regular leaf)
     pub(crate) fn encode_leaf(
         state_key: &Hash32,
-        state_value: &[u8],
+        state_val: &[u8],
     ) -> Result<Vec<u8>, StateMerkleError> {
         let mut node = BitVec::new();
-        if state_value.len() <= 32 {
+        if state_val.len() <= 32 {
             // indicator for the embedded leaf node
             node.extend(vec![true, false]);
-            let length_bits = bits_encode_msb(&state_value.len().encode_fixed(1)?); // 8 bits
+            let length_bits = bits_encode_msb(&state_val.len().encode_fixed(1)?); // 8 bits
 
             node.extend(slice_bitvec(&length_bits, 2..)?);
             node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
-            node.extend(bits_encode_msb(state_value));
+            node.extend(bits_encode_msb(state_val));
 
             while node.len() < NODE_SIZE_BITS {
                 node.push(false); // zero padding for the remaining bits
@@ -62,7 +62,7 @@ impl NodeCodec {
             // indicator for the regular leaf node + zero padding
             node.extend(vec![true, true, false, false, false, false, false, false]);
             node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
-            let value_hash = hash::<Blake2b256>(state_value)?;
+            let value_hash = hash::<Blake2b256>(state_val)?;
             node.extend(bits_encode_msb(value_hash.as_slice()));
         }
 
@@ -155,7 +155,7 @@ impl NodeCodec {
 
         let node_data_octets = match leaf_parsed {
             LeafParsed::EmbeddedLeaf(parsed) => parsed.value,
-            LeafParsed::RegularLeaf(parsed) => parsed.value_hash.to_vec(),
+            LeafParsed::RegularLeaf(parsed) => parsed.val_hash.to_vec(),
         };
         Ok(node_data_octets)
     }
@@ -203,7 +203,7 @@ impl NodeCodec {
             }
             NodeType::Leaf(LeafType::Regular) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
                 node_hash: node.hash,
-                value_hash: bitvec_to_hash32(&slice_bitvec(&node_data_bv, 256..)?)?,
+                val_hash: bitvec_to_hash32(&slice_bitvec(&node_data_bv, 256..)?)?,
                 partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
             })),
             _ => Err(StateMerkleError::InvalidNodeType),

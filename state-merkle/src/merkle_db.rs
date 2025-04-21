@@ -25,8 +25,8 @@ use std::sync::{Arc, Mutex};
 /// Leaf node write operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum MerkleWriteOp {
-    Add(Hash32, Vec<u8>),    // (state_key, state_value)
-    Update(Hash32, Vec<u8>), // (state_key, state_value)
+    Add(Hash32, Vec<u8>),    // (state_key, state_val)
+    Update(Hash32, Vec<u8>), // (state_key, state_val)
     Remove(Hash32),          // state_key
 }
 
@@ -328,12 +328,12 @@ impl MerkleDB {
                     // current node as an affected node with relevant context data for the
                     // `Add` write operation.
                     if child_hash == &Hash32::default() && branch_type.has_single_child() {
-                        if let MerkleWriteOp::Add(state_key, state_value) = &write_op {
+                        if let MerkleWriteOp::Add(state_key, state_val) = &write_op {
                             let endpoint = Self::create_add_branch_endpoint(
                                 &current_node,
                                 b,
                                 state_key,
-                                state_value,
+                                state_val,
                                 depth,
                                 sibling_child_hash,
                             );
@@ -397,7 +397,7 @@ impl MerkleDB {
                     // Collect the leaf node with relevant context of adjacent nodes
                     // depending on the operation type.
                     return match &write_op {
-                        MerkleWriteOp::Add(state_key, state_value) => {
+                        MerkleWriteOp::Add(state_key, state_val) => {
                             // Reached endpoint of the traversal.
                             //
                             // Note: at this point, `current_node` isn't the leaf node to be added.
@@ -406,19 +406,19 @@ impl MerkleDB {
                             let endpoint = Self::create_add_leaf_endpoint(
                                 &current_node,
                                 state_key,
-                                state_value,
+                                state_val,
                                 depth,
                                 partial_merkle_path,
                             )?;
                             affected_nodes.insert(depth, endpoint);
                             affected_nodes.into_merkle_write_set()
                         }
-                        MerkleWriteOp::Update(state_key, state_value) => {
+                        MerkleWriteOp::Update(state_key, state_val) => {
                             // Reached endpoint of the traversal.
                             let endpoint = Self::create_update_leaf_endpoint(
                                 &current_node,
                                 state_key,
-                                state_value,
+                                state_val,
                                 depth,
                             );
                             affected_nodes.insert(depth, endpoint);
@@ -442,7 +442,7 @@ impl MerkleDB {
         current_node: &MerkleNode,
         child_side: bool,
         state_key: &Hash32,
-        state_value: &[u8],
+        state_val: &[u8],
         depth: usize,
         sibling_child_hash: &Hash32,
     ) -> AffectedNode {
@@ -451,7 +451,7 @@ impl MerkleDB {
             depth,
             leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
                 leaf_state_key: *state_key,
-                leaf_state_value: state_value.to_vec(),
+                leaf_state_val: state_val.to_vec(),
                 sibling_candidate_hash: *sibling_child_hash,
                 added_leaf_child_side: ChildType::from_bit(child_side),
                 leaf_split_context: None, // No need to handle path decompression in this case.
@@ -474,7 +474,7 @@ impl MerkleDB {
     fn create_add_leaf_endpoint(
         current_node: &MerkleNode,
         state_key: &Hash32,
-        state_value: &[u8],
+        state_val: &[u8],
         depth: usize,
         partial_merkle_path: BitVec,
     ) -> Result<AffectedNode, StateMerkleError> {
@@ -486,7 +486,7 @@ impl MerkleDB {
             depth,
             leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
                 leaf_state_key: *state_key,
-                leaf_state_value: state_value.to_vec(),
+                leaf_state_val: state_val.to_vec(),
                 sibling_candidate_hash: current_node.hash,
                 added_leaf_child_side: added_leaf_child_side(state_key, &leaf_state_key_248)?,
                 leaf_split_context: Some(LeafSplitContext {
@@ -500,7 +500,7 @@ impl MerkleDB {
     fn create_update_leaf_endpoint(
         current_node: &MerkleNode,
         state_key: &Hash32,
-        state_value: &[u8],
+        state_val: &[u8],
         depth: usize,
     ) -> AffectedNode {
         AffectedNode::Endpoint(AffectedEndpoint {
@@ -508,7 +508,7 @@ impl MerkleDB {
             depth,
             leaf_write_op_context: LeafWriteOpContext::Update(LeafUpdateContext {
                 leaf_state_key: *state_key,
-                leaf_state_value: state_value.to_vec(),
+                leaf_state_val: state_val.to_vec(),
                 leaf_prior_hash: current_node.hash, // node hash before the `Update`
             }),
         })
