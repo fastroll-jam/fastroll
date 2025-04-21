@@ -19,7 +19,7 @@ members = [
     "pvm/pvm-invocation",
     "pvm/pvm-types",
     "state",
-    "state-merkle",
+    "state/state-merkle",
     "transition",
 ]
 
@@ -44,7 +44,7 @@ rjam-pvm-interface = { path = "pvm/pvm-interface" }
 rjam-pvm-invocation = { path = "pvm/pvm-invocation" }
 rjam-pvm-types = { path = "pvm/pvm-types" }
 rjam-state = { path = "state" }
-rjam-state-merkle = { path = "state-merkle" }
+rjam-state-merkle = { path = "state/state-merkle" }
 rjam-transition = { path = "transition" }
 # External dependencies
 ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }

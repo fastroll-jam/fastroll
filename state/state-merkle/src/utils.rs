@@ -1,4 +1,8 @@
-use crate::error::StateMerkleError;
+use crate::{
+    error::StateMerkleError,
+    merkle_db::MerkleDB,
+    types::nodes::{ChildType, MerkleNode},
+};
 use bit_vec::BitVec;
 use rjam_common::Hash32;
 use std::{collections::Bound, ops::RangeBounds};
@@ -68,6 +72,40 @@ where
         .skip(start)
         .take(end.saturating_sub(start))
         .collect())
+}
+
+/// Determines whether the new leaf node will be placed as the left or right child in the trie,
+/// relative to the sibling node.
+pub(crate) fn added_leaf_child_side(
+    new_leaf_state_key: &Hash32,
+    sibling_leaf_partial_state_key: &BitVec,
+) -> Result<ChildType, StateMerkleError> {
+    let new_leaf_state_key = bits_encode_msb(new_leaf_state_key.as_slice());
+    for (new_leaf_bit, sibling_leaf_bit) in new_leaf_state_key
+        .iter()
+        .zip(sibling_leaf_partial_state_key.iter())
+    {
+        // The first bit that the new leaf and the sibling leaf diverges
+        if new_leaf_bit != sibling_leaf_bit {
+            return Ok(ChildType::from_bit(new_leaf_bit));
+        }
+    }
+
+    Err(StateMerkleError::InvalidMerklePath)
+}
+
+pub async fn log_node_data(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
+    match node {
+        Some(node) => {
+            tracing::trace!(
+                ">>> Node: {}",
+                node.parse_node_data(merkle_db)
+                    .await
+                    .expect("Failed to parse node data")
+            );
+        }
+        None => tracing::trace!(">>> None"),
+    }
 }
 
 #[cfg(test)]

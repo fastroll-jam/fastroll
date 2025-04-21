@@ -1294,7 +1294,6 @@ dependencies = [
  "rjam-db",
  "rjam-extrinsics",
  "rjam-state",
- "rjam-state-merkle",
  "tokio",
  "tracing",
 ]
@@ -1400,6 +1399,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

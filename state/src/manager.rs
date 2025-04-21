@@ -1,5 +1,6 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
+    config::StateManagerConfig,
     error::StateManagerError,
     state_db::StateDB,
     state_utils::{
@@ -17,14 +18,14 @@ use crate::{
 use rjam_codec::JamDecode;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
-use rjam_db::WriteBatch;
+use rjam_db::{core::core_db::CoreDB, WriteBatch};
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    types::LeafType,
-    write_set::{AffectedNodesByDepth, MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
+    types::nodes::LeafType,
+    write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 pub struct StateManager {
     state_db: StateDB,
@@ -62,6 +63,25 @@ macro_rules! impl_simple_state_accessors {
 }
 
 impl StateManager {
+    pub fn from_core_db(core_db: Arc<CoreDB>, config: StateManagerConfig) -> Self {
+        Self::new(
+            StateDB::new(
+                core_db.clone(),
+                config.state_cf_name,
+                config.state_db_cache_size,
+            ),
+            MerkleDB::new(core_db, config.merkle_cf_name, config.merkle_db_cache_size),
+        )
+    }
+
+    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
+        Self {
+            state_db,
+            merkle_db,
+            cache: StateCache::default(),
+        }
+    }
+
     /// Always retrieves state entry from the DB for test purpose.
     pub async fn get_raw_state_entry_from_db(
         &self,
@@ -185,14 +205,6 @@ impl StateManager {
 
     pub fn merkle_root(&self) -> Hash32 {
         self.merkle_db.root()
-    }
-
-    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
-        Self {
-            state_db,
-            merkle_db,
-            cache: StateCache::default(),
-        }
     }
 
     pub async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
@@ -404,18 +416,15 @@ impl StateManager {
         }
 
         // Case 2: Trie is not empty
-        let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-        self.merkle_db
-            .collect_leaf_path(state_key, write_op, &mut affected_nodes_by_depth)
-            .await?;
-
-        let MerkleWriteSet {
+        let DBWriteSet {
             merkle_db_write_set,
             state_db_write_set,
-        } = affected_nodes_by_depth.generate_merkle_write_set()?;
+        } = self
+            .merkle_db
+            .collect_write_set(state_key, write_op)
+            .await?;
 
         // Debugging
-        tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
         tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
         tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 
@@ -465,23 +474,16 @@ impl StateManager {
         let mut state_db_wb = WriteBatch::default();
 
         for (state_key, entry) in &dirty_entries {
-            let mut affected_nodes_by_depth = AffectedNodesByDepth::default();
-            self.merkle_db
-                .collect_leaf_path(
-                    state_key,
-                    entry.as_merkle_write_op(state_key)?,
-                    &mut affected_nodes_by_depth,
-                )
-                .await?;
-
             // Convert dirty cache entries into write batch and commit to the MerkleDB
-            let MerkleWriteSet {
+            let DBWriteSet {
                 merkle_db_write_set,
                 state_db_write_set,
-            } = affected_nodes_by_depth.generate_merkle_write_set()?;
+            } = self
+                .merkle_db
+                .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
+                .await?;
 
             // Debugging
-            tracing::trace!("AffectedNodesByDepth: {}", &affected_nodes_by_depth);
             tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
             tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 

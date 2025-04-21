@@ -12,3 +12,4 @@ bit-vec = { workspace = true }
 dashmap = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }

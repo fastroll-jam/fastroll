@@ -5,7 +5,7 @@ use crate::{
 use dashmap::DashMap;
 use rjam_codec::JamEncode;
 use rjam_common::Hash32;
-use rjam_state_merkle::types::MerkleWriteOp;
+use rjam_state_merkle::merkle_db::MerkleWriteOp;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -47,9 +47,7 @@ impl CacheEntry {
         &self,
         state_key: &Hash32,
     ) -> Result<MerkleWriteOp, StateManagerError> {
-        let op = if let CacheEntryStatus::Dirty(op) = &self.status {
-            op
-        } else {
+        let CacheEntryStatus::Dirty(op) = &self.status else {
             return Err(StateManagerError::NotDirtyCache);
         };
 
