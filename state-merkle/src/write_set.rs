@@ -57,36 +57,36 @@ impl MerkleNodeWrite {
 /// A collection of merkle node entries to be written into the `MerkleDB`. Also includes the
 /// new merkle root that represents the posterior state of the merkle trie after committing them.
 ///
-/// The `map` is keyed by the node hash that previously existed at the position in the merkle trie
+/// The `node_updates` is keyed by the node hash that previously existed at the position in the merkle trie
 /// before the write operation represented by `MerkleNodeWrite`, so that parent nodes can look up
 /// the map to get the "affected" value of their descendants.
 #[derive(Debug, Default)]
 pub struct MerkleDBWriteSet {
     new_root: Hash32,
-    pub map: HashMap<Hash32, MerkleNodeWrite>,
+    pub node_updates: HashMap<Hash32, MerkleNodeWrite>,
 }
 
 impl Deref for MerkleDBWriteSet {
     type Target = HashMap<Hash32, MerkleNodeWrite>;
 
     fn deref(&self) -> &Self::Target {
-        &self.map
+        &self.node_updates
     }
 }
 
 impl DerefMut for MerkleDBWriteSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.map
+        &mut self.node_updates
     }
 }
 
 impl Display for MerkleDBWriteSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.map.is_empty() {
+        if self.node_updates.is_empty() {
             return writeln!(f, "MerkleDBWriteSet is empty");
         }
 
-        for (key, node_write) in &self.map {
+        for (key, node_write) in &self.node_updates {
             writeln!(f, "lookup_key: {}", key)?;
             writeln!(f, "node_write: {}", node_write)?;
         }
@@ -98,7 +98,7 @@ impl MerkleDBWriteSet {
     pub fn new(inner: HashMap<Hash32, MerkleNodeWrite>) -> Self {
         Self {
             new_root: Hash32::default(),
-            map: inner,
+            node_updates: inner,
         }
     }
 
@@ -111,7 +111,7 @@ impl MerkleDBWriteSet {
     }
 
     pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
-        self.map
+        self.node_updates
             .values()
             .map(|node_write| (&node_write.hash, &node_write.node_data))
     }
@@ -236,6 +236,8 @@ impl AffectedNodesByDepth {
     ) -> Result<Option<Hash32>, StateMerkleError> {
         let maybe_root = match affected_node {
             AffectedNode::PathNode(path_node) => {
+                // `PathNode` is always a branch node. With the potentially updated child nodes,
+                // encode a new branch node and put it into `merkle_db_write_set`.
                 let prior_hash = path_node.hash;
 
                 // Lookup `merkle_db_write_set` to check which side of its child hash
@@ -244,25 +246,20 @@ impl AffectedNodesByDepth {
                 // For some branch nodes, both the left and right child might be affected.
                 let left_hash = merkle_db_write_set
                     .get(&path_node.left)
-                    .map_or(path_node.left, |write_set_left_child| {
-                        write_set_left_child.hash
-                    });
+                    .map_or(path_node.left, |left_updated| left_updated.hash);
                 let right_hash = merkle_db_write_set
                     .get(&path_node.right)
-                    .map_or(path_node.right, |write_set_right_child| {
-                        write_set_right_child.hash
-                    });
+                    .map_or(path_node.right, |right_updated| right_updated.hash);
 
                 // the branch node data after state transition
                 let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
-                let hash = hash::<Blake2b256>(&node_data)?;
+                let node_hash = hash::<Blake2b256>(&node_data)?;
 
-                let merkle_write = MerkleNodeWrite::new(hash, node_data);
-
+                let merkle_write = MerkleNodeWrite::new(node_hash, node_data);
                 merkle_db_write_set.insert(prior_hash, merkle_write);
 
                 if is_root_node {
-                    Some(hash)
+                    Some(node_hash)
                 } else {
                     None
                 }
