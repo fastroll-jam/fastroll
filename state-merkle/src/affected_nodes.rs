@@ -169,17 +169,15 @@ impl AffectedNodesByDepth {
                     merkle_db_write_set,
                     is_root_node,
                 )?,
-                LeafWriteOpContext::Update(ctx) => Self::process_update_affected_endpoint_for_add(
+                LeafWriteOpContext::Update(ctx) => Self::process_update_affected_endpoint(
                     ctx,
                     state_db_write_set,
                     merkle_db_write_set,
                     is_root_node,
                 )?,
-                LeafWriteOpContext::Remove(ctx) => Self::process_remove_affected_endpoint_for_add(
-                    ctx,
-                    merkle_db_write_set,
-                    is_root_node,
-                )?,
+                LeafWriteOpContext::Remove(ctx) => {
+                    Self::process_remove_affected_endpoint(ctx, merkle_db_write_set, is_root_node)?
+                }
             },
         };
 
@@ -224,7 +222,7 @@ impl AffectedNodesByDepth {
     /// a single-child branch, which will be a future sibling leaf of the new leaf
     /// being added.
     ///
-    /// Case 1: Endpoint `AffectedNode` is a leaf node.
+    /// ### Case 1: Endpoint `AffectedNode` is a leaf node.
     /// In this case, the endpoint must be "split", decompressing the merkle path
     /// which was compressed under the endpoint leaf node.
     /// If the newly added leaf node and its future sibling leaf share `N` more
@@ -237,7 +235,7 @@ impl AffectedNodesByDepth {
     /// path.
     ///
     ///
-    /// Case 2: Endpoint `AffectedNode` is a single-child branch.
+    /// ### Case 2: Endpoint `AffectedNode` is a single-child branch.
     /// In this case, two new entries will be added into the `MerkleDB`:
     ///
     /// One for the new leaf that holds the new state data,
@@ -325,7 +323,11 @@ impl AffectedNodesByDepth {
         }
     }
 
-    fn process_update_affected_endpoint_for_add(
+    /// Endpoint `AffectedNode` for `Update` operation is always a leaf node, which represents
+    /// the target state to be updated.
+    ///
+    /// In this case, only one new entry is added into the `MerkleDB`: The new leaf node.
+    fn process_update_affected_endpoint(
         ctx: &LeafUpdateContext,
         state_db_write_set: &mut StateDBWriteSet,
         merkle_db_write_set: &mut MerkleDBWriteSet,
@@ -335,7 +337,6 @@ impl AffectedNodesByDepth {
         let state_value_slice = ctx.leaf_state_value.as_slice();
         let node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
 
-        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
         state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
 
         let hash = hash::<Blake2b256>(&node_data)?;
@@ -349,7 +350,17 @@ impl AffectedNodesByDepth {
         }
     }
 
-    fn process_remove_affected_endpoint_for_add(
+    /// Endpoint `AffectedNode` for `Remove` operation is always a full-branch node.
+    ///
+    /// In thie case, only one new entry is added into the `MerkleDB`.
+    ///
+    /// However, the merkle trie update behavior is different by the node type of the sibling
+    /// of the removing node.
+    ///
+    /// If the sibling is a branch, the endpoint becomes a single-child branch after the removal.
+    /// If the sibling is a leaf, the endpoint becomes a full-branch with some potential merkle path
+    /// compression.
+    fn process_remove_affected_endpoint(
         ctx: &LeafRemoveContext,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
