@@ -1,7 +1,10 @@
 use crate::{
     codec::NodeCodec,
     error::StateMerkleError,
-    types::{nodes::ChildType, write_context::LeafWriteOpContext},
+    types::{
+        nodes::ChildType,
+        write_context::{LeafAddContext, LeafRemoveContext, LeafUpdateContext, LeafWriteOpContext},
+    },
     utils::bits_encode_msb,
     write_set::{DBWriteSet, MerkleDBWriteSet, MerkleNodeWrite, StateDBWriteSet},
 };
@@ -156,200 +159,234 @@ impl AffectedNodesByDepth {
     ) -> Result<Option<Hash32>, StateMerkleError> {
         let maybe_root = match affected_node {
             AffectedNode::PathNode(path_node) => {
-                // `PathNode` is always a branch node. With the potentially updated child nodes,
-                // encode a new branch node and put it into `merkle_db_write_set`.
-                let prior_hash = path_node.hash;
-
-                // Lookup `merkle_db_write_set` to check which side of its child hash
-                // was affected in the 1-level deeper depth.
-                // If the child hash was not affected, use its original hash.
-                // For some branch nodes, both the left and right child might be affected.
-                let left_hash = merkle_db_write_set
-                    .get(&path_node.left)
-                    .map_or(path_node.left, |left_updated| left_updated.hash);
-                let right_hash = merkle_db_write_set
-                    .get(&path_node.right)
-                    .map_or(path_node.right, |right_updated| right_updated.hash);
-
-                // Updated branch node data after the partial merkle write.
-                let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
-                let node_hash = hash::<Blake2b256>(&node_data)?;
-
-                let merkle_write = MerkleNodeWrite::new(node_hash, node_data);
-                merkle_db_write_set.insert(prior_hash, merkle_write);
-
-                if is_root_node {
-                    Some(node_hash)
-                } else {
-                    None
-                }
+                Self::process_affected_path_node(path_node, merkle_db_write_set, is_root_node)?
             }
-            AffectedNode::Endpoint(endpoint) => {
-                match &endpoint.leaf_write_op_context {
-                    LeafWriteOpContext::Add(ctx) => {
-                        // Endpoint `AffectedNode` for `Add` operation can be either a leaf node or
-                        // a single-child branch, which will be a future sibling leaf of the new leaf
-                        // being added.
-                        //
-                        // Case 1: Endpoint `AffectedNode` is a leaf node.
-                        // In this case, the endpoint must be "split", decompressing the merkle path
-                        // which was compressed under the endpoint leaf node.
-                        // If the newly added leaf node and its future sibling leaf share `N` more
-                        // common merkle path bits from the endpoint leaf node's original position,
-                        // (`N` + 2) new entries will be added into the `MerkleDB`:
-                        //
-                        // One for the new leaf that holds the new state data,
-                        // one for the new branch node which will be a parent of the new leaf and
-                        // its sibling, and `N` more single-child branches to represent the decompressed
-                        // path.
-                        //
-                        //
-                        // Case 2: Endpoint `AffectedNode` is a single-child branch.
-                        // In this case, two new entries will be added into the `MerkleDB`:
-                        //
-                        // One for the new leaf that holds the new state data,
-                        // and the other for the new branch node that will replace the position of
-                        // the endpoint `AffectedNode`, pointing the new leaf node and its sibling
-                        // node as children.
-
-                        // Create a new leaf node as a merkle write.
-                        let state_value_slice = ctx.leaf_state_value.as_slice();
-                        let added_leaf_node_data =
-                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
-
-                        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
-
-                        let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
-                        let added_leaf_write =
-                            MerkleNodeWrite::new(added_leaf_node_hash, added_leaf_node_data);
-
-                        // Create a new branch node as a merkle write. This branch has the
-                        // new leaf node and its sibling candidate node as its children.
-
-                        let (new_branch_left_hash, new_branch_right_hash) = match ctx
-                            .added_leaf_child_side
-                        {
-                            ChildType::Left => (added_leaf_node_hash, ctx.sibling_candidate_hash),
-                            ChildType::Right => (ctx.sibling_candidate_hash, added_leaf_node_hash),
-                        };
-
-                        let new_branch_node_data = NodeCodec::encode_branch(
-                            &new_branch_left_hash,
-                            &new_branch_right_hash,
-                        )?;
-                        let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
-                        let new_branch_merkle_write =
-                            MerkleNodeWrite::new(new_branch_node_hash, new_branch_node_data);
-
-                        if ctx.is_splitting_leaf() {
-                            // Case 1: affected node endpoint is leaf
-                            // Path decompression handling
-                            let leaf_split_ctx = ctx
-                                .leaf_split_context
-                                .clone()
-                                .expect("leaf split context should be provided here");
-                            let new_leaf_state_key = ctx.leaf_state_key;
-                            let common_path_to_decompress = Self::get_common_path(
-                                &leaf_split_ctx.partial_merkle_path,
-                                &new_leaf_state_key,
-                                &leaf_split_ctx.sibling_state_key_248,
-                            )?;
-                            let decompression_write_set = Self::generate_decompression_set(
-                                common_path_to_decompress,
-                                &ctx.sibling_candidate_hash,
-                                added_leaf_write,
-                                new_branch_merkle_write,
-                            )?;
-                            let (_, top_level_merkle_write) = decompression_write_set
-                                .last()
-                                .cloned()
-                                .expect("decompression set cannot be empty");
-
-                            // Insert merkle db write set entries
-                            for (merkle_write_lookup_key, write) in decompression_write_set {
-                                merkle_db_write_set.insert(merkle_write_lookup_key, write);
-                            }
-                            // Calculate the new root hash.
-                            // Note: This case is relevant only for the case when the affected leaf node
-                            // "was" the only node in the trie, therefore being a merkle root, and then
-                            // a new leaf is added. This is the only case when the merkle root node is
-                            // changed from a leaf node into a branch node.
-                            if is_root_node {
-                                Some(top_level_merkle_write.hash)
-                            } else {
-                                None
-                            }
-                        } else {
-                            // Case 2: affected node endpoint is single-child branch
-                            merkle_db_write_set.insert(added_leaf_node_hash, added_leaf_write); // note: `new_leaf_node_hash`, key of this entry will not be used as a lookup key.
-                            merkle_db_write_set.insert(endpoint.hash, new_branch_merkle_write);
-
-                            return if is_root_node {
-                                Ok(Some(new_branch_node_hash))
-                            } else {
-                                Ok(None)
-                            };
-                        }
-                    }
-                    LeafWriteOpContext::Update(ctx) => {
-                        // the leaf node data after the state transition
-                        let state_value_slice = ctx.leaf_state_value.as_slice();
-                        let node_data =
-                            NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
-
-                        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
-                        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
-
-                        let hash = hash::<Blake2b256>(&node_data)?;
-                        let merkle_write = MerkleNodeWrite::new(hash, node_data);
-
-                        merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
-                        if is_root_node {
-                            Some(hash)
-                        } else {
-                            None
-                        }
-                    }
-                    LeafWriteOpContext::Remove(ctx) => {
-                        // This case compresses path bits to the leaf node.
-                        let mut left = ctx.prior_left;
-                        let mut right = ctx.prior_right;
-                        if ctx.has_sibling_leaf() {
-                            // Sibling of the leaf being removed is leaf node
-                            match ctx.removal_side {
-                                ChildType::Left => {
-                                    left = ctx.sibling_leaf_hash.expect("should not be None");
-                                }
-                                ChildType::Right => {
-                                    right = ctx.sibling_leaf_hash.expect("should not be None");
-                                }
-                            };
-                        } else {
-                            // Sibling of the leaf being removed is branch node
-                            match ctx.removal_side {
-                                ChildType::Left => left = Hash32::default(),
-                                ChildType::Right => right = Hash32::default(),
-                            }
-                        }
-
-                        let post_parent_data = NodeCodec::encode_branch(&left, &right)?;
-                        let post_parent_data_new_hash = hash::<Blake2b256>(&post_parent_data)?;
-                        merkle_db_write_set.insert(
-                            ctx.post_parent_hash,
-                            MerkleNodeWrite::new(post_parent_data_new_hash, post_parent_data),
-                        );
-
-                        if is_root_node {
-                            Some(post_parent_data_new_hash)
-                        } else {
-                            None
-                        }
-                    }
-                }
-            }
+            AffectedNode::Endpoint(endpoint) => match &endpoint.leaf_write_op_context {
+                LeafWriteOpContext::Add(ctx) => Self::process_add_affected_endpoint(
+                    endpoint,
+                    ctx,
+                    state_db_write_set,
+                    merkle_db_write_set,
+                    is_root_node,
+                )?,
+                LeafWriteOpContext::Update(ctx) => Self::process_update_affected_endpoint_for_add(
+                    ctx,
+                    state_db_write_set,
+                    merkle_db_write_set,
+                    is_root_node,
+                )?,
+                LeafWriteOpContext::Remove(ctx) => Self::process_remove_affected_endpoint_for_add(
+                    ctx,
+                    merkle_db_write_set,
+                    is_root_node,
+                )?,
+            },
         };
 
         Ok(maybe_root)
+    }
+
+    /// `PathNode` is always a branch node. With the potentially updated child nodes,
+    /// encode a new branch node and put it into `merkle_db_write_set`.
+    fn process_affected_path_node(
+        path_node: &AffectedPathNode,
+        merkle_db_write_set: &mut MerkleDBWriteSet,
+        is_root_node: bool,
+    ) -> Result<Option<Hash32>, StateMerkleError> {
+        let prior_hash = path_node.hash;
+
+        // Lookup `merkle_db_write_set` to check which side of its child hash
+        // was affected in the 1-level deeper depth.
+        // If the child hash was not affected, use its original hash.
+        // For some branch nodes, both the left and right child might be affected.
+        let left_hash = merkle_db_write_set
+            .get(&path_node.left)
+            .map_or(path_node.left, |left_updated| left_updated.hash);
+        let right_hash = merkle_db_write_set
+            .get(&path_node.right)
+            .map_or(path_node.right, |right_updated| right_updated.hash);
+
+        // Updated branch node data after the partial merkle write.
+        let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
+        let node_hash = hash::<Blake2b256>(&node_data)?;
+
+        let merkle_write = MerkleNodeWrite::new(node_hash, node_data);
+        merkle_db_write_set.insert(prior_hash, merkle_write);
+
+        if is_root_node {
+            Ok(Some(node_hash))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Endpoint `AffectedNode` for `Add` operation can be either a leaf node or
+    /// a single-child branch, which will be a future sibling leaf of the new leaf
+    /// being added.
+    ///
+    /// Case 1: Endpoint `AffectedNode` is a leaf node.
+    /// In this case, the endpoint must be "split", decompressing the merkle path
+    /// which was compressed under the endpoint leaf node.
+    /// If the newly added leaf node and its future sibling leaf share `N` more
+    /// common merkle path bits from the endpoint leaf node's original position,
+    /// (`N` + 2) new entries will be added into the `MerkleDB`:
+    ///
+    /// One for the new leaf that holds the new state data,
+    /// one for the new branch node which will be a parent of the new leaf and
+    /// its sibling, and `N` more single-child branches to represent the decompressed
+    /// path.
+    ///
+    ///
+    /// Case 2: Endpoint `AffectedNode` is a single-child branch.
+    /// In this case, two new entries will be added into the `MerkleDB`:
+    ///
+    /// One for the new leaf that holds the new state data,
+    /// and the other for the new branch node that will replace the position of
+    /// the endpoint `AffectedNode`, pointing the new leaf node and its sibling
+    /// node as children.
+    fn process_add_affected_endpoint(
+        endpoint: &AffectedEndpoint,
+        ctx: &LeafAddContext,
+        state_db_write_set: &mut StateDBWriteSet,
+        merkle_db_write_set: &mut MerkleDBWriteSet,
+        is_root_node: bool,
+    ) -> Result<Option<Hash32>, StateMerkleError> {
+        // Create a new leaf node as a merkle write.
+        let state_value_slice = ctx.leaf_state_value.as_slice();
+        let added_leaf_node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+
+        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
+
+        let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
+        let added_leaf_write = MerkleNodeWrite::new(added_leaf_node_hash, added_leaf_node_data);
+
+        // Create a new branch node as a merkle write. This branch has the
+        // new leaf node and its sibling candidate node as its children.
+
+        let (new_branch_left_hash, new_branch_right_hash) = match ctx.added_leaf_child_side {
+            ChildType::Left => (added_leaf_node_hash, ctx.sibling_candidate_hash),
+            ChildType::Right => (ctx.sibling_candidate_hash, added_leaf_node_hash),
+        };
+
+        let new_branch_node_data =
+            NodeCodec::encode_branch(&new_branch_left_hash, &new_branch_right_hash)?;
+        let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
+        let new_branch_merkle_write =
+            MerkleNodeWrite::new(new_branch_node_hash, new_branch_node_data);
+
+        if ctx.is_splitting_leaf() {
+            // Case 1: affected node endpoint is leaf
+            // Path decompression handling
+            let leaf_split_ctx = ctx
+                .leaf_split_context
+                .clone()
+                .expect("leaf split context should be provided here");
+            let new_leaf_state_key = ctx.leaf_state_key;
+            let common_path_to_decompress = Self::get_common_path(
+                &leaf_split_ctx.partial_merkle_path,
+                &new_leaf_state_key,
+                &leaf_split_ctx.sibling_state_key_248,
+            )?;
+            let decompression_write_set = Self::generate_decompression_set(
+                common_path_to_decompress,
+                &ctx.sibling_candidate_hash,
+                added_leaf_write,
+                new_branch_merkle_write,
+            )?;
+            let (_, top_level_merkle_write) = decompression_write_set
+                .last()
+                .cloned()
+                .expect("decompression set cannot be empty");
+
+            // Insert merkle db write set entries
+            for (merkle_write_lookup_key, write) in decompression_write_set {
+                merkle_db_write_set.insert(merkle_write_lookup_key, write);
+            }
+            // Calculate the new root hash.
+            // Note: This case is relevant only for the case when the affected leaf node
+            // "was" the only node in the trie, therefore being a merkle root, and then
+            // a new leaf is added. This is the only case when the merkle root node is
+            // changed from a leaf node into a branch node.
+            if is_root_node {
+                Ok(Some(top_level_merkle_write.hash))
+            } else {
+                Ok(None)
+            }
+        } else {
+            // Case 2: affected node endpoint is single-child branch
+            merkle_db_write_set.insert(added_leaf_node_hash, added_leaf_write); // note: `new_leaf_node_hash`, key of this entry will not be used as a lookup key.
+            merkle_db_write_set.insert(endpoint.hash, new_branch_merkle_write);
+
+            if is_root_node {
+                Ok(Some(new_branch_node_hash))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    fn process_update_affected_endpoint_for_add(
+        ctx: &LeafUpdateContext,
+        state_db_write_set: &mut StateDBWriteSet,
+        merkle_db_write_set: &mut MerkleDBWriteSet,
+        is_root_node: bool,
+    ) -> Result<Option<Hash32>, StateMerkleError> {
+        // the leaf node data after the state transition
+        let state_value_slice = ctx.leaf_state_value.as_slice();
+        let node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
+
+        // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
+        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
+
+        let hash = hash::<Blake2b256>(&node_data)?;
+        let merkle_write = MerkleNodeWrite::new(hash, node_data);
+
+        merkle_db_write_set.insert(ctx.leaf_prior_hash, merkle_write);
+        if is_root_node {
+            Ok(Some(hash))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn process_remove_affected_endpoint_for_add(
+        ctx: &LeafRemoveContext,
+        merkle_db_write_set: &mut MerkleDBWriteSet,
+        is_root_node: bool,
+    ) -> Result<Option<Hash32>, StateMerkleError> {
+        // This case compresses path bits to the leaf node.
+        let mut left = ctx.prior_left;
+        let mut right = ctx.prior_right;
+        if ctx.has_sibling_leaf() {
+            // Sibling of the leaf being removed is leaf node
+            match ctx.removal_side {
+                ChildType::Left => {
+                    left = ctx.sibling_leaf_hash.expect("should not be None");
+                }
+                ChildType::Right => {
+                    right = ctx.sibling_leaf_hash.expect("should not be None");
+                }
+            };
+        } else {
+            // Sibling of the leaf being removed is branch node
+            match ctx.removal_side {
+                ChildType::Left => left = Hash32::default(),
+                ChildType::Right => right = Hash32::default(),
+            }
+        }
+
+        let post_parent_data = NodeCodec::encode_branch(&left, &right)?;
+        let post_parent_data_new_hash = hash::<Blake2b256>(&post_parent_data)?;
+        merkle_db_write_set.insert(
+            ctx.post_parent_hash,
+            MerkleNodeWrite::new(post_parent_data_new_hash, post_parent_data),
+        );
+
+        if is_root_node {
+            Ok(Some(post_parent_data_new_hash))
+        } else {
+            Ok(None)
+        }
     }
 
     fn get_common_path(
