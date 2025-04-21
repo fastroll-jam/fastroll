@@ -1,4 +1,4 @@
-use crate::error::StateMerkleError;
+use crate::{error::StateMerkleError, merkle_db::MerkleDB, types::nodes::MerkleNode};
 use bit_vec::BitVec;
 use rjam_common::Hash32;
 use std::{collections::Bound, ops::RangeBounds};
@@ -68,6 +68,20 @@ where
         .skip(start)
         .take(end.saturating_sub(start))
         .collect())
+}
+
+pub async fn log_node_data(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
+    match node {
+        Some(node) => {
+            tracing::debug!(
+                ">>> Node: {}",
+                node.parse_node_data(merkle_db)
+                    .await
+                    .expect("Failed to parse node data")
+            );
+        }
+        None => tracing::debug!(">>> None"),
+    }
 }
 
 #[cfg(test)]

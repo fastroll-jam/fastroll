@@ -1,17 +1,17 @@
-#[allow(unused_imports)]
 use crate::{
     codec::NodeCodec,
     error::StateMerkleError,
-    test_utils::print_node,
-    types::nodes::{
-        AffectedEndpoint, AffectedNode, AffectedPathNode, BranchType, ChildType, LeafType,
-        MerkleNode, MerkleWriteOp, NodeType,
+    types::{
+        nodes::{
+            AffectedEndpoint, AffectedNode, AffectedPathNode, BranchType, ChildType, LeafType,
+            MerkleNode, MerkleWriteOp, NodeType,
+        },
+        write_context::{
+            FullBranchHistory, LeafAddContext, LeafRemoveContext, LeafSplitContext,
+            LeafUpdateContext, LeafWriteOpContext,
+        },
     },
-    types::write_context::{
-        FullBranchHistory, LeafAddContext, LeafRemoveContext, LeafSplitContext, LeafUpdateContext,
-        LeafWriteOpContext,
-    },
-    utils::{bits_encode_msb, bitvec_to_hash32},
+    utils::{bits_encode_msb, bitvec_to_hash32, log_node_data},
     write_set::{added_leaf_child_side, AffectedNodesByDepth, MerkleWriteSet},
 };
 use bit_vec::BitVec;
@@ -229,7 +229,7 @@ impl MerkleDB {
                     // update the current node and proceed to the next node
                     let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
                     let child_hash = if b { right } else { left };
-                    // print_node(&Some(current_node.clone()), self).await;
+                    log_node_data(&Some(current_node.clone()), self).await;
                     let Some(node) = self.get_node(&child_hash).await? else {
                         return Ok(None);
                     };
@@ -238,7 +238,7 @@ impl MerkleDB {
                 NodeType::Leaf(leaf_type) => {
                     // extract the leaf value from the current node and return
                     let value = NodeCodec::get_leaf_value(&state_key_bv, &current_node)?;
-                    // print_node(&Some(current_node.clone()), self).await;
+                    log_node_data(&Some(current_node.clone()), self).await;
                     return Ok(Some((leaf_type, value)));
                 }
             }

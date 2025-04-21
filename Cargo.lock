@@ -1400,6 +1400,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
