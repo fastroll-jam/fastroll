@@ -409,7 +409,7 @@ impl StateManager {
             state_db_write_set,
         } = self
             .merkle_db
-            .collect_leaf_path(state_key, write_op)
+            .collect_write_set(state_key, write_op)
             .await?;
 
         // Debugging
@@ -468,7 +468,7 @@ impl StateManager {
                 state_db_write_set,
             } = self
                 .merkle_db
-                .collect_leaf_path(state_key, entry.as_merkle_write_op(state_key)?)
+                .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
                 .await?;
 
             // Debugging

@@ -47,9 +47,7 @@ impl CacheEntry {
         &self,
         state_key: &Hash32,
     ) -> Result<MerkleWriteOp, StateManagerError> {
-        let op = if let CacheEntryStatus::Dirty(op) = &self.status {
-            op
-        } else {
+        let CacheEntryStatus::Dirty(op) = &self.status else {
             return Err(StateManagerError::NotDirtyCache);
         };
 

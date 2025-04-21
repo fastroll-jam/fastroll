@@ -73,14 +73,14 @@ where
 pub async fn log_node_data(node: &Option<MerkleNode>, merkle_db: &MerkleDB) {
     match node {
         Some(node) => {
-            tracing::debug!(
+            tracing::trace!(
                 ">>> Node: {}",
                 node.parse_node_data(merkle_db)
                     .await
                     .expect("Failed to parse node data")
             );
         }
-        None => tracing::debug!(">>> None"),
+        None => tracing::trace!(">>> None"),
     }
 }
 

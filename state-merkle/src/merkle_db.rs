@@ -179,7 +179,7 @@ impl MerkleDB {
         self.working_set.nodes.clear();
     }
 
-    /// Retrieves the data of a leaf node at a given Merkle path, representing the state data.
+    /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.
     ///
     /// This function traverses the Merkle trie using the provided `state_key` as the path,
     /// and returns the data stored in the corresponding leaf node.
@@ -282,9 +282,10 @@ impl MerkleDB {
         }
     }
 
-    /// Collects nodes that are affected by state write operations along the way to the leaf node,
-    /// and returns `MerkleWriteSet`.
-    pub async fn collect_leaf_path(
+    /// Traverses the Merkle trie down to the leaf node that the `state_key` represents to
+    /// collect nodes that are affected by the given merkle write operation.
+    /// Then, generates `MerkleWriteSet` from the collected `AffectedNode`s.
+    pub async fn collect_write_set(
         &self,
         state_key: &Hash32,
         write_op: MerkleWriteOp,
@@ -300,7 +301,7 @@ impl MerkleDB {
         };
 
         // Accumulator for bits of the state key bitvec. Represents the partial merkle path
-        // from the root to the certain node.
+        // from the root to the current node.
         let mut partial_merkle_path = BitVec::new();
 
         // Special handling for the `Remove` case
@@ -382,8 +383,7 @@ impl MerkleDB {
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
                     let Some(node) = self.get_node_with_working_set(child_hash).await? else {
-                        // TODO: This implies pollution
-                        return affected_nodes.into_merkle_write_set();
+                        return Err(StateMerkleError::NodeNotFound);
                     };
                     current_node = node;
                 }
@@ -402,11 +402,14 @@ impl MerkleDB {
                     // depending on the operation type.
                     return match &write_op {
                         MerkleWriteOp::Add(state_key, state_value) => {
+                            // Reached endpoint of the traversal.
+                            //
                             // Note: at this point, `current_node` isn't the leaf node to be added.
                             // It is the leaf node that shares the longest merkle path with the
                             // new leaf node to be `Add`ed.
 
-                            // The partial state key of the sibling node of the new leaf node being added, extracted from its node data.
+                            // The partial state key of the sibling node
+                            // of the new leaf node being added, extracted from its node data.
                             let leaf_state_key_248 =
                                 current_node.extract_partial_leaf_state_key()?;
 
@@ -435,6 +438,7 @@ impl MerkleDB {
                             affected_nodes.into_merkle_write_set()
                         }
                         MerkleWriteOp::Update(state_key, state_value) => {
+                            // Reached endpoint of the traversal.
                             affected_nodes.insert(
                                 depth,
                                 AffectedNode::Endpoint(AffectedEndpoint {
@@ -485,8 +489,8 @@ impl MerkleDB {
     ///
     /// - Whether the sibling of the target leaf is a `Branch` or a `Leaf`.
     /// - If the sibling is a `Leaf`, collects:
-    ///   1. The hash of a full-branch ("posterior parent") that will point to the sibling
-    ///      after the target leaf is removed.
+    ///   1. The hash of a full-branch node that will be parent node of the sibling
+    ///      after the target leaf is removed ("posterior parent").
     ///   2. The sibling node's hash and its position (`Left` or `Right`) relative to the
     ///      "posterior parent".
     ///
