@@ -1,4 +1,12 @@
-use crate::{codec::NodeCodec, error::StateMerkleError, types::*, utils::bits_encode_msb};
+use crate::{
+    codec::NodeCodec,
+    error::StateMerkleError,
+    types::{
+        nodes::{AffectedNode, ChildType},
+        write_context::LeafWriteOpContext,
+    },
+    utils::bits_encode_msb,
+};
 use bit_vec::BitVec;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};

@@ -9,7 +9,7 @@ use rjam_state::{
     },
     types::{AuthPool, PendingReport, PendingReports},
 };
-use rjam_state_merkle::codec::test_utils::simple_hash;
+use rjam_state_merkle::test_utils::simple_hash;
 use std::error::Error;
 
 #[tokio::test]

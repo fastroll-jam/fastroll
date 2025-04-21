@@ -1,11 +1,18 @@
-use crate::write_set::MerkleWriteSet;
 #[allow(unused_imports)]
 use crate::{
-    codec::{test_utils::print_node, NodeCodec},
+    codec::NodeCodec,
     error::StateMerkleError,
-    types::*,
+    test_utils::print_node,
+    types::nodes::{
+        AffectedEndpoint, AffectedNode, AffectedPathNode, BranchType, ChildType, LeafType,
+        MerkleNode, MerkleWriteOp, NodeType,
+    },
+    types::write_context::{
+        FullBranchHistory, LeafAddContext, LeafRemoveContext, LeafSplitContext, LeafUpdateContext,
+        LeafWriteOpContext,
+    },
     utils::{bits_encode_msb, bitvec_to_hash32},
-    write_set::{added_leaf_child_side, AffectedNodesByDepth},
+    write_set::{added_leaf_child_side, AffectedNodesByDepth, MerkleWriteSet},
 };
 use bit_vec::BitVec;
 use dashmap::DashMap;

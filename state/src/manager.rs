@@ -21,7 +21,7 @@ use rjam_db::WriteBatch;
 use rjam_state_merkle::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
-    types::LeafType,
+    types::nodes::LeafType,
     write_set::{MerkleDBWriteSet, MerkleWriteSet, StateDBWriteSet},
 };
 use std::collections::HashMap;
