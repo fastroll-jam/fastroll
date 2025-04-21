@@ -161,6 +161,16 @@ impl StateDBWriteSet {
     pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
         self.inner.iter()
     }
+
+    /// Inserts an entry if the state value is larger than 32 bytes, which
+    /// implies that its corresponding leaf node is a regular leaf type.
+    fn insert_if_regular_leaf(&mut self, state_val: &[u8]) -> Result<(), StateMerkleError> {
+        // regular leaf
+        if state_val.len() > 32 {
+            self.insert(hash::<Blake2b256>(state_val)?, state_val.to_vec());
+        }
+        Ok(())
+    }
 }
 
 /// Collection of merkle trie nodes affected by state write operations.
@@ -280,7 +290,7 @@ impl AffectedNodesByDepth {
                         let added_leaf_node_data =
                             NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
 
-                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
+                        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
 
                         let added_leaf_node_hash = hash::<Blake2b256>(&added_leaf_node_data)?;
                         let added_leaf_write =
@@ -361,7 +371,7 @@ impl AffectedNodesByDepth {
                             NodeCodec::encode_leaf(&ctx.leaf_state_key, state_value_slice)?;
 
                         // TODO: Currently state value hashing occurs twice: 1) `encode_leaf` 2) `insert_to_state_db_write_set`
-                        Self::insert_to_state_db_write_set(state_value_slice, state_db_write_set)?;
+                        state_db_write_set.insert_if_regular_leaf(state_value_slice)?;
 
                         let hash = hash::<Blake2b256>(&node_data)?;
                         let merkle_write = MerkleNodeWrite::new(hash, node_data);
@@ -514,19 +524,6 @@ impl AffectedNodesByDepth {
         }
 
         Ok(result)
-    }
-
-    /// Inserts an entry to the `StateDBWriteSet` if the state value is larger than 32 bytes, which
-    /// implies that its corresponding leaf node is a regular leaf type.
-    fn insert_to_state_db_write_set(
-        state_value: &[u8],
-        state_db_write_set: &mut StateDBWriteSet,
-    ) -> Result<(), StateMerkleError> {
-        // regular leaf
-        if state_value.len() > 32 {
-            state_db_write_set.insert(hash::<Blake2b256>(state_value)?, state_value.to_vec());
-        }
-        Ok(())
     }
 }
 
