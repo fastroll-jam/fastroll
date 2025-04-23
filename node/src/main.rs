@@ -2,7 +2,7 @@ pub(crate) mod config;
 pub(crate) mod timeslot_scheduler;
 
 use rjam_block::header_db::BlockHeaderDB;
-use rjam_common::{utils::tracing::setup_timed_tracing, Hash32};
+use rjam_common::{utils::tracing::setup_tracing, Hash32};
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
     core::core_db::CoreDB,
@@ -14,7 +14,7 @@ use std::{error::Error, path::PathBuf, sync::Arc};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
-    setup_timed_tracing();
+    setup_tracing();
 
     const EXTRINSICS_POOL_MAX_SIZE: usize = 1000;
     const MERKLE_DB_CACHE_SIZE: usize = 1000;
