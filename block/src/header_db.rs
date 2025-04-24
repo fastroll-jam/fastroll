@@ -140,6 +140,13 @@ impl BlockHeaderDB {
 
     // --- Staging header field setters
 
+    pub fn set_block_header(&mut self, block: BlockHeader) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            *h = block;
+        })
+    }
+
     pub fn set_timeslot(&mut self) -> Result<u32, BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
 

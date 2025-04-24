@@ -193,6 +193,20 @@ impl<const N: usize> ByteArray<N> {
     pub fn encode_hex(&self) -> String {
         hex::encode(self.0)
     }
+
+    /// Used for debugging
+    /// FIXME: error type
+    pub fn try_from_hex(hex_str: &str) -> Result<Self, ()> {
+        let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        if hex_stripped.len() != N * 2 {
+            return Err(());
+        }
+
+        // Decode hex string
+        let octets = hex::decode(hex_stripped).expect("Failed decoding hexstring into ByteArray");
+        let arr = octets.try_into().expect("Length already checked");
+        Ok(Self(arr))
+    }
 }
 
 impl AsRef<[u8]> for Hash32 {

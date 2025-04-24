@@ -1,6 +1,9 @@
 pub(crate) mod config;
+pub(crate) mod genesis;
+mod roles;
 pub(crate) mod timeslot_scheduler;
 
+use crate::genesis::genesis_block_header;
 use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::{utils::tracing::setup_tracing, Hash32};
 use rjam_db::{
@@ -40,11 +43,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing::info!("DB initialized successfully");
 
     header_db.init_staging_header(Hash32::default())?;
-    let _timeslot_index = header_db.set_timeslot()?;
+    // let _timeslot_index = header_db.set_timeslot()?;
+    header_db.set_block_header(genesis_block_header().unwrap())?;
     let header_hash = header_db.commit_staging_header().await?;
 
-    let header_1 = header_db.get_header(&header_hash).await?.unwrap();
-    tracing::debug!("Header 1: {header_1}");
+    let genesis_header = header_db.get_header(&header_hash).await?.unwrap();
+    tracing::debug!("Genesis Header: {genesis_header}");
 
     Ok(())
 }
