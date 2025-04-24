@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
+use thiserror::Error;
 
 pub mod ticket;
 pub mod workloads;
@@ -65,6 +66,12 @@ pub type BlsPubKey = ByteArray<144>;
 
 /// Set of `VALIDATOR_COUNT` validator keys.
 pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
+
+#[derive(Debug, Error)]
+pub enum CommonTypeError {
+    #[error("Failed to convert hexstring into ByteArray type")]
+    HexToByteArrayConversionError,
+}
 
 /// Bytes sequence type with no length limit.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -195,11 +202,10 @@ impl<const N: usize> ByteArray<N> {
     }
 
     /// Used for debugging
-    /// FIXME: error type
-    pub fn try_from_hex(hex_str: &str) -> Result<Self, ()> {
+    pub fn try_from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
         let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
         if hex_stripped.len() != N * 2 {
-            return Err(());
+            return Err(CommonTypeError::HexToByteArrayConversionError);
         }
 
         // Decode hex string

@@ -39,7 +39,7 @@ pub async fn chain_extension_procedure(
     let prior_timeslot = state_manager.get_timeslot().await?;
 
     // Timeslot transition
-    let header_timeslot_index = header.timeslot_index;
+    let header_timeslot_index = header.timeslot_index();
     transition_timeslot(state_manager.clone(), &Timeslot::new(header_timeslot_index)).await?;
 
     // Determine if the epoch has progressed
@@ -47,7 +47,7 @@ pub async fn chain_extension_procedure(
     let epoch_progressed = prior_timeslot.epoch() < current_timeslot.epoch();
 
     // EpochEntropy transition
-    let header_vrf_signature = &header.vrf_signature;
+    let header_vrf_signature = &header.vrf_signature();
     transition_epoch_entropy(
         state_manager.clone(),
         epoch_progressed,

@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     header_db.init_staging_header(Hash32::default())?;
     // let _timeslot_index = header_db.set_timeslot()?;
-    header_db.set_block_header(genesis_block_header().unwrap())?;
+    header_db.set_block_header(genesis_block_header())?;
     let header_hash = header_db.commit_staging_header().await?;
 
     let genesis_header = header_db.get_header(&header_hash).await?.unwrap();

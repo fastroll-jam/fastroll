@@ -3,7 +3,7 @@ use crate::serde_utils::{
 };
 use bit_vec::BitVec;
 use rjam_block::types::{
-    block::{Block, BlockHeader, EpochMarker, EpochMarkerValidatorKey},
+    block::{Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey},
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
         disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
@@ -2011,25 +2011,27 @@ pub struct AsnHeader {
 impl From<AsnHeader> for BlockHeader {
     fn from(value: AsnHeader) -> Self {
         Self {
-            parent_hash: Hash32::from(value.parent),
-            parent_state_root: Hash32::from(value.parent_state_root),
-            extrinsic_hash: Hash32::from(value.extrinsic_hash),
-            timeslot_index: value.slot,
-            epoch_marker: value.epoch_mark.map(EpochMarker::from),
-            winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                let mut tickets_array = [Ticket::default(); ASN_EPOCH_LENGTH];
-                for (i, ticket) in tickets.into_iter().enumerate() {
-                    tickets_array[i] = ticket.into();
-                }
-                tickets_array
-            }),
-            offenders_marker: value
-                .offenders_mark
-                .into_iter()
-                .map(Ed25519PubKey::from)
-                .collect(),
-            block_author_index: value.author_index,
-            vrf_signature: BandersnatchSignature::from(value.entropy_source),
+            header_data: BlockHeaderData {
+                parent_hash: Hash32::from(value.parent),
+                parent_state_root: Hash32::from(value.parent_state_root),
+                extrinsic_hash: Hash32::from(value.extrinsic_hash),
+                timeslot_index: value.slot,
+                epoch_marker: value.epoch_mark.map(EpochMarker::from),
+                winning_tickets_marker: value.tickets_mark.map(|tickets| {
+                    let mut tickets_array = [Ticket::default(); ASN_EPOCH_LENGTH];
+                    for (i, ticket) in tickets.into_iter().enumerate() {
+                        tickets_array[i] = ticket.into();
+                    }
+                    tickets_array
+                }),
+                offenders_marker: value
+                    .offenders_mark
+                    .into_iter()
+                    .map(Ed25519PubKey::from)
+                    .collect(),
+                author_index: value.author_index,
+                vrf_signature: BandersnatchSignature::from(value.entropy_source),
+            },
             block_seal: BandersnatchSignature::from(value.seal),
         }
     }
@@ -2038,12 +2040,12 @@ impl From<AsnHeader> for BlockHeader {
 impl From<BlockHeader> for AsnHeader {
     fn from(value: BlockHeader) -> Self {
         Self {
-            parent: AsnOpaqueHash::from(value.parent_hash),
-            parent_state_root: AsnOpaqueHash::from(value.parent_state_root),
-            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash),
-            slot: value.timeslot_index,
-            epoch_mark: value.epoch_marker.map(AsnEpochMark::from),
-            tickets_mark: value.winning_tickets_marker.map(|tickets_arr| {
+            parent: AsnOpaqueHash::from(value.parent_hash()),
+            parent_state_root: AsnOpaqueHash::from(value.parent_state_root()),
+            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash()),
+            slot: value.timeslot_index(),
+            epoch_mark: value.epoch_marker().cloned().map(AsnEpochMark::from),
+            tickets_mark: value.winning_tickets_marker().map(|tickets_arr| {
                 tickets_arr
                     .iter()
                     .map(|ticket| AsnTicketBody {
@@ -2053,12 +2055,13 @@ impl From<BlockHeader> for AsnHeader {
                     .collect::<Vec<_>>()
             }),
             offenders_mark: value
-                .offenders_marker
-                .into_iter()
+                .offenders_marker()
+                .iter()
+                .cloned()
                 .map(AsnEd25519Key::from)
                 .collect(),
-            author_index: value.block_author_index,
-            entropy_source: AsnBandersnatchVrfSignature::from(value.vrf_signature),
+            author_index: value.author_index(),
+            entropy_source: AsnBandersnatchVrfSignature::from(value.vrf_signature()),
             seal: AsnBandersnatchVrfSignature::from(value.block_seal),
         }
     }
