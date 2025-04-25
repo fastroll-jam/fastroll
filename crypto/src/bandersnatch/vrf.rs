@@ -74,18 +74,50 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     Input::new(vrf_input_data).unwrap()
 }
 
-/// Prover actor.
-pub struct Prover {
+/// IetfVRF prover actor.
+pub struct IetfVrfProver {
+    pub secret: Secret,
+}
+
+impl IetfVrfProver {
+    pub fn new(seed: &[u8]) -> Self {
+        Self {
+            secret: Secret::from_seed(seed),
+        }
+    }
+
+    /// Non-Anonymous VRF signature.
+    ///
+    /// Used for ticket claiming during block production.
+    /// Not used with Safrole test vectors.
+    ///
+    /// Returns 96-octet sequence.
+    pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+        use ark_vrf::ietf::Prover as _;
+
+        let input = vrf_input_point(vrf_input_data);
+        let output = self.secret.output(input);
+        let proof = self.secret.prove(input, output, aux_data);
+
+        let signature = IetfVrfSignature { output, proof };
+        let mut buf = Vec::new();
+        signature.serialize_compressed(&mut buf).unwrap();
+        buf
+    }
+}
+
+/// RingVRF prover actor.
+pub struct RingVrfProver {
     pub prover_idx: usize,
     pub secret: Secret,
     pub ring: Vec<Public>,
 }
 
-impl Prover {
-    pub fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
+impl RingVrfProver {
+    pub fn new(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
         Self {
             prover_idx,
-            secret: Secret::from_seed(&prover_idx.to_le_bytes()), // FIXME: proper Secret handling
+            secret: Secret::from_seed(seed),
             ring,
         }
     }
@@ -110,25 +142,6 @@ impl Prover {
         let proof = self.secret.prove(input, output, aux_data, &prover);
 
         let signature = RingVrfSignature { output, proof };
-        let mut buf = Vec::new();
-        signature.serialize_compressed(&mut buf).unwrap();
-        buf
-    }
-
-    /// Non-Anonymous VRF signature.
-    ///
-    /// Used for ticket claiming during block production.
-    /// Not used with Safrole test vectors.
-    ///
-    /// Returns 96-octet sequence.
-    pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
-        use ark_vrf::ietf::Prover as _;
-
-        let input = vrf_input_point(vrf_input_data);
-        let output = self.secret.output(input);
-        let proof = self.secret.prove(input, output, aux_data);
-
-        let signature = IetfVrfSignature { output, proof };
         let mut buf = Vec::new();
         signature.serialize_compressed(&mut buf).unwrap();
         buf
