@@ -147,6 +147,13 @@ impl BlockHeaderDB {
         })
     }
 
+    pub fn set_parent_state_root(&mut self, root: &Hash32) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.header_data.parent_state_root = *root;
+        })
+    }
+
     pub fn set_timeslot(&mut self) -> Result<u32, BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
 
