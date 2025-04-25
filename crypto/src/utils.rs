@@ -55,7 +55,7 @@ pub fn octets_to_hash32(value: &[u8]) -> Option<Hash32> {
     value.try_into().map(Hash32::new).ok()
 }
 
-// `Y` hash function for a VRF signature
+/// `Y` hash function for a VRF signature
 pub fn entropy_hash_ietf_vrf(signature_bytes: &BandersnatchSignature) -> Hash32 {
     let signature: IetfVrfSignature =
         IetfVrfSignature::deserialize_compressed(&signature_bytes[..]).unwrap();
@@ -66,7 +66,7 @@ fn entropy_hash_ietf_vrf_internal(signature: &IetfVrfSignature) -> Hash32 {
     signature.output_hash()
 }
 
-// `Y` hash function for an anonymous RingVRF signature
+/// `Y` hash function for an anonymous RingVRF signature
 pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSignature) -> Hash32 {
     let signature: RingVrfSignature =
         RingVrfSignature::deserialize_compressed(&signature_bytes[..]).unwrap();

@@ -1260,6 +1260,7 @@ dependencies = [
  "rjam-common",
  "sha3",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

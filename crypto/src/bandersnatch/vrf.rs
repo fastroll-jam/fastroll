@@ -174,14 +174,14 @@ impl Verifier {
         let verifier_key = params.verifier_key_from_commitment(self.commitment.clone());
         let verifier = params.verifier(verifier_key);
         if Public::verify(input, output, aux_data, &signature.proof, &verifier).is_err() {
-            println!("Ring signature verification failure");
+            tracing::error!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        println!("Ring signature verified");
+        tracing::trace!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
-        println!(" vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::trace!(" vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 
@@ -210,16 +210,16 @@ impl Verifier {
             .verify(input, output, aux_data, &signature.proof)
             .is_err()
         {
-            println!("Ring signature verification failure");
+            tracing::error!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        println!("Ietf signature verified");
+        tracing::trace!("Ietf signature verified");
 
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
         // using the ring-vrf (regardless of aux_data).
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
-        println!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 }
