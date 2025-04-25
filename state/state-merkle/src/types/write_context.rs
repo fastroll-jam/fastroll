@@ -13,9 +13,9 @@ pub enum LeafWriteOpContext {
 impl Display for LeafWriteOpContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            LeafWriteOpContext::Update(ctx) => write!(f, "Update({})", ctx),
-            LeafWriteOpContext::Add(ctx) => write!(f, "Add({})", ctx),
-            LeafWriteOpContext::Remove(ctx) => write!(f, "Remove({})", ctx),
+            LeafWriteOpContext::Update(ctx) => write!(f, "Update({ctx})"),
+            LeafWriteOpContext::Add(ctx) => write!(f, "Add({ctx})"),
+            LeafWriteOpContext::Remove(ctx) => write!(f, "Remove({ctx})"),
         }
     }
 }
@@ -114,7 +114,7 @@ pub struct LeafRemoveContext {
 impl Display for LeafRemoveContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let sibling_leaf_hash = match self.sibling_leaf_hash {
-            Some(hash) => format!("{}", hash),
+            Some(hash) => format!("{hash}"),
             None => String::from("None"),
         };
         write!(

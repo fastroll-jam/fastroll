@@ -35,7 +35,7 @@ impl Display for AuthPool {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "AuthPool {{")?;
         for (core_idx, pool) in self.0.iter().enumerate() {
-            writeln!(f, "  core #{}: [", core_idx)?;
+            writeln!(f, "  core #{core_idx}: [")?;
             for auth_hash in pool {
                 writeln!(f, "    {}", &auth_hash)?;
             }

@@ -71,8 +71,8 @@ impl Display for MerkleDBWriteSet {
         }
 
         for (key, node_write) in &self.node_updates {
-            writeln!(f, "lookup_key: {}", key)?;
-            writeln!(f, "node_write: {}", node_write)?;
+            writeln!(f, "lookup_key: {key}")?;
+            writeln!(f, "node_write: {node_write}")?;
         }
         Ok(())
     }
@@ -130,7 +130,7 @@ impl Display for StateDBWriteSet {
         }
 
         for (state_key, state_data) in &self.inner {
-            writeln!(f, "State Key: {}", state_key)?;
+            writeln!(f, "State Key: {state_key}")?;
             writeln!(f, "Raw State Data: {}", hex::encode(state_data))?;
         }
         Ok(())

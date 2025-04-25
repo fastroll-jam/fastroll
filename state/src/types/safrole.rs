@@ -61,7 +61,7 @@ impl Display for SafroleState {
         writeln!(f, "  \"PendingSet\": [")?;
         for (i, validator) in self.pending_set.iter().enumerate() {
             writeln!(f, "    {{")?;
-            writeln!(f, "      \"{}\": {}", i, validator)?;
+            writeln!(f, "      \"{i}\": {validator}")?;
             writeln!(f, "    }},")?;
         }
         writeln!(f, "  ],")?;
@@ -71,12 +71,12 @@ impl Display for SafroleState {
         match &self.slot_sealers {
             SlotSealers::Tickets(tickets) => {
                 for (i, ticket) in tickets.iter().enumerate() {
-                    writeln!(f, "    \"{}\": \"{}\",", i, ticket)?;
+                    writeln!(f, "    \"{i}\": \"{ticket}\",")?;
                 }
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    \"{}\": \"{}\",", i, key.encode_hex())?;
+                    writeln!(f, "    \"{i}\": \"{}\",", key.encode_hex())?;
                 }
             }
         }
@@ -265,7 +265,7 @@ impl Display for TicketAccumulator {
         writeln!(f, "{{")?;
         writeln!(f, "  \"Tickets\": [")?;
         for (i, ticket) in self.heap.iter().enumerate() {
-            writeln!(f, "    \"{}\": {}", i, ticket)?;
+            writeln!(f, "    \"{i}\": {ticket}")?;
         }
         writeln!(f, "  ]")?;
         write!(f, "}}")

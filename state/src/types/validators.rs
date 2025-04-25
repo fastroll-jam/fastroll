@@ -70,9 +70,9 @@ fn fmt_validator_set(
     validators: &[ValidatorKey],
 ) -> std::fmt::Result {
     writeln!(f, "{{")?;
-    writeln!(f, "\t\"{}\": {{", name)?;
+    writeln!(f, "\t\"{name}\": {{")?;
     for (i, validator) in validators.iter().enumerate() {
-        writeln!(f, "\t\t\"Validator_{}\": {{", i)?;
+        writeln!(f, "\t\t\"Validator_{i}\": {{")?;
         write!(f, "{}", validator.to_json_like(6))?;
         if i < validators.len() - 1 {
             writeln!(f, "\t\t}},")?;

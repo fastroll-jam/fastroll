@@ -43,10 +43,10 @@ impl Display for PendingReports {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "PendingReports: {{")?;
         for (core_idx, reports) in self.0.iter().enumerate() {
-            writeln!(f, "  core #{}:", core_idx)?;
+            writeln!(f, "  core #{core_idx}:")?;
             match reports {
                 Some(report) => {
-                    writeln!(f, "    {}", report)?;
+                    writeln!(f, "    {report}")?;
                 }
                 None => {
                     writeln!(f, "    None")?;

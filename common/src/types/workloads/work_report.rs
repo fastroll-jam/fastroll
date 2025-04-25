@@ -57,7 +57,7 @@ impl Display for WorkReport {
         } else {
             writeln!(f, "\tdigests: [")?;
             for digest in self.digests.iter() {
-                writeln!(f, "\t  {}", digest)?;
+                writeln!(f, "\t  {digest}")?;
             }
             writeln!(f, "\t]")?;
         }
@@ -395,10 +395,10 @@ impl Display for WorkExecutionResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Output(octets) => {
-                write!(f, "{}", octets)
+                write!(f, "{octets}")
             }
             Self::Error(err) => {
-                write!(f, "{:?}", err)
+                write!(f, "{err:?}")
             }
         }
     }

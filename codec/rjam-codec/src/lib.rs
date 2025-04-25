@@ -649,13 +649,13 @@ mod tests {
         <T as TryInto<u64>>::Error: Debug,
     {
         let encoded = value.encode().unwrap();
-        println!("\nValue: {:?}", value);
-        println!("Encoded: {:02X?}", encoded);
+        println!("\nValue: {value:?}");
+        println!("Encoded: {encoded:02X?}");
         let mut slice = &encoded[..];
         let decoded = T::decode(&mut slice).unwrap();
-        println!("Decoded: {:?}", decoded);
+        println!("Decoded: {decoded:?}");
         if value != decoded {
-            println!("Mismatch: original {:?} != decoded {:?}", value, decoded);
+            println!("Mismatch: original {value:?} != decoded {decoded:?}");
         }
         decoded
     }

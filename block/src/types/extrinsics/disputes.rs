@@ -39,17 +39,17 @@ impl Display for DisputesXt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "verdicts:")?;
         for verdict in &self.verdicts {
-            writeln!(f, "  - {}", verdict)?;
+            writeln!(f, "  - {verdict}")?;
         }
 
         writeln!(f, "culprits:")?;
         for culprit in &self.culprits {
-            writeln!(f, "  - {}", culprit)?;
+            writeln!(f, "  - {culprit}")?;
         }
 
         writeln!(f, "faults:")?;
         for fault in &self.faults {
-            writeln!(f, "  - {}", fault)?;
+            writeln!(f, "  - {fault}")?;
         }
 
         Ok(())
@@ -143,7 +143,7 @@ impl Display for Verdict {
         writeln!(f, "epoch_index: {}", self.epoch_index)?;
         writeln!(f, "judgments:")?;
         for judgment in self.judgments.iter() {
-            writeln!(f, "  - {}", judgment)?;
+            writeln!(f, "  - {judgment}")?;
         }
         Ok(())
     }

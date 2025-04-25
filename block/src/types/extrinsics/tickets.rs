@@ -22,7 +22,7 @@ impl Display for TicketsXt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "TicketsXt [")?;
         for item in self.items.iter() {
-            write!(f, "{}, ", item)?;
+            write!(f, "{item}, ")?;
         }
         write!(f, "]")
     }

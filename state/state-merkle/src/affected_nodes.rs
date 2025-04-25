@@ -27,8 +27,8 @@ pub enum AffectedNode {
 impl Display for AffectedNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::PathNode({})", branch),
-            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Endpoint({})", leaf),
+            AffectedNode::PathNode(branch) => write!(f, "AffectedNode::PathNode({branch})"),
+            AffectedNode::Endpoint(leaf) => write!(f, "AffectedNode::Endpoint({leaf})"),
         }
     }
 }

@@ -46,13 +46,13 @@ mod codec {
         RjamType: JamEncode + JamDecode + From<AsnType> + Debug + PartialEq + Eq,
         AsnType: Serialize + DeserializeOwned + From<RjamType>,
     {
-        let json_path = PathBuf::from(PATH_PREFIX).join(format!("{}.json", filename));
+        let json_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.json"));
         let asn_type: AsnType =
             load_json_file(&json_path).expect("Failed to load .json test vector.");
         let rjam_type = RjamType::from(asn_type);
         let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
-        let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{}.bin", filename));
+        let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.bin"));
         let asn_type_encoded = load_bin_file(&bin_path).expect("Failed to load .bin test vector.");
 
         // Test encoding

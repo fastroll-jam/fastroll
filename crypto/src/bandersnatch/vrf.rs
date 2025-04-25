@@ -72,10 +72,7 @@ pub(crate) fn ring_proof_params() -> &'static RingProofParams {
         use std::{fs::File, io::Read};
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
-        let filename = format!(
-            "{}/../crypto/data/zcash-srs-2-11-uncompressed.bin",
-            manifest_dir
-        );
+        let filename = format!("{manifest_dir}/../crypto/data/zcash-srs-2-11-uncompressed.bin",);
         let mut file = File::open(filename).unwrap();
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();

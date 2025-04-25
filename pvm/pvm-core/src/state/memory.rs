@@ -35,7 +35,7 @@ impl Display for AccessType {
             AccessType::ReadOnly => "ReadOnly",
             AccessType::ReadWrite => "ReadWrite",
         };
-        write!(f, "{}", variant_name)
+        write!(f, "{variant_name}")
     }
 }
 

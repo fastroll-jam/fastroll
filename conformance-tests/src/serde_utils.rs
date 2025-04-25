@@ -15,7 +15,7 @@ where
         type Value = [u8; N];
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            write!(formatter, "a 0x-prefixed hex string with {} bytes", N)
+            write!(formatter, "a 0x-prefixed hex string with {N} bytes")
         }
 
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -26,7 +26,7 @@ where
             let bytes = hex::decode(v).map_err(E::custom)?;
             bytes
                 .try_into()
-                .map_err(|_| E::custom(format!("Expected {} bytes", N)))
+                .map_err(|_| E::custom(format!("Expected {N} bytes")))
         }
     }
 

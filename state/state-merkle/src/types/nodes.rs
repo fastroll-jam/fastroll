@@ -190,8 +190,8 @@ pub enum NodeDataParsed {
 impl Display for NodeDataParsed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Branch(branch) => write!(f, "{}", branch),
-            Self::Leaf(leaf) => write!(f, "{}", leaf),
+            Self::Branch(branch) => write!(f, "{branch}"),
+            Self::Leaf(leaf) => write!(f, "{leaf}"),
         }
     }
 }
@@ -227,8 +227,8 @@ pub enum LeafParsed {
 impl Display for LeafParsed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EmbeddedLeaf(leaf) => write!(f, "{}", leaf),
-            Self::RegularLeaf(leaf) => write!(f, "{}", leaf),
+            Self::EmbeddedLeaf(leaf) => write!(f, "{leaf}"),
+            Self::RegularLeaf(leaf) => write!(f, "{leaf}"),
         }
     }
 }
