@@ -1301,7 +1301,9 @@ name = "rjam-node"
 version = "0.1.0"
 dependencies = [
  "rjam-block",
+ "rjam-codec",
  "rjam-common",
+ "rjam-crypto",
  "rjam-db",
  "rjam-extrinsics",
  "rjam-state",

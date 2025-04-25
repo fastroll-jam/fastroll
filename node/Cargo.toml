@@ -5,7 +5,9 @@ edition.workspace = true
 
 [dependencies]
 rjam-block = { workspace = true }
+rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
+rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-extrinsics = { workspace = true }
 rjam-state = { workspace = true }
