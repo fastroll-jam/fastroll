@@ -17,6 +17,8 @@ pub enum CryptoError {
     RingRootError,
     #[error("Serialization Error")]
     SerializationError(SerializationError),
+    #[error("Failed to decode Bandersnatch public key")]
+    BandersnatchDecodeError,
     #[error("VRF proof verification Error")]
     VrfVerificationFailed,
 }

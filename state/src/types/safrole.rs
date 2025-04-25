@@ -1,6 +1,7 @@
 use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
+    types::Timeslot,
 };
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
@@ -18,13 +19,11 @@ use std::{
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum FallbackKeyError {
+pub enum SlotSealerError {
     #[error("Crypto error: {0}")]
-    Crypto(#[from] CryptoError),
+    CryptoError(#[from] CryptoError),
     #[error("Codec error: {0}")]
-    Codec(#[from] JamCodecError),
-    #[error("Array conversion error")]
-    ArrayConversion,
+    CodecError(#[from] JamCodecError),
 }
 
 /// State components associated with the Safrole protocol.
@@ -39,7 +38,7 @@ pub struct SafroleState {
     pub ring_root: BandersnatchRingRoot,
     /// `γ_s`: Slot-sealers of the current epoch.
     /// Composed of `E` tickets (or `E` Bandersnatch keys in the fallback mode).
-    pub slot_sealers: SlotSealerType,
+    pub slot_sealers: SlotSealers,
     /// `γ_a`: Ticket accumulator.
     pub ticket_accumulator: TicketAccumulator,
 }
@@ -50,7 +49,7 @@ impl Default for SafroleState {
         Self {
             pending_set: Box::new(from_fn(|_| ValidatorKey::default())),
             ring_root: BandersnatchRingRoot::default(),
-            slot_sealers: SlotSealerType::default(),
+            slot_sealers: SlotSealers::default(),
             ticket_accumulator: TicketAccumulator::default(),
         }
     }
@@ -70,12 +69,12 @@ impl Display for SafroleState {
 
         writeln!(f, "  \"Slot Sealers\": {{")?;
         match &self.slot_sealers {
-            SlotSealerType::Tickets(tickets) => {
+            SlotSealers::Tickets(tickets) => {
                 for (i, ticket) in tickets.iter().enumerate() {
                     writeln!(f, "    \"{}\": \"{}\",", i, ticket)?;
                 }
             }
-            SlotSealerType::BandersnatchPubKeys(keys) => {
+            SlotSealers::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
                     writeln!(f, "    \"{}\": \"{}\",", i, key.encode_hex())?;
                 }
@@ -98,7 +97,7 @@ impl JamDecode for SafroleState {
         let mut ring_root = BandersnatchRingRoot::default();
         input.read(&mut *ring_root)?;
 
-        let slot_sealers = SlotSealerType::decode(input)?;
+        let slot_sealers = SlotSealers::decode(input)?;
         let ticket_accumulator = TicketAccumulator::decode(input)?;
 
         Ok(Self {
@@ -110,34 +109,39 @@ impl JamDecode for SafroleState {
     }
 }
 
+pub enum SlotSealer {
+    Ticket(Ticket),
+    BandersnatchPubKeys(BandersnatchPubKey),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SlotSealerType {
+pub enum SlotSealers {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
 }
 
-impl Default for SlotSealerType {
+impl Default for SlotSealers {
     fn default() -> Self {
         Self::Tickets(Box::new([Ticket::default(); EPOCH_LENGTH]))
     }
 }
 
-impl JamEncode for SlotSealerType {
+impl JamEncode for SlotSealers {
     fn size_hint(&self) -> usize {
         match self {
-            SlotSealerType::Tickets(tickets) => 1 + tickets.size_hint(),
-            SlotSealerType::BandersnatchPubKeys(keys) => 1 + keys.size_hint(),
+            SlotSealers::Tickets(tickets) => 1 + tickets.size_hint(),
+            SlotSealers::BandersnatchPubKeys(keys) => 1 + keys.size_hint(),
         }
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         match self {
-            SlotSealerType::Tickets(tickets) => {
+            SlotSealers::Tickets(tickets) => {
                 0u8.encode_to(dest)?;
                 tickets.encode_to(dest)?;
                 Ok(())
             }
-            SlotSealerType::BandersnatchPubKeys(keys) => {
+            SlotSealers::BandersnatchPubKeys(keys) => {
                 1u8.encode_to(dest)?;
                 keys.encode_to(dest)?;
                 Ok(())
@@ -146,7 +150,7 @@ impl JamEncode for SlotSealerType {
     }
 }
 
-impl JamDecode for SlotSealerType {
+impl JamDecode for SlotSealers {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         match u8::decode(input)? {
             0 => {
@@ -160,7 +164,7 @@ impl JamDecode for SlotSealerType {
                             "Failed to convert to Box<[Ticket; EPOCH_LENGTH]>".into(),
                         )
                     })?;
-                Ok(SlotSealerType::Tickets(boxed_tickets))
+                Ok(SlotSealers::Tickets(boxed_tickets))
             }
             1 => {
                 let mut keys = Vec::with_capacity(EPOCH_LENGTH);
@@ -173,10 +177,10 @@ impl JamDecode for SlotSealerType {
                             "Failed to convert to Box<[BandersnatchPubKey; EPOCH_LENGTH]>".into(),
                         )
                     })?;
-                Ok(SlotSealerType::BandersnatchPubKeys(boxed_keys))
+                Ok(SlotSealers::BandersnatchPubKeys(boxed_keys))
             }
             _ => Err(JamCodecError::ConversionError(
-                "Invalid SlotSealerType discriminator".into(),
+                "Invalid SlotSealers type discriminator".into(),
             )),
         }
     }
@@ -203,10 +207,28 @@ pub fn outside_in_vec<T: Clone>(vec: Vec<T>) -> Vec<T> {
     result
 }
 
+impl SlotSealers {
+    pub fn is_fallback(&self) -> bool {
+        match self {
+            Self::Tickets(_) => false,
+            Self::BandersnatchPubKeys(_) => true,
+        }
+    }
+
+    // FIXME: use `slice::get` instead
+    pub fn get_slot_sealer(&self, timeslot: &Timeslot) -> SlotSealer {
+        let slot_phase = timeslot.slot_phase() as usize;
+        match self {
+            Self::Tickets(tickets) => SlotSealer::Ticket(tickets[slot_phase]),
+            Self::BandersnatchPubKeys(keys) => SlotSealer::BandersnatchPubKeys(keys[slot_phase]),
+        }
+    }
+}
+
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
     entropy: Hash32,
-) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], FallbackKeyError> {
+) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], SlotSealerError> {
     let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
         [BandersnatchPubKey::default(); EPOCH_LENGTH];
     let entropy_vec = entropy.to_vec();
@@ -214,7 +236,7 @@ pub fn generate_fallback_keys(
     for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
         let i_encoded = (i as u32)
             .encode_fixed(4)
-            .map_err(FallbackKeyError::Codec)?;
+            .map_err(SlotSealerError::CodecError)?;
 
         let mut entropy_with_index = entropy_vec.clone();
         entropy_with_index.extend_from_slice(&i_encoded);

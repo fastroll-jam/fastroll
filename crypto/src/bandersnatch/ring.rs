@@ -1,4 +1,4 @@
-use crate::{CryptoError, RingCommitment, Verifier};
+use crate::{CryptoError, RingCommitment, RingVrfVerifier};
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
@@ -24,7 +24,7 @@ fn generate_ring_root_internal(
     validator_set: &ValidatorKeySet,
 ) -> Result<RingCommitment, CryptoError> {
     let ring = validator_set_to_bandersnatch_ring(validator_set)?;
-    let verifier = Verifier::new(ring);
+    let verifier = RingVrfVerifier::new(ring);
     Ok(verifier.commitment)
 }
 

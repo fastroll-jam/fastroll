@@ -5,7 +5,7 @@ use rjam_merkle::common::MerkleError;
 use rjam_pvm_invocation::prelude::PVMError;
 use rjam_state::{
     error::StateManagerError,
-    types::{FallbackKeyError, PendingReportsError},
+    types::{PendingReportsError, SlotSealerError},
 };
 use thiserror::Error;
 
@@ -24,8 +24,8 @@ pub enum TransitionError {
     // External errors
     #[error("Extrinsic validation error: {0}")]
     XtValidationError(#[from] XtError),
-    #[error("Fallback key error: {0}")]
-    FallbackKeyError(#[from] FallbackKeyError),
+    #[error("Slot Sealer error: {0}")]
+    SlotSealerError(#[from] SlotSealerError),
     #[error("Crypto error: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("StateManager error: {0}")]

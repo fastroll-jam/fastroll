@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 rjam-block = { workspace = true }
-rjam-codec = { workspace = true }
 rjam-common = { workspace = true }
 rjam-crypto = { workspace = true }
 rjam-extrinsics = { workspace = true }
@@ -14,6 +13,3 @@ rjam-pvm-invocation = { workspace = true }
 rjam-pvm-types = { workspace = true }
 rjam-state = { workspace = true }
 thiserror = { workspace = true }
-time = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }

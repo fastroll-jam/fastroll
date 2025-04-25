@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
+use thiserror::Error;
 
 pub mod ticket;
 pub mod workloads;
@@ -65,6 +66,14 @@ pub type BlsPubKey = ByteArray<144>;
 
 /// Set of `VALIDATOR_COUNT` validator keys.
 pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
+
+#[derive(Debug, Error)]
+pub enum CommonTypeError {
+    #[error("Failed to convert hexstring into ByteArray<{0}> type")]
+    HexToByteArrayConversionError(usize),
+    #[error("Failed to convert Vec<u8> into ByteArray<{0}> type")]
+    VecToByteArrayConversionError(usize),
+}
 
 /// Bytes sequence type with no length limit.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -192,6 +201,25 @@ impl<const N: usize> ByteArray<N> {
 
     pub fn encode_hex(&self) -> String {
         hex::encode(self.0)
+    }
+
+    pub fn try_from_vec(data: Vec<u8>) -> Result<Self, CommonTypeError> {
+        let arr = data
+            .try_into()
+            .map_err(|_| CommonTypeError::VecToByteArrayConversionError(N))?;
+        Ok(Self(arr))
+    }
+
+    /// Used for debugging
+    pub fn try_from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
+        let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        if hex_stripped.len() != N * 2 {
+            return Err(CommonTypeError::HexToByteArrayConversionError(N));
+        }
+
+        // Decode hex string
+        let octets = hex::decode(hex_stripped).expect("Failed decoding hexstring into ByteArray");
+        Self::try_from_vec(octets)
     }
 }
 

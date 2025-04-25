@@ -94,7 +94,7 @@ impl BlockHeaderDB {
         }
 
         let mut guard = self.staging_header.lock().unwrap();
-        *guard = Some(BlockHeader::new(parent_hash));
+        *guard = Some(BlockHeader::from_parent_hash(parent_hash));
 
         Ok(())
     }
@@ -140,12 +140,26 @@ impl BlockHeaderDB {
 
     // --- Staging header field setters
 
+    pub fn set_block_header(&mut self, block: BlockHeader) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            *h = block;
+        })
+    }
+
+    pub fn set_parent_state_root(&mut self, root: &Hash32) -> Result<(), BlockHeaderDBError> {
+        self.assert_staging_header_initialized()?;
+        self.update_staging_header(|h| {
+            h.header_data.parent_state_root = *root;
+        })
+    }
+
     pub fn set_timeslot(&mut self) -> Result<u32, BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
 
         if let Some(curr_timeslot_index) = Clock::now_jam_timeslot() {
             self.update_staging_header(|h| {
-                h.timeslot_index = curr_timeslot_index;
+                h.header_data.timeslot_index = curr_timeslot_index;
             })?;
             Ok(curr_timeslot_index)
         } else {
@@ -167,7 +181,7 @@ impl BlockHeaderDB {
         self.assert_staging_header_initialized()?;
         let xt_hash = Self::header_extrinsic_hash(xt)?;
         self.update_staging_header(|h| {
-            h.extrinsic_hash = xt_hash;
+            h.header_data.extrinsic_hash = xt_hash;
         })
     }
 
@@ -177,7 +191,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.vrf_signature = *vrf_sig;
+            h.header_data.vrf_signature = *vrf_sig;
         })
     }
 
@@ -193,11 +207,11 @@ impl BlockHeaderDB {
 
     pub fn set_block_author_index(
         &mut self,
-        block_author_index: ValidatorIndex,
+        author_index: ValidatorIndex,
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.block_author_index = block_author_index;
+            h.header_data.author_index = author_index;
         })
     }
 
@@ -207,7 +221,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.epoch_marker = Some(epoch_marker.clone());
+            h.header_data.epoch_marker = Some(epoch_marker.clone());
         })
     }
 
@@ -217,7 +231,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.winning_tickets_marker = Some(*winning_tickets_marker);
+            h.header_data.winning_tickets_marker = Some(*winning_tickets_marker);
         })
     }
 
@@ -227,7 +241,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.offenders_marker = offenders_marker.items.to_vec();
+            h.header_data.offenders_marker = offenders_marker.items.to_vec();
         })
     }
 }

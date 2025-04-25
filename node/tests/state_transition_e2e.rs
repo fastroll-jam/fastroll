@@ -1,15 +1,27 @@
 //! End-to-end state transition tests
-use rjam_block::types::{block::BlockHeader, extrinsics::Extrinsics};
+use rjam_block::{
+    header_db::BlockHeaderDB,
+    types::{block::BlockHeader, extrinsics::Extrinsics},
+};
 use rjam_common::{
     utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
+    ValidatorIndex,
+};
+use rjam_node::roles::author::{
+    generate_block_seal, generate_entropy_source_vrf_signature, generate_fallback_block_seal,
+};
+use rjam_pvm_invocation::pipeline::{
+    accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
 use rjam_state::{
+    manager::StateManager,
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
-    types::Timeslot,
+    types::{SlotSealer, Timeslot},
 };
 use rjam_transition::{
     procedures::chain_extension::mark_safrole_header_markers,
     state::{
+        accumulate::{transition_accumulate_history, transition_accumulate_queue},
         authorizer::transition_auth_pool,
         disputes::transition_disputes,
         entropy::transition_epoch_entropy,
@@ -19,6 +31,7 @@ use rjam_transition::{
             transition_reports_update_entries,
         },
         safrole::transition_safrole,
+        services::transition_on_accumulate,
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
@@ -40,23 +53,55 @@ where
     })
 }
 
+/// Mocking BlockHeader DB
+fn get_parent_header() -> BlockHeader {
+    BlockHeader::default()
+}
+
+/// Mocking Extrinsics Pool
+fn get_all_extrinsics() -> Extrinsics {
+    Extrinsics::default()
+}
+
+/// Mocking Author Info
+fn get_author_index() -> ValidatorIndex {
+    ValidatorIndex::default()
+}
+
+/// Mocking DB initialization and previous state.
+///
+/// This sets `parent_hash` and `parent_state_root` fields of `BlockHeader` during the initialization.
+async fn init_with_prev_state(
+    parent_hash: Hash32,
+) -> Result<(BlockHeaderDB, Arc<StateManager>), Box<dyn Error>> {
+    let (mut header_db, state_manager) = init_db_and_manager(Some(parent_hash));
+    let state_manager = Arc::new(state_manager);
+    add_all_simple_state_entries(&state_manager).await?;
+    state_manager.commit_dirty_cache().await?;
+    let prev_state_root = state_manager.merkle_root();
+    header_db.set_parent_state_root(&prev_state_root)?;
+    tracing::info!("Prev State Root: {}", prev_state_root);
+    Ok((header_db, state_manager))
+}
+
+/// Mocking block author actor
 #[tokio::test]
 async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
     // Parent block context
-    let parent_block = BlockHeader::default();
-    let parent_hash = parent_block.hash()?;
+    let parent_hash = get_parent_header().hash()?;
+    tracing::info!("Parent header hash: {}", parent_hash);
 
-    // Initialize DB
-    let (mut header_db, state_manager) = init_db_and_manager(Some(parent_hash));
-    let state_manager = Arc::new(state_manager);
-    add_all_simple_state_entries(&state_manager).await?;
-    state_manager.commit_dirty_cache().await?;
+    // Initialize prev state
+    let (mut header_db, state_manager) = init_with_prev_state(parent_hash).await?;
+
+    // Set block author index
+    header_db.set_block_author_index(get_author_index())?;
 
     // Collect Extrinsics
-    let xt = Extrinsics::default();
+    let xt = get_all_extrinsics();
     header_db.set_extrinsic_hash(&xt)?;
 
     let xt_cloned = xt.clone();
@@ -135,7 +180,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         )
         .await
         .unwrap();
-        let _removed_reports = transition_reports_clear_availables(
+        let available_reports = transition_reports_clear_availables(
             state_manager_cloned.clone(),
             &assurances_xt,
             parent_hash,
@@ -149,6 +194,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         )
         .await
         .unwrap();
+        available_reports
     });
 
     // Authorizer STF
@@ -217,9 +263,50 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .unwrap();
     });
 
+    let available_reports = reports_jh.await?;
+
+    // Accumulate STF
+    let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
+        available_reports,
+        &state_manager.get_accumulate_queue().await?,
+        &state_manager.get_accumulate_history().await?,
+        prev_timeslot.slot(),
+    );
+    let state_manager_cloned = state_manager.clone();
+    let acc_jh = spawn_timed("acc_stf", async move {
+        let acc_summary =
+            transition_on_accumulate(state_manager_cloned.clone(), &accumulatable_reports)
+                .await
+                .unwrap();
+        transition_accumulate_history(
+            state_manager_cloned.clone(),
+            &accumulatable_reports,
+            acc_summary.accumulated_reports_count,
+        )
+        .await
+        .unwrap();
+        transition_accumulate_queue(
+            state_manager_cloned,
+            &queued_reports,
+            prev_timeslot,
+            curr_timeslot,
+        )
+        .await
+        .unwrap();
+        accumulate_result_commitment(acc_summary.output_pairs)
+    });
+
     // Join remaining STF tasks
-    let (_, _, _, safrole_markers_result, _) =
-        join!(reports_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh);
+    let (_acc_root_result, _, _, safrole_markers_result, _) =
+        join!(acc_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh);
+
+    // Load state data to be used later
+    let curr_slot_sealer = state_manager
+        .get_safrole()
+        .await?
+        .slot_sealers
+        .get_slot_sealer(&curr_timeslot);
+    let curr_entropy_3 = state_manager.get_epoch_entropy().await?.third_history();
 
     // Set header markers
     header_db.set_offenders_marker(&offenders_marker?)?;
@@ -231,6 +318,35 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         header_db.set_winning_tickets_marker(winning_tickets_marker)?;
     }
 
-    // TODO: Block sealing, PVM Invocation
+    let header_data = header_db
+        .get_staging_header()
+        .expect("should exist")
+        .header_data;
+    let seed = Hash32::default(); // FIXME: properly handle seed / validator key
+    let seal = match curr_slot_sealer {
+        SlotSealer::Ticket(ticket) => {
+            generate_block_seal(header_data, &ticket, &curr_entropy_3, seed.as_ref())?
+        }
+        SlotSealer::BandersnatchPubKeys(_key) => {
+            generate_fallback_block_seal(header_data, &curr_entropy_3, seed.as_ref())?
+        }
+    };
+
+    // Seal the block
+    header_db.set_block_seal(&seal)?;
+
+    // Set the VRF signature for the entropy source
+    let vrf_sig = generate_entropy_source_vrf_signature(seal, seed.as_ref())?;
+    header_db.set_vrf_signature(&vrf_sig)?;
+
+    // Commit the staging header
+    let new_header_hash = header_db.commit_staging_header().await?;
+    tracing::info!("New block created. Header hash: {new_header_hash}");
+
+    // Commit the state transitions
+    // Note: Also some STFs can be run asynchronously after committing the header.
+    state_manager.commit_dirty_cache().await?;
+    tracing::info!("Post State Root: {}", state_manager.merkle_root());
+
     Ok(())
 }

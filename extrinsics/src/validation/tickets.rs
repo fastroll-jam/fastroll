@@ -3,7 +3,7 @@ use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use rjam_common::{
     Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
-use rjam_crypto::{validator_set_to_bandersnatch_ring, Verifier};
+use rjam_crypto::{validator_set_to_bandersnatch_ring, RingVrfVerifier};
 use rjam_state::manager::StateManager;
 
 /// Validate contents of `TicketsXt` type.
@@ -60,7 +60,7 @@ impl<'a> TicketsXtValidator<'a> {
             .await?
             .second_history();
         let ring = validator_set_to_bandersnatch_ring(&pending_set)?;
-        let verifier = Verifier::new(ring);
+        let verifier = RingVrfVerifier::new(ring);
 
         // Validate each entry
         for entry in extrinsic.iter() {
@@ -74,7 +74,7 @@ impl<'a> TicketsXtValidator<'a> {
     fn validate_entry(
         &self,
         entry: &TicketsXtEntry,
-        verifier: &Verifier,
+        verifier: &RingVrfVerifier,
         entropy_2: &Hash32,
     ) -> Result<(), XtError> {
         // Check if the ticket attempt number is correct
@@ -93,7 +93,7 @@ impl<'a> TicketsXtValidator<'a> {
     /// transition happens after the entropy transition.
     fn validate_ticket_proof(
         entry: &TicketsXtEntry,
-        verifier: &Verifier,
+        verifier: &RingVrfVerifier,
         entropy_2: &Hash32,
     ) -> Result<(), XtError> {
         let mut expected_vrf_input = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);

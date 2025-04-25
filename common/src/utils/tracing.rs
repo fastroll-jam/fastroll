@@ -1,6 +1,7 @@
 use std::sync::Once;
+use time::{macros::format_description, UtcOffset};
 use tracing::subscriber::set_global_default;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
+use tracing_subscriber::{fmt, fmt::time::OffsetTime, prelude::*, EnvFilter, Registry};
 
 pub fn setup_timed_tracing() {
     static INIT_TIMED_TRACING: Once = Once::new();
@@ -18,7 +19,14 @@ pub fn setup_timed_tracing() {
 pub fn setup_tracing() {
     static INIT_TRACING: Once = Once::new();
     INIT_TRACING.call_once(|| {
-        let fmt_layer = fmt::layer().with_target(false);
+        let offset = UtcOffset::current_local_offset().expect("Should get local offset");
+        let timer = OffsetTime::new(
+            offset,
+            format_description!(
+                "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:2]"
+            ),
+        );
+        let fmt_layer = fmt::layer().with_target(false).with_timer(timer);
         let sub = Registry::default()
             .with(EnvFilter::from_default_env())
             .with(fmt_layer);

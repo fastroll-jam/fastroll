@@ -96,8 +96,11 @@ mod disputes {
             }
 
             // Convert RJAM output into ASN Output.
-            let curr_header_offenders_marker =
-                header_db.get_staging_header().unwrap().offenders_marker;
+            let curr_header_offenders_marker = header_db
+                .get_staging_header()
+                .unwrap()
+                .offenders_marker()
+                .to_vec();
             let curr_offenders_marker = OffendersHeaderMarker {
                 items: curr_header_offenders_marker,
             };
