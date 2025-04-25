@@ -1309,6 +1309,7 @@ dependencies = [
  "rjam-pvm-invocation",
  "rjam-state",
  "rjam-transition",
+ "thiserror",
  "tokio",
  "tracing",
 ]

@@ -42,7 +42,7 @@ impl Display for TicketsXtEntry {
             f,
             "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: {} }}",
             self.entry_index,
-            RingVrfSignature::from_ticket_proof(&self.ticket_proof).output_hash()
+            RingVrfSignature::output_hash_from_ticket_proof(&self.ticket_proof)
         )
     }
 }
@@ -61,8 +61,8 @@ impl Ord for TicketsXtEntry {
     // Compare the ticket extrinsics by the hash of the ticket proofs, which is not explicitly
     // represented by the `TicketsXtEntry`.
     fn cmp(&self, other: &Self) -> Ordering {
-        let self_hash = RingVrfSignature::from_ticket_proof(&self.ticket_proof).output_hash();
-        let other_hash = RingVrfSignature::from_ticket_proof(&other.ticket_proof).output_hash();
+        let self_hash = RingVrfSignature::output_hash_from_ticket_proof(&self.ticket_proof);
+        let other_hash = RingVrfSignature::output_hash_from_ticket_proof(&other.ticket_proof);
         self_hash.cmp(&other_hash)
     }
 }

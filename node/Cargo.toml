@@ -13,5 +13,6 @@ rjam-extrinsics = { workspace = true }
 rjam-pvm-invocation = { workspace = true }
 rjam-state = { workspace = true }
 rjam-transition = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
