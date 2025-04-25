@@ -32,8 +32,8 @@ impl IetfVrfSignature {
             .unwrap()
     }
 
-    /// `Y` hashing function to yield VRF output from the given Bandersnatch signature.
-    pub fn output_hash_from_bandersnatch_signature(signature: &BandersnatchSignature) -> Hash32 {
+    /// `Y` output function to yield VRF output from the given Bandersnatch signature.
+    pub fn output_hash_from_bander_sig(signature: &BandersnatchSignature) -> Hash32 {
         Self::deserialize_compressed(signature.as_slice())
             .unwrap()
             .output_hash()
@@ -56,7 +56,7 @@ impl RingVrfSignature {
             .unwrap()
     }
 
-    /// `Y` hashing function to yield VRF output from the given Bandersnatch signature.
+    /// `Y` output function to yield VRF output from the given Bandersnatch Ring VRF signature.
     pub fn output_hash_from_ticket_proof(ticket_proof: &BandersnatchRingVrfSignature) -> Hash32 {
         Self::deserialize_compressed(ticket_proof.as_slice())
             .unwrap()

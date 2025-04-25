@@ -7,7 +7,9 @@ use rjam_common::{
     utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
     ValidatorIndex,
 };
-use rjam_node::roles::author::{generate_block_seal, generate_fallback_block_seal};
+use rjam_node::roles::author::{
+    generate_block_seal, generate_entropy_source_vrf_signature, generate_fallback_block_seal,
+};
 use rjam_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
@@ -298,6 +300,14 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let (_acc_root_result, _, _, safrole_markers_result, _) =
         join!(acc_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh);
 
+    // Load state data to be used later
+    let curr_slot_sealer = state_manager
+        .get_safrole()
+        .await?
+        .slot_sealers
+        .get_slot_sealer(&curr_timeslot);
+    let curr_entropy_3 = state_manager.get_epoch_entropy().await?.third_history();
+
     // Set header markers
     header_db.set_offenders_marker(&offenders_marker?)?;
     let safrole_markers = safrole_markers_result?;
@@ -308,25 +318,14 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         header_db.set_winning_tickets_marker(winning_tickets_marker)?;
     }
 
-    // Commit the state transitions
-    state_manager.commit_dirty_cache().await?;
-    tracing::info!("Post State Root: {}", state_manager.merkle_root());
-
-    // TODO: Set VRF signature
     let header_data = header_db
         .get_staging_header()
         .expect("should exist")
         .header_data;
-    let slot_sealer = state_manager
-        .get_safrole()
-        .await?
-        .slot_sealers
-        .get_slot_sealer(&curr_timeslot);
-    let curr_entropy_3 = state_manager.get_epoch_entropy().await?.third_history();
     let seed = Hash32::default(); // FIXME: properly handle seed / validator key
-    let seal = match slot_sealer {
+    let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
-            generate_block_seal(header_data, ticket, &curr_entropy_3, seed.as_ref())?
+            generate_block_seal(header_data, &ticket, &curr_entropy_3, seed.as_ref())?
         }
         SlotSealer::BandersnatchPubKeys(_key) => {
             generate_fallback_block_seal(header_data, &curr_entropy_3, seed.as_ref())?
@@ -336,7 +335,18 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     // Seal the block
     header_db.set_block_seal(&seal)?;
 
+    // Set the VRF signature for the entropy source
+    let vrf_sig = generate_entropy_source_vrf_signature(seal, seed.as_ref())?;
+    header_db.set_vrf_signature(&vrf_sig)?;
+
     // Commit the staging header
-    header_db.commit_staging_header().await?;
+    let new_header_hash = header_db.commit_staging_header().await?;
+    tracing::info!("New block created. Header hash: {new_header_hash}");
+
+    // Commit the state transitions
+    // Note: Also some STFs can be run asynchronously after committing the header.
+    state_manager.commit_dirty_cache().await?;
+    tracing::info!("Post State Root: {}", state_manager.merkle_root());
+
     Ok(())
 }

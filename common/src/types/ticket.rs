@@ -7,7 +7,7 @@ use std::{
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
-    /// **`y`**: The ticket identifier, which is the `Y` hash of the Ring VRF proof from `TicketsXtEntry`.
+    /// **`y`**: The ticket identifier, which is the `Y` output hash of the Ring VRF proof from `TicketsXtEntry`.
     pub id: Hash32,
     /// `r`: The ticket entry index, either 0 or 1.
     pub attempt: u8,

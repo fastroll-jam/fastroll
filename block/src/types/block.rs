@@ -16,6 +16,8 @@ pub struct Block {
     pub extrinsics: Extrinsics,
 }
 
+pub type BlockSeal = BandersnatchSignature;
+pub type VrfSig = BandersnatchSignature;
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 
 #[derive(Debug, Error)]
@@ -58,7 +60,7 @@ pub struct BlockHeaderData {
     /// `i`: The block author index.
     pub author_index: ValidatorIndex,
     /// `v`: The block VRF signature, which is used as the epoch-entropy source.
-    pub vrf_signature: BandersnatchSignature,
+    pub vrf_signature: VrfSig,
 }
 
 impl JamEncode for BlockHeaderData {
@@ -102,7 +104,7 @@ impl JamDecode for BlockHeaderData {
             winning_tickets_marker: Option::<WinningTicketsMarker>::decode(input)?,
             offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
             author_index: ValidatorIndex::decode_fixed(input, 2)?,
-            vrf_signature: BandersnatchSignature::decode(input)?,
+            vrf_signature: VrfSig::decode(input)?,
         })
     }
 }
@@ -112,7 +114,7 @@ pub struct BlockHeader {
     /// The block header data fields.
     pub header_data: BlockHeaderData,
     /// `s`: The block seal signed by the author.
-    pub block_seal: BandersnatchSignature,
+    pub block_seal: BlockSeal,
 }
 
 impl JamEncode for BlockHeader {
@@ -134,7 +136,7 @@ impl JamDecode for BlockHeader {
     {
         Ok(Self {
             header_data: BlockHeaderData::decode(input)?,
-            block_seal: BandersnatchSignature::decode(input)?,
+            block_seal: BlockSeal::decode(input)?,
         })
     }
 }
@@ -183,7 +185,7 @@ impl BlockHeader {
                 parent_hash,
                 ..Default::default()
             },
-            block_seal: BandersnatchSignature::default(),
+            block_seal: BlockSeal::default(),
         }
     }
 
@@ -223,7 +225,7 @@ impl BlockHeader {
         self.header_data.author_index
     }
 
-    pub fn vrf_signature(&self) -> BandersnatchSignature {
+    pub fn vrf_signature(&self) -> VrfSig {
         self.header_data.vrf_signature
     }
 }
