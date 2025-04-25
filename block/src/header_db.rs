@@ -94,7 +94,7 @@ impl BlockHeaderDB {
         }
 
         let mut guard = self.staging_header.lock().unwrap();
-        *guard = Some(BlockHeader::new(parent_hash));
+        *guard = Some(BlockHeader::from_parent_hash(parent_hash));
 
         Ok(())
     }

@@ -177,7 +177,7 @@ impl Display for BlockHeader {
 }
 
 impl BlockHeader {
-    pub fn new(parent_hash: Hash32) -> Self {
+    pub fn from_parent_hash(parent_hash: Hash32) -> Self {
         Self {
             header_data: BlockHeaderData {
                 parent_hash,

@@ -177,11 +177,11 @@ impl Verifier {
             tracing::error!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        tracing::trace!("Ring signature verified");
+        tracing::debug!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
-        tracing::trace!(" vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 
@@ -213,13 +213,13 @@ impl Verifier {
             tracing::error!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        tracing::trace!("Ietf signature verified");
+        tracing::debug!("Ietf signature verified");
 
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
         // using the ring-vrf (regardless of aux_data).
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
-        tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 }
