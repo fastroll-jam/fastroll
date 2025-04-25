@@ -3,13 +3,14 @@
 //! This module is copied from the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec) repository.
 use crate::CryptoError;
 use ark_vrf::{
+    codec::point_decode,
     reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch,
 };
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::{BandersnatchRingVrfSignature, Hash32, VALIDATOR_COUNT};
+use rjam_common::{BandersnatchPubKey, BandersnatchRingVrfSignature, Hash32, VALIDATOR_COUNT};
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
@@ -74,7 +75,7 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     Input::new(vrf_input_data).unwrap()
 }
 
-/// IetfVRF prover actor.
+/// IETF VRF prover actor.
 pub struct IetfVrfProver {
     pub secret: Secret,
 }
@@ -106,7 +107,7 @@ impl IetfVrfProver {
     }
 }
 
-/// RingVRF prover actor.
+/// Ring VRF prover actor.
 pub struct RingVrfProver {
     pub prover_idx: usize,
     pub secret: Secret,
@@ -148,15 +149,61 @@ impl RingVrfProver {
     }
 }
 
+/// IETF VRF verifier actor (Ring and its commitment).
+pub struct IetfVrfVerifier;
+impl IetfVrfVerifier {
+    /// Non-Anonymous VRF signature verification.
+    ///
+    /// Used for ticket claim verification during block import.
+    /// Not used with Safrole test vectors.
+    ///
+    /// On success returns the VRF output hash.
+    pub fn ietf_vrf_verify(
+        &self,
+        vrf_input_data: &[u8],
+        aux_data: &[u8],
+        signature: &[u8],
+        bandersnatch_key: &BandersnatchPubKey,
+    ) -> Result<[u8; 32], CryptoError> {
+        use ark_vrf::ietf::Verifier as _;
+
+        let signature = IetfVrfSignature::deserialize_compressed(signature).unwrap();
+
+        let input = vrf_input_point(vrf_input_data);
+        let output = signature.output;
+
+        let public = Public::from(
+            point_decode::<BandersnatchSha512Ell2>(bandersnatch_key.as_ref())
+                .map_err(|_| CryptoError::BandersnatchDecodeError)?,
+        );
+
+        if public
+            .verify(input, output, aux_data, &signature.proof)
+            .is_err()
+        {
+            tracing::error!("Ring signature verification failure");
+            return Err(CryptoError::VrfVerificationFailed);
+        }
+        tracing::debug!("Ietf signature verified");
+
+        // `Y` hashed value; this is the actual value used as ticket-id/score
+        // NOTE: as far as vrf_input_data is the same, this matches the one produced
+        // using the ring-vrf (regardless of aux_data).
+        let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
+        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        Ok(vrf_output_hash)
+    }
+}
+
 pub type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
 
-/// Verifier actor (Ring and its commitment).
-pub struct Verifier {
+/// Ring VRF verifier actor (Ring and its commitment).
+pub struct RingVrfVerifier {
     pub commitment: RingCommitment,
     pub ring: Vec<Public>,
 }
 
-impl Verifier {
+impl RingVrfVerifier {
     pub fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
         let verifier_key = ring_proof_params().verifier_key(&pts);
@@ -193,44 +240,6 @@ impl Verifier {
         tracing::debug!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
-        let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
-        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
-        Ok(vrf_output_hash)
-    }
-
-    /// Non-Anonymous VRF signature verification.
-    ///
-    /// Used for ticket claim verification during block import.
-    /// Not used with Safrole test vectors.
-    ///
-    /// On success returns the VRF output hash.
-    pub fn ietf_vrf_verify(
-        &self,
-        vrf_input_data: &[u8],
-        aux_data: &[u8],
-        signature: &[u8],
-        signer_key_index: usize,
-    ) -> Result<[u8; 32], CryptoError> {
-        use ark_vrf::ietf::Verifier as _;
-
-        let signature = IetfVrfSignature::deserialize_compressed(signature).unwrap();
-
-        let input = vrf_input_point(vrf_input_data);
-        let output = signature.output;
-
-        let public = &self.ring[signer_key_index];
-        if public
-            .verify(input, output, aux_data, &signature.proof)
-            .is_err()
-        {
-            tracing::error!("Ring signature verification failure");
-            return Err(CryptoError::VrfVerificationFailed);
-        }
-        tracing::debug!("Ietf signature verified");
-
-        // `Y` hashed value; this is the actual value used as ticket-id/score
-        // NOTE: as far as vrf_input_data is the same, this matches the one produced
-        // using the ring-vrf (regardless of aux_data).
         let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
         tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
