@@ -1,7 +1,5 @@
 pub(crate) mod config;
 pub(crate) mod genesis;
-mod roles;
-pub(crate) mod timeslot_scheduler;
 
 use crate::genesis::genesis_block_header;
 use rjam_block::header_db::BlockHeaderDB;

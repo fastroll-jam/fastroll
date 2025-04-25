@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
 use rjam_block::types::extrinsics::tickets::TicketsXt;
 use rjam_common::{ticket::Ticket, BandersnatchRingRoot, Hash32};
-use rjam_state::types::{SafroleState, SlotSealerType, TicketAccumulator, Timeslot};
+use rjam_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -73,7 +73,7 @@ impl From<&State> for SafroleState {
         SafroleState {
             pending_set: validators_data_to_validator_set(&value.gamma_k),
             ring_root: BandersnatchRingRoot::from(value.gamma_z),
-            slot_sealers: SlotSealerType::from(value.gamma_s.clone()),
+            slot_sealers: SlotSealers::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
                 value
                     .gamma_a

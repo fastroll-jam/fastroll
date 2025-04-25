@@ -31,7 +31,7 @@ use rjam_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
     BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochValidatorStats,
     OnChainStatistics, PendingReport, PendingReports, PrivilegedServices, ServiceStats,
-    ServiceStatsEntry, SlotSealerType, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1266,7 +1266,7 @@ pub enum AsnTicketsOrKeys {
     keys(AsnEpochKeys),
 }
 
-impl From<AsnTicketsOrKeys> for SlotSealerType {
+impl From<AsnTicketsOrKeys> for SlotSealers {
     fn from(value: AsnTicketsOrKeys) -> Self {
         match value {
             AsnTicketsOrKeys::tickets(ticket_bodies) => {
@@ -1277,23 +1277,23 @@ impl From<AsnTicketsOrKeys> for SlotSealerType {
                         attempt: ticket_body.attempt,
                     };
                 }
-                SlotSealerType::Tickets(Box::new(tickets))
+                SlotSealers::Tickets(Box::new(tickets))
             }
             AsnTicketsOrKeys::keys(epoch_keys) => {
                 let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
                 for (i, key) in epoch_keys.into_iter().enumerate() {
                     keys[i] = Hash32::from(key)
                 }
-                SlotSealerType::BandersnatchPubKeys(Box::new(keys))
+                SlotSealers::BandersnatchPubKeys(Box::new(keys))
             }
         }
     }
 }
 
-impl From<SlotSealerType> for AsnTicketsOrKeys {
-    fn from(value: SlotSealerType) -> Self {
+impl From<SlotSealers> for AsnTicketsOrKeys {
+    fn from(value: SlotSealers) -> Self {
         match value {
-            SlotSealerType::Tickets(tickets) => {
+            SlotSealers::Tickets(tickets) => {
                 let mut ticket_bodies: AsnTicketsBodies = Default::default();
                 for (i, ticket) in tickets.into_iter().enumerate() {
                     ticket_bodies[i] = AsnTicketBody {
@@ -1303,7 +1303,7 @@ impl From<SlotSealerType> for AsnTicketsOrKeys {
                 }
                 AsnTicketsOrKeys::tickets(ticket_bodies)
             }
-            SlotSealerType::BandersnatchPubKeys(keys) => {
+            SlotSealers::BandersnatchPubKeys(keys) => {
                 let mut epoch_keys: AsnEpochKeys = Default::default();
                 for (i, key) in keys.into_iter().enumerate() {
                     epoch_keys[i] = AsnBandersnatchKey::from(key);

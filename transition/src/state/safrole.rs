@@ -7,8 +7,8 @@ use rjam_state::{
     cache::StateMut,
     manager::StateManager,
     types::{
-        generate_fallback_keys, outside_in_vec, ActiveSet, EpochEntropy, SafroleState,
-        SlotSealerType, TicketAccumulator, Timeslot, ValidatorSet,
+        generate_fallback_keys, outside_in_vec, ActiveSet, EpochEntropy, SafroleState, SlotSealers,
+        TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
 use std::sync::Arc;
@@ -104,7 +104,7 @@ fn update_slot_sealers(
         || !safrole.ticket_accumulator.is_full();
 
     if is_fallback {
-        safrole.slot_sealers = SlotSealerType::BandersnatchPubKeys(Box::new(
+        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(Box::new(
             generate_fallback_keys(current_active_set, current_entropy.second_history()).unwrap(),
         ));
     } else {
@@ -112,7 +112,7 @@ fn update_slot_sealers(
             outside_in_vec(safrole.ticket_accumulator.as_vec())
                 .try_into()
                 .unwrap();
-        safrole.slot_sealers = SlotSealerType::Tickets(Box::new(ticket_accumulator_outside_in));
+        safrole.slot_sealers = SlotSealers::Tickets(Box::new(ticket_accumulator_outside_in));
     }
 }
 
