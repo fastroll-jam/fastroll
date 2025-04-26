@@ -4,7 +4,7 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    CoreIndex, Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
+    CoreIndex, Ed25519Sig, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
 };
 use std::{cmp::Ordering, ops::Deref};
 
@@ -62,7 +62,7 @@ pub struct AssurancesXtEntry {
     /// `v`: The validator index.
     pub validator_index: ValidatorIndex,
     /// `s`: The signature of the validator.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl XtEntry for AssurancesXtEntry {
@@ -105,7 +105,7 @@ impl JamDecode for AssurancesXtEntry {
             anchor_parent_hash: Hash32::decode(input)?,
             assuring_cores_bitvec: BitVec::decode_fixed(input, CORE_COUNT)?,
             validator_index: ValidatorIndex::decode_fixed(input, 2)?,
-            signature: Ed25519Signature::decode(input)?,
+            signature: Ed25519Sig::decode(input)?,
         })
     }
 }

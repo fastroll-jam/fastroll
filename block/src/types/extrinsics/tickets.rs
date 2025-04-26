@@ -1,6 +1,6 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::BandersnatchRingVrfSignature;
+use rjam_common::BandersnatchRingVrfSig;
 use rjam_crypto::RingVrfSignature;
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
@@ -33,7 +33,7 @@ pub struct TicketsXtEntry {
     /// `r`: The ticket entry index, either 0 or 1.
     pub entry_index: u8,
     /// `p`: The ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
-    pub ticket_proof: BandersnatchRingVrfSignature,
+    pub ticket_proof: BandersnatchRingVrfSig,
 }
 
 impl Display for TicketsXtEntry {

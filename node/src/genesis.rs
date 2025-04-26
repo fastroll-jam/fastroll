@@ -1,9 +1,7 @@
 use rjam_block::types::block::{
     BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey,
 };
-use rjam_common::{
-    BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32, VALIDATOR_COUNT,
-};
+use rjam_common::{BandersnatchPubKey, BandersnatchSig, Ed25519PubKey, Hash32, VALIDATOR_COUNT};
 
 struct GenesisValidatorKeyConfig {
     bandersnatch_hex: &'static str,
@@ -36,7 +34,7 @@ fn create_genesis_block_header(
             author_index,
             ..Default::default()
         },
-        block_seal: BandersnatchSignature::default(),
+        block_seal: BandersnatchSig::default(),
     }
 }
 

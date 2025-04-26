@@ -21,8 +21,8 @@ use rjam_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
-    Ed25519Signature, Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
+    BandersnatchPubKey, BandersnatchSig, ByteArray, ByteSequence, Ed25519PubKey, Ed25519Sig,
+    Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
     FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
 };
 use rjam_crypto::Hasher;
@@ -1450,7 +1450,7 @@ impl From<AsnDisputeCulpritProof> for Culprit {
         Self {
             report_hash: Hash32::from(value.target),
             validator_key: Ed25519PubKey::from(value.key),
-            signature: Ed25519Signature::new(value.signature.0),
+            signature: Ed25519Sig::new(value.signature.0),
         }
     }
 }
@@ -1479,7 +1479,7 @@ impl From<AsnDisputeFaultProof> for Fault {
             report_hash: Hash32::from(value.target),
             is_report_valid: value.vote,
             validator_key: Ed25519PubKey::from(value.key),
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1667,7 +1667,7 @@ impl From<AsnAvailAssurance> for AssurancesXtEntry {
             anchor_parent_hash: Hash32::from(value.anchor),
             assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, ASN_CORE_COUNT),
             validator_index: value.validator_index,
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1729,7 +1729,7 @@ impl From<AsnValidatorSignature> for GuaranteesCredential {
     fn from(value: AsnValidatorSignature) -> Self {
         Self {
             validator_index: value.validator_index,
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -2030,9 +2030,9 @@ impl From<AsnHeader> for BlockHeader {
                     .map(Ed25519PubKey::from)
                     .collect(),
                 author_index: value.author_index,
-                vrf_signature: BandersnatchSignature::from(value.entropy_source),
+                vrf_signature: BandersnatchSig::from(value.entropy_source),
             },
-            block_seal: BandersnatchSignature::from(value.seal),
+            block_seal: BandersnatchSig::from(value.seal),
         }
     }
 }

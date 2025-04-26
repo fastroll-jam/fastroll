@@ -1,16 +1,16 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rjam_common::{Ed25519PubKey, Ed25519SecretKey, Ed25519Signature};
+use rjam_common::{Ed25519PubKey, Ed25519SecretKey, Ed25519Sig};
 
-pub fn sign_message(message: &[u8], secret_key: &Ed25519SecretKey) -> Ed25519Signature {
+pub fn sign_message(message: &[u8], secret_key: &Ed25519SecretKey) -> Ed25519Sig {
     let signing_key = SigningKey::from_bytes(secret_key);
     let signature = signing_key.sign(message);
-    Ed25519Signature::new(signature.to_bytes())
+    Ed25519Sig::new(signature.to_bytes())
 }
 
 pub fn verify_signature(
     message: &[u8],
     public_key: &Ed25519PubKey,
-    signature: &Ed25519Signature,
+    signature: &Ed25519Sig,
 ) -> bool {
     let verifying_key = match VerifyingKey::from_bytes(public_key) {
         Ok(key) => key,
@@ -77,7 +77,7 @@ mod tests {
         assert!(!verify_signature(
             &message,
             &public_key,
-            &Ed25519Signature::new(invalid_signature)
+            &Ed25519Sig::new(invalid_signature)
         ));
     }
 

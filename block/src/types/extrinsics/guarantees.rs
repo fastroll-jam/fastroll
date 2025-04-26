@@ -4,7 +4,7 @@ use rjam_codec::{
 };
 use rjam_common::{
     get_validator_ed25519_key_by_index, workloads::work_report::WorkReport, Ed25519PubKey,
-    Ed25519Signature, ValidatorIndex, ValidatorKeySet,
+    Ed25519Sig, ValidatorIndex, ValidatorKeySet,
 };
 use rjam_crypto::{hash, Blake2b256};
 use std::{cmp::Ordering, ops::Deref};
@@ -60,7 +60,7 @@ impl GuaranteesXt {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
     pub validator_index: ValidatorIndex, // v
-    pub signature: Ed25519Signature,     // s
+    pub signature: Ed25519Sig,           // s
 }
 
 impl JamEncode for GuaranteesCredential {
@@ -82,7 +82,7 @@ impl JamDecode for GuaranteesCredential {
     {
         Ok(Self {
             validator_index: ValidatorIndex::decode_fixed(input, 2)?,
-            signature: Ed25519Signature::decode(input)?,
+            signature: Ed25519Sig::decode(input)?,
         })
     }
 }
@@ -158,7 +158,7 @@ impl GuaranteesXtEntry {
     pub fn add_credential(
         &mut self,
         validator_index: ValidatorIndex,
-        signature: Ed25519Signature,
+        signature: Ed25519Sig,
     ) -> Result<(), ExtrinsicsError> {
         if self.credentials.len() >= 3 {
             return Err(ExtrinsicsError::InvalidCredentialCount);

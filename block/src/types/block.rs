@@ -3,8 +3,8 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    ticket::Ticket, BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32,
-    ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, BandersnatchPubKey, BandersnatchSig, Ed25519PubKey, Hash32, ValidatorIndex,
+    EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use std::fmt::Display;
@@ -16,8 +16,8 @@ pub struct Block {
     pub extrinsics: Extrinsics,
 }
 
-pub type BlockSeal = BandersnatchSignature;
-pub type VrfSig = BandersnatchSignature;
+pub type BlockSeal = BandersnatchSig;
+pub type VrfSig = BandersnatchSig;
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 
 #[derive(Debug, Error)]

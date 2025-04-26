@@ -3,7 +3,7 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    Ed25519PubKey, Ed25519Sig, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
 use std::{
@@ -214,7 +214,7 @@ pub struct Judgment {
     /// `i`: The voter validator index.
     pub voter: ValidatorIndex,
     /// `s`: The voter's Ed25519 signature.
-    pub voter_signature: Ed25519Signature,
+    pub voter_signature: Ed25519Sig,
 }
 
 impl JamEncode for Judgment {
@@ -238,7 +238,7 @@ impl JamDecode for Judgment {
         Ok(Self {
             is_report_valid: bool::decode(input)?,
             voter: ValidatorIndex::decode_fixed(input, 2)?,
-            voter_signature: Ed25519Signature::decode(input)?,
+            voter_signature: Ed25519Sig::decode(input)?,
         })
     }
 }
@@ -271,7 +271,7 @@ pub struct Culprit {
     /// `k`: Ed25519 public key of the **Culprit**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The guaranteeing signature that the **Culprit** submitted.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl Display for Culprit {
@@ -308,7 +308,7 @@ pub struct Fault {
     /// `k`: Ed25519 public key of the **Fault**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The judgment signature that the **Fault** submitted.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl Display for Fault {

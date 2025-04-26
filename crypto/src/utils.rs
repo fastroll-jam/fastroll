@@ -1,7 +1,7 @@
 use crate::{CryptoError, IetfVrfSignature, RingVrfSignature};
 use ark_vrf::reexports::ark_serialize::CanonicalDeserialize;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use rjam_common::{BandersnatchRingVrfSignature, BandersnatchSignature, Hash32};
+use rjam_common::{BandersnatchRingVrfSig, BandersnatchSig, Hash32};
 
 pub type Blake2b256 = Blake2b<U32>;
 pub type Keccak256 = sha3::Keccak256;
@@ -56,7 +56,7 @@ pub fn octets_to_hash32(value: &[u8]) -> Option<Hash32> {
 }
 
 /// `Y` hash function for a VRF signature
-pub fn entropy_hash_ietf_vrf(signature_bytes: &BandersnatchSignature) -> Hash32 {
+pub fn entropy_hash_ietf_vrf(signature_bytes: &BandersnatchSig) -> Hash32 {
     let signature: IetfVrfSignature =
         IetfVrfSignature::deserialize_compressed(&signature_bytes[..]).unwrap();
     entropy_hash_ietf_vrf_internal(&signature)
@@ -67,7 +67,7 @@ fn entropy_hash_ietf_vrf_internal(signature: &IetfVrfSignature) -> Hash32 {
 }
 
 /// `Y` hash function for an anonymous RingVRF signature
-pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSignature) -> Hash32 {
+pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSig) -> Hash32 {
     let signature: RingVrfSignature =
         RingVrfSignature::deserialize_compressed(&signature_bytes[..]).unwrap();
     entropy_hash_ring_vrf_internal(&signature)

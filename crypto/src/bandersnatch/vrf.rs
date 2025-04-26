@@ -11,8 +11,7 @@ use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
 use rjam_common::{
-    BandersnatchPubKey, BandersnatchRingVrfSignature, BandersnatchSignature, Hash32,
-    VALIDATOR_COUNT,
+    BandersnatchPubKey, BandersnatchRingVrfSig, BandersnatchSig, Hash32, VALIDATOR_COUNT,
 };
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
@@ -33,7 +32,7 @@ impl IetfVrfSignature {
     }
 
     /// `Y` output function to yield VRF output from the given Bandersnatch signature.
-    pub fn output_hash_from_bander_sig(signature: &BandersnatchSignature) -> Hash32 {
+    pub fn output_hash_from_bander_sig(signature: &BandersnatchSig) -> Hash32 {
         Self::deserialize_compressed(signature.as_slice())
             .unwrap()
             .output_hash()
@@ -57,7 +56,7 @@ impl RingVrfSignature {
     }
 
     /// `Y` output function to yield VRF output from the given Bandersnatch Ring VRF signature.
-    pub fn output_hash_from_ticket_proof(ticket_proof: &BandersnatchRingVrfSignature) -> Hash32 {
+    pub fn output_hash_from_ticket_proof(ticket_proof: &BandersnatchRingVrfSig) -> Hash32 {
         Self::deserialize_compressed(ticket_proof.as_slice())
             .unwrap()
             .output_hash()

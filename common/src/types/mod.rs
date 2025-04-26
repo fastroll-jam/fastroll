@@ -41,16 +41,19 @@ pub type LookupsKey = (Hash32, u32);
 /// 32-byte Bandersnatch public key type.
 pub type BandersnatchPubKey = ByteArray<32>;
 
+/// 32-byte Bandersnatch secret key type.
+pub type BandersnatchSecretKey = ByteArray<32>;
+
 /// 96-byte Bandersnatch signature type.
 /// Represents `F` signature type of the GP.
-pub type BandersnatchSignature = ByteArray<96>;
+pub type BandersnatchSig = ByteArray<96>;
 
 /// 144-byte Bandersnatch Ring root type.
 pub type BandersnatchRingRoot = ByteArray<144>;
 
 /// 784-byte Bandersnatch Ring VRF signature type.
 /// Represents `F bar` signature type of the GP.
-pub type BandersnatchRingVrfSignature = Box<ByteArray<784>>;
+pub type BandersnatchRingVrfSig = Box<ByteArray<784>>;
 
 /// 32-byte Ed25519 public key type.
 pub type Ed25519PubKey = ByteArray<32>;
@@ -59,7 +62,7 @@ pub type Ed25519PubKey = ByteArray<32>;
 pub type Ed25519SecretKey = ByteArray<32>;
 
 /// 64-byte Ed25519 signature type.
-pub type Ed25519Signature = ByteArray<64>;
+pub type Ed25519Sig = ByteArray<64>;
 
 /// 144-byte BLS public key type.
 pub type BlsPubKey = ByteArray<144>;

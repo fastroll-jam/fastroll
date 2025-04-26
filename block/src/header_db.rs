@@ -4,7 +4,7 @@ use crate::types::{
 };
 use rjam_clock::Clock;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
-use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
+use rjam_common::{BandersnatchSig, Hash32, ValidatorIndex};
 use rjam_crypto::{hash, Blake2b256, CryptoError};
 use rjam_db::{
     core::{
@@ -187,7 +187,7 @@ impl BlockHeaderDB {
 
     pub fn set_vrf_signature(
         &mut self,
-        vrf_sig: &BandersnatchSignature,
+        vrf_sig: &BandersnatchSig,
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
@@ -197,7 +197,7 @@ impl BlockHeaderDB {
 
     pub fn set_block_seal(
         &mut self,
-        block_seal: &BandersnatchSignature,
+        block_seal: &BandersnatchSig,
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
