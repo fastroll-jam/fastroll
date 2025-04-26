@@ -3,7 +3,7 @@ use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry}
 use rjam_codec::{JamEncode, JamEncodeFixed};
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{
-    ed25519::verify_signature, hash, types::get_validator_ed25519_key_by_index, Blake2b256,
+    hash, signers::ed25519::verify_signature, types::get_validator_ed25519_key_by_index, Blake2b256,
 };
 use rjam_state::manager::StateManager;
 use std::collections::HashSet;

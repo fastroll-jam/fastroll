@@ -43,7 +43,14 @@ pub enum CommonTypeError {
     #[error("Failed to convert hexstring into ByteArray<{0}> type")]
     HexToByteArrayConversionError(usize),
     #[error("Failed to convert Vec<u8> into ByteArray<{0}> type")]
-    VecToByteArrayConversionError(usize),
+    SliceToByteArrayConversionError(usize),
+}
+
+pub trait ByteEncodable: Sized {
+    fn as_slice(&self) -> &[u8];
+    fn as_hex(&self) -> String;
+    fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError>;
+    fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError>;
 }
 
 /// Bytes sequence type with no length limit.
@@ -165,24 +172,23 @@ impl<const N: usize> JamDecode for ByteArray<N> {
     }
 }
 
-impl<const N: usize> ByteArray<N> {
-    pub fn new(data: [u8; N]) -> Self {
-        Self(data)
+impl<const N: usize> ByteEncodable for ByteArray<N> {
+    fn as_slice(&self) -> &[u8] {
+        &self.0
     }
 
-    pub fn encode_hex(&self) -> String {
+    fn as_hex(&self) -> String {
         hex::encode(self.0)
     }
 
-    pub fn try_from_vec(data: Vec<u8>) -> Result<Self, CommonTypeError> {
-        let arr = data
+    fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
+        let arr = slice
             .try_into()
-            .map_err(|_| CommonTypeError::VecToByteArrayConversionError(N))?;
+            .map_err(|_| CommonTypeError::SliceToByteArrayConversionError(N))?;
         Ok(Self(arr))
     }
 
-    /// Used for debugging
-    pub fn try_from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
+    fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
         let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
         if hex_stripped.len() != N * 2 {
             return Err(CommonTypeError::HexToByteArrayConversionError(N));
@@ -190,7 +196,17 @@ impl<const N: usize> ByteArray<N> {
 
         // Decode hex string
         let octets = hex::decode(hex_stripped).expect("Failed decoding hexstring into ByteArray");
-        Self::try_from_vec(octets)
+        Self::from_slice(&octets)
+    }
+}
+
+impl<const N: usize> ByteArray<N> {
+    pub fn new(data: [u8; N]) -> Self {
+        Self(data)
+    }
+
+    pub fn encode_hex(&self) -> String {
+        hex::encode(self.0)
     }
 }
 

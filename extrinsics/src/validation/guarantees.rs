@@ -13,8 +13,8 @@ use rjam_common::{
     WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use rjam_crypto::{
-    ed25519::verify_signature,
     hash,
+    signers::ed25519::verify_signature,
     types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
     Blake2b256,
 };

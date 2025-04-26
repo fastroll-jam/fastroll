@@ -12,7 +12,7 @@ use rjam_block::types::{
     extrinsics::tickets::TicketsXt,
 };
 use rjam_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use rjam_crypto::{bandersnatch::vrf::entropy_hash_ietf_vrf, types::ValidatorKeySet};
+use rjam_crypto::{types::ValidatorKeySet, vrf::bandersnatch_vrf::entropy_hash_ietf_vrf};
 use rjam_state::{
     manager::StateManager,
     types::{outside_in_vec, Timeslot},

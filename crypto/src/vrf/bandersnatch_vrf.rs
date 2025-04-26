@@ -1,19 +1,19 @@
 use crate::{
-    bandersnatch::{
+    error::CryptoError,
+    types::*,
+    vrf::{
         ring::validator_set_to_bandersnatch_ring,
         vrf_core::{
             IetfVrfProverCore, IetfVrfSignature, IetfVrfVerifierCore, RingVrfProverCore,
             RingVrfSignature, RingVrfVerifierCore,
         },
     },
-    error::CryptoError,
-    types::*,
 };
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalDeserialize,
     suites::bandersnatch::BandersnatchSha512Ell2, Public, Secret,
 };
-use rjam_common::{ByteArray, Hash32, ValidatorIndex};
+use rjam_common::{ByteArray, ByteEncodable, Hash32, ValidatorIndex};
 
 pub struct VrfProver {
     core: IetfVrfProverCore,
@@ -36,7 +36,7 @@ impl VrfProver {
 
     pub fn sign_vrf(&self, context: &[u8], message: &[u8]) -> BandersnatchSig {
         let sig = self.core.ietf_vrf_sign(context, message);
-        BandersnatchSig::try_from_vec(sig).unwrap()
+        BandersnatchSig::from_slice(&sig).unwrap()
     }
 }
 
@@ -96,7 +96,7 @@ impl RingVrfProver {
 
     pub fn sign_ring_vrf(&self, context: &[u8], message: &[u8]) -> BandersnatchRingVrfSig {
         let sig = self.core.ring_vrf_sign(context, message);
-        Box::new(ByteArray::try_from_vec(sig).unwrap())
+        Box::new(ByteArray::from_slice(&sig).unwrap())
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::{
-    bandersnatch::vrf_core::{RingCommitment, RingVrfVerifierCore},
     error::CryptoError,
     types::*,
+    vrf::vrf_core::{RingCommitment, RingVrfVerifierCore},
 };
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,

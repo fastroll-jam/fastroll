@@ -1,7 +1,7 @@
 use rjam_block::types::block::{
     BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey,
 };
-use rjam_common::{Hash32, VALIDATOR_COUNT};
+use rjam_common::{ByteEncodable, Hash32, VALIDATOR_COUNT};
 use rjam_crypto::types::*;
 
 struct GenesisValidatorKeyConfig {
@@ -16,9 +16,9 @@ fn create_genesis_block_header(
     let validators: [EpochMarkerValidatorKey; VALIDATOR_COUNT] = validator_configs
         .iter()
         .map(|config| EpochMarkerValidatorKey {
-            bandersnatch_key: BandersnatchPubKey::try_from_hex(config.bandersnatch_hex)
+            bandersnatch_key: BandersnatchPubKey::from_hex(config.bandersnatch_hex)
                 .expect("Should decode bandersnatch hex string"),
-            ed25519_key: Ed25519PubKey::try_from_hex(config.ed25519_hex)
+            ed25519_key: Ed25519PubKey::from_hex(config.ed25519_hex)
                 .expect("Should decode ed25519 hex string"),
         })
         .collect::<Vec<_>>()
