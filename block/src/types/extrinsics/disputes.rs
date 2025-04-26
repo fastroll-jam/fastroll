@@ -208,7 +208,7 @@ impl Verdict {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Judgment {
     /// `v`: The vote.
     pub is_report_valid: bool,
@@ -248,7 +248,7 @@ impl Display for Judgment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "vote: {}", self.is_report_valid)?;
         writeln!(f, "voter: {}", self.voter)?;
-        write!(f, "signature: {}", self.voter_signature.encode_hex())
+        write!(f, "signature: {}", self.voter_signature.as_hex())
     }
 }
 
@@ -317,7 +317,7 @@ impl Display for Fault {
         writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
         writeln!(f, "validator_key: {}", self.validator_key.as_hex())?;
-        write!(f, "signature: {}", self.signature.encode_hex())
+        write!(f, "signature: {}", self.signature.as_hex())
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::types::*;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rjam_common::ByteEncodable;
 
 pub struct Ed25519Signer {
     secret_key: Ed25519SecretKey,
@@ -16,7 +17,7 @@ impl crate::signers::Signer for Ed25519Signer {
     fn sign_message(&self, message: &[u8]) -> Self::Signature {
         let signing_key = SigningKey::from_bytes(&self.secret_key.0);
         let signature = signing_key.sign(message);
-        Ed25519Sig::new(signature.to_bytes())
+        Ed25519Sig::from_slice(signature.to_bytes().as_slice()).unwrap()
     }
 }
 
@@ -37,7 +38,7 @@ impl crate::signers::Verifier for Ed25519Verifier {
             Ok(key) => key,
             Err(_) => return false, // Invalid public key
         };
-        let signature = Signature::from_bytes(signature);
+        let signature = Signature::from_bytes(&signature.0);
         verifying_key.verify(message, &signature).is_ok()
     }
 }
@@ -94,13 +95,15 @@ mod tests {
     fn test_invalid_signature() {
         let (signer, verifier, message) = setup();
         let signature = signer.sign_message(&message);
-        let mut invalid_signature = signature.to_vec();
+        let mut invalid_signature = signature.0.to_vec();
         invalid_signature[0] ^= 0x01;
-        let invalid_signature = Ed25519Sig::new(
+        let invalid_signature = Ed25519Sig::from_slice(
             Signature::from_slice(&invalid_signature)
                 .unwrap()
-                .to_bytes(),
-        );
+                .to_bytes()
+                .as_slice(),
+        )
+        .unwrap();
         assert!(!verifier.verify_message(&message, &invalid_signature));
     }
 

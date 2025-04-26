@@ -1,6 +1,6 @@
 use crate::{
-    impl_public_key,
-    traits::{PublicKey, SecretKey, VrfSignature},
+    impl_public_key, impl_signature,
+    traits::{PublicKey, SecretKey, Signature, VrfSignature},
     vrf::vrf_core::{IetfVrfSignature, RingVrfSignature},
 };
 use ark_vrf::{
@@ -168,7 +168,10 @@ impl SecretKey for Ed25519SecretKey {
 }
 
 /// 64-byte Ed25519 signature type.
-pub type Ed25519Sig = ByteArray<64>;
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JamEncode, JamDecode)]
+pub struct Ed25519Sig(pub ByteArray<64>);
+impl_byte_encodable!(Ed25519Sig);
+impl_signature!(Ed25519Sig, Ed25519PubKey);
 
 /// 144-byte BLS public key type.
 pub type BlsPubKey = ByteArray<144>;

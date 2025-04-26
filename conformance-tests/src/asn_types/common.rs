@@ -124,6 +124,18 @@ impl From<Ed25519PubKey> for AsnEd25519Key {
     }
 }
 
+impl From<AsnEd25519Signature> for Ed25519Sig {
+    fn from(value: AsnEd25519Signature) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Ed25519Sig> for AsnEd25519Signature {
+    fn from(value: Ed25519Sig) -> Self {
+        value.0.into()
+    }
+}
+
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnByteSequence(
@@ -1473,7 +1485,7 @@ impl From<Verdict> for AsnDisputeVerdict {
             votes[i] = AsnDisputeJudgement {
                 vote: judgment.is_report_valid,
                 index: judgment.voter,
-                signature: AsnEd25519Signature::from(judgment.voter_signature),
+                signature: AsnEd25519Signature::from(judgment.voter_signature.clone()),
             };
         }
 
@@ -1497,7 +1509,7 @@ impl From<AsnDisputeCulpritProof> for Culprit {
         Self {
             report_hash: Hash32::from(value.target),
             validator_key: Ed25519PubKey::from(value.key),
-            signature: Ed25519Sig::new(value.signature.0),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
