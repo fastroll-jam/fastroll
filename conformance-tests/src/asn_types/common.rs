@@ -136,6 +136,18 @@ impl From<Ed25519Sig> for AsnEd25519Signature {
     }
 }
 
+impl From<AsnBlsKey> for BlsPubKey {
+    fn from(value: AsnBlsKey) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<BlsPubKey> for AsnBlsKey {
+    fn from(value: BlsPubKey) -> Self {
+        value.0.into()
+    }
+}
+
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnByteSequence(
@@ -277,7 +289,7 @@ impl From<AsnValidatorData> for ValidatorKey {
 }
 
 pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
-    let mut validator_keys = [ValidatorKey::default(); VALIDATOR_COUNT];
+    let mut validator_keys = from_fn(|_| ValidatorKey::default());
     for (i, validator_data) in data.iter().enumerate() {
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
     }
@@ -287,7 +299,7 @@ pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKe
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
     let mut validators_data = AsnValidatorsData::default();
-    for (i, key) in data.into_iter().enumerate() {
+    for (i, key) in data.clone().into_iter().enumerate() {
         validators_data[i] = AsnValidatorData::from(key);
     }
 

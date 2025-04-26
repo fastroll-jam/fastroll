@@ -86,7 +86,8 @@ impl Display for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut pending_set = Box::new([ValidatorKey::default(); VALIDATOR_COUNT]);
+        let arr = from_fn(|_| ValidatorKey::default());
+        let mut pending_set = Box::new(arr);
         for validator in pending_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }

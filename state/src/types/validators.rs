@@ -3,9 +3,9 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::VALIDATOR_COUNT;
 use rjam_crypto::types::*;
 use std::{
+    array::from_fn,
     collections::HashSet,
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
@@ -74,7 +74,7 @@ fn fmt_validator_set(
     writeln!(f, "\t\"{name}\": {{")?;
     for (i, validator) in validators.iter().enumerate() {
         writeln!(f, "\t\t\"Validator_{i}\": {{")?;
-        write!(f, "{}", validator.to_json_like(6))?;
+        write!(f, "{}", validator.clone().to_json_like(6))?;
         if i < validators.len() - 1 {
             writeln!(f, "\t\t}},")?;
         } else {
@@ -117,7 +117,8 @@ impl Display for StagingSet {
 
 impl Default for StagingSet {
     fn default() -> Self {
-        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
+        let arr = from_fn(|_| ValidatorKey::default());
+        Self(Box::new(arr))
     }
 }
 
@@ -150,7 +151,8 @@ impl Display for ActiveSet {
 
 impl Default for ActiveSet {
     fn default() -> Self {
-        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
+        let arr = from_fn(|_| ValidatorKey::default());
+        Self(Box::new(arr))
     }
 }
 
@@ -183,6 +185,7 @@ impl Display for PastSet {
 
 impl Default for PastSet {
     fn default() -> Self {
-        Self(Box::new([ValidatorKey::default(); VALIDATOR_COUNT]))
+        let arr = from_fn(|_| ValidatorKey::default());
+        Self(Box::new(arr))
     }
 }

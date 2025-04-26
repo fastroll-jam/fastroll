@@ -174,10 +174,10 @@ impl_byte_encodable!(Ed25519Sig);
 impl_signature!(Ed25519Sig, Ed25519PubKey);
 
 /// 144-byte BLS public key type.
-pub type BlsPubKey = ByteArray<144>;
-
-/// Set of `VALIDATOR_COUNT` validator keys.
-pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
+#[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct BlsPubKey(pub ByteArray<144>);
+impl_byte_encodable!(BlsPubKey);
+impl_public_key!(BlsPubKey);
 
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
@@ -189,7 +189,7 @@ pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 /// stored as a fixed-size byte array.
 ///
 /// The final `ValidatorKey` type is a simple concatenation of each component.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,
@@ -206,7 +206,7 @@ impl Display for ValidatorKey {
             self.bandersnatch_key.to_hex()
         )?;
         writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.to_hex())?;
-        writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.encode_hex())?;
+        writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.to_hex())?;
         writeln!(f, "  \"Metadata\": \"{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
     }
@@ -236,6 +236,9 @@ impl ValidatorKey {
         )
     }
 }
+
+/// Set of `VALIDATOR_COUNT` validator keys.
+pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
 
 // Util Functions
 fn get_validator_key_by_index(
