@@ -3,9 +3,9 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    Ed25519PubKey, Ed25519Sig, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
-    VALIDATORS_SUPER_MAJORITY,
+    Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT, VALIDATORS_SUPER_MAJORITY,
 };
+use rjam_crypto::types::*;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},

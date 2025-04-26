@@ -6,11 +6,8 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{
-    ticket::Ticket, BandersnatchPubKey, BandersnatchRingRoot, Hash32, ValidatorKey,
-    ValidatorKeySet, EPOCH_LENGTH, VALIDATOR_COUNT,
-};
-use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
+use rjam_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, VALIDATOR_COUNT};
+use rjam_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use std::{
     array::from_fn,
     collections::BinaryHeap,

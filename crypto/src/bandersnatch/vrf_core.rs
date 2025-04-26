@@ -2,7 +2,7 @@
 //!
 //! This module is based on the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec)
 //! repository, with modifications as needed.
-use crate::CryptoError;
+use crate::error::CryptoError;
 use ark_vrf::{
     reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch,

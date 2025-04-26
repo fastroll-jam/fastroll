@@ -1,10 +1,11 @@
 //! Block author actor
 use rjam_block::types::block::{BlockHeaderData, BlockSeal, VrfSig};
 use rjam_codec::{JamCodecError, JamEncode};
-use rjam_common::{
-    ticket::Ticket, BandersnatchSecretKey, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T,
+use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
+use rjam_crypto::{
+    bandersnatch::vrf::{entropy_hash_ietf_vrf, VrfProver},
+    types::BandersnatchSecretKey,
 };
-use rjam_crypto::{entropy_hash_ietf_vrf, VrfProver};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use rjam_block::types::extrinsics::tickets::TicketsXt;
 use rjam_common::{ticket::Ticket, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
-use rjam_crypto::{entropy_hash_ring_vrf, generate_ring_root};
+use rjam_crypto::bandersnatch::{ring::generate_ring_root, vrf::entropy_hash_ring_vrf};
 use rjam_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use rjam_state::{
     cache::StateMut,

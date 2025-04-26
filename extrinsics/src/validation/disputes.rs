@@ -2,10 +2,11 @@ use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use rjam_common::{
-    get_validator_ed25519_key_by_index, Ed25519PubKey, Hash32, HASH_SIZE, X_0, X_1, X_G,
+use rjam_common::{Hash32, HASH_SIZE, X_0, X_1, X_G};
+use rjam_crypto::{
+    ed25519::verify_signature,
+    types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
 };
-use rjam_crypto::verify_signature;
 use rjam_state::{
     manager::StateManager,
     types::{ActiveSet, PastSet, Timeslot, ValidatorSet},

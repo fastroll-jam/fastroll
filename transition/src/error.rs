@@ -1,5 +1,5 @@
 use rjam_block::header_db::BlockHeaderDBError;
-use rjam_crypto::CryptoError;
+use rjam_crypto::error::CryptoError;
 use rjam_extrinsics::validation::error::XtError;
 use rjam_merkle::common::MerkleError;
 use rjam_pvm_invocation::prelude::PVMError;

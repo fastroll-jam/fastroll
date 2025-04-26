@@ -2,10 +2,8 @@ use crate::error::TransitionError;
 use rjam_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use rjam_common::{
-    get_validator_ed25519_key_by_index, workloads::WorkReport, CoreIndex, ValidatorIndex,
-    SEGMENT_SIZE,
-};
+use rjam_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
+use rjam_crypto::types::get_validator_ed25519_key_by_index;
 use rjam_pvm_types::stats::{AccumulateStats, OnTransferStats};
 use rjam_state::{
     cache::StateMut,

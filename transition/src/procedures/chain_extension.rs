@@ -11,8 +11,8 @@ use rjam_block::types::{
     block::{BlockHeader, EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use rjam_common::{ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use rjam_crypto::entropy_hash_ietf_vrf;
+use rjam_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use rjam_crypto::{bandersnatch::vrf::entropy_hash_ietf_vrf, types::ValidatorKeySet};
 use rjam_state::{
     manager::StateManager,
     types::{outside_in_vec, Timeslot},

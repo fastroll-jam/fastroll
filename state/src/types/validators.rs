@@ -3,7 +3,8 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Ed25519PubKey, ValidatorKey, ValidatorKeySet, VALIDATOR_COUNT};
+use rjam_common::VALIDATOR_COUNT;
+use rjam_crypto::types::*;
 use std::{
     collections::HashSet,
     fmt::{Display, Formatter},

@@ -3,9 +3,8 @@ use bit_vec::BitVec;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{
-    CoreIndex, Ed25519Sig, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
-};
+use rjam_common::{CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY};
+use rjam_crypto::types::*;
 use std::{cmp::Ordering, ops::Deref};
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports

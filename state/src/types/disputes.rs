@@ -3,7 +3,8 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Ed25519PubKey, Hash32};
+use rjam_common::Hash32;
+use rjam_crypto::types::*;
 
 /// A record of historical dispute verdicts and their associated offenders set.
 ///

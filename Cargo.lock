@@ -1257,6 +1257,7 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "rand",
+ "rjam-codec",
  "rjam-common",
  "sha3",
  "thiserror",

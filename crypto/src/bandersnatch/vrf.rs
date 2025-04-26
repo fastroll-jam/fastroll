@@ -1,18 +1,19 @@
 use crate::{
-    bandersnatch::vrf_core::{
-        IetfVrfProverCore, IetfVrfSignature, IetfVrfVerifierCore, RingVrfProverCore,
-        RingVrfSignature, RingVrfVerifierCore,
+    bandersnatch::{
+        ring::validator_set_to_bandersnatch_ring,
+        vrf_core::{
+            IetfVrfProverCore, IetfVrfSignature, IetfVrfVerifierCore, RingVrfProverCore,
+            RingVrfSignature, RingVrfVerifierCore,
+        },
     },
-    validator_set_to_bandersnatch_ring, CryptoError,
+    error::CryptoError,
+    types::*,
 };
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalDeserialize,
     suites::bandersnatch::BandersnatchSha512Ell2, Public, Secret,
 };
-use rjam_common::{
-    BandersnatchPubKey, BandersnatchRingVrfSig, BandersnatchSecretKey, BandersnatchSig, ByteArray,
-    Hash32, ValidatorIndex, ValidatorKeySet,
-};
+use rjam_common::{ByteArray, Hash32, ValidatorIndex};
 
 pub struct VrfProver {
     core: IetfVrfProverCore,

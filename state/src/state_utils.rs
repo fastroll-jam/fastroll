@@ -6,7 +6,7 @@ use crate::types::{
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
-use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;
 
 /// Represents global state types with simple fixed state keys

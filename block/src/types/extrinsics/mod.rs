@@ -4,7 +4,10 @@ use crate::types::extrinsics::{
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{workloads::work_report::WorkReportError, Hash32};
-use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_crypto::{
+    error::CryptoError,
+    hash::{hash, Blake2b256},
+};
 use thiserror::Error;
 
 pub mod assurances;

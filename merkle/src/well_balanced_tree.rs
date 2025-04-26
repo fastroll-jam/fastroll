@@ -1,6 +1,9 @@
 use crate::common::{node, MerkleError};
 use rjam_common::Hash32;
-use rjam_crypto::{hash, octets_to_hash32, CryptoError, Hasher};
+use rjam_crypto::{
+    error::CryptoError,
+    hash::{hash, octets_to_hash32, Hasher},
+};
 use std::marker::PhantomData;
 
 /// Well-balanced binary Merkle Tree representation.

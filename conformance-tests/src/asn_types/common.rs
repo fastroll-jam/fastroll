@@ -21,11 +21,10 @@ use rjam_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    BandersnatchPubKey, BandersnatchSig, ByteArray, ByteSequence, Ed25519PubKey, Ed25519Sig,
-    Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE,
     FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
 };
-use rjam_crypto::Hasher;
+use rjam_crypto::{types::*, Hasher};
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,

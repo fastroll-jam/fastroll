@@ -4,9 +4,10 @@ use rjam_block::{
     types::{block::BlockHeader, extrinsics::Extrinsics},
 };
 use rjam_common::{
-    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage,
-    BandersnatchSecretKey, Hash32, ValidatorIndex,
+    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
+    ValidatorIndex,
 };
+use rjam_crypto::types::BandersnatchSecretKey;
 use rjam_node::roles::author::{
     generate_block_seal, generate_entropy_source_vrf_signature, generate_fallback_block_seal,
 };

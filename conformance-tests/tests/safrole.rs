@@ -5,13 +5,14 @@ mod safrole {
         header_db::BlockHeaderDB,
         types::extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     };
-    use rjam_common::{Ed25519PubKey, Hash32};
+    use rjam_common::Hash32;
     use rjam_conformance_tests::{
         asn_types::{common::*, safrole::*},
         err_map::safrole::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
+    use rjam_crypto::types::Ed25519PubKey;
     use rjam_state::{
         cache::StateMut,
         error::StateManagerError,

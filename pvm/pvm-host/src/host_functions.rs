@@ -7,11 +7,11 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT,
-    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
+    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
     TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
+use rjam_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use rjam_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},

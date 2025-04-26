@@ -1,7 +1,6 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::BandersnatchRingVrfSig;
-use rjam_crypto::entropy_hash_ring_vrf;
+use rjam_crypto::{bandersnatch::vrf::entropy_hash_ring_vrf, types::*};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.

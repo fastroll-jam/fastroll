@@ -4,16 +4,20 @@ use rjam_block::types::extrinsics::guarantees::{
 };
 use rjam_codec::JamEncode;
 use rjam_common::{
-    get_validator_ed25519_key_by_index,
     workloads::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
-    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
-    PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT, GUARANTOR_ROTATION_PERIOD,
+    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT,
+    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
-use rjam_crypto::{hash, verify_signature, Blake2b256};
+use rjam_crypto::{
+    ed25519::verify_signature,
+    hash,
+    types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
+    Blake2b256,
+};
 use rjam_state::{
     manager::StateManager,
     types::{AuthPool, BlockHistory, PendingReports},

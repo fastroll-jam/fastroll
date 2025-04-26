@@ -2,7 +2,6 @@
 mod reports {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_common::Ed25519PubKey;
     use rjam_conformance_tests::{
         asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
@@ -12,6 +11,7 @@ mod reports {
     use std::sync::Arc;
 
     use rjam_block::header_db::BlockHeaderDB;
+    use rjam_crypto::types::Ed25519PubKey;
     use rjam_state::{
         error::StateManagerError,
         manager::StateManager,

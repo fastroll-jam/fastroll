@@ -1,5 +1,5 @@
+use crate::types::*;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rjam_common::{Ed25519PubKey, Ed25519SecretKey, Ed25519Sig};
 
 pub fn sign_message(message: &[u8], secret_key: &Ed25519SecretKey) -> Ed25519Sig {
     let signing_key = SigningKey::from_bytes(secret_key);

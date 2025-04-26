@@ -2,11 +2,11 @@ use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{
-    get_validator_ed25519_key_by_index, workloads::work_report::WorkReport, Ed25519PubKey,
-    Ed25519Sig, ValidatorIndex, ValidatorKeySet,
+use rjam_common::{workloads::work_report::WorkReport, ValidatorIndex};
+use rjam_crypto::{
+    hash::{hash, Blake2b256},
+    types::*,
 };
-use rjam_crypto::{hash, Blake2b256};
 use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
