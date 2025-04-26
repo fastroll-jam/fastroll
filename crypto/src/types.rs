@@ -1,4 +1,12 @@
-use crate::{impl_public_key, traits::PublicKey};
+use crate::{
+    impl_public_key,
+    traits::{PublicKey, SecretKey},
+};
+use ark_vrf::{
+    reexports::ark_serialize::{CanonicalDeserialize, CanonicalSerialize},
+    suites::bandersnatch::Secret as ArkSecret,
+};
+use rand::{rngs::OsRng, RngCore};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
     ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
@@ -32,7 +40,37 @@ impl_byte_encodable!(BandersnatchPubKey);
 impl_public_key!(BandersnatchPubKey);
 
 /// 32-byte Bandersnatch secret key type.
-pub type BandersnatchSecretKey = ByteArray<32>;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct BandersnatchSecretKey(ByteArray<32>);
+impl_byte_encodable!(BandersnatchSecretKey);
+
+impl SecretKey for BandersnatchSecretKey {
+    type PublicKey = BandersnatchPubKey;
+
+    // TODO: generic rng
+    fn generate() -> Self {
+        let mut rng = OsRng;
+        let mut buf = [0u8; 32];
+        rng.fill_bytes(&mut buf);
+        Self(ByteArray(buf))
+    }
+
+    fn from_seed(seed: &[u8]) -> Self {
+        let ark_secret = ArkSecret::from_seed(seed);
+        let mut buf = Vec::with_capacity(32);
+        ark_secret.scalar.serialize_compressed(&mut buf).unwrap();
+        Self::from_slice(&buf).unwrap()
+    }
+
+    fn public_key(&self) -> Self::PublicKey {
+        let ark_public = ArkSecret::deserialize_compressed(self.as_slice())
+            .unwrap()
+            .public();
+        let mut buf = Vec::with_capacity(32);
+        ark_public.serialize_compressed(&mut buf).unwrap();
+        Self::PublicKey::from_slice(&buf).unwrap()
+    }
+}
 
 /// 96-byte Bandersnatch signature type.
 /// Represents `F` signature type of the GP.
