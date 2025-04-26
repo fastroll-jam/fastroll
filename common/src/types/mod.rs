@@ -48,7 +48,7 @@ pub enum CommonTypeError {
 
 pub trait ByteEncodable: Sized {
     fn as_slice(&self) -> &[u8];
-    fn as_hex(&self) -> String;
+    fn to_hex(&self) -> String;
     fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError>;
     fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError>;
 }
@@ -177,7 +177,7 @@ impl<const N: usize> ByteEncodable for ByteArray<N> {
         &self.0
     }
 
-    fn as_hex(&self) -> String {
+    fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
 

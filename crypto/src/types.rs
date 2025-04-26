@@ -22,8 +22,8 @@ macro_rules! impl_byte_encodable {
             fn as_slice(&self) -> &[u8] {
                 self.0.as_slice()
             }
-            fn as_hex(&self) -> String {
-                self.0.as_hex()
+            fn to_hex(&self) -> String {
+                self.0.to_hex()
             }
             fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
                 Ok(Self(ByteArray::from_slice(slice)?))
@@ -104,8 +104,8 @@ impl ByteEncodable for BandersnatchRingVrfSig {
         self.0.as_slice()
     }
 
-    fn as_hex(&self) -> String {
-        self.0.as_hex()
+    fn to_hex(&self) -> String {
+        self.0.to_hex()
     }
 
     fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
@@ -203,9 +203,9 @@ impl Display for ValidatorKey {
         writeln!(
             f,
             "  \"Bandersnatch\": \"{}\",",
-            self.bandersnatch_key.as_hex()
+            self.bandersnatch_key.to_hex()
         )?;
-        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.as_hex())?;
+        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.to_hex())?;
         writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.encode_hex())?;
         writeln!(f, "  \"Metadata\": \"{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
@@ -228,9 +228,9 @@ impl ValidatorKey {
         let spaces = " ".repeat(indent);
         format!(
             "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",
-            self.bandersnatch_key.as_hex(),
-            self.ed25519_key.as_hex(),
-            self.bandersnatch_key.as_hex(),
+            self.bandersnatch_key.to_hex(),
+            self.ed25519_key.to_hex(),
+            self.bandersnatch_key.to_hex(),
             self.metadata.encode_hex(),
             s = spaces
         )

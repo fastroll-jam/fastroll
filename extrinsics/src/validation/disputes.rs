@@ -237,7 +237,7 @@ impl<'a> DisputesXtValidator<'a> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
             return Err(XtError::CulpritAlreadyReported(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ));
         }
 
@@ -245,12 +245,12 @@ impl<'a> DisputesXtValidator<'a> {
         extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
             .ok_or(XtError::InvalidCulpritReportHash(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ))?;
 
         if !valid_set.contains(&entry.validator_key) {
             return Err(XtError::InvalidCulpritsGuarantorKey(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ));
         }
 
@@ -264,7 +264,7 @@ impl<'a> DisputesXtValidator<'a> {
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidCulpritSignature(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ));
         }
 
@@ -279,14 +279,14 @@ impl<'a> DisputesXtValidator<'a> {
     ) -> Result<(), XtError> {
         // Check if the culprit is already in the punish set
         if punish_set.contains(&entry.validator_key) {
-            return Err(XtError::FaultAlreadyReported(entry.validator_key.as_hex()));
+            return Err(XtError::FaultAlreadyReported(entry.validator_key.to_hex()));
         }
 
         // Verdict entry that corresponds to the fault entry
         let verdict_entry = extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
             .ok_or(XtError::InvalidFaultReportHash(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ))?;
 
         let is_fault = match verdict_entry.evaluate_verdict() {
@@ -296,12 +296,12 @@ impl<'a> DisputesXtValidator<'a> {
         };
 
         if !is_fault {
-            return Err(XtError::NotFault(entry.validator_key.as_hex()));
+            return Err(XtError::NotFault(entry.validator_key.to_hex()));
         }
 
         if !valid_set.contains(&entry.validator_key) {
             return Err(XtError::InvalidFaultsAuditorKey(
-                entry.validator_key.as_hex(),
+                entry.validator_key.to_hex(),
             ));
         }
 
@@ -320,7 +320,7 @@ impl<'a> DisputesXtValidator<'a> {
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
-            return Err(XtError::InvalidFaultSignature(entry.validator_key.as_hex()));
+            return Err(XtError::InvalidFaultSignature(entry.validator_key.to_hex()));
         }
 
         Ok(())

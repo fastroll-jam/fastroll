@@ -73,7 +73,7 @@ impl Display for SafroleState {
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    \"{i}\": \"{}\",", key.as_hex())?;
+                    writeln!(f, "    \"{i}\": \"{}\",", key.to_hex())?;
                 }
             }
         }

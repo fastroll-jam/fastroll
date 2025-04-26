@@ -150,7 +150,7 @@ impl Display for BlockHeader {
             .header_data
             .offenders_marker
             .iter()
-            .map(|key| key.as_hex())
+            .map(|key| key.to_hex())
             .collect::<Vec<_>>();
 
         write!(
@@ -175,8 +175,8 @@ impl Display for BlockHeader {
             self.winning_tickets_marker(),
             offenders_encoded,
             self.author_index(),
-            self.vrf_signature().as_hex(),
-            self.block_seal.as_hex(),
+            self.vrf_signature().to_hex(),
+            self.block_seal.to_hex(),
         )
     }
 }

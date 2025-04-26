@@ -248,7 +248,7 @@ impl Display for Judgment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "vote: {}", self.is_report_valid)?;
         writeln!(f, "voter: {}", self.voter)?;
-        write!(f, "signature: {}", self.voter_signature.as_hex())
+        write!(f, "signature: {}", self.voter_signature.to_hex())
     }
 }
 
@@ -277,9 +277,9 @@ pub struct Culprit {
 
 impl Display for Culprit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", self.report_hash.as_hex())?;
-        writeln!(f, "validator_key: {}", self.validator_key.as_hex())?;
-        write!(f, "signature: {}", self.signature.as_hex())
+        writeln!(f, "report_hash: {}", self.report_hash.to_hex())?;
+        writeln!(f, "validator_key: {}", self.validator_key.to_hex())?;
+        write!(f, "signature: {}", self.signature.to_hex())
     }
 }
 
@@ -316,8 +316,8 @@ impl Display for Fault {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
-        writeln!(f, "validator_key: {}", self.validator_key.as_hex())?;
-        write!(f, "signature: {}", self.signature.as_hex())
+        writeln!(f, "validator_key: {}", self.validator_key.to_hex())?;
+        write!(f, "signature: {}", self.signature.to_hex())
     }
 }
 
