@@ -3,8 +3,7 @@ use rjam_block::types::block::{BlockHeaderData, BlockSeal, VrfSig};
 use rjam_codec::{JamCodecError, JamEncode};
 use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
 use rjam_crypto::{
-    types::BandersnatchSecretKey,
-    vrf::bandersnatch_vrf::{entropy_hash_ietf_vrf, VrfProver},
+    traits::VrfSignature, types::BandersnatchSecretKey, vrf::bandersnatch_vrf::VrfProver,
 };
 use thiserror::Error;
 
@@ -20,7 +19,7 @@ pub enum BlockSealError {
 
 /// Verifies output hash of the block seal matches the ticket used for the author selection.
 pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
-    let seal_output_hash = entropy_hash_ietf_vrf(seal);
+    let seal_output_hash = seal.output_hash();
     let ticket_output_hash = ticket.id;
     seal_output_hash == ticket_output_hash
 }
@@ -64,7 +63,7 @@ pub fn generate_entropy_source_vrf_signature(
 ) -> Result<VrfSig, BlockSealError> {
     let prover = VrfProver::from_secret_key(*secret_key);
     let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
-    let seal_output_hash = entropy_hash_ietf_vrf(&block_seal);
+    let seal_output_hash = block_seal.output_hash();
     vrf_input.extend_from_slice(X_E);
     vrf_input.extend_from_slice(seal_output_hash.as_slice());
     let aux_data = vec![]; // no message to sign

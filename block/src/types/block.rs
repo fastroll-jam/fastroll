@@ -2,7 +2,9 @@ use crate::types::extrinsics::Extrinsics;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{ticket::Ticket, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT};
+use rjam_common::{
+    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+};
 use rjam_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
@@ -173,8 +175,8 @@ impl Display for BlockHeader {
             self.winning_tickets_marker(),
             offenders_encoded,
             self.author_index(),
-            self.vrf_signature().encode_hex(),
-            self.block_seal.encode_hex(),
+            self.vrf_signature().as_hex(),
+            self.block_seal.as_hex(),
         )
     }
 }
@@ -227,6 +229,6 @@ impl BlockHeader {
     }
 
     pub fn vrf_signature(&self) -> VrfSig {
-        self.header_data.vrf_signature
+        self.header_data.vrf_signature.clone()
     }
 }

@@ -77,14 +77,26 @@ pub type AsnBandersnatchRingSignature = AsnByteArray<784>;
 pub type AsnBlsKey = AsnByteArray<144>;
 
 impl From<AsnBandersnatchKey> for BandersnatchPubKey {
-    fn from(key: AsnBandersnatchKey) -> Self {
-        Self(key.into())
+    fn from(value: AsnBandersnatchKey) -> Self {
+        Self(value.into())
     }
 }
 
 impl From<BandersnatchPubKey> for AsnBandersnatchKey {
-    fn from(key: BandersnatchPubKey) -> Self {
-        key.0.into()
+    fn from(value: BandersnatchPubKey) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnBandersnatchVrfSignature> for BandersnatchSig {
+    fn from(value: AsnBandersnatchVrfSignature) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<BandersnatchSig> for AsnBandersnatchVrfSignature {
+    fn from(value: BandersnatchSig) -> Self {
+        value.0.into()
     }
 }
 

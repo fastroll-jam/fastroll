@@ -25,3 +25,12 @@ macro_rules! impl_public_key {
         impl PublicKey for $t {}
     };
 }
+
+#[macro_export]
+macro_rules! impl_signature {
+    ($sig:ty, $pk:ty) => {
+        impl Signature for $sig {
+            type PublicKey = $pk;
+        }
+    };
+}

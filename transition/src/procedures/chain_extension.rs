@@ -12,7 +12,7 @@ use rjam_block::types::{
     extrinsics::tickets::TicketsXt,
 };
 use rjam_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use rjam_crypto::{types::ValidatorKeySet, vrf::bandersnatch_vrf::entropy_hash_ietf_vrf};
+use rjam_crypto::{traits::VrfSignature, types::ValidatorKeySet};
 use rjam_state::{
     manager::StateManager,
     types::{outside_in_vec, Timeslot},
@@ -51,7 +51,7 @@ pub async fn chain_extension_procedure(
     transition_epoch_entropy(
         state_manager.clone(),
         epoch_progressed,
-        entropy_hash_ietf_vrf(header_vrf_signature),
+        header_vrf_signature.output_hash(),
     )
     .await?;
 

@@ -4,8 +4,8 @@ use crate::{
     vrf::{
         ring::validator_set_to_bandersnatch_ring,
         vrf_core::{
-            IetfVrfProverCore, IetfVrfSignature, IetfVrfVerifierCore, RingVrfProverCore,
-            RingVrfSignature, RingVrfVerifierCore,
+            IetfVrfProverCore, IetfVrfVerifierCore, RingVrfProverCore, RingVrfSignature,
+            RingVrfVerifierCore,
         },
     },
 };
@@ -123,15 +123,6 @@ impl RingVrfVerifier {
             .ring_vrf_verify(context, message, signature.as_slice())
             .map(Hash32::new)
     }
-}
-
-/// `Y` hash output function for a VRF signature
-pub fn entropy_hash_ietf_vrf(signature_bytes: &BandersnatchSig) -> Hash32 {
-    Hash32::new(
-        IetfVrfSignature::deserialize_compressed(&signature_bytes[..])
-            .unwrap()
-            .output_hash(),
-    )
 }
 
 /// `Y` hash output function for an anonymous RingVRF signature

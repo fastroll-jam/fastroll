@@ -1,6 +1,7 @@
 use crate::{
     impl_public_key,
-    traits::{PublicKey, SecretKey},
+    traits::{PublicKey, SecretKey, VrfSignature},
+    vrf::vrf_core::IetfVrfSignature,
 };
 use ark_vrf::{
     reexports::ark_serialize::{CanonicalDeserialize, CanonicalSerialize},
@@ -9,7 +10,8 @@ use ark_vrf::{
 use rand::{rngs::OsRng, RngCore};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{
-    ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
+    ByteArray, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, PUBLIC_KEY_SIZE,
+    VALIDATOR_COUNT,
 };
 use std::fmt::{Display, Formatter};
 
@@ -41,7 +43,7 @@ impl_public_key!(BandersnatchPubKey);
 
 /// 32-byte Bandersnatch secret key type.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct BandersnatchSecretKey(ByteArray<32>);
+pub struct BandersnatchSecretKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchSecretKey);
 
 impl SecretKey for BandersnatchSecretKey {
@@ -74,7 +76,23 @@ impl SecretKey for BandersnatchSecretKey {
 
 /// 96-byte Bandersnatch signature type.
 /// Represents `F` signature type of the GP.
-pub type BandersnatchSig = ByteArray<96>;
+#[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct BandersnatchSig(pub ByteArray<96>);
+impl_byte_encodable!(BandersnatchSig);
+
+impl VrfSignature for BandersnatchSig {
+    type PublicKey = BandersnatchPubKey;
+    type VrfOutput = Hash32;
+
+    /// `Y` hash output function for a VRF signature.
+    fn output_hash(&self) -> Self::VrfOutput {
+        Hash32::new(
+            IetfVrfSignature::deserialize_compressed(self.as_slice())
+                .unwrap()
+                .output_hash(),
+        )
+    }
+}
 
 /// 144-byte Bandersnatch Ring root type.
 pub type BandersnatchRingRoot = ByteArray<144>;

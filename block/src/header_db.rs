@@ -196,7 +196,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.vrf_signature = *vrf_sig;
+            h.header_data.vrf_signature = vrf_sig.clone();
         })
     }
 
@@ -206,7 +206,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.block_seal = *block_seal;
+            h.block_seal = block_seal.clone();
         })
     }
 
