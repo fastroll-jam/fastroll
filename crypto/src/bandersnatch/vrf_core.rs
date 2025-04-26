@@ -15,9 +15,9 @@ use rjam_common::{BandersnatchPubKey, Hash32, VALIDATOR_COUNT};
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct IetfVrfSignature {
-    pub output: Output,
-    pub proof: IetfProof,
+pub(crate) struct IetfVrfSignature {
+    output: Output,
+    proof: IetfProof,
 }
 
 // Additional impl
@@ -31,10 +31,10 @@ impl IetfVrfSignature {
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct RingVrfSignature {
-    pub output: Output,
+pub(crate) struct RingVrfSignature {
+    output: Output,
     // This contains both the Pedersen proof and actual ring proof.
-    pub proof: RingProof,
+    proof: RingProof,
 }
 
 // Additional impl
@@ -47,7 +47,7 @@ impl RingVrfSignature {
     }
 }
 
-pub(crate) fn ring_proof_params() -> &'static RingProofParams {
+fn ring_proof_params() -> &'static RingProofParams {
     use std::sync::OnceLock;
     static PARAMS: OnceLock<RingProofParams> = OnceLock::new();
     PARAMS.get_or_init(|| {
