@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::BandersnatchRingVrfSig;
-use rjam_crypto::RingVrfSignature;
+use rjam_crypto::entropy_hash_ring_vrf;
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
@@ -42,7 +42,7 @@ impl Display for TicketsXtEntry {
             f,
             "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: {} }}",
             self.entry_index,
-            RingVrfSignature::output_hash_from_ticket_proof(&self.ticket_proof)
+            entropy_hash_ring_vrf(&self.ticket_proof)
         )
     }
 }
@@ -61,8 +61,8 @@ impl Ord for TicketsXtEntry {
     // Compare the ticket extrinsics by the hash of the ticket proofs, which is not explicitly
     // represented by the `TicketsXtEntry`.
     fn cmp(&self, other: &Self) -> Ordering {
-        let self_hash = RingVrfSignature::output_hash_from_ticket_proof(&self.ticket_proof);
-        let other_hash = RingVrfSignature::output_hash_from_ticket_proof(&other.ticket_proof);
+        let self_hash = entropy_hash_ring_vrf(&self.ticket_proof);
+        let other_hash = entropy_hash_ring_vrf(&other.ticket_proof);
         self_hash.cmp(&other_hash)
     }
 }

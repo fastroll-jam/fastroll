@@ -10,9 +10,7 @@ use ark_vrf::{
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::{
-    BandersnatchPubKey, BandersnatchRingVrfSig, BandersnatchSig, Hash32, VALIDATOR_COUNT,
-};
+use rjam_common::{BandersnatchPubKey, Hash32, VALIDATOR_COUNT};
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
@@ -30,13 +28,6 @@ impl IetfVrfSignature {
             .map(Hash32::new)
             .unwrap()
     }
-
-    /// `Y` output function to yield VRF output from the given Bandersnatch signature.
-    pub fn output_hash_from_bander_sig(signature: &BandersnatchSig) -> Hash32 {
-        Self::deserialize_compressed(signature.as_slice())
-            .unwrap()
-            .output_hash()
-    }
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -53,13 +44,6 @@ impl RingVrfSignature {
             .try_into()
             .map(Hash32::new)
             .unwrap()
-    }
-
-    /// `Y` output function to yield VRF output from the given Bandersnatch Ring VRF signature.
-    pub fn output_hash_from_ticket_proof(ticket_proof: &BandersnatchRingVrfSig) -> Hash32 {
-        Self::deserialize_compressed(ticket_proof.as_slice())
-            .unwrap()
-            .output_hash()
     }
 }
 
