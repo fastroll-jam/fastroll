@@ -3,7 +3,10 @@ use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry}
 use rjam_codec::{JamEncode, JamEncodeFixed};
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{
-    hash, signers::ed25519::verify_signature, types::get_validator_ed25519_key_by_index, Blake2b256,
+    hash,
+    signers::{ed25519::Ed25519Verifier, Verifier},
+    types::get_validator_ed25519_key_by_index,
+    Blake2b256,
 };
 use rjam_state::manager::StateManager;
 use std::collections::HashSet;
@@ -104,7 +107,8 @@ impl<'a> AssurancesXtValidator<'a> {
             get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
                 .ok_or(XtError::InvalidValidatorIndex)?;
 
-        if !verify_signature(&message, assurer_public_key, &entry.signature) {
+        let ed25519_verifier = Ed25519Verifier::new(*assurer_public_key);
+        if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidAssuranceSignature(entry.validator_index));
         }
 

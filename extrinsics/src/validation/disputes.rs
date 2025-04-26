@@ -4,7 +4,7 @@ use rjam_block::types::extrinsics::disputes::{
 };
 use rjam_common::{Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::{
-    signers::ed25519::verify_signature,
+    signers::{ed25519::Ed25519Verifier, Verifier},
     types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
 };
 use rjam_state::{
@@ -219,8 +219,8 @@ impl<'a> DisputesXtValidator<'a> {
             let voter_public_key =
                 get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
                     .ok_or(XtError::InvalidValidatorIndex)?;
-
-            if !verify_signature(message, voter_public_key, &judgment.voter_signature) {
+            let ed25519_verifier = Ed25519Verifier::new(*voter_public_key);
+            if !ed25519_verifier.verify_message(message, &judgment.voter_signature) {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));
             }
         }
@@ -261,7 +261,8 @@ impl<'a> DisputesXtValidator<'a> {
         message.extend_from_slice(X_G);
         message.extend_from_slice(hash.as_slice());
 
-        if !verify_signature(&message, &entry.validator_key, &entry.signature) {
+        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
+        if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidCulpritSignature(
                 entry.validator_key.encode_hex(),
             ));
@@ -319,7 +320,8 @@ impl<'a> DisputesXtValidator<'a> {
             _message
         };
 
-        if !verify_signature(&message, &entry.validator_key, &entry.signature) {
+        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
+        if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidFaultSignature(
                 entry.validator_key.encode_hex(),
             ));

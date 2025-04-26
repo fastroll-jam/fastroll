@@ -14,7 +14,7 @@ use rjam_common::{
 };
 use rjam_crypto::{
     hash,
-    signers::ed25519::verify_signature,
+    signers::{ed25519::Ed25519Verifier, Verifier},
     types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
     Blake2b256,
 };
@@ -472,7 +472,8 @@ impl<'a> GuaranteesXtValidator<'a> {
         )
         .ok_or(XtError::InvalidValidatorIndex)?;
 
-        if !verify_signature(&message, guarantor_public_key, &credential.signature) {
+        let ed25519_verifier = Ed25519Verifier::new(*guarantor_public_key);
+        if !ed25519_verifier.verify_message(&message, &credential.signature) {
             return Err(XtError::InvalidGuaranteesSignature(
                 credential.validator_index,
             ));
