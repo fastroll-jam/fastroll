@@ -3,7 +3,7 @@ use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use rjam_common::{
     Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
-use rjam_crypto::{validator_set_to_bandersnatch_ring, RingVrfVerifier};
+use rjam_crypto::RingVrfVerifier;
 use rjam_state::manager::StateManager;
 
 /// Validate contents of `TicketsXt` type.
@@ -59,8 +59,7 @@ impl<'a> TicketsXtValidator<'a> {
             .get_epoch_entropy()
             .await?
             .second_history();
-        let ring = validator_set_to_bandersnatch_ring(&pending_set)?;
-        let verifier = RingVrfVerifier::new(ring);
+        let verifier = RingVrfVerifier::new(pending_set);
 
         // Validate each entry
         for entry in extrinsic.iter() {
@@ -96,15 +95,15 @@ impl<'a> TicketsXtValidator<'a> {
         verifier: &RingVrfVerifier,
         entropy_2: &Hash32,
     ) -> Result<(), XtError> {
-        let mut expected_vrf_input = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
-        expected_vrf_input.extend_from_slice(X_T);
-        expected_vrf_input.extend_from_slice(entropy_2.as_slice());
-        expected_vrf_input.push(entry.entry_index);
+        let mut expected_context = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
+        expected_context.extend_from_slice(X_T);
+        expected_context.extend_from_slice(entropy_2.as_slice());
+        expected_context.push(entry.entry_index);
 
-        let aux_data = vec![]; // no aux data for ticket vrf signature
+        let message = vec![]; // no message for ticket vrf signature
         verifier
-            .ring_vrf_verify(&expected_vrf_input, &aux_data, &entry.ticket_proof[..])
-            .map_err(|_| XtError::InvalidTicketProof(hex::encode(&entry.ticket_proof[..])))?;
+            .verify_ring_vrf(&expected_context, &message, &entry.ticket_proof)
+            .map_err(|_| XtError::InvalidTicketProof(hex::encode(entry.ticket_proof.as_slice())))?;
 
         Ok(())
     }

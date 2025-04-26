@@ -1,3 +1,3 @@
 pub mod ring;
 pub mod vrf;
-pub mod vrf_core;
+pub(crate) mod vrf_core;

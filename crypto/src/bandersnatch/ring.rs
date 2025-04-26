@@ -1,4 +1,7 @@
-use crate::{CryptoError, RingCommitment, RingVrfVerifier};
+use crate::{
+    bandersnatch::vrf_core::{RingCommitment, RingVrfVerifierCore},
+    CryptoError,
+};
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
@@ -24,12 +27,12 @@ fn generate_ring_root_internal(
     validator_set: &ValidatorKeySet,
 ) -> Result<RingCommitment, CryptoError> {
     let ring = validator_set_to_bandersnatch_ring(validator_set)?;
-    let verifier = RingVrfVerifier::new(ring);
+    let verifier = RingVrfVerifierCore::new(ring);
     Ok(verifier.commitment)
 }
 
 /// Converts `ValidatorKeySet` type into `Vec<Public>` type.
-pub fn validator_set_to_bandersnatch_ring(
+pub(crate) fn validator_set_to_bandersnatch_ring(
     validator_set: &ValidatorKeySet,
 ) -> Result<Vec<Public>, CryptoError> {
     let mut public_keys = vec![];

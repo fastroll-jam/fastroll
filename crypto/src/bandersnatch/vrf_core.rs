@@ -10,7 +10,7 @@ use ark_vrf::{
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::{Hash32, VALIDATOR_COUNT};
+use rjam_common::VALIDATOR_COUNT;
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
@@ -22,11 +22,8 @@ pub(crate) struct IetfVrfSignature {
 
 // Additional impl
 impl IetfVrfSignature {
-    pub(crate) fn output_hash(&self) -> Hash32 {
-        self.output.hash()[..32]
-            .try_into()
-            .map(Hash32::new)
-            .unwrap()
+    pub(crate) fn output_hash(&self) -> [u8; 32] {
+        self.output.hash()[..32].try_into().unwrap()
     }
 }
 
@@ -39,11 +36,8 @@ pub(crate) struct RingVrfSignature {
 
 // Additional impl
 impl RingVrfSignature {
-    pub(crate) fn output_hash(&self) -> Hash32 {
-        self.output.hash()[..32]
-            .try_into()
-            .map(Hash32::new)
-            .unwrap()
+    pub(crate) fn output_hash(&self) -> [u8; 32] {
+        self.output.hash()[..32].try_into().unwrap()
     }
 }
 
@@ -69,16 +63,16 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
 }
 
 /// IETF VRF prover actor.
-pub struct IetfVrfProver {
-    pub secret: Secret,
+pub(crate) struct IetfVrfProverCore {
+    secret: Secret,
 }
 
-impl IetfVrfProver {
-    pub fn new(secret: Secret) -> Self {
+impl IetfVrfProverCore {
+    pub(crate) fn new(secret: Secret) -> Self {
         Self { secret }
     }
 
-    pub fn from_seed(seed: &[u8]) -> Self {
+    pub(crate) fn from_seed(seed: &[u8]) -> Self {
         Self {
             secret: Secret::from_seed(seed),
         }
@@ -90,7 +84,7 @@ impl IetfVrfProver {
     /// Not used with Safrole test vectors.
     ///
     /// Returns 96-octet sequence.
-    pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_vrf::ietf::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
@@ -105,14 +99,14 @@ impl IetfVrfProver {
 }
 
 /// Ring VRF prover actor.
-pub struct RingVrfProver {
-    pub prover_idx: usize,
-    pub secret: Secret,
-    pub ring: Vec<Public>,
+pub(crate) struct RingVrfProverCore {
+    prover_idx: usize,
+    secret: Secret,
+    ring: Vec<Public>,
 }
 
-impl RingVrfProver {
-    pub fn new(ring: Vec<Public>, prover_idx: usize, secret: Secret) -> Self {
+impl RingVrfProverCore {
+    pub(crate) fn new(ring: Vec<Public>, prover_idx: usize, secret: Secret) -> Self {
         Self {
             prover_idx,
             secret,
@@ -120,7 +114,7 @@ impl RingVrfProver {
         }
     }
 
-    pub fn from_seed(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
+    pub(crate) fn from_seed(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
         Self {
             prover_idx,
             secret: Secret::from_seed(seed),
@@ -133,7 +127,7 @@ impl RingVrfProver {
     /// Used for tickets submission.
     ///
     /// Returns 784-octet sequence.
-    pub fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_vrf::ring::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
@@ -155,20 +149,19 @@ impl RingVrfProver {
 }
 
 /// IETF VRF verifier actor (Ring and its commitment).
-pub struct IetfVrfVerifier;
-impl IetfVrfVerifier {
+pub(crate) struct IetfVrfVerifierCore;
+impl IetfVrfVerifierCore {
     /// Non-Anonymous VRF signature verification.
     ///
     /// Used for ticket claim verification during block import.
     /// Not used with Safrole test vectors.
     ///
     /// On success returns the VRF output hash.
-    pub fn ietf_vrf_verify(
-        &self,
+    pub(crate) fn ietf_vrf_verify(
         vrf_input_data: &[u8],
         aux_data: &[u8],
         signature: &[u8],
-        public: &Public,
+        public: Public,
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ietf::Verifier as _;
 
@@ -195,16 +188,17 @@ impl IetfVrfVerifier {
     }
 }
 
-pub type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
+pub(crate) type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
 
 /// Ring VRF verifier actor (Ring and its commitment).
-pub struct RingVrfVerifier {
-    pub commitment: RingCommitment,
-    pub ring: Vec<Public>,
+pub(crate) struct RingVrfVerifierCore {
+    pub(crate) commitment: RingCommitment,
+    #[allow(dead_code)]
+    ring: Vec<Public>,
 }
 
-impl RingVrfVerifier {
-    pub fn new(ring: Vec<Public>) -> Self {
+impl RingVrfVerifierCore {
+    pub(crate) fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
         let verifier_key = ring_proof_params().verifier_key(&pts);
         let commitment = verifier_key.commitment(); // The Ring Root
@@ -216,7 +210,7 @@ impl RingVrfVerifier {
     /// Used for tickets verification.
     ///
     /// On success returns the VRF output hash.
-    pub fn ring_vrf_verify(
+    pub(crate) fn ring_vrf_verify(
         &self,
         vrf_input_data: &[u8],
         aux_data: &[u8],
