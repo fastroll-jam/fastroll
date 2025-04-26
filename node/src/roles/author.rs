@@ -1,7 +1,9 @@
 //! Block author actor
 use rjam_block::types::block::{BlockHeaderData, BlockSeal, VrfSig};
 use rjam_codec::{JamCodecError, JamEncode};
-use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
+use rjam_common::{
+    ticket::Ticket, BandersnatchSecretKey, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T,
+};
 use rjam_crypto::{entropy_hash_ietf_vrf, VrfProver};
 use thiserror::Error;
 
@@ -26,9 +28,9 @@ pub fn generate_block_seal(
     header_data: BlockHeaderData,
     used_ticket: &Ticket,
     entropy_3: &Hash32,
-    seed: &[u8],
+    secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = VrfProver::from_seed(seed);
+    let prover = VrfProver::from_secret_key(*secret_key);
     let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
     vrf_input.extend_from_slice(X_T);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -45,9 +47,9 @@ pub fn generate_block_seal(
 pub fn generate_fallback_block_seal(
     header_data: BlockHeaderData,
     entropy_3: &Hash32,
-    seed: &[u8],
+    secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = VrfProver::from_seed(seed);
+    let prover = VrfProver::from_secret_key(*secret_key);
     let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
     vrf_input.extend_from_slice(X_F);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -57,9 +59,9 @@ pub fn generate_fallback_block_seal(
 
 pub fn generate_entropy_source_vrf_signature(
     block_seal: BlockSeal,
-    seed: &[u8],
+    secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockSealError> {
-    let prover = VrfProver::from_seed(seed);
+    let prover = VrfProver::from_secret_key(*secret_key);
     let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
     let seal_output_hash = entropy_hash_ietf_vrf(&block_seal);
     vrf_input.extend_from_slice(X_E);
