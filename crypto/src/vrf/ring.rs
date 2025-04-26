@@ -7,6 +7,7 @@ use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
+use rjam_common::ByteEncodable;
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
@@ -37,7 +38,7 @@ pub(crate) fn validator_set_to_bandersnatch_ring(
 ) -> Result<Vec<Public>, CryptoError> {
     let mut public_keys = vec![];
     validator_set.iter().for_each(|validator_key| {
-        match point_decode::<BandersnatchSha512Ell2>(&*validator_key.bandersnatch_key) {
+        match point_decode::<BandersnatchSha512Ell2>(validator_key.bandersnatch_key.as_slice()) {
             Ok(decoded_point) => {
                 public_keys.push(Public::from(decoded_point));
             }

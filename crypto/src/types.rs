@@ -1,9 +1,35 @@
+use crate::{impl_public_key, traits::PublicKey};
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{ByteArray, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
+use rjam_common::{
+    ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
+};
 use std::fmt::{Display, Formatter};
 
+/// Used for deriving `ByteEncodable` for `ByteArray<N>` wrapper newtypes.
+macro_rules! impl_byte_encodable {
+    ($t:ty) => {
+        impl ByteEncodable for $t {
+            fn as_slice(&self) -> &[u8] {
+                self.0.as_slice()
+            }
+            fn as_hex(&self) -> String {
+                self.0.as_hex()
+            }
+            fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
+                Ok(Self(ByteArray::from_slice(slice)?))
+            }
+            fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
+                Ok(Self(ByteArray::from_hex(hex_str)?))
+            }
+        }
+    };
+}
+
 /// 32-byte Bandersnatch public key type.
-pub type BandersnatchPubKey = ByteArray<32>;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct BandersnatchPubKey(pub ByteArray<32>);
+impl_byte_encodable!(BandersnatchPubKey);
+impl_public_key!(BandersnatchPubKey);
 
 /// 32-byte Bandersnatch secret key type.
 pub type BandersnatchSecretKey = ByteArray<32>;
@@ -58,7 +84,7 @@ impl Display for ValidatorKey {
         writeln!(
             f,
             "  \"Bandersnatch\": \"{}\",",
-            self.bandersnatch_key.encode_hex()
+            self.bandersnatch_key.as_hex()
         )?;
         writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.encode_hex())?;
         writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.encode_hex())?;
@@ -71,10 +97,10 @@ impl ValidatorKey {
     pub fn to_byte_array(self) -> ByteArray<PUBLIC_KEY_SIZE> {
         let mut result = [0u8; PUBLIC_KEY_SIZE];
 
-        result[0..32].copy_from_slice(&self.bandersnatch_key.0);
-        result[32..64].copy_from_slice(&self.ed25519_key.0);
-        result[64..208].copy_from_slice(&self.bls_key.0);
-        result[208..336].copy_from_slice(&self.metadata.0);
+        result[0..32].copy_from_slice(self.bandersnatch_key.as_slice());
+        result[32..64].copy_from_slice(self.ed25519_key.as_slice());
+        result[64..208].copy_from_slice(self.bls_key.as_slice());
+        result[208..336].copy_from_slice(self.metadata.as_slice());
 
         ByteArray::new(result)
     }
@@ -83,9 +109,9 @@ impl ValidatorKey {
         let spaces = " ".repeat(indent);
         format!(
             "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",
-            self.bandersnatch_key.encode_hex(),
+            self.bandersnatch_key.as_hex(),
             self.ed25519_key.encode_hex(),
-            self.bandersnatch_key.encode_hex(),
+            self.bandersnatch_key.as_hex(),
             self.metadata.encode_hex(),
             s = spaces
         )

@@ -76,6 +76,18 @@ pub type AsnBandersnatchRingSignature = AsnByteArray<784>;
 
 pub type AsnBlsKey = AsnByteArray<144>;
 
+impl From<AsnBandersnatchKey> for BandersnatchPubKey {
+    fn from(key: AsnBandersnatchKey) -> Self {
+        Self(key.into())
+    }
+}
+
+impl From<BandersnatchPubKey> for AsnBandersnatchKey {
+    fn from(key: BandersnatchPubKey) -> Self {
+        key.0.into()
+    }
+}
+
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnByteSequence(
@@ -1281,7 +1293,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
             AsnTicketsOrKeys::keys(epoch_keys) => {
                 let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
                 for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = Hash32::from(key)
+                    keys[i] = BandersnatchPubKey(Hash32::from(key))
                 }
                 SlotSealers::BandersnatchPubKeys(Box::new(keys))
             }

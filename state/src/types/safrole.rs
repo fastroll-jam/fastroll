@@ -6,7 +6,7 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, VALIDATOR_COUNT};
+use rjam_common::{ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, VALIDATOR_COUNT};
 use rjam_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use std::{
     array::from_fn,
@@ -73,7 +73,7 @@ impl Display for SafroleState {
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    \"{i}\": \"{}\",", key.encode_hex())?;
+                    writeln!(f, "    \"{i}\": \"{}\",", key.as_hex())?;
                 }
             }
         }
