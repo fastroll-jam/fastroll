@@ -28,7 +28,7 @@ pub fn generate_block_seal(
     entropy_3: &Hash32,
     seed: &[u8],
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = IetfVrfProver::new(seed);
+    let prover = IetfVrfProver::from_seed(seed);
     let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
     vrf_input.extend_from_slice(X_T);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -47,7 +47,7 @@ pub fn generate_fallback_block_seal(
     entropy_3: &Hash32,
     seed: &[u8],
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = IetfVrfProver::new(seed);
+    let prover = IetfVrfProver::from_seed(seed);
     let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
     vrf_input.extend_from_slice(X_F);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -61,7 +61,7 @@ pub fn generate_entropy_source_vrf_signature(
     block_seal: BlockSeal,
     seed: &[u8],
 ) -> Result<VrfSig, BlockSealError> {
-    let prover = IetfVrfProver::new(seed);
+    let prover = IetfVrfProver::from_seed(seed);
     let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
     let seal_output_hash = entropy_hash_ietf_vrf(&block_seal);
     vrf_input.extend_from_slice(X_E);

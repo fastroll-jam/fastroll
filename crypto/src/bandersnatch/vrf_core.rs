@@ -1,16 +1,16 @@
 //! # Attribution Notice
 //!
-//! This module is copied from the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec) repository.
+//! This module is based on the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec)
+//! repository, with modifications as needed.
 use crate::CryptoError;
 use ark_vrf::{
-    codec::point_decode,
     reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch,
 };
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::{BandersnatchPubKey, Hash32, VALIDATOR_COUNT};
+use rjam_common::{Hash32, VALIDATOR_COUNT};
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
@@ -74,7 +74,11 @@ pub struct IetfVrfProver {
 }
 
 impl IetfVrfProver {
-    pub fn new(seed: &[u8]) -> Self {
+    pub fn new(secret: Secret) -> Self {
+        Self { secret }
+    }
+
+    pub fn from_seed(seed: &[u8]) -> Self {
         Self {
             secret: Secret::from_seed(seed),
         }
@@ -108,7 +112,15 @@ pub struct RingVrfProver {
 }
 
 impl RingVrfProver {
-    pub fn new(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
+    pub fn new(ring: Vec<Public>, prover_idx: usize, secret: Secret) -> Self {
+        Self {
+            prover_idx,
+            secret,
+            ring,
+        }
+    }
+
+    pub fn from_seed(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
         Self {
             prover_idx,
             secret: Secret::from_seed(seed),
@@ -156,7 +168,7 @@ impl IetfVrfVerifier {
         vrf_input_data: &[u8],
         aux_data: &[u8],
         signature: &[u8],
-        bandersnatch_key: &BandersnatchPubKey,
+        public: &Public,
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ietf::Verifier as _;
 
@@ -164,11 +176,6 @@ impl IetfVrfVerifier {
 
         let input = vrf_input_point(vrf_input_data);
         let output = signature.output;
-
-        let public = Public::from(
-            point_decode::<BandersnatchSha512Ell2>(bandersnatch_key.as_ref())
-                .map_err(|_| CryptoError::BandersnatchDecodeError)?,
-        );
 
         if public
             .verify(input, output, aux_data, &signature.proof)
