@@ -143,7 +143,29 @@ impl_byte_encodable!(Ed25519PubKey);
 impl_public_key!(Ed25519PubKey);
 
 /// 32-byte Ed25519 secret key type.
-pub type Ed25519SecretKey = ByteArray<32>;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct Ed25519SecretKey(pub ByteArray<32>);
+impl_byte_encodable!(Ed25519SecretKey);
+
+impl SecretKey for Ed25519SecretKey {
+    type PublicKey = Ed25519PubKey;
+
+    // TODO: generic rng
+    fn generate() -> Self {
+        let mut rng = OsRng;
+        let mut buf = [0u8; 32];
+        rng.fill_bytes(&mut buf);
+        Self(ByteArray(buf))
+    }
+
+    fn from_seed(_seed: &[u8]) -> Self {
+        unimplemented!()
+    }
+
+    fn public_key(&self) -> Self::PublicKey {
+        unimplemented!()
+    }
+}
 
 /// 64-byte Ed25519 signature type.
 pub type Ed25519Sig = ByteArray<64>;

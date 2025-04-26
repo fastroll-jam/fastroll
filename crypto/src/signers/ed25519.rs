@@ -14,7 +14,7 @@ impl crate::signers::Signer for Ed25519Signer {
     }
 
     fn sign_message(&self, message: &[u8]) -> Self::Signature {
-        let signing_key = SigningKey::from_bytes(&self.secret_key);
+        let signing_key = SigningKey::from_bytes(&self.secret_key.0);
         let signature = signing_key.sign(message);
         Ed25519Sig::new(signature.to_bytes())
     }
@@ -63,7 +63,7 @@ mod tests {
     // Helper function to generate a random secret key and public key
     fn setup() -> (Ed25519Signer, Ed25519Verifier, Vec<u8>) {
         let signing_key = generate_random_signer();
-        let secret_key = Ed25519SecretKey::new(signing_key.to_bytes());
+        let secret_key = Ed25519SecretKey::from_slice(signing_key.to_bytes().as_slice()).unwrap();
         let public_key =
             Ed25519PubKey::from_slice(signing_key.verifying_key().to_bytes().as_slice()).unwrap();
 
