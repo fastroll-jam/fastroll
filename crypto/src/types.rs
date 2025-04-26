@@ -135,7 +135,12 @@ impl VrfSignature for BandersnatchRingVrfSig {
 pub type BandersnatchRingRoot = ByteArray<144>;
 
 /// 32-byte Ed25519 public key type.
-pub type Ed25519PubKey = ByteArray<32>;
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, JamEncode, JamDecode,
+)]
+pub struct Ed25519PubKey(pub ByteArray<32>);
+impl_byte_encodable!(Ed25519PubKey);
+impl_public_key!(Ed25519PubKey);
 
 /// 32-byte Ed25519 secret key type.
 pub type Ed25519SecretKey = ByteArray<32>;
@@ -175,7 +180,7 @@ impl Display for ValidatorKey {
             "  \"Bandersnatch\": \"{}\",",
             self.bandersnatch_key.as_hex()
         )?;
-        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.encode_hex())?;
+        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.as_hex())?;
         writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.encode_hex())?;
         writeln!(f, "  \"Metadata\": \"{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
@@ -199,7 +204,7 @@ impl ValidatorKey {
         format!(
             "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",
             self.bandersnatch_key.as_hex(),
-            self.ed25519_key.encode_hex(),
+            self.ed25519_key.as_hex(),
             self.bandersnatch_key.as_hex(),
             self.metadata.encode_hex(),
             s = spaces

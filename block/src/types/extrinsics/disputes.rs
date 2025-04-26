@@ -3,7 +3,8 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT, VALIDATORS_SUPER_MAJORITY,
+    ByteEncodable, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    VALIDATORS_SUPER_MAJORITY,
 };
 use rjam_crypto::types::*;
 use std::{
@@ -276,9 +277,9 @@ pub struct Culprit {
 
 impl Display for Culprit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
-        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
-        write!(f, "signature: {}", self.signature.encode_hex())
+        writeln!(f, "report_hash: {}", self.report_hash.as_hex())?;
+        writeln!(f, "validator_key: {}", self.validator_key.as_hex())?;
+        write!(f, "signature: {}", self.signature.as_hex())
     }
 }
 
@@ -294,7 +295,7 @@ impl PartialOrd for Culprit {
 
 impl Ord for Culprit {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.validator_key.cmp(&other.validator_key)
+        self.validator_key.0.cmp(&other.validator_key.0)
     }
 }
 
@@ -315,7 +316,7 @@ impl Display for Fault {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
-        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
+        writeln!(f, "validator_key: {}", self.validator_key.as_hex())?;
         write!(f, "signature: {}", self.signature.encode_hex())
     }
 }
@@ -332,6 +333,6 @@ impl PartialOrd for Fault {
 
 impl Ord for Fault {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.validator_key.cmp(&other.validator_key)
+        self.validator_key.0.cmp(&other.validator_key.0)
     }
 }

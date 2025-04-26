@@ -33,7 +33,7 @@ impl crate::signers::Verifier for Ed25519Verifier {
     }
 
     fn verify_message(&self, message: &[u8], signature: &Self::Signature) -> bool {
-        let verifying_key = match VerifyingKey::from_bytes(&self.public_key) {
+        let verifying_key = match VerifyingKey::from_bytes(&self.public_key.0) {
             Ok(key) => key,
             Err(_) => return false, // Invalid public key
         };
@@ -47,6 +47,7 @@ mod tests {
     use super::*;
     use crate::signers::{Signer, Verifier};
     use rand::rngs::OsRng;
+    use rjam_common::ByteEncodable;
 
     // Helper function to create a message
     fn create_message() -> Vec<u8> {
@@ -63,7 +64,8 @@ mod tests {
     fn setup() -> (Ed25519Signer, Ed25519Verifier, Vec<u8>) {
         let signing_key = generate_random_signer();
         let secret_key = Ed25519SecretKey::new(signing_key.to_bytes());
-        let public_key = Ed25519PubKey::new(signing_key.verifying_key().to_bytes());
+        let public_key =
+            Ed25519PubKey::from_slice(signing_key.verifying_key().to_bytes().as_slice()).unwrap();
 
         let signer = Ed25519Signer::new(secret_key);
         let verifier = Ed25519Verifier::new(public_key);
@@ -106,8 +108,13 @@ mod tests {
     fn test_invalid_public_key() {
         let (signer, _verifier, message) = setup();
         let signature = signer.sign_message(&message);
-        let invalid_public_key =
-            Ed25519PubKey::new(generate_random_signer().verifying_key().to_bytes());
+        let invalid_public_key = Ed25519PubKey::from_slice(
+            generate_random_signer()
+                .verifying_key()
+                .to_bytes()
+                .as_slice(),
+        )
+        .unwrap();
         let invalid_verifier = Ed25519Verifier::new(invalid_public_key);
         assert!(!invalid_verifier.verify_message(&message, &signature));
     }

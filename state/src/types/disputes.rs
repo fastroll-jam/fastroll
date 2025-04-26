@@ -28,12 +28,12 @@ impl DisputesState {
         &self.punish_set
     }
 
-    pub fn sort_extend_good_set(&mut self, good_set: Vec<Ed25519PubKey>) {
+    pub fn sort_extend_good_set(&mut self, good_set: Vec<Hash32>) {
         self.good_set.extend(good_set);
         self.good_set.sort()
     }
 
-    pub fn sort_extend_bad_set(&mut self, bad_set: Vec<Ed25519PubKey>) {
+    pub fn sort_extend_bad_set(&mut self, bad_set: Vec<Hash32>) {
         self.bad_set.extend(bad_set);
         self.bad_set.sort()
     }

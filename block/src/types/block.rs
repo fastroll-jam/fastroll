@@ -150,7 +150,7 @@ impl Display for BlockHeader {
             .header_data
             .offenders_marker
             .iter()
-            .map(|key| key.encode_hex())
+            .map(|key| key.as_hex())
             .collect::<Vec<_>>();
 
         write!(

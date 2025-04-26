@@ -112,6 +112,18 @@ impl From<BandersnatchRingVrfSig> for AsnBandersnatchRingSignature {
     }
 }
 
+impl From<AsnEd25519Key> for Ed25519PubKey {
+    fn from(value: AsnEd25519Key) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Ed25519PubKey> for AsnEd25519Key {
+    fn from(value: Ed25519PubKey) -> Self {
+        value.0.into()
+    }
+}
+
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnByteSequence(
