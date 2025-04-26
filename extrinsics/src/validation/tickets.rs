@@ -1,7 +1,8 @@
 use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use rjam_common::{
-    Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
+    ByteEncodable, Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR,
+    TICKET_CONTEST_DURATION, X_T,
 };
 use rjam_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use rjam_state::manager::StateManager;

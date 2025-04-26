@@ -1,7 +1,7 @@
 use crate::{
     impl_public_key,
     traits::{PublicKey, SecretKey, VrfSignature},
-    vrf::vrf_core::IetfVrfSignature,
+    vrf::vrf_core::{IetfVrfSignature, RingVrfSignature},
 };
 use ark_vrf::{
     reexports::ark_serialize::{CanonicalDeserialize, CanonicalSerialize},
@@ -94,12 +94,45 @@ impl VrfSignature for BandersnatchSig {
     }
 }
 
-/// 144-byte Bandersnatch Ring root type.
-pub type BandersnatchRingRoot = ByteArray<144>;
-
 /// 784-byte Bandersnatch Ring VRF signature type.
 /// Represents `F bar` signature type of the GP.
-pub type BandersnatchRingVrfSig = Box<ByteArray<784>>;
+#[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct BandersnatchRingVrfSig(pub Box<ByteArray<784>>);
+
+impl ByteEncodable for BandersnatchRingVrfSig {
+    fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    fn as_hex(&self) -> String {
+        self.0.as_hex()
+    }
+
+    fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
+        Ok(Self(Box::new(ByteArray::from_slice(slice)?)))
+    }
+
+    fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
+        Ok(Self(Box::new(ByteArray::from_hex(hex_str)?)))
+    }
+}
+
+impl VrfSignature for BandersnatchRingVrfSig {
+    type PublicKey = BandersnatchPubKey;
+    type VrfOutput = Hash32;
+
+    /// `Y` hash output function for an anonymous RingVRF signature.
+    fn output_hash(&self) -> Self::VrfOutput {
+        Hash32::new(
+            RingVrfSignature::deserialize_compressed(self.as_slice())
+                .unwrap()
+                .output_hash(),
+        )
+    }
+}
+
+/// 144-byte Bandersnatch Ring root type.
+pub type BandersnatchRingRoot = ByteArray<144>;
 
 /// 32-byte Ed25519 public key type.
 pub type Ed25519PubKey = ByteArray<32>;

@@ -4,8 +4,7 @@ use crate::{
     vrf::{
         ring::validator_set_to_bandersnatch_ring,
         vrf_core::{
-            IetfVrfProverCore, IetfVrfVerifierCore, RingVrfProverCore, RingVrfSignature,
-            RingVrfVerifierCore,
+            IetfVrfProverCore, IetfVrfVerifierCore, RingVrfProverCore, RingVrfVerifierCore,
         },
     },
 };
@@ -96,7 +95,7 @@ impl RingVrfProver {
 
     pub fn sign_ring_vrf(&self, context: &[u8], message: &[u8]) -> BandersnatchRingVrfSig {
         let sig = self.core.ring_vrf_sign(context, message);
-        Box::new(ByteArray::from_slice(&sig).unwrap())
+        BandersnatchRingVrfSig(Box::new(ByteArray::from_slice(&sig).unwrap()))
     }
 }
 
@@ -123,13 +122,4 @@ impl RingVrfVerifier {
             .ring_vrf_verify(context, message, signature.as_slice())
             .map(Hash32::new)
     }
-}
-
-/// `Y` hash output function for an anonymous RingVRF signature
-pub fn entropy_hash_ring_vrf(signature_bytes: &BandersnatchRingVrfSig) -> Hash32 {
-    Hash32::new(
-        RingVrfSignature::deserialize_compressed(&signature_bytes[..])
-            .unwrap()
-            .output_hash(),
-    )
 }

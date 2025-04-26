@@ -100,6 +100,18 @@ impl From<BandersnatchSig> for AsnBandersnatchVrfSignature {
     }
 }
 
+impl From<AsnBandersnatchRingSignature> for BandersnatchRingVrfSig {
+    fn from(value: AsnBandersnatchRingSignature) -> Self {
+        Self(Box::new(ByteArray(value.0)))
+    }
+}
+
+impl From<BandersnatchRingVrfSig> for AsnBandersnatchRingSignature {
+    fn from(value: BandersnatchRingVrfSig) -> Self {
+        (*value.0).into()
+    }
+}
+
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AsnByteSequence(
@@ -1346,7 +1358,7 @@ pub struct AsnTicketEnvelope {
 impl From<AsnTicketEnvelope> for TicketsXtEntry {
     fn from(value: AsnTicketEnvelope) -> Self {
         Self {
-            ticket_proof: Box::new(ByteArray::from(value.signature)),
+            ticket_proof: BandersnatchRingVrfSig(Box::new(ByteArray::from(value.signature))),
             entry_index: value.attempt,
         }
     }
@@ -1355,7 +1367,7 @@ impl From<AsnTicketEnvelope> for TicketsXtEntry {
 impl From<TicketsXtEntry> for AsnTicketEnvelope {
     fn from(value: TicketsXtEntry) -> Self {
         Self {
-            signature: AsnBandersnatchRingSignature::from(*value.ticket_proof),
+            signature: AsnBandersnatchRingSignature::from(value.ticket_proof),
             attempt: value.entry_index,
         }
     }
