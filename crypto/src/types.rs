@@ -257,20 +257,19 @@ impl DerefMut for ValidatorKeySet {
     }
 }
 
-// Util Functions
-fn get_validator_key_by_index(
-    validator_set: &ValidatorKeySet,
-    validator_index: ValidatorIndex,
-) -> Option<&ValidatorKey> {
-    if validator_index as usize >= VALIDATOR_COUNT {
-        return None;
+impl ValidatorKeySet {
+    pub fn get_validator_ed25519_key(
+        &self,
+        validator_index: ValidatorIndex,
+    ) -> Option<&Ed25519PubKey> {
+        self.get_validator_key(validator_index)
+            .map(|v| &v.ed25519_key)
     }
-    Some(&validator_set[validator_index as usize])
-}
 
-pub fn get_validator_ed25519_key_by_index(
-    validator_set: &ValidatorKeySet,
-    validator_index: ValidatorIndex,
-) -> Option<&Ed25519PubKey> {
-    get_validator_key_by_index(validator_set, validator_index).map(|v| &v.ed25519_key)
+    fn get_validator_key(&self, validator_index: ValidatorIndex) -> Option<&ValidatorKey> {
+        if validator_index as usize >= VALIDATOR_COUNT {
+            return None;
+        }
+        Some(&self[validator_index as usize])
+    }
 }

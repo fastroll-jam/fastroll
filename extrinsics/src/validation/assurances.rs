@@ -5,7 +5,6 @@ use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
-    types::get_validator_ed25519_key_by_index,
     Blake2b256,
 };
 use rjam_state::manager::StateManager;
@@ -103,9 +102,9 @@ impl<'a> AssurancesXtValidator<'a> {
         message.extend_from_slice(hash.as_slice());
 
         let current_active_set = self.state_manager.get_active_set().await?;
-        let assurer_public_key =
-            get_validator_ed25519_key_by_index(&current_active_set, entry.validator_index)
-                .ok_or(XtError::InvalidValidatorIndex)?;
+        let assurer_public_key = current_active_set
+            .get_validator_ed25519_key(entry.validator_index)
+            .ok_or(XtError::InvalidValidatorIndex)?;
 
         let ed25519_verifier = Ed25519Verifier::new(*assurer_public_key);
         if !ed25519_verifier.verify_message(&message, &entry.signature) {

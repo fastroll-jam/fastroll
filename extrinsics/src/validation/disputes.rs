@@ -5,7 +5,7 @@ use rjam_block::types::extrinsics::disputes::{
 use rjam_common::{ByteEncodable, Hash32, HASH_SIZE, X_0, X_1, X_G};
 use rjam_crypto::{
     signers::{ed25519::Ed25519Verifier, Verifier},
-    types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
+    types::Ed25519PubKey,
 };
 use rjam_state::{
     manager::StateManager,
@@ -216,9 +216,9 @@ impl<'a> DisputesXtValidator<'a> {
                 &negative_message
             };
 
-            let voter_public_key =
-                get_validator_ed25519_key_by_index(&validator_set, judgment.voter)
-                    .ok_or(XtError::InvalidValidatorIndex)?;
+            let voter_public_key = validator_set
+                .get_validator_ed25519_key(judgment.voter)
+                .ok_or(XtError::InvalidValidatorIndex)?;
             let ed25519_verifier = Ed25519Verifier::new(*voter_public_key);
             if !ed25519_verifier.verify_message(message, &judgment.voter_signature) {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));

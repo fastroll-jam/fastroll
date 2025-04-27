@@ -15,7 +15,7 @@ use rjam_common::{
 use rjam_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
-    types::{get_validator_ed25519_key_by_index, Ed25519PubKey},
+    types::Ed25519PubKey,
     Blake2b256,
 };
 use rjam_state::{
@@ -466,11 +466,10 @@ impl<'a> GuaranteesXtValidator<'a> {
             .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
             .await?;
 
-        let guarantor_public_key = get_validator_ed25519_key_by_index(
-            &guarantor_assignment.validator_keys,
-            credential.validator_index,
-        )
-        .ok_or(XtError::InvalidValidatorIndex)?;
+        let guarantor_public_key = guarantor_assignment
+            .validator_keys
+            .get_validator_ed25519_key(credential.validator_index)
+            .ok_or(XtError::InvalidValidatorIndex)?;
 
         let ed25519_verifier = Ed25519Verifier::new(*guarantor_public_key);
         if !ed25519_verifier.verify_message(&message, &credential.signature) {

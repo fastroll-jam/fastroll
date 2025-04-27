@@ -33,7 +33,9 @@ impl GuaranteesXt {
         self.iter()
             .flat_map(|entry| {
                 entry.credentials.iter().filter_map(|c| {
-                    get_validator_ed25519_key_by_index(validator_set, c.validator_index).cloned()
+                    validator_set
+                        .get_validator_ed25519_key(c.validator_index)
+                        .cloned()
                 }) // assuming already passed validations - TODO: revisit
             })
             .collect()
