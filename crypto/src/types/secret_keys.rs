@@ -11,7 +11,6 @@ use rand::{rngs::OsRng, RngCore};
 use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
 
 /// 32-byte Bandersnatch secret key type.
-#[derive(Clone)]
 pub struct BandersnatchSecretKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchSecretKey);
 
@@ -44,7 +43,6 @@ impl SecretKey for BandersnatchSecretKey {
 }
 
 /// 32-byte Ed25519 secret key type.
-#[derive(Clone)]
 pub struct Ed25519SecretKey(pub ByteArray<32>);
 impl_byte_encodable!(Ed25519SecretKey);
 
