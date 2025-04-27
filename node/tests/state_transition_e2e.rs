@@ -4,8 +4,8 @@ use rjam_block::{
     types::{block::BlockHeader, extrinsics::Extrinsics},
 };
 use rjam_common::{
-    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
-    ValidatorIndex,
+    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, ByteArray,
+    Hash32, ValidatorIndex,
 };
 use rjam_crypto::types::BandersnatchSecretKey;
 use rjam_node::roles::author::{
@@ -324,7 +324,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .expect("should exist")
         .header_data;
 
-    let secret_key = BandersnatchSecretKey::default(); // FIXME: properly handle secret keys
+    let secret_key = BandersnatchSecretKey(ByteArray::default()); // FIXME: properly handle secret keys
     let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
             generate_block_seal(header_data, &ticket, &curr_entropy_3, &secret_key)?

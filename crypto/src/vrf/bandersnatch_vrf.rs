@@ -19,7 +19,7 @@ pub struct VrfProver {
 }
 
 impl VrfProver {
-    pub fn from_secret_key(secret_key: BandersnatchSecretKey) -> Self {
+    pub fn from_secret_key(secret_key: &BandersnatchSecretKey) -> Self {
         Self {
             core: IetfVrfProverCore::new(
                 Secret::deserialize_compressed(secret_key.as_slice()).unwrap(),
@@ -68,7 +68,7 @@ impl RingVrfProver {
     pub fn from_secret_key(
         author_index: ValidatorIndex,
         validator_set: ValidatorKeySet,
-        secret_key: BandersnatchSecretKey,
+        secret_key: &BandersnatchSecretKey,
     ) -> Self {
         Self {
             core: RingVrfProverCore::new(

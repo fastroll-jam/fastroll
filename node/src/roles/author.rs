@@ -30,7 +30,7 @@ pub fn generate_block_seal(
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = VrfProver::from_secret_key(*secret_key);
+    let prover = VrfProver::from_secret_key(secret_key);
     let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
     vrf_input.extend_from_slice(X_T);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -49,7 +49,7 @@ pub fn generate_fallback_block_seal(
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockSealError> {
-    let prover = VrfProver::from_secret_key(*secret_key);
+    let prover = VrfProver::from_secret_key(secret_key);
     let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
     vrf_input.extend_from_slice(X_F);
     vrf_input.extend_from_slice(entropy_3.as_slice());
@@ -61,7 +61,7 @@ pub fn generate_entropy_source_vrf_signature(
     block_seal: BlockSeal,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockSealError> {
-    let prover = VrfProver::from_secret_key(*secret_key);
+    let prover = VrfProver::from_secret_key(secret_key);
     let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
     let seal_output_hash = block_seal.output_hash();
     vrf_input.extend_from_slice(X_E);

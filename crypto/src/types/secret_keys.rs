@@ -8,11 +8,10 @@ use ark_vrf::{
     suites::bandersnatch::Secret as ArkSecret,
 };
 use rand::{rngs::OsRng, RngCore};
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
 
 /// 32-byte Bandersnatch secret key type.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone)]
 pub struct BandersnatchSecretKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchSecretKey);
 
@@ -45,7 +44,7 @@ impl SecretKey for BandersnatchSecretKey {
 }
 
 /// 32-byte Ed25519 secret key type.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone)]
 pub struct Ed25519SecretKey(pub ByteArray<32>);
 impl_byte_encodable!(Ed25519SecretKey);
 
