@@ -24,7 +24,7 @@ pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
     seal_output_hash == ticket_output_hash
 }
 
-pub fn generate_block_seal(
+pub fn sign_block_seal(
     header_data: BlockHeaderData,
     used_ticket: &Ticket,
     entropy_3: &Hash32,
@@ -44,7 +44,7 @@ pub fn generate_block_seal(
     Ok(seal)
 }
 
-pub fn generate_fallback_block_seal(
+pub fn sign_fallback_block_seal(
     header_data: BlockHeaderData,
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
@@ -57,7 +57,7 @@ pub fn generate_fallback_block_seal(
     Ok(prover.sign_vrf(&vrf_input, &aux_data))
 }
 
-pub fn generate_entropy_source_vrf_signature(
+pub fn sign_entropy_source_vrf_signature(
     block_seal: BlockSeal,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockSealError> {

@@ -9,7 +9,7 @@ use rjam_common::{
 };
 use rjam_crypto::types::BandersnatchSecretKey;
 use rjam_node::roles::author::{
-    generate_block_seal, generate_entropy_source_vrf_signature, generate_fallback_block_seal,
+    sign_block_seal, sign_entropy_source_vrf_signature, sign_fallback_block_seal,
 };
 use rjam_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
@@ -327,10 +327,10 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let secret_key = BandersnatchSecretKey(ByteArray::default()); // FIXME: properly handle secret keys
     let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
-            generate_block_seal(header_data, &ticket, &curr_entropy_3, &secret_key)?
+            sign_block_seal(header_data, &ticket, &curr_entropy_3, &secret_key)?
         }
         SlotSealer::BandersnatchPubKeys(_key) => {
-            generate_fallback_block_seal(header_data, &curr_entropy_3, &secret_key)?
+            sign_fallback_block_seal(header_data, &curr_entropy_3, &secret_key)?
         }
     };
 
@@ -338,7 +338,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     header_db.set_block_seal(&seal)?;
 
     // Set the VRF signature for the entropy source
-    let vrf_sig = generate_entropy_source_vrf_signature(seal, &secret_key)?;
+    let vrf_sig = sign_entropy_source_vrf_signature(seal, &secret_key)?;
     header_db.set_vrf_signature(&vrf_sig)?;
 
     // Commit the staging header
