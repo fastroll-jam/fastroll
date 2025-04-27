@@ -8,8 +8,9 @@ use rjam_common::{
     Hash32, ValidatorIndex,
 };
 use rjam_crypto::types::BandersnatchSecretKey;
-use rjam_node::roles::author::{
-    sign_block_seal, sign_entropy_source_vrf_signature, sign_fallback_block_seal,
+use rjam_node::{
+    roles::author::{sign_block_seal, sign_entropy_source_vrf_signature, sign_fallback_block_seal},
+    utils::spawn_timed,
 };
 use rjam_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
@@ -38,21 +39,8 @@ use rjam_transition::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use std::{error::Error, future::Future, sync::Arc, time::Instant};
-use tokio::{join, task::JoinHandle};
-
-fn spawn_timed<F, T>(task_name: &'static str, fut: F) -> JoinHandle<T>
-where
-    F: Future<Output = T> + Send + 'static,
-    T: Send + 'static,
-{
-    tokio::spawn(async move {
-        let start = Instant::now();
-        let result = fut.await;
-        tracing::info!(%task_name, "Transitioned in {:?} μs", start.elapsed().as_micros());
-        result
-    })
-}
+use std::{error::Error, sync::Arc};
+use tokio::join;
 
 /// Mocking BlockHeader DB
 fn get_parent_header() -> BlockHeader {
