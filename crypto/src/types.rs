@@ -13,7 +13,10 @@ use rjam_common::{
     ByteArray, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, PUBLIC_KEY_SIZE,
     VALIDATOR_COUNT,
 };
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    ops::{Deref, DerefMut},
+};
 
 /// Used for deriving `ByteEncodable` for `ByteArray<N>` wrapper newtypes.
 macro_rules! impl_byte_encodable {
@@ -238,7 +241,21 @@ impl ValidatorKey {
 }
 
 /// Set of `VALIDATOR_COUNT` validator keys.
-pub type ValidatorKeySet = Box<[ValidatorKey; VALIDATOR_COUNT]>;
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct ValidatorKeySet(pub Box<[ValidatorKey; VALIDATOR_COUNT]>);
+
+impl Deref for ValidatorKeySet {
+    type Target = [ValidatorKey; VALIDATOR_COUNT];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ValidatorKeySet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 // Util Functions
 fn get_validator_key_by_index(

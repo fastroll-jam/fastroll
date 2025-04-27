@@ -294,13 +294,13 @@ pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKe
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
     }
 
-    Box::new(validator_keys)
+    ValidatorKeySet(Box::new(validator_keys))
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
     let mut validators_data = AsnValidatorsData::default();
-    for (i, key) in data.clone().into_iter().enumerate() {
-        validators_data[i] = AsnValidatorData::from(key);
+    for (i, key) in data.iter().enumerate() {
+        validators_data[i] = AsnValidatorData::from(key.clone());
     }
 
     validators_data

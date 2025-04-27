@@ -44,7 +44,7 @@ impl_simple_state_component!(SafroleState, SafroleState);
 impl Default for SafroleState {
     fn default() -> Self {
         Self {
-            pending_set: Box::new(from_fn(|_| ValidatorKey::default())),
+            pending_set: ValidatorKeySet(Box::new(from_fn(|_| ValidatorKey::default()))),
             ring_root: BandersnatchRingRoot::default(),
             slot_sealers: SlotSealers::default(),
             ticket_accumulator: TicketAccumulator::default(),
@@ -87,7 +87,7 @@ impl Display for SafroleState {
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         let arr = from_fn(|_| ValidatorKey::default());
-        let mut pending_set = Box::new(arr);
+        let mut pending_set = ValidatorKeySet(Box::new(arr));
         for validator in pending_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }

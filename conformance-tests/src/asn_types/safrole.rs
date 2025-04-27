@@ -97,7 +97,7 @@ pub fn safrole_state_to_gammas(
     AsnTicketsOrKeys,
     AsnBandersnatchRingRoot,
 ) {
-    let gamma_k = safrole.pending_set.map(AsnValidatorData::from);
+    let gamma_k = safrole.pending_set.0.map(AsnValidatorData::from);
     let gamma_a = safrole
         .ticket_accumulator
         .clone()

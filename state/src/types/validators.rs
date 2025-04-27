@@ -118,7 +118,7 @@ impl Display for StagingSet {
 impl Default for StagingSet {
     fn default() -> Self {
         let arr = from_fn(|_| ValidatorKey::default());
-        Self(Box::new(arr))
+        Self(ValidatorKeySet(Box::new(arr)))
     }
 }
 
@@ -152,7 +152,7 @@ impl Display for ActiveSet {
 impl Default for ActiveSet {
     fn default() -> Self {
         let arr = from_fn(|_| ValidatorKey::default());
-        Self(Box::new(arr))
+        Self(ValidatorKeySet(Box::new(arr)))
     }
 }
 
@@ -186,6 +186,6 @@ impl Display for PastSet {
 impl Default for PastSet {
     fn default() -> Self {
         let arr = from_fn(|_| ValidatorKey::default());
-        Self(Box::new(arr))
+        Self(ValidatorKeySet(Box::new(arr)))
     }
 }
