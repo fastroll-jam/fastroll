@@ -9,8 +9,10 @@ use ark_vrf::{
 };
 use rand::{rngs::OsRng, RngCore};
 use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 32-byte Bandersnatch secret key type.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct BandersnatchSecretKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchSecretKey);
 
@@ -22,14 +24,18 @@ impl SecretKey for BandersnatchSecretKey {
         let mut rng = OsRng;
         let mut buf = [0u8; 32];
         rng.fill_bytes(&mut buf);
-        Self(ByteArray(buf))
+        let sk = Self(ByteArray(buf));
+        buf.zeroize();
+        sk
     }
 
     fn from_seed(seed: &[u8]) -> Self {
         let ark_secret = ArkSecret::from_seed(seed);
         let mut buf = Vec::with_capacity(32);
         ark_secret.scalar.serialize_compressed(&mut buf).unwrap();
-        Self::from_slice(&buf).unwrap()
+        let sk = Self::from_slice(&buf).unwrap();
+        buf.zeroize();
+        sk
     }
 
     fn public_key(&self) -> Self::PublicKey {
@@ -43,6 +49,7 @@ impl SecretKey for BandersnatchSecretKey {
 }
 
 /// 32-byte Ed25519 secret key type.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519SecretKey(pub ByteArray<32>);
 impl_byte_encodable!(Ed25519SecretKey);
 
@@ -54,7 +61,9 @@ impl SecretKey for Ed25519SecretKey {
         let mut rng = OsRng;
         let mut buf = [0u8; 32];
         rng.fill_bytes(&mut buf);
-        Self(ByteArray(buf))
+        let sk = Self(ByteArray(buf));
+        buf.zeroize();
+        sk
     }
 
     fn from_seed(_seed: &[u8]) -> Self {

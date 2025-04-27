@@ -1,7 +1,9 @@
 use crate::types::*;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rjam_common::ByteEncodable;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519Signer {
     secret_key: Ed25519SecretKey,
 }

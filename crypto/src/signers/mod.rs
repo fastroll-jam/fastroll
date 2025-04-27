@@ -1,8 +1,10 @@
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
 pub mod bls;
 pub mod ed25519;
 
 /// Used for Ed25519, BLS keys.
-pub trait Signer {
+pub trait Signer: Zeroize + ZeroizeOnDrop {
     type SecretKey;
     type Signature;
     fn new(key: Self::SecretKey) -> Self;
