@@ -585,7 +585,9 @@ impl AccountsSandboxMap {
             Ok(state_manager
                 .get_account_lookups_entry(service_id, lookups_storage_key)
                 .await?
-                .map(|entry| AccountLookupsEntryExt::from_entry(*lookups_storage_key, entry)))
+                .map(|entry| {
+                    AccountLookupsEntryExt::from_entry(lookups_storage_key.clone(), entry)
+                }))
         })
         .await
     }

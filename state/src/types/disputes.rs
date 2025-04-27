@@ -3,7 +3,8 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
-use rjam_common::{Ed25519PubKey, Hash32};
+use rjam_common::Hash32;
+use rjam_crypto::types::*;
 
 /// A record of historical dispute verdicts and their associated offenders set.
 ///
@@ -27,12 +28,12 @@ impl DisputesState {
         &self.punish_set
     }
 
-    pub fn sort_extend_good_set(&mut self, good_set: Vec<Ed25519PubKey>) {
+    pub fn sort_extend_good_set(&mut self, good_set: Vec<Hash32>) {
         self.good_set.extend(good_set);
         self.good_set.sort()
     }
 
-    pub fn sort_extend_bad_set(&mut self, bad_set: Vec<Ed25519PubKey>) {
+    pub fn sort_extend_bad_set(&mut self, bad_set: Vec<Hash32>) {
         self.bad_set.extend(bad_set);
         self.bad_set.sort()
     }

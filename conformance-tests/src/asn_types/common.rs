@@ -21,11 +21,9 @@ use rjam_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    BandersnatchPubKey, BandersnatchSignature, ByteArray, ByteSequence, Ed25519PubKey,
-    Ed25519Signature, Hash32, Octets, ServiceId, ValidatorKey, ValidatorKeySet, AUTH_QUEUE_SIZE,
-    FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
-use rjam_crypto::Hasher;
+use rjam_crypto::{types::*, Hasher};
 use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
@@ -76,6 +74,78 @@ pub type AsnBandersnatchVrfSignature = AsnByteArray<96>;
 pub type AsnBandersnatchRingSignature = AsnByteArray<784>;
 
 pub type AsnBlsKey = AsnByteArray<144>;
+
+impl From<AsnBandersnatchKey> for BandersnatchPubKey {
+    fn from(value: AsnBandersnatchKey) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<BandersnatchPubKey> for AsnBandersnatchKey {
+    fn from(value: BandersnatchPubKey) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnBandersnatchVrfSignature> for BandersnatchSig {
+    fn from(value: AsnBandersnatchVrfSignature) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<BandersnatchSig> for AsnBandersnatchVrfSignature {
+    fn from(value: BandersnatchSig) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnBandersnatchRingSignature> for BandersnatchRingVrfSig {
+    fn from(value: AsnBandersnatchRingSignature) -> Self {
+        Self(Box::new(ByteArray(value.0)))
+    }
+}
+
+impl From<BandersnatchRingVrfSig> for AsnBandersnatchRingSignature {
+    fn from(value: BandersnatchRingVrfSig) -> Self {
+        (*value.0).into()
+    }
+}
+
+impl From<AsnEd25519Key> for Ed25519PubKey {
+    fn from(value: AsnEd25519Key) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Ed25519PubKey> for AsnEd25519Key {
+    fn from(value: Ed25519PubKey) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnEd25519Signature> for Ed25519Sig {
+    fn from(value: AsnEd25519Signature) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Ed25519Sig> for AsnEd25519Signature {
+    fn from(value: Ed25519Sig) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnBlsKey> for BlsPubKey {
+    fn from(value: AsnBlsKey) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<BlsPubKey> for AsnBlsKey {
+    fn from(value: BlsPubKey) -> Self {
+        value.0.into()
+    }
+}
 
 /// Represents variable-length bytes sequence type defined in ASN spec
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -218,18 +288,18 @@ impl From<AsnValidatorData> for ValidatorKey {
 }
 
 pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
-    let mut validator_keys = [ValidatorKey::default(); VALIDATOR_COUNT];
+    let mut validator_keys = from_fn(|_| ValidatorKey::default());
     for (i, validator_data) in data.iter().enumerate() {
         validator_keys[i] = ValidatorKey::from(validator_data.clone());
     }
 
-    Box::new(validator_keys)
+    ValidatorKeySet(Box::new(validator_keys))
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
     let mut validators_data = AsnValidatorsData::default();
-    for (i, key) in data.into_iter().enumerate() {
-        validators_data[i] = AsnValidatorData::from(key);
+    for (i, key) in data.iter().enumerate() {
+        validators_data[i] = AsnValidatorData::from(key.clone());
     }
 
     validators_data
@@ -466,7 +536,7 @@ pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
         let queue = value.0.map(|q| {
-            let mut hashes = [Hash32::default(); AUTH_QUEUE_SIZE];
+            let mut hashes = from_fn(|_| Hash32::default());
             for (i, h) in q.0.into_iter().enumerate() {
                 hashes[i] = Hash32::from(h);
             }
@@ -827,8 +897,8 @@ impl From<SegmentRootLookupTable> for AsnSegmentRootLookupTable {
         let mut items: Vec<AsnSegmentRootLookupItem> = Vec::with_capacity(value.len());
         for (key, value) in value.iter() {
             items.push(AsnSegmentRootLookupItem {
-                work_package_hash: AsnOpaqueHash::from(*key),
-                segment_tree_root: AsnOpaqueHash::from(*value),
+                work_package_hash: AsnOpaqueHash::from(key.clone()),
+                segment_tree_root: AsnOpaqueHash::from(value.clone()),
             })
         }
 
@@ -1282,7 +1352,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
             AsnTicketsOrKeys::keys(epoch_keys) => {
                 let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
                 for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = Hash32::from(key)
+                    keys[i] = BandersnatchPubKey(Hash32::from(key))
                 }
                 SlotSealers::BandersnatchPubKeys(Box::new(keys))
             }
@@ -1323,7 +1393,7 @@ pub struct AsnTicketEnvelope {
 impl From<AsnTicketEnvelope> for TicketsXtEntry {
     fn from(value: AsnTicketEnvelope) -> Self {
         Self {
-            ticket_proof: Box::new(ByteArray::from(value.signature)),
+            ticket_proof: BandersnatchRingVrfSig(Box::new(ByteArray::from(value.signature))),
             entry_index: value.attempt,
         }
     }
@@ -1332,7 +1402,7 @@ impl From<AsnTicketEnvelope> for TicketsXtEntry {
 impl From<TicketsXtEntry> for AsnTicketEnvelope {
     fn from(value: TicketsXtEntry) -> Self {
         Self {
-            signature: AsnBandersnatchRingSignature::from(*value.ticket_proof),
+            signature: AsnBandersnatchRingSignature::from(value.ticket_proof),
             attempt: value.entry_index,
         }
     }
@@ -1426,7 +1496,7 @@ impl From<Verdict> for AsnDisputeVerdict {
             votes[i] = AsnDisputeJudgement {
                 vote: judgment.is_report_valid,
                 index: judgment.voter,
-                signature: AsnEd25519Signature::from(judgment.voter_signature),
+                signature: AsnEd25519Signature::from(judgment.voter_signature.clone()),
             };
         }
 
@@ -1450,7 +1520,7 @@ impl From<AsnDisputeCulpritProof> for Culprit {
         Self {
             report_hash: Hash32::from(value.target),
             validator_key: Ed25519PubKey::from(value.key),
-            signature: Ed25519Signature::new(value.signature.0),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1479,7 +1549,7 @@ impl From<AsnDisputeFaultProof> for Fault {
             report_hash: Hash32::from(value.target),
             is_report_valid: value.vote,
             validator_key: Ed25519PubKey::from(value.key),
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1667,7 +1737,7 @@ impl From<AsnAvailAssurance> for AssurancesXtEntry {
             anchor_parent_hash: Hash32::from(value.anchor),
             assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, ASN_CORE_COUNT),
             validator_index: value.validator_index,
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1729,7 +1799,7 @@ impl From<AsnValidatorSignature> for GuaranteesCredential {
     fn from(value: AsnValidatorSignature) -> Self {
         Self {
             validator_index: value.validator_index,
-            signature: Ed25519Signature::from(value.signature),
+            signature: Ed25519Sig::from(value.signature),
         }
     }
 }
@@ -1966,7 +2036,7 @@ pub struct AsnEpochMark {
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = [EpochMarkerValidatorKey::default(); VALIDATOR_COUNT];
+        let mut validators_array = from_fn(|_| EpochMarkerValidatorKey::default());
         for (i, key) in value.validators.into_iter().enumerate() {
             validators_array[i] = EpochMarkerValidatorKey::from(key);
         }
@@ -2018,7 +2088,7 @@ impl From<AsnHeader> for BlockHeader {
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
                 winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                    let mut tickets_array = [Ticket::default(); ASN_EPOCH_LENGTH];
+                    let mut tickets_array = from_fn(|_| Ticket::default());
                     for (i, ticket) in tickets.into_iter().enumerate() {
                         tickets_array[i] = ticket.into();
                     }
@@ -2030,9 +2100,9 @@ impl From<AsnHeader> for BlockHeader {
                     .map(Ed25519PubKey::from)
                     .collect(),
                 author_index: value.author_index,
-                vrf_signature: BandersnatchSignature::from(value.entropy_source),
+                vrf_signature: BandersnatchSig::from(value.entropy_source),
             },
-            block_seal: BandersnatchSignature::from(value.seal),
+            block_seal: BandersnatchSig::from(value.seal),
         }
     }
 }
@@ -2040,9 +2110,9 @@ impl From<AsnHeader> for BlockHeader {
 impl From<BlockHeader> for AsnHeader {
     fn from(value: BlockHeader) -> Self {
         Self {
-            parent: AsnOpaqueHash::from(value.parent_hash()),
-            parent_state_root: AsnOpaqueHash::from(value.parent_state_root()),
-            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash()),
+            parent: AsnOpaqueHash::from(value.parent_hash().clone()),
+            parent_state_root: AsnOpaqueHash::from(value.parent_state_root().clone()),
+            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash().clone()),
             slot: value.timeslot_index(),
             epoch_mark: value.epoch_marker().cloned().map(AsnEpochMark::from),
             tickets_mark: value.winning_tickets_marker().map(|tickets_arr| {
@@ -2050,7 +2120,7 @@ impl From<BlockHeader> for AsnHeader {
                     .iter()
                     .map(|ticket| AsnTicketBody {
                         attempt: ticket.attempt,
-                        id: AsnOpaqueHash::from(ticket.id),
+                        id: AsnOpaqueHash::from(ticket.id.clone()),
                     })
                     .collect::<Vec<_>>()
             }),

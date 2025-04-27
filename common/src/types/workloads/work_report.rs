@@ -133,12 +133,12 @@ impl WorkReport {
         &self.segment_roots_lookup
     }
 
-    pub fn work_package_hash(&self) -> Hash32 {
-        self.specs.work_package_hash
+    pub fn work_package_hash(&self) -> &Hash32 {
+        &self.specs.work_package_hash
     }
 
-    pub fn segment_root(&self) -> Hash32 {
-        self.specs.segment_root
+    pub fn segment_root(&self) -> &Hash32 {
+        &self.specs.segment_root
     }
 
     pub fn digests(&self) -> &[WorkDigest] {
@@ -153,8 +153,8 @@ impl WorkReport {
         self.core_index
     }
 
-    pub fn authorizer_hash(&self) -> Hash32 {
-        self.authorizer_hash
+    pub fn authorizer_hash(&self) -> &Hash32 {
+        &self.authorizer_hash
     }
 
     pub fn total_output_size(&self) -> usize {
@@ -172,8 +172,8 @@ impl WorkReport {
 
     pub fn extract_exports_manifest(&self) -> ReportedWorkPackage {
         ReportedWorkPackage {
-            work_package_hash: self.specs.work_package_hash,
-            segment_root: self.specs.segment_root,
+            work_package_hash: self.specs.work_package_hash.clone(),
+            segment_root: self.specs.segment_root.clone(),
         }
     }
 }

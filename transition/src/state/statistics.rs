@@ -2,10 +2,7 @@ use crate::error::TransitionError;
 use rjam_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use rjam_common::{
-    get_validator_ed25519_key_by_index, workloads::WorkReport, CoreIndex, ValidatorIndex,
-    SEGMENT_SIZE,
-};
+use rjam_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
 use rjam_pvm_types::stats::{AccumulateStats, OnTransferStats};
 use rjam_state::{
     cache::StateMut,
@@ -90,9 +87,9 @@ async fn handle_validator_stats_accumulation(
                 .enumerate()
             {
                 let validator_index = validator_index as ValidatorIndex;
-                let validator_ed25519_key =
-                    get_validator_ed25519_key_by_index(&current_active_set, validator_index)
-                        .expect("validator index cannot be out of bound here");
+                let validator_ed25519_key = current_active_set
+                    .get_validator_ed25519_key(validator_index)
+                    .expect("validator index cannot be out of bound here");
 
                 // Update `guarantees_count` if the current validator's Ed25519 public key is in reporters set.
                 if xts

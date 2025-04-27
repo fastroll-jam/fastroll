@@ -7,10 +7,9 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    ticket::Ticket, BandersnatchPubKey, BandersnatchRingRoot, Hash32, ValidatorKey,
-    ValidatorKeySet, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
-use rjam_crypto::{hash_prefix_4, Blake2b256, CryptoError};
+use rjam_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use std::{
     array::from_fn,
     collections::BinaryHeap,
@@ -47,7 +46,7 @@ impl_simple_state_component!(SafroleState, SafroleState);
 impl Default for SafroleState {
     fn default() -> Self {
         Self {
-            pending_set: Box::new(from_fn(|_| ValidatorKey::default())),
+            pending_set: ValidatorKeySet(Box::new(from_fn(|_| ValidatorKey::default()))),
             ring_root: BandersnatchRingRoot::default(),
             slot_sealers: SlotSealers::default(),
             ticket_accumulator: TicketAccumulator::default(),
@@ -76,7 +75,7 @@ impl Display for SafroleState {
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 for (i, key) in keys.iter().enumerate() {
-                    writeln!(f, "    \"{i}\": \"{}\",", key.encode_hex())?;
+                    writeln!(f, "    \"{i}\": \"{}\",", key.to_hex())?;
                 }
             }
         }
@@ -89,7 +88,8 @@ impl Display for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let mut pending_set = Box::new([ValidatorKey::default(); VALIDATOR_COUNT]);
+        let arr = from_fn(|_| ValidatorKey::default());
+        let mut pending_set = ValidatorKeySet(Box::new(arr));
         for validator in pending_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }
@@ -122,7 +122,8 @@ pub enum SlotSealers {
 
 impl Default for SlotSealers {
     fn default() -> Self {
-        Self::Tickets(Box::new([Ticket::default(); EPOCH_LENGTH]))
+        let arr = from_fn(|_| Ticket::default());
+        Self::Tickets(Box::new(arr))
     }
 }
 
@@ -219,18 +220,20 @@ impl SlotSealers {
     pub fn get_slot_sealer(&self, timeslot: &Timeslot) -> SlotSealer {
         let slot_phase = timeslot.slot_phase() as usize;
         match self {
-            Self::Tickets(tickets) => SlotSealer::Ticket(tickets[slot_phase]),
-            Self::BandersnatchPubKeys(keys) => SlotSealer::BandersnatchPubKeys(keys[slot_phase]),
+            Self::Tickets(tickets) => SlotSealer::Ticket(tickets[slot_phase].clone()),
+            Self::BandersnatchPubKeys(keys) => {
+                SlotSealer::BandersnatchPubKeys(keys[slot_phase].clone())
+            }
         }
     }
 }
 
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
-    entropy: Hash32,
+    entropy: &Hash32,
 ) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], SlotSealerError> {
     let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
-        [BandersnatchPubKey::default(); EPOCH_LENGTH];
+        from_fn(|_| BandersnatchPubKey::default());
     let entropy_vec = entropy.to_vec();
 
     for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
@@ -244,7 +247,10 @@ pub fn generate_fallback_keys(
         let mut hash: &[u8] = &hash_prefix_4::<Blake2b256>(&entropy_with_index)?;
         let key_index: u32 = u32::decode_fixed(&mut hash, 4)? % (VALIDATOR_COUNT as u32);
 
-        *key = validator_set[key_index as usize].bandersnatch_key;
+        *key = validator_set
+            .get_validator_bandersnatch_key(key_index as ValidatorIndex)
+            .cloned()
+            .expect("Should exist; index is modulo");
     }
 
     Ok(bandersnatch_keys)

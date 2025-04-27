@@ -4,8 +4,9 @@ use rjam_block::types::extrinsics::{
 };
 use rjam_common::{
     workloads::work_report::{ReportedWorkPackage, WorkReport},
-    Ed25519PubKey, Hash32,
+    Hash32,
 };
+use rjam_crypto::types::Ed25519PubKey;
 use rjam_extrinsics::validation::{
     assurances::AssurancesXtValidator, disputes::DisputesXtValidator,
     guarantees::GuaranteesXtValidator,

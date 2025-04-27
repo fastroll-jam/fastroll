@@ -2,11 +2,11 @@ use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{
-    get_validator_ed25519_key_by_index, workloads::work_report::WorkReport, Ed25519PubKey,
-    Ed25519Signature, ValidatorIndex, ValidatorKeySet,
+use rjam_common::{workloads::work_report::WorkReport, ValidatorIndex};
+use rjam_crypto::{
+    hash::{hash, Blake2b256},
+    types::*,
 };
-use rjam_crypto::{hash, Blake2b256};
 use std::{cmp::Ordering, ops::Deref};
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
@@ -33,7 +33,9 @@ impl GuaranteesXt {
         self.iter()
             .flat_map(|entry| {
                 entry.credentials.iter().filter_map(|c| {
-                    get_validator_ed25519_key_by_index(validator_set, c.validator_index).cloned()
+                    validator_set
+                        .get_validator_ed25519_key(c.validator_index)
+                        .cloned()
                 }) // assuming already passed validations - TODO: revisit
             })
             .collect()
@@ -60,7 +62,7 @@ impl GuaranteesXt {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
     pub validator_index: ValidatorIndex, // v
-    pub signature: Ed25519Signature,     // s
+    pub signature: Ed25519Sig,           // s
 }
 
 impl JamEncode for GuaranteesCredential {
@@ -82,7 +84,7 @@ impl JamDecode for GuaranteesCredential {
     {
         Ok(Self {
             validator_index: ValidatorIndex::decode_fixed(input, 2)?,
-            signature: Ed25519Signature::decode(input)?,
+            signature: Ed25519Sig::decode(input)?,
         })
     }
 }
@@ -158,7 +160,7 @@ impl GuaranteesXtEntry {
     pub fn add_credential(
         &mut self,
         validator_index: ValidatorIndex,
-        signature: Ed25519Signature,
+        signature: Ed25519Sig,
     ) -> Result<(), ExtrinsicsError> {
         if self.credentials.len() >= 3 {
             return Err(ExtrinsicsError::InvalidCredentialCount);

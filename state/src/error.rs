@@ -1,6 +1,6 @@
 use crate::state_db::StateDBError;
 use rjam_codec::JamCodecError;
-use rjam_crypto::CryptoError;
+use rjam_crypto::error::CryptoError;
 use rjam_db::core::cached_db::CachedDBError;
 use rjam_state_merkle::error::StateMerkleError;
 use thiserror::Error;

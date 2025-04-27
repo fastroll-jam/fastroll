@@ -45,7 +45,7 @@ where
 
 impl<K, V> CachedDB<K, V>
 where
-    K: Hash + Eq + AsRef<[u8]> + Copy,
+    K: Hash + Eq + AsRef<[u8]> + Clone,
     V: CacheItem,
 {
     pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
@@ -75,7 +75,7 @@ where
 
         // insert into cache if found
         if let Some(data) = &value {
-            self.cache.insert(*key, data.clone());
+            self.cache.insert(key.clone(), data.clone());
         }
 
         Ok(value)
@@ -87,7 +87,7 @@ where
             .put_entry(self.cf_name, key.as_ref(), &val.clone().into_db_value())
             .await?;
         // insert into cache
-        self.cache.insert(*key, val);
+        self.cache.insert(key.clone(), val);
         Ok(())
     }
 

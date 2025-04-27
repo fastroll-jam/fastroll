@@ -1,5 +1,5 @@
 use rjam_codec::JamCodecError;
-use rjam_crypto::CryptoError;
+use rjam_crypto::error::CryptoError;
 use rjam_pvm_core::{error::VMCoreError, state::memory::MemoryError};
 use rjam_state::error::StateManagerError;
 use thiserror::Error;

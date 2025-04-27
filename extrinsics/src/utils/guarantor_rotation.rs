@@ -1,8 +1,8 @@
 use crate::utils::shuffle::shuffle_with_hash;
 use rjam_common::{
-    CoreIndex, Hash32, ValidatorKeySet, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD,
-    VALIDATOR_COUNT,
+    CoreIndex, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, VALIDATOR_COUNT,
 };
+use rjam_crypto::types::ValidatorKeySet;
 use rjam_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -33,11 +33,11 @@ impl GuarantorAssignment {
     }
 
     /// Represents permute function `P` of the GP.
-    fn permute_validator_indices(entropy: Hash32, timeslot: Timeslot) -> Vec<u16> {
+    fn permute_validator_indices(entropy: &Hash32, timeslot: Timeslot) -> Vec<u16> {
         let indices: Vec<u16> = (0..VALIDATOR_COUNT)
             .map(|i| (CORE_COUNT * i / VALIDATOR_COUNT) as u16)
             .collect();
-        let shuffled_indices = shuffle_with_hash(indices, &entropy);
+        let shuffled_indices = shuffle_with_hash(indices, entropy);
         let rotation_shift =
             (timeslot.slot() % EPOCH_LENGTH as u32) / GUARANTOR_ROTATION_PERIOD as u32;
         Self::rotate_validator_indices(shuffled_indices, rotation_shift as u16)
@@ -48,7 +48,8 @@ impl GuarantorAssignment {
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {
         let current_timeslot = state_manager.get_timeslot().await?;
-        let entropy_2 = state_manager.get_epoch_entropy().await?.second_history();
+        let epoch_entropy = state_manager.get_epoch_entropy().await?;
+        let entropy_2 = epoch_entropy.second_history();
         let mut active_set = state_manager.get_active_set().await?; // TODO: check whether to get via `get_active_set_clean`
         let punish_set = state_manager.get_disputes().await?.punish_set;
         active_set.nullify_punished_validators(&punish_set);

@@ -11,13 +11,13 @@ use rjam_block::types::{
     block::{BlockHeader, EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use rjam_common::{ValidatorKeySet, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use rjam_crypto::entropy_hash_ietf_vrf;
+use rjam_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use rjam_crypto::{traits::VrfSignature, types::ValidatorKeySet};
 use rjam_state::{
     manager::StateManager,
     types::{outside_in_vec, Timeslot},
 };
-use std::sync::Arc;
+use std::{array::from_fn, sync::Arc};
 
 pub struct SafroleHeaderMarkers {
     pub epoch_marker: Option<EpochMarker>,
@@ -51,7 +51,7 @@ pub async fn chain_extension_procedure(
     transition_epoch_entropy(
         state_manager.clone(),
         epoch_progressed,
-        entropy_hash_ietf_vrf(header_vrf_signature),
+        header_vrf_signature.output_hash(),
     )
     .await?;
 
@@ -88,8 +88,8 @@ pub async fn mark_safrole_header_markers(
         let prior_entropy = state_manager.get_epoch_entropy_clean().await?;
         let current_pending_set = current_safrole.pending_set;
         Some(EpochMarker {
-            entropy: prior_entropy.current(),
-            tickets_entropy: prior_entropy.first_history(),
+            entropy: prior_entropy.current().clone(),
+            tickets_entropy: prior_entropy.first_history().clone(),
             validators: extract_epoch_marker_keys(&current_pending_set),
         })
     } else {
@@ -116,11 +116,11 @@ pub async fn mark_safrole_header_markers(
 fn extract_epoch_marker_keys(
     validator_set: &ValidatorKeySet,
 ) -> Box<[EpochMarkerValidatorKey; VALIDATOR_COUNT]> {
-    let mut result = Box::new([EpochMarkerValidatorKey::default(); VALIDATOR_COUNT]);
+    let mut result = Box::new(from_fn(|_| EpochMarkerValidatorKey::default()));
     for (index, validator) in validator_set.iter().enumerate() {
         result[index] = EpochMarkerValidatorKey {
-            bandersnatch_key: validator.bandersnatch_key,
-            ed25519_key: validator.ed25519_key,
+            bandersnatch_key: validator.bandersnatch_key.clone(),
+            ed25519_key: validator.ed25519_key.clone(),
         }
     }
     result

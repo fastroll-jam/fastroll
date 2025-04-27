@@ -4,8 +4,13 @@ use crate::types::{
 };
 use rjam_clock::Clock;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode};
-use rjam_common::{BandersnatchSignature, Hash32, ValidatorIndex};
-use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_common::{Hash32, ValidatorIndex};
+use rjam_crypto::types::*;
+
+use rjam_crypto::{
+    error::CryptoError,
+    hash::{hash, Blake2b256},
+};
 use rjam_db::{
     core::{
         cached_db::{CacheItem, CachedDB, CachedDBError},
@@ -147,10 +152,10 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_parent_state_root(&mut self, root: &Hash32) -> Result<(), BlockHeaderDBError> {
+    pub fn set_parent_state_root(&mut self, root: Hash32) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.parent_state_root = *root;
+            h.header_data.parent_state_root = root;
         })
     }
 
@@ -187,21 +192,21 @@ impl BlockHeaderDB {
 
     pub fn set_vrf_signature(
         &mut self,
-        vrf_sig: &BandersnatchSignature,
+        vrf_sig: &BandersnatchSig,
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.vrf_signature = *vrf_sig;
+            h.header_data.vrf_signature = vrf_sig.clone();
         })
     }
 
     pub fn set_block_seal(
         &mut self,
-        block_seal: &BandersnatchSignature,
+        block_seal: &BandersnatchSig,
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.block_seal = *block_seal;
+            h.block_seal = block_seal.clone();
         })
     }
 
@@ -231,7 +236,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.winning_tickets_marker = Some(*winning_tickets_marker);
+            h.header_data.winning_tickets_marker = Some(winning_tickets_marker.clone());
         })
     }
 

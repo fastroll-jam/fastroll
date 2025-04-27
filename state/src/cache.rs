@@ -53,9 +53,9 @@ impl CacheEntry {
 
         let encoded = self.value.encode()?;
         let merkle_state_mut = match op {
-            StateMut::Add => MerkleWriteOp::Add(*state_key, encoded),
-            StateMut::Update => MerkleWriteOp::Update(*state_key, encoded),
-            StateMut::Remove => MerkleWriteOp::Remove(*state_key),
+            StateMut::Add => MerkleWriteOp::Add(state_key.clone(), encoded),
+            StateMut::Update => MerkleWriteOp::Update(state_key.clone(), encoded),
+            StateMut::Remove => MerkleWriteOp::Remove(state_key.clone()),
         };
 
         Ok(merkle_state_mut)
@@ -162,7 +162,9 @@ impl StateCache {
             .iter()
             .filter_map(|entry_ref| match entry_ref.value().status {
                 CacheEntryStatus::Clean => None,
-                CacheEntryStatus::Dirty(_) => Some((*entry_ref.key(), entry_ref.value().clone())),
+                CacheEntryStatus::Dirty(_) => {
+                    Some((entry_ref.key().clone(), entry_ref.value().clone()))
+                }
             })
             .collect()
     }

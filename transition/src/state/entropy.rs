@@ -23,7 +23,9 @@ pub async fn transition_epoch_entropy(
             if epoch_progressed {
                 // Rotate entropy history.
                 // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
-                entropy.0.copy_within(0..3, 1);
+                entropy.0[3] = entropy.0[2].clone();
+                entropy.0[2] = entropy.0[1].clone();
+                entropy.0[1] = entropy.0[0].clone();
             }
 
             let current_accumulator_hash = entropy.current();

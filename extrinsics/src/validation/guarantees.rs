@@ -4,16 +4,20 @@ use rjam_block::types::extrinsics::guarantees::{
 };
 use rjam_codec::JamEncode;
 use rjam_common::{
-    get_validator_ed25519_key_by_index,
     workloads::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Ed25519PubKey, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
-    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
-    PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT, GUARANTOR_ROTATION_PERIOD,
+    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT,
+    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
-use rjam_crypto::{hash, verify_signature, Blake2b256};
+use rjam_crypto::{
+    hash,
+    signers::{ed25519::Ed25519Verifier, Verifier},
+    types::Ed25519PubKey,
+    Blake2b256,
+};
 use rjam_state::{
     manager::StateManager,
     types::{AuthPool, BlockHistory, PendingReports},
@@ -153,7 +157,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
-        work_package_hashes: &HashSet<Hash32>,
+        work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
         self.validate_work_report(
@@ -178,7 +182,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
-        work_package_hashes: &HashSet<Hash32>,
+        work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<(), XtError> {
         // Check work report output size limit
@@ -225,7 +229,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         if !auth_pool
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?
-            .contains(&work_report.authorizer_hash())
+            .contains(work_report.authorizer_hash())
         {
             return Err(XtError::InvalidAuthorizerHash(core_index));
         }
@@ -241,7 +245,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         )?;
 
         // Check that the work-package hash is not in the block history
-        if block_history.check_work_package_hash_exists(&work_report.work_package_hash()) {
+        if block_history.check_work_package_hash_exists(work_report.work_package_hash()) {
             return Err(XtError::WorkPackageAlreadyInHistory(
                 core_index,
                 work_report.work_package_hash().encode_hex(),
@@ -308,7 +312,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             .iter()
             .find(|r| r.work_package_hash == *work_package_hash);
 
-        reported_package.map(|r| r.segment_root)
+        reported_package.map(|r| r.segment_root.clone())
     }
 
     fn validate_anchor_block(
@@ -317,22 +321,22 @@ impl<'a> GuaranteesXtValidator<'a> {
         work_report_context: &RefinementContext,
         block_history: &BlockHistory,
     ) -> Result<(), XtError> {
-        let anchor_hash = work_report_context.anchor_header_hash;
-        let anchor_state_root = work_report_context.anchor_state_root;
-        let anchor_beefy_root = work_report_context.beefy_root;
+        let anchor_hash = &work_report_context.anchor_header_hash;
+        let anchor_state_root = &work_report_context.anchor_state_root;
+        let anchor_beefy_root = &work_report_context.beefy_root;
 
         // Check that the anchor block is within the last H blocks
-        let anchor_in_block_history = block_history.get_by_header_hash(&anchor_hash);
+        let anchor_in_block_history = block_history.get_by_header_hash(anchor_hash);
 
         // Validate contents of the anchor block if it exists in the recent block history
         if let Some(entry) = anchor_in_block_history {
-            if entry.state_root != anchor_state_root {
+            if &entry.state_root != anchor_state_root {
                 return Err(XtError::InvalidAnchorStateRoot(
                     core_index,
                     anchor_hash.encode_hex(),
                 ));
             }
-            if entry
+            if &entry
                 .accumulation_result_mmr
                 .super_peak()
                 .map_err(|_| XtError::MMRCalculationFailed)?
@@ -360,7 +364,7 @@ impl<'a> GuaranteesXtValidator<'a> {
         header_timeslot_index: u32,
     ) -> Result<(), XtError> {
         // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
-        let lookup_anchor_hash = work_report_context.lookup_anchor_header_hash;
+        let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
 
         // Check that lookup-anchor block is within the last L timeslots
@@ -462,13 +466,13 @@ impl<'a> GuaranteesXtValidator<'a> {
             .get_guarantor_assignment(entry_timeslot_index, current_timeslot_index)
             .await?;
 
-        let guarantor_public_key = get_validator_ed25519_key_by_index(
-            &guarantor_assignment.validator_keys,
-            credential.validator_index,
-        )
-        .ok_or(XtError::InvalidValidatorIndex)?;
+        let guarantor_public_key = guarantor_assignment
+            .validator_keys
+            .get_validator_ed25519_key(credential.validator_index)
+            .ok_or(XtError::InvalidValidatorIndex)?;
 
-        if !verify_signature(&message, guarantor_public_key, &credential.signature) {
+        let ed25519_verifier = Ed25519Verifier::new(guarantor_public_key.clone());
+        if !ed25519_verifier.verify_message(&message, &credential.signature) {
             return Err(XtError::InvalidGuaranteesSignature(
                 credential.validator_index,
             ));
@@ -497,7 +501,7 @@ impl<'a> GuaranteesXtValidator<'a> {
             ));
         }
 
-        Ok(*guarantor_public_key)
+        Ok(guarantor_public_key.clone())
     }
 
     pub async fn get_guarantor_assignment(

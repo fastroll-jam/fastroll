@@ -3,9 +3,8 @@ use bit_vec::BitVec;
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{
-    CoreIndex, Ed25519Signature, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
-};
+use rjam_common::{CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY};
+use rjam_crypto::types::*;
 use std::{cmp::Ordering, ops::Deref};
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports
@@ -62,7 +61,7 @@ pub struct AssurancesXtEntry {
     /// `v`: The validator index.
     pub validator_index: ValidatorIndex,
     /// `s`: The signature of the validator.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl XtEntry for AssurancesXtEntry {
@@ -105,7 +104,7 @@ impl JamDecode for AssurancesXtEntry {
             anchor_parent_hash: Hash32::decode(input)?,
             assuring_cores_bitvec: BitVec::decode_fixed(input, CORE_COUNT)?,
             validator_index: ValidatorIndex::decode_fixed(input, 2)?,
-            signature: Ed25519Signature::decode(input)?,
+            signature: Ed25519Sig::decode(input)?,
         })
     }
 }

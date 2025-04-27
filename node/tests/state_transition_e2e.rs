@@ -4,11 +4,12 @@ use rjam_block::{
     types::{block::BlockHeader, extrinsics::Extrinsics},
 };
 use rjam_common::{
-    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, Hash32,
-    ValidatorIndex,
+    utils::tracing::setup_timed_tracing, workloads::work_report::ReportedWorkPackage, ByteArray,
+    Hash32, ValidatorIndex,
 };
+use rjam_crypto::types::BandersnatchSecretKey;
 use rjam_node::roles::author::{
-    generate_block_seal, generate_entropy_source_vrf_signature, generate_fallback_block_seal,
+    sign_block_seal, sign_entropy_source_vrf_signature, sign_fallback_block_seal,
 };
 use rjam_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
@@ -79,7 +80,7 @@ async fn init_with_prev_state(
     add_all_simple_state_entries(&state_manager).await?;
     state_manager.commit_dirty_cache().await?;
     let prev_state_root = state_manager.merkle_root();
-    header_db.set_parent_state_root(&prev_state_root)?;
+    header_db.set_parent_state_root(prev_state_root.clone())?;
     tracing::info!("Prev State Root: {}", prev_state_root);
     Ok((header_db, state_manager))
 }
@@ -95,7 +96,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     tracing::info!("Parent header hash: {}", parent_hash);
 
     // Initialize prev state
-    let (mut header_db, state_manager) = init_with_prev_state(parent_hash).await?;
+    let (mut header_db, state_manager) = init_with_prev_state(parent_hash.clone()).await?;
 
     // Set block author index
     header_db.set_block_author_index(get_author_index())?;
@@ -306,7 +307,8 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .await?
         .slot_sealers
         .get_slot_sealer(&curr_timeslot);
-    let curr_entropy_3 = state_manager.get_epoch_entropy().await?.third_history();
+    let epoch_entropy = state_manager.get_epoch_entropy().await?;
+    let curr_entropy_3 = epoch_entropy.third_history();
 
     // Set header markers
     header_db.set_offenders_marker(&offenders_marker?)?;
@@ -322,13 +324,14 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .get_staging_header()
         .expect("should exist")
         .header_data;
-    let seed = Hash32::default(); // FIXME: properly handle seed / validator key
+
+    let secret_key = BandersnatchSecretKey(ByteArray::default()); // FIXME: properly handle secret keys
     let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
-            generate_block_seal(header_data, &ticket, &curr_entropy_3, seed.as_ref())?
+            sign_block_seal(header_data, &ticket, curr_entropy_3, &secret_key)?
         }
         SlotSealer::BandersnatchPubKeys(_key) => {
-            generate_fallback_block_seal(header_data, &curr_entropy_3, seed.as_ref())?
+            sign_fallback_block_seal(header_data, curr_entropy_3, &secret_key)?
         }
     };
 
@@ -336,7 +339,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     header_db.set_block_seal(&seal)?;
 
     // Set the VRF signature for the entropy source
-    let vrf_sig = generate_entropy_source_vrf_signature(seal, seed.as_ref())?;
+    let vrf_sig = sign_entropy_source_vrf_signature(seal, &secret_key)?;
     header_db.set_vrf_signature(&vrf_sig)?;
 
     // Commit the staging header

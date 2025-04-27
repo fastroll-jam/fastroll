@@ -3,9 +3,10 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    Ed25519PubKey, Ed25519Signature, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    ByteEncodable, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
+use rjam_crypto::types::*;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
@@ -83,9 +84,9 @@ impl DisputesXt {
 
         for verdict in &self.verdicts {
             match verdict.evaluate_verdict() {
-                VerdictEvaluation::IsGood => good_set.push(verdict.report_hash),
-                VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash),
-                VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash),
+                VerdictEvaluation::IsGood => good_set.push(verdict.report_hash.clone()),
+                VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash.clone()),
+                VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash.clone()),
                 _ => (),
             };
         }
@@ -97,12 +98,12 @@ impl DisputesXt {
         let mut offenders_keys: Vec<Ed25519PubKey> = self
             .culprits
             .iter()
-            .map(|culprit| culprit.validator_key)
+            .map(|culprit| culprit.validator_key.clone())
             .collect();
         let faults_keys: Vec<Ed25519PubKey> = self
             .faults
             .iter()
-            .map(|fault| fault.validator_key)
+            .map(|fault| fault.validator_key.clone())
             .collect();
 
         offenders_keys.extend(faults_keys);
@@ -115,14 +116,14 @@ impl DisputesXt {
     pub fn culprits_keys(&self) -> Vec<Ed25519PubKey> {
         self.culprits
             .iter()
-            .map(|culprit| culprit.validator_key)
+            .map(|culprit| culprit.validator_key.clone())
             .collect()
     }
 
     pub fn faults_keys(&self) -> Vec<Ed25519PubKey> {
         self.faults
             .iter()
-            .map(|fault| fault.validator_key)
+            .map(|fault| fault.validator_key.clone())
             .collect()
     }
 }
@@ -207,14 +208,14 @@ impl Verdict {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Judgment {
     /// `v`: The vote.
     pub is_report_valid: bool,
     /// `i`: The voter validator index.
     pub voter: ValidatorIndex,
     /// `s`: The voter's Ed25519 signature.
-    pub voter_signature: Ed25519Signature,
+    pub voter_signature: Ed25519Sig,
 }
 
 impl JamEncode for Judgment {
@@ -238,7 +239,7 @@ impl JamDecode for Judgment {
         Ok(Self {
             is_report_valid: bool::decode(input)?,
             voter: ValidatorIndex::decode_fixed(input, 2)?,
-            voter_signature: Ed25519Signature::decode(input)?,
+            voter_signature: Ed25519Sig::decode(input)?,
         })
     }
 }
@@ -247,7 +248,7 @@ impl Display for Judgment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "vote: {}", self.is_report_valid)?;
         writeln!(f, "voter: {}", self.voter)?;
-        write!(f, "signature: {}", self.voter_signature.encode_hex())
+        write!(f, "signature: {}", self.voter_signature.to_hex())
     }
 }
 
@@ -271,14 +272,14 @@ pub struct Culprit {
     /// `k`: Ed25519 public key of the **Culprit**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The guaranteeing signature that the **Culprit** submitted.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl Display for Culprit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
-        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
-        write!(f, "signature: {}", self.signature.encode_hex())
+        writeln!(f, "report_hash: {}", self.report_hash.to_hex())?;
+        writeln!(f, "validator_key: {}", self.validator_key.to_hex())?;
+        write!(f, "signature: {}", self.signature.to_hex())
     }
 }
 
@@ -294,7 +295,7 @@ impl PartialOrd for Culprit {
 
 impl Ord for Culprit {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.validator_key.cmp(&other.validator_key)
+        self.validator_key.0.cmp(&other.validator_key.0)
     }
 }
 
@@ -308,15 +309,15 @@ pub struct Fault {
     /// `k`: Ed25519 public key of the **Fault**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The judgment signature that the **Fault** submitted.
-    pub signature: Ed25519Signature,
+    pub signature: Ed25519Sig,
 }
 
 impl Display for Fault {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "report_hash: {}", self.report_hash.encode_hex())?;
         writeln!(f, "is_report_valid: {}", self.is_report_valid)?;
-        writeln!(f, "validator_key: {}", self.validator_key.encode_hex())?;
-        write!(f, "signature: {}", self.signature.encode_hex())
+        writeln!(f, "validator_key: {}", self.validator_key.to_hex())?;
+        write!(f, "signature: {}", self.signature.to_hex())
     }
 }
 
@@ -332,6 +333,6 @@ impl PartialOrd for Fault {
 
 impl Ord for Fault {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.validator_key.cmp(&other.validator_key)
+        self.validator_key.0.cmp(&other.validator_key.0)
     }
 }

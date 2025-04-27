@@ -77,7 +77,7 @@ where
 /// Determines whether the new leaf node will be placed as the left or right child in the trie,
 /// relative to the sibling node.
 pub(crate) fn added_leaf_child_side(
-    new_leaf_state_key: &Hash32,
+    new_leaf_state_key: Hash32,
     sibling_leaf_partial_state_key: &BitVec,
 ) -> Result<ChildType, StateMerkleError> {
     let new_leaf_state_key = bits_encode_msb(new_leaf_state_key.as_slice());

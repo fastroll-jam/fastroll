@@ -6,7 +6,7 @@ use crate::types::{
 };
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
 use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
-use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;
 
 /// Represents global state types with simple fixed state keys
@@ -234,8 +234,8 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
 ];
 
-pub const fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
-    STATE_KEYS[key as usize - 1]
+pub fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
+    STATE_KEYS[key as usize - 1].clone()
 }
 
 pub fn get_account_metadata_state_key(s: ServiceId) -> Hash32 {

@@ -65,7 +65,8 @@ impl AccumulateInvocation {
             return Ok(AccumulateResult::default());
         };
 
-        let curr_entropy = state_manager.get_epoch_entropy().await?.current();
+        let epoch_entropy = state_manager.get_epoch_entropy().await?;
+        let curr_entropy = epoch_entropy.current();
         let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = AccumulateVMArgs {
@@ -78,7 +79,7 @@ impl AccumulateInvocation {
             state_manager.clone(),
             partial_state.clone(),
             args.accumulate_host,
-            curr_entropy,
+            curr_entropy.clone(),
             &curr_timeslot,
         )
         .await?;

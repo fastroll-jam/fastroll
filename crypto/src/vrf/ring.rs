@@ -1,9 +1,13 @@
-use crate::{CryptoError, RingCommitment, RingVrfVerifier};
+use crate::{
+    error::CryptoError,
+    types::*,
+    vrf::vrf_core::{RingCommitment, RingVrfVerifierCore},
+};
 use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
-use rjam_common::{BandersnatchRingRoot, ValidatorKeySet};
+use rjam_common::ByteEncodable;
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
@@ -24,17 +28,17 @@ fn generate_ring_root_internal(
     validator_set: &ValidatorKeySet,
 ) -> Result<RingCommitment, CryptoError> {
     let ring = validator_set_to_bandersnatch_ring(validator_set)?;
-    let verifier = RingVrfVerifier::new(ring);
+    let verifier = RingVrfVerifierCore::new(ring);
     Ok(verifier.commitment)
 }
 
 /// Converts `ValidatorKeySet` type into `Vec<Public>` type.
-pub fn validator_set_to_bandersnatch_ring(
+pub(crate) fn validator_set_to_bandersnatch_ring(
     validator_set: &ValidatorKeySet,
 ) -> Result<Vec<Public>, CryptoError> {
     let mut public_keys = vec![];
     validator_set.iter().for_each(|validator_key| {
-        match point_decode::<BandersnatchSha512Ell2>(&*validator_key.bandersnatch_key) {
+        match point_decode::<BandersnatchSha512Ell2>(validator_key.bandersnatch_key.as_slice()) {
             Ok(decoded_point) => {
                 public_keys.push(Public::from(decoded_point));
             }

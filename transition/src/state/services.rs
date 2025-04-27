@@ -196,27 +196,30 @@ async fn transition_service_account(
         }
     }
 
-    for (&k, v) in sandbox.lookups.iter() {
+    for (k, v) in sandbox.lookups.iter() {
         match v.status() {
             SandboxEntryStatus::Added => {
                 state_manager
                     .add_account_lookups_entry(
                         service_id,
-                        k,
+                        k.clone(),
                         v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
             }
             SandboxEntryStatus::Updated => {
                 state_manager
-                    .with_mut_account_lookups_entry(StateMut::Update, service_id, k, |entry| {
-                        *entry = v.get_cloned().expect("Should exist").into_entry()
-                    })
+                    .with_mut_account_lookups_entry(
+                        StateMut::Update,
+                        service_id,
+                        k.clone(),
+                        |entry| *entry = v.get_cloned().expect("Should exist").into_entry(),
+                    )
                     .await?;
             }
             SandboxEntryStatus::Removed => {
                 state_manager
-                    .with_mut_account_lookups_entry(StateMut::Remove, service_id, k, |_| {})
+                    .with_mut_account_lookups_entry(StateMut::Remove, service_id, k.clone(), |_| {})
                     .await?
             }
             _ => (),

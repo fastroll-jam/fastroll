@@ -3,10 +3,13 @@ use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
 use rjam_common::{
-    ticket::Ticket, BandersnatchPubKey, BandersnatchSignature, Ed25519PubKey, Hash32,
-    ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
-use rjam_crypto::{hash, Blake2b256, CryptoError};
+use rjam_crypto::{
+    error::CryptoError,
+    hash::{hash, Blake2b256},
+    types::*,
+};
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -16,8 +19,8 @@ pub struct Block {
     pub extrinsics: Extrinsics,
 }
 
-pub type BlockSeal = BandersnatchSignature;
-pub type VrfSig = BandersnatchSignature;
+pub type BlockSeal = BandersnatchSig;
+pub type VrfSig = BandersnatchSig;
 pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
 
 #[derive(Debug, Error)]
@@ -28,7 +31,7 @@ pub enum BlockHeaderError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarkerValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,
@@ -147,7 +150,7 @@ impl Display for BlockHeader {
             .header_data
             .offenders_marker
             .iter()
-            .map(|key| key.encode_hex())
+            .map(|key| key.to_hex())
             .collect::<Vec<_>>();
 
         write!(
@@ -172,8 +175,8 @@ impl Display for BlockHeader {
             self.winning_tickets_marker(),
             offenders_encoded,
             self.author_index(),
-            self.vrf_signature().encode_hex(),
-            self.block_seal.encode_hex(),
+            self.vrf_signature().to_hex(),
+            self.block_seal.to_hex(),
         )
     }
 }
@@ -193,16 +196,16 @@ impl BlockHeader {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
-    pub fn parent_hash(&self) -> Hash32 {
-        self.header_data.parent_hash
+    pub fn parent_hash(&self) -> &Hash32 {
+        &self.header_data.parent_hash
     }
 
-    pub fn parent_state_root(&self) -> Hash32 {
-        self.header_data.parent_state_root
+    pub fn parent_state_root(&self) -> &Hash32 {
+        &self.header_data.parent_state_root
     }
 
-    pub fn extrinsic_hash(&self) -> Hash32 {
-        self.header_data.extrinsic_hash
+    pub fn extrinsic_hash(&self) -> &Hash32 {
+        &self.header_data.extrinsic_hash
     }
 
     pub fn timeslot_index(&self) -> u32 {
@@ -226,6 +229,6 @@ impl BlockHeader {
     }
 
     pub fn vrf_signature(&self) -> VrfSig {
-        self.header_data.vrf_signature
+        self.header_data.vrf_signature.clone()
     }
 }

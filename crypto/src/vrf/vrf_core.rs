@@ -1,70 +1,47 @@
 //! # Attribution Notice
 //!
-//! This module is copied from the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec) repository.
-use crate::CryptoError;
+//! This module is based on the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec)
+//! repository, with modifications as needed.
+use crate::error::CryptoError;
 use ark_vrf::{
-    codec::point_decode,
     reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch,
 };
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::{
-    BandersnatchPubKey, BandersnatchRingVrfSignature, BandersnatchSignature, Hash32,
-    VALIDATOR_COUNT,
-};
+use rjam_common::VALIDATOR_COUNT;
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct IetfVrfSignature {
-    pub output: Output,
-    pub proof: IetfProof,
+pub(crate) struct IetfVrfSignature {
+    output: Output,
+    proof: IetfProof,
 }
 
 // Additional impl
 impl IetfVrfSignature {
-    pub(crate) fn output_hash(&self) -> Hash32 {
-        self.output.hash()[..32]
-            .try_into()
-            .map(Hash32::new)
-            .unwrap()
-    }
-
-    /// `Y` output function to yield VRF output from the given Bandersnatch signature.
-    pub fn output_hash_from_bander_sig(signature: &BandersnatchSignature) -> Hash32 {
-        Self::deserialize_compressed(signature.as_slice())
-            .unwrap()
-            .output_hash()
+    pub(crate) fn output_hash(&self) -> [u8; 32] {
+        self.output.hash()[..32].try_into().unwrap()
     }
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct RingVrfSignature {
-    pub output: Output,
+pub(crate) struct RingVrfSignature {
+    output: Output,
     // This contains both the Pedersen proof and actual ring proof.
-    pub proof: RingProof,
+    proof: RingProof,
 }
 
 // Additional impl
 impl RingVrfSignature {
-    pub(crate) fn output_hash(&self) -> Hash32 {
-        self.output.hash()[..32]
-            .try_into()
-            .map(Hash32::new)
-            .unwrap()
-    }
-
-    /// `Y` output function to yield VRF output from the given Bandersnatch Ring VRF signature.
-    pub fn output_hash_from_ticket_proof(ticket_proof: &BandersnatchRingVrfSignature) -> Hash32 {
-        Self::deserialize_compressed(ticket_proof.as_slice())
-            .unwrap()
-            .output_hash()
+    pub(crate) fn output_hash(&self) -> [u8; 32] {
+        self.output.hash()[..32].try_into().unwrap()
     }
 }
 
-pub(crate) fn ring_proof_params() -> &'static RingProofParams {
+fn ring_proof_params() -> &'static RingProofParams {
     use std::sync::OnceLock;
     static PARAMS: OnceLock<RingProofParams> = OnceLock::new();
     PARAMS.get_or_init(|| {
@@ -86,12 +63,17 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
 }
 
 /// IETF VRF prover actor.
-pub struct IetfVrfProver {
-    pub secret: Secret,
+/// TODO: Zeroize
+pub(crate) struct IetfVrfProverCore {
+    secret: Secret,
 }
 
-impl IetfVrfProver {
-    pub fn new(seed: &[u8]) -> Self {
+impl IetfVrfProverCore {
+    pub(crate) fn new(secret: Secret) -> Self {
+        Self { secret }
+    }
+
+    pub(crate) fn from_seed(seed: &[u8]) -> Self {
         Self {
             secret: Secret::from_seed(seed),
         }
@@ -103,7 +85,7 @@ impl IetfVrfProver {
     /// Not used with Safrole test vectors.
     ///
     /// Returns 96-octet sequence.
-    pub fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_vrf::ietf::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
@@ -118,14 +100,23 @@ impl IetfVrfProver {
 }
 
 /// Ring VRF prover actor.
-pub struct RingVrfProver {
-    pub prover_idx: usize,
-    pub secret: Secret,
-    pub ring: Vec<Public>,
+/// TODO: Zeroize
+pub(crate) struct RingVrfProverCore {
+    prover_idx: usize,
+    secret: Secret,
+    ring: Vec<Public>,
 }
 
-impl RingVrfProver {
-    pub fn new(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
+impl RingVrfProverCore {
+    pub(crate) fn new(ring: Vec<Public>, prover_idx: usize, secret: Secret) -> Self {
+        Self {
+            prover_idx,
+            secret,
+            ring,
+        }
+    }
+
+    pub(crate) fn from_seed(ring: Vec<Public>, prover_idx: usize, seed: &[u8]) -> Self {
         Self {
             prover_idx,
             secret: Secret::from_seed(seed),
@@ -138,7 +129,7 @@ impl RingVrfProver {
     /// Used for tickets submission.
     ///
     /// Returns 784-octet sequence.
-    pub fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
         use ark_vrf::ring::Prover as _;
 
         let input = vrf_input_point(vrf_input_data);
@@ -160,20 +151,19 @@ impl RingVrfProver {
 }
 
 /// IETF VRF verifier actor (Ring and its commitment).
-pub struct IetfVrfVerifier;
-impl IetfVrfVerifier {
+pub(crate) struct IetfVrfVerifierCore;
+impl IetfVrfVerifierCore {
     /// Non-Anonymous VRF signature verification.
     ///
     /// Used for ticket claim verification during block import.
     /// Not used with Safrole test vectors.
     ///
     /// On success returns the VRF output hash.
-    pub fn ietf_vrf_verify(
-        &self,
+    pub(crate) fn ietf_vrf_verify(
         vrf_input_data: &[u8],
         aux_data: &[u8],
         signature: &[u8],
-        bandersnatch_key: &BandersnatchPubKey,
+        public: Public,
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ietf::Verifier as _;
 
@@ -181,11 +171,6 @@ impl IetfVrfVerifier {
 
         let input = vrf_input_point(vrf_input_data);
         let output = signature.output;
-
-        let public = Public::from(
-            point_decode::<BandersnatchSha512Ell2>(bandersnatch_key.as_ref())
-                .map_err(|_| CryptoError::BandersnatchDecodeError)?,
-        );
 
         if public
             .verify(input, output, aux_data, &signature.proof)
@@ -205,16 +190,17 @@ impl IetfVrfVerifier {
     }
 }
 
-pub type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
+pub(crate) type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
 
 /// Ring VRF verifier actor (Ring and its commitment).
-pub struct RingVrfVerifier {
-    pub commitment: RingCommitment,
-    pub ring: Vec<Public>,
+pub(crate) struct RingVrfVerifierCore {
+    pub(crate) commitment: RingCommitment,
+    #[allow(dead_code)]
+    ring: Vec<Public>,
 }
 
-impl RingVrfVerifier {
-    pub fn new(ring: Vec<Public>) -> Self {
+impl RingVrfVerifierCore {
+    pub(crate) fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
         let verifier_key = ring_proof_params().verifier_key(&pts);
         let commitment = verifier_key.commitment(); // The Ring Root
@@ -226,7 +212,7 @@ impl RingVrfVerifier {
     /// Used for tickets verification.
     ///
     /// On success returns the VRF output hash.
-    pub fn ring_vrf_verify(
+    pub(crate) fn ring_vrf_verify(
         &self,
         vrf_input_data: &[u8],
         aux_data: &[u8],

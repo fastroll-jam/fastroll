@@ -1,6 +1,7 @@
 use crate::asn_types::common::*;
 use rjam_block::types::extrinsics::tickets::TicketsXt;
-use rjam_common::{ticket::Ticket, BandersnatchRingRoot, Hash32};
+use rjam_common::{ticket::Ticket, Hash32};
+use rjam_crypto::types::BandersnatchRingRoot;
 use rjam_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
 use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use serde::{Deserialize, Serialize};
@@ -96,7 +97,7 @@ pub fn safrole_state_to_gammas(
     AsnTicketsOrKeys,
     AsnBandersnatchRingRoot,
 ) {
-    let gamma_k = safrole.pending_set.map(AsnValidatorData::from);
+    let gamma_k = safrole.pending_set.0.map(AsnValidatorData::from);
     let gamma_a = safrole
         .ticket_accumulator
         .clone()

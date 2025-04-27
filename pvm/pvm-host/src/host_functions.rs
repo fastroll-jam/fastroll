@@ -7,11 +7,11 @@ use crate::{
 };
 use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
 use rjam_common::{
-    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, ValidatorKey, AUTH_QUEUE_SIZE, CORE_COUNT,
-    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
+    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
     TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use rjam_crypto::{hash, octets_to_hash32, Blake2b256};
+use rjam_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use rjam_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
@@ -580,7 +580,7 @@ impl HostFunction {
         let new_service_id = x
             .add_new_account(
                 state_manager.clone(),
-                code_hash,
+                code_hash.clone(),
                 new_account_threshold_balance,
                 gas_limit_g,
                 gas_limit_m,
@@ -861,7 +861,7 @@ impl HostFunction {
                     continue_full!()
                 }
 
-                AccountLookupsEntryExt::from_entry(lookups_key, new_lookups_entry)
+                AccountLookupsEntryExt::from_entry(lookups_key.clone(), new_lookups_entry)
             }
         };
 
@@ -900,7 +900,7 @@ impl HostFunction {
         }
 
         let lookup_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let lookups_key = (lookup_hash, lookup_len);
+        let lookups_key = (lookup_hash.clone(), lookup_len);
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
@@ -978,7 +978,7 @@ impl HostFunction {
                                     .drain_account_lookups_entry_timeslots(
                                         state_manager.clone(),
                                         x.accumulate_host,
-                                        lookups_key,
+                                        lookups_key.clone(),
                                     )
                                     .await?;
                                 x.partial_state
