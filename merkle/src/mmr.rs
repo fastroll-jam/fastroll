@@ -80,7 +80,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
                 return Ok(());
             } else {
                 // Otherwise, we need to merge the current peak with the new root and move to the next index.
-                let old_root = self.peaks[index].unwrap();
+                let old_root = self.peaks[index].clone().unwrap();
 
                 let mut new_parent_data = [0u8; 64];
                 new_parent_data[..32].copy_from_slice(&*old_root);
@@ -108,7 +108,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
             self.peaks[index] = Some(curr_root);
             Ok(())
         } else {
-            let old_root = self.peaks[index].unwrap();
+            let old_root = self.peaks[index].clone().unwrap();
             let mut new_parent_data = [0u8; 64];
             new_parent_data[..32].copy_from_slice(&*old_root);
             new_parent_data[32..].copy_from_slice(&*curr_root);
@@ -123,7 +123,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
 
     /// MMR super-peak function that yields a single hash value committing to all the peaks.
     pub fn super_peak(&self) -> Result<Hash32, MerkleError> {
-        let mut peaks = self.peaks.iter().filter_map(|p| *p);
+        let mut peaks = self.peaks.iter().filter_map(|p| p.clone());
 
         let Some(mut result) = peaks.next() else {
             return Ok(Hash32::default());
@@ -158,7 +158,7 @@ mod tests {
     fn test_append_single_leaf() {
         let mut mmr = MerkleMountainRange::<Blake2b256>::new();
         let leaf = create_hash(1);
-        assert!(mmr.append(leaf).is_ok());
+        assert!(mmr.append(leaf.clone()).is_ok());
         assert_eq!(mmr.peaks, vec![Some(leaf)]);
     }
 
@@ -167,15 +167,15 @@ mod tests {
         let mut mmr = MerkleMountainRange::<Blake2b256>::new();
         let leaf1 = create_hash(1);
         let leaf2 = create_hash(2);
-        assert!(mmr.append(leaf1).is_ok());
-        assert!(mmr.append(leaf2).is_ok());
 
         let expected_root = {
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&*leaf1);
-            data[32..].copy_from_slice(&*leaf2);
+            data[..32].copy_from_slice(leaf1.as_slice());
+            data[32..].copy_from_slice(leaf2.as_slice());
             hash::<Blake2b256>(&data).unwrap()
         };
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
 
         assert_eq!(mmr.peaks, vec![None, Some(expected_root)]);
     }
@@ -186,16 +186,17 @@ mod tests {
         let leaf1 = create_hash(1);
         let leaf2 = create_hash(2);
         let leaf3 = create_hash(3);
-        assert!(mmr.append(leaf1).is_ok());
-        assert!(mmr.append(leaf2).is_ok());
-        assert!(mmr.append(leaf3).is_ok());
 
         let expected_root12 = {
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&*leaf1);
-            data[32..].copy_from_slice(&*leaf2);
+            data[..32].copy_from_slice(leaf1.as_slice());
+            data[32..].copy_from_slice(leaf2.as_slice());
             hash::<Blake2b256>(&data).unwrap()
         };
+
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
+        assert!(mmr.append(leaf3.clone()).is_ok());
 
         assert_eq!(mmr.peaks, vec![Some(leaf3), Some(expected_root12)]);
     }
@@ -207,29 +208,30 @@ mod tests {
         let leaf2 = create_hash(2);
         let leaf3 = create_hash(3);
         let leaf4 = create_hash(4);
-        assert!(mmr.append(leaf1).is_ok());
-        assert!(mmr.append(leaf2).is_ok());
-        assert!(mmr.append(leaf3).is_ok());
-        assert!(mmr.append(leaf4).is_ok());
 
         let expected_root1234 = {
             let root12 = {
                 let mut data = [0u8; 64];
-                data[..32].copy_from_slice(&*leaf1);
-                data[32..].copy_from_slice(&*leaf2);
+                data[..32].copy_from_slice(leaf1.as_slice());
+                data[32..].copy_from_slice(leaf2.as_slice());
                 hash::<Blake2b256>(&data).unwrap()
             };
             let root34 = {
                 let mut data = [0u8; 64];
-                data[..32].copy_from_slice(&*leaf3);
-                data[32..].copy_from_slice(&*leaf4);
+                data[..32].copy_from_slice(leaf3.as_slice());
+                data[32..].copy_from_slice(leaf4.as_slice());
                 hash::<Blake2b256>(&data).unwrap()
             };
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&*root12);
-            data[32..].copy_from_slice(&*root34);
+            data[..32].copy_from_slice(root12.as_slice());
+            data[32..].copy_from_slice(root34.as_slice());
             hash::<Blake2b256>(&data).unwrap()
         };
+
+        assert!(mmr.append(leaf1).is_ok());
+        assert!(mmr.append(leaf2).is_ok());
+        assert!(mmr.append(leaf3).is_ok());
+        assert!(mmr.append(leaf4).is_ok());
 
         assert_eq!(mmr.peaks, vec![None, None, Some(expected_root1234)]);
     }
@@ -250,6 +252,6 @@ mod tests {
         assert_eq!(mmr.peaks.len(), n);
 
         // All peaks must be Some.
-        assert!(mmr.peaks.iter().all(|&peak| peak.is_some()));
+        assert!(mmr.peaks.iter().all(|peak| peak.is_some()));
     }
 }

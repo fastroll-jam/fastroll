@@ -21,8 +21,7 @@ use rjam_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE,
-    FLOOR_TWO_THIRDS_VALIDATOR_COUNT, VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
 use rjam_crypto::{types::*, Hasher};
 use rjam_merkle::mmr::MerkleMountainRange;
@@ -537,7 +536,7 @@ pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
         let queue = value.0.map(|q| {
-            let mut hashes = [Hash32::default(); AUTH_QUEUE_SIZE];
+            let mut hashes = from_fn(|_| Hash32::default());
             for (i, h) in q.0.into_iter().enumerate() {
                 hashes[i] = Hash32::from(h);
             }
@@ -898,8 +897,8 @@ impl From<SegmentRootLookupTable> for AsnSegmentRootLookupTable {
         let mut items: Vec<AsnSegmentRootLookupItem> = Vec::with_capacity(value.len());
         for (key, value) in value.iter() {
             items.push(AsnSegmentRootLookupItem {
-                work_package_hash: AsnOpaqueHash::from(*key),
-                segment_tree_root: AsnOpaqueHash::from(*value),
+                work_package_hash: AsnOpaqueHash::from(key.clone()),
+                segment_tree_root: AsnOpaqueHash::from(value.clone()),
             })
         }
 
@@ -2037,7 +2036,7 @@ pub struct AsnEpochMark {
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = [EpochMarkerValidatorKey::default(); VALIDATOR_COUNT];
+        let mut validators_array = from_fn(|_| EpochMarkerValidatorKey::default());
         for (i, key) in value.validators.into_iter().enumerate() {
             validators_array[i] = EpochMarkerValidatorKey::from(key);
         }
@@ -2089,7 +2088,7 @@ impl From<AsnHeader> for BlockHeader {
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
                 winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                    let mut tickets_array = [Ticket::default(); ASN_EPOCH_LENGTH];
+                    let mut tickets_array = from_fn(|_| Ticket::default());
                     for (i, ticket) in tickets.into_iter().enumerate() {
                         tickets_array[i] = ticket.into();
                     }
@@ -2111,9 +2110,9 @@ impl From<AsnHeader> for BlockHeader {
 impl From<BlockHeader> for AsnHeader {
     fn from(value: BlockHeader) -> Self {
         Self {
-            parent: AsnOpaqueHash::from(value.parent_hash()),
-            parent_state_root: AsnOpaqueHash::from(value.parent_state_root()),
-            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash()),
+            parent: AsnOpaqueHash::from(value.parent_hash().clone()),
+            parent_state_root: AsnOpaqueHash::from(value.parent_state_root().clone()),
+            extrinsic_hash: AsnOpaqueHash::from(value.extrinsic_hash().clone()),
             slot: value.timeslot_index(),
             epoch_mark: value.epoch_marker().cloned().map(AsnEpochMark::from),
             tickets_mark: value.winning_tickets_marker().map(|tickets_arr| {
@@ -2121,7 +2120,7 @@ impl From<BlockHeader> for AsnHeader {
                     .iter()
                     .map(|ticket| AsnTicketBody {
                         attempt: ticket.attempt,
-                        id: AsnOpaqueHash::from(ticket.id),
+                        id: AsnOpaqueHash::from(ticket.id.clone()),
                     })
                     .collect::<Vec<_>>()
             }),

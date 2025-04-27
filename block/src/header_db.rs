@@ -152,10 +152,10 @@ impl BlockHeaderDB {
         })
     }
 
-    pub fn set_parent_state_root(&mut self, root: &Hash32) -> Result<(), BlockHeaderDBError> {
+    pub fn set_parent_state_root(&mut self, root: Hash32) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.parent_state_root = *root;
+            h.header_data.parent_state_root = root;
         })
     }
 
@@ -236,7 +236,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.winning_tickets_marker = Some(*winning_tickets_marker);
+            h.header_data.winning_tickets_marker = Some(winning_tickets_marker.clone());
         })
     }
 

@@ -580,7 +580,7 @@ impl HostFunction {
         let new_service_id = x
             .add_new_account(
                 state_manager.clone(),
-                code_hash,
+                code_hash.clone(),
                 new_account_threshold_balance,
                 gas_limit_g,
                 gas_limit_m,
@@ -861,7 +861,7 @@ impl HostFunction {
                     continue_full!()
                 }
 
-                AccountLookupsEntryExt::from_entry(lookups_key, new_lookups_entry)
+                AccountLookupsEntryExt::from_entry(lookups_key.clone(), new_lookups_entry)
             }
         };
 
@@ -900,7 +900,7 @@ impl HostFunction {
         }
 
         let lookup_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
-        let lookups_key = (lookup_hash, lookup_len);
+        let lookups_key = (lookup_hash.clone(), lookup_len);
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
@@ -978,7 +978,7 @@ impl HostFunction {
                                     .drain_account_lookups_entry_timeslots(
                                         state_manager.clone(),
                                         x.accumulate_host,
-                                        lookups_key,
+                                        lookups_key.clone(),
                                     )
                                     .await?;
                                 x.partial_state

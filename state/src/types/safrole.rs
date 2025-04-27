@@ -6,7 +6,9 @@ use crate::{
 use rjam_codec::{
     JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
 };
-use rjam_common::{ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, VALIDATOR_COUNT};
+use rjam_common::{
+    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+};
 use rjam_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use std::{
     array::from_fn,
@@ -120,7 +122,8 @@ pub enum SlotSealers {
 
 impl Default for SlotSealers {
     fn default() -> Self {
-        Self::Tickets(Box::new([Ticket::default(); EPOCH_LENGTH]))
+        let arr = from_fn(|_| Ticket::default());
+        Self::Tickets(Box::new(arr))
     }
 }
 
@@ -217,18 +220,20 @@ impl SlotSealers {
     pub fn get_slot_sealer(&self, timeslot: &Timeslot) -> SlotSealer {
         let slot_phase = timeslot.slot_phase() as usize;
         match self {
-            Self::Tickets(tickets) => SlotSealer::Ticket(tickets[slot_phase]),
-            Self::BandersnatchPubKeys(keys) => SlotSealer::BandersnatchPubKeys(keys[slot_phase]),
+            Self::Tickets(tickets) => SlotSealer::Ticket(tickets[slot_phase].clone()),
+            Self::BandersnatchPubKeys(keys) => {
+                SlotSealer::BandersnatchPubKeys(keys[slot_phase].clone())
+            }
         }
     }
 }
 
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
-    entropy: Hash32,
+    entropy: &Hash32,
 ) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], SlotSealerError> {
     let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
-        [BandersnatchPubKey::default(); EPOCH_LENGTH];
+        from_fn(|_| BandersnatchPubKey::default());
     let entropy_vec = entropy.to_vec();
 
     for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
@@ -242,7 +247,10 @@ pub fn generate_fallback_keys(
         let mut hash: &[u8] = &hash_prefix_4::<Blake2b256>(&entropy_with_index)?;
         let key_index: u32 = u32::decode_fixed(&mut hash, 4)? % (VALIDATOR_COUNT as u32);
 
-        *key = validator_set[key_index as usize].bandersnatch_key;
+        *key = validator_set
+            .get_validator_bandersnatch_key(key_index as ValidatorIndex)
+            .cloned()
+            .expect("Should exist; index is modulo");
     }
 
     Ok(bandersnatch_keys)

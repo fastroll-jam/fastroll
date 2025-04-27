@@ -31,7 +31,7 @@ pub enum BlockHeaderError {
     JamCodecError(#[from] JamCodecError),
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarkerValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,
@@ -196,16 +196,16 @@ impl BlockHeader {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
-    pub fn parent_hash(&self) -> Hash32 {
-        self.header_data.parent_hash
+    pub fn parent_hash(&self) -> &Hash32 {
+        &self.header_data.parent_hash
     }
 
-    pub fn parent_state_root(&self) -> Hash32 {
-        self.header_data.parent_state_root
+    pub fn parent_state_root(&self) -> &Hash32 {
+        &self.header_data.parent_state_root
     }
 
-    pub fn extrinsic_hash(&self) -> Hash32 {
-        self.header_data.extrinsic_hash
+    pub fn extrinsic_hash(&self) -> &Hash32 {
+        &self.header_data.extrinsic_hash
     }
 
     pub fn timeslot_index(&self) -> u32 {

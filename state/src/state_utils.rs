@@ -234,8 +234,8 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
 ];
 
-pub const fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
-    STATE_KEYS[key as usize - 1]
+pub fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
+    STATE_KEYS[key as usize - 1].clone()
 }
 
 pub fn get_account_metadata_state_key(s: ServiceId) -> Hash32 {

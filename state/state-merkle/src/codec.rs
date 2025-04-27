@@ -196,13 +196,13 @@ impl NodeCodec {
                 let value_end_bit = 256 + value_len_in_bits;
 
                 Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
-                    node_hash: node.hash,
+                    node_hash: node.hash.clone(),
                     value: bits_decode_msb(&slice_bitvec(&node_data_bv, 256..value_end_bit)?),
                     partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
                 }))
             }
             NodeType::Leaf(LeafType::Regular) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
-                node_hash: node.hash,
+                node_hash: node.hash.clone(),
                 val_hash: bitvec_to_hash32(&slice_bitvec(&node_data_bv, 256..)?)?,
                 partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
             })),

@@ -73,10 +73,10 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     for i in update_indices {
         tracing::debug!("Updating entry #{i}");
-        let key = state_keys[*i];
+        let key = &state_keys[*i];
         let new_val = random_state_val(MAX_VAL_SIZE);
         state_manager
-            .update_raw_state_entry(&key, new_val.clone())
+            .update_raw_state_entry(key, new_val.clone())
             .await?;
         updated_values.insert(key, new_val);
     }
@@ -87,8 +87,8 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
 
     for i in remove_indices {
         tracing::debug!("Removing entry #{i}");
-        let key = state_keys[*i];
-        state_manager.remove_raw_state_entry(&key).await?;
+        let key = &state_keys[*i];
+        state_manager.remove_raw_state_entry(key).await?;
         removed_keys.push(key);
     }
 
@@ -101,7 +101,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     for (key, val_expected) in updated_values {
         tracing::debug!("Verifying updated entry with key {key}");
         let state_val_db_encoded = state_manager
-            .get_raw_state_entry_from_db(&key)
+            .get_raw_state_entry_from_db(key)
             .await?
             .expect("updated key must still exist");
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
@@ -112,7 +112,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Verify the Removals
     for key in removed_keys {
         tracing::debug!("Verifying removed entry with key {key}");
-        let maybe_state_val = state_manager.get_raw_state_entry_from_db(&key).await?;
+        let maybe_state_val = state_manager.get_raw_state_entry_from_db(key).await?;
         assert!(
             maybe_state_val.is_none(),
             "Removed key ({key}) still found in DB"
@@ -123,9 +123,9 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Verify the unchanged entries
     let unchanged_keys = indices[(num_updates + num_removes)..].to_vec();
     for i in unchanged_keys {
-        let key = state_keys[i];
+        let key = &state_keys[i];
         let state_val_db_encoded = state_manager
-            .get_raw_state_entry_from_db(&key)
+            .get_raw_state_entry_from_db(key)
             .await?
             .expect("unchanged key should exist");
         let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;

@@ -148,7 +148,7 @@ impl JamEncode for ImportInfo {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        let (hash, item_index) = match self.work_package_id {
+        let (hash, item_index) = match &self.work_package_id {
             WorkPackageId::SegmentRoot(hash) => (hash, self.item_index),
             WorkPackageId::WorkPackageHash(hash) => (hash, self.item_index + (1 << 15)),
         };

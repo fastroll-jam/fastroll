@@ -78,7 +78,7 @@ impl XtPool {
         }
 
         // Add to the main storage
-        extrinsics.insert(entry.hash, entry.clone());
+        extrinsics.insert(entry.hash.clone(), entry.clone());
 
         // Add to the type-timeslot lookup index
         type_timeslot_index

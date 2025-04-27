@@ -1,6 +1,7 @@
 use crate::HASH_SIZE;
 use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
 use std::{
+    array::from_fn,
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
 };
@@ -119,7 +120,7 @@ impl ByteSequence {
 }
 
 /// A bytes array type of size `N`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteArray<const N: usize>(pub [u8; N]);
 
 impl<const N: usize> Deref for ByteArray<N> {
@@ -144,7 +145,8 @@ impl<const N: usize> Display for ByteArray<N> {
 
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
-        Self([0u8; N])
+        let arr = from_fn(|_| 0u8);
+        Self(arr)
     }
 }
 

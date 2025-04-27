@@ -36,7 +36,7 @@ pub fn edit_queue(
 ) -> Vec<WorkReportDepsMap> {
     queue
         .iter()
-        .filter(|(wr, _)| !new_accumulated_packages.contains(&wr.work_package_hash()))
+        .filter(|(wr, _)| !new_accumulated_packages.contains(wr.work_package_hash()))
         .cloned()
         .collect::<Vec<_>>()
         .into_iter()
@@ -44,8 +44,8 @@ pub fn edit_queue(
             (
                 wr,
                 deps.iter()
+                    .filter(|&wph| !new_accumulated_packages.contains(wph))
                     .cloned()
-                    .filter(|wph| !new_accumulated_packages.contains(wph))
                     .collect(),
             )
         })
@@ -77,7 +77,10 @@ fn extract_accumulatables(queue: &[WorkReportDepsMap]) -> Vec<WorkReport> {
 ///
 /// Represents function *`P`* of the GP.
 pub fn reports_to_package_hashes(reports: &[WorkReport]) -> Vec<WorkPackageHash> {
-    reports.iter().map(|wr| wr.work_package_hash()).collect()
+    reports
+        .iter()
+        .map(|wr| wr.work_package_hash().clone())
+        .collect()
 }
 
 /// Partitions available work reports into two groups based on the presence of dependencies.

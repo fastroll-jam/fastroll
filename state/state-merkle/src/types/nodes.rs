@@ -80,7 +80,7 @@ impl MerkleNode {
         let (left, right) = NodeCodec::decode_branch(self, merkle_db).await?;
 
         Ok(BranchParsed {
-            node_hash: self.hash,
+            node_hash: self.hash.clone(),
             left,
             right,
         })
@@ -98,12 +98,12 @@ impl MerkleNode {
     fn parse_leaf(&self) -> Result<LeafParsed, StateMerkleError> {
         match NodeCodec::decode_leaf(self)? {
             LeafParsed::EmbeddedLeaf(parsed) => Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
-                node_hash: self.hash,
+                node_hash: self.hash.clone(),
                 value: parsed.value,
                 partial_state_key: parsed.partial_state_key,
             })),
             LeafParsed::RegularLeaf(parsed) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
-                node_hash: self.hash,
+                node_hash: self.hash.clone(),
                 val_hash: parsed.val_hash,
                 partial_state_key: parsed.partial_state_key,
             })),

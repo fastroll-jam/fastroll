@@ -113,7 +113,7 @@ pub struct LeafRemoveContext {
 
 impl Display for LeafRemoveContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let sibling_leaf_hash = match self.sibling_leaf_hash {
+        let sibling_leaf_hash = match &self.sibling_leaf_hash {
             Some(hash) => format!("{hash}"),
             None => String::from("None"),
         };
@@ -162,10 +162,10 @@ impl FullBranchHistory {
     ) -> Self {
         Self {
             curr: FullBranchSnapshot {
-                hash: root,
+                hash: root.clone(),
                 navigate_to: ChildType::from_bit(first_bit),
-                left_child,
-                right_child,
+                left_child: left_child.clone(),
+                right_child: right_child.clone(),
             },
             prev: FullBranchSnapshot {
                 hash: root,
@@ -179,10 +179,10 @@ impl FullBranchHistory {
     /// Update the `prev` snapshot to be what the `curr` was, and then set `curr` to a new snapshot.
     pub(crate) fn update(&mut self, node_hash: Hash32, bit: bool, left: Hash32, right: Hash32) {
         // shift `curr` into `prev`
-        self.prev.hash = self.curr.hash;
+        self.prev.hash = self.curr.hash.clone();
         self.prev.navigate_to = self.curr.navigate_to;
-        self.prev.left_child = self.curr.left_child;
-        self.prev.right_child = self.curr.right_child;
+        self.prev.left_child = self.curr.left_child.clone();
+        self.prev.right_child = self.curr.right_child.clone();
 
         // set up `curr`
         self.curr.hash = node_hash;

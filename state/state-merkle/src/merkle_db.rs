@@ -47,7 +47,7 @@ impl WorkingSet {
     }
 
     pub fn root(&self) -> Hash32 {
-        *self.root.lock().unwrap()
+        self.root.lock().unwrap().clone()
     }
 
     /// Retrieves a node that might be uncommitted in the working set.
@@ -58,7 +58,7 @@ impl WorkingSet {
 
     /// Inserts or updates a Merkle node in the working set, so subsequent lookups see it.
     pub fn insert_node(&self, node: MerkleNode) {
-        self.nodes.insert(node.hash, node);
+        self.nodes.insert(node.hash.clone(), node);
     }
 
     pub fn update_root(&self, new_root: Hash32) {
@@ -101,7 +101,7 @@ impl MerkleDB {
     }
 
     pub fn root(&self) -> Hash32 {
-        *self.root.lock().unwrap()
+        self.root.lock().unwrap().clone()
     }
 
     pub fn update_root(&self, new_root: Hash32) {
@@ -270,7 +270,7 @@ impl MerkleDB {
                 // Add a single leaf node as the root
                 let node_data = NodeCodec::encode_leaf(k, v)?;
                 let node_hash = hash::<Blake2b256>(&node_data)?;
-                let new_leaf = MerkleNode::new(node_hash, node_data);
+                let new_leaf = MerkleNode::new(node_hash.clone(), node_data);
 
                 let maybe_state_db_write =
                     if let NodeType::Leaf(LeafType::Regular) = new_leaf.check_node_type()? {
@@ -318,8 +318,11 @@ impl MerkleDB {
             match current_node.check_node_type()? {
                 NodeType::Branch(branch_type) => {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
-                    let (child_hash, sibling_child_hash) =
-                        if b { (&right, &left) } else { (&left, &right) };
+                    let (child_hash, sibling_child_hash) = if b {
+                        (right.clone(), left.clone())
+                    } else {
+                        (left.clone(), right.clone())
+                    };
 
                     // Reached endpoint of the traversal.
                     //
@@ -327,13 +330,13 @@ impl MerkleDB {
                     // add a new leaf node diverging from that branch, we should insert the
                     // current node as an affected node with relevant context data for the
                     // `Add` write operation.
-                    if child_hash == &Hash32::default() && branch_type.has_single_child() {
-                        if let MerkleWriteOp::Add(state_key, state_val) = &write_op {
+                    if child_hash == Hash32::default() && branch_type.has_single_child() {
+                        if let MerkleWriteOp::Add(state_key, state_val) = write_op {
                             let endpoint = Self::create_add_branch_endpoint(
                                 &current_node,
                                 b,
                                 state_key,
-                                state_val,
+                                &state_val,
                                 depth,
                                 sibling_child_hash,
                             );
@@ -378,7 +381,7 @@ impl MerkleDB {
                     );
 
                     // Update local state variables for the next iteration (move forward along the merkle path).
-                    let Some(node) = self.get_node_with_working_set(child_hash).await? else {
+                    let Some(node) = self.get_node_with_working_set(&child_hash).await? else {
                         return Err(StateMerkleError::NodeNotFound);
                     };
                     current_node = node;
@@ -405,7 +408,7 @@ impl MerkleDB {
                             // new leaf node to be `Add`ed.
                             let endpoint = Self::create_add_leaf_endpoint(
                                 &current_node,
-                                state_key,
+                                state_key.clone(),
                                 state_val,
                                 depth,
                                 partial_merkle_path,
@@ -417,7 +420,7 @@ impl MerkleDB {
                             // Reached endpoint of the traversal.
                             let endpoint = Self::create_update_leaf_endpoint(
                                 &current_node,
-                                state_key,
+                                state_key.clone(),
                                 state_val,
                                 depth,
                             );
@@ -441,18 +444,18 @@ impl MerkleDB {
     fn create_add_branch_endpoint(
         current_node: &MerkleNode,
         child_side: bool,
-        state_key: &Hash32,
+        state_key: Hash32,
         state_val: &[u8],
         depth: usize,
-        sibling_child_hash: &Hash32,
+        sibling_child_hash: Hash32,
     ) -> AffectedNode {
         AffectedNode::Endpoint(AffectedEndpoint {
-            hash: current_node.hash,
+            hash: current_node.hash.clone(),
             depth,
             leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
-                leaf_state_key: *state_key,
+                leaf_state_key: state_key,
                 leaf_state_val: state_val.to_vec(),
-                sibling_candidate_hash: *sibling_child_hash,
+                sibling_candidate_hash: sibling_child_hash,
                 added_leaf_child_side: ChildType::from_bit(child_side),
                 leaf_split_context: None, // No need to handle path decompression in this case.
             }),
@@ -465,7 +468,7 @@ impl MerkleDB {
         remove_ctx: LeafRemoveContext,
     ) -> AffectedNode {
         AffectedNode::Endpoint(AffectedEndpoint {
-            hash: current_node.hash, // post parent node
+            hash: current_node.hash.clone(), // post parent node
             depth,
             leaf_write_op_context: LeafWriteOpContext::Remove(remove_ctx),
         })
@@ -473,7 +476,7 @@ impl MerkleDB {
 
     fn create_add_leaf_endpoint(
         current_node: &MerkleNode,
-        state_key: &Hash32,
+        state_key: Hash32,
         state_val: &[u8],
         depth: usize,
         partial_merkle_path: BitVec,
@@ -482,12 +485,12 @@ impl MerkleDB {
         // of the new leaf node being added, extracted from its node data.
         let leaf_state_key_248 = current_node.extract_partial_leaf_state_key()?;
         Ok(AffectedNode::Endpoint(AffectedEndpoint {
-            hash: current_node.hash,
+            hash: current_node.hash.clone(),
             depth,
             leaf_write_op_context: LeafWriteOpContext::Add(LeafAddContext {
-                leaf_state_key: *state_key,
+                leaf_state_key: state_key.clone(),
                 leaf_state_val: state_val.to_vec(),
-                sibling_candidate_hash: current_node.hash,
+                sibling_candidate_hash: current_node.hash.clone(),
                 added_leaf_child_side: added_leaf_child_side(state_key, &leaf_state_key_248)?,
                 leaf_split_context: Some(LeafSplitContext {
                     partial_merkle_path,
@@ -499,17 +502,17 @@ impl MerkleDB {
 
     fn create_update_leaf_endpoint(
         current_node: &MerkleNode,
-        state_key: &Hash32,
+        state_key: Hash32,
         state_val: &[u8],
         depth: usize,
     ) -> AffectedNode {
         AffectedNode::Endpoint(AffectedEndpoint {
-            hash: current_node.hash,
+            hash: current_node.hash.clone(),
             depth,
             leaf_write_op_context: LeafWriteOpContext::Update(LeafUpdateContext {
-                leaf_state_key: *state_key,
+                leaf_state_key: state_key,
                 leaf_state_val: state_val.to_vec(),
-                leaf_prior_hash: current_node.hash, // node hash before the `Update`
+                leaf_prior_hash: current_node.hash.clone(), // node hash before the `Update`
             }),
         })
     }
@@ -570,7 +573,7 @@ impl MerkleDB {
                     let (left, right) = NodeCodec::decode_branch(&current_node, self).await?;
 
                     if let BranchType::Full = branch_type {
-                        branch_history.update(current_node.hash, b, left, right);
+                        branch_history.update(current_node.hash, b, left.clone(), right.clone());
                     }
 
                     let (child_hash, sibling_hash) = if b { (right, left) } else { (left, right) };

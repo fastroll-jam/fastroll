@@ -20,7 +20,7 @@ pub enum BlockSealError {
 /// Verifies output hash of the block seal matches the ticket used for the author selection.
 pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
     let seal_output_hash = seal.output_hash();
-    let ticket_output_hash = ticket.id;
+    let ticket_output_hash = ticket.id.clone();
     seal_output_hash == ticket_output_hash
 }
 

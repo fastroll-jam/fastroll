@@ -26,7 +26,6 @@ impl_simple_state_component!(AuthPool, AuthPool);
 impl Default for AuthPool {
     fn default() -> Self {
         let arr = from_fn(|_| Vec::with_capacity(MAX_AUTH_POOL_SIZE));
-
         Self(Box::new(arr))
     }
 }
@@ -63,6 +62,7 @@ impl_simple_state_component!(AuthQueue, AuthQueue);
 
 impl Default for AuthQueue {
     fn default() -> Self {
-        Self(Box::new([[Hash32::default(); AUTH_QUEUE_SIZE]; CORE_COUNT]))
+        let arr = from_fn(|_| from_fn(|_| Hash32::default()));
+        Self(Box::new(arr))
     }
 }

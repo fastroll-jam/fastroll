@@ -102,7 +102,7 @@ impl StateManager {
         }
 
         self.cache.insert_entry(
-            *state_key,
+            state_key.clone(),
             CacheEntry {
                 clean_snapshot: StateEntryType::Raw(state_val.clone()),
                 value: StateEntryType::Raw(state_val),
@@ -123,7 +123,7 @@ impl StateManager {
             .await?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
         self.cache.insert_entry(
-            *state_key,
+            state_key.clone(),
             CacheEntry {
                 clean_snapshot: StateEntryType::Raw(old_state),
                 value: StateEntryType::Raw(new_val),
@@ -143,7 +143,7 @@ impl StateManager {
             .await?
             .ok_or(StateManagerError::StateKeyNotInitialized)?;
         self.cache.insert_entry(
-            *state_key,
+            state_key.clone(),
             CacheEntry {
                 value: StateEntryType::Raw(vec![]),
                 clean_snapshot: StateEntryType::Raw(old_state),
@@ -195,8 +195,10 @@ impl StateManager {
     where
         T: StateComponent,
     {
-        self.cache
-            .insert_entry(*state_key, CacheEntry::new(T::into_entry_type(state_entry)));
+        self.cache.insert_entry(
+            state_key.clone(),
+            CacheEntry::new(T::into_entry_type(state_entry)),
+        );
     }
 
     pub fn clear_state_cache(&self) {
@@ -288,7 +290,7 @@ impl StateManager {
         };
         let preimage_length = preimage.len() as u32;
         let lookup_timeslots = match self
-            .get_account_lookups_entry(service_id, &(*preimage_hash, preimage_length))
+            .get_account_lookups_entry(service_id, &(preimage_hash.clone(), preimage_length))
             .await?
         {
             Some(lookup_timeslots) => lookup_timeslots.value,
@@ -440,7 +442,7 @@ impl StateManager {
 
         // Update the merkle root of the MerkleDB
         self.merkle_db
-            .update_root(merkle_db_write_set.get_new_root());
+            .update_root(merkle_db_write_set.get_new_root().clone());
         tracing::debug!(
             "Merkle root updated: {}",
             &merkle_db_write_set.get_new_root()
@@ -501,7 +503,7 @@ impl StateManager {
 
             // Update the WorkingSet root
             self.merkle_db
-                .update_root(merkle_db_write_set.get_new_root());
+                .update_root(merkle_db_write_set.get_new_root().clone());
             tracing::debug!(
                 "Merkle root updated: {}",
                 &merkle_db_write_set.get_new_root()
@@ -632,7 +634,7 @@ impl StateManager {
 
         let state_entry_type = state_entry.into_entry_type();
         self.cache.insert_entry(
-            *state_key,
+            state_key.clone(),
             CacheEntry {
                 clean_snapshot: state_entry_type.clone(),
                 value: state_entry_type,

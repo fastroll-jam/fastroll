@@ -175,7 +175,7 @@ mod accumulate {
             }
 
             Output::ok(AsnOpaqueHash::from(
-                transition_output.unwrap().accumulate_root,
+                transition_output.unwrap().accumulate_root.clone(),
             ))
         }
 
@@ -191,7 +191,8 @@ mod accumulate {
 
             // Get the posterior state from the state cache.
             let curr_timeslot = state_manager.get_timeslot().await?;
-            let curr_entropy = state_manager.get_epoch_entropy().await?.current();
+            let epoch_entropy = state_manager.get_epoch_entropy().await?;
+            let curr_entropy = epoch_entropy.current();
             let curr_acc_queue = state_manager.get_accumulate_queue().await?;
             let curr_acc_history = state_manager.get_accumulate_history().await?;
             let curr_privileged_services = state_manager.get_privileged_services().await?;
@@ -232,7 +233,7 @@ mod accumulate {
 
             Ok(State {
                 slot: curr_timeslot.slot(),
-                entropy: curr_entropy.into(),
+                entropy: curr_entropy.clone().into(),
                 ready_queue: curr_acc_queue.into(),
                 accumulated: curr_acc_history.into(),
                 privileges: curr_privileged_services.into(),

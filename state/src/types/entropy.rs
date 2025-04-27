@@ -26,22 +26,22 @@ impl Display for EpochEntropy {
 
 impl EpochEntropy {
     /// Entropy value of the current epoch, accumulated with VRF signatures from each block header
-    pub fn current(&self) -> Hash32 {
-        self.0[0]
+    pub fn current(&self) -> &Hash32 {
+        &self.0[0]
     }
 
     /// The first historical epoch entropy
-    pub fn first_history(&self) -> Hash32 {
-        self.0[1]
+    pub fn first_history(&self) -> &Hash32 {
+        &self.0[1]
     }
 
     /// The second historical epoch entropy
-    pub fn second_history(&self) -> Hash32 {
-        self.0[2]
+    pub fn second_history(&self) -> &Hash32 {
+        &self.0[2]
     }
 
     /// The third historical epoch entropy
-    pub fn third_history(&self) -> Hash32 {
-        self.0[3]
+    pub fn third_history(&self) -> &Hash32 {
+        &self.0[3]
     }
 }

@@ -33,7 +33,7 @@ pub async fn transition_auth_pool(
                 // Remove the oldest authorizer hash from the pool that matches the used one for the
                 // current core in this block.
                 if let Some(auth_hash) = report_used_core {
-                    if let Some(index) = core_pool.iter().position(|&hash| hash == auth_hash) {
+                    if let Some(index) = core_pool.iter().position(|hash| hash == auth_hash) {
                         core_pool.remove(index);
                     }
                 }
@@ -41,7 +41,7 @@ pub async fn transition_auth_pool(
                 // Appends an authorizer hash entry from the queue to the pool.
                 let effective_current_timeslot_index =
                     header_timeslot.slot() as usize % AUTH_QUEUE_SIZE;
-                let queue_entry = auth_queue.0[core][effective_current_timeslot_index];
+                let queue_entry = auth_queue.0[core][effective_current_timeslot_index].clone();
 
                 if core_pool.len() == MAX_AUTH_POOL_SIZE {
                     core_pool.remove(0);

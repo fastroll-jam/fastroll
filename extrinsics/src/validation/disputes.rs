@@ -77,7 +77,7 @@ impl<'a> DisputesXtValidator<'a> {
         // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
             // Check for duplicate entry (report_hash)
-            if !verdicts_hashes.insert(verdict.report_hash) {
+            if !verdicts_hashes.insert(verdict.report_hash.clone()) {
                 return Err(XtError::DuplicateVerdict);
             }
 
@@ -100,7 +100,7 @@ impl<'a> DisputesXtValidator<'a> {
         // Validate each culprit entry
         for culprit in extrinsic.culprits.iter() {
             // Check for duplicate entry (validator_key)
-            if !culprits_hashes.insert(culprit.validator_key) {
+            if !culprits_hashes.insert(culprit.validator_key.clone()) {
                 return Err(XtError::DuplicateCulprit);
             }
 
@@ -110,7 +110,7 @@ impl<'a> DisputesXtValidator<'a> {
         // Validate each fault entry
         for fault in extrinsic.faults.iter() {
             // Check for duplicate entry (validator_key)
-            if !faults_hashes.insert(fault.validator_key) {
+            if !faults_hashes.insert(fault.validator_key.clone()) {
                 return Err(XtError::DuplicateFault);
             }
 
@@ -219,7 +219,7 @@ impl<'a> DisputesXtValidator<'a> {
             let voter_public_key = validator_set
                 .get_validator_ed25519_key(judgment.voter)
                 .ok_or(XtError::InvalidValidatorIndex)?;
-            let ed25519_verifier = Ed25519Verifier::new(*voter_public_key);
+            let ed25519_verifier = Ed25519Verifier::new(voter_public_key.clone());
             if !ed25519_verifier.verify_message(message, &judgment.voter_signature) {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));
             }
@@ -261,7 +261,7 @@ impl<'a> DisputesXtValidator<'a> {
         message.extend_from_slice(X_G);
         message.extend_from_slice(hash.as_slice());
 
-        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
+        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidCulpritSignature(
                 entry.validator_key.to_hex(),
@@ -318,7 +318,7 @@ impl<'a> DisputesXtValidator<'a> {
             _message
         };
 
-        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key);
+        let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidFaultSignature(entry.validator_key.to_hex()));
         }

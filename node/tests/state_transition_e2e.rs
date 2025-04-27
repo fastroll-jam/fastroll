@@ -80,7 +80,7 @@ async fn init_with_prev_state(
     add_all_simple_state_entries(&state_manager).await?;
     state_manager.commit_dirty_cache().await?;
     let prev_state_root = state_manager.merkle_root();
-    header_db.set_parent_state_root(&prev_state_root)?;
+    header_db.set_parent_state_root(prev_state_root.clone())?;
     tracing::info!("Prev State Root: {}", prev_state_root);
     Ok((header_db, state_manager))
 }
@@ -96,7 +96,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     tracing::info!("Parent header hash: {}", parent_hash);
 
     // Initialize prev state
-    let (mut header_db, state_manager) = init_with_prev_state(parent_hash).await?;
+    let (mut header_db, state_manager) = init_with_prev_state(parent_hash.clone()).await?;
 
     // Set block author index
     header_db.set_block_author_index(get_author_index())?;
@@ -307,7 +307,8 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .await?
         .slot_sealers
         .get_slot_sealer(&curr_timeslot);
-    let curr_entropy_3 = state_manager.get_epoch_entropy().await?.third_history();
+    let epoch_entropy = state_manager.get_epoch_entropy().await?;
+    let curr_entropy_3 = epoch_entropy.third_history();
 
     // Set header markers
     header_db.set_offenders_marker(&offenders_marker?)?;
@@ -327,10 +328,10 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let secret_key = BandersnatchSecretKey(ByteArray::default()); // FIXME: properly handle secret keys
     let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
-            sign_block_seal(header_data, &ticket, &curr_entropy_3, &secret_key)?
+            sign_block_seal(header_data, &ticket, curr_entropy_3, &secret_key)?
         }
         SlotSealer::BandersnatchPubKeys(_key) => {
-            sign_fallback_block_seal(header_data, &curr_entropy_3, &secret_key)?
+            sign_fallback_block_seal(header_data, curr_entropy_3, &secret_key)?
         }
     };
 

@@ -5,7 +5,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
     /// **`y`**: The ticket identifier, which is the `Y` output hash of the Ring VRF proof from `TicketsXtEntry`.
     pub id: Hash32,

@@ -53,7 +53,7 @@ impl<'a> PreimagesXtValidator<'a> {
         let service_id = entry.service_id;
         let preimage_data_len = entry.preimage_data_len();
         let preimage_data_hash = hash::<Blake2b256>(&entry.preimage_data)?;
-        let lookups_key = &(preimage_data_hash, preimage_data_len as u32);
+        let lookups_key = &(preimage_data_hash.clone(), preimage_data_len as u32);
 
         // Preimage must not be already integrated
         if self

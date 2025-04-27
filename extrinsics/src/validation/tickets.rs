@@ -55,16 +55,13 @@ impl<'a> TicketsXtValidator<'a> {
         }
 
         let pending_set = self.state_manger.get_safrole().await?.pending_set;
-        let entropy_2 = self
-            .state_manger
-            .get_epoch_entropy()
-            .await?
-            .second_history();
+        let epoch_entropy = self.state_manger.get_epoch_entropy().await?;
+        let entropy_2 = epoch_entropy.second_history();
         let verifier = RingVrfVerifier::new(pending_set);
 
         // Validate each entry
         for entry in extrinsic.iter() {
-            self.validate_entry(entry, &verifier, &entropy_2)?;
+            self.validate_entry(entry, &verifier, entropy_2)?;
         }
 
         Ok(())

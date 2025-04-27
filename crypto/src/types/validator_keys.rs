@@ -94,6 +94,14 @@ impl ValidatorKeySet {
             .map(|v| &v.ed25519_key)
     }
 
+    pub fn get_validator_bandersnatch_key(
+        &self,
+        validator_index: ValidatorIndex,
+    ) -> Option<&BandersnatchPubKey> {
+        self.get_validator_key(validator_index)
+            .map(|v| &v.bandersnatch_key)
+    }
+
     fn get_validator_key(&self, validator_index: ValidatorIndex) -> Option<&ValidatorKey> {
         if validator_index as usize >= VALIDATOR_COUNT {
             return None;

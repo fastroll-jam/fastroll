@@ -106,7 +106,7 @@ impl<'a> AssurancesXtValidator<'a> {
             .get_validator_ed25519_key(entry.validator_index)
             .ok_or(XtError::InvalidValidatorIndex)?;
 
-        let ed25519_verifier = Ed25519Verifier::new(*assurer_public_key);
+        let ed25519_verifier = Ed25519Verifier::new(assurer_public_key.clone());
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidAssuranceSignature(entry.validator_index));
         }

@@ -84,9 +84,9 @@ impl DisputesXt {
 
         for verdict in &self.verdicts {
             match verdict.evaluate_verdict() {
-                VerdictEvaluation::IsGood => good_set.push(verdict.report_hash),
-                VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash),
-                VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash),
+                VerdictEvaluation::IsGood => good_set.push(verdict.report_hash.clone()),
+                VerdictEvaluation::IsBad => bad_set.push(verdict.report_hash.clone()),
+                VerdictEvaluation::IsWonky => wonky_set.push(verdict.report_hash.clone()),
                 _ => (),
             };
         }
@@ -98,12 +98,12 @@ impl DisputesXt {
         let mut offenders_keys: Vec<Ed25519PubKey> = self
             .culprits
             .iter()
-            .map(|culprit| culprit.validator_key)
+            .map(|culprit| culprit.validator_key.clone())
             .collect();
         let faults_keys: Vec<Ed25519PubKey> = self
             .faults
             .iter()
-            .map(|fault| fault.validator_key)
+            .map(|fault| fault.validator_key.clone())
             .collect();
 
         offenders_keys.extend(faults_keys);
@@ -116,14 +116,14 @@ impl DisputesXt {
     pub fn culprits_keys(&self) -> Vec<Ed25519PubKey> {
         self.culprits
             .iter()
-            .map(|culprit| culprit.validator_key)
+            .map(|culprit| culprit.validator_key.clone())
             .collect()
     }
 
     pub fn faults_keys(&self) -> Vec<Ed25519PubKey> {
         self.faults
             .iter()
-            .map(|fault| fault.validator_key)
+            .map(|fault| fault.validator_key.clone())
             .collect()
     }
 }

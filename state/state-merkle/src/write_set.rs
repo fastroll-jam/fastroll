@@ -86,8 +86,8 @@ impl MerkleDBWriteSet {
         }
     }
 
-    pub fn get_new_root(&self) -> Hash32 {
-        self.new_root
+    pub fn get_new_root(&self) -> &Hash32 {
+        &self.new_root
     }
 
     pub(crate) fn set_new_root(&mut self, new_root: Hash32) {
