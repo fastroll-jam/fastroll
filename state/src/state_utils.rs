@@ -4,7 +4,7 @@ use crate::types::{
     DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports, PrivilegedServices,
     SafroleState, StagingSet, Timeslot,
 };
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamEncodeFixed, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
 use rjam_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;

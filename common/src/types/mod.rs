@@ -1,5 +1,5 @@
 use crate::HASH_SIZE;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},

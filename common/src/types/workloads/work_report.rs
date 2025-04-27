@@ -1,9 +1,7 @@
 use crate::{
     workloads::common::RefinementContext, CoreIndex, Hash32, Octets, ServiceId, UnsignedGas,
 };
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},

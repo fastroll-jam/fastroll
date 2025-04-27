@@ -1,5 +1,5 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_crypto::{traits::VrfSignature, types::*};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 

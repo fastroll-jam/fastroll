@@ -2,7 +2,7 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 

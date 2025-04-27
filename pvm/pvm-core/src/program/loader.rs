@@ -4,7 +4,7 @@ use crate::{
     program::{instruction::opcode::Opcode, types::program_state::ProgramState},
 };
 use bit_vec::BitVec;
-use rjam_codec::JamDecode;
+use rjam_codec::prelude::*;
 use rjam_pvm_types::common::MemAddress;
 
 pub struct ProgramLoader;

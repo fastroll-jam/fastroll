@@ -5,7 +5,7 @@ use crate::{
     error::HostCallError,
     inner_vm::InnerPVM,
 };
-use rjam_codec::{JamDecodeFixed, JamEncode};
+use rjam_codec::prelude::*;
 use rjam_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_pvm_core::state::memory::Memory;

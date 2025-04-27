@@ -1,5 +1,5 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
-use rjam_codec::{JamEncode, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
 use rjam_crypto::Keccak256;
 use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;

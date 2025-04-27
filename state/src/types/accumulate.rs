@@ -3,7 +3,7 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
     types::work_report::WorkReport,
 };
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{Hash32, EPOCH_LENGTH};
 use std::{array::from_fn, collections::BTreeSet};
 

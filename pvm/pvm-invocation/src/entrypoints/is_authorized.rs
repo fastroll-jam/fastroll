@@ -1,4 +1,4 @@
-use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{
     workloads::{WorkExecutionResult, WorkPackage},
     CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,

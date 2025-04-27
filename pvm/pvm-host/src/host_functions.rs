@@ -5,7 +5,7 @@ use crate::{
     get_mut_accumulate_x, get_mut_refine_x, get_refine_x, host_call_panic,
     host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
-use rjam_codec::{JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_common::{
     Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
     MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,

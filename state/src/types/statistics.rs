@@ -3,9 +3,7 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use rjam_block::types::extrinsics::preimages::PreimagesXtEntry;
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 use rjam_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
     VALIDATOR_COUNT,

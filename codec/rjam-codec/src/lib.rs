@@ -18,6 +18,13 @@ use std::{
 };
 use thiserror::Error;
 
+pub mod prelude {
+    pub use crate::{
+        JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
+        SizeUnit,
+    };
+}
+
 /// JAM codec error types.
 #[derive(Debug, Error)]
 pub enum JamCodecError {

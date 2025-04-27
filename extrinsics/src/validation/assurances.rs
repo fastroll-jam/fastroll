@@ -1,6 +1,6 @@
 use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
-use rjam_codec::{JamEncode, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
 use rjam_crypto::{
     hash,

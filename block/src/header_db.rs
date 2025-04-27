@@ -3,7 +3,7 @@ use crate::types::{
     extrinsics::{disputes::OffendersHeaderMarker, Extrinsics, ExtrinsicsError},
 };
 use rjam_clock::Clock;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode};
+use rjam_codec::prelude::*;
 use rjam_common::{Hash32, ValidatorIndex};
 use rjam_crypto::types::*;
 

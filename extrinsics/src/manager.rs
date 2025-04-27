@@ -8,7 +8,7 @@ use rjam_block::types::extrinsics::{
     tickets::{TicketsXt, TicketsXtEntry},
     XtType,
 };
-use rjam_codec::JamDecode;
+use rjam_codec::prelude::*;
 
 struct XtManager;
 

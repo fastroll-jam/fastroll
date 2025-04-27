@@ -8,7 +8,7 @@ use crate::{
     utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash32, slice_bitvec},
 };
 use bit_vec::BitVec;
-use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_common::Hash32;
 use rjam_crypto::{hash, Blake2b256};
 

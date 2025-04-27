@@ -15,7 +15,7 @@ use crate::{
         PrivilegedServices, SafroleState, StagingSet, Timeslot,
     },
 };
-use rjam_codec::JamDecode;
+use rjam_codec::prelude::*;
 use rjam_common::{Hash32, LookupsKey, ServiceId};
 use rjam_crypto::octets_to_hash32;
 use rjam_db::{core::core_db::CoreDB, WriteBatch};

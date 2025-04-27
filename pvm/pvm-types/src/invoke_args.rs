@@ -1,5 +1,5 @@
 use crate::common::ExportDataSegment;
-use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
     Balance, Hash32, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,

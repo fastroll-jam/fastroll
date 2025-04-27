@@ -7,7 +7,7 @@ mod codec {
             preimages::PreimagesXt, tickets::TicketsXt, Extrinsics,
         },
     };
-    use rjam_codec::{JamDecode, JamEncode};
+    use rjam_codec::prelude::*;
     use rjam_common::workloads::{
         RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport,
     };

@@ -1,4 +1,4 @@
-use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE};
 use rjam_crypto::octets_to_hash32;
 use rjam_pvm_host::{

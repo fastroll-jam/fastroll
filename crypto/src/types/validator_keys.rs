@@ -1,4 +1,4 @@
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 
 use crate::types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey};
 use rjam_common::{ByteArray, ByteEncodable, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};

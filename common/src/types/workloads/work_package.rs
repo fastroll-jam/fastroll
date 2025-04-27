@@ -1,9 +1,7 @@
 use crate::{
     workloads::common::RefinementContext, Hash32, Octets, ServiceId, UnsignedGas, HASH_SIZE,
 };
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkPackage {

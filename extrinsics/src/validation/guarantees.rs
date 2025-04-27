@@ -2,7 +2,7 @@ use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::X
 use rjam_block::types::extrinsics::guarantees::{
     GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry,
 };
-use rjam_codec::JamEncode;
+use rjam_codec::prelude::*;
 use rjam_common::{
     workloads::{
         common::RefinementContext,

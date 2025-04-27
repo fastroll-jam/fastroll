@@ -1,6 +1,6 @@
 //! Block author actor
 use rjam_block::types::block::{BlockHeaderData, BlockSeal, VrfSig};
-use rjam_codec::{JamCodecError, JamEncode};
+use rjam_codec::prelude::*;
 use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
 use rjam_crypto::{
     traits::VrfSignature, types::BandersnatchSecretKey, vrf::bandersnatch_vrf::VrfProver,

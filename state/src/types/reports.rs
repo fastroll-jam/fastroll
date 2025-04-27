@@ -6,9 +6,7 @@ use crate::{
         Timeslot,
     },
 };
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use rjam_crypto::{hash, Blake2b256};
 use std::{

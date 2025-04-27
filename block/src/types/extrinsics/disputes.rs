@@ -1,7 +1,5 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 use rjam_common::{
     ByteEncodable, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,

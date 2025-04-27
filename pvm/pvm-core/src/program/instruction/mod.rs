@@ -2,7 +2,7 @@ pub mod opcode;
 pub mod set;
 
 use crate::{error::VMCoreError, program::instruction::opcode::Opcode, utils::VMUtils};
-use rjam_codec::JamDecodeFixed;
+use rjam_codec::prelude::*;
 use rjam_pvm_types::{common::RegValue, constants::REGISTERS_COUNT};
 
 #[derive(Debug, Default)]

@@ -1,5 +1,5 @@
 //! MerkleDB Integration Tests
-use rjam_codec::JamDecode;
+use rjam_codec::prelude::*;
 use rjam_common::utils::tracing::setup_timed_tracing;
 use rjam_state::{
     cache::StateMut,

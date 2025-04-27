@@ -1,5 +1,5 @@
 use crate::common::MerkleError;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{Hash32, HASH_SIZE};
 use rjam_crypto::hash::{hash, Hasher, Keccak256};
 use std::marker::PhantomData;

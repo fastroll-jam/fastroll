@@ -5,7 +5,7 @@ use crate::{
     vrf::vrf_core::{IetfVrfSignature, RingVrfSignature},
 };
 use ark_vrf::reexports::ark_serialize::CanonicalDeserialize;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{ByteArray, ByteEncodable, CommonTypeError, Hash32};
 
 /// 96-byte Bandersnatch signature type.

@@ -1,5 +1,5 @@
 use crate::Hash32;
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},

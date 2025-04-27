@@ -1,4 +1,4 @@
-use rjam_codec::{JamCodecError, JamEncode, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{
     workloads::{RefinementContext, WorkExecutionResult},
     Hash32, Octets, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE,

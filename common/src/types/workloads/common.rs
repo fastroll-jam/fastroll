@@ -1,7 +1,5 @@
 use crate::Hash32;
-use rjam_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use rjam_codec::prelude::*;
 use std::{
     collections::BTreeSet,
     fmt::{Display, Formatter},

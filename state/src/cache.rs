@@ -3,7 +3,7 @@ use crate::{
     state_utils::{StateComponent, StateEntryType},
 };
 use dashmap::DashMap;
-use rjam_codec::JamEncode;
+use rjam_codec::prelude::*;
 use rjam_common::Hash32;
 use rjam_state_merkle::merkle_db::MerkleWriteOp;
 

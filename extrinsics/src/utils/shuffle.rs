@@ -1,4 +1,4 @@
-use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_common::Hash32;
 use rjam_crypto::Blake2b256;
 

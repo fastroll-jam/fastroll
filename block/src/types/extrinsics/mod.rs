@@ -2,7 +2,7 @@ use crate::types::extrinsics::{
     assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
     preimages::PreimagesXt, tickets::TicketsXt,
 };
-use rjam_codec::{JamCodecError, JamDecode, JamEncode, JamInput, JamOutput};
+use rjam_codec::prelude::*;
 use rjam_common::{workloads::work_report::WorkReportError, Hash32};
 use rjam_crypto::{
     error::CryptoError,

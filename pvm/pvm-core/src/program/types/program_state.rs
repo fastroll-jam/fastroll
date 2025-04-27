@@ -1,6 +1,6 @@
 use crate::program::instruction::opcode::Opcode;
 use bit_vec::BitVec;
-use rjam_codec::{JamCodecError, JamDecode, JamDecodeFixed, JamInput};
+use rjam_codec::prelude::*;
 use rjam_pvm_types::common::MemAddress;
 use std::collections::HashSet;
 

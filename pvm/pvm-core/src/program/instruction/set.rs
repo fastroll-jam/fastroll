@@ -8,7 +8,7 @@ use crate::{
     },
     utils::VMUtils,
 };
-use rjam_codec::{JamDecodeFixed, JamEncodeFixed};
+use rjam_codec::prelude::*;
 use rjam_pvm_types::{
     common::{MemAddress, RegValue},
     constants::JUMP_ALIGNMENT,
