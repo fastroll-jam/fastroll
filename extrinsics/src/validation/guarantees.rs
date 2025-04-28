@@ -22,7 +22,7 @@ use rjam_state::{
     manager::StateManager,
     types::{AuthPool, BlockHistory, PendingReports},
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 // TODO: Add validation over gas allocation.
 
 /// Validates contents of `GuaranteesXt` type.
@@ -63,12 +63,12 @@ use std::collections::HashSet;
 ///     the hash of the work-report, signed by the public key corresponding to the validator index.
 ///   - The validator who signs the credential must be assigned to the core in question, either in
 ///     the current guarantor assignment rotation or in the previous rotation.
-pub struct GuaranteesXtValidator<'a> {
-    state_manager: &'a StateManager,
+pub struct GuaranteesXtValidator {
+    state_manager: Arc<StateManager>,
 }
 
-impl<'a> GuaranteesXtValidator<'a> {
-    pub fn new(state_manager: &'a StateManager) -> Self {
+impl GuaranteesXtValidator {
+    pub fn new(state_manager: Arc<StateManager>) -> Self {
         Self { state_manager }
     }
 
@@ -512,9 +512,15 @@ impl<'a> GuaranteesXtValidator<'a> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
         if within_same_rotation {
-            Ok(GuarantorAssignment::current_guarantor_assignments(self.state_manager).await?)
+            Ok(
+                GuarantorAssignment::current_guarantor_assignments(self.state_manager.as_ref())
+                    .await?,
+            )
         } else {
-            Ok(GuarantorAssignment::previous_guarantor_assignments(self.state_manager).await?)
+            Ok(
+                GuarantorAssignment::previous_guarantor_assignments(self.state_manager.as_ref())
+                    .await?,
+            )
         }
     }
 }

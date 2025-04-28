@@ -11,7 +11,7 @@ use rjam_state::{
     manager::StateManager,
     types::{ActiveSet, PastSet, Timeslot, ValidatorSet},
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 /// Validates contents of `DisputesXt` type.
 ///
@@ -38,12 +38,12 @@ use std::collections::HashSet;
 ///     - Offender signatures must be valid Ed25519 signatures of the work report hash,
 ///       similar to the validation of `verdicts`.
 ///     - Offenders whose work reports are already in the punish-set must be excluded.
-pub struct DisputesXtValidator<'a> {
-    state_manager: &'a StateManager,
+pub struct DisputesXtValidator {
+    state_manager: Arc<StateManager>,
 }
 
-impl<'a> DisputesXtValidator<'a> {
-    pub fn new(state_manager: &'a StateManager) -> Self {
+impl DisputesXtValidator {
+    pub fn new(state_manager: Arc<StateManager>) -> Self {
         Self { state_manager }
     }
 

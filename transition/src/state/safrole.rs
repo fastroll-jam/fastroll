@@ -133,7 +133,7 @@ async fn handle_ticket_accumulation(
     }
 
     // Validate ticket extrinsic data.
-    let ticket_validator = TicketsXtValidator::new(&state_manager);
+    let ticket_validator = TicketsXtValidator::new(state_manager.clone());
     ticket_validator.validate(tickets_xt).await?;
 
     // Construct new tickets from ticket extrinsics.

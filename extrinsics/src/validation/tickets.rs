@@ -6,6 +6,7 @@ use rjam_common::{
 };
 use rjam_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
 use rjam_state::manager::StateManager;
+use std::sync::Arc;
 
 /// Validate contents of `TicketsXt` type.
 ///
@@ -25,12 +26,12 @@ use rjam_state::manager::StateManager;
 ///   - Each entry's `ticket_proof` must be a valid Bandersnatch RingVRF proof, using the `ring_root`
 ///     retrieved from the `SafroleState` and a context that includes the secondary history component
 ///     of the current entropy state and the ticket attempt identifier.
-pub struct TicketsXtValidator<'a> {
-    state_manger: &'a StateManager,
+pub struct TicketsXtValidator {
+    state_manger: Arc<StateManager>,
 }
 
-impl<'a> TicketsXtValidator<'a> {
-    pub fn new(state_manger: &'a StateManager) -> Self {
+impl TicketsXtValidator {
+    pub fn new(state_manger: Arc<StateManager>) -> Self {
         Self { state_manger }
     }
 

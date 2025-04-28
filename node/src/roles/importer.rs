@@ -1,3 +1,4 @@
+use crate::utils::spawn_timed;
 use rjam_block::{
     header_db::BlockHeaderDB,
     types::{block::Block, extrinsics::ExtrinsicsError},
@@ -10,6 +11,7 @@ use rjam_extrinsics::validation::{
 use rjam_state::{error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::try_join;
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
@@ -21,6 +23,8 @@ pub enum BlockImportError {
     XtError(#[from] XtError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("Tokio join error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 #[allow(dead_code)]
@@ -74,39 +78,50 @@ impl BlockImporter {
         let prior_timeslot = self.state_manager.get_timeslot_clean().await?;
         let curr_timeslot_index = self.block.header.timeslot_index();
 
-        // Clone Xt types to spawn async tasks
-        // let tickets = self.block.extrinsics.tickets.clone();
-        // let preimages = self.block.extrinsics.preimages.clone();
-        // let guarantees = self.block.extrinsics.guarantees.clone();
-        // let assurances = self.block.extrinsics.assurances.clone();
-        // let disputes = self.block.extrinsics.disputes.clone();
+        // Clone necessary data to spawn async tasks
+        let parent_hash = self.block.header.parent_hash().clone();
+        let tickets = self.block.extrinsics.tickets.clone();
+        let preimages = self.block.extrinsics.preimages.clone();
+        let guarantees = self.block.extrinsics.guarantees.clone();
+        let assurances = self.block.extrinsics.assurances.clone();
+        let disputes = self.block.extrinsics.disputes.clone();
 
-        let tickets_validator = TicketsXtValidator::new(self.state_manager.as_ref());
-        let preimages_validator = PreimagesXtValidator::new(self.state_manager.as_ref());
-        let guarantees_validator = GuaranteesXtValidator::new(self.state_manager.as_ref());
-        let assurances_validator = AssurancesXtValidator::new(self.state_manager.as_ref());
-        let disputes_validator = DisputesXtValidator::new(self.state_manager.as_ref());
+        let tickets_validator = TicketsXtValidator::new(self.state_manager.clone());
+        let preimages_validator = PreimagesXtValidator::new(self.state_manager.clone());
+        let guarantees_validator = GuaranteesXtValidator::new(self.state_manager.clone());
+        let assurances_validator = AssurancesXtValidator::new(self.state_manager.clone());
+        let disputes_validator = DisputesXtValidator::new(self.state_manager.clone());
 
-        // TODO: spawn tasks, update Xt validators to hold Arc<StateManager>
-        tickets_validator
-            .validate(&self.block.extrinsics.tickets)
-            .await?;
-        preimages_validator
-            .validate(&self.block.extrinsics.preimages)
-            .await?;
-        guarantees_validator
-            .validate(&self.block.extrinsics.guarantees, curr_timeslot_index)
-            .await?;
-        assurances_validator
-            .validate(
-                &self.block.extrinsics.assurances,
-                self.block.header.parent_hash(),
-            )
-            .await?;
-        disputes_validator
-            .validate(&self.block.extrinsics.disputes, &prior_timeslot)
-            .await?;
+        let tickets_jh = spawn_timed("validate_tickets", async move {
+            tickets_validator.validate(&tickets).await
+        });
+        let preimages_jh = spawn_timed("validate_preimages", async move {
+            preimages_validator.validate(&preimages).await
+        });
+        let guarantees_jh = spawn_timed("validate_guarantees", async move {
+            guarantees_validator
+                .validate(&guarantees, curr_timeslot_index)
+                .await
+        });
+        let assurances_jh = spawn_timed("validate_assurances", async move {
+            assurances_validator
+                .validate(&assurances, &parent_hash)
+                .await
+        });
+        let disputes_jh = spawn_timed("validate_disputes", async move {
+            disputes_validator
+                .validate(&disputes, &prior_timeslot)
+                .await
+        });
 
+        #[allow(unused_must_use)]
+        try_join!(
+            tickets_jh,
+            preimages_jh,
+            guarantees_jh,
+            assurances_jh,
+            disputes_jh
+        )?;
         Ok(())
     }
 
