@@ -2,14 +2,16 @@
 
 use crate::roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor};
 use rjam_block::{
-    header_db::BlockHeaderDB,
+    header_db::{BlockHeaderDB, BlockHeaderDBError},
     types::{
-        block::{Block, BlockHeader, BlockHeaderData, BlockSeal, VrfSig},
+        block::{Block, BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::Extrinsics,
     },
 };
 use rjam_codec::prelude::*;
-use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
+use rjam_common::{
+    ticket::Ticket, ByteArray, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F, X_T,
+};
 use rjam_crypto::{
     traits::VrfSignature, types::BandersnatchSecretKey, vrf::bandersnatch_vrf::VrfProver,
 };
@@ -27,6 +29,10 @@ pub enum BlockAuthorError {
     CommonTypeError(#[from] CommonTypeError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("BlockExecutionError: {0}")]
     BlockExecutionError(#[from] BlockExecutionError),
 }
@@ -36,27 +42,207 @@ pub struct BlockAuthor {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
     best_header: BlockHeader,
+    author_index: ValidatorIndex,
 }
 
 #[allow(dead_code)]
 impl BlockAuthor {
-    pub async fn author_block() -> Block {
-        unimplemented!()
+    pub fn new(
+        state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
+        best_header: BlockHeader,
+        author_index: ValidatorIndex,
+    ) -> Self {
+        Self {
+            state_manager,
+            header_db,
+            best_header,
+            author_index,
+        }
     }
 
-    fn collect_extrinsics() -> Extrinsics {
-        unimplemented!()
-    }
+    pub async fn author_block(&mut self) -> Result<Block, BlockAuthorError> {
+        let extrinsics = self.collect_extrinsics()?;
+        self.prelude()?;
 
-    async fn run_state_transition(
-        &self,
-        block: Block,
-    ) -> Result<(Hash32, BlockExecutionOutput), BlockAuthorError> {
-        // TODO: Note - header fields could be not all set yet
-        let executor = BlockExecutor::new(self.state_manager.clone());
-        let output = executor.run_state_transition(&block).await?;
+        // Construct a block with some header fields missing
+        let staging_header = self
+            .header_db
+            .get_staging_header()
+            .expect("Staging header should be initialized");
+
+        let mut new_block = Block {
+            header: staging_header,
+            extrinsics,
+        };
+
+        // STF phase #1
+        let stf_output = self.run_initial_state_transition(&new_block).await?;
+        let vrf_sig = self.epilogue(stf_output.clone()).await?;
+        self.seal_block_header().await?;
+
+        // Commit block header
+        let new_header_hash = self.commit_header().await?;
+
+        self.finalize_block(&new_header_hash, &mut new_block)
+            .await?;
+
+        // STF phase #2
+        self.run_final_state_transition(new_header_hash, &vrf_sig, stf_output)
+            .await?;
+
+        // Commit the state transitions
+        // TODO: Defer more STF runs to post-header-commit.
+        // Note: Also some STFs can be run asynchronously after committing the header.
         self.state_manager.commit_dirty_cache().await?;
-        Ok((self.state_manager.merkle_root(), output))
+        tracing::info!("Post State Root: {}", self.state_manager.merkle_root());
+
+        Ok(new_block)
+    }
+
+    fn collect_extrinsics(&mut self) -> Result<Extrinsics, BlockAuthorError> {
+        // FIXME: Actually collect from the Xt store
+        let xts = Extrinsics::default();
+        self.header_db.set_extrinsic_hash(&xts)?;
+        Ok(xts)
+    }
+
+    fn load_bandersnatch_secret_key() -> BandersnatchSecretKey {
+        // FIXME: Actually load sk from keystore
+        BandersnatchSecretKey(ByteArray::default())
+    }
+
+    /// Sets header fields required for running STFs in advance.
+    fn prelude(&mut self) -> Result<(), BlockAuthorError> {
+        let parent_hash = self.best_header.hash()?;
+        tracing::info!("Parent header hash: {}", parent_hash);
+        let prior_state_root = self.state_manager.merkle_root();
+        tracing::info!("Prior state root: {}", prior_state_root);
+
+        self.header_db.set_parent_state_root(prior_state_root)?;
+        self.header_db.set_block_author_index(self.author_index)?;
+        self.header_db.set_timeslot()?;
+
+        Ok(())
+    }
+
+    async fn run_initial_state_transition(
+        &self,
+        block: &Block,
+    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
+        let executor = BlockExecutor::new(self.state_manager.clone());
+        Ok(executor.run_state_transition(block).await?)
+    }
+
+    /// Sets missing header fields with contexts produced during the STF run.
+    async fn epilogue(
+        &mut self,
+        stf_output: BlockExecutionOutput,
+    ) -> Result<VrfSig, BlockAuthorError> {
+        let author_sk = Self::load_bandersnatch_secret_key();
+
+        // Sign VRF
+        let curr_timeslot = self.state_manager.get_timeslot().await?;
+        let curr_slot_sealer = self
+            .state_manager
+            .get_safrole()
+            .await?
+            .slot_sealers
+            .get_slot_sealer(&curr_timeslot);
+        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+        let vrf_sig =
+            sign_entropy_source_vrf_signature(&curr_slot_sealer, curr_entropy_3, &author_sk)?;
+        self.header_db.set_vrf_signature(&vrf_sig)?;
+
+        // Set header markers
+        self.header_db
+            .set_offenders_marker(&stf_output.offenders_marker)?;
+        if let Some(epoch_marker) = stf_output.safrole_markers.epoch_marker.as_ref() {
+            self.header_db.set_epoch_marker(&epoch_marker)?;
+        }
+        if let Some(winning_tickets_marker) =
+            stf_output.safrole_markers.winning_tickets_marker.as_ref()
+        {
+            self.header_db
+                .set_winning_tickets_marker(&winning_tickets_marker)?;
+        }
+
+        Ok(vrf_sig)
+    }
+
+    /// Seal the block header
+    async fn seal_block_header(&mut self) -> Result<(), BlockAuthorError> {
+        let author_sk = Self::load_bandersnatch_secret_key();
+
+        let staging_header_data = self
+            .header_db
+            .get_staging_header()
+            .expect("Staging header should be initialized")
+            .header_data;
+        // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
+        let curr_timeslot = self.state_manager.get_timeslot().await?;
+        let curr_slot_sealer = self
+            .state_manager
+            .get_safrole()
+            .await?
+            .slot_sealers
+            .get_slot_sealer(&curr_timeslot);
+        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+
+        let seal = match curr_slot_sealer {
+            SlotSealer::Ticket(ticket) => {
+                sign_block_seal(staging_header_data, &ticket, curr_entropy_3, &author_sk)?
+            }
+            SlotSealer::BandersnatchPubKeys(_key) => {
+                sign_fallback_block_seal(staging_header_data, curr_entropy_3, &author_sk)?
+            }
+        };
+        self.header_db.set_block_seal(&seal)?;
+
+        Ok(())
+    }
+
+    async fn commit_header(&mut self) -> Result<Hash32, BlockAuthorError> {
+        Ok(self.header_db.commit_staging_header().await?)
+    }
+
+    async fn finalize_block(
+        &self,
+        new_header_hash: &Hash32,
+        new_block: &mut Block,
+    ) -> Result<(), BlockAuthorError> {
+        let new_header = self
+            .header_db
+            .get_header(new_header_hash)
+            .await?
+            .expect("New header should already be committed");
+        // update the block header with the final header state
+        new_block.header = new_header;
+        tracing::info!("New block created. Header hash: {new_header_hash}");
+        Ok(())
+    }
+
+    /// Runs the final two STFs.
+    /// 1. Accumulates epoch entropy (`η0′` --> `η0′`)
+    /// 2. Appends a new block history entry (`β†` --> `β′`)
+    async fn run_final_state_transition(
+        &self,
+        new_header_hash: Hash32,
+        vrf_sig: &VrfSig,
+        stf_output: BlockExecutionOutput,
+    ) -> Result<(), BlockAuthorError> {
+        let executor = BlockExecutor::new(self.state_manager.clone());
+        executor.accumulate_entropy(&vrf_sig).await?;
+        executor
+            .append_block_history(
+                new_header_hash,
+                stf_output.accumulate_root,
+                stf_output.reported_packages,
+            )
+            .await?;
+        Ok(())
     }
 }
 

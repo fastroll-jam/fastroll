@@ -5,6 +5,7 @@ use rjam_crypto::types::ValidatorKeySet;
 use rjam_state::{manager::StateManager, types::outside_in_vec};
 use std::{array::from_fn, sync::Arc};
 
+#[derive(Clone)]
 pub struct SafroleHeaderMarkers {
     pub epoch_marker: Option<EpochMarker>,
     pub winning_tickets_marker: Option<WinningTicketsMarker>,

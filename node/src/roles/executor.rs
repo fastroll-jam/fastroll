@@ -45,6 +45,7 @@ pub enum BlockExecutionError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
+#[derive(Clone)]
 pub struct BlockExecutionOutput {
     pub offenders_marker: OffendersHeaderMarker,
     pub safrole_markers: SafroleHeaderMarkers,
