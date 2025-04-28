@@ -3,12 +3,19 @@ use rjam_block::{
     header_db::BlockHeaderDB,
     types::{block::Block, extrinsics::ExtrinsicsError},
 };
+use rjam_codec::prelude::*;
+use rjam_common::{X_F, X_T};
+use rjam_crypto::{error::CryptoError, vrf::bandersnatch_vrf::VrfVerifier};
 use rjam_extrinsics::validation::{
     assurances::AssurancesXtValidator, disputes::DisputesXtValidator, error::XtError,
     guarantees::GuaranteesXtValidator, preimages::PreimagesXtValidator,
     tickets::TicketsXtValidator,
 };
-use rjam_state::{error::StateManagerError, manager::StateManager};
+use rjam_state::{
+    error::StateManagerError,
+    manager::StateManager,
+    types::{SlotSealer, Timeslot},
+};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::try_join;
@@ -17,10 +24,18 @@ use tokio::try_join;
 pub enum BlockImportError {
     #[error("Block header contains invalid xt hash")]
     InvalidXtHash,
-    #[error("ExtrinsicsError: {0}")]
-    ExtrinsicsError(#[from] ExtrinsicsError),
+    #[error("Block header contains invalid author index")]
+    InvalidAuthorIndex,
+    #[error("Block header is sealed with invalid fallback key")]
+    InvalidFallbackAuthorKey,
     #[error("XtError: {0}")]
     XtError(#[from] XtError),
+    #[error("ExtrinsicsError: {0}")]
+    ExtrinsicsError(#[from] ExtrinsicsError),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("Tokio join error: {0}")]
@@ -53,15 +68,17 @@ impl BlockImporter {
     }
 
     pub async fn validate_block(&self) -> Result<(), BlockImportError> {
-        self.validate_block_header()?;
+        self.validate_block_header().await?;
         self.validate_xts().await?;
         Ok(())
     }
 
-    fn validate_block_header(&self) -> Result<(), BlockImportError> {
+    async fn validate_block_header(&self) -> Result<(), BlockImportError> {
         self.validate_timeslot_index()?;
         self.validate_prior_state_root()?;
         self.verify_xt_hash()?;
+        self.verify_block_seal().await?;
+        self.verify_vrf_output()?;
         Ok(())
     }
 
@@ -132,7 +149,44 @@ impl BlockImporter {
         Ok(())
     }
 
-    fn verify_block_seal(&self) -> Result<(), BlockImportError> {
+    async fn verify_block_seal(&self) -> Result<(), BlockImportError> {
+        let curr_timeslot = Timeslot::new(self.block.header.timeslot_index());
+        let curr_active_set = self.state_manager.get_active_set().await?;
+        let author_index = self.block.header.author_index();
+        let author_bandersnatch_key = curr_active_set
+            .get_validator_bandersnatch_key(author_index)
+            .ok_or(BlockImportError::InvalidAuthorIndex)?;
+
+        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let entropy_3 = epoch_entropy.third_history();
+
+        let curr_safrole = self.state_manager.get_safrole().await?;
+        let vrf_input = match curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot) {
+            SlotSealer::Ticket(ticket) => {
+                let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
+                vrf_input.extend_from_slice(X_T);
+                vrf_input.extend_from_slice(entropy_3.as_slice());
+                vrf_input.push(ticket.attempt);
+                vrf_input
+            }
+            SlotSealer::BandersnatchPubKeys(key) => {
+                if &key != author_bandersnatch_key {
+                    return Err(BlockImportError::InvalidFallbackAuthorKey);
+                }
+                let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
+                vrf_input.extend_from_slice(X_F);
+                vrf_input.extend_from_slice(entropy_3.as_slice());
+                vrf_input
+            }
+        };
+        let aux_data = self.block.header.header_data.encode()?;
+
+        VrfVerifier::verify_vrf(
+            &vrf_input,
+            &aux_data,
+            &self.block.header.block_seal,
+            author_bandersnatch_key,
+        )?;
         Ok(())
     }
 
