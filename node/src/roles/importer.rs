@@ -1,4 +1,10 @@
-use crate::{roles::author::author_block_seal_is_valid, utils::spawn_timed};
+use crate::{
+    roles::{
+        author::author_block_seal_is_valid,
+        executor::{BlockExecutionError, BlockExecutor},
+    },
+    utils::spawn_timed,
+};
 use rjam_block::{
     header_db::BlockHeaderDB,
     types::{
@@ -56,6 +62,8 @@ pub enum BlockImportError {
     CryptoError(#[from] CryptoError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("BlockExecutionError: {0}")]
+    BlockExecutionError(#[from] BlockExecutionError),
     #[error("Tokio join error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
 }
@@ -270,6 +278,12 @@ impl BlockImporter {
         )?;
         Ok(())
     }
-}
 
-pub async fn run_state_transition() {}
+    async fn run_state_transition(&self) -> Result<Hash32, BlockImportError> {
+        let executor = BlockExecutor::new(self.state_manager.clone());
+        let _output = executor.run_state_transition(&self.curr_block).await?;
+        // TODO: additional validation on output
+        self.state_manager.commit_dirty_cache().await?;
+        Ok(self.state_manager.merkle_root())
+    }
+}
