@@ -314,6 +314,13 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         .header_data;
 
     let secret_key = BandersnatchSecretKey(ByteArray::default()); // FIXME: properly handle secret keys
+
+    // Set the VRF signature for the entropy source
+    let vrf_sig =
+        sign_entropy_source_vrf_signature(&curr_slot_sealer, curr_entropy_3, &secret_key)?;
+    header_db.set_vrf_signature(&vrf_sig)?;
+
+    // Seal the block
     let seal = match curr_slot_sealer {
         SlotSealer::Ticket(ticket) => {
             sign_block_seal(header_data, &ticket, curr_entropy_3, &secret_key)?
@@ -322,13 +329,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
             sign_fallback_block_seal(header_data, curr_entropy_3, &secret_key)?
         }
     };
-
-    // Seal the block
     header_db.set_block_seal(&seal)?;
-
-    // Set the VRF signature for the entropy source
-    let vrf_sig = sign_entropy_source_vrf_signature(seal, &secret_key)?;
-    header_db.set_vrf_signature(&vrf_sig)?;
 
     // Commit the staging header
     let new_header_hash = header_db.commit_staging_header().await?;
