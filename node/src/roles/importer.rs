@@ -1,7 +1,10 @@
 use crate::{roles::author::author_block_seal_is_valid, utils::spawn_timed};
 use rjam_block::{
     header_db::BlockHeaderDB,
-    types::{block::Block, extrinsics::ExtrinsicsError},
+    types::{
+        block::{Block, BlockHeader, BlockHeaderError},
+        extrinsics::ExtrinsicsError,
+    },
 };
 use rjam_codec::prelude::*;
 use rjam_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
@@ -33,10 +36,20 @@ pub enum BlockImportError {
     InvalidFallbackAuthorKey,
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
+    #[error("Best block is not found locally")]
+    BestBlockNotFound,
+    #[error("Block header contains invalid parent hash")]
+    InvalidParentHash,
+    #[error("Block header contains timeslot that is later than the current system time")]
+    TimeslotInFuture,
+    #[error("Block header contains timeslot earlier than the parent header")]
+    InvalidTimeslot,
     #[error("XtError: {0}")]
     XtError(#[from] XtError),
     #[error("ExtrinsicsError: {0}")]
     ExtrinsicsError(#[from] ExtrinsicsError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
@@ -51,6 +64,7 @@ pub enum BlockImportError {
 struct BlockImporter {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
+    best_header: BlockHeader,
     curr_block: Block,
     curr_entropy_3: Hash32,
     curr_slot_sealer: SlotSealer,
@@ -62,6 +76,7 @@ impl BlockImporter {
     pub fn new(
         state_manager: Arc<StateManager>,
         header_db: Arc<BlockHeaderDB>,
+        best_header: Option<BlockHeader>,
         latest_block: Option<Block>,
         latest_entropy_3: Option<Hash32>,
         latest_slot_sealer: Option<SlotSealer>,
@@ -70,6 +85,7 @@ impl BlockImporter {
         Self {
             state_manager,
             header_db,
+            best_header: best_header.unwrap_or_default(),
             curr_block: latest_block.unwrap_or_default(),
             curr_entropy_3: latest_entropy_3.unwrap_or_default(),
             curr_slot_sealer: latest_slot_sealer.unwrap_or_default(),
@@ -78,6 +94,11 @@ impl BlockImporter {
     }
 
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
+        let best_header = self
+            .header_db
+            .get_best_header()
+            .ok_or(BlockImportError::BestBlockNotFound)?;
+
         let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let curr_entropy_3 = curr_epoch_entropy.third_history();
 
@@ -91,6 +112,7 @@ impl BlockImporter {
         let curr_timeslot = Timeslot::new(block.header.timeslot_index());
         let curr_slot_sealer = curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot);
 
+        self.best_header = best_header;
         self.curr_block = block;
         self.curr_entropy_3 = curr_entropy_3.clone();
         self.curr_slot_sealer = curr_slot_sealer;
@@ -168,11 +190,21 @@ impl BlockImporter {
     }
 
     fn validate_parent_hash(&self) -> Result<(), BlockImportError> {
-        unimplemented!()
+        if self.curr_block.header.parent_hash() != &self.best_header.hash()? {
+            return Err(BlockImportError::InvalidParentHash);
+        };
+        Ok(())
     }
 
     fn validate_timeslot_index(&self) -> Result<(), BlockImportError> {
-        unimplemented!()
+        let current_timeslot_index = self.curr_block.header.timeslot_index();
+        if current_timeslot_index <= self.best_header.timeslot_index() {
+            return Err(BlockImportError::InvalidTimeslot);
+        }
+        if Timeslot::new(current_timeslot_index).is_in_future() {
+            return Err(BlockImportError::TimeslotInFuture);
+        }
+        Ok(())
     }
 
     fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
