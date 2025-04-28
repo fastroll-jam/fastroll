@@ -100,25 +100,8 @@ impl BlockImporter {
     }
 
     pub async fn validate_block(&self) -> Result<(), BlockImportError> {
-        self.validate_block_header().await?;
         self.validate_xts().await?;
-        Ok(())
-    }
-
-    async fn validate_block_header(&self) -> Result<(), BlockImportError> {
-        self.validate_timeslot_index()?;
-        self.validate_prior_state_root()?;
-        self.verify_xt_hash()?;
-        self.verify_block_seal()?;
-        self.verify_vrf_output()?;
-        Ok(())
-    }
-
-    fn validate_timeslot_index(&self) -> Result<(), BlockImportError> {
-        Ok(())
-    }
-
-    fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
+        self.validate_block_header().await?;
         Ok(())
     }
 
@@ -174,6 +157,23 @@ impl BlockImporter {
         Ok(())
     }
 
+    async fn validate_block_header(&self) -> Result<(), BlockImportError> {
+        self.validate_timeslot_index()?;
+        self.validate_prior_state_root()?;
+        self.verify_xt_hash()?;
+        self.verify_block_seal()?;
+        self.verify_vrf_output()?;
+        Ok(())
+    }
+
+    fn validate_timeslot_index(&self) -> Result<(), BlockImportError> {
+        Ok(())
+    }
+
+    fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
+        Ok(())
+    }
+
     fn verify_xt_hash(&self) -> Result<(), BlockImportError> {
         if self.curr_block.header.extrinsic_hash() != &self.curr_block.extrinsics.hash()? {
             return Err(BlockImportError::InvalidXtHash);
@@ -224,6 +224,7 @@ impl BlockImporter {
         vrf_input.extend_from_slice(X_E);
         vrf_input.extend_from_slice(block_seal_output_hash.as_slice());
         let aux_data = vec![]; // no message signed
+
         VrfVerifier::verify_vrf(
             &vrf_input,
             &aux_data,
