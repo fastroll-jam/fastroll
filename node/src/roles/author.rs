@@ -1,21 +1,63 @@
 //! Block author actor
-use rjam_block::types::block::{BlockHeaderData, BlockSeal, VrfSig};
+
+use crate::roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor};
+use rjam_block::{
+    header_db::BlockHeaderDB,
+    types::{
+        block::{Block, BlockHeader, BlockHeaderData, BlockSeal, VrfSig},
+        extrinsics::Extrinsics,
+    },
+};
 use rjam_codec::prelude::*;
 use rjam_common::{ticket::Ticket, CommonTypeError, Hash32, HASH_SIZE, X_E, X_F, X_T};
 use rjam_crypto::{
     traits::VrfSignature, types::BandersnatchSecretKey, vrf::bandersnatch_vrf::VrfProver,
 };
-use rjam_state::types::SlotSealer;
+use rjam_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum BlockSealError {
+pub enum BlockAuthorError {
     #[error("Block seal output hash doesn't match ticket proof output hash")]
     InvalidBlockSealOutput,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CommonTypeError: {0}")]
     CommonTypeError(#[from] CommonTypeError),
+    #[error("StateManagerError: {0}")]
+    StateManagerError(#[from] StateManagerError),
+    #[error("BlockExecutionError: {0}")]
+    BlockExecutionError(#[from] BlockExecutionError),
+}
+
+#[allow(dead_code)]
+pub struct BlockAuthor {
+    state_manager: Arc<StateManager>,
+    header_db: Arc<BlockHeaderDB>,
+    best_header: BlockHeader,
+}
+
+#[allow(dead_code)]
+impl BlockAuthor {
+    pub async fn author_block() -> Block {
+        unimplemented!()
+    }
+
+    fn collect_extrinsics() -> Extrinsics {
+        unimplemented!()
+    }
+
+    async fn run_state_transition(
+        &self,
+        block: Block,
+    ) -> Result<(Hash32, BlockExecutionOutput), BlockAuthorError> {
+        // TODO: Note - header fields could be not all set yet
+        let executor = BlockExecutor::new(self.state_manager.clone());
+        let output = executor.run_state_transition(&block).await?;
+        self.state_manager.commit_dirty_cache().await?;
+        Ok((self.state_manager.merkle_root(), output))
+    }
 }
 
 /// Verifies output hash of the block seal matches the ticket used for the author selection.
@@ -33,7 +75,7 @@ pub fn sign_block_seal(
     used_ticket: &Ticket,
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
-) -> Result<BlockSeal, BlockSealError> {
+) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
     let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
     vrf_input.extend_from_slice(X_T);
@@ -43,7 +85,7 @@ pub fn sign_block_seal(
     let seal = prover.sign_vrf(&vrf_input, &aux_data);
 
     if !author_block_seal_is_valid(&seal, used_ticket) {
-        return Err(BlockSealError::InvalidBlockSealOutput);
+        return Err(BlockAuthorError::InvalidBlockSealOutput);
     }
     Ok(seal)
 }
@@ -55,7 +97,7 @@ pub fn sign_fallback_block_seal(
     header_data: BlockHeaderData,
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
-) -> Result<BlockSeal, BlockSealError> {
+) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
     let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
     vrf_input.extend_from_slice(X_F);
@@ -80,7 +122,7 @@ pub fn sign_entropy_source_vrf_signature(
     slot_sealer: &SlotSealer,
     entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
-) -> Result<VrfSig, BlockSealError> {
+) -> Result<VrfSig, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
 
     // This value is equivalent to `Y` hash output of the block seal.
