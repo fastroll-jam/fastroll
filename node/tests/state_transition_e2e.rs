@@ -40,7 +40,7 @@ use rjam_transition::{
     },
 };
 use std::{error::Error, sync::Arc};
-use tokio::join;
+use tokio::try_join;
 
 /// Mocking BlockHeader DB
 fn get_parent_header() -> BlockHeader {
@@ -219,7 +219,8 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     });
 
     // Join: Disputes, Entropy, PastSet, ActiveSet STF (dependencies for Safrole STF)
-    let (offenders_marker, _, _, _) = join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh);
+    let (offenders_marker, _, _, _) =
+        try_join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh)?;
 
     // Safrole STF
     let state_manager_cloned = state_manager.clone();
@@ -286,8 +287,8 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     });
 
     // Join remaining STF tasks
-    let (_acc_root_result, _, _, safrole_markers_result, _) =
-        join!(acc_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh);
+    let (_acc_root, _, _, safrole_markers, _) =
+        try_join!(acc_jh, auth_pool_jh, history_jh, safrole_jh, stats_jh)?;
 
     // Load state data to be used later
     let curr_slot_sealer = state_manager
@@ -299,8 +300,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
     let curr_entropy_3 = epoch_entropy.third_history();
 
     // Set header markers
-    header_db.set_offenders_marker(&offenders_marker?)?;
-    let safrole_markers = safrole_markers_result?;
+    header_db.set_offenders_marker(&offenders_marker)?;
     if let Some(epoch_marker) = safrole_markers.epoch_marker.as_ref() {
         header_db.set_epoch_marker(epoch_marker)?;
     }
