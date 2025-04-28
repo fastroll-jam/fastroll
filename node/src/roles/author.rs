@@ -73,13 +73,13 @@ pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
 pub fn sign_block_seal(
     header_data: BlockHeaderData,
     used_ticket: &Ticket,
-    entropy_3: &Hash32,
+    curr_entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
-    let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
+    let mut vrf_input = Vec::with_capacity(X_T.len() + curr_entropy_3.len() + 1);
     vrf_input.extend_from_slice(X_T);
-    vrf_input.extend_from_slice(entropy_3.as_slice());
+    vrf_input.extend_from_slice(curr_entropy_3.as_slice());
     vrf_input.push(used_ticket.attempt);
     let aux_data = header_data.encode()?;
     let seal = prover.sign_vrf(&vrf_input, &aux_data);
@@ -95,13 +95,13 @@ pub fn sign_block_seal(
 /// Note: This signing should be done ***after*** signing the VRF signature of the header.
 pub fn sign_fallback_block_seal(
     header_data: BlockHeaderData,
-    entropy_3: &Hash32,
+    curr_entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
-    let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
+    let mut vrf_input = Vec::with_capacity(X_F.len() + curr_entropy_3.len());
     vrf_input.extend_from_slice(X_F);
-    vrf_input.extend_from_slice(entropy_3.as_slice());
+    vrf_input.extend_from_slice(curr_entropy_3.as_slice());
     let aux_data = header_data.encode()?;
     Ok(prover.sign_vrf(&vrf_input, &aux_data))
 }
@@ -120,7 +120,7 @@ pub fn sign_fallback_block_seal(
 /// Note: The aux data (message) doesn't affect the VRF output hash value.
 pub fn sign_entropy_source_vrf_signature(
     slot_sealer: &SlotSealer,
-    entropy_3: &Hash32,
+    curr_entropy_3: &Hash32,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
@@ -132,7 +132,7 @@ pub fn sign_entropy_source_vrf_signature(
             // Sign with an empty aux data (message) to get the output hash
             let mut fallback_seal_vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
             fallback_seal_vrf_input.extend_from_slice(X_F);
-            fallback_seal_vrf_input.extend_from_slice(entropy_3.as_slice());
+            fallback_seal_vrf_input.extend_from_slice(curr_entropy_3.as_slice());
             let aux_data = vec![];
             prover
                 .sign_vrf(&fallback_seal_vrf_input, &aux_data)

@@ -44,7 +44,7 @@ pub async fn transition_block_history_append(
     state_manager: Arc<StateManager>,
     header_hash: Hash32,
     accumulate_root: Hash32,
-    reported_packages: &[ReportedWorkPackage],
+    reported_packages: Vec<ReportedWorkPackage>,
 ) -> Result<(), TransitionError> {
     let block_history = state_manager.get_block_history().await?;
     let mut mmr = match block_history.get_latest_history().cloned() {
@@ -59,7 +59,7 @@ pub async fn transition_block_history_append(
                 header_hash,
                 accumulation_result_mmr: mmr,
                 state_root: Hash32::default(),
-                reported_packages: reported_packages.to_vec(),
+                reported_packages,
             });
         })
         .await?;

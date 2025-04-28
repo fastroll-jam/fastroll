@@ -25,7 +25,9 @@ mod safrole {
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
-            entropy::transition_epoch_entropy,
+            entropy::{
+                transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block,
+            },
             safrole::transition_safrole,
             timeslot::transition_timeslot,
             validators::{transition_active_set, transition_past_set},
@@ -113,8 +115,9 @@ mod safrole {
             transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
-            transition_epoch_entropy(state_manager.clone(), epoch_progressed, jam_input.entropy)
+            transition_epoch_entropy_on_epoch_change(state_manager.clone(), epoch_progressed)
                 .await?;
+            transition_epoch_entropy_per_block(state_manager.clone(), jam_input.entropy).await?;
             transition_past_set(state_manager.clone(), epoch_progressed).await?;
             transition_active_set(state_manager.clone(), epoch_progressed).await?;
             transition_safrole(

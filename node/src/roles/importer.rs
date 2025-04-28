@@ -281,7 +281,17 @@ impl BlockImporter {
 
     async fn run_state_transition(&self) -> Result<Hash32, BlockImportError> {
         let executor = BlockExecutor::new(self.state_manager.clone());
-        let _output = executor.run_state_transition(&self.curr_block).await?;
+        let output = executor.run_state_transition(&self.curr_block).await?;
+        executor
+            .accumulate_entropy(&self.curr_block.header.vrf_signature())
+            .await?;
+        executor
+            .append_block_history(
+                self.curr_block.header.hash()?,
+                output.accumulate_root,
+                output.reported_packages,
+            )
+            .await?;
         // TODO: additional validation on output
         self.state_manager.commit_dirty_cache().await?;
         Ok(self.state_manager.merkle_root())
