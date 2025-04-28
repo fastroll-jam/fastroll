@@ -101,7 +101,7 @@ impl BlockImporter {
 
     pub async fn validate_block(&self) -> Result<(), BlockImportError> {
         self.validate_xts().await?;
-        self.validate_block_header().await?;
+        self.validate_block_header()?;
         Ok(())
     }
 
@@ -157,7 +157,8 @@ impl BlockImporter {
         Ok(())
     }
 
-    async fn validate_block_header(&self) -> Result<(), BlockImportError> {
+    fn validate_block_header(&self) -> Result<(), BlockImportError> {
+        self.validate_parent_hash()?;
         self.validate_timeslot_index()?;
         self.validate_prior_state_root()?;
         self.verify_xt_hash()?;
@@ -166,12 +167,16 @@ impl BlockImporter {
         Ok(())
     }
 
+    fn validate_parent_hash(&self) -> Result<(), BlockImportError> {
+        unimplemented!()
+    }
+
     fn validate_timeslot_index(&self) -> Result<(), BlockImportError> {
-        Ok(())
+        unimplemented!()
     }
 
     fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
-        Ok(())
+        unimplemented!()
     }
 
     fn verify_xt_hash(&self) -> Result<(), BlockImportError> {
