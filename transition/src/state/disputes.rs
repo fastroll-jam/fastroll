@@ -17,7 +17,7 @@ pub async fn transition_disputes(
     disputes_xt: &DisputesXt,
     prior_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
-    let disputes_validator = DisputesXtValidator::new(&state_manager);
+    let disputes_validator = DisputesXtValidator::new(state_manager.clone());
     disputes_validator
         .validate(disputes_xt, &prior_timeslot)
         .await?;

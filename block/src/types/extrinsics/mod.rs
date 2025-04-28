@@ -3,7 +3,7 @@ use crate::types::extrinsics::{
     preimages::PreimagesXt, tickets::TicketsXt,
 };
 use rjam_codec::prelude::*;
-use rjam_common::{workloads::work_report::WorkReportError, Hash32};
+use rjam_common::{workloads::work_report::WorkReportError, Hash32, HASH_SIZE};
 use rjam_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
@@ -57,4 +57,17 @@ pub struct Extrinsics {
     pub guarantees: GuaranteesXt,
     pub assurances: AssurancesXt,
     pub disputes: DisputesXt,
+}
+
+impl Extrinsics {
+    pub fn hash(&self) -> Result<Hash32, ExtrinsicsError> {
+        let mut buf = Vec::with_capacity(HASH_SIZE * 5);
+        hash::<Blake2b256>(&self.tickets.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.preimages.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.guarantees.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.assurances.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.disputes.encode()?)?.encode_to(&mut buf)?;
+
+        Ok(hash::<Blake2b256>(&buf.encode()?)?)
+    }
 }

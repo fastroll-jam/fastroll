@@ -65,6 +65,8 @@ pub struct BlockHeaderDB {
     db: CachedDB<Hash32, BlockHeader>,
     /// Mutable staging header used for block construction.
     staging_header: Mutex<Option<BlockHeader>>,
+    /// A known best block header determined by GRANDPA.
+    best_header: Mutex<Option<BlockHeader>>,
 }
 
 impl BlockHeaderDB {
@@ -72,6 +74,7 @@ impl BlockHeaderDB {
         Self {
             db: CachedDB::new(core, cf_name, cache_size),
             staging_header: Mutex::new(None),
+            best_header: Mutex::new(None),
         }
     }
 
@@ -106,6 +109,14 @@ impl BlockHeaderDB {
 
     pub fn get_staging_header(&self) -> Option<BlockHeader> {
         self.staging_header.lock().unwrap().clone()
+    }
+
+    pub fn get_best_header(&self) -> Option<BlockHeader> {
+        self.best_header.lock().unwrap().clone()
+    }
+
+    pub fn set_best_header(&mut self, best_header: BlockHeader) {
+        self.best_header.lock().unwrap().replace(best_header);
     }
 
     pub fn assert_staging_header_initialized(&self) -> Result<(), BlockHeaderDBError> {

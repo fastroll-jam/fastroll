@@ -112,6 +112,12 @@ pub enum SlotSealer {
     BandersnatchPubKeys(BandersnatchPubKey),
 }
 
+impl Default for SlotSealer {
+    fn default() -> Self {
+        Self::Ticket(Ticket::default())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotSealers {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),

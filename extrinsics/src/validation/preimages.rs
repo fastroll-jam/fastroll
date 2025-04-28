@@ -2,7 +2,7 @@ use crate::validation::error::XtError;
 use rjam_block::types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
 use rjam_crypto::{hash, Blake2b256};
 use rjam_state::manager::StateManager;
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 /// Validate contents of `PreimagesXt` type.
 ///
@@ -18,12 +18,12 @@ use std::collections::HashSet;
 /// - No duplicate entries are allowed within the extrinsic.
 /// - Each entry must not be already integrated to the corresponding service account's state.
 ///   Thus, the solicited data must not exist in the service account's preimage lookup tables.
-pub struct PreimagesXtValidator<'a> {
-    state_manager: &'a StateManager,
+pub struct PreimagesXtValidator {
+    state_manager: Arc<StateManager>,
 }
 
-impl<'a> PreimagesXtValidator<'a> {
-    pub fn new(state_manager: &'a StateManager) -> Self {
+impl PreimagesXtValidator {
+    pub fn new(state_manager: Arc<StateManager>) -> Self {
         Self { state_manager }
     }
 

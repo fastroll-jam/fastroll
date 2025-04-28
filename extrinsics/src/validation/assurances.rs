@@ -8,7 +8,7 @@ use rjam_crypto::{
     Blake2b256,
 };
 use rjam_state::manager::StateManager;
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 /// Validates contents of `AssurancesXt` type.
 ///
@@ -29,12 +29,12 @@ use std::collections::HashSet;
 /// - `assuring_cores_bitvec`
 ///   - The `assuring_cores_bitvec` must only have bits set for cores that have pending reports
 ///     awaiting availability.
-pub struct AssurancesXtValidator<'a> {
-    state_manager: &'a StateManager,
+pub struct AssurancesXtValidator {
+    state_manager: Arc<StateManager>,
 }
 
-impl<'a> AssurancesXtValidator<'a> {
-    pub fn new(state_manager: &'a StateManager) -> Self {
+impl AssurancesXtValidator {
+    pub fn new(state_manager: Arc<StateManager>) -> Self {
         Self { state_manager }
     }
 
