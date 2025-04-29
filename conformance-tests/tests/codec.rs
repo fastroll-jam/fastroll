@@ -11,35 +11,11 @@ mod codec {
     use rjam_common::workloads::{
         RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport,
     };
-    use rjam_conformance_tests::asn_types::common::*;
+    use rjam_conformance_tests::{asn_types::common::*, utils::AsnTypeLoader};
     use serde::{de::DeserializeOwned, Serialize};
-    use std::{
-        fmt::Debug,
-        fs,
-        fs::File,
-        io,
-        io::Read,
-        path::{Path, PathBuf},
-    };
+    use std::{fmt::Debug, path::PathBuf};
 
     const PATH_PREFIX: &str = "jamtestvectors-polkajam/codec/data";
-
-    pub fn load_bin_file(path: &Path) -> io::Result<Vec<u8>> {
-        let mut file = File::open(path)?;
-        let mut buffer = vec![];
-        file.read_to_end(&mut buffer)?;
-        Ok(buffer)
-    }
-
-    pub fn load_json_file<AsnType>(path: &Path) -> Result<AsnType, ()>
-    where
-        AsnType: Serialize + DeserializeOwned,
-    {
-        let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-        let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
-        let test_type = serde_json::from_str(&json_str).expect("Failed to parse JSON");
-        Ok(test_type)
-    }
 
     pub fn test_encode_decode<RjamType, AsnType>(filename: &str)
     where
@@ -47,13 +23,13 @@ mod codec {
         AsnType: Serialize + DeserializeOwned + From<RjamType>,
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.json"));
-        let asn_type: AsnType =
-            load_json_file(&json_path).expect("Failed to load .json test vector.");
+        let asn_type: AsnType = AsnTypeLoader::load_from_json_file(&json_path);
         let rjam_type = RjamType::from(asn_type);
         let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
         let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.bin"));
-        let asn_type_encoded = load_bin_file(&bin_path).expect("Failed to load .bin test vector.");
+        let asn_type_encoded =
+            AsnTypeLoader::load_from_bin_file(&bin_path).expect("Failed to load .bin test vector.");
 
         // Test encoding
         println!(

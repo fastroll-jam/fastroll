@@ -1,12 +1,19 @@
 //! End-to-end state transition tests
-use rjam_block::header_db::BlockHeaderDB;
+use rjam_block::{header_db::BlockHeaderDB, types::block::Block};
 use rjam_common::{utils::tracing::setup_timed_tracing, ValidatorIndex};
+use rjam_conformance_tests::{asn_types::common::AsnBlock, utils::AsnTypeLoader};
 use rjam_node::actors::{author::BlockAuthor, importer::BlockImporter};
 use rjam_state::{
     manager::StateManager,
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
 };
-use std::{error::Error, sync::Arc};
+use std::{error::Error, path::PathBuf, sync::Arc};
+
+pub fn load_genesis_block_from_file() -> Block {
+    let path = PathBuf::from("src/genesis-data/genesis_block.json");
+    let asn_block: AsnBlock = AsnTypeLoader::load_from_json_file(&path);
+    asn_block.into()
+}
 
 /// Mocking Author Info
 fn get_author_index() -> ValidatorIndex {
