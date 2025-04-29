@@ -67,8 +67,8 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let best_header = header_db.get_best_header();
 
     // Block author actor
-    let mut author = BlockAuthor::new(state_manager, best_header, 0);
-    let (new_block, _author_post_state_root) = author.author_block(header_db).await?;
+    let mut author = BlockAuthor::new_for_fallback_test(state_manager, best_header).await?;
+    let (new_block, author_post_state_root) = author.author_block(header_db).await?;
 
     // --- Block importing
 
@@ -80,8 +80,8 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Block importer actor
     let mut importer = BlockImporter::new(state_manager, header_db, Some(best_header));
     importer.import_block(new_block).await?;
-    // let importer_post_state_root = importer.validate_block().await?;
-    // assert_eq!(author_post_state_root, importer_post_state_root);
+    let importer_post_state_root = importer.validate_block().await?;
+    assert_eq!(author_post_state_root, importer_post_state_root);
 
     Ok(())
 }
