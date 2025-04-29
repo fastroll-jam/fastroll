@@ -21,3 +21,4 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+serde = { version = "1.0.219", features = ["derive"] }

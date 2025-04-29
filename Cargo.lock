@@ -1400,6 +1400,7 @@ dependencies = [
  "rjam-db",
  "rjam-merkle",
  "rjam-state-merkle",
+ "serde",
  "tempfile",
  "thiserror",
  "tokio",

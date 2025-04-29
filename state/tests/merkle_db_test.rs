@@ -142,7 +142,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
     let (_, state_manager) = init_db_and_manager(None);
-    add_all_simple_state_entries(&state_manager).await?;
+    add_all_simple_state_entries(&state_manager, None).await?;
     state_manager.commit_dirty_cache().await?;
     compare_all_simple_state_cache_and_db(&state_manager).await?;
 
