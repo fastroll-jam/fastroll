@@ -66,15 +66,13 @@ pub enum BlockImportError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
-#[allow(dead_code)]
-struct BlockImporter {
+pub struct BlockImporter {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
     best_header: BlockHeader,
     imported_block: Block,
 }
 
-#[allow(dead_code)]
 impl BlockImporter {
     pub fn new(
         state_manager: Arc<StateManager>,
@@ -92,20 +90,21 @@ impl BlockImporter {
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
         let best_header = self.header_db.get_best_header();
         self.best_header = best_header;
+        tracing::info!("Block imported. Parent hash: {}", &block.header.data.parent_hash);
         self.imported_block = block;
         Ok(())
     }
 
-    pub async fn validate_block(&self) -> Result<(), BlockImportError> {
+    pub async fn validate_block(&self) -> Result<Hash32, BlockImportError> {
         // Validate Xts
         self.validate_xts().await?;
         // Validate header fields (prior to STF)
         self.validate_block_header_prior_stf()?;
         // Re-execute STF
-        self.run_state_transition().await?;
+        let post_state_root = self.run_state_transition().await?;
         // Validate header fields (post STF)
         self.validate_block_header_post_stf().await?;
-        Ok(())
+        Ok(post_state_root)
     }
 
     /// Note: Currently, each STF validates Xt types as well.
@@ -163,7 +162,7 @@ impl BlockImporter {
     fn validate_block_header_prior_stf(&self) -> Result<(), BlockImportError> {
         self.validate_parent_hash()?;
         self.validate_timeslot_index()?;
-        self.validate_prior_state_root()?;
+        // self.validate_prior_state_root()?; // TODO: impl
         self.validate_xt_hash()?;
         Ok(())
     }
@@ -224,6 +223,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
         unimplemented!()
     }

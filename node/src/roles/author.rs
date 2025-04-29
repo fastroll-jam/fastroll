@@ -66,7 +66,7 @@ impl BlockAuthor {
     pub async fn author_block(
         &mut self,
         header_db: Arc<BlockHeaderDB>,
-    ) -> Result<&Block, BlockAuthorError> {
+    ) -> Result<(Block, Hash32), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
         self.set_extrinsics(xt)?;
         self.prelude()?;
@@ -87,9 +87,10 @@ impl BlockAuthor {
         // TODO: Defer more STF runs to post-header-commit.
         // Note: Also some STFs can be run asynchronously after committing the header.
         self.state_manager.commit_dirty_cache().await?;
-        tracing::info!("Post State Root: {}", self.state_manager.merkle_root());
+        let post_state_root = self.state_manager.merkle_root();
+        tracing::info!("Post State Root: {}", &post_state_root);
 
-        Ok(&self.new_block)
+        Ok((self.new_block.clone(), post_state_root))
     }
 
     fn collect_extrinsics() -> Extrinsics {

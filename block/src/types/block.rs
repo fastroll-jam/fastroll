@@ -11,7 +11,7 @@ use rjam_crypto::{
 use std::fmt::Display;
 use thiserror::Error;
 
-#[derive(Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Block {
     pub header: BlockHeader,
     pub extrinsics: Extrinsics,
