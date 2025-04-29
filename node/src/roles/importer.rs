@@ -90,7 +90,10 @@ impl BlockImporter {
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
         let best_header = self.header_db.get_best_header();
         self.best_header = best_header;
-        tracing::info!("Block imported. Parent hash: {}", &block.header.data.parent_hash);
+        tracing::info!(
+            "Block imported. Parent hash: {}",
+            &block.header.data.parent_hash
+        );
         self.imported_block = block;
         Ok(())
     }
