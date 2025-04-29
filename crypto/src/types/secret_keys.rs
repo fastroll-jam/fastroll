@@ -12,7 +12,7 @@ use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 32-byte Bandersnatch secret key type.
-#[derive(Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct BandersnatchSecretKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchSecretKey);
 

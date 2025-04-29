@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use rand::{thread_rng, Rng};
-use rjam_block::header_db::BlockHeaderDB;
+use rjam_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use rjam_common::Hash32;
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
@@ -34,9 +34,9 @@ fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE)
 }
 
-fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
+fn init_header_db(core_db: Arc<CoreDB>, best_header: Option<BlockHeader>) -> BlockHeaderDB {
     const HEADER_DB_CACHE_SIZE: usize = 1000;
-    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, None)
+    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, best_header)
 }
 
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
@@ -45,9 +45,12 @@ fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     StateManager::new(state_db, merkle_db)
 }
 
-pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
+pub fn init_db_and_manager(best_header: Option<BlockHeader>) -> (BlockHeaderDB, StateManager) {
     let core_db = Arc::new(init_core_db());
-    (init_header_db(core_db.clone()), init_state_manager(core_db))
+    (
+        init_header_db(core_db.clone(), best_header),
+        init_state_manager(core_db),
+    )
 }
 
 pub fn random_state_key() -> Hash32 {
@@ -63,45 +66,52 @@ pub fn random_state_val(max_len: usize) -> Vec<u8> {
     data
 }
 
+/// Note: test-only
+#[derive(Default)]
+pub struct SimpleStates {
+    pub auth_pool: AuthPool,
+    pub auth_queue: AuthQueue,
+    pub block_history: BlockHistory,
+    pub safrole: SafroleState,
+    pub disputes: DisputesState,
+    pub entropy: EpochEntropy,
+    pub staging_set: StagingSet,
+    pub active_set: ActiveSet,
+    pub past_set: PastSet,
+    pub reports: PendingReports,
+    pub timeslot: Timeslot,
+    pub privileges: PrivilegedServices,
+    pub onchain_statistics: OnChainStatistics,
+    pub accumulate_queue: AccumulateQueue,
+    pub accumulate_history: AccumulateHistory,
+}
+
 pub async fn add_all_simple_state_entries(
     state_manager: &StateManager,
+    test_simple_states: Option<SimpleStates>,
 ) -> Result<(), Box<dyn Error>> {
-    let auth_pool = AuthPool::default();
-    let auth_queue = AuthQueue::default();
-    let block_history = BlockHistory::default();
-    let safrole = SafroleState::default();
-    let disputes = DisputesState::default();
-    let entropy = EpochEntropy::default();
-    let staging_set = StagingSet::default();
-    let active_set = ActiveSet::default();
-    let past_set = PastSet::default();
-    let reports = PendingReports::default();
-    let timeslot = Timeslot::default();
-    let privileges = PrivilegedServices::default();
-    let onchain_statistics = OnChainStatistics::default();
-    let accumulate_queue = AccumulateQueue::default();
-    let accumulate_history = AccumulateHistory::default();
-
-    state_manager.add_auth_pool(auth_pool).await?;
-    state_manager.add_auth_queue(auth_queue).await?;
-    state_manager.add_block_history(block_history).await?;
-    state_manager.add_safrole(safrole).await?;
-    state_manager.add_disputes(disputes).await?;
-    state_manager.add_epoch_entropy(entropy).await?;
-    state_manager.add_staging_set(staging_set).await?;
-    state_manager.add_active_set(active_set).await?;
-    state_manager.add_past_set(past_set).await?;
-    state_manager.add_pending_reports(reports).await?;
-    state_manager.add_timeslot(timeslot).await?;
-    state_manager.add_privileged_services(privileges).await?;
+    let ss = test_simple_states.unwrap_or_default();
+    state_manager.add_auth_pool(ss.auth_pool).await?;
+    state_manager.add_auth_queue(ss.auth_queue).await?;
+    state_manager.add_block_history(ss.block_history).await?;
+    state_manager.add_safrole(ss.safrole).await?;
+    state_manager.add_disputes(ss.disputes).await?;
+    state_manager.add_epoch_entropy(ss.entropy).await?;
+    state_manager.add_staging_set(ss.staging_set).await?;
+    state_manager.add_active_set(ss.active_set).await?;
+    state_manager.add_past_set(ss.past_set).await?;
+    state_manager.add_pending_reports(ss.reports).await?;
+    state_manager.add_timeslot(ss.timeslot).await?;
+    state_manager.add_privileged_services(ss.privileges).await?;
     state_manager
-        .add_onchain_statistics(onchain_statistics)
+        .add_onchain_statistics(ss.onchain_statistics)
         .await?;
-    state_manager.add_accumulate_queue(accumulate_queue).await?;
     state_manager
-        .add_accumulate_history(accumulate_history)
+        .add_accumulate_queue(ss.accumulate_queue)
         .await?;
-
+    state_manager
+        .add_accumulate_history(ss.accumulate_history)
+        .await?;
     Ok(())
 }
 

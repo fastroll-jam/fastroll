@@ -1,6 +1,4 @@
 pub(crate) mod config;
-pub(crate) mod genesis;
-
 use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::utils::tracing::setup_tracing;
 use rjam_db::{

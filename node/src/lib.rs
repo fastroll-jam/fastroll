@@ -1,3 +1,3 @@
-pub mod roles;
-pub(crate) mod timeslot_scheduler;
+pub mod actors;
+pub(crate) mod keystore;
 pub mod utils;

@@ -1,6 +1,8 @@
 //! Block author actor
-
-use crate::roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor};
+use crate::{
+    actors::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
+    keystore::load_author_secret_key,
+};
 use rjam_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
     types::{
@@ -8,13 +10,15 @@ use rjam_block::{
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
 };
-use rjam_clock::Clock;
 use rjam_codec::prelude::*;
 use rjam_common::{
-    ticket::Ticket, ByteArray, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F, X_T,
+    ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
+    X_T,
 };
 use rjam_crypto::{
-    traits::VrfSignature, types::BandersnatchSecretKey, vrf::bandersnatch_vrf::VrfProver,
+    traits::VrfSignature,
+    types::{BandersnatchPubKey, BandersnatchSecretKey},
+    vrf::bandersnatch_vrf::VrfProver,
 };
 use rjam_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
 use std::sync::Arc;
@@ -42,25 +46,42 @@ pub enum BlockAuthorError {
     BlockExecutionError(#[from] BlockExecutionError),
 }
 
+struct AuthorInfo {
+    /// Validator index of the author in the current `ActiveSet`.
+    author_index: ValidatorIndex,
+    /// The author's Bandersnatch secret key used for signing block seal and STF output.
+    author_sk: BandersnatchSecretKey,
+}
+
 pub struct BlockAuthor {
     state_manager: Arc<StateManager>,
     new_block: Block,
     best_header: BlockHeader,
-    author_index: ValidatorIndex,
+    author_info: AuthorInfo,
 }
 
 impl BlockAuthor {
-    pub fn new(
+    pub async fn new_for_fallback_test(
         state_manager: Arc<StateManager>,
         best_header: BlockHeader,
-        author_index: ValidatorIndex,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, BlockAuthorError> {
+        // Hard-coded author info for tests
+        let author_pub_key = BandersnatchPubKey::from_hex(
+            "0xf16e5352840afb47e206b5c89f560f2611835855cf2e6ebad1acc9520a72591d",
+        )
+        .expect("Invalid hexstring");
+        let author_sk = load_author_secret_key(&author_pub_key).expect("Dev account should exist");
+        let author_index = 5;
+
+        Ok(Self {
             state_manager,
             new_block: Block::default(),
             best_header,
-            author_index,
-        }
+            author_info: AuthorInfo {
+                author_index,
+                author_sk,
+            },
+        })
     }
 
     pub async fn author_block(
@@ -104,11 +125,6 @@ impl BlockAuthor {
         Ok(())
     }
 
-    fn load_bandersnatch_secret_key() -> BandersnatchSecretKey {
-        // FIXME: Actually load sk from keystore
-        BandersnatchSecretKey(ByteArray::default())
-    }
-
     /// Sets header fields required for running STFs in advance.
     fn prelude(&mut self) -> Result<(), BlockAuthorError> {
         let parent_hash = self.best_header.hash()?;
@@ -118,10 +134,12 @@ impl BlockAuthor {
 
         self.new_block.header.set_parent_hash(parent_hash);
         self.new_block.header.set_prior_state_root(prior_state_root);
-        self.new_block.header.set_author_index(self.author_index);
         self.new_block
             .header
-            .set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
+            .set_author_index(self.author_info.author_index);
+        // FIXME: Currently using hard-coded test-only timeslot value
+        self.new_block.header.set_timeslot(12);
+        // self.new_block.header.set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
 
         Ok(())
     }
@@ -136,8 +154,6 @@ impl BlockAuthor {
         &mut self,
         stf_output: BlockExecutionOutput,
     ) -> Result<VrfSig, BlockAuthorError> {
-        let author_sk = Self::load_bandersnatch_secret_key();
-
         // Sign VRF
         let curr_timeslot = self.state_manager.get_timeslot().await?;
         let curr_slot_sealer = self
@@ -148,8 +164,11 @@ impl BlockAuthor {
             .get_slot_sealer(&curr_timeslot);
         let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let curr_entropy_3 = epoch_entropy.third_history();
-        let vrf_sig =
-            sign_entropy_source_vrf_signature(&curr_slot_sealer, curr_entropy_3, &author_sk)?;
+        let vrf_sig = sign_entropy_source_vrf_signature(
+            &curr_slot_sealer,
+            curr_entropy_3,
+            &self.author_info.author_sk,
+        )?;
         self.new_block.header.set_vrf_signature(vrf_sig.clone());
 
         // Set header markers
@@ -170,8 +189,6 @@ impl BlockAuthor {
 
     /// Seal the block header
     async fn seal_block_header(&mut self) -> Result<(), BlockAuthorError> {
-        let author_sk = Self::load_bandersnatch_secret_key();
-
         let new_header_data = self.new_block.header.data.clone();
         // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
         let curr_timeslot = self.state_manager.get_timeslot().await?;
@@ -185,12 +202,17 @@ impl BlockAuthor {
         let curr_entropy_3 = epoch_entropy.third_history();
 
         let seal = match curr_slot_sealer {
-            SlotSealer::Ticket(ticket) => {
-                sign_block_seal(new_header_data, &ticket, curr_entropy_3, &author_sk)?
-            }
-            SlotSealer::BandersnatchPubKeys(_key) => {
-                sign_fallback_block_seal(new_header_data, curr_entropy_3, &author_sk)?
-            }
+            SlotSealer::Ticket(ticket) => sign_block_seal(
+                new_header_data,
+                &ticket,
+                curr_entropy_3,
+                &self.author_info.author_sk,
+            )?,
+            SlotSealer::BandersnatchPubKeys(_key) => sign_fallback_block_seal(
+                new_header_data,
+                curr_entropy_3,
+                &self.author_info.author_sk,
+            )?,
         };
         self.new_block.header.set_block_seal(seal);
 

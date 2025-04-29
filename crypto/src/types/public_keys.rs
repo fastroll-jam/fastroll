@@ -3,7 +3,7 @@ use rjam_codec::prelude::*;
 use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
 
 /// 32-byte Bandersnatch public key type.
-#[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, JamEncode, JamDecode)]
 pub struct BandersnatchPubKey(pub ByteArray<32>);
 impl_byte_encodable!(BandersnatchPubKey);
 impl_public_key!(BandersnatchPubKey);
