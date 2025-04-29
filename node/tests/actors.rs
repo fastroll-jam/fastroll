@@ -1,7 +1,7 @@
 //! End-to-end state transition tests
 use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::{utils::tracing::setup_timed_tracing, ValidatorIndex};
-use rjam_node::roles::{author::BlockAuthor, importer::BlockImporter};
+use rjam_node::actors::{author::BlockAuthor, importer::BlockImporter};
 use rjam_state::{
     manager::StateManager,
     test_utils::{add_all_simple_state_entries, init_db_and_manager},

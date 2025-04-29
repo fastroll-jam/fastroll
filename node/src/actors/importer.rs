@@ -1,5 +1,5 @@
 use crate::{
-    roles::{
+    actors::{
         author::author_block_seal_is_valid,
         executor::{BlockExecutionError, BlockExecutor},
     },

@@ -1,6 +1,6 @@
 //! Block author actor
 
-use crate::roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor};
+use crate::actors::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor};
 use rjam_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
     types::{
