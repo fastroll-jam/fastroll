@@ -74,9 +74,9 @@ impl BlockExecutor {
         let tickets_xt = block.extrinsics.tickets.clone();
         let prev_timeslot = self.state_manager.get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
-        let parent_hash = block.header.header_data.parent_hash.clone();
-        let parent_state_root = block.header.header_data.parent_state_root.clone();
-        let author_index = block.header.header_data.author_index;
+        let parent_hash = block.header.data.parent_hash.clone();
+        let parent_state_root = block.header.data.parent_state_root.clone();
+        let author_index = block.header.data.author_index;
 
         // Timeslot STF
         let manager = self.state_manager.clone();

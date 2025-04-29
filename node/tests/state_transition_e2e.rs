@@ -109,10 +109,7 @@ async fn state_transition_e2e() -> Result<(), Box<dyn Error>> {
         header_db.set_winning_tickets_marker(winning_tickets_marker)?;
     }
 
-    let header_data = header_db
-        .get_staging_header()
-        .expect("should exist")
-        .header_data;
+    let header_data = header_db.get_staging_header().expect("should exist").data;
 
     // Seal the block
     let seal = match curr_slot_sealer {

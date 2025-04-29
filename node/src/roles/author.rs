@@ -179,7 +179,7 @@ impl BlockAuthor {
             .header_db
             .get_staging_header()
             .expect("Staging header should be initialized")
-            .header_data;
+            .data;
         // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
         let curr_timeslot = self.state_manager.get_timeslot().await?;
         let curr_slot_sealer = self

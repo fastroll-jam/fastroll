@@ -113,18 +113,18 @@ impl JamDecode for BlockHeaderData {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHeader {
     /// The block header data fields.
-    pub header_data: BlockHeaderData,
+    pub data: BlockHeaderData,
     /// `s`: The block seal signed by the author.
     pub block_seal: BlockSeal,
 }
 
 impl JamEncode for BlockHeader {
     fn size_hint(&self) -> usize {
-        self.header_data.size_hint() + self.block_seal.size_hint()
+        self.data.size_hint() + self.block_seal.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.header_data.encode_to(dest)?;
+        self.data.encode_to(dest)?;
         self.block_seal.encode_to(dest)?;
         Ok(())
     }
@@ -136,7 +136,7 @@ impl JamDecode for BlockHeader {
         Self: Sized,
     {
         Ok(Self {
-            header_data: BlockHeaderData::decode(input)?,
+            data: BlockHeaderData::decode(input)?,
             block_seal: BlockSeal::decode(input)?,
         })
     }
@@ -145,7 +145,7 @@ impl JamDecode for BlockHeader {
 impl Display for BlockHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let offenders_encoded = self
-            .header_data
+            .data
             .offenders_marker
             .iter()
             .map(|key| key.to_hex())
@@ -182,7 +182,7 @@ impl Display for BlockHeader {
 impl BlockHeader {
     pub fn from_parent_hash(parent_hash: Hash32) -> Self {
         Self {
-            header_data: BlockHeaderData {
+            data: BlockHeaderData {
                 parent_hash,
                 ..Default::default()
             },
@@ -195,38 +195,38 @@ impl BlockHeader {
     }
 
     pub fn parent_hash(&self) -> &Hash32 {
-        &self.header_data.parent_hash
+        &self.data.parent_hash
     }
 
     pub fn parent_state_root(&self) -> &Hash32 {
-        &self.header_data.parent_state_root
+        &self.data.parent_state_root
     }
 
     pub fn extrinsic_hash(&self) -> &Hash32 {
-        &self.header_data.extrinsic_hash
+        &self.data.extrinsic_hash
     }
 
     pub fn timeslot_index(&self) -> u32 {
-        self.header_data.timeslot_index
+        self.data.timeslot_index
     }
 
     pub fn epoch_marker(&self) -> Option<&EpochMarker> {
-        self.header_data.epoch_marker.as_ref()
+        self.data.epoch_marker.as_ref()
     }
 
     pub fn winning_tickets_marker(&self) -> Option<&WinningTicketsMarker> {
-        self.header_data.winning_tickets_marker.as_ref()
+        self.data.winning_tickets_marker.as_ref()
     }
 
     pub fn offenders_marker(&self) -> &[Ed25519PubKey] {
-        &self.header_data.offenders_marker
+        &self.data.offenders_marker
     }
 
     pub fn author_index(&self) -> ValidatorIndex {
-        self.header_data.author_index
+        self.data.author_index
     }
 
     pub fn vrf_signature(&self) -> VrfSig {
-        self.header_data.vrf_signature.clone()
+        self.data.vrf_signature.clone()
     }
 }

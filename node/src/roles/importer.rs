@@ -251,7 +251,7 @@ impl BlockImporter {
                 vrf_input
             }
         };
-        let aux_data = self.curr_block.header.header_data.encode()?;
+        let aux_data = self.curr_block.header.data.encode()?;
 
         VrfVerifier::verify_vrf(
             &vrf_input,
@@ -273,7 +273,7 @@ impl BlockImporter {
         VrfVerifier::verify_vrf(
             &vrf_input,
             &aux_data,
-            &self.curr_block.header.header_data.vrf_signature,
+            &self.curr_block.header.data.vrf_signature,
             &self.curr_author_bandersnatch_key,
         )?;
         Ok(())

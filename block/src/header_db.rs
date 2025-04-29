@@ -166,7 +166,7 @@ impl BlockHeaderDB {
     pub fn set_parent_state_root(&mut self, root: Hash32) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.parent_state_root = root;
+            h.data.parent_state_root = root;
         })
     }
 
@@ -175,7 +175,7 @@ impl BlockHeaderDB {
 
         if let Some(curr_timeslot_index) = Clock::now_jam_timeslot() {
             self.update_staging_header(|h| {
-                h.header_data.timeslot_index = curr_timeslot_index;
+                h.data.timeslot_index = curr_timeslot_index;
             })?;
             Ok(curr_timeslot_index)
         } else {
@@ -197,7 +197,7 @@ impl BlockHeaderDB {
         self.assert_staging_header_initialized()?;
         let xt_hash = Self::header_extrinsic_hash(xt)?;
         self.update_staging_header(|h| {
-            h.header_data.extrinsic_hash = xt_hash;
+            h.data.extrinsic_hash = xt_hash;
         })
     }
 
@@ -207,7 +207,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.vrf_signature = vrf_sig.clone();
+            h.data.vrf_signature = vrf_sig.clone();
         })
     }
 
@@ -227,7 +227,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.author_index = author_index;
+            h.data.author_index = author_index;
         })
     }
 
@@ -237,7 +237,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.epoch_marker = Some(epoch_marker.clone());
+            h.data.epoch_marker = Some(epoch_marker.clone());
         })
     }
 
@@ -247,7 +247,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.winning_tickets_marker = Some(winning_tickets_marker.clone());
+            h.data.winning_tickets_marker = Some(winning_tickets_marker.clone());
         })
     }
 
@@ -257,7 +257,7 @@ impl BlockHeaderDB {
     ) -> Result<(), BlockHeaderDBError> {
         self.assert_staging_header_initialized()?;
         self.update_staging_header(|h| {
-            h.header_data.offenders_marker = offenders_marker.items.to_vec();
+            h.data.offenders_marker = offenders_marker.items.to_vec();
         })
     }
 }

@@ -2081,7 +2081,7 @@ pub struct AsnHeader {
 impl From<AsnHeader> for BlockHeader {
     fn from(value: AsnHeader) -> Self {
         Self {
-            header_data: BlockHeaderData {
+            data: BlockHeaderData {
                 parent_hash: Hash32::from(value.parent),
                 parent_state_root: Hash32::from(value.parent_state_root),
                 extrinsic_hash: Hash32::from(value.extrinsic_hash),
