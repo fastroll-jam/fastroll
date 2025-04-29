@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use rand::{thread_rng, Rng};
-use rjam_block::header_db::BlockHeaderDB;
+use rjam_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use rjam_common::Hash32;
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME},
@@ -34,9 +34,9 @@ fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE)
 }
 
-fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
+fn init_header_db(core_db: Arc<CoreDB>, best_header: Option<BlockHeader>) -> BlockHeaderDB {
     const HEADER_DB_CACHE_SIZE: usize = 1000;
-    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, None)
+    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, best_header)
 }
 
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
@@ -45,9 +45,12 @@ fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     StateManager::new(state_db, merkle_db)
 }
 
-pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
+pub fn init_db_and_manager(best_header: Option<BlockHeader>) -> (BlockHeaderDB, StateManager) {
     let core_db = Arc::new(init_core_db());
-    (init_header_db(core_db.clone()), init_state_manager(core_db))
+    (
+        init_header_db(core_db.clone(), best_header),
+        init_state_manager(core_db),
+    )
 }
 
 pub fn random_state_key() -> Hash32 {

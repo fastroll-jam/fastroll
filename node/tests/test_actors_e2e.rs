@@ -10,8 +10,9 @@ use rjam_state::{
 use std::{error::Error, path::PathBuf, sync::Arc};
 
 pub fn load_genesis_block_from_file() -> Block {
-    let path = PathBuf::from("src/genesis-data/genesis_block.json");
-    let asn_block: AsnBlock = AsnTypeLoader::load_from_json_file(&path);
+    let json_path = PathBuf::from("src/genesis-data/genesis_block.json");
+    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
+    let asn_block: AsnBlock = AsnTypeLoader::load_from_json_file(&full_path);
     asn_block.into()
 }
 
@@ -20,9 +21,12 @@ fn get_author_index() -> ValidatorIndex {
     ValidatorIndex::default()
 }
 
-/// Mocking DB initialization and previous state.
-async fn init_with_prev_state() -> Result<(Arc<BlockHeaderDB>, Arc<StateManager>), Box<dyn Error>> {
-    let (header_db, state_manager) = init_db_and_manager();
+/// Mocking DB initialization and genesis state.
+async fn init_with_genesis_state() -> Result<(Arc<BlockHeaderDB>, Arc<StateManager>), Box<dyn Error>>
+{
+    // Genesis header is the best header
+    let genesis_header = load_genesis_block_from_file().header;
+    let (header_db, state_manager) = init_db_and_manager(Some(genesis_header));
     let header_db = Arc::new(header_db);
     let state_manager = Arc::new(state_manager);
     add_all_simple_state_entries(&state_manager).await?;
@@ -39,7 +43,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // --- Block authoring
 
     // Init DB and StateManager
-    let (header_db, state_manager) = init_with_prev_state().await?;
+    let (header_db, state_manager) = init_with_genesis_state().await?;
     // Get the best header of the best chain
     let best_header = header_db.get_best_header();
 
@@ -50,7 +54,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // --- Block importing
 
     // Init DB and StateManager
-    let (header_db, state_manager) = init_with_prev_state().await?;
+    let (header_db, state_manager) = init_with_genesis_state().await?;
     // Get the best header of the best chain
     let best_header = header_db.get_best_header();
 

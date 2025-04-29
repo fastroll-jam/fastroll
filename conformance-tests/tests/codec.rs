@@ -23,7 +23,8 @@ mod codec {
         AsnType: Serialize + DeserializeOwned + From<RjamType>,
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.json"));
-        let asn_type: AsnType = AsnTypeLoader::load_from_json_file(&json_path);
+        let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
+        let asn_type: AsnType = AsnTypeLoader::load_from_json_file(&full_path);
         let rjam_type = RjamType::from(asn_type);
         let rjam_type_encoded = rjam_type.encode().expect("Failed to encode.");
 
