@@ -66,82 +66,59 @@ pub enum BlockImportError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
-#[allow(dead_code)]
-struct BlockImporter {
+pub struct BlockImporter {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
     best_header: BlockHeader,
-    curr_block: Block,
-    curr_entropy_3: Hash32,
-    curr_slot_sealer: SlotSealer,
-    curr_author_bandersnatch_key: BandersnatchPubKey,
+    imported_block: Block,
 }
 
-#[allow(dead_code)]
 impl BlockImporter {
     pub fn new(
         state_manager: Arc<StateManager>,
         header_db: Arc<BlockHeaderDB>,
         best_header: Option<BlockHeader>,
-        latest_block: Option<Block>,
-        latest_entropy_3: Option<Hash32>,
-        latest_slot_sealer: Option<SlotSealer>,
-        latest_author_bandersnatch_key: Option<BandersnatchPubKey>,
     ) -> Self {
         Self {
             state_manager,
             header_db,
             best_header: best_header.unwrap_or_default(),
-            curr_block: latest_block.unwrap_or_default(),
-            curr_entropy_3: latest_entropy_3.unwrap_or_default(),
-            curr_slot_sealer: latest_slot_sealer.unwrap_or_default(),
-            curr_author_bandersnatch_key: latest_author_bandersnatch_key.unwrap_or_default(),
+            imported_block: Block::default(),
         }
     }
 
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
         let best_header = self.header_db.get_best_header();
-
-        let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
-        let curr_entropy_3 = curr_epoch_entropy.third_history();
-
-        let curr_active_set = self.state_manager.get_active_set().await?;
-        let author_index = block.header.author_index();
-        let author_bandersnatch_key = curr_active_set
-            .get_validator_bandersnatch_key(author_index)
-            .ok_or(BlockImportError::InvalidAuthorIndex)?;
-
-        let curr_safrole = self.state_manager.get_safrole().await?;
-        let curr_timeslot = Timeslot::new(block.header.timeslot_index());
-        let curr_slot_sealer = curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot);
-
         self.best_header = best_header;
-        self.curr_block = block;
-        self.curr_entropy_3 = curr_entropy_3.clone();
-        self.curr_slot_sealer = curr_slot_sealer;
-        self.curr_author_bandersnatch_key = author_bandersnatch_key.clone();
-
+        tracing::info!("Block imported. Parent hash: {}", &block.header.data.parent_hash);
+        self.imported_block = block;
         Ok(())
     }
 
-    pub async fn validate_block(&self) -> Result<(), BlockImportError> {
+    pub async fn validate_block(&self) -> Result<Hash32, BlockImportError> {
+        // Validate Xts
         self.validate_xts().await?;
-        self.validate_block_header()?;
-        Ok(())
+        // Validate header fields (prior to STF)
+        self.validate_block_header_prior_stf()?;
+        // Re-execute STF
+        let post_state_root = self.run_state_transition().await?;
+        // Validate header fields (post STF)
+        self.validate_block_header_post_stf().await?;
+        Ok(post_state_root)
     }
 
     /// Note: Currently, each STF validates Xt types as well.
     async fn validate_xts(&self) -> Result<(), BlockImportError> {
         let prior_timeslot = self.state_manager.get_timeslot_clean().await?;
-        let curr_timeslot_index = self.curr_block.header.timeslot_index();
+        let curr_timeslot_index = self.imported_block.header.timeslot_index();
 
         // Clone necessary data to spawn async tasks
-        let parent_hash = self.curr_block.header.parent_hash().clone();
-        let tickets = self.curr_block.extrinsics.tickets.clone();
-        let preimages = self.curr_block.extrinsics.preimages.clone();
-        let guarantees = self.curr_block.extrinsics.guarantees.clone();
-        let assurances = self.curr_block.extrinsics.assurances.clone();
-        let disputes = self.curr_block.extrinsics.disputes.clone();
+        let parent_hash = self.imported_block.header.parent_hash().clone();
+        let tickets = self.imported_block.extrinsics.tickets.clone();
+        let preimages = self.imported_block.extrinsics.preimages.clone();
+        let guarantees = self.imported_block.extrinsics.guarantees.clone();
+        let assurances = self.imported_block.extrinsics.assurances.clone();
+        let disputes = self.imported_block.extrinsics.disputes.clone();
 
         let tickets_validator = TicketsXtValidator::new(self.state_manager.clone());
         let preimages_validator = PreimagesXtValidator::new(self.state_manager.clone());
@@ -182,25 +159,61 @@ impl BlockImporter {
         Ok(())
     }
 
-    fn validate_block_header(&self) -> Result<(), BlockImportError> {
+    fn validate_block_header_prior_stf(&self) -> Result<(), BlockImportError> {
         self.validate_parent_hash()?;
         self.validate_timeslot_index()?;
-        self.validate_prior_state_root()?;
-        self.verify_xt_hash()?;
-        self.verify_block_seal()?;
-        self.verify_vrf_output()?;
+        // self.validate_prior_state_root()?; // TODO: impl
+        self.validate_xt_hash()?;
+        Ok(())
+    }
+
+    /// Gets posterior state values required for header signatures validation
+    async fn get_post_states(
+        &self,
+    ) -> Result<(SlotSealer, BandersnatchPubKey, Hash32), BlockImportError> {
+        let curr_safrole = self.state_manager.get_safrole().await?;
+        let curr_timeslot = Timeslot::new(self.imported_block.header.timeslot_index());
+        let curr_slot_sealer = curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot);
+
+        let curr_active_set = self.state_manager.get_active_set().await?;
+        let curr_author_index = self.imported_block.header.author_index();
+        let curr_author_bandersnatch_key = curr_active_set
+            .get_validator_bandersnatch_key(curr_author_index)
+            .ok_or(BlockImportError::InvalidAuthorIndex)?;
+
+        let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let curr_entropy_3 = curr_epoch_entropy.third_history();
+
+        Ok((
+            curr_slot_sealer,
+            curr_author_bandersnatch_key.clone(),
+            curr_entropy_3.clone(),
+        ))
+    }
+
+    async fn validate_block_header_post_stf(&self) -> Result<(), BlockImportError> {
+        let (curr_slot_sealer, curr_author_bandersnatch_key, curr_entropy_3) =
+            self.get_post_states().await?;
+
+        self.verify_block_seal(
+            &curr_slot_sealer,
+            &curr_author_bandersnatch_key,
+            &curr_entropy_3,
+        )?;
+        self.verify_vrf_output(&curr_author_bandersnatch_key)?;
+        // TODO: Check header markers
         Ok(())
     }
 
     fn validate_parent_hash(&self) -> Result<(), BlockImportError> {
-        if self.curr_block.header.parent_hash() != &self.best_header.hash()? {
+        if self.imported_block.header.parent_hash() != &self.best_header.hash()? {
             return Err(BlockImportError::InvalidParentHash);
         };
         Ok(())
     }
 
     fn validate_timeslot_index(&self) -> Result<(), BlockImportError> {
-        let current_timeslot_index = self.curr_block.header.timeslot_index();
+        let current_timeslot_index = self.imported_block.header.timeslot_index();
         if current_timeslot_index <= self.best_header.timeslot_index() {
             return Err(BlockImportError::InvalidTimeslot);
         }
@@ -210,55 +223,63 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn validate_prior_state_root(&self) -> Result<(), BlockImportError> {
         unimplemented!()
     }
 
-    fn verify_xt_hash(&self) -> Result<(), BlockImportError> {
-        if self.curr_block.header.extrinsic_hash() != &self.curr_block.extrinsics.hash()? {
+    fn validate_xt_hash(&self) -> Result<(), BlockImportError> {
+        if self.imported_block.header.extrinsic_hash() != &self.imported_block.extrinsics.hash()? {
             return Err(BlockImportError::InvalidXtHash);
         }
         Ok(())
     }
 
-    fn verify_block_seal(&self) -> Result<(), BlockImportError> {
-        let block_seal = &self.curr_block.header.block_seal;
-        let entropy_3 = &self.curr_entropy_3;
+    fn verify_block_seal(
+        &self,
+        curr_slot_sealer: &SlotSealer,
+        curr_author_bandersnatch_key: &BandersnatchPubKey,
+        curr_entropy_3: &Hash32,
+    ) -> Result<(), BlockImportError> {
+        let block_seal = &self.imported_block.header.block_seal;
 
-        let vrf_input = match &self.curr_slot_sealer {
+        let vrf_input = match curr_slot_sealer {
             SlotSealer::Ticket(ticket) => {
                 if !author_block_seal_is_valid(block_seal, ticket) {
                     return Err(BlockImportError::InvalidBlockSealOutput);
                 }
-                let mut vrf_input = Vec::with_capacity(X_T.len() + entropy_3.len() + 1);
+                let mut vrf_input = Vec::with_capacity(X_T.len() + curr_entropy_3.len() + 1);
                 vrf_input.extend_from_slice(X_T);
-                vrf_input.extend_from_slice(entropy_3.as_slice());
+                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
                 vrf_input.push(ticket.attempt);
                 vrf_input
             }
             SlotSealer::BandersnatchPubKeys(key) => {
-                if key != &self.curr_author_bandersnatch_key {
+                if key != curr_author_bandersnatch_key {
                     return Err(BlockImportError::InvalidFallbackAuthorKey);
                 }
-                let mut vrf_input = Vec::with_capacity(X_F.len() + entropy_3.len());
+                let mut vrf_input = Vec::with_capacity(X_F.len() + curr_entropy_3.len());
                 vrf_input.extend_from_slice(X_F);
-                vrf_input.extend_from_slice(entropy_3.as_slice());
+                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
                 vrf_input
             }
         };
-        let aux_data = self.curr_block.header.data.encode()?;
+        let aux_data = self.imported_block.header.data.encode()?;
 
         VrfVerifier::verify_vrf(
             &vrf_input,
             &aux_data,
             block_seal,
-            &self.curr_author_bandersnatch_key,
+            curr_author_bandersnatch_key,
         )?;
         Ok(())
     }
 
-    fn verify_vrf_output(&self) -> Result<(), BlockImportError> {
-        let block_seal_output_hash = self.curr_block.header.block_seal.output_hash();
+    fn verify_vrf_output(
+        &self,
+        curr_author_bandersnatch_key: &BandersnatchPubKey,
+    ) -> Result<(), BlockImportError> {
+        let block_seal_output_hash = self.imported_block.header.block_seal.output_hash();
 
         let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
         vrf_input.extend_from_slice(X_E);
@@ -268,21 +289,21 @@ impl BlockImporter {
         VrfVerifier::verify_vrf(
             &vrf_input,
             &aux_data,
-            &self.curr_block.header.data.vrf_signature,
-            &self.curr_author_bandersnatch_key,
+            &self.imported_block.header.data.vrf_signature,
+            curr_author_bandersnatch_key,
         )?;
         Ok(())
     }
 
     async fn run_state_transition(&self) -> Result<Hash32, BlockImportError> {
         let executor = BlockExecutor::new(self.state_manager.clone());
-        let output = executor.run_state_transition(&self.curr_block).await?;
+        let output = executor.run_state_transition(&self.imported_block).await?;
         executor
-            .accumulate_entropy(&self.curr_block.header.vrf_signature())
+            .accumulate_entropy(&self.imported_block.header.vrf_signature())
             .await?;
         executor
             .append_block_history(
-                self.curr_block.header.hash()?,
+                self.imported_block.header.hash()?,
                 output.accumulate_root,
                 output.reported_packages,
             )
