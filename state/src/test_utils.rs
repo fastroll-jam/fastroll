@@ -34,13 +34,9 @@ fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE)
 }
 
-fn init_header_db(core_db: Arc<CoreDB>, parent_hash: Option<Hash32>) -> BlockHeaderDB {
+fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
     const HEADER_DB_CACHE_SIZE: usize = 1000;
-    let mut db = BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE);
-    // parent block hash is initialized with zeroes if not provided
-    db.init_staging_header(parent_hash.unwrap_or_default())
-        .unwrap();
-    db
+    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, None)
 }
 
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
@@ -49,12 +45,9 @@ fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     StateManager::new(state_db, merkle_db)
 }
 
-pub fn init_db_and_manager(parent_hash: Option<Hash32>) -> (BlockHeaderDB, StateManager) {
+pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
     let core_db = Arc::new(init_core_db());
-    (
-        init_header_db(core_db.clone(), parent_hash),
-        init_state_manager(core_db),
-    )
+    (init_header_db(core_db.clone()), init_state_manager(core_db))
 }
 
 pub fn random_state_key() -> Hash32 {

@@ -1175,7 +1175,6 @@ name = "rjam-block"
 version = "0.1.0"
 dependencies = [
  "bit-vec",
- "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",
@@ -1303,6 +1302,7 @@ name = "rjam-node"
 version = "0.1.0"
 dependencies = [
  "rjam-block",
+ "rjam-clock",
  "rjam-codec",
  "rjam-common",
  "rjam-crypto",

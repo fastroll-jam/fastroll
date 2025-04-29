@@ -75,12 +75,12 @@ impl BlockExecutor {
         let prev_timeslot = self.state_manager.get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
         let parent_hash = block.header.data.parent_hash.clone();
-        let parent_state_root = block.header.data.parent_state_root.clone();
+        let parent_state_root = block.header.data.prior_state_root.clone();
         let author_index = block.header.data.author_index;
 
         // Timeslot STF
         let manager = self.state_manager.clone();
-        spawn_timed("timeslot stf", async move {
+        spawn_timed("timeslot_stf", async move {
             transition_timeslot(manager, &header_timeslot).await
         })
         .await??;
@@ -94,25 +94,25 @@ impl BlockExecutor {
         // Disputes STF
         let manager = self.state_manager.clone();
         let disputes_xt_cloned = disputes_xt.clone();
-        let disputes_jh = spawn_timed("disputes_jh", async move {
+        let disputes_jh = spawn_timed("disputes_stf", async move {
             transition_disputes(manager, &disputes_xt_cloned, prev_timeslot).await
         });
 
         // Entropy STF (on-epoch-change transition only)
         let manager = self.state_manager.clone();
-        let entropy_jh = spawn_timed("entropy_jh", async move {
+        let entropy_jh = spawn_timed("entropy_stf", async move {
             transition_epoch_entropy_on_epoch_change(manager, epoch_progressed).await
         });
 
         // PastSet STF
         let manager = self.state_manager.clone();
-        let past_set_jh = spawn_timed("pastset_jh", async move {
+        let past_set_jh = spawn_timed("pastset_stf", async move {
             transition_past_set(manager, epoch_progressed).await
         });
 
         // ActiveSet STF
         let manager = self.state_manager.clone();
-        let active_set_jh = spawn_timed("active_set_jh", async move {
+        let active_set_jh = spawn_timed("active_set_stf", async move {
             transition_active_set(manager, epoch_progressed).await
         });
 
@@ -121,7 +121,7 @@ impl BlockExecutor {
         let manager = self.state_manager.clone();
         let disputes_xt_cloned = disputes_xt.clone();
         let guarantees_xt_cloned = guarantees_xt.clone();
-        let reports_jh = spawn_timed("reports_jh", async move {
+        let reports_jh = spawn_timed("reports_stf", async move {
             transition_reports_eliminate_invalid(
                 manager.clone(),
                 &disputes_xt_cloned,
@@ -142,7 +142,7 @@ impl BlockExecutor {
 
         // Authorizer STF
         let manager = self.state_manager.clone();
-        let auth_pool_jh = spawn_timed("auth_pool_jh", async move {
+        let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
             transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
         });
 
@@ -152,7 +152,7 @@ impl BlockExecutor {
 
         // Safrole STF
         let manager = self.state_manager.clone();
-        let safrole_jh = spawn_timed("safrole_jh", async move {
+        let safrole_jh = spawn_timed("safrole_stf", async move {
             transition_safrole(
                 manager,
                 &prev_timeslot,
@@ -165,7 +165,7 @@ impl BlockExecutor {
 
         // OnChainStatistics STF
         let manager = self.state_manager.clone();
-        let stats_jh = spawn_timed("stats_jh", async move {
+        let stats_jh = spawn_timed("stats_stf", async move {
             transition_onchain_statistics(manager, epoch_progressed, author_index, &xt_cloned).await
         });
 
@@ -180,7 +180,7 @@ impl BlockExecutor {
             prev_timeslot.slot(),
         );
         let manager = self.state_manager.clone();
-        let acc_jh = spawn_timed("acc_jh", async move {
+        let acc_jh = spawn_timed("acc_stf", async move {
             let acc_summary = transition_on_accumulate(manager.clone(), &accumulatable_reports)
                 .await
                 .unwrap();
@@ -202,7 +202,7 @@ impl BlockExecutor {
 
         // BlockHistory STF (the first half only)
         let manager = self.state_manager.clone();
-        spawn_timed("history_jh", async move {
+        spawn_timed("history_stf", async move {
             transition_block_history_parent_root(manager.clone(), parent_state_root).await
         })
         .await??;

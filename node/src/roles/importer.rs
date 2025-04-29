@@ -42,8 +42,6 @@ pub enum BlockImportError {
     InvalidFallbackAuthorKey,
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
-    #[error("Best block is not found locally")]
-    BestBlockNotFound,
     #[error("Block header contains invalid parent hash")]
     InvalidParentHash,
     #[error("Block header contains timeslot that is later than the current system time")]
@@ -102,10 +100,7 @@ impl BlockImporter {
     }
 
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
-        let best_header = self
-            .header_db
-            .get_best_header()
-            .ok_or(BlockImportError::BestBlockNotFound)?;
+        let best_header = self.header_db.get_best_header();
 
         let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let curr_entropy_3 = curr_epoch_entropy.third_history();

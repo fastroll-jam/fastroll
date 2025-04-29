@@ -1,7 +1,7 @@
 //! Block history state transition conformance tests
 mod history {
     use async_trait::async_trait;
-    use rjam_block::header_db::BlockHeaderDB;
+    use rjam_block::types::block::BlockHeader;
     use rjam_common::{workloads::ReportedWorkPackage, Hash32};
     use rjam_conformance_tests::{
         asn_types::history::*,
@@ -64,7 +64,7 @@ mod history {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            _header_db: &mut BlockHeaderDB,
+            _new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // First transition: Prior state root integration.
@@ -91,7 +91,7 @@ mod history {
         }
 
         fn extract_output(
-            _header_db: &BlockHeaderDB,
+            _new_header: &BlockHeader,
             _transition_output: Option<&Self::JamTransitionOutput>,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {

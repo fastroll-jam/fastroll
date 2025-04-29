@@ -1,7 +1,7 @@
 //! Authorizers state transition conformance tests
 mod authorizations {
     use async_trait::async_trait;
-    use rjam_block::{header_db::BlockHeaderDB, types::extrinsics::guarantees::GuaranteesXt};
+    use rjam_block::types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt};
     use rjam_conformance_tests::{
         asn_types::authorizations::*,
         generate_typed_tests,
@@ -56,7 +56,7 @@ mod authorizations {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            _header_db: &mut BlockHeaderDB,
+            _new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
@@ -68,7 +68,7 @@ mod authorizations {
         }
 
         fn extract_output(
-            _header_db: &BlockHeaderDB,
+            _new_header: &BlockHeader,
             _transition_output: Option<&Self::JamTransitionOutput>,
             _error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {

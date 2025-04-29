@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use rjam_block::types::block::{
     BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey,
 };

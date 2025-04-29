@@ -1,4 +1,4 @@
-use crate::types::extrinsics::Extrinsics;
+use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
 use rjam_codec::prelude::*;
 use rjam_common::{
     ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
@@ -47,7 +47,7 @@ pub struct BlockHeaderData {
     /// `p`: The parent block hash.
     pub parent_hash: Hash32,
     /// `r`: The parent block posterior state root.
-    pub parent_state_root: Hash32,
+    pub prior_state_root: Hash32,
     /// `x`: Hash of the extrinsics introduced in the block.
     pub extrinsic_hash: Hash32,
     /// `t`: The timeslot index of the block.
@@ -67,7 +67,7 @@ pub struct BlockHeaderData {
 impl JamEncode for BlockHeaderData {
     fn size_hint(&self) -> usize {
         self.parent_hash.size_hint()
-            + self.parent_state_root.size_hint()
+            + self.prior_state_root.size_hint()
             + self.extrinsic_hash.size_hint()
             + 4
             + self.epoch_marker.size_hint()
@@ -79,7 +79,7 @@ impl JamEncode for BlockHeaderData {
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         self.parent_hash.encode_to(dest)?;
-        self.parent_state_root.encode_to(dest)?;
+        self.prior_state_root.encode_to(dest)?;
         self.extrinsic_hash.encode_to(dest)?;
         self.timeslot_index.encode_to_fixed(dest, 4)?;
         self.epoch_marker.encode_to(dest)?;
@@ -98,7 +98,7 @@ impl JamDecode for BlockHeaderData {
     {
         Ok(Self {
             parent_hash: Hash32::decode(input)?,
-            parent_state_root: Hash32::decode(input)?,
+            prior_state_root: Hash32::decode(input)?,
             extrinsic_hash: Hash32::decode(input)?,
             timeslot_index: u32::decode_fixed(input, 4)?,
             epoch_marker: Option::<EpochMarker>::decode(input)?,
@@ -194,12 +194,14 @@ impl BlockHeader {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
+    // --- Getters
+
     pub fn parent_hash(&self) -> &Hash32 {
         &self.data.parent_hash
     }
 
     pub fn parent_state_root(&self) -> &Hash32 {
-        &self.data.parent_state_root
+        &self.data.prior_state_root
     }
 
     pub fn extrinsic_hash(&self) -> &Hash32 {
@@ -228,5 +230,47 @@ impl BlockHeader {
 
     pub fn vrf_signature(&self) -> VrfSig {
         self.data.vrf_signature.clone()
+    }
+
+    // --- Setters
+
+    pub fn set_parent_hash(&mut self, hash: Hash32) {
+        self.data.parent_hash = hash;
+    }
+
+    pub fn set_prior_state_root(&mut self, root: Hash32) {
+        self.data.prior_state_root = root;
+    }
+
+    pub fn set_timeslot(&mut self, timeslot_index: u32) {
+        self.data.timeslot_index = timeslot_index;
+    }
+
+    pub fn set_extrinsic_hash(&mut self, xt_hash: Hash32) {
+        self.data.extrinsic_hash = xt_hash;
+    }
+
+    pub fn set_author_index(&mut self, author_index: ValidatorIndex) {
+        self.data.author_index = author_index;
+    }
+
+    pub fn set_epoch_marker(&mut self, epoch_marker: EpochMarker) {
+        self.data.epoch_marker = Some(epoch_marker);
+    }
+
+    pub fn set_winning_tickets_marker(&mut self, winning_tickets_marker: WinningTicketsMarker) {
+        self.data.winning_tickets_marker = Some(winning_tickets_marker);
+    }
+
+    pub fn set_offenders_marker(&mut self, offenders_header_marker: OffendersHeaderMarker) {
+        self.data.offenders_marker = offenders_header_marker.items
+    }
+
+    pub fn set_vrf_signature(&mut self, signature: VrfSig) {
+        self.data.vrf_signature = signature;
+    }
+
+    pub fn set_block_seal(&mut self, block_seal: BlockSeal) {
+        self.block_seal = block_seal;
     }
 }

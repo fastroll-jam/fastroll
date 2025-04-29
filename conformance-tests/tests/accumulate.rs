@@ -3,7 +3,7 @@
 mod accumulate {
     use async_trait::async_trait;
     use futures::future::join_all;
-    use rjam_block::header_db::BlockHeaderDB;
+    use rjam_block::types::block::BlockHeader;
     use rjam_common::{workloads::WorkReport, Hash32};
     use rjam_conformance_tests::{
         asn_types::{
@@ -124,7 +124,7 @@ mod accumulate {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            _header_db: &mut BlockHeaderDB,
+            _new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
@@ -166,7 +166,7 @@ mod accumulate {
         }
 
         fn extract_output(
-            _header_db: &BlockHeaderDB,
+            _new_header: &BlockHeader,
             transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {

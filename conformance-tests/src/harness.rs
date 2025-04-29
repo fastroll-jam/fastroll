@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rjam_block::header_db::BlockHeaderDB;
+use rjam_block::types::block::BlockHeader;
 use rjam_common::utils::tracing::setup_timed_tracing;
 use rjam_state::{error::StateManagerError, manager::StateManager};
 use rjam_transition::error::TransitionError;
@@ -38,8 +38,9 @@ pub trait StateTransitionTest {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
-        rjam_state::test_utils::init_db_and_manager(None)
+    fn init_header_and_manager() -> (BlockHeader, StateManager) {
+        let (_, manager) = rjam_state::test_utils::init_db_and_manager();
+        (BlockHeader::default(), manager)
     }
 
     async fn load_pre_state(
@@ -51,14 +52,14 @@ pub trait StateTransitionTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
-        header_db: &mut BlockHeaderDB,
+        new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError>;
 
     fn map_error_code(e: TransitionError) -> Self::ErrorCode;
 
     fn extract_output(
-        header_db: &BlockHeaderDB,
+        new_header: &BlockHeader,
         transition_output: Option<&Self::JamTransitionOutput>,
         error_code: &Option<Self::ErrorCode>,
     ) -> Self::Output;
@@ -79,7 +80,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     let test_case = T::load_test_case(&filename);
 
     // init state manager and header db
-    let (mut header_db, state_manager) = T::init_db_and_manager();
+    let (mut new_header, state_manager) = T::init_header_and_manager();
     let state_manager = Arc::new(state_manager);
 
     // load pre-state to the cache and the DB
@@ -96,7 +97,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // run state transitions
     let transition_result =
-        T::run_state_transition(state_manager.clone(), &mut header_db, jam_input).await;
+        T::run_state_transition(state_manager.clone(), &mut new_header, jam_input).await;
 
     let (maybe_transition_output, maybe_error_code) = match transition_result {
         Ok(transition_output) => (Some(transition_output), None),
@@ -116,7 +117,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // compare the output
     let output = T::extract_output(
-        &header_db,
+        &new_header,
         maybe_transition_output.as_ref(),
         &maybe_error_code,
     );

@@ -2083,7 +2083,7 @@ impl From<AsnHeader> for BlockHeader {
         Self {
             data: BlockHeaderData {
                 parent_hash: Hash32::from(value.parent),
-                parent_state_root: Hash32::from(value.parent_state_root),
+                prior_state_root: Hash32::from(value.parent_state_root),
                 extrinsic_hash: Hash32::from(value.extrinsic_hash),
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),

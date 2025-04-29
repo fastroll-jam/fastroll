@@ -2,15 +2,13 @@
 mod reports {
     use async_trait::async_trait;
     use futures::future::join_all;
+    use rjam_block::types::block::BlockHeader;
     use rjam_conformance_tests::{
         asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use std::sync::Arc;
-
-    use rjam_block::header_db::BlockHeaderDB;
     use rjam_crypto::types::Ed25519PubKey;
     use rjam_state::{
         error::StateManagerError,
@@ -24,6 +22,7 @@ mod reports {
         error::TransitionError,
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
+    use std::sync::Arc;
 
     struct ReportsTest;
 
@@ -103,7 +102,7 @@ mod reports {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            _header_db: &mut BlockHeaderDB,
+            _new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
@@ -131,7 +130,7 @@ mod reports {
         }
 
         fn extract_output(
-            _header_db: &BlockHeaderDB,
+            _new_header: &BlockHeader,
             transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {

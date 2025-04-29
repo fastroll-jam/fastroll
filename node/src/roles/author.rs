@@ -5,9 +5,10 @@ use rjam_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
     types::{
         block::{Block, BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
-        extrinsics::Extrinsics,
+        extrinsics::{Extrinsics, ExtrinsicsError},
     },
 };
+use rjam_clock::Clock;
 use rjam_codec::prelude::*;
 use rjam_common::{
     ticket::Ticket, ByteArray, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F, X_T,
@@ -23,16 +24,20 @@ use thiserror::Error;
 pub enum BlockAuthorError {
     #[error("Block seal output hash doesn't match ticket proof output hash")]
     InvalidBlockSealOutput,
+    #[error("System time is before the JAM common era")]
+    InvalidSysTime,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CommonTypeError: {0}")]
     CommonTypeError(#[from] CommonTypeError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
-    #[error("BlockHeaderError: {0}")]
-    BlockHeaderError(#[from] BlockHeaderError),
     #[error("BlockHeaderDBError: {0}")]
     BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
+    #[error("ExtrinsicsError: {0}")]
+    ExtrinsicsError(#[from] ExtrinsicsError),
     #[error("BlockExecutionError: {0}")]
     BlockExecutionError(#[from] BlockExecutionError),
 }
@@ -40,7 +45,7 @@ pub enum BlockAuthorError {
 #[allow(dead_code)]
 pub struct BlockAuthor {
     state_manager: Arc<StateManager>,
-    header_db: Arc<BlockHeaderDB>,
+    new_block: Block,
     best_header: BlockHeader,
     author_index: ValidatorIndex,
 }
@@ -49,43 +54,32 @@ pub struct BlockAuthor {
 impl BlockAuthor {
     pub fn new(
         state_manager: Arc<StateManager>,
-        header_db: Arc<BlockHeaderDB>,
         best_header: BlockHeader,
         author_index: ValidatorIndex,
     ) -> Self {
         Self {
             state_manager,
-            header_db,
+            new_block: Block::default(),
             best_header,
             author_index,
         }
     }
 
-    pub async fn author_block(&mut self) -> Result<Block, BlockAuthorError> {
-        let extrinsics = self.collect_extrinsics()?;
+    pub async fn author_block(
+        &mut self,
+        header_db: Arc<BlockHeaderDB>,
+    ) -> Result<&Block, BlockAuthorError> {
+        let xt = Self::collect_extrinsics();
+        self.set_extrinsics(xt)?;
         self.prelude()?;
 
-        // Construct a block with some header fields missing
-        let staging_header = self
-            .header_db
-            .get_staging_header()
-            .expect("Staging header should be initialized");
-
-        let mut new_block = Block {
-            header: staging_header,
-            extrinsics,
-        };
-
         // STF phase #1
-        let stf_output = self.run_initial_state_transition(&new_block).await?;
+        let stf_output = self.run_initial_state_transition().await?;
         let vrf_sig = self.epilogue(stf_output.clone()).await?;
         self.seal_block_header().await?;
 
-        // Commit block header
-        let new_header_hash = self.commit_header().await?;
-
-        self.finalize_block(&new_header_hash, &mut new_block)
-            .await?;
+        // Commit block header and finalize block
+        let new_header_hash = self.commit_header(header_db).await?;
 
         // STF phase #2
         self.run_final_state_transition(new_header_hash, &vrf_sig, stf_output)
@@ -97,14 +91,18 @@ impl BlockAuthor {
         self.state_manager.commit_dirty_cache().await?;
         tracing::info!("Post State Root: {}", self.state_manager.merkle_root());
 
-        Ok(new_block)
+        Ok(&self.new_block)
     }
 
-    fn collect_extrinsics(&mut self) -> Result<Extrinsics, BlockAuthorError> {
+    fn collect_extrinsics() -> Extrinsics {
         // FIXME: Actually collect from the Xt store
-        let xts = Extrinsics::default();
-        self.header_db.set_extrinsic_hash(&xts)?;
-        Ok(xts)
+        Extrinsics::default()
+    }
+
+    fn set_extrinsics(&mut self, xts: Extrinsics) -> Result<(), BlockAuthorError> {
+        self.new_block.extrinsics = xts.clone();
+        self.new_block.header.set_extrinsic_hash(xts.hash()?);
+        Ok(())
     }
 
     fn load_bandersnatch_secret_key() -> BandersnatchSecretKey {
@@ -115,23 +113,23 @@ impl BlockAuthor {
     /// Sets header fields required for running STFs in advance.
     fn prelude(&mut self) -> Result<(), BlockAuthorError> {
         let parent_hash = self.best_header.hash()?;
-        tracing::info!("Parent header hash: {}", parent_hash);
+        tracing::info!("Parent header hash: {}", &parent_hash);
         let prior_state_root = self.state_manager.merkle_root();
-        tracing::info!("Prior state root: {}", prior_state_root);
+        tracing::info!("Prior state root: {}", &prior_state_root);
 
-        self.header_db.set_parent_state_root(prior_state_root)?;
-        self.header_db.set_block_author_index(self.author_index)?;
-        self.header_db.set_timeslot()?;
+        self.new_block.header.set_parent_hash(parent_hash);
+        self.new_block.header.set_prior_state_root(prior_state_root);
+        self.new_block.header.set_author_index(self.author_index);
+        self.new_block
+            .header
+            .set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
 
         Ok(())
     }
 
-    async fn run_initial_state_transition(
-        &self,
-        block: &Block,
-    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
+    async fn run_initial_state_transition(&self) -> Result<BlockExecutionOutput, BlockAuthorError> {
         let executor = BlockExecutor::new(self.state_manager.clone());
-        Ok(executor.run_state_transition(block).await?)
+        Ok(executor.run_state_transition(&self.new_block).await?)
     }
 
     /// Sets missing header fields with contexts produced during the STF run.
@@ -153,19 +151,19 @@ impl BlockAuthor {
         let curr_entropy_3 = epoch_entropy.third_history();
         let vrf_sig =
             sign_entropy_source_vrf_signature(&curr_slot_sealer, curr_entropy_3, &author_sk)?;
-        self.header_db.set_vrf_signature(&vrf_sig)?;
+        self.new_block.header.set_vrf_signature(vrf_sig.clone());
 
         // Set header markers
-        self.header_db
-            .set_offenders_marker(&stf_output.offenders_marker)?;
-        if let Some(epoch_marker) = stf_output.safrole_markers.epoch_marker.as_ref() {
-            self.header_db.set_epoch_marker(&epoch_marker)?;
+        self.new_block
+            .header
+            .set_offenders_marker(stf_output.offenders_marker);
+        if let Some(epoch_marker) = stf_output.safrole_markers.epoch_marker {
+            self.new_block.header.set_epoch_marker(epoch_marker);
         }
-        if let Some(winning_tickets_marker) =
-            stf_output.safrole_markers.winning_tickets_marker.as_ref()
-        {
-            self.header_db
-                .set_winning_tickets_marker(&winning_tickets_marker)?;
+        if let Some(winning_tickets_marker) = stf_output.safrole_markers.winning_tickets_marker {
+            self.new_block
+                .header
+                .set_winning_tickets_marker(winning_tickets_marker);
         }
 
         Ok(vrf_sig)
@@ -175,11 +173,7 @@ impl BlockAuthor {
     async fn seal_block_header(&mut self) -> Result<(), BlockAuthorError> {
         let author_sk = Self::load_bandersnatch_secret_key();
 
-        let staging_header_data = self
-            .header_db
-            .get_staging_header()
-            .expect("Staging header should be initialized")
-            .data;
+        let new_header_data = self.new_block.header.data.clone();
         // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
         let curr_timeslot = self.state_manager.get_timeslot().await?;
         let curr_slot_sealer = self
@@ -193,35 +187,26 @@ impl BlockAuthor {
 
         let seal = match curr_slot_sealer {
             SlotSealer::Ticket(ticket) => {
-                sign_block_seal(staging_header_data, &ticket, curr_entropy_3, &author_sk)?
+                sign_block_seal(new_header_data, &ticket, curr_entropy_3, &author_sk)?
             }
             SlotSealer::BandersnatchPubKeys(_key) => {
-                sign_fallback_block_seal(staging_header_data, curr_entropy_3, &author_sk)?
+                sign_fallback_block_seal(new_header_data, curr_entropy_3, &author_sk)?
             }
         };
-        self.header_db.set_block_seal(&seal)?;
+        self.new_block.header.set_block_seal(seal);
 
         Ok(())
     }
 
-    async fn commit_header(&mut self) -> Result<Hash32, BlockAuthorError> {
-        Ok(self.header_db.commit_staging_header().await?)
-    }
-
-    async fn finalize_block(
-        &self,
-        new_header_hash: &Hash32,
-        new_block: &mut Block,
-    ) -> Result<(), BlockAuthorError> {
-        let new_header = self
-            .header_db
-            .get_header(new_header_hash)
-            .await?
-            .expect("New header should already be committed");
-        // update the block header with the final header state
-        new_block.header = new_header;
+    async fn commit_header(
+        &mut self,
+        header_db: Arc<BlockHeaderDB>,
+    ) -> Result<Hash32, BlockAuthorError> {
+        let new_header_hash = header_db
+            .commit_header(self.new_block.header.clone())
+            .await?;
         tracing::info!("New block created. Header hash: {new_header_hash}");
-        Ok(())
+        Ok(new_header_hash)
     }
 
     /// Runs the final two STFs.
@@ -234,7 +219,7 @@ impl BlockAuthor {
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
         let executor = BlockExecutor::new(self.state_manager.clone());
-        executor.accumulate_entropy(&vrf_sig).await?;
+        executor.accumulate_entropy(vrf_sig).await?;
         executor
             .append_block_history(
                 new_header_hash,
