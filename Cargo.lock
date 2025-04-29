@@ -1305,6 +1305,7 @@ dependencies = [
  "rjam-clock",
  "rjam-codec",
  "rjam-common",
+ "rjam-conformance-tests",
  "rjam-crypto",
  "rjam-db",
  "rjam-extrinsics",

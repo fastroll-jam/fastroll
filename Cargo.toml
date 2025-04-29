@@ -33,6 +33,7 @@ rjam-clock = { path = "clock" }
 rjam-codec = { path = "codec/rjam-codec" }
 rjam-codec-derive = { path = "codec/rjam-codec-derive" }
 rjam-common = { path = "common" }
+rjam-conformance-tests = { path = "conformance-tests" }
 rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
