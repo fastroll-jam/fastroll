@@ -1,9 +1,7 @@
 //! Disputes state transition conformance tests
 mod disputes {
     use async_trait::async_trait;
-    use rjam_block::{
-        header_db::BlockHeaderDB, types::extrinsics::disputes::OffendersHeaderMarker,
-    };
+    use rjam_block::types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker};
     use rjam_conformance_tests::{
         asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
@@ -66,7 +64,7 @@ mod disputes {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            header_db: &mut BlockHeaderDB,
+            new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             let pre_timeslot = state_manager.get_timeslot().await?;
@@ -77,7 +75,7 @@ mod disputes {
             transition_reports_eliminate_invalid(state_manager.clone(), &disputes, pre_timeslot)
                 .await?;
             transition_disputes(state_manager, &disputes, pre_timeslot).await?;
-            header_db.set_offenders_marker(&offenders_marker)?;
+            new_header.set_offenders_marker(offenders_marker);
 
             Ok(())
         }
@@ -87,7 +85,7 @@ mod disputes {
         }
 
         fn extract_output(
-            header_db: &BlockHeaderDB,
+            new_header: &BlockHeader,
             _transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
@@ -96,13 +94,9 @@ mod disputes {
             }
 
             // Convert RJAM output into ASN Output.
-            let curr_header_offenders_marker = header_db
-                .get_staging_header()
-                .unwrap()
-                .offenders_marker()
-                .to_vec();
+            let curr_offenders_marker = new_header.offenders_marker();
             let curr_offenders_marker = OffendersHeaderMarker {
-                items: curr_header_offenders_marker,
+                items: curr_offenders_marker.to_vec(),
             };
             let disputes_output_marks: AsnDisputesOutputMarks = curr_offenders_marker.into();
 

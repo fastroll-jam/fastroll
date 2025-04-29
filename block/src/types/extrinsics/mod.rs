@@ -64,10 +64,9 @@ impl Extrinsics {
         let mut buf = Vec::with_capacity(HASH_SIZE * 5);
         hash::<Blake2b256>(&self.tickets.encode()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&self.preimages.encode()?)?.encode_to(&mut buf)?;
-        hash::<Blake2b256>(&self.guarantees.encode()?)?.encode_to(&mut buf)?;
+        hash::<Blake2b256>(&self.guarantees.encode_with_hashed_reports()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&self.assurances.encode()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&self.disputes.encode()?)?.encode_to(&mut buf)?;
-
-        Ok(hash::<Blake2b256>(&buf.encode()?)?)
+        Ok(hash::<Blake2b256>(&buf)?)
     }
 }

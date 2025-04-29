@@ -1,7 +1,7 @@
 //! Assurances state transition conformance tests
 mod assurances {
     use async_trait::async_trait;
-    use rjam_block::header_db::BlockHeaderDB;
+    use rjam_block::types::block::BlockHeader;
     use rjam_common::Hash32;
     use rjam_conformance_tests::{
         asn_types::{assurances::*, common::*},
@@ -66,7 +66,7 @@ mod assurances {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            _header_db: &mut BlockHeaderDB,
+            _new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // Run state transitions.
@@ -87,7 +87,7 @@ mod assurances {
         }
 
         fn extract_output(
-            _header_db: &BlockHeaderDB,
+            _new_header: &BlockHeader,
             transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {

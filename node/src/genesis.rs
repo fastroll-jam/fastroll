@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use rjam_block::types::block::{
     BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey,
 };
@@ -26,7 +27,7 @@ fn create_genesis_block_header(
         .expect("Validator count must match VALIDATOR_COUNT");
 
     BlockHeader {
-        header_data: BlockHeaderData {
+        data: BlockHeaderData {
             epoch_marker: Some(EpochMarker {
                 entropy: Hash32::default(),
                 tickets_entropy: Hash32::default(),

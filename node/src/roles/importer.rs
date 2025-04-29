@@ -42,8 +42,6 @@ pub enum BlockImportError {
     InvalidFallbackAuthorKey,
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
-    #[error("Best block is not found locally")]
-    BestBlockNotFound,
     #[error("Block header contains invalid parent hash")]
     InvalidParentHash,
     #[error("Block header contains timeslot that is later than the current system time")]
@@ -102,10 +100,7 @@ impl BlockImporter {
     }
 
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
-        let best_header = self
-            .header_db
-            .get_best_header()
-            .ok_or(BlockImportError::BestBlockNotFound)?;
+        let best_header = self.header_db.get_best_header();
 
         let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
         let curr_entropy_3 = curr_epoch_entropy.third_history();
@@ -251,7 +246,7 @@ impl BlockImporter {
                 vrf_input
             }
         };
-        let aux_data = self.curr_block.header.header_data.encode()?;
+        let aux_data = self.curr_block.header.data.encode()?;
 
         VrfVerifier::verify_vrf(
             &vrf_input,
@@ -273,7 +268,7 @@ impl BlockImporter {
         VrfVerifier::verify_vrf(
             &vrf_input,
             &aux_data,
-            &self.curr_block.header.header_data.vrf_signature,
+            &self.curr_block.header.data.vrf_signature,
             &self.curr_author_bandersnatch_key,
         )?;
         Ok(())
@@ -281,7 +276,17 @@ impl BlockImporter {
 
     async fn run_state_transition(&self) -> Result<Hash32, BlockImportError> {
         let executor = BlockExecutor::new(self.state_manager.clone());
-        let _output = executor.run_state_transition(&self.curr_block).await?;
+        let output = executor.run_state_transition(&self.curr_block).await?;
+        executor
+            .accumulate_entropy(&self.curr_block.header.vrf_signature())
+            .await?;
+        executor
+            .append_block_history(
+                self.curr_block.header.hash()?,
+                output.accumulate_root,
+                output.reported_packages,
+            )
+            .await?;
         // TODO: additional validation on output
         self.state_manager.commit_dirty_cache().await?;
         Ok(self.state_manager.merkle_root())

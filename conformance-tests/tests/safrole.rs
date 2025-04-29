@@ -1,9 +1,9 @@
 //! Safrole state transition conformance tests
 mod safrole {
     use async_trait::async_trait;
-    use rjam_block::{
-        header_db::BlockHeaderDB,
-        types::extrinsics::tickets::{TicketsXt, TicketsXtEntry},
+    use rjam_block::types::{
+        block::BlockHeader,
+        extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     };
     use rjam_common::Hash32;
     use rjam_conformance_tests::{
@@ -25,7 +25,9 @@ mod safrole {
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
-            entropy::transition_epoch_entropy,
+            entropy::{
+                transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block,
+            },
             safrole::transition_safrole,
             timeslot::transition_timeslot,
             validators::{transition_active_set, transition_past_set},
@@ -103,7 +105,7 @@ mod safrole {
 
         async fn run_state_transition(
             state_manager: Arc<StateManager>,
-            header_db: &mut BlockHeaderDB,
+            new_header: &mut BlockHeader,
             jam_input: Self::JamInput,
         ) -> Result<Self::JamTransitionOutput, TransitionError> {
             // let (input_timeslot, input_header_entropy_hash, input_extrinsic) = jam_input;
@@ -113,8 +115,9 @@ mod safrole {
             transition_timeslot(state_manager.clone(), &jam_input.slot).await?;
             let curr_timeslot = state_manager.get_timeslot().await?;
             let epoch_progressed = pre_timeslot.epoch() < curr_timeslot.epoch();
-            transition_epoch_entropy(state_manager.clone(), epoch_progressed, jam_input.entropy)
+            transition_epoch_entropy_on_epoch_change(state_manager.clone(), epoch_progressed)
                 .await?;
+            transition_epoch_entropy_per_block(state_manager.clone(), jam_input.entropy).await?;
             transition_past_set(state_manager.clone(), epoch_progressed).await?;
             transition_active_set(state_manager.clone(), epoch_progressed).await?;
             transition_safrole(
@@ -127,11 +130,11 @@ mod safrole {
             .await?;
 
             let markers = mark_safrole_header_markers(state_manager, epoch_progressed).await?;
-            if let Some(epoch_marker) = markers.epoch_marker.as_ref() {
-                header_db.set_epoch_marker(epoch_marker)?;
+            if let Some(epoch_marker) = markers.epoch_marker {
+                new_header.set_epoch_marker(epoch_marker);
             }
-            if let Some(winning_tickets_marker) = markers.winning_tickets_marker.as_ref() {
-                header_db.set_winning_tickets_marker(winning_tickets_marker)?;
+            if let Some(winning_tickets_marker) = markers.winning_tickets_marker {
+                new_header.set_winning_tickets_marker(winning_tickets_marker);
             }
 
             Ok(())
@@ -142,7 +145,7 @@ mod safrole {
         }
 
         fn extract_output(
-            header_db: &BlockHeaderDB,
+            new_header: &BlockHeader,
             _transition_output: Option<&Self::JamTransitionOutput>,
             error_code: &Option<Self::ErrorCode>,
         ) -> Self::Output {
@@ -151,10 +154,8 @@ mod safrole {
             }
 
             // Convert RJAM output into ASN Output.
-            let staging_header = header_db.get_staging_header().unwrap();
-            let curr_header_epoch_marker = staging_header.epoch_marker().cloned();
-            let curr_header_winning_tickets_marker =
-                staging_header.winning_tickets_marker().cloned();
+            let curr_header_epoch_marker = new_header.epoch_marker().cloned();
+            let curr_header_winning_tickets_marker = new_header.winning_tickets_marker().cloned();
 
             let output_marks = SafroleHeaderMarkers {
                 epoch_marker: curr_header_epoch_marker,
