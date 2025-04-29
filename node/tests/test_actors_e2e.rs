@@ -1,15 +1,16 @@
 //! End-to-end state transition tests
 use rjam_block::{header_db::BlockHeaderDB, types::block::Block};
-use rjam_common::{utils::tracing::setup_timed_tracing, ValidatorIndex};
+use rjam_common::utils::tracing::setup_timed_tracing;
 use rjam_conformance_tests::{
     asn_types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
     utils::AsnTypeLoader,
 };
+use rjam_crypto::types::ValidatorKeySet;
 use rjam_node::actors::{author::BlockAuthor, importer::BlockImporter};
 use rjam_state::{
     manager::StateManager,
     test_utils::{add_all_simple_state_entries, init_db_and_manager, SimpleStates},
-    types::ActiveSet,
+    types::{ActiveSet, SafroleState},
 };
 use std::{error::Error, path::PathBuf, sync::Arc};
 
@@ -20,16 +21,11 @@ pub fn load_genesis_block_from_file() -> Block {
     asn_block.into()
 }
 
-pub fn load_genesis_active_set_from_file() -> ActiveSet {
+pub fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
     let json_path = PathBuf::from("src/genesis-data/genesis_active_set.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let asn_active_set: AsnValidatorsData = AsnTypeLoader::load_from_json_file(&full_path);
-    ActiveSet(validators_data_to_validator_set(&asn_active_set))
-}
-
-/// Mocking Author Info
-fn get_author_index() -> ValidatorIndex {
-    ValidatorIndex::default()
+    let asn_validators_data: AsnValidatorsData = AsnTypeLoader::load_from_json_file(&full_path);
+    validators_data_to_validator_set(&asn_validators_data)
 }
 
 /// Mocking DB initialization and genesis state.
@@ -41,9 +37,13 @@ async fn init_with_genesis_state() -> Result<(Arc<BlockHeaderDB>, Arc<StateManag
     let header_db = Arc::new(header_db);
     let state_manager = Arc::new(state_manager);
 
-    // Init genesis simple state with `ActiveSet` value
+    // Init genesis simple state with initial validators: active set and pending set
     let genesis_simple_state = SimpleStates {
-        active_set: load_genesis_active_set_from_file(),
+        active_set: ActiveSet(load_genesis_validator_set_from_file()),
+        safrole: SafroleState {
+            pending_set: load_genesis_validator_set_from_file(),
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -67,7 +67,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let best_header = header_db.get_best_header();
 
     // Block author actor
-    let mut author = BlockAuthor::new(state_manager, best_header, get_author_index());
+    let mut author = BlockAuthor::new(state_manager, best_header, 0);
     let (new_block, _author_post_state_root) = author.author_block(header_db).await?;
 
     // --- Block importing
@@ -80,7 +80,6 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Block importer actor
     let mut importer = BlockImporter::new(state_manager, header_db, Some(best_header));
     importer.import_block(new_block).await?;
-    // FIXME: Load proper genesis state
     // let importer_post_state_root = importer.validate_block().await?;
     // assert_eq!(author_post_state_root, importer_post_state_root);
 
