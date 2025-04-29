@@ -42,7 +42,6 @@ pub enum BlockAuthorError {
     BlockExecutionError(#[from] BlockExecutionError),
 }
 
-#[allow(dead_code)]
 pub struct BlockAuthor {
     state_manager: Arc<StateManager>,
     new_block: Block,
@@ -50,7 +49,6 @@ pub struct BlockAuthor {
     author_index: ValidatorIndex,
 }
 
-#[allow(dead_code)]
 impl BlockAuthor {
     pub fn new(
         state_manager: Arc<StateManager>,
