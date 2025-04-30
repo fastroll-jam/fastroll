@@ -1,7 +1,7 @@
 //! End-to-end state transition tests
 use rjam_common::{utils::tracing::setup_timed_tracing, ByteArray, ByteEncodable};
 use rjam_crypto::types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey, ValidatorKey};
-use rjam_networking::endpoint::QuicEndpoint;
+use rjam_network::endpoint::QuicEndpoint;
 use rjam_node::{
     actors::{author::BlockAuthor, importer::BlockImporter},
     genesis::{genesis_simple_state, load_genesis_block_from_file},

@@ -1,6 +1,6 @@
 use rjam_block::header_db::BlockHeaderDB;
 use rjam_crypto::types::ValidatorKey;
-use rjam_networking::endpoint::QuicEndpoint;
+use rjam_network::endpoint::QuicEndpoint;
 use rjam_state::manager::StateManager;
 use std::{net::SocketAddrV6, sync::Arc};
 

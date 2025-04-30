@@ -12,7 +12,7 @@ members = [
     "db",
     "extrinsics",
     "merkle",
-    "networking",
+    "network",
     "node",
     "pvm/pvm-core",
     "pvm/pvm-host",
@@ -39,7 +39,7 @@ rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-merkle = { path = "merkle" }
-rjam-networking = { path = "networking" }
+rjam-network = { path = "network" }
 rjam-node = { path = "node" }
 rjam-pvm-core = { path = "pvm/pvm-core" }
 rjam-pvm-host = { path = "pvm/pvm-host" }
