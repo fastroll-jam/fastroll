@@ -1298,6 +1298,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rjam-networking"
+version = "0.1.0"
+
+[[package]]
 name = "rjam-node"
 version = "0.1.0"
 dependencies = [
