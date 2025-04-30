@@ -1,32 +1,15 @@
 //! End-to-end state transition tests
-use rjam_block::{header_db::BlockHeaderDB, types::block::Block};
+use rjam_block::header_db::BlockHeaderDB;
 use rjam_common::utils::tracing::setup_timed_tracing;
-use rjam_conformance_tests::{
-    asn_types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
-    utils::AsnTypeLoader,
+use rjam_node::{
+    actors::{author::BlockAuthor, importer::BlockImporter},
+    genesis::{genesis_simple_state, load_genesis_block_from_file},
 };
-use rjam_crypto::types::ValidatorKeySet;
-use rjam_node::actors::{author::BlockAuthor, importer::BlockImporter};
 use rjam_state::{
     manager::StateManager,
-    test_utils::{add_all_simple_state_entries, init_db_and_manager, SimpleStates},
-    types::{ActiveSet, SafroleState},
+    test_utils::{add_all_simple_state_entries, init_db_and_manager},
 };
-use std::{error::Error, path::PathBuf, sync::Arc};
-
-pub fn load_genesis_block_from_file() -> Block {
-    let json_path = PathBuf::from("src/genesis-data/genesis_block.json");
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let asn_block: AsnBlock = AsnTypeLoader::load_from_json_file(&full_path);
-    asn_block.into()
-}
-
-pub fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
-    let json_path = PathBuf::from("src/genesis-data/genesis_active_set.json");
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let asn_validators_data: AsnValidatorsData = AsnTypeLoader::load_from_json_file(&full_path);
-    validators_data_to_validator_set(&asn_validators_data)
-}
+use std::{error::Error, sync::Arc};
 
 /// Mocking DB initialization and genesis state.
 async fn init_with_genesis_state() -> Result<(Arc<BlockHeaderDB>, Arc<StateManager>), Box<dyn Error>>
@@ -38,17 +21,8 @@ async fn init_with_genesis_state() -> Result<(Arc<BlockHeaderDB>, Arc<StateManag
     let state_manager = Arc::new(state_manager);
 
     // Init genesis simple state with initial validators: active set and pending set
-    let genesis_simple_state = SimpleStates {
-        active_set: ActiveSet(load_genesis_validator_set_from_file()),
-        safrole: SafroleState {
-            pending_set: load_genesis_validator_set_from_file(),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-
+    add_all_simple_state_entries(&state_manager, Some(genesis_simple_state())).await?;
     // Commit genesis state
-    add_all_simple_state_entries(&state_manager, Some(genesis_simple_state)).await?;
     state_manager.commit_dirty_cache().await?;
     Ok((header_db, state_manager))
 }
