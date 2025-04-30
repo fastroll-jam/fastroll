@@ -1574,6 +1574,7 @@ dependencies = [
  "rjam-crypto",
  "rjam-db",
  "rjam-extrinsics",
+ "rjam-networking",
  "rjam-pvm-invocation",
  "rjam-state",
  "rjam-transition",
