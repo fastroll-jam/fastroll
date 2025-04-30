@@ -12,6 +12,7 @@ rjam-conformance-tests = { workspace = true }
 rjam-crypto = { workspace = true }
 rjam-db = { workspace = true }
 rjam-extrinsics = { workspace = true }
+rjam-network = { workspace = true }
 rjam-pvm-invocation = { workspace = true }
 rjam-state = { workspace = true }
 rjam-transition = { workspace = true }

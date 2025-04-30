@@ -12,6 +12,7 @@ members = [
     "db",
     "extrinsics",
     "merkle",
+    "network",
     "node",
     "pvm/pvm-core",
     "pvm/pvm-host",
@@ -38,6 +39,7 @@ rjam-crypto = { path = "crypto" }
 rjam-db = { path = "db" }
 rjam-extrinsics = { path = "extrinsics" }
 rjam-merkle = { path = "merkle" }
+rjam-network = { path = "network" }
 rjam-node = { path = "node" }
 rjam-pvm-core = { path = "pvm/pvm-core" }
 rjam-pvm-host = { path = "pvm/pvm-host" }
@@ -59,9 +61,12 @@ futures = "0.3.31"
 hex = "0.4.3"
 paste = "1.0.15"
 proc-macro2 = "1.0.95"
+quinn = "0.11.6"
 quote = "1.0.40"
 rand = "0.8.5"
+rcgen = "0.13.2"
 rocksdb = { version = "0.23.0", features = ["default"] }
+rustls = { version = "0.23.22", default-features = false, features = ["std"] }
 serde = { version = "1.0.219", features = ["derive"] }
 sha3 = "0.10.8"
 syn = { version = "2.0.100", features = ["full", "extra-traits"] }
