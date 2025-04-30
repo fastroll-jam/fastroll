@@ -5,5 +5,6 @@ edition.workspace = true
 
 [dependencies]
 quinn = { workspace = true }
+rcgen = { workspace = true }
 rustls = { workspace = true }
 tokio = { workspace = true }

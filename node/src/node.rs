@@ -4,15 +4,13 @@ use rjam_networking::endpoint::QuicEndpoint;
 use rjam_state::manager::StateManager;
 use std::{net::SocketAddrV6, sync::Arc};
 
-#[allow(dead_code)]
 pub struct ValidatorInfo {
     pub socket_addr_v6: SocketAddrV6,
     pub validator_key: ValidatorKey,
 }
 
 impl ValidatorInfo {
-    #[allow(dead_code)]
-    fn new(socket_addr_v6: SocketAddrV6, validator_key: ValidatorKey) -> Self {
+    pub fn new(socket_addr_v6: SocketAddrV6, validator_key: ValidatorKey) -> Self {
         ValidatorInfo {
             socket_addr_v6,
             validator_key,
