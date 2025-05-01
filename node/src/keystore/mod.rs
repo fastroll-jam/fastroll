@@ -1,5 +1,4 @@
 //! Test-only keystore module
-use rjam_common::ByteArray;
 use rjam_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
 use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use serde::{Deserialize, Serialize};
@@ -25,6 +24,7 @@ pub struct DevAccountInfo {
     bandersnatch_private: AsnByteArray<32>,
     bandersnatch_public: AsnByteArray<32>,
     dns_alt_name: String,
+    metadata: AsnByteArray<128>,
 }
 
 impl From<DevAccountInfo> for ValidatorKey {
@@ -33,7 +33,7 @@ impl From<DevAccountInfo> for ValidatorKey {
             bandersnatch_key: value.bandersnatch_public.into(),
             ed25519_key: value.ed25519_public.into(),
             bls_key: BlsPubKey::default(),
-            metadata: ByteArray::default(),
+            metadata: value.metadata.into(),
         }
     }
 }
