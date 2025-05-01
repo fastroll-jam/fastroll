@@ -52,14 +52,17 @@ pub struct BlockHeaderData {
     pub extrinsic_hash: Hash32,
     /// `t`: The timeslot index of the block.
     pub timeslot_index: u32,
+    // @GP(6.27::type::v0.6.5)
     /// `e`: The epoch marker.
     pub epoch_marker: Option<EpochMarker>,
+    // @GP(6.28::type::v0.6.5)
     /// `w`: The winning tickets marker.
     pub winning_tickets_marker: Option<WinningTicketsMarker>,
     /// `o`: The offenders marker.
     pub offenders_marker: Vec<Ed25519PubKey>,
     /// `i`: The block author index.
     pub author_index: ValidatorIndex,
+    // @GP(6.17::type::v0.6.5)
     /// `v`: The block VRF signature, which is used as the epoch-entropy source.
     pub vrf_signature: VrfSig,
 }

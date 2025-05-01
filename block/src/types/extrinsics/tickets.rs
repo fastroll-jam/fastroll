@@ -3,6 +3,7 @@ use rjam_codec::prelude::*;
 use rjam_crypto::{traits::VrfSignature, types::*};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
+// @GP(6.29::type::v0.6.5)
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsXt {

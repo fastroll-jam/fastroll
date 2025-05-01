@@ -99,9 +99,11 @@ pub const X_A: &[u8] = b"jam_available";
 /// Signing context for BLS Accumulate-result-root MMR commitment.
 pub const X_B: &[u8] = b"jam_beefy";
 
+// @GP(6.18::value::v0.6.5)
 /// Signing context for on-chain entropy generation.
 pub const X_E: &[u8] = b"jam_entropy";
 
+// @GP(6.19::value::v0.6.5)
 /// Signing context for Bandersnatch Fallback block seal.
 pub const X_F: &[u8] = b"jam_fallback_seal";
 
@@ -111,6 +113,7 @@ pub const X_G: &[u8] = b"jam_guarantee";
 /// Signing context for Ed25519 Audit announcement statements.
 pub const X_I: &[u8] = b"jam_announce";
 
+// @GP(6.20::value::v0.6.5)
 /// Signing context for Bandersnatch RingVRF Ticket generation and regular block seal.
 pub const X_T: &[u8] = b"jam_ticket_seal";
 

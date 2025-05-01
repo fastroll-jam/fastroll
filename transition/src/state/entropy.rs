@@ -4,6 +4,7 @@ use rjam_crypto::{hash, Blake2b256};
 use rjam_state::{cache::StateMut, manager::StateManager};
 use std::sync::Arc;
 
+// @GP(6.23::stf::v0.6.5)
 /// State transition function of `EpochEntropy`.
 ///
 /// # Transition
@@ -28,6 +29,7 @@ pub async fn transition_epoch_entropy_on_epoch_change(
     Ok(())
 }
 
+// @GP(6.22::stf::v0.6.5)
 /// State transition function of `EpochEntropy`.
 ///
 /// # Transition

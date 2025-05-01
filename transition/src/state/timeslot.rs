@@ -2,6 +2,7 @@ use crate::error::TransitionError;
 use rjam_state::{cache::StateMut, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
+// @GP(6.1::stf::v0.6.5)
 /// State transition function of `Timeslot`.
 ///
 /// # Transitions

@@ -5,6 +5,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+// @GP(6.6::type::v0.6.5)
 #[derive(Debug, Clone, Default, Eq, PartialEq, JamEncode, JamDecode)]
 pub struct Ticket {
     /// **`y`**: The ticket identifier, which is the `Y` output hash of the Ring VRF proof from `TicketsXtEntry`.

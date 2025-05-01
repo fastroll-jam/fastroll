@@ -37,6 +37,7 @@ pub trait ValidatorSet {
             .collect()
     }
 
+    // @GP(6.14::util::v0.6.5)
     fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
         for validator in self.iter_mut() {
             if punish_set.contains(&validator.ed25519_key) {
@@ -89,6 +90,7 @@ fn fmt_validator_set(
     write!(f, "}}")
 }
 
+// @GP(6.7::type::v0.6.5)
 /// A validator set that will become active in a future epoch.
 ///
 /// At the beginning of each epoch, this set is loaded into the Safrole state `γ_k`
@@ -126,6 +128,7 @@ impl Default for StagingSet {
     }
 }
 
+// @GP(6.7::type::v0.6.5)
 /// A validator set that is active in the current epoch.
 ///
 /// Represents `κ` of the GP.
@@ -160,6 +163,7 @@ impl Default for ActiveSet {
     }
 }
 
+// @GP(6.7::type::v0.6.5)
 /// A validator set that was active in the previous epoch.
 ///
 /// Represents `λ` of the GP.

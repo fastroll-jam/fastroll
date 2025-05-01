@@ -47,6 +47,8 @@ pub async fn transition_safrole(
     Ok(())
 }
 
+// @GP(6.13::stf::v0.6.5)
+// @GP(6.24::stf::v0.6.5)
 async fn handle_new_epoch_transition(
     state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
@@ -116,6 +118,7 @@ fn update_slot_sealers(
     }
 }
 
+// @GP(6.34::stf::v0.6.5)
 async fn handle_ticket_accumulation(
     state_manager: Arc<StateManager>,
     tickets_xt: &TicketsXt,

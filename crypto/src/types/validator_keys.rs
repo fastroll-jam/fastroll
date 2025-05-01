@@ -22,9 +22,13 @@ pub type BandersnatchRingRoot = ByteArray<144>;
 /// The final `ValidatorKey` type is a simple concatenation of each component.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
+    // @GP(6.9::type::v0.6.5)
     pub bandersnatch_key: BandersnatchPubKey,
+    // @GP(6.10::type::v0.6.5)
     pub ed25519_key: Ed25519PubKey,
+    // @GP(6.11::type::v0.6.5)
     pub bls_key: BlsPubKey,
+    // @GP(6.12::type::v0.6.5)
     pub metadata: ByteArray<128>,
 }
 
@@ -68,6 +72,7 @@ impl ValidatorKey {
     }
 }
 
+// @GP(6.8::type::v0.6.5)
 /// Set of `VALIDATOR_COUNT` validator keys.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKeySet(pub Box<[ValidatorKey; VALIDATOR_COUNT]>);

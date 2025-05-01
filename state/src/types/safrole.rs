@@ -23,19 +23,24 @@ pub enum SlotSealerError {
     CodecError(#[from] JamCodecError),
 }
 
+// @GP(6.3::type::v0.6.5)
 /// State components associated with the Safrole protocol.
 ///
 /// Represents `γ` of the GP.
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
 pub struct SafroleState {
+    // @GP(6.7::type::v0.6.5)
     /// `γ_k`: Pending validator key set, which will be active in the next epoch.
     /// This set is used to determine the Bandersnatch ring root for the next epoch.
     pub pending_set: ValidatorKeySet,
+    // @GP(6.4::type::v0.6.5)
     /// `γ_z`: Bandersnatch ring root of the current epoch.
     pub ring_root: BandersnatchRingRoot,
+    // @GP(6.5::type::v0.6.5)
     /// `γ_s`: Slot-sealers of the current epoch.
     /// Composed of `E` tickets (or `E` Bandersnatch keys in the fallback mode).
     pub slot_sealers: SlotSealers,
+    // @GP(6.5::type::v0.6.5)
     /// `γ_a`: Ticket accumulator.
     pub ticket_accumulator: TicketAccumulator,
 }
@@ -118,6 +123,8 @@ impl Default for SlotSealer {
     }
 }
 
+// @GP(6.15::type::v0.6.5)
+// @GP(6.16::type::v0.6.5)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotSealers {
     Tickets(Box<[Ticket; EPOCH_LENGTH]>),
@@ -191,6 +198,7 @@ impl JamDecode for SlotSealers {
     }
 }
 
+// @GP(6.25::utils::v0.6.5)
 pub fn outside_in_vec<T: Clone>(vec: Vec<T>) -> Vec<T> {
     let len = vec.len();
     let mut result = Vec::with_capacity(len);
@@ -232,6 +240,7 @@ impl SlotSealers {
     }
 }
 
+// @GP(6.26::utils::v0.6.5)
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
     entropy: &Hash32,

@@ -9,6 +9,7 @@ use ark_vrf::{
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
 use rjam_common::ByteEncodable;
 
+// @GP(6.13::util::v0.6.5)
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(
     validator_set: &ValidatorKeySet,

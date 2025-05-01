@@ -1,0 +1,284 @@
+{
+  "version": "0.6.5",
+  "equations": {
+    "safrole": [
+      {
+        "id": "6.1",
+        "description": "timeslot state definition and STF, yielding τ′",
+        "tag": [
+          "type",
+          "stf"
+        ]
+      },
+      {
+        "id": "6.2",
+        "description": "epoch index and slot phase definition",
+        "tag": [
+          "value"
+        ]
+      },
+      {
+        "id": "6.3",
+        "description": "safrole state definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.4",
+        "description": "safrole ring root type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.5",
+        "description": "ticket accumulator and slot-sealer series type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.6",
+        "description": "ticket type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.7",
+        "description": "validator sets type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.8",
+        "description": "validator keys type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.9",
+        "description": "Bandersnatch key type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.10",
+        "description": "Ed25519 key type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.11",
+        "description": "BLS key type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.12",
+        "description": "validator metadata type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.13",
+        "description": "validator sets STF, yielding γk′, κ′, λ′, γz′ and ring root util function",
+        "tag": [
+          "util",
+          "stf"
+        ]
+      },
+      {
+        "id": "6.14",
+        "description": "offenders keys cancellation function",
+        "tag": [
+          "util"
+        ]
+      },
+      {
+        "id": "6.15",
+        "description": "ticket slot-sealer type",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.16",
+        "description": "fallback key slot-sealer type",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.17",
+        "description": "block header VRF output type",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.18",
+        "description": "epochal entropy signing context",
+        "tag": [
+          "value"
+        ]
+      },
+      {
+        "id": "6.19",
+        "description": "fallback block seal signing context",
+        "tag": [
+          "value"
+        ]
+      },
+      {
+        "id": "6.20",
+        "description": "fallback block seal signing context",
+        "tag": [
+          "value"
+        ]
+      },
+      {
+        "id": "6.21",
+        "description": "epochal entropy state definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.22",
+        "description": "entropy randomness accumulator STF, yielding η0′",
+        "tag": [
+          "stf"
+        ]
+      },
+      {
+        "id": "6.23",
+        "description": "entropy history STF, yielding η1′, η2′, η3′",
+        "tag": [
+          "stf"
+        ]
+      },
+      {
+        "id": "6.24",
+        "description": "slot-sealer series STF, yielding γs′",
+        "tag": [
+          "stf"
+        ]
+      },
+      {
+        "id": "6.25",
+        "description": "outside-in sequencer function",
+        "tag": [
+          "util"
+        ]
+      },
+      {
+        "id": "6.26",
+        "description": "fallback key sequencer function",
+        "tag": [
+          "util"
+        ]
+      },
+      {
+        "id": "6.27",
+        "description": "header epoch marker type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.28",
+        "description": "header winning-tickets marker type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.29",
+        "description": "tickets extrinsic type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.30",
+        "description": "tickets extrinsic length limit",
+        "tag": [
+          "constraint"
+        ]
+      },
+      {
+        "id": "6.31",
+        "description": "new tickets type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "6.32",
+        "description": "new tickets ordering constrait",
+        "tag": [
+          "constraint"
+        ]
+      },
+      {
+        "id": "6.33",
+        "description": "new tickets duplicate constrait",
+        "tag": [
+          "constraint"
+        ]
+      },
+      {
+        "id": "6.34",
+        "description": "ticket accumulator STF, yielding γa′",
+        "tag": [
+          "stf"
+        ]
+      },
+      {
+        "id": "6.35",
+        "description": "all submitted tickets should be accumulated",
+        "tag": [
+          "constraint"
+        ]
+      }
+    ],
+    "recent_history": [
+      {
+        "id": "7.1",
+        "description": "recent history state definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "7.2",
+        "description": "recent history STF (1), yielding β†",
+        "tag": [
+          "stf"
+        ]
+      },
+      {
+        "id": "7.3",
+        "description": "new history entry type definition",
+        "tag": [
+          "type"
+        ]
+      },
+      {
+        "id": "7.4",
+        "description": "recent history STF (2), yielding β′",
+        "tag": [
+          "type"
+        ]
+      }
+    ]
+  }
+}

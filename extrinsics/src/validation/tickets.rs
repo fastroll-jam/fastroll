@@ -43,6 +43,7 @@ impl TicketsXtValidator {
             return Err(XtError::TicketSubmissionClosed(current_slot_phase));
         }
 
+        // @GP(6.30::constraint::v0.6.5)
         if extrinsic.len() > MAX_TICKETS_PER_EXTRINSIC {
             return Err(XtError::TicketsEntryLimitExceeded(
                 extrinsic.len(),
@@ -50,6 +51,7 @@ impl TicketsXtValidator {
             ));
         }
 
+        // @GP(6.32::constraint::v0.6.5)
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
             return Err(XtError::TicketsNotSorted);

@@ -2,6 +2,7 @@ use crate::error::TransitionError;
 use rjam_state::{cache::StateMut, manager::StateManager};
 use std::sync::Arc;
 
+// @GP(6.13::stf::v0.6.5)
 /// State transition function of `ActiveSet`.
 ///
 /// # Transitions
@@ -23,6 +24,7 @@ pub async fn transition_active_set(
     Ok(())
 }
 
+// @GP(6.13::stf::v0.6.5)
 /// State transition function of `PastSet`.
 ///
 /// # Transitions

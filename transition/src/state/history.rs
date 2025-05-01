@@ -4,6 +4,7 @@ use rjam_merkle::mmr::MerkleMountainRange;
 use rjam_state::{cache::StateMut, manager::StateManager, types::BlockHistoryEntry};
 use std::sync::Arc;
 
+// @GP(7.2::stf::v0.6.5)
 /// State transition function of `BlockHistory`, updating the parent block's state root.
 ///
 /// # Transitions
@@ -31,6 +32,8 @@ pub async fn transition_block_history_parent_root(
     Ok(())
 }
 
+// @GP(7.3::stf::v0.6.5)
+// @GP(7.4::stf::v0.6.5)
 /// State transition function of `BlockHistory`, appending a new block history entry to the vector.
 ///
 /// # Transitions

@@ -6,6 +6,7 @@ use rjam_clock::Clock;
 use rjam_codec::prelude::*;
 use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 
+// @GP(6.1::type::v0.6.5)
 /// Time timeslot index.
 ///
 /// Represents `τ` of the GP.
@@ -45,6 +46,7 @@ impl Timeslot {
         self.0
     }
 
+    // @GP(6.2::value::v0.6.5)
     pub fn epoch(&self) -> u32 {
         self.0 / EPOCH_LENGTH as u32
     }
@@ -53,6 +55,7 @@ impl Timeslot {
         self.slot_phase() == 0
     }
 
+    // @GP(6.2::value::v0.6.5)
     pub fn slot_phase(&self) -> u32 {
         self.0 % EPOCH_LENGTH as u32
     }

@@ -6,6 +6,7 @@ use rjam_codec::prelude::*;
 use rjam_common::Hash32;
 use std::fmt::{Display, Formatter};
 
+// @GP(6.21::type::v0.6.5)
 /// The per-epoch entropy accumulator and its historical values.
 ///
 /// Represents `η` of the GP.

@@ -7,6 +7,7 @@ use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HIS
 use rjam_crypto::Keccak256;
 use rjam_merkle::mmr::MerkleMountainRange;
 
+// @GP(7.1::type::v0.6.5)
 /// The recent block histories.
 ///
 /// Represents `β` of the GP.
