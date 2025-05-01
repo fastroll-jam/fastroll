@@ -1,25 +1,24 @@
 //! Test-only keystore module
+use rjam_common::ByteArray;
 use rjam_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
-use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey};
+use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
 /// Loads Bandersnatch secret key from the dev keystore that corresponds to the given public key.
-pub(crate) fn load_author_secret_key(
-    pub_key: &BandersnatchPubKey,
-) -> Option<BandersnatchSecretKey> {
+pub fn load_author_secret_key(pub_key: &BandersnatchPubKey) -> Option<BandersnatchSecretKey> {
     let dev_accounts_map = DevAccountsKeyMap::from_dev_accounts(load_dev_accounts_from_file());
     dev_accounts_map.load_bander_sk_from_pk(pub_key).cloned()
 }
 
-fn load_dev_accounts_from_file() -> DevAccounts {
+pub fn load_dev_accounts_from_file() -> DevAccountsInfo {
     let json_path = PathBuf::from("src/keystore/dev_accounts.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
     AsnTypeLoader::load_from_json_file(&full_path)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DevAccount {
+pub struct DevAccountInfo {
     seed: AsnByteArray<32>,
     ed25519_private: AsnByteArray<32>,
     ed25519_public: AsnByteArray<32>,
@@ -28,32 +27,43 @@ pub(crate) struct DevAccount {
     dns_alt_name: String,
 }
 
-impl DevAccount {
-    pub(crate) fn bandersnatch_secret_key(&self) -> BandersnatchSecretKey {
+impl From<DevAccountInfo> for ValidatorKey {
+    fn from(value: DevAccountInfo) -> Self {
+        Self {
+            bandersnatch_key: value.bandersnatch_public.into(),
+            ed25519_key: value.ed25519_public.into(),
+            bls_key: BlsPubKey::default(),
+            metadata: ByteArray::default(),
+        }
+    }
+}
+
+impl DevAccountInfo {
+    pub fn bandersnatch_secret_key(&self) -> BandersnatchSecretKey {
         BandersnatchSecretKey(self.bandersnatch_private.into())
     }
 
-    pub(crate) fn bandersnatch_pub_key(&self) -> BandersnatchPubKey {
+    pub fn bandersnatch_pub_key(&self) -> BandersnatchPubKey {
         BandersnatchPubKey(self.bandersnatch_public.into())
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DevAccounts {
-    pub(crate) alice: DevAccount,
-    pub(crate) bob: DevAccount,
-    pub(crate) carol: DevAccount,
-    pub(crate) david: DevAccount,
-    pub(crate) eve: DevAccount,
-    pub(crate) fergie: DevAccount,
+pub struct DevAccountsInfo {
+    pub alice: DevAccountInfo,
+    pub bob: DevAccountInfo,
+    pub carol: DevAccountInfo,
+    pub david: DevAccountInfo,
+    pub eve: DevAccountInfo,
+    pub fergie: DevAccountInfo,
 }
 
-pub(crate) struct DevAccountsKeyMap {
+pub struct DevAccountsKeyMap {
     inner: HashMap<BandersnatchPubKey, BandersnatchSecretKey>,
 }
 
 impl DevAccountsKeyMap {
-    pub(crate) fn from_dev_accounts(dev_accounts: DevAccounts) -> Self {
+    pub fn from_dev_accounts(dev_accounts: DevAccountsInfo) -> Self {
         let mut inner = HashMap::new();
         inner.insert(
             dev_accounts.alice.bandersnatch_pub_key(),
@@ -82,7 +92,7 @@ impl DevAccountsKeyMap {
         Self { inner }
     }
 
-    pub(crate) fn load_bander_sk_from_pk(
+    pub fn load_bander_sk_from_pk(
         &self,
         pub_key: &BandersnatchPubKey,
     ) -> Option<&BandersnatchSecretKey> {

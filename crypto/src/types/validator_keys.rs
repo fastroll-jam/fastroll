@@ -33,12 +33,12 @@ impl Display for ValidatorKey {
         writeln!(f, "{{")?;
         writeln!(
             f,
-            "  \"Bandersnatch\": \"{}\",",
+            "  \"Bandersnatch\": \"0x{}\",",
             self.bandersnatch_key.to_hex()
         )?;
-        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.to_hex())?;
-        writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.to_hex())?;
-        writeln!(f, "  \"Metadata\": \"{}\"", self.metadata.encode_hex())?;
+        writeln!(f, "  \"Ed25519\": \"0x{}\",", self.ed25519_key.to_hex())?;
+        writeln!(f, "  \"BLS\": \"0x{}\",", self.bls_key.to_hex())?;
+        writeln!(f, "  \"Metadata\": \"0x{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
     }
 }
