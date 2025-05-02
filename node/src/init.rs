@@ -32,21 +32,21 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
     // CLI args
     match Cli::parse().command {
         CliCommand::Run { dev_account } => {
-            let validator_info = match &dev_account {
+            let node_info = match &dev_account {
                 Some(account) => account.load_validator_key_info(),
                 None => {
                     panic!("Dev account is not set.");
                 }
             };
 
-            let socket_addr = validator_info.socket_addr;
+            let socket_addr = node_info.socket_addr;
             let (header_db, state_manager, _xt_pool) = init_storage()?;
             tracing::info!("Storage initialized");
             let state_manager = Arc::new(state_manager);
             let peer_manager = PeerManager::new(state_manager.clone()).await?;
 
             let node = JamNode::new(
-                validator_info,
+                node_info,
                 state_manager,
                 Arc::new(header_db),
                 Arc::new(peer_manager),
