@@ -1,4 +1,4 @@
-use crate::{jam_node::ValidatorInfo, keystore::load_dev_accounts_from_file};
+use crate::{jam_node::NodeInfo, keystore::load_dev_accounts_from_file};
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
@@ -28,7 +28,7 @@ pub enum DevAccountName {
 }
 
 impl DevAccountName {
-    pub fn load_validator_key_info(&self) -> ValidatorInfo {
+    pub fn load_validator_key_info(&self) -> NodeInfo {
         let devs = load_dev_accounts_from_file();
         match self {
             DevAccountName::Alice => devs.alice.into(),

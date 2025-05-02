@@ -10,7 +10,7 @@ use rjam_db::{
     core::core_db::CoreDB,
 };
 use rjam_extrinsics::pool::XtPool;
-use rjam_network::endpoint::QuicEndpoint;
+use rjam_network::{endpoint::QuicEndpoint, peers::PeerManager};
 use rjam_state::{config::StateManagerConfig, manager::StateManager};
 use std::{error::Error, path::PathBuf, sync::Arc};
 
@@ -25,7 +25,7 @@ fn init_storage() -> Result<(BlockHeaderDB, StateManager, XtPool), Box<dyn Error
     Ok((header_db, state_manager, xt_pool))
 }
 
-pub fn init_node() -> Result<JamNode, Box<dyn Error>> {
+pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
     // Config tracing subscriber
     setup_tracing();
 
@@ -39,17 +39,20 @@ pub fn init_node() -> Result<JamNode, Box<dyn Error>> {
                 }
             };
 
-            let socket_addr = validator_info.socket_addr_v6;
+            let socket_addr = validator_info.socket_addr;
             let (header_db, state_manager, _xt_pool) = init_storage()?;
             tracing::info!("Storage initialized");
+            let state_manager = Arc::new(state_manager);
+            let peer_manager = PeerManager::new(state_manager.clone()).await?;
 
             let node = JamNode::new(
                 validator_info,
-                Arc::new(state_manager),
+                state_manager,
                 Arc::new(header_db),
+                Arc::new(peer_manager),
                 QuicEndpoint::new(socket_addr),
             );
-            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.validator_info.socket_addr_v6, node.validator_info.validator_key.bandersnatch_key.to_hex(), node.validator_info.validator_key.ed25519_key.to_hex());
+            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.node_info.socket_addr, node.node_info.validator_key.bandersnatch_key.to_hex(), node.node_info.validator_key.ed25519_key.to_hex());
             Ok(node)
         }
     }

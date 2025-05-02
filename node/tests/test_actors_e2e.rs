@@ -1,11 +1,11 @@
 //! End-to-end state transition tests
 use rjam_common::{utils::tracing::setup_timed_tracing, ByteArray, ByteEncodable};
 use rjam_crypto::types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey, ValidatorKey};
-use rjam_network::endpoint::QuicEndpoint;
+use rjam_network::{endpoint::QuicEndpoint, peers::PeerManager};
 use rjam_node::{
     actors::{author::BlockAuthor, importer::BlockImporter},
     genesis::{genesis_simple_state, load_genesis_block_from_file},
-    jam_node::{JamNode, ValidatorInfo},
+    jam_node::{JamNode, NodeInfo},
 };
 use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
@@ -25,9 +25,13 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     // Commit genesis state
     state_manager.commit_dirty_cache().await?;
 
+    // Init peer manager
+    let state_manager = Arc::new(state_manager);
+    let peer_manager = Arc::new(PeerManager::new(state_manager.clone()).await?);
+
     // Dev account
-    let validator_info = ValidatorInfo {
-        socket_addr_v6,
+    let node_info = NodeInfo {
+        socket_addr: socket_addr_v6,
         validator_key: ValidatorKey {
             bandersnatch_key: BandersnatchPubKey::from_hex(
                 "0xf16e5352840afb47e206b5c89f560f2611835855cf2e6ebad1acc9520a72591d",
@@ -43,9 +47,10 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     };
 
     Ok(JamNode {
-        validator_info,
-        state_manager: Arc::new(state_manager),
+        node_info,
+        state_manager,
         header_db: Arc::new(header_db),
+        peer_manager,
         endpoint: QuicEndpoint::new(socket_addr_v6),
     })
 }

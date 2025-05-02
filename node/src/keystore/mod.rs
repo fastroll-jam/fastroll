@@ -1,5 +1,5 @@
 //! Test-only keystore module
-use crate::jam_node::ValidatorInfo;
+use crate::jam_node::NodeInfo;
 use rjam_codec::prelude::*;
 use rjam_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
 use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
@@ -33,7 +33,7 @@ pub struct DevAccountInfo {
     metadata: AsnByteArray<128>,
 }
 
-impl From<DevAccountInfo> for ValidatorInfo {
+impl From<DevAccountInfo> for NodeInfo {
     fn from(value: DevAccountInfo) -> Self {
         let ipv6: [u8; 16] = value.metadata.0[0..16].try_into().unwrap();
         let port = u16::decode_fixed(&mut &value.metadata.0[16..18], 2).unwrap();
@@ -45,7 +45,7 @@ impl From<DevAccountInfo> for ValidatorInfo {
             metadata: value.metadata.into(),
         };
         Self {
-            socket_addr_v6,
+            socket_addr: socket_addr_v6,
             validator_key,
         }
     }
