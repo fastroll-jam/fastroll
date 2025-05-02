@@ -1,8 +1,14 @@
 //! Test-only keystore module
+use crate::jam_node::ValidatorInfo;
+use rjam_codec::prelude::*;
 use rjam_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
 use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    net::{Ipv6Addr, SocketAddrV6},
+    path::PathBuf,
+};
 
 /// Loads Bandersnatch secret key from the dev keystore that corresponds to the given public key.
 pub fn load_author_secret_key(pub_key: &BandersnatchPubKey) -> Option<BandersnatchSecretKey> {
@@ -27,13 +33,20 @@ pub struct DevAccountInfo {
     metadata: AsnByteArray<128>,
 }
 
-impl From<DevAccountInfo> for ValidatorKey {
+impl From<DevAccountInfo> for ValidatorInfo {
     fn from(value: DevAccountInfo) -> Self {
-        Self {
+        let ipv6: [u8; 16] = value.metadata.0[0..16].try_into().unwrap();
+        let port = u16::decode_fixed(&mut &value.metadata.0[16..18], 2).unwrap();
+        let socket_addr_v6 = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
+        let validator_key = ValidatorKey {
             bandersnatch_key: value.bandersnatch_public.into(),
             ed25519_key: value.ed25519_public.into(),
             bls_key: BlsPubKey::default(),
             metadata: value.metadata.into(),
+        };
+        Self {
+            socket_addr_v6,
+            validator_key,
         }
     }
 }

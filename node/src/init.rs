@@ -1,10 +1,10 @@
 use crate::{
     cli::{Cli, CliCommand},
-    node::JamNode,
+    jam_node::JamNode,
 };
 use clap::Parser;
 use rjam_block::header_db::BlockHeaderDB;
-use rjam_common::utils::tracing::setup_tracing;
+use rjam_common::{utils::tracing::setup_tracing, ByteEncodable};
 use rjam_db::{
     config::{RocksDBOpts, HEADER_CF_NAME},
     core::core_db::CoreDB,
@@ -49,7 +49,7 @@ pub fn init_node() -> Result<JamNode, Box<dyn Error>> {
                 Arc::new(header_db),
                 QuicEndpoint::new(socket_addr),
             );
-            tracing::info!("Node initialized: {}", node.validator_info);
+            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.validator_info.socket_addr_v6, node.validator_info.validator_key.bandersnatch_key.to_hex(), node.validator_info.validator_key.ed25519_key.to_hex());
             Ok(node)
         }
     }

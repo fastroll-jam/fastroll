@@ -5,7 +5,7 @@ use rjam_network::endpoint::QuicEndpoint;
 use rjam_node::{
     actors::{author::BlockAuthor, importer::BlockImporter},
     genesis::{genesis_simple_state, load_genesis_block_from_file},
-    node::{JamNode, ValidatorInfo},
+    jam_node::{JamNode, ValidatorInfo},
 };
 use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
