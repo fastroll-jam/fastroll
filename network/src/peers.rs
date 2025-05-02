@@ -41,6 +41,12 @@ pub struct ValidatorPeers {
     pub next_epoch: Option<EpochValidatorPeers>,
 }
 
+impl ValidatorPeer {
+    pub fn progress_epoch(&mut self) {
+        unimplemented!()
+    }
+}
+
 pub struct EpochValidatorPeers {
     pub inner: HashMap<Ed25519PubKey, ValidatorPeer>,
 }
