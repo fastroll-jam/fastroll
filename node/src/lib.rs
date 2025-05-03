@@ -5,4 +5,5 @@ pub mod genesis;
 pub mod init;
 pub mod jam_node;
 pub mod keystore;
+pub mod ticket_store;
 pub mod utils;

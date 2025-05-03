@@ -1,13 +1,13 @@
 use crate::error::TransitionError;
 use rjam_block::types::extrinsics::tickets::TicketsXt;
-use rjam_common::{ticket::Ticket, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
+use rjam_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
 use rjam_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
 use rjam_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use rjam_state::{
     cache::StateMut,
     manager::StateManager,
     types::{
-        generate_fallback_keys, outside_in_vec, ActiveSet, EpochEntropy, SafroleState, SlotSealers,
+        generate_fallback_keys, outside_in_vec, ActiveSet, SafroleState, SlotSealers,
         TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
@@ -59,9 +59,9 @@ async fn handle_new_epoch_transition(
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
-    let current_ring_root = generate_ring_root(&prior_staging_set)?;
-    let current_active_set = state_manager.get_active_set().await?;
-    let current_entropy = state_manager.get_epoch_entropy().await?;
+    let curr_ring_root = generate_ring_root(&prior_staging_set)?;
+    let curr_active_set = state_manager.get_active_set().await?;
+    let curr_entropy = state_manager.get_epoch_entropy().await?;
 
     state_manager
         .with_mut_safrole(StateMut::Update, |safrole| {
@@ -69,15 +69,15 @@ async fn handle_new_epoch_transition(
             safrole.pending_set = prior_staging_set.0;
 
             // ring root transition (γ_z)
-            safrole.ring_root = current_ring_root;
+            safrole.ring_root = curr_ring_root;
 
             // slot-sealer series transition (γ_s)
             update_slot_sealers(
                 safrole,
                 prior_timeslot,
                 curr_timeslot,
-                &current_active_set,
-                &current_entropy,
+                &curr_active_set,
+                curr_entropy.second_history(),
             );
 
             // reset ticket accumulator (γ_a)
@@ -87,13 +87,12 @@ async fn handle_new_epoch_transition(
 
     Ok(())
 }
-
-fn update_slot_sealers(
+pub(crate) fn update_slot_sealers(
     safrole: &mut SafroleState,
     prior_timeslot: &Timeslot,
     curr_timeslot: &Timeslot,
-    current_active_set: &ActiveSet,
-    current_entropy: &EpochEntropy,
+    curr_active_set: &ActiveSet,
+    curr_entropy_2: &Hash32,
 ) {
     // Fallback mode triggers under following conditions:
     // 1. One or more epochs are skipped (e′ > e + 1).
@@ -105,7 +104,7 @@ fn update_slot_sealers(
 
     if is_fallback {
         safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(Box::new(
-            generate_fallback_keys(current_active_set, current_entropy.second_history()).unwrap(),
+            generate_fallback_keys(curr_active_set, curr_entropy_2).unwrap(),
         ));
     } else {
         let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
