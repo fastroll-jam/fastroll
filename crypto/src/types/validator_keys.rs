@@ -10,6 +10,9 @@ use std::{
 /// 144-byte Bandersnatch Ring root type.
 pub type BandersnatchRingRoot = ByteArray<144>;
 
+/// 128-byte validator metadata.
+pub type ValidatorMetadata = ByteArray<128>;
+
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
 /// - Ed25519 public key (32 bytes)
@@ -25,7 +28,7 @@ pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,
     pub bls_key: BlsPubKey,
-    pub metadata: ByteArray<128>,
+    pub metadata: ValidatorMetadata,
 }
 
 impl Display for ValidatorKey {
@@ -33,12 +36,12 @@ impl Display for ValidatorKey {
         writeln!(f, "{{")?;
         writeln!(
             f,
-            "  \"Bandersnatch\": \"{}\",",
+            "  \"Bandersnatch\": \"0x{}\",",
             self.bandersnatch_key.to_hex()
         )?;
-        writeln!(f, "  \"Ed25519\": \"{}\",", self.ed25519_key.to_hex())?;
-        writeln!(f, "  \"BLS\": \"{}\",", self.bls_key.to_hex())?;
-        writeln!(f, "  \"Metadata\": \"{}\"", self.metadata.encode_hex())?;
+        writeln!(f, "  \"Ed25519\": \"0x{}\",", self.ed25519_key.to_hex())?;
+        writeln!(f, "  \"BLS\": \"0x{}\",", self.bls_key.to_hex())?;
+        writeln!(f, "  \"Metadata\": \"0x{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
     }
 }

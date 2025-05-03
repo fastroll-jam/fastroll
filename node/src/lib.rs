@@ -1,6 +1,9 @@
 pub mod actors;
+pub mod cli;
 pub mod config;
 pub mod genesis;
-pub(crate) mod keystore;
-pub mod node;
+pub mod init;
+pub mod jam_node;
+pub mod keystore;
+pub mod ticket_store;
 pub mod utils;

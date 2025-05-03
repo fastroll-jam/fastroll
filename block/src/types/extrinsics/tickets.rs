@@ -1,6 +1,7 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use rjam_codec::prelude::*;
-use rjam_crypto::{traits::VrfSignature, types::*};
+use rjam_common::{Hash32, X_T};
+use rjam_crypto::{traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
@@ -63,5 +64,22 @@ impl Ord for TicketsXtEntry {
         let self_hash = self.ticket_proof.output_hash();
         let other_hash = other.ticket_proof.output_hash();
         self_hash.cmp(&other_hash)
+    }
+}
+
+impl TicketsXtEntry {
+    pub fn new(prover: &RingVrfProver, entry_index: u8, entropy_2: &Hash32) -> Self {
+        let mut context = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
+        context.extend_from_slice(X_T);
+        context.extend_from_slice(entropy_2.as_slice());
+        context.push(entry_index);
+
+        let message = vec![]; // no message for ticket vrf signature
+        let ticket_proof = prover.sign_ring_vrf(&context, &message);
+
+        Self {
+            entry_index,
+            ticket_proof,
+        }
     }
 }

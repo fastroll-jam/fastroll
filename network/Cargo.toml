@@ -4,7 +4,11 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+rjam-codec = { workspace = true }
+rjam-crypto = { workspace = true }
+rjam-state = { workspace = true }
 quinn = { workspace = true }
 rcgen = { workspace = true }
 rustls = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
