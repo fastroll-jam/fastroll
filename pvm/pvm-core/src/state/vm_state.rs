@@ -3,8 +3,8 @@ use crate::{
     program::instruction::Instruction,
     state::{memory::Memory, register::Register},
 };
-use rjam_common::SignedGas;
-use rjam_pvm_types::{
+use fr_common::SignedGas;
+use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::REGISTERS_COUNT,
 };

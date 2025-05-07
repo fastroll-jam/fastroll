@@ -1,6 +1,6 @@
 use crate::error::VMCoreError;
-use rjam_common::ServiceId;
-use rjam_pvm_types::common::{MemAddress, RegValue};
+use fr_common::ServiceId;
+use fr_pvm_types::common::{MemAddress, RegValue};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Register {

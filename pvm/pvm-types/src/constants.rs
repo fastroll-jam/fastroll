@@ -1,6 +1,6 @@
 //! PVM-specific constants
 use crate::common::RegValue;
-use rjam_common::UnsignedGas;
+use fr_common::UnsignedGas;
 
 /// Base gas charge for host function execution.
 pub const HOSTCALL_BASE_GAS_CHARGE: UnsignedGas = 10;

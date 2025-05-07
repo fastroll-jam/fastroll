@@ -1,4 +1,4 @@
-use rjam_pvm_core::{
+use fr_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
@@ -7,8 +7,8 @@ use rjam_pvm_core::{
         vm_state::VMState,
     },
 };
-use rjam_pvm_interface::pvm::PVM;
-use rjam_pvm_types::{
+use fr_pvm_interface::pvm::PVM;
+use fr_pvm_types::{
     common::RegValue,
     constants::{MEMORY_SIZE, PAGE_SIZE},
     exit_reason::ExitReason,

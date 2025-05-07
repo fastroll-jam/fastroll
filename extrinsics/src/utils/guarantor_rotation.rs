@@ -1,9 +1,9 @@
 use crate::utils::shuffle::shuffle_with_hash;
-use rjam_common::{
+use fr_common::{
     CoreIndex, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, VALIDATOR_COUNT,
 };
-use rjam_crypto::types::ValidatorKeySet;
-use rjam_state::{
+use fr_crypto::types::ValidatorKeySet;
+use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{Timeslot, ValidatorSet},

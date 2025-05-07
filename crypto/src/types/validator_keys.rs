@@ -1,7 +1,7 @@
-use rjam_codec::prelude::*;
+use fr_codec::prelude::*;
 
 use crate::types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey};
-use rjam_common::{ByteArray, ByteEncodable, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
+use fr_common::{ByteArray, ByteEncodable, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
 use std::{
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},

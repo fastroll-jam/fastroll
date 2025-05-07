@@ -1,5 +1,5 @@
 use crate::utils::VMUtils;
-use rjam_pvm_types::{common::MemAddress, constants::PAGE_SIZE};
+use fr_pvm_types::{common::MemAddress, constants::PAGE_SIZE};
 use std::{collections::HashMap, fmt::Display, ops::Range};
 use thiserror::Error;
 

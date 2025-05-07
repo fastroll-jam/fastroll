@@ -1,5 +1,5 @@
-use rjam_common::Hash32;
-use rjam_db::core::{
+use fr_common::Hash32;
+use fr_db::core::{
     cached_db::CachedDB,
     core_db::{CoreDB, CoreDBError},
 };

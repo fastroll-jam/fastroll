@@ -1,17 +1,17 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
-use rjam_codec::prelude::*;
-use rjam_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
-use rjam_crypto::Keccak256;
-use rjam_merkle::well_balanced_tree::WellBalancedMerkleTree;
-use rjam_pvm_host::context::partial_state::AccumulatePartialState;
-use rjam_pvm_interface::error::PVMError;
-use rjam_pvm_types::{
+use fr_codec::prelude::*;
+use fr_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
+use fr_crypto::Keccak256;
+use fr_merkle::well_balanced_tree::WellBalancedMerkleTree;
+use fr_pvm_host::context::partial_state::AccumulatePartialState;
+use fr_pvm_interface::error::PVMError;
+use fr_pvm_types::{
     invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
     invoke_results::{
         AccumulationGasPair, AccumulationGasPairs, AccumulationOutputPair, AccumulationOutputPairs,
     },
 };
-use rjam_state::manager::StateManager;
+use fr_state::manager::StateManager;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,

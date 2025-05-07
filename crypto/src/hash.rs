@@ -1,6 +1,6 @@
 use crate::error::CryptoError;
 use blake2::{digest::consts::U32, Blake2b, Digest};
-use rjam_common::Hash32;
+use fr_common::Hash32;
 
 pub type Blake2b256 = Blake2b<U32>;
 pub type Keccak256 = sha3::Keccak256;

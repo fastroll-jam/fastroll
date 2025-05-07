@@ -1,8 +1,8 @@
-use rjam_block::types::extrinsics::{
+use fr_block::types::extrinsics::{
     disputes::{Culprit, Fault, Verdict},
     ExtrinsicsError, XtEntry, XtType,
 };
-use rjam_common::Hash32;
+use fr_common::Hash32;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},

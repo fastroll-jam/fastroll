@@ -1,5 +1,5 @@
 use crate::state_prediction::epoch_progressed;
-use rjam_state::{
+use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{ActiveSet, PastSet, Timeslot},

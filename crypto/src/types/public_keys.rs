@@ -1,7 +1,7 @@
 use crate::{impl_byte_encodable, impl_public_key, traits::PublicKey};
 use base32::Alphabet;
-use rjam_codec::prelude::*;
-use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
+use fr_codec::prelude::*;
+use fr_common::{ByteArray, ByteEncodable, CommonTypeError};
 
 /// 32-byte Bandersnatch public key type.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, JamEncode, JamDecode)]

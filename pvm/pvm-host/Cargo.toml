@@ -1,13 +1,13 @@
 [package]
-name = "rjam-pvm-host"
+name = "fr-pvm-host"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
-rjam-crypto = { workspace = true }
-rjam-state = { workspace = true }
-rjam-pvm-core = { workspace = true }
-rjam-pvm-types = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
+fr-state = { workspace = true }
+fr-pvm-core = { workspace = true }
+fr-pvm-types = { workspace = true }
 thiserror = { workspace = true }

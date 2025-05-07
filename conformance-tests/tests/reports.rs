@@ -1,16 +1,15 @@
 //! Reports state transition conformance tests
 mod reports {
     use async_trait::async_trait;
-    use futures::future::join_all;
-    use rjam_block::types::block::BlockHeader;
-    use rjam_conformance_tests::{
+    use fr_block::types::block::BlockHeader;
+    use fr_conformance_tests::{
         asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_crypto::types::Ed25519PubKey;
-    use rjam_state::{
+    use fr_crypto::types::Ed25519PubKey;
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{
@@ -18,10 +17,11 @@ mod reports {
             PendingReports, Timeslot,
         },
     };
-    use rjam_transition::{
+    use fr_transition::{
         error::TransitionError,
         state::{reports::transition_reports_update_entries, timeslot::transition_timeslot},
     };
+    use futures::future::join_all;
     use std::sync::Arc;
 
     struct ReportsTest;
@@ -41,7 +41,7 @@ mod reports {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
             let pre_active_set = ActiveSet(validators_data_to_validator_set(
@@ -93,7 +93,7 @@ mod reports {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 extrinsic: test_input.guarantees.clone().into(),
                 timeslot: Timeslot::new(test_input.slot),
@@ -138,7 +138,7 @@ mod reports {
                 return Output::err(error_code.clone());
             }
 
-            // Convert RJAM output into ASN Output.
+            // Convert FastRoll output into ASN Output.
             Output::ok(transition_output.cloned().unwrap().into())
         }
 

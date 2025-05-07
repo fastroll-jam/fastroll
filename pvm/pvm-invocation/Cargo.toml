@@ -1,17 +1,17 @@
 [package]
-name = "rjam-pvm-invocation"
+name = "fr-pvm-invocation"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
-rjam-crypto = { workspace = true }
-rjam-merkle = { workspace = true }
-rjam-pvm-core = { workspace = true }
-rjam-pvm-host = { workspace = true }
-rjam-pvm-interface = { workspace = true }
-rjam-pvm-types = { workspace = true }
-rjam-state = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
+fr-merkle = { workspace = true }
+fr-pvm-core = { workspace = true }
+fr-pvm-host = { workspace = true }
+fr-pvm-interface = { workspace = true }
+fr-pvm-types = { workspace = true }
+fr-state = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

@@ -5,25 +5,25 @@ use crate::{
     },
     utils::spawn_timed,
 };
-use rjam_block::{
+use fr_block::{
     header_db::BlockHeaderDB,
     types::{
         block::{Block, BlockHeader, BlockHeaderError},
         extrinsics::ExtrinsicsError,
     },
 };
-use rjam_codec::prelude::*;
-use rjam_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
-use rjam_crypto::{
+use fr_codec::prelude::*;
+use fr_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
+use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
 };
-use rjam_extrinsics::validation::{
+use fr_extrinsics::validation::{
     assurances::AssurancesXtValidator, disputes::DisputesXtValidator, error::XtError,
     guarantees::GuaranteesXtValidator, preimages::PreimagesXtValidator,
     tickets::TicketsXtValidator,
 };
-use rjam_state::{
+use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{SlotSealer, Timeslot},

@@ -1,4 +1,4 @@
-use rjam_common::{Hash32, ServiceId, UnsignedGas};
+use fr_common::{Hash32, ServiceId, UnsignedGas};
 use std::collections::BTreeSet;
 
 pub type AccumulationOutputHash = Hash32;

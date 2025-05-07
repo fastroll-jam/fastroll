@@ -1,9 +1,9 @@
 use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
-use rjam_crypto::{
+use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
     types::*,

@@ -1,8 +1,8 @@
 use crate::utils::guarantor_rotation::GuarantorAssignmentError;
-use rjam_codec::JamCodecError;
-use rjam_common::{workloads::WorkReportError, CoreIndex, ServiceId, ValidatorIndex};
-use rjam_crypto::error::CryptoError;
-use rjam_state::error::StateManagerError;
+use fr_codec::JamCodecError;
+use fr_common::{workloads::WorkReportError, CoreIndex, ServiceId, ValidatorIndex};
+use fr_crypto::error::CryptoError;
+use fr_state::error::StateManagerError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

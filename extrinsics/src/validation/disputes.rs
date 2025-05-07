@@ -1,13 +1,13 @@
 use crate::validation::error::XtError;
-use rjam_block::types::extrinsics::disputes::{
+use fr_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use rjam_common::{ByteEncodable, Hash32, HASH_SIZE, X_0, X_1, X_G};
-use rjam_crypto::{
+use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_0, X_1, X_G};
+use fr_crypto::{
     signers::{ed25519::Ed25519Verifier, Verifier},
     types::Ed25519PubKey,
 };
-use rjam_state::{
+use fr_state::{
     manager::StateManager,
     types::{ActiveSet, PastSet, Timeslot, ValidatorSet},
 };

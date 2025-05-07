@@ -1,6 +1,6 @@
 use crate::types::nodes::ChildType;
 use bit_vec::BitVec;
-use rjam_common::Hash32;
+use fr_common::Hash32;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Hash, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-use rjam_common::SEGMENT_SIZE;
+use fr_common::SEGMENT_SIZE;
 
 /// 32-bit memory addresses
 pub type MemAddress = u32;

@@ -9,7 +9,7 @@ fn main() {
     let test_files = fs::read_dir(&full_path).expect("Failed to read test vectors dir");
 
     let mut test_case_contents =
-        String::from("use rjam_conformance_tests::pvm_harness::run_test_case;");
+        String::from("use fr_conformance_tests::pvm_harness::run_test_case;");
 
     for test_file in test_files {
         let test_file_path = test_file.expect("Failed to get test file").path();

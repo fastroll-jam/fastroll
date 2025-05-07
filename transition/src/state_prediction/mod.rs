@@ -1,5 +1,5 @@
 //! Collection of methods to predict posterior state even before STFs.
-use rjam_state::types::Timeslot;
+use fr_state::types::Timeslot;
 
 pub mod entropy;
 pub mod slot_sealers;

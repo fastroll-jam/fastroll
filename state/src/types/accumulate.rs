@@ -3,8 +3,8 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
     types::work_report::WorkReport,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{Hash32, EPOCH_LENGTH};
+use fr_codec::prelude::*;
+use fr_common::{Hash32, EPOCH_LENGTH};
 use std::{array::from_fn, collections::BTreeSet};
 
 pub type SegmentRoot = Hash32;

@@ -1,5 +1,5 @@
 use crate::error::PVMError;
-use rjam_pvm_core::{
+use fr_pvm_core::{
     error::VMCoreError::*,
     program::types::{formatted_program::FormattedProgram, program_state::ProgramState},
     state::{
@@ -8,7 +8,7 @@ use rjam_pvm_core::{
     },
     utils::VMUtils,
 };
-use rjam_pvm_types::{
+use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{INIT_INPUT_SIZE, INIT_ZONE_SIZE, MEMORY_SIZE, PAGE_SIZE},
 };

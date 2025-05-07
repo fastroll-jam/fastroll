@@ -1,13 +1,13 @@
 //! End-to-end state transition tests
-use rjam_common::utils::tracing::setup_timed_tracing;
-use rjam_network::{endpoint::QuicEndpoint, peers::PeerManager};
-use rjam_node::{
+use fr_common::utils::tracing::setup_timed_tracing;
+use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
+use fr_node::{
     actors::{author::BlockAuthor, importer::BlockImporter},
     cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
 };
-use rjam_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
+use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
     error::Error,
     net::{Ipv6Addr, SocketAddrV6},

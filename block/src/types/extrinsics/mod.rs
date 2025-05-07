@@ -2,9 +2,9 @@ use crate::types::extrinsics::{
     assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
     preimages::PreimagesXt, tickets::TicketsXt,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{workloads::work_report::WorkReportError, Hash32, HASH_SIZE};
-use rjam_crypto::{
+use fr_codec::prelude::*;
+use fr_common::{workloads::work_report::WorkReportError, Hash32, HASH_SIZE};
+use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
 };

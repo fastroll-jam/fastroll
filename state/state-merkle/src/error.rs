@@ -1,6 +1,6 @@
-use rjam_codec::JamCodecError;
-use rjam_crypto::error::CryptoError;
-use rjam_db::{core::cached_db::CachedDBError, RocksDBError};
+use fr_codec::JamCodecError;
+use fr_crypto::error::CryptoError;
+use fr_db::{core::cached_db::CachedDBError, RocksDBError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

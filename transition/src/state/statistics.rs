@@ -1,10 +1,10 @@
 use crate::error::TransitionError;
-use rjam_block::types::extrinsics::{
+use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
-use rjam_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
-use rjam_pvm_types::stats::{AccumulateStats, OnTransferStats};
-use rjam_state::{
+use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
+use fr_pvm_types::stats::{AccumulateStats, OnTransferStats};
+use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{CoreStats, ServiceStats},

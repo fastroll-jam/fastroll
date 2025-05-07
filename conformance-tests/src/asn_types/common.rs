@@ -2,7 +2,7 @@ use crate::serde_utils::{
     deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
 };
 use bit_vec::BitVec;
-use rjam_block::types::{
+use fr_block::types::{
     block::{Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey},
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
@@ -13,7 +13,7 @@ use rjam_block::types::{
         Extrinsics,
     },
 };
-use rjam_common::{
+use fr_common::{
     ticket::Ticket,
     workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
@@ -23,9 +23,9 @@ use rjam_common::{
     },
     ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
 };
-use rjam_crypto::{types::*, Hasher};
-use rjam_merkle::mmr::MerkleMountainRange;
-use rjam_state::types::{
+use fr_crypto::{types::*, Hasher};
+use fr_merkle::mmr::MerkleMountainRange;
+use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
     BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochValidatorStats,
     OnChainStatistics, PendingReport, PendingReports, PrivilegedServices, ServiceStats,

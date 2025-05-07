@@ -1,7 +1,7 @@
 use crate::validation::error::XtError;
-use rjam_block::types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
-use rjam_crypto::{hash, Blake2b256};
-use rjam_state::manager::StateManager;
+use fr_block::types::extrinsics::preimages::{PreimagesXt, PreimagesXtEntry};
+use fr_crypto::{hash, Blake2b256};
+use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
 
 /// Validate contents of `PreimagesXt` type.

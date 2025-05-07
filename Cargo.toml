@@ -4,8 +4,8 @@ resolver = "2"
 members = [
     "block",
     "clock",
-    "codec/rjam-codec",
-    "codec/rjam-codec-derive",
+    "codec/fr-codec",
+    "codec/fr-codec-derive",
     "common",
     "conformance-tests",
     "crypto",
@@ -29,26 +29,26 @@ edition = "2021"
 
 [workspace.dependencies]
 # Internal dependencies
-rjam-block = { path = "block" }
-rjam-clock = { path = "clock" }
-rjam-codec = { path = "codec/rjam-codec" }
-rjam-codec-derive = { path = "codec/rjam-codec-derive" }
-rjam-common = { path = "common" }
-rjam-conformance-tests = { path = "conformance-tests" }
-rjam-crypto = { path = "crypto" }
-rjam-db = { path = "db" }
-rjam-extrinsics = { path = "extrinsics" }
-rjam-merkle = { path = "merkle" }
-rjam-network = { path = "network" }
-rjam-node = { path = "node" }
-rjam-pvm-core = { path = "pvm/pvm-core" }
-rjam-pvm-host = { path = "pvm/pvm-host" }
-rjam-pvm-interface = { path = "pvm/pvm-interface" }
-rjam-pvm-invocation = { path = "pvm/pvm-invocation" }
-rjam-pvm-types = { path = "pvm/pvm-types" }
-rjam-state = { path = "state" }
-rjam-state-merkle = { path = "state/state-merkle" }
-rjam-transition = { path = "transition" }
+fr-block = { path = "block" }
+fr-clock = { path = "clock" }
+fr-codec = { path = "codec/fr-codec" }
+fr-codec-derive = { path = "codec/fr-codec-derive" }
+fr-common = { path = "common" }
+fr-conformance-tests = { path = "conformance-tests" }
+fr-crypto = { path = "crypto" }
+fr-db = { path = "db" }
+fr-extrinsics = { path = "extrinsics" }
+fr-merkle = { path = "merkle" }
+fr-network = { path = "network" }
+fr-node = { path = "node" }
+fr-pvm-core = { path = "pvm/pvm-core" }
+fr-pvm-host = { path = "pvm/pvm-host" }
+fr-pvm-interface = { path = "pvm/pvm-interface" }
+fr-pvm-invocation = { path = "pvm/pvm-invocation" }
+fr-pvm-types = { path = "pvm/pvm-types" }
+fr-state = { path = "state" }
+fr-state-merkle = { path = "state/state-merkle" }
+fr-transition = { path = "transition" }
 # External dependencies
 ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }
 async-trait = "0.1.88"

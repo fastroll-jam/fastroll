@@ -3,15 +3,15 @@ use crate::{
     jam_node::JamNode,
 };
 use clap::Parser;
-use rjam_block::header_db::BlockHeaderDB;
-use rjam_common::{utils::tracing::setup_tracing, ByteEncodable};
-use rjam_db::{
+use fr_block::header_db::BlockHeaderDB;
+use fr_common::{utils::tracing::setup_tracing, ByteEncodable};
+use fr_db::{
     config::{RocksDBOpts, HEADER_CF_NAME},
     core::core_db::CoreDB,
 };
-use rjam_extrinsics::pool::XtPool;
-use rjam_network::{endpoint::QuicEndpoint, peers::PeerManager};
-use rjam_state::{config::StateManagerConfig, manager::StateManager};
+use fr_extrinsics::pool::XtPool;
+use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
+use fr_state::{config::StateManagerConfig, manager::StateManager};
 use std::{error::Error, path::PathBuf, sync::Arc};
 
 fn init_storage() -> Result<(BlockHeaderDB, StateManager, XtPool), Box<dyn Error>> {

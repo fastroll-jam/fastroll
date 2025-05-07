@@ -1,9 +1,9 @@
 use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::XtError};
-use rjam_block::types::extrinsics::guarantees::{
+use fr_block::types::extrinsics::guarantees::{
     GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     workloads::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
@@ -12,13 +12,13 @@ use rjam_common::{
     MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT,
     WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
-use rjam_crypto::{
+use fr_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
     types::Ed25519PubKey,
     Blake2b256,
 };
-use rjam_state::{
+use fr_state::{
     manager::StateManager,
     types::{AuthPool, BlockHistory, PendingReports},
 };

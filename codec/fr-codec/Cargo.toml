@@ -1,12 +1,12 @@
 [package]
-name = "rjam-codec"
+name = "fr-codec"
 version = "0.1.0"
 edition.workspace = true
 
 [features]
-derive = ["rjam-codec-derive"]
+derive = ["fr-codec-derive"]
 
 [dependencies]
-rjam-codec-derive = { workspace = true, optional = true }
+fr-codec-derive = { workspace = true, optional = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }

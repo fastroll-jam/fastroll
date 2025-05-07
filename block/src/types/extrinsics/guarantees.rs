@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
-use rjam_codec::prelude::*;
-use rjam_common::{workloads::work_report::WorkReport, ValidatorIndex};
-use rjam_crypto::{
+use fr_codec::prelude::*;
+use fr_common::{workloads::work_report::WorkReport, ValidatorIndex};
+use fr_crypto::{
     hash::{hash, Blake2b256},
     types::*,
 };

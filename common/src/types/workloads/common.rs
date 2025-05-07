@@ -1,5 +1,5 @@
 use crate::Hash32;
-use rjam_codec::prelude::*;
+use fr_codec::prelude::*;
 use std::{
     collections::BTreeSet,
     fmt::{Display, Formatter},

@@ -1,19 +1,19 @@
 //! Disputes state transition conformance tests
 mod disputes {
     use async_trait::async_trait;
-    use rjam_block::types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker};
-    use rjam_conformance_tests::{
+    use fr_block::types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker};
+    use fr_conformance_tests::{
         asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{ActiveSet, DisputesState, PastSet, PendingReports, Timeslot},
     };
-    use rjam_transition::{
+    use fr_transition::{
         error::TransitionError,
         state::{disputes::transition_disputes, reports::transition_reports_eliminate_invalid},
     };
@@ -36,7 +36,7 @@ mod disputes {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_disputes = DisputesState::from(test_pre_state.psi.clone());
             let pre_pending_reports = PendingReports::from(test_pre_state.rho.clone());
             let pre_timeslot = Timeslot::new(test_pre_state.tau);
@@ -56,7 +56,7 @@ mod disputes {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 extrinsic: test_input.disputes.clone().into(),
             })
@@ -93,7 +93,7 @@ mod disputes {
                 return Output::err(error_code.clone());
             }
 
-            // Convert RJAM output into ASN Output.
+            // Convert FastRoll output into ASN Output.
             let curr_offenders_marker = new_header.offenders_marker();
             let curr_offenders_marker = OffendersHeaderMarker {
                 items: curr_offenders_marker.to_vec(),

@@ -1,7 +1,7 @@
-use rjam_block::header_db::BlockHeaderDB;
-use rjam_crypto::types::ValidatorKey;
-use rjam_network::{endpoint::QuicEndpoint, peers::PeerManager};
-use rjam_state::manager::StateManager;
+use fr_block::header_db::BlockHeaderDB;
+use fr_crypto::types::ValidatorKey;
+use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
+use fr_state::manager::StateManager;
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},

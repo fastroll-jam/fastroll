@@ -1,8 +1,8 @@
 use crate::error::TransitionError;
-use rjam_block::types::block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker};
-use rjam_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use rjam_crypto::types::ValidatorKeySet;
-use rjam_state::{manager::StateManager, types::outside_in_vec};
+use fr_block::types::block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker};
+use fr_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use fr_crypto::types::ValidatorKeySet;
+use fr_state::{manager::StateManager, types::outside_in_vec};
 use std::{array::from_fn, sync::Arc};
 
 #[derive(Clone)]

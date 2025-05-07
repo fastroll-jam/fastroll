@@ -1,10 +1,10 @@
 [package]
-name = "rjam-common"
+name = "fr-common"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-codec = { workspace = true, features = ["derive"] }
+fr-codec = { workspace = true, features = ["derive"] }
 cfg-if = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }

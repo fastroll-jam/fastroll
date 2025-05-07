@@ -1,18 +1,18 @@
 //! Authorizers state transition conformance tests
 mod authorizations {
     use async_trait::async_trait;
-    use rjam_block::types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt};
-    use rjam_conformance_tests::{
+    use fr_block::types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt};
+    use fr_conformance_tests::{
         asn_types::authorizations::*,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{AuthPool, AuthQueue, Timeslot},
     };
-    use rjam_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
+    use fr_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
     use std::sync::Arc;
 
     struct AuthorizationsTest;
@@ -32,7 +32,7 @@ mod authorizations {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
             let pre_auth_queue = AuthQueue::from(test_pre_state.auth_queues.clone());
 
@@ -44,7 +44,7 @@ mod authorizations {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             let input_timeslot = Timeslot::new(test_input.slot);
             let input_extrinsic: GuaranteesXt = test_input.clone().into();
 

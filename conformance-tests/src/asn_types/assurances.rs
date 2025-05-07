@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
-use rjam_block::types::extrinsics::assurances::AssurancesXt;
-use rjam_common::{workloads::work_report::WorkReport, Hash32};
-use rjam_state::types::Timeslot;
+use fr_block::types::extrinsics::assurances::AssurancesXt;
+use fr_common::{workloads::work_report::WorkReport, Hash32};
+use fr_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]

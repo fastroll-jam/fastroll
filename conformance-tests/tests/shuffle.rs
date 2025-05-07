@@ -1,7 +1,7 @@
 //! Fisher-Yates Shuffle function conformance tests
 mod shuffle {
-    use rjam_common::Hash32;
-    use rjam_extrinsics::utils::shuffle::shuffle_with_hash;
+    use fr_common::Hash32;
+    use fr_extrinsics::utils::shuffle::shuffle_with_hash;
     use serde::{Deserialize, Serialize};
     use std::{fs, path::PathBuf};
 

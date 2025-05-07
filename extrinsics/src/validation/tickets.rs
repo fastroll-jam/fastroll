@@ -1,11 +1,11 @@
 use crate::validation::error::XtError;
-use rjam_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
-use rjam_common::{
+use fr_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
+use fr_common::{
     ByteEncodable, Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR,
     TICKET_CONTEST_DURATION, X_T,
 };
-use rjam_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
-use rjam_state::manager::StateManager;
+use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 /// Validate contents of `TicketsXt` type.

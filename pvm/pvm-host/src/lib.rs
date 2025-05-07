@@ -4,4 +4,4 @@ pub mod host_functions;
 mod inner_vm;
 pub(crate) mod utils;
 
-pub use rjam_pvm_core::state::state_change::MemWrite;
+pub use fr_pvm_core::state::state_change::MemWrite;

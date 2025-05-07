@@ -1,15 +1,15 @@
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     workloads::{WorkExecutionResult, WorkPackage},
     CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
 };
-use rjam_pvm_host::context::InvocationContext;
-use rjam_pvm_interface::{
+use fr_pvm_host::context::InvocationContext;
+use fr_pvm_interface::{
     error::PVMError,
     invoke::{PVMInterface, PVMInvocationResult},
 };
-use rjam_pvm_types::constants::IS_AUTHORIZED_INITIAL_PC;
-use rjam_state::manager::StateManager;
+use fr_pvm_types::constants::IS_AUTHORIZED_INITIAL_PC;
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 #[derive(JamEncode)]

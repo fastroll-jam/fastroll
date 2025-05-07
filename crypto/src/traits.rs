@@ -1,4 +1,4 @@
-use rjam_common::ByteEncodable;
+use fr_common::ByteEncodable;
 
 pub trait PublicKey: ByteEncodable {}
 

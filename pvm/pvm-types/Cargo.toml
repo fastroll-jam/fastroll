@@ -1,9 +1,9 @@
 [package]
-name = "rjam-pvm-types"
+name = "fr-pvm-types"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
 thiserror = { workspace = true }

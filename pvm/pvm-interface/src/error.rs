@@ -1,8 +1,8 @@
-use rjam_codec::JamCodecError;
-use rjam_crypto::error::CryptoError;
-use rjam_pvm_core::{error::VMCoreError, state::memory::MemoryError};
-use rjam_pvm_host::error::{HostCallError, PartialStateError};
-use rjam_state::error::StateManagerError;
+use fr_codec::JamCodecError;
+use fr_crypto::error::CryptoError;
+use fr_pvm_core::{error::VMCoreError, state::memory::MemoryError};
+use fr_pvm_host::error::{HostCallError, PartialStateError};
+use fr_state::error::StateManagerError;
 use thiserror::Error;
 
 // PVM Error Codes

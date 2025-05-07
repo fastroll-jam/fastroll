@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use bit_vec::BitVec;
-use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason};
+use fr_pvm_types::{common::RegValue, exit_reason::ExitReason};
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,

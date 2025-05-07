@@ -1,5 +1,5 @@
 use crate::{state::safrole::update_slot_sealers, state_prediction::epoch_progressed};
-use rjam_state::{
+use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{ActiveSet, SlotSealer, Timeslot},

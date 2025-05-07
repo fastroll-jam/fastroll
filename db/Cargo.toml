@@ -1,5 +1,5 @@
 [package]
-name = "rjam-db"
+name = "fr-db"
 version = "0.1.0"
 edition.workspace = true
 

@@ -713,6 +713,291 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "fr-block"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-db",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-clock"
+version = "0.1.0"
+dependencies = [
+ "fr-common",
+ "time",
+]
+
+[[package]]
+name = "fr-codec"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "fr-codec-derive",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-codec-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "fr-common"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "fr-codec",
+ "hex",
+ "thiserror 2.0.12",
+ "time",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "fr-conformance-tests"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bit-vec",
+ "fr-block",
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-extrinsics",
+ "fr-merkle",
+ "fr-pvm-core",
+ "fr-pvm-interface",
+ "fr-pvm-invocation",
+ "fr-pvm-types",
+ "fr-state",
+ "fr-transition",
+ "futures",
+ "hex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fr-crypto"
+version = "0.1.0"
+dependencies = [
+ "ark-vrf",
+ "base32",
+ "blake2",
+ "ed25519-dalek",
+ "fr-codec",
+ "fr-common",
+ "hex",
+ "rand 0.8.5",
+ "sha3",
+ "thiserror 2.0.12",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "fr-db"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "rocksdb",
+ "thiserror 2.0.12",
+ "tokio",
+]
+
+[[package]]
+name = "fr-extrinsics"
+version = "0.1.0"
+dependencies = [
+ "fr-block",
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-state",
+ "hex",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-merkle"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-network"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-crypto",
+ "fr-state",
+ "quinn",
+ "rcgen",
+ "rustls",
+ "thiserror 2.0.12",
+ "tokio",
+]
+
+[[package]]
+name = "fr-node"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "fr-block",
+ "fr-clock",
+ "fr-codec",
+ "fr-common",
+ "fr-conformance-tests",
+ "fr-crypto",
+ "fr-db",
+ "fr-extrinsics",
+ "fr-network",
+ "fr-pvm-invocation",
+ "fr-state",
+ "fr-transition",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fr-pvm-core"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "fr-codec",
+ "fr-common",
+ "fr-pvm-types",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
+name = "fr-pvm-host"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-pvm-core",
+ "fr-pvm-types",
+ "fr-state",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-pvm-interface"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-pvm-core",
+ "fr-pvm-host",
+ "fr-pvm-types",
+ "fr-state",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
+name = "fr-pvm-invocation"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-merkle",
+ "fr-pvm-core",
+ "fr-pvm-host",
+ "fr-pvm-interface",
+ "fr-pvm-types",
+ "fr-state",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fr-pvm-types"
+version = "0.1.0"
+dependencies = [
+ "fr-codec",
+ "fr-common",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-state"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "dashmap",
+ "fr-block",
+ "fr-clock",
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-db",
+ "fr-merkle",
+ "fr-state-merkle",
+ "hex",
+ "paste",
+ "rand 0.8.5",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fr-state-merkle"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "dashmap",
+ "fr-codec",
+ "fr-common",
+ "fr-crypto",
+ "fr-db",
+ "hex",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
+name = "fr-transition"
+version = "0.1.0"
+dependencies = [
+ "fr-block",
+ "fr-common",
+ "fr-crypto",
+ "fr-extrinsics",
+ "fr-merkle",
+ "fr-pvm-invocation",
+ "fr-pvm-types",
+ "fr-state",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1494,291 +1779,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rjam-block"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-db",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-clock"
-version = "0.1.0"
-dependencies = [
- "rjam-common",
- "time",
-]
-
-[[package]]
-name = "rjam-codec"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "rjam-codec-derive",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-codec-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rjam-common"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
- "hex",
- "rjam-codec",
- "thiserror 2.0.12",
- "time",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "rjam-conformance-tests"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bit-vec",
- "futures",
- "hex",
- "rjam-block",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-extrinsics",
- "rjam-merkle",
- "rjam-pvm-core",
- "rjam-pvm-interface",
- "rjam-pvm-invocation",
- "rjam-pvm-types",
- "rjam-state",
- "rjam-transition",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rjam-crypto"
-version = "0.1.0"
-dependencies = [
- "ark-vrf",
- "base32",
- "blake2",
- "ed25519-dalek",
- "hex",
- "rand 0.8.5",
- "rjam-codec",
- "rjam-common",
- "sha3",
- "thiserror 2.0.12",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "rjam-db"
-version = "0.1.0"
-dependencies = [
- "dashmap",
- "rocksdb",
- "thiserror 2.0.12",
- "tokio",
-]
-
-[[package]]
-name = "rjam-extrinsics"
-version = "0.1.0"
-dependencies = [
- "hex",
- "rjam-block",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-state",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-merkle"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-network"
-version = "0.1.0"
-dependencies = [
- "quinn",
- "rcgen",
- "rjam-codec",
- "rjam-crypto",
- "rjam-state",
- "rustls",
- "thiserror 2.0.12",
- "tokio",
-]
-
-[[package]]
-name = "rjam-node"
-version = "0.1.0"
-dependencies = [
- "clap",
- "rjam-block",
- "rjam-clock",
- "rjam-codec",
- "rjam-common",
- "rjam-conformance-tests",
- "rjam-crypto",
- "rjam-db",
- "rjam-extrinsics",
- "rjam-network",
- "rjam-pvm-invocation",
- "rjam-state",
- "rjam-transition",
- "serde",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rjam-pvm-core"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "rjam-codec",
- "rjam-common",
- "rjam-pvm-types",
- "thiserror 2.0.12",
- "tracing",
-]
-
-[[package]]
-name = "rjam-pvm-host"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-pvm-core",
- "rjam-pvm-types",
- "rjam-state",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-pvm-interface"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-pvm-core",
- "rjam-pvm-host",
- "rjam-pvm-types",
- "rjam-state",
- "thiserror 2.0.12",
- "tracing",
-]
-
-[[package]]
-name = "rjam-pvm-invocation"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-merkle",
- "rjam-pvm-core",
- "rjam-pvm-host",
- "rjam-pvm-interface",
- "rjam-pvm-types",
- "rjam-state",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rjam-pvm-types"
-version = "0.1.0"
-dependencies = [
- "rjam-codec",
- "rjam-common",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "rjam-state"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "dashmap",
- "hex",
- "paste",
- "rand 0.8.5",
- "rjam-block",
- "rjam-clock",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-db",
- "rjam-merkle",
- "rjam-state-merkle",
- "serde",
- "tempfile",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rjam-state-merkle"
-version = "0.1.0"
-dependencies = [
- "bit-vec",
- "dashmap",
- "hex",
- "rjam-codec",
- "rjam-common",
- "rjam-crypto",
- "rjam-db",
- "thiserror 2.0.12",
- "tracing",
-]
-
-[[package]]
-name = "rjam-transition"
-version = "0.1.0"
-dependencies = [
- "rjam-block",
- "rjam-common",
- "rjam-crypto",
- "rjam-extrinsics",
- "rjam-merkle",
- "rjam-pvm-invocation",
- "rjam-pvm-types",
- "rjam-state",
- "thiserror 2.0.12",
 ]
 
 [[package]]

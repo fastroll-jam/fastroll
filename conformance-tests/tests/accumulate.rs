@@ -2,10 +2,9 @@
 #![allow(unused_imports)]
 mod accumulate {
     use async_trait::async_trait;
-    use futures::future::join_all;
-    use rjam_block::types::block::BlockHeader;
-    use rjam_common::{workloads::WorkReport, Hash32};
-    use rjam_conformance_tests::{
+    use fr_block::types::block::BlockHeader;
+    use fr_common::{workloads::WorkReport, Hash32};
+    use fr_conformance_tests::{
         asn_types::{
             accumulate::*,
             common::{AsnOpaqueHash, AsnServiceInfo},
@@ -14,10 +13,10 @@ mod accumulate {
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_pvm_invocation::pipeline::{
+    use fr_pvm_invocation::pipeline::{
         accumulate_result_commitment, utils::collect_accumulatable_reports,
     };
-    use rjam_state::{
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{
@@ -25,7 +24,7 @@ mod accumulate {
             Timeslot,
         },
     };
-    use rjam_transition::{
+    use fr_transition::{
         error::TransitionError,
         state::{
             accumulate::{transition_accumulate_history, transition_accumulate_queue},
@@ -33,6 +32,7 @@ mod accumulate {
             timeslot::transition_timeslot,
         },
     };
+    use futures::future::join_all;
     use std::{collections::HashSet, sync::Arc};
 
     struct AccumulateTest;
@@ -51,7 +51,7 @@ mod accumulate {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_timeslot = Timeslot::new(test_pre_state.slot);
             // TODO: why do we need entropy here?
             let pre_entropy = EpochEntropy([
@@ -110,7 +110,7 @@ mod accumulate {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 slot: Timeslot::new(test_input.slot),
                 reports: test_input

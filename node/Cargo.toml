@@ -1,21 +1,21 @@
 [package]
-name = "rjam-node"
+name = "fr-node"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-block = { workspace = true }
-rjam-clock = { workspace = true }
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
-rjam-conformance-tests = { workspace = true }
-rjam-crypto = { workspace = true }
-rjam-db = { workspace = true }
-rjam-extrinsics = { workspace = true }
-rjam-network = { workspace = true }
-rjam-pvm-invocation = { workspace = true }
-rjam-state = { workspace = true }
-rjam-transition = { workspace = true }
+fr-block = { workspace = true }
+fr-clock = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-conformance-tests = { workspace = true }
+fr-crypto = { workspace = true }
+fr-db = { workspace = true }
+fr-extrinsics = { workspace = true }
+fr-network = { workspace = true }
+fr-pvm-invocation = { workspace = true }
+fr-state = { workspace = true }
+fr-transition = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::{error::VMCoreError, state::vm_state::VMState};
-use rjam_common::{SignedGas, UnsignedGas};
+use fr_common::{SignedGas, UnsignedGas};
 
 pub struct GasCharger;
 impl GasCharger {

@@ -5,15 +5,15 @@ use crate::{
     error::HostCallError,
     inner_vm::InnerPVM,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
-use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_core::state::memory::Memory;
-use rjam_pvm_types::{
+use fr_codec::prelude::*;
+use fr_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
+use fr_crypto::{hash, Blake2b256};
+use fr_pvm_core::state::memory::Memory;
+use fr_pvm_types::{
     common::ExportDataSegment,
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
 };
-use rjam_state::{
+use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue,

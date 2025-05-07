@@ -1,6 +1,6 @@
 use crate::types::*;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rjam_common::ByteEncodable;
+use fr_common::ByteEncodable;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -49,8 +49,8 @@ impl crate::signers::Verifier for Ed25519Verifier {
 mod tests {
     use super::*;
     use crate::signers::{Signer, Verifier};
+    use fr_common::ByteEncodable;
     use rand::rngs::OsRng;
-    use rjam_common::ByteEncodable;
 
     // Helper function to create a message
     fn create_message() -> Vec<u8> {

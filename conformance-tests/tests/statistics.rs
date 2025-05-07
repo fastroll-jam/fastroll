@@ -1,20 +1,18 @@
 //! Statistics state transition conformance tests
 mod statistics {
     use async_trait::async_trait;
-    use rjam_block::types::{block::BlockHeader, extrinsics::Extrinsics};
-    use rjam_conformance_tests::{
+    use fr_block::types::{block::BlockHeader, extrinsics::Extrinsics};
+    use fr_conformance_tests::{
         asn_types::{common::*, statistics::*},
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{ActiveSet, OnChainStatistics, Timeslot},
     };
-    use rjam_transition::{
-        error::TransitionError, state::statistics::transition_onchain_statistics,
-    };
+    use fr_transition::{error::TransitionError, state::statistics::transition_onchain_statistics};
     use std::sync::Arc;
 
     struct StatisticsTest;
@@ -34,7 +32,7 @@ mod statistics {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_onchain_stats = OnChainStatistics::from(test_pre_state.statistics.clone());
             let pre_timeslot = Timeslot::new(test_pre_state.slot);
             let posterior_active_set = ActiveSet(validators_data_to_validator_set(
@@ -52,7 +50,7 @@ mod statistics {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 timeslot: Timeslot::new(test_input.slot),
                 author_index: test_input.author_index,
@@ -101,7 +99,7 @@ mod statistics {
             let curr_timeslot = state_manager.get_timeslot().await?;
             let posterior_active_set = state_manager.get_active_set().await?;
 
-            // Convert RJAM types post-state into ASN post-state
+            // Convert FastRoll types post-state into ASN post-state
             Ok(State {
                 statistics: curr_onchain_stats.into(),
                 slot: curr_timeslot.slot(),

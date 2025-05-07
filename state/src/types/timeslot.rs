@@ -2,9 +2,9 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_clock::Clock;
-use rjam_codec::prelude::*;
-use rjam_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
+use fr_clock::Clock;
+use fr_codec::prelude::*;
+use fr_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 
 /// Time timeslot index.
 ///

@@ -6,8 +6,8 @@ use crate::{
     },
     types::Timeslot,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
     MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };

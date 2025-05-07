@@ -1,21 +1,21 @@
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     workloads::{RefinementContext, WorkExecutionResult},
     Hash32, Octets, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE,
 };
-use rjam_crypto::{hash, Blake2b256};
-use rjam_pvm_host::{
+use fr_crypto::{hash, Blake2b256};
+use fr_pvm_host::{
     context::{InvocationContext, RefineHostContext},
     error::HostCallError::InvalidContext,
 };
-use rjam_pvm_interface::{
+use fr_pvm_interface::{
     error::PVMError,
     invoke::{PVMInterface, PVMInvocationOutput},
 };
-use rjam_pvm_types::{
+use fr_pvm_types::{
     common::ExportDataSegment, constants::REFINE_INITIAL_PC, invoke_args::RefineInvokeArgs,
 };
-use rjam_state::manager::StateManager;
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 /// `Ψ_M` invocation function arguments for `Ψ_R`
