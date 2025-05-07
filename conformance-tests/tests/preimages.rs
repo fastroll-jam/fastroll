@@ -1,20 +1,20 @@
 //! Preimages state transition conformance tests
 mod preimages {
     use async_trait::async_trait;
-    use futures::future::join_all;
-    use rjam_block::types::block::BlockHeader;
-    use rjam_common::{Hash32, LookupsKey};
-    use rjam_conformance_tests::{
+    use fr_block::types::block::BlockHeader;
+    use fr_common::{Hash32, LookupsKey};
+    use fr_conformance_tests::{
         asn_types::preimages::*,
         err_map::preimages::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
-    use rjam_transition::{
+    use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
+    use fr_transition::{
         error::TransitionError,
         state::{services::transition_services_integrate_preimages, timeslot::transition_timeslot},
     };
+    use futures::future::join_all;
     use std::sync::Arc;
 
     struct PreimagesTest;
@@ -34,7 +34,7 @@ mod preimages {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types and load pre-state info the state cache.
+            // Convert ASN pre-state into FastRoll types and load pre-state info the state cache.
             for account in &test_pre_state.accounts {
                 // Add preimages entries
                 for preimage in &account.data.preimages {
@@ -63,7 +63,7 @@ mod preimages {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 extrinsic: test_input.preimages.clone().into(),
                 slot: Timeslot::new(test_input.slot),

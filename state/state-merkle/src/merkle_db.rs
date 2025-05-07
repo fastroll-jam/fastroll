@@ -14,9 +14,9 @@ use crate::{
 };
 use bit_vec::BitVec;
 use dashmap::DashMap;
-use rjam_common::Hash32;
-use rjam_crypto::{hash, Blake2b256};
-use rjam_db::{
+use fr_common::Hash32;
+use fr_crypto::{hash, Blake2b256};
+use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
     ColumnFamily, WriteBatch,
 };

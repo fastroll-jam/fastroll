@@ -1,5 +1,5 @@
 use crate::asn_types::common::*;
-use rjam_block::types::extrinsics::disputes::DisputesXt;
+use fr_block::types::extrinsics::disputes::DisputesXt;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

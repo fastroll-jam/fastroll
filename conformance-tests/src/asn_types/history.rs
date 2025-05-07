@@ -1,5 +1,5 @@
 use crate::asn_types::common::*;
-use rjam_common::{workloads::ReportedWorkPackage, Hash32};
+use fr_common::{workloads::ReportedWorkPackage, Hash32};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

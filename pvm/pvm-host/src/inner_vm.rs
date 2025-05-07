@@ -1,5 +1,5 @@
-use rjam_pvm_core::state::memory::Memory;
-use rjam_pvm_types::common::RegValue;
+use fr_pvm_core::state::memory::Memory;
+use fr_pvm_types::common::RegValue;
 
 #[derive(Clone)]
 pub(crate) struct InnerPVM {

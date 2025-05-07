@@ -1,15 +1,15 @@
-use rjam_codec::prelude::*;
-use rjam_common::{Balance, ServiceId, UnsignedGas};
-use rjam_pvm_host::{
+use fr_codec::prelude::*;
+use fr_common::{Balance, ServiceId, UnsignedGas};
+use fr_pvm_host::{
     context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
     error::HostCallError::InvalidContext,
 };
-use rjam_pvm_interface::{error::PVMError, invoke::PVMInterface};
-use rjam_pvm_types::{
+use fr_pvm_interface::{error::PVMError, invoke::PVMInterface};
+use fr_pvm_types::{
     constants::ON_TRANSFER_INITIAL_PC,
     invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
 };
-use rjam_state::manager::StateManager;
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 pub struct BalanceChangeSet {

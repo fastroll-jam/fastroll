@@ -1,19 +1,19 @@
 //! Safrole state transition conformance tests
 mod safrole {
     use async_trait::async_trait;
-    use rjam_block::types::{
+    use fr_block::types::{
         block::BlockHeader,
         extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     };
-    use rjam_common::Hash32;
-    use rjam_conformance_tests::{
+    use fr_common::Hash32;
+    use fr_conformance_tests::{
         asn_types::{common::*, safrole::*},
         err_map::safrole::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_crypto::types::Ed25519PubKey;
-    use rjam_state::{
+    use fr_crypto::types::Ed25519PubKey;
+    use fr_state::{
         cache::StateMut,
         error::StateManagerError,
         manager::StateManager,
@@ -21,7 +21,7 @@ mod safrole {
             ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
         },
     };
-    use rjam_transition::{
+    use fr_transition::{
         error::TransitionError,
         procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
         state::{
@@ -52,7 +52,7 @@ mod safrole {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_safrole = SafroleState::from(test_pre_state);
             let pre_entropy = EpochEntropy::from(test_pre_state.eta.clone());
             let pre_staging_set =
@@ -84,7 +84,7 @@ mod safrole {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             let input_timeslot = Timeslot::new(test_input.slot);
             let input_header_entropy_hash = test_input.entropy;
             let input_ticket_entries: Vec<TicketsXtEntry> = test_input
@@ -153,7 +153,7 @@ mod safrole {
                 return Output::err(error_code.clone());
             }
 
-            // Convert RJAM output into ASN Output.
+            // Convert FastRoll output into ASN Output.
             let curr_header_epoch_marker = new_header.epoch_marker().cloned();
             let curr_header_winning_tickets_marker = new_header.winning_tickets_marker().cloned();
 
@@ -184,7 +184,7 @@ mod safrole {
             let curr_timeslot = state_manager.get_timeslot().await?;
             let curr_post_offenders = state_manager.get_disputes().await?.punish_set;
 
-            // Convert RJAM types post-state into ASN post-state
+            // Convert FastRoll types post-state into ASN post-state
             let (gamma_k, gamma_a, gamma_s, gamma_z) = safrole_state_to_gammas(curr_safrole);
 
             Ok(State {

@@ -1,6 +1,6 @@
 use crate::error::PartialStateError;
-use rjam_common::{Hash32, LookupsKey, ServiceId};
-use rjam_state::{
+use fr_common::{Hash32, LookupsKey, ServiceId};
+use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{

@@ -2,10 +2,10 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::prelude::*;
-use rjam_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HISTORY_LENGTH};
-use rjam_crypto::Keccak256;
-use rjam_merkle::mmr::MerkleMountainRange;
+use fr_codec::prelude::*;
+use fr_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HISTORY_LENGTH};
+use fr_crypto::Keccak256;
+use fr_merkle::mmr::MerkleMountainRange;
 
 /// The recent block histories.
 ///

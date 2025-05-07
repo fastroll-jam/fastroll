@@ -1,15 +1,15 @@
 use crate::utils::spawn_timed;
-use rjam_block::types::{
+use fr_block::types::{
     block::{Block, BlockHeaderError, VrfSig},
     extrinsics::disputes::OffendersHeaderMarker,
 };
-use rjam_common::{workloads::ReportedWorkPackage, Hash32};
-use rjam_crypto::traits::VrfSignature;
-use rjam_pvm_invocation::pipeline::{
+use fr_common::{workloads::ReportedWorkPackage, Hash32};
+use fr_crypto::traits::VrfSignature;
+use fr_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
-use rjam_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
-use rjam_transition::{
+use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
+use fr_transition::{
     error::TransitionError,
     procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
     state::{

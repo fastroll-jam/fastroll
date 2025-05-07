@@ -1,7 +1,7 @@
 use crate::asn_types::common::*;
-use rjam_block::types::extrinsics::Extrinsics;
-use rjam_common::ValidatorIndex;
-use rjam_state::types::Timeslot;
+use fr_block::types::extrinsics::Extrinsics;
+use fr_common::ValidatorIndex;
+use fr_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

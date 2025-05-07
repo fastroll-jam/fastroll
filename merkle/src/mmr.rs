@@ -1,7 +1,7 @@
 use crate::common::MerkleError;
-use rjam_codec::prelude::*;
-use rjam_common::{Hash32, HASH_SIZE};
-use rjam_crypto::hash::{hash, Hasher, Keccak256};
+use fr_codec::prelude::*;
+use fr_common::{Hash32, HASH_SIZE};
+use fr_crypto::hash::{hash, Hasher, Keccak256};
 use std::marker::PhantomData;
 
 /// Merkle Mountain Range representation.
@@ -145,7 +145,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rjam_crypto::hash::Blake2b256;
+    use fr_crypto::hash::Blake2b256;
 
     // Helper function to create a Hash32 from a u8 value
     fn create_hash(value: u8) -> Hash32 {

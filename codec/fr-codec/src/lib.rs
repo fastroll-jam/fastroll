@@ -10,7 +10,7 @@
 //! to conform to the codec specifications defined in the Graypaper.
 use bit_vec::BitVec;
 #[cfg(feature = "derive")]
-pub use rjam_codec_derive::*;
+pub use fr_codec_derive::*;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},

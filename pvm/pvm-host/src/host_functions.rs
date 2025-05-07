@@ -5,14 +5,14 @@ use crate::{
     get_mut_accumulate_x, get_mut_refine_x, get_refine_x, host_call_panic,
     host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::zero_pad_as_array,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
     MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
     TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
-use rjam_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
-use rjam_pvm_core::{
+use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
+use fr_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
@@ -20,13 +20,13 @@ use rjam_pvm_core::{
         vm_state::VMState,
     },
 };
-use rjam_pvm_types::{
+use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     exit_reason::ExitReason,
     invoke_args::DeferredTransfer,
 };
-use rjam_state::{
+use fr_state::{
     error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
     manager::StateManager,
     types::{

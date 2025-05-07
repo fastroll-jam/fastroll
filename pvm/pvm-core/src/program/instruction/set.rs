@@ -8,8 +8,8 @@ use crate::{
     },
     utils::VMUtils,
 };
-use rjam_codec::prelude::*;
-use rjam_pvm_types::{
+use fr_codec::prelude::*;
+use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::JUMP_ALIGNMENT,
     exit_reason::ExitReason,

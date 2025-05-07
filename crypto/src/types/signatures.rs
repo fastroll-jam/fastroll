@@ -5,8 +5,8 @@ use crate::{
     vrf::vrf_core::{IetfVrfSignature, RingVrfSignature},
 };
 use ark_vrf::reexports::ark_serialize::CanonicalDeserialize;
-use rjam_codec::prelude::*;
-use rjam_common::{ByteArray, ByteEncodable, CommonTypeError, Hash32};
+use fr_codec::prelude::*;
+use fr_common::{ByteArray, ByteEncodable, CommonTypeError, Hash32};
 
 /// 96-byte Bandersnatch signature type.
 /// Represents `F` signature type of the GP.

@@ -1,15 +1,15 @@
 //! Block history state transition conformance tests
 mod history {
     use async_trait::async_trait;
-    use rjam_block::types::block::BlockHeader;
-    use rjam_common::{workloads::ReportedWorkPackage, Hash32};
-    use rjam_conformance_tests::{
+    use fr_block::types::block::BlockHeader;
+    use fr_common::{workloads::ReportedWorkPackage, Hash32};
+    use fr_conformance_tests::{
         asn_types::history::*,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
-    use rjam_transition::{
+    use fr_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
+    use fr_transition::{
         error::TransitionError,
         state::history::{transition_block_history_append, transition_block_history_parent_root},
     };
@@ -32,7 +32,7 @@ mod history {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_block_history = BlockHistory::from(test_pre_state.beta.clone());
 
             // Load pre-state into the state cache.

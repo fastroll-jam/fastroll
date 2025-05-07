@@ -2,8 +2,8 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::prelude::*;
-use rjam_crypto::types::*;
+use fr_codec::prelude::*;
+use fr_crypto::types::*;
 use std::{
     array::from_fn,
     collections::HashSet,

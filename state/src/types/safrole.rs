@@ -3,11 +3,11 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
     types::Timeslot,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
-use rjam_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
+use fr_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use std::{
     array::from_fn,
     collections::BinaryHeap,

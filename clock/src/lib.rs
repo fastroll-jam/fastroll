@@ -1,4 +1,4 @@
-use rjam_common::{COMMON_ERA_TIMESTAMP, SLOT_DURATION};
+use fr_common::{COMMON_ERA_TIMESTAMP, SLOT_DURATION};
 use time::OffsetDateTime;
 
 pub struct Clock;

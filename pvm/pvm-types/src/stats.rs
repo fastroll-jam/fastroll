@@ -1,5 +1,5 @@
 use crate::invoke_results::AccumulationGasPairs;
-use rjam_common::{workloads::WorkReport, ServiceId, UnsignedGas};
+use fr_common::{workloads::WorkReport, ServiceId, UnsignedGas};
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,

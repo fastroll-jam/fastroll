@@ -4,9 +4,9 @@ use crate::types::{
     DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports, PrivilegedServices,
     SafroleState, StagingSet, Timeslot,
 };
-use rjam_codec::prelude::*;
-use rjam_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
-use rjam_crypto::{error::CryptoError, hash, Blake2b256};
+use fr_codec::prelude::*;
+use fr_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
+use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;
 
 /// Represents global state types with simple fixed state keys

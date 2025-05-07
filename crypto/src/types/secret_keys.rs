@@ -7,8 +7,8 @@ use ark_vrf::{
     reexports::ark_serialize::{CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch::Secret as ArkSecret,
 };
+use fr_common::{ByteArray, ByteEncodable, CommonTypeError};
 use rand::{rngs::OsRng, RngCore};
-use rjam_common::{ByteArray, ByteEncodable, CommonTypeError};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 32-byte Bandersnatch secret key type.

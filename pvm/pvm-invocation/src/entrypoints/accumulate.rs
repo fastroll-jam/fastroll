@@ -1,22 +1,22 @@
-use rjam_codec::prelude::*;
-use rjam_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE};
-use rjam_crypto::octets_to_hash32;
-use rjam_pvm_host::{
+use fr_codec::prelude::*;
+use fr_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE};
+use fr_crypto::octets_to_hash32;
+use fr_pvm_host::{
     context::{
         partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
         InvocationContext,
     },
     error::HostCallError::InvalidContext,
 };
-use rjam_pvm_interface::{
+use fr_pvm_interface::{
     error::PVMError,
     invoke::{PVMInterface, PVMInvocationOutput},
 };
-use rjam_pvm_types::{
+use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
     invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
 };
-use rjam_state::manager::StateManager;
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 /// `Ψ_M` invocation function arguments for `Ψ_A`

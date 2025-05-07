@@ -1,22 +1,22 @@
 use crate::error::TransitionError;
-use rjam_block::types::extrinsics::preimages::PreimagesXt;
-use rjam_common::{
+use fr_block::types::extrinsics::preimages::PreimagesXt;
+use fr_common::{
     workloads::work_report::WorkReport, ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES,
     ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
-use rjam_crypto::{hash, Blake2b256};
-use rjam_extrinsics::validation::preimages::PreimagesXtValidator;
-use rjam_pvm_invocation::{
+use fr_crypto::{hash, Blake2b256};
+use fr_extrinsics::validation::preimages::PreimagesXtValidator;
+use fr_pvm_invocation::{
     entrypoints::on_transfer::OnTransferInvocation,
     pipeline::{accumulate_outer, utils::select_deferred_transfers},
     prelude::{AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus},
 };
-use rjam_pvm_types::{
+use fr_pvm_types::{
     invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
     invoke_results::AccumulationOutputPairs,
     stats::{AccumulateStats, OnTransferStats, OnTransferStatsEntry},
 };
-use rjam_state::{
+use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{AccountFootprintDelta, AccountPreimagesEntry},

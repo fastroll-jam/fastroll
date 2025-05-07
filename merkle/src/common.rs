@@ -1,6 +1,6 @@
-use rjam_codec::JamCodecError;
-use rjam_common::Hash32;
-use rjam_crypto::{
+use fr_codec::JamCodecError;
+use fr_common::Hash32;
+use fr_crypto::{
     error::CryptoError,
     hash::{hash, Hasher},
 };
@@ -39,7 +39,7 @@ pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rjam_crypto::hash::Blake2b256;
+    use fr_crypto::hash::Blake2b256;
 
     #[test]
     fn test_node_empty() -> Result<(), MerkleError> {

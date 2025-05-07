@@ -1,9 +1,9 @@
 //! MerkleDB Fuzz Tests
 #![allow(unused_imports)]
+use fr_codec::prelude::*;
+use fr_common::utils::tracing::setup_timed_tracing;
+use fr_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
 use rand::{seq::SliceRandom, thread_rng};
-use rjam_codec::prelude::*;
-use rjam_common::utils::tracing::setup_timed_tracing;
-use rjam_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
 use std::{collections::HashMap, error::Error};
 
 #[tokio::test]

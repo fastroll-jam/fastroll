@@ -1,13 +1,13 @@
 [package]
-name = "rjam-extrinsics"
+name = "fr-extrinsics"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-block = { workspace = true }
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
-rjam-crypto = { workspace = true }
-rjam-state = { workspace = true }
+fr-block = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
+fr-state = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }

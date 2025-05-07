@@ -1,6 +1,6 @@
 use crate::{error::VMCoreError, utils::VMUtils};
-use rjam_codec::prelude::*;
-use rjam_pvm_types::constants::{
+use fr_codec::prelude::*;
+use fr_pvm_types::constants::{
     INIT_INPUT_SIZE, INIT_ZONE_SIZE, PAGE_SIZE, STANDARD_PROGRAM_SIZE_LIMIT,
 };
 

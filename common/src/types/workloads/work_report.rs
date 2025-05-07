@@ -1,7 +1,7 @@
 use crate::{
     workloads::common::RefinementContext, CoreIndex, Hash32, Octets, ServiceId, UnsignedGas,
 };
-use rjam_codec::prelude::*;
+use fr_codec::prelude::*;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},

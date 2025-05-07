@@ -1,6 +1,6 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use rjam_codec::prelude::*;
-use rjam_common::{Octets, ServiceId};
+use fr_codec::prelude::*;
+use fr_common::{Octets, ServiceId};
 use std::ops::Deref;
 
 /// Represents a sequence of preimage lookups, where each lookup corresponds to

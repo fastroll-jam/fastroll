@@ -1,6 +1,6 @@
 use crate::{program::instruction::opcode::Opcode, state::memory::MemoryError};
-use rjam_codec::JamCodecError;
-use rjam_pvm_types::common::MemAddress;
+use fr_codec::JamCodecError;
+use fr_pvm_types::common::MemAddress;
 use thiserror::Error;
 
 /// PVM Core Error Codes

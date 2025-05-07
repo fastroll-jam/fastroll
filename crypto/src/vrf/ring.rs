@@ -7,7 +7,7 @@ use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
 };
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
-use rjam_common::ByteEncodable;
+use fr_common::ByteEncodable;
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
 pub fn generate_ring_root(

@@ -1,10 +1,10 @@
-use rjam_block::types::block::Block;
-use rjam_conformance_tests::{
+use fr_block::types::block::Block;
+use fr_conformance_tests::{
     asn_types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
     utils::AsnTypeLoader,
 };
-use rjam_crypto::types::ValidatorKeySet;
-use rjam_state::{
+use fr_crypto::types::ValidatorKeySet;
+use fr_state::{
     test_utils::SimpleStates,
     types::{ActiveSet, SafroleState},
 };

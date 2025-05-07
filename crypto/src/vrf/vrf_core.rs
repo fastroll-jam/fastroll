@@ -10,7 +10,7 @@ use ark_vrf::{
 use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
-use rjam_common::VALIDATOR_COUNT;
+use fr_common::VALIDATOR_COUNT;
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 

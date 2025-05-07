@@ -3,8 +3,8 @@ use crate::{
     gas::GasCharger,
     state::{memory::MemoryError, register::Register, vm_state::VMState},
 };
-use rjam_common::{SignedGas, UnsignedGas};
-use rjam_pvm_types::{
+use fr_common::{SignedGas, UnsignedGas};
+use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
 };

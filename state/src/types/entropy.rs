@@ -2,8 +2,8 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_codec::prelude::*;
-use rjam_common::Hash32;
+use fr_codec::prelude::*;
+use fr_common::Hash32;
 use std::fmt::{Display, Formatter};
 
 /// The per-epoch entropy accumulator and its historical values.

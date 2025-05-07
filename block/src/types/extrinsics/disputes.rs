@@ -1,10 +1,10 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     ByteEncodable, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
-use rjam_crypto::types::*;
+use fr_crypto::types::*;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},

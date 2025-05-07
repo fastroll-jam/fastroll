@@ -1,20 +1,20 @@
 //! Assurances state transition conformance tests
 mod assurances {
     use async_trait::async_trait;
-    use rjam_block::types::block::BlockHeader;
-    use rjam_common::Hash32;
-    use rjam_conformance_tests::{
+    use fr_block::types::block::BlockHeader;
+    use fr_common::Hash32;
+    use fr_conformance_tests::{
         asn_types::{assurances::*, common::*},
         err_map::assurances::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
-    use rjam_state::{
+    use fr_state::{
         error::StateManagerError,
         manager::StateManager,
         types::{ActiveSet, PendingReports, Timeslot},
     };
-    use rjam_transition::{
+    use fr_transition::{
         error::TransitionError,
         state::{reports::transition_reports_clear_availables, timeslot::transition_timeslot},
     };
@@ -37,7 +37,7 @@ mod assurances {
             test_pre_state: &Self::State,
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
-            // Convert ASN pre-state into RJAM types.
+            // Convert ASN pre-state into FastRoll types.
             let pre_pending_reports =
                 PendingReports::from(test_pre_state.avail_assignments.clone());
             let pre_active_set = ActiveSet(validators_data_to_validator_set(
@@ -56,7 +56,7 @@ mod assurances {
         }
 
         fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-            // Convert ASN Input into RJAM types.
+            // Convert ASN Input into FastRoll types.
             Ok(JamInput {
                 extrinsic: test_input.assurances.clone().into(),
                 timeslot: Timeslot::new(test_input.slot),
@@ -95,7 +95,7 @@ mod assurances {
                 return Output::err(error_code.clone());
             }
 
-            // Convert RJAM output into ASN Output.
+            // Convert FastRoll output into ASN Output.
             Output::ok(transition_output.cloned().unwrap().into())
         }
 

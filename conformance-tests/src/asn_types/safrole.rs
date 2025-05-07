@@ -1,9 +1,9 @@
 use crate::asn_types::common::*;
-use rjam_block::types::extrinsics::tickets::TicketsXt;
-use rjam_common::{ticket::Ticket, Hash32};
-use rjam_crypto::types::BandersnatchRingRoot;
-use rjam_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
-use rjam_transition::procedures::chain_extension::SafroleHeaderMarkers;
+use fr_block::types::extrinsics::tickets::TicketsXt;
+use fr_common::{ticket::Ticket, Hash32};
+use fr_crypto::types::BandersnatchRingRoot;
+use fr_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
+use fr_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

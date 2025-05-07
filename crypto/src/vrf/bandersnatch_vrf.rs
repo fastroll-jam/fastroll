@@ -12,7 +12,7 @@ use ark_vrf::{
     codec::point_decode, reexports::ark_serialize::CanonicalDeserialize,
     suites::bandersnatch::BandersnatchSha512Ell2, Public, Secret,
 };
-use rjam_common::{ByteArray, ByteEncodable, Hash32, ValidatorIndex};
+use fr_common::{ByteArray, ByteEncodable, Hash32, ValidatorIndex};
 
 pub struct VrfProver {
     core: IetfVrfProverCore,

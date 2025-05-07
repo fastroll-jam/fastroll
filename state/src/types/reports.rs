@@ -6,9 +6,9 @@ use crate::{
         Timeslot,
     },
 };
-use rjam_codec::prelude::*;
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
-use rjam_crypto::{hash, Blake2b256};
+use fr_codec::prelude::*;
+use fr_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
+use fr_crypto::{hash, Blake2b256};
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},

@@ -1,17 +1,17 @@
 use crate::error::TransitionError;
-use rjam_block::types::extrinsics::{
+use fr_block::types::extrinsics::{
     assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
 };
-use rjam_common::{
+use fr_common::{
     workloads::work_report::{ReportedWorkPackage, WorkReport},
     Hash32,
 };
-use rjam_crypto::types::Ed25519PubKey;
-use rjam_extrinsics::validation::{
+use fr_crypto::types::Ed25519PubKey;
+use fr_extrinsics::validation::{
     assurances::AssurancesXtValidator, disputes::DisputesXtValidator,
     guarantees::GuaranteesXtValidator,
 };
-use rjam_state::{
+use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{PendingReport, Timeslot},

@@ -1,6 +1,6 @@
 use crate::common::{node, MerkleError};
-use rjam_common::Hash32;
-use rjam_crypto::{
+use fr_common::Hash32;
+use fr_crypto::{
     error::CryptoError,
     hash::{hash, octets_to_hash32, Hasher},
 };

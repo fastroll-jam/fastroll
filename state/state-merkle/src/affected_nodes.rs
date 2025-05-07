@@ -9,8 +9,8 @@ use crate::{
     write_set::{DBWriteSet, MerkleDBWriteSet, MerkleNodeWrite, StateDBWriteSet},
 };
 use bit_vec::BitVec;
-use rjam_common::Hash32;
-use rjam_crypto::{hash, Blake2b256};
+use fr_common::Hash32;
+use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::BTreeMap,
     fmt::{Display, Formatter},

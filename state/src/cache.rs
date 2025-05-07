@@ -3,9 +3,9 @@ use crate::{
     state_utils::{StateComponent, StateEntryType},
 };
 use dashmap::DashMap;
-use rjam_codec::prelude::*;
-use rjam_common::Hash32;
-use rjam_state_merkle::merkle_db::MerkleWriteOp;
+use fr_codec::prelude::*;
+use fr_common::Hash32;
+use fr_state_merkle::merkle_db::MerkleWriteOp;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {

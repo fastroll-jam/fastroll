@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use rjam_block::types::block::BlockHeader;
-use rjam_common::utils::tracing::setup_timed_tracing;
-use rjam_state::{error::StateManagerError, manager::StateManager};
-use rjam_transition::error::TransitionError;
+use fr_block::types::block::BlockHeader;
+use fr_common::utils::tracing::setup_timed_tracing;
+use fr_state::{error::StateManagerError, manager::StateManager};
+use fr_transition::error::TransitionError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     fmt::Debug,
@@ -39,7 +39,7 @@ pub trait StateTransitionTest {
     }
 
     fn init_header_and_manager() -> (BlockHeader, StateManager) {
-        let (_, manager) = rjam_state::test_utils::init_db_and_manager(None);
+        let (_, manager) = fr_state::test_utils::init_db_and_manager(None);
         (BlockHeader::default(), manager)
     }
 

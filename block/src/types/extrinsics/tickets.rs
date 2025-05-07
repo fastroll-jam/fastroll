@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{XtEntry, XtType};
-use rjam_codec::prelude::*;
-use rjam_common::{Hash32, X_T};
-use rjam_crypto::{traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver};
+use fr_codec::prelude::*;
+use fr_common::{Hash32, X_T};
+use fr_crypto::{traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.

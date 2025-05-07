@@ -1,10 +1,10 @@
 use crate::asn_types::common::*;
-use rjam_common::ServiceId;
+use fr_common::ServiceId;
 
-use rjam_block::types::extrinsics::guarantees::GuaranteesXt;
-use rjam_common::workloads::ReportedWorkPackage;
-use rjam_crypto::types::Ed25519PubKey;
-use rjam_state::types::{AccountMetadata, Timeslot};
+use fr_block::types::extrinsics::guarantees::GuaranteesXt;
+use fr_common::workloads::ReportedWorkPackage;
+use fr_crypto::types::Ed25519PubKey;
+use fr_state::types::{AccountMetadata, Timeslot};
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]

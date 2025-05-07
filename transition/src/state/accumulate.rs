@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
-use rjam_common::{workloads::work_report::WorkReport, EPOCH_LENGTH};
-use rjam_pvm_invocation::pipeline::utils::{edit_queue, reports_to_package_hashes};
-use rjam_state::{
+use fr_common::{workloads::work_report::WorkReport, EPOCH_LENGTH};
+use fr_pvm_invocation::pipeline::utils::{edit_queue, reports_to_package_hashes};
+use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{Timeslot, WorkReportDepsMap},

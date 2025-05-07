@@ -2,9 +2,9 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use rjam_block::types::extrinsics::preimages::PreimagesXtEntry;
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_block::types::extrinsics::preimages::PreimagesXtEntry;
+use fr_codec::prelude::*;
+use fr_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
     VALIDATOR_COUNT,
 };

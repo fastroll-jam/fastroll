@@ -1,4 +1,4 @@
-use rjam_db::config::{MERKLE_CF_NAME, STATE_CF_NAME};
+use fr_db::config::{MERKLE_CF_NAME, STATE_CF_NAME};
 
 pub struct StateManagerConfig {
     pub state_cf_name: &'static str,

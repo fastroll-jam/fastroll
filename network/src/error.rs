@@ -1,4 +1,4 @@
-use rjam_state::error::StateManagerError;
+use fr_state::error::StateManagerError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

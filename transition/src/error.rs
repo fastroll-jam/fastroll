@@ -1,9 +1,9 @@
-use rjam_block::header_db::BlockHeaderDBError;
-use rjam_crypto::error::CryptoError;
-use rjam_extrinsics::validation::error::XtError;
-use rjam_merkle::common::MerkleError;
-use rjam_pvm_invocation::prelude::PVMError;
-use rjam_state::{
+use fr_block::header_db::BlockHeaderDBError;
+use fr_crypto::error::CryptoError;
+use fr_extrinsics::validation::error::XtError;
+use fr_merkle::common::MerkleError;
+use fr_pvm_invocation::prelude::PVMError;
+use fr_state::{
     error::StateManagerError,
     types::{PendingReportsError, SlotSealerError},
 };

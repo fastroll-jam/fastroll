@@ -1,7 +1,7 @@
 //! MerkleDB Integration Tests
-use rjam_codec::prelude::*;
-use rjam_common::utils::tracing::setup_timed_tracing;
-use rjam_state::{
+use fr_codec::prelude::*;
+use fr_common::utils::tracing::setup_timed_tracing;
+use fr_state::{
     cache::StateMut,
     state_utils::{get_simple_state_key, StateKeyConstant},
     test_utils::{
@@ -9,7 +9,7 @@ use rjam_state::{
     },
     types::{AuthPool, PendingReport, PendingReports},
 };
-use rjam_state_merkle::test_utils::simple_hash;
+use fr_state_merkle::test_utils::simple_hash;
 use std::error::Error;
 
 #[tokio::test]

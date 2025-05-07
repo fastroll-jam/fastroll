@@ -1,7 +1,7 @@
 use crate::error::NetworkError;
-use rjam_codec::prelude::*;
-use rjam_crypto::types::{Ed25519PubKey, ValidatorKey, ValidatorKeySet};
-use rjam_state::manager::StateManager;
+use fr_codec::prelude::*;
+use fr_crypto::types::{Ed25519PubKey, ValidatorKey, ValidatorKeySet};
+use fr_state::manager::StateManager;
 use std::{
     collections::HashMap,
     net::{Ipv6Addr, SocketAddrV6},

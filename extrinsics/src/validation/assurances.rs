@@ -1,13 +1,13 @@
 use crate::validation::error::XtError;
-use rjam_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
-use rjam_codec::prelude::*;
-use rjam_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
-use rjam_crypto::{
+use fr_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
+use fr_codec::prelude::*;
+use fr_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
+use fr_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
     Blake2b256,
 };
-use rjam_state::manager::StateManager;
+use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
 
 /// Validates contents of `AssurancesXt` type.

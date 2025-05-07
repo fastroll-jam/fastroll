@@ -1,13 +1,13 @@
 use crate::{error::PVMError, pvm::PVM};
-use rjam_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, UnsignedGas};
-use rjam_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
-use rjam_pvm_host::{
+use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, UnsignedGas};
+use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
+use fr_pvm_host::{
     context::InvocationContext,
     error::HostCallError::InvalidExitReason,
     host_functions::{HostCallResult, HostFunction},
 };
-use rjam_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
-use rjam_state::manager::StateManager;
+use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
+use fr_state::manager::StateManager;
 use std::sync::Arc;
 
 struct ExtendedInvocationResult {

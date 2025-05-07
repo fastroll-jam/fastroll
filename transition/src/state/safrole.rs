@@ -1,9 +1,9 @@
 use crate::error::TransitionError;
-use rjam_block::types::extrinsics::tickets::TicketsXt;
-use rjam_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
-use rjam_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
-use rjam_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
-use rjam_state::{
+use fr_block::types::extrinsics::tickets::TicketsXt;
+use fr_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
+use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
+use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
+use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{

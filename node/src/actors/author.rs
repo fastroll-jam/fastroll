@@ -3,24 +3,24 @@ use crate::{
     actors::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
     keystore::load_author_secret_key,
 };
-use rjam_block::{
+use fr_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
     types::{
         block::{Block, BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
 };
-use rjam_codec::prelude::*;
-use rjam_common::{
+use fr_codec::prelude::*;
+use fr_common::{
     ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
     X_T,
 };
-use rjam_crypto::{
+use fr_crypto::{
     traits::VrfSignature,
     types::{BandersnatchPubKey, BandersnatchSecretKey},
     vrf::bandersnatch_vrf::VrfProver,
 };
-use rjam_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
+use fr_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
 use std::sync::Arc;
 use thiserror::Error;
 

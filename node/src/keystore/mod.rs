@@ -1,8 +1,8 @@
 //! Test-only keystore module
 use crate::jam_node::NodeInfo;
-use rjam_codec::prelude::*;
-use rjam_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
-use rjam_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
+use fr_codec::prelude::*;
+use fr_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
+use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,

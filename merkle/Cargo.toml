@@ -1,10 +1,10 @@
 [package]
-name = "rjam-merkle"
+name = "fr-merkle"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-rjam-codec = { workspace = true }
-rjam-common = { workspace = true }
-rjam-crypto = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
 thiserror = { workspace = true }

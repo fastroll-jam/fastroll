@@ -1,6 +1,6 @@
-use rjam_common::{workloads::work_report::WorkReport, ServiceId};
-use rjam_pvm_types::invoke_args::DeferredTransfer;
-use rjam_state::types::{
+use fr_common::{workloads::work_report::WorkReport, ServiceId};
+use fr_pvm_types::invoke_args::DeferredTransfer;
+use fr_state::types::{
     accumulate::{AccumulateQueue, WorkPackageHash, WorkReportDepsMap},
     AccumulateHistory,
 };

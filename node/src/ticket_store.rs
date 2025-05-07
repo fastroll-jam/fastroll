@@ -1,4 +1,4 @@
-use rjam_common::ticket::Ticket;
+use fr_common::ticket::Ticket;
 use std::collections::HashMap;
 
 /// A collection of tickets submitted by the node, indexed by epoch number.

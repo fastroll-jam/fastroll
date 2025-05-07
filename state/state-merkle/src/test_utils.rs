@@ -1,6 +1,6 @@
 use crate::{codec::NodeCodec, types::nodes::MerkleNode};
-use rjam_common::Hash32;
-use rjam_crypto::{hash, Blake2b256};
+use fr_common::Hash32;
+use fr_crypto::{hash, Blake2b256};
 
 pub fn simple_hash(seed: &str) -> Hash32 {
     hash::<Blake2b256>(seed.as_bytes()).unwrap()

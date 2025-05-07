@@ -1,8 +1,8 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use bit_vec::BitVec;
-use rjam_codec::prelude::*;
-use rjam_common::{CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY};
-use rjam_crypto::types::*;
+use fr_codec::prelude::*;
+use fr_common::{CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY};
+use fr_crypto::types::*;
 use std::{cmp::Ordering, ops::Deref};
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports

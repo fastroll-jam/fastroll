@@ -2,8 +2,8 @@ use crate::{
     codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB, write_set::MerkleNodeWrite,
 };
 use bit_vec::BitVec;
-use rjam_common::Hash32;
-use rjam_db::core::cached_db::CacheItem;
+use fr_common::Hash32;
+use fr_db::core::cached_db::CacheItem;
 use std::fmt::{Display, Formatter};
 
 /// Merkle node data size in bits.

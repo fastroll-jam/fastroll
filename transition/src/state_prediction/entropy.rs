@@ -1,6 +1,6 @@
 use crate::state_prediction::epoch_progressed;
-use rjam_common::Hash32;
-use rjam_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
+use fr_common::Hash32;
+use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// Predicts the third entropy history state (η_3′) before actually running STFs.
