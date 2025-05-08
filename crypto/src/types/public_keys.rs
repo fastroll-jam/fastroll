@@ -23,6 +23,15 @@ impl Ed25519PubKey {
         dns_name.push_str(&pk_base32);
         dns_name
     }
+
+    pub fn from_dns_name(s: &str) -> Option<Ed25519PubKey> {
+        let pk_base32 = s.strip_prefix("e")?;
+        base32::decode(
+            Alphabet::Rfc4648 { padding: false },
+            pk_base32.to_uppercase().as_str(),
+        )
+        .and_then(|bytes| Ed25519PubKey::from_slice(&bytes).ok())
+    }
 }
 
 /// 144-byte BLS public key type.
@@ -32,7 +41,7 @@ impl_byte_encodable!(BlsPubKey);
 impl_public_key!(BlsPubKey);
 
 #[test]
-pub fn test_ed25519_dns_name() {
+pub fn test_ed25519_dns_name_encoding() {
     let pk = Ed25519PubKey::from_hex(
         "0x3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29",
     )
@@ -41,4 +50,16 @@ pub fn test_ed25519_dns_name() {
         pk.as_dns_name().as_str(),
         "ehnvcppgow2sc2yvdvdicu3ynonsteflxdxrehjr2ybekdc2z3iuq"
     );
+}
+
+#[test]
+pub fn test_ed25519_dns_name_decoding() {
+    let pk = Ed25519PubKey::from_hex(
+        "0x3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29",
+    )
+    .unwrap();
+    let decoded =
+        Ed25519PubKey::from_dns_name("ehnvcppgow2sc2yvdvdicu3ynonsteflxdxrehjr2ybekdc2z3iuq")
+            .unwrap();
+    assert_eq!(pk, decoded)
 }
