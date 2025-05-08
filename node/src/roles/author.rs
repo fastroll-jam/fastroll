@@ -1,7 +1,7 @@
-//! Block author actor
+//! Block author role
 use crate::{
-    actors::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
     keystore::load_author_secret_key,
+    roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
 };
 use fr_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},

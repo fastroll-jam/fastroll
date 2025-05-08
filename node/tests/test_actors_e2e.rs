@@ -2,10 +2,10 @@
 use fr_common::utils::tracing::setup_timed_tracing;
 use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
 use fr_node::{
-    actors::{author::BlockAuthor, importer::BlockImporter},
     cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
+    roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
@@ -42,7 +42,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     })
 }
 
-/// Mocking block author actor
+/// Mocking block author role
 #[tokio::test]
 async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
@@ -56,7 +56,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Get the best header of the best chain
     let best_header = author_node.header_db.get_best_header();
 
-    // Block author actor
+    // Block author role
     let mut author =
         BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header).await?;
     let (new_block, author_post_state_root) = author.author_block(author_node.header_db).await?;
@@ -69,7 +69,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Get the best header of the best chain
     let best_header = importer_node.header_db.get_best_header();
 
-    // Block importer actor
+    // Block importer role
     let mut importer = BlockImporter::new(
         importer_node.state_manager,
         importer_node.header_db,
