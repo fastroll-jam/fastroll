@@ -17,14 +17,14 @@ pub struct PeerManager {
 impl PeerManager {
     pub async fn new(state_manager: Arc<StateManager>) -> Result<Self, NetworkError> {
         // TODO: Predict validator set update on epoch progress
-        let past_set = state_manager.get_past_set().await?;
-        let active_set = state_manager.get_active_set().await?;
-        let staging_set = state_manager.get_staging_set().await?;
+        let past_set = state_manager.get_past_set().await.ok();
+        let active_set = state_manager.get_active_set().await.ok();
+        let staging_set = state_manager.get_staging_set().await.ok();
 
         let peers = ValidatorPeers {
-            prev_epoch: Some(past_set.0.into()),
-            curr_epoch: Some(active_set.0.into()),
-            next_epoch: Some(staging_set.0.into()),
+            prev_epoch: past_set.map(|set| set.0.into()),
+            curr_epoch: active_set.map(|set| set.0.into()),
+            next_epoch: staging_set.map(|set| set.0.into()),
         };
 
         Ok(Self {
