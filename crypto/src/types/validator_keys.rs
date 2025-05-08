@@ -23,7 +23,7 @@ pub type ValidatorMetadata = ByteArray<128>;
 /// stored as a fixed-size byte array.
 ///
 /// The final `ValidatorKey` type is a simple concatenation of each component.
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Hash, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,

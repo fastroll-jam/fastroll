@@ -845,6 +845,7 @@ name = "fr-network"
 version = "0.1.0"
 dependencies = [
  "fr-codec",
+ "fr-common",
  "fr-crypto",
  "fr-state",
  "quinn",

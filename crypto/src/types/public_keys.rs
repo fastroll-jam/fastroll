@@ -35,7 +35,7 @@ impl Ed25519PubKey {
 }
 
 /// 144-byte BLS public key type.
-#[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct BlsPubKey(pub ByteArray<144>);
 impl_byte_encodable!(BlsPubKey);
 impl_public_key!(BlsPubKey);
