@@ -1,4 +1,4 @@
-use crate::{cert::load_mock_certs_and_key, dangerous_verifier::SkipServerVerification};
+use crate::certs::{cert::load_mock_certs_and_key, dangerous_verifier::SkipServerVerification};
 use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::{

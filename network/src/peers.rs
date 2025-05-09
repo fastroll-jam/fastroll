@@ -36,6 +36,10 @@ impl PeerManager {
             builders: Builders::default(),
         })
     }
+
+    pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
