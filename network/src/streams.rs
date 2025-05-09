@@ -1,16 +1,28 @@
 use quinn::{RecvStream, SendStream};
 
+#[derive(Debug)]
 pub struct UpStream {
-    pub stream_kind: StreamKind,
+    pub stream_kind: UpStreamKind,
     pub send_stream: SendStream,
     pub recv_stream: RecvStream,
 }
 
 #[repr(u8)]
+#[derive(Debug)]
 pub enum StreamKind {
-    // --- UP stream kinds
+    UP(UpStreamKind),
+    CE(CeStreamKind),
+}
+
+#[repr(u8)]
+#[derive(Debug)]
+pub enum UpStreamKind {
     BlockAnnouncement = 0,
-    // --- CE stream kinds
+}
+
+#[repr(u8)]
+#[derive(Debug)]
+pub enum CeStreamKind {
     BlockRequest = 128,
     StateRequest = 129,
     TicketDistributionFirst = 131,

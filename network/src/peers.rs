@@ -1,4 +1,7 @@
-use crate::error::NetworkError;
+use crate::{
+    error::NetworkError,
+    streams::{UpStream, UpStreamKind},
+};
 use fr_codec::prelude::*;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey, ValidatorKeySet};
 use fr_state::manager::StateManager;
@@ -83,25 +86,31 @@ impl From<ValidatorKeySet> for EpochValidatorPeers {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ValidatorPeer {
     pub validator_key: ValidatorKey,
     pub socket_addr: SocketAddrV6,
-    pub connection: Option<quinn::Connection>,
+    pub peer_connection: Option<PeerConnection>,
 }
 
 impl ValidatorPeer {
     pub fn new(
         validator_key: ValidatorKey,
         socket_addr: SocketAddrV6,
-        connection: Option<quinn::Connection>,
+        peer_connection: Option<PeerConnection>,
     ) -> Self {
         Self {
             validator_key,
             socket_addr,
-            connection,
+            peer_connection,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct PeerConnection {
+    pub connection: quinn::Connection,
+    pub up_streams: HashMap<UpStreamKind, UpStream>,
 }
 
 #[derive(Default)]
@@ -127,7 +136,7 @@ mod tests {
                 ..Default::default()
             },
             socket_addr: SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0),
-            connection: None,
+            peer_connection: None,
         }
     }
 
@@ -137,20 +146,16 @@ mod tests {
         let key2 = create_test_key(1);
         let key3 = create_test_key(2);
         let key4 = create_test_key(3);
-        let peer1 = create_test_peer(key1.clone(), 0);
-        let peer2 = create_test_peer(key2.clone(), 0);
-        let peer3 = create_test_peer(key3.clone(), 0);
-        let peer4 = create_test_peer(key4.clone(), 0);
 
         let curr_epoch_peers = HashMap::from([
-            (key1.clone(), peer1.clone()),
-            (key2.clone(), peer2.clone()),
-            (key3.clone(), peer3.clone()),
+            (key1.clone(), create_test_peer(key1.clone(), 0)),
+            (key2.clone(), create_test_peer(key2.clone(), 1)),
+            (key3.clone(), create_test_peer(key3.clone(), 2)),
         ]);
         let next_epoch_peers = HashMap::from([
-            (key2.clone(), peer2.clone()),
-            (key3.clone(), peer3.clone()),
-            (key4.clone(), peer4.clone()),
+            (key2.clone(), create_test_peer(key2.clone(), 1)),
+            (key3.clone(), create_test_peer(key3.clone(), 2)),
+            (key4.clone(), create_test_peer(key4.clone(), 3)),
         ]);
         let validator_peers = ValidatorPeers {
             prev_epoch: None,
@@ -163,6 +168,11 @@ mod tests {
         };
 
         let all_peers = validator_peers.all_peers();
+
+        let peer1 = create_test_peer(key1.clone(), 0);
+        let peer2 = create_test_peer(key2.clone(), 1);
+        let peer3 = create_test_peer(key3.clone(), 2);
+        let peer4 = create_test_peer(key4.clone(), 3);
         let expected = HashMap::from([
             (&key1, &peer1),
             (&key2, &peer2),
