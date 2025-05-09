@@ -1,6 +1,6 @@
 //! End-to-end state transition tests
 use fr_common::utils::tracing::setup_timed_tracing;
-use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
+use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
     cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
@@ -27,7 +27,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
 
     // Init peer manager
     let state_manager = Arc::new(state_manager);
-    let peer_manager = Arc::new(PeerManager::new(state_manager.clone()).await?);
+    let network_manager = Arc::new(NetworkManager::new(state_manager.clone()).await?);
 
     // Dev account
     let dev_account_name = DevAccountName::Ferdie;
@@ -37,7 +37,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         node_info,
         state_manager,
         header_db: Arc::new(header_db),
-        peer_manager,
+        network_manager,
         endpoint: QuicEndpoint::new(socket_addr_v6),
     })
 }

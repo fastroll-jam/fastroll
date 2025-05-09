@@ -1,6 +1,6 @@
 use fr_block::header_db::BlockHeaderDB;
 use fr_crypto::types::ValidatorKey;
-use fr_network::{endpoint::QuicEndpoint, peers::PeerManager};
+use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_state::manager::StateManager;
 use std::{
     fmt::{Display, Formatter},
@@ -44,7 +44,7 @@ pub struct JamNode {
     pub node_info: NodeInfo,
     pub state_manager: Arc<StateManager>,
     pub header_db: Arc<BlockHeaderDB>,
-    pub peer_manager: Arc<PeerManager>,
+    pub network_manager: Arc<NetworkManager>,
     pub endpoint: QuicEndpoint,
 }
 
@@ -53,14 +53,14 @@ impl JamNode {
         validator_info: NodeInfo,
         state_manager: Arc<StateManager>,
         header_db: Arc<BlockHeaderDB>,
-        peer_manager: Arc<PeerManager>,
+        network_manager: Arc<NetworkManager>,
         endpoint: QuicEndpoint,
     ) -> Self {
         Self {
             node_info: validator_info,
             state_manager,
             header_db,
-            peer_manager,
+            network_manager,
             endpoint,
         }
     }
