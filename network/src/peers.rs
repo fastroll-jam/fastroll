@@ -1,6 +1,6 @@
 use crate::{
     error::NetworkError,
-    streams::{UpStream, UpStreamKind},
+    streams::{LocalNodeRole, UpStream, UpStreamKind},
 };
 use fr_codec::prelude::*;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey, ValidatorKeySet};
@@ -90,26 +90,27 @@ impl From<ValidatorKeySet> for EpochValidatorPeers {
 pub struct ValidatorPeer {
     pub validator_key: ValidatorKey,
     pub socket_addr: SocketAddrV6,
-    pub peer_connection: Option<PeerConnection>,
+    pub conn: Option<PeerConnection>,
 }
 
 impl ValidatorPeer {
     pub fn new(
         validator_key: ValidatorKey,
         socket_addr: SocketAddrV6,
-        peer_connection: Option<PeerConnection>,
+        conn: Option<PeerConnection>,
     ) -> Self {
         Self {
             validator_key,
             socket_addr,
-            peer_connection,
+            conn,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct PeerConnection {
-    pub connection: quinn::Connection,
+    pub conn: quinn::Connection,
+    pub local_node_role: LocalNodeRole,
     pub up_streams: HashMap<UpStreamKind, UpStream>,
 }
 
@@ -136,7 +137,7 @@ mod tests {
                 ..Default::default()
             },
             socket_addr: SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0),
-            peer_connection: None,
+            conn: None,
         }
     }
 

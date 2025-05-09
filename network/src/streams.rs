@@ -41,3 +41,9 @@ pub enum CeStreamKind {
     AuditAnnouncement = 144,
     JudgmentPublication = 145,
 }
+
+#[derive(Debug)]
+pub enum LocalNodeRole {
+    Initiator,
+    Acceptor,
+}
