@@ -38,7 +38,11 @@ impl PeerManager {
     }
 
     pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
-        unimplemented!()
+        self.peers
+            .all_peers()
+            .iter()
+            .for_each(|(&_key, &_peer)| todo!());
+        Ok(())
     }
 }
 
