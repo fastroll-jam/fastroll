@@ -25,20 +25,23 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     // Commit genesis state
     state_manager.commit_dirty_cache().await?;
 
-    // Init peer manager
-    let state_manager = Arc::new(state_manager);
-    let network_manager = Arc::new(NetworkManager::new(state_manager.clone()).await?);
-
-    // Dev account
+    // Init network manager with dev account
     let dev_account_name = DevAccountName::Ferdie;
     let node_info = dev_account_name.load_validator_key_info();
+    let state_manager = Arc::new(state_manager);
+    let network_manager = Arc::new(
+        NetworkManager::new(
+            state_manager.clone(),
+            node_info,
+            QuicEndpoint::new(socket_addr_v6),
+        )
+        .await?,
+    );
 
     Ok(JamNode {
-        node_info,
         state_manager,
         header_db: Arc::new(header_db),
         network_manager,
-        endpoint: QuicEndpoint::new(socket_addr_v6),
     })
 }
 

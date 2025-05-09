@@ -1,67 +1,24 @@
 use fr_block::header_db::BlockHeaderDB;
-use fr_crypto::types::ValidatorKey;
-use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
+use fr_network::manager::NetworkManager;
 use fr_state::manager::StateManager;
-use std::{
-    fmt::{Display, Formatter},
-    net::{Ipv6Addr, SocketAddrV6},
-    sync::Arc,
-};
-
-#[derive(Clone, Debug)]
-pub struct NodeInfo {
-    pub socket_addr: SocketAddrV6,
-    pub validator_key: ValidatorKey,
-}
-
-impl Display for NodeInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{{ socket_addr: {:?}, validator_key: {} }}",
-            self.socket_addr, self.validator_key
-        )
-    }
-}
-
-impl NodeInfo {
-    pub fn new(socket_addr_v6: SocketAddrV6, validator_key: ValidatorKey) -> Self {
-        Self {
-            socket_addr: socket_addr_v6,
-            validator_key,
-        }
-    }
-
-    pub fn new_localhost(port: u16, validator_key: ValidatorKey) -> Self {
-        Self {
-            socket_addr: SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0),
-            validator_key,
-        }
-    }
-}
+use std::sync::Arc;
 
 pub struct JamNode {
-    pub node_info: NodeInfo,
     pub state_manager: Arc<StateManager>,
     pub header_db: Arc<BlockHeaderDB>,
     pub network_manager: Arc<NetworkManager>,
-    pub endpoint: QuicEndpoint,
 }
 
 impl JamNode {
     pub fn new(
-        validator_info: NodeInfo,
         state_manager: Arc<StateManager>,
         header_db: Arc<BlockHeaderDB>,
         network_manager: Arc<NetworkManager>,
-        endpoint: QuicEndpoint,
     ) -> Self {
         Self {
-            node_info: validator_info,
             state_manager,
             header_db,
             network_manager,
-            endpoint,
         }
     }
 }

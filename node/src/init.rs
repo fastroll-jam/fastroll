@@ -43,16 +43,19 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             let (header_db, state_manager, _xt_pool) = init_storage()?;
             tracing::info!("Storage initialized");
             let state_manager = Arc::new(state_manager);
-            let network_manager = NetworkManager::new(state_manager.clone()).await?;
+            let network_manager = NetworkManager::new(
+                state_manager.clone(),
+                node_info,
+                QuicEndpoint::new(socket_addr),
+            )
+            .await?;
 
             let node = JamNode::new(
-                node_info,
                 state_manager,
                 Arc::new(header_db),
                 Arc::new(network_manager),
-                QuicEndpoint::new(socket_addr),
             );
-            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.node_info.socket_addr, node.node_info.validator_key.bandersnatch_key.to_hex(), node.node_info.validator_key.ed25519_key.to_hex());
+            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager.local_node_info.socket_addr, node.network_manager.local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager.local_node_info.validator_key.ed25519_key.to_hex());
             Ok(node)
         }
     }

@@ -1,8 +1,8 @@
 //! Test-only keystore module
-use crate::jam_node::NodeInfo;
 use fr_codec::prelude::*;
 use fr_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
 use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
+use fr_network::manager::LocalNodeInfo;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -33,7 +33,7 @@ pub struct DevAccountInfo {
     metadata: AsnByteArray<128>,
 }
 
-impl From<DevAccountInfo> for NodeInfo {
+impl From<DevAccountInfo> for LocalNodeInfo {
     fn from(value: DevAccountInfo) -> Self {
         let ipv6: [u8; 16] = value.metadata.0[0..16].try_into().unwrap();
         let port = u16::decode_fixed(&mut &value.metadata.0[16..18], 2).unwrap();
