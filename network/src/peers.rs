@@ -73,6 +73,10 @@ impl ValidatorPeer {
             conn,
         }
     }
+
+    pub fn ed25519_key(&self) -> &Ed25519PubKey {
+        &self.validator_key.ed25519_key
+    }
 }
 
 #[derive(Debug)]
@@ -80,6 +84,20 @@ pub struct PeerConnection {
     pub conn: quinn::Connection,
     pub local_node_role: LocalNodeRole,
     pub up_streams: HashMap<UpStreamKind, UpStream>,
+}
+
+impl PeerConnection {
+    pub fn new(
+        conn: quinn::Connection,
+        local_node_role: LocalNodeRole,
+        up_streams: HashMap<UpStreamKind, UpStream>,
+    ) -> Self {
+        Self {
+            conn,
+            local_node_role,
+            up_streams,
+        }
+    }
 }
 
 #[derive(Default)]

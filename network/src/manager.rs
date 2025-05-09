@@ -1,11 +1,14 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{Builders, ValidatorPeers},
+    peers::{Builders, PeerConnection, ValidatorPeers},
+    streams::{LocalNodeRole, UpStream, UpStreamKind},
+    utils::preferred_initiator,
 };
-use fr_crypto::types::ValidatorKey;
+use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
+    collections::HashMap,
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
     sync::Arc,
@@ -46,11 +49,32 @@ impl NetworkManager {
     }
 
     pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
-        self.peers
-            .all_peers()
-            .iter()
-            .for_each(|(&_key, &_peer)| todo!());
+        let local_node_ed25519_key = self.local_node_ed25519_key();
+        for (peer_key, peer) in self.peers.all_peers() {
+            let preferred_initiator = preferred_initiator(local_node_ed25519_key, peer_key);
+            if preferred_initiator == local_node_ed25519_key {
+                let conn = self.endpoint.connect(peer.socket_addr, peer_key).await?;
+                let (send_stream, recv_stream) = conn.open_bi().await?;
+                let up_0_stream = UpStream {
+                    stream_kind: UpStreamKind::BlockAnnouncement,
+                    send_stream,
+                    recv_stream,
+                };
+                let _peer_conn = PeerConnection::new(
+                    conn,
+                    LocalNodeRole::Initiator,
+                    HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+                );
+            } else {
+                // TODO: initiate when timed out
+            }
+        }
+
         Ok(())
+    }
+
+    fn local_node_ed25519_key(&self) -> &Ed25519PubKey {
+        &self.local_node_info.validator_key.ed25519_key
     }
 }
 

@@ -15,7 +15,7 @@ pub enum StreamKind {
 }
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum UpStreamKind {
     BlockAnnouncement = 0,
 }
