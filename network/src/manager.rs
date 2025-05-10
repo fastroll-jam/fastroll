@@ -1,7 +1,7 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, PeerConnection},
+    peers::{AllValidatorPeers, Builders, PeerConnection, ValidatorPeer},
     streams::{LocalNodeRole, UpStream, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
@@ -50,28 +50,36 @@ impl NetworkManager {
         })
     }
 
-    pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
-        let local_node_ed25519_key = self.local_node_ed25519_key();
-        for (peer_key, peer) in self.all_validator_peers.iter() {
-            let preferred_initiator = preferred_initiator(local_node_ed25519_key, peer_key);
-            if preferred_initiator == local_node_ed25519_key {
-                let conn = self.endpoint.connect(peer.socket_addr, peer_key).await?;
-                let (send_stream, recv_stream) = conn.open_bi().await?;
-                let up_0_stream = UpStream {
-                    stream_kind: UpStreamKind::BlockAnnouncement,
-                    send_stream,
-                    recv_stream,
-                };
-                let _peer_conn = PeerConnection::new(
-                    conn,
-                    LocalNodeRole::Initiator,
-                    HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
-                );
-            } else {
-                // TODO: initiate when timed out
+    pub async fn connect_to_peers(&mut self) -> Result<(), NetworkError> {
+        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
+        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
+            if peer.conn.is_none()
+                && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
+            {
+                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
             }
         }
+        Ok(())
+    }
 
+    async fn connect_to_peer(
+        endpoint: &QuicEndpoint,
+        peer_key: &Ed25519PubKey,
+        peer: &mut ValidatorPeer,
+    ) -> Result<(), NetworkError> {
+        let conn = endpoint.connect(peer.socket_addr, peer_key).await?;
+        let (send_stream, recv_stream) = conn.open_bi().await?;
+        let up_0_stream = UpStream {
+            stream_kind: UpStreamKind::BlockAnnouncement,
+            send_stream,
+            recv_stream,
+        };
+        let peer_conn = PeerConnection::new(
+            conn,
+            LocalNodeRole::Initiator,
+            HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+        );
+        peer.conn = Some(peer_conn);
         Ok(())
     }
 

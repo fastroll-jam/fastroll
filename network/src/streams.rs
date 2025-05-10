@@ -1,5 +1,6 @@
 use quinn::{RecvStream, SendStream};
 
+/// Persistent UP stream handles
 #[derive(Debug)]
 pub struct UpStream {
     pub stream_kind: UpStreamKind,

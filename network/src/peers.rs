@@ -1,6 +1,10 @@
 use crate::streams::{LocalNodeRole, UpStream, UpStreamKind};
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
-use std::{collections::HashMap, net::SocketAddrV6, ops::Deref};
+use std::{
+    collections::HashMap,
+    net::SocketAddrV6,
+    ops::{Deref, DerefMut},
+};
 
 pub struct AllValidatorPeers(pub HashMap<Ed25519PubKey, ValidatorPeer>);
 
@@ -9,6 +13,12 @@ impl Deref for AllValidatorPeers {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for AllValidatorPeers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
