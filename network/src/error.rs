@@ -12,4 +12,6 @@ pub enum NetworkError {
     ConnectionError(#[from] ConnectionError),
     #[error("Invalid local address")]
     InvalidLocalAddr,
+    #[error("The Ed25519 public key is not registered as a network validator peer")]
+    ValidatorPeerKeyNotFound,
 }

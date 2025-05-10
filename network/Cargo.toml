@@ -8,6 +8,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-state = { workspace = true }
+dashmap = { workspace = true }
 quinn = { workspace = true }
 rcgen = { workspace = true }
 rustls = { workspace = true }

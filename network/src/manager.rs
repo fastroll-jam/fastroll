@@ -1,10 +1,11 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, PeerConnection, ValidatorPeer},
+    peers::{AllValidatorPeers, Builders, PeerConnection},
     streams::{LocalNodeRole, UpStream, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
+use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
@@ -32,7 +33,7 @@ impl NetworkManager {
         let active_set = state_manager.get_active_set().await.ok();
         let staging_set = state_manager.get_staging_set().await.ok();
 
-        let mut all_validator_peers = HashMap::new();
+        let mut all_validator_peers = DashMap::new();
         let prev_epoch_peers = validator_set_to_peers(past_set.unwrap_or_default().0);
         let curr_epoch_peers = validator_set_to_peers(active_set.unwrap_or_default().0);
         let next_epoch_peers = validator_set_to_peers(staging_set.unwrap_or_default().0);
@@ -48,7 +49,7 @@ impl NetworkManager {
         })
     }
 
-    pub async fn run_as_server(&mut self) -> Result<(), NetworkError> {
+    pub async fn run_as_server(&self) -> Result<(), NetworkError> {
         tracing::info!("Listening on {}", self.endpoint.local_addr()?);
         // Accept incoming connections
         let endpoint = self.endpoint.clone();
@@ -72,39 +73,43 @@ impl NetworkManager {
     }
 
     /// Connect to all network peers if the local node is the preferred initiator.
-    pub async fn connect_to_peers(&mut self) -> Result<(), NetworkError> {
+    pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
-        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
+        for entry in self.all_validator_peers.iter() {
+            let (peer_key, peer) = entry.pair();
             if peer.conn.is_none()
                 && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
             {
-                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
+                self.connect_to_peer(peer.socket_addr, peer_key).await?;
             }
         }
         Ok(())
     }
 
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
-    pub async fn connect_to_all_peers(&mut self) -> Result<(), NetworkError> {
-        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
+    pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
+        tracing::info!("Connecting to all peers...");
+        for entry in self.all_validator_peers.iter() {
+            let (peer_key, peer) = entry.pair();
             if peer.conn.is_none() {
-                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
+                self.connect_to_peer(peer.socket_addr, peer_key).await?;
             }
         }
         Ok(())
     }
 
     async fn connect_to_peer(
-        endpoint: &QuicEndpoint,
+        &self,
+        peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
-        peer: &mut ValidatorPeer,
     ) -> Result<(), NetworkError> {
-        let conn = endpoint.connect(peer.socket_addr, peer_key).await?;
+        let endpoint = self.endpoint.clone();
+        let conn = endpoint.connect(peer_addr, peer_key).await?;
         tracing::info!(
             "Connected to a peer {}@{}",
-            peer.socket_addr.ip(),
-            peer.socket_addr.port()
+            peer_addr.ip(),
+            peer_addr.port()
         );
         let (send_stream, recv_stream) = conn.open_bi().await?;
         let up_0_stream = UpStream {
@@ -117,7 +122,8 @@ impl NetworkManager {
             LocalNodeRole::Initiator,
             HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
         );
-        peer.conn = Some(peer_conn);
+        self.all_validator_peers
+            .store_peer_connection_handle(peer_key, peer_conn)?;
         Ok(())
     }
 

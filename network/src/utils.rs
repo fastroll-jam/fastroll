@@ -1,7 +1,7 @@
 use crate::peers::ValidatorPeer;
+use dashmap::DashMap;
 use fr_common::ByteEncodable;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKeySet};
-use std::collections::HashMap;
 
 #[allow(dead_code)]
 pub(crate) fn preferred_initiator<'a>(
@@ -17,7 +17,7 @@ pub(crate) fn preferred_initiator<'a>(
 
 pub(crate) fn validator_set_to_peers(
     validator_set: ValidatorKeySet,
-) -> HashMap<Ed25519PubKey, ValidatorPeer> {
+) -> DashMap<Ed25519PubKey, ValidatorPeer> {
     validator_set
         .iter()
         .map(|vk| {
