@@ -15,7 +15,6 @@ use std::{
 };
 
 pub struct NetworkManager {
-    pub state_manager: Arc<StateManager>,
     pub local_node_info: LocalNodeInfo,
     pub endpoint: QuicEndpoint,
     pub all_validator_peers: AllValidatorPeers,
@@ -42,7 +41,6 @@ impl NetworkManager {
         all_validator_peers.extend(next_epoch_peers);
 
         Ok(Self {
-            state_manager,
             local_node_info,
             endpoint,
             all_validator_peers: AllValidatorPeers(all_validator_peers),
@@ -50,8 +48,32 @@ impl NetworkManager {
         })
     }
 
+    pub async fn run_as_server(&mut self) -> Result<(), NetworkError> {
+        tracing::info!("Listening on {}", self.endpoint.local_addr()?);
+        // Accept incoming connections
+        let endpoint = self.endpoint.clone();
+        while let Some(conn) = endpoint.accept().await {
+            tracing::info!("Accepted connection from {}", conn.remote_address());
+            // Spawn an async task to handle the connection
+            tokio::spawn(async move { Self::handle_connection(conn).await });
+        }
+        Ok(())
+    }
+
+    async fn handle_connection(conn: quinn::Incoming) -> Result<(), NetworkError> {
+        let conn = conn.await?;
+        while let Ok((_send, _recv)) = conn.accept_bi().await {
+            // TODO: store the accepted UP stream handles in the `AllValidatorPeers`
+            tokio::spawn(async move {
+                tracing::info!("Handling connection...");
+            });
+        }
+        Ok(())
+    }
+
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(&mut self) -> Result<(), NetworkError> {
+        tracing::info!("Connecting to peers...");
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for (peer_key, peer) in self.all_validator_peers.iter_mut() {
             if peer.conn.is_none()
@@ -79,6 +101,11 @@ impl NetworkManager {
         peer: &mut ValidatorPeer,
     ) -> Result<(), NetworkError> {
         let conn = endpoint.connect(peer.socket_addr, peer_key).await?;
+        tracing::info!(
+            "Connected to a peer {}@{}",
+            peer.socket_addr.ip(),
+            peer.socket_addr.port()
+        );
         let (send_stream, recv_stream) = conn.open_bi().await?;
         let up_0_stream = UpStream {
             stream_kind: UpStreamKind::BlockAnnouncement,

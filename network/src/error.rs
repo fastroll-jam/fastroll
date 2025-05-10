@@ -10,4 +10,6 @@ pub enum NetworkError {
     ConnectError(#[from] ConnectError),
     #[error("quinn ConnectionError: {0}")]
     ConnectionError(#[from] ConnectionError),
+    #[error("Invalid local address")]
+    InvalidLocalAddr,
 }
