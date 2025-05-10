@@ -1,7 +1,7 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{Builders, PeerConnection, ValidatorPeers},
+    peers::{AllValidatorPeers, Builders, EpochValidatorPeerKeys, PeerConnection},
     streams::{LocalNodeRole, UpStream, UpStreamKind},
     utils::preferred_initiator,
 };
@@ -18,7 +18,7 @@ pub struct NetworkManager {
     pub state_manager: Arc<StateManager>,
     pub local_node_info: LocalNodeInfo,
     pub endpoint: QuicEndpoint,
-    pub peers: ValidatorPeers,
+    pub all_validator_peers: AllValidatorPeers,
     pub builders: Builders,
 }
 
@@ -33,24 +33,26 @@ impl NetworkManager {
         let active_set = state_manager.get_active_set().await.ok();
         let staging_set = state_manager.get_staging_set().await.ok();
 
-        let peers = ValidatorPeers {
-            prev_epoch: past_set.map(|set| set.0.into()),
-            curr_epoch: active_set.map(|set| set.0.into()),
-            next_epoch: staging_set.map(|set| set.0.into()),
-        };
+        let mut all_validator_peers = HashMap::new();
+        let prev_epoch_peers: EpochValidatorPeerKeys = past_set.unwrap_or_default().0.into();
+        let curr_epoch_peers: EpochValidatorPeerKeys = active_set.unwrap_or_default().0.into();
+        let next_epoch_peers: EpochValidatorPeerKeys = staging_set.unwrap_or_default().0.into();
+        all_validator_peers.extend(prev_epoch_peers.0);
+        all_validator_peers.extend(curr_epoch_peers.0);
+        all_validator_peers.extend(next_epoch_peers.0);
 
         Ok(Self {
             state_manager,
             local_node_info,
             endpoint,
-            peers,
+            all_validator_peers: AllValidatorPeers(all_validator_peers),
             builders: Builders::default(),
         })
     }
 
     pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
         let local_node_ed25519_key = self.local_node_ed25519_key();
-        for (peer_key, peer) in self.peers.all_peers() {
+        for (peer_key, peer) in self.all_validator_peers.iter() {
             let preferred_initiator = preferred_initiator(local_node_ed25519_key, peer_key);
             if preferred_initiator == local_node_ed25519_key {
                 let conn = self.endpoint.connect(peer.socket_addr, peer_key).await?;
