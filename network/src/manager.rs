@@ -50,12 +50,23 @@ impl NetworkManager {
         })
     }
 
+    /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(&mut self) -> Result<(), NetworkError> {
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for (peer_key, peer) in self.all_validator_peers.iter_mut() {
             if peer.conn.is_none()
                 && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
             {
+                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Connect to all network peers that are not yet connected regardless of preferred initiator.
+    pub async fn connect_to_all_peers(&mut self) -> Result<(), NetworkError> {
+        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
+            if peer.conn.is_none() {
                 Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
             }
         }
