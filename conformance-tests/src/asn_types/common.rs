@@ -75,6 +75,8 @@ pub type AsnBandersnatchRingSignature = AsnByteArray<784>;
 
 pub type AsnBlsKey = AsnByteArray<144>;
 
+pub type AsnValidatorMetadata = AsnByteArray<128>;
+
 impl From<AsnBandersnatchKey> for BandersnatchPubKey {
     fn from(value: AsnBandersnatchKey) -> Self {
         Self(value.into())
@@ -143,6 +145,18 @@ impl From<AsnBlsKey> for BlsPubKey {
 
 impl From<BlsPubKey> for AsnBlsKey {
     fn from(value: BlsPubKey) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<AsnValidatorMetadata> for ValidatorMetadata {
+    fn from(value: AsnValidatorMetadata) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<ValidatorMetadata> for AsnValidatorMetadata {
+    fn from(value: ValidatorMetadata) -> Self {
         value.0.into()
     }
 }
@@ -242,27 +256,12 @@ impl From<AsnEntropyBuffer> for EpochEntropy {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct AsnValidatorData {
     pub bandersnatch: AsnBandersnatchKey,
     pub ed25519: AsnEd25519Key,
     pub bls: AsnBlsKey,
-    #[serde(
-        serialize_with = "serialize_hex_array",
-        deserialize_with = "deserialize_hex_array"
-    )]
-    pub metadata: [u8; 128],
-}
-
-impl Default for AsnValidatorData {
-    fn default() -> Self {
-        Self {
-            bandersnatch: AsnByteArray::default(),
-            ed25519: AsnByteArray::default(),
-            bls: AsnBlsKey::default(),
-            metadata: [0u8; 128],
-        }
-    }
+    pub metadata: AsnValidatorMetadata,
 }
 
 impl From<ValidatorKey> for AsnValidatorData {
@@ -271,7 +270,7 @@ impl From<ValidatorKey> for AsnValidatorData {
             bandersnatch: value.bandersnatch_key.into(),
             ed25519: value.ed25519_key.into(),
             bls: value.bls_key.into(),
-            metadata: value.metadata.0,
+            metadata: value.metadata.into(),
         }
     }
 }
@@ -282,7 +281,7 @@ impl From<AsnValidatorData> for ValidatorKey {
             bandersnatch_key: value.bandersnatch.into(),
             ed25519_key: value.ed25519.into(),
             bls_key: value.bls.into(),
-            metadata: ByteArray::new(value.metadata),
+            metadata: value.metadata.into(),
         }
     }
 }
