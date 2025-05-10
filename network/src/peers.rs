@@ -1,11 +1,6 @@
 use crate::streams::{LocalNodeRole, UpStream, UpStreamKind};
-use fr_codec::prelude::*;
-use fr_crypto::types::{Ed25519PubKey, ValidatorKeySet};
-use std::{
-    collections::HashMap,
-    net::{Ipv6Addr, SocketAddrV6},
-    ops::Deref,
-};
+use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
+use std::{collections::HashMap, net::SocketAddrV6, ops::Deref};
 
 pub struct AllValidatorPeers(pub HashMap<Ed25519PubKey, ValidatorPeer>);
 
@@ -14,16 +9,6 @@ impl Deref for AllValidatorPeers {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl From<ActiveEpochValidatorPeerKeys> for AllValidatorPeers {
-    fn from(peers: ActiveEpochValidatorPeerKeys) -> Self {
-        let mut all_peers = HashMap::new();
-        all_peers.extend(peers.prev_epoch.0);
-        all_peers.extend(peers.curr_epoch.0);
-        all_peers.extend(peers.next_epoch.0);
-        Self(all_peers)
     }
 }
 
@@ -41,36 +26,13 @@ impl ActiveEpochValidatorPeerKeys {
 }
 
 #[derive(Debug)]
-pub struct EpochValidatorPeerKeys(pub HashMap<Ed25519PubKey, ValidatorPeer>);
+pub struct EpochValidatorPeerKeys(pub Vec<Ed25519PubKey>);
 
 impl Deref for EpochValidatorPeerKeys {
-    type Target = HashMap<Ed25519PubKey, ValidatorPeer>;
+    type Target = Vec<Ed25519PubKey>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl From<ValidatorKeySet> for EpochValidatorPeerKeys {
-    fn from(value: ValidatorKeySet) -> Self {
-        Self(
-            value
-                .iter()
-                .map(|k| {
-                    let ipv6: [u8; 16] = k.metadata.0[0..16].try_into().unwrap();
-                    let port = u16::decode_fixed(&mut &k.metadata.0[16..18], 2).unwrap();
-                    let ed25519_key = k.ed25519_key.clone();
-                    (
-                        ed25519_key.clone(),
-                        ValidatorPeer::new(
-                            ed25519_key,
-                            SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0),
-                            None,
-                        ),
-                    )
-                })
-                .collect(),
-        )
     }
 }
 
@@ -91,6 +53,14 @@ impl ValidatorPeer {
             ed25519_key,
             socket_addr,
             conn,
+        }
+    }
+
+    pub fn from_validator_key(validator_key: ValidatorKey) -> Self {
+        Self {
+            ed25519_key: validator_key.ed25519_key,
+            socket_addr: validator_key.metadata.socket_address(),
+            conn: None,
         }
     }
 }

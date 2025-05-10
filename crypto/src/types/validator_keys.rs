@@ -30,7 +30,7 @@ impl Deref for ValidatorMetadata {
 }
 
 impl ValidatorMetadata {
-    pub fn get_socket_address(&self) -> SocketAddrV6 {
+    pub fn socket_address(&self) -> SocketAddrV6 {
         let ipv6: [u8; 16] = self[0..16]
             .try_into()
             .expect("Should have more than 16 bytes");
@@ -152,7 +152,7 @@ mod test {
         let port = 9990;
         let expected_socket_addr = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
         let metadata = ValidatorMetadata::from_hex("0x0000000000000000000000000000000106270000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
-        let socket_addr = metadata.get_socket_address();
+        let socket_addr = metadata.socket_address();
         assert_eq!(expected_socket_addr, socket_addr);
     }
 }

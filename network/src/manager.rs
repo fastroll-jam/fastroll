@@ -1,9 +1,9 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, EpochValidatorPeerKeys, PeerConnection},
+    peers::{AllValidatorPeers, Builders, PeerConnection},
     streams::{LocalNodeRole, UpStream, UpStreamKind},
-    utils::preferred_initiator,
+    utils::{preferred_initiator, validator_set_to_peers},
 };
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
@@ -34,12 +34,12 @@ impl NetworkManager {
         let staging_set = state_manager.get_staging_set().await.ok();
 
         let mut all_validator_peers = HashMap::new();
-        let prev_epoch_peers: EpochValidatorPeerKeys = past_set.unwrap_or_default().0.into();
-        let curr_epoch_peers: EpochValidatorPeerKeys = active_set.unwrap_or_default().0.into();
-        let next_epoch_peers: EpochValidatorPeerKeys = staging_set.unwrap_or_default().0.into();
-        all_validator_peers.extend(prev_epoch_peers.0);
-        all_validator_peers.extend(curr_epoch_peers.0);
-        all_validator_peers.extend(next_epoch_peers.0);
+        let prev_epoch_peers = validator_set_to_peers(past_set.unwrap_or_default().0);
+        let curr_epoch_peers = validator_set_to_peers(active_set.unwrap_or_default().0);
+        let next_epoch_peers = validator_set_to_peers(staging_set.unwrap_or_default().0);
+        all_validator_peers.extend(prev_epoch_peers);
+        all_validator_peers.extend(curr_epoch_peers);
+        all_validator_peers.extend(next_epoch_peers);
 
         Ok(Self {
             state_manager,

@@ -1,5 +1,7 @@
+use crate::peers::ValidatorPeer;
 use fr_common::ByteEncodable;
-use fr_crypto::types::Ed25519PubKey;
+use fr_crypto::types::{Ed25519PubKey, ValidatorKeySet};
+use std::collections::HashMap;
 
 #[allow(dead_code)]
 pub(crate) fn preferred_initiator<'a>(
@@ -11,6 +13,20 @@ pub(crate) fn preferred_initiator<'a>(
     } else {
         b
     }
+}
+
+pub(crate) fn validator_set_to_peers(
+    validator_set: ValidatorKeySet,
+) -> HashMap<Ed25519PubKey, ValidatorPeer> {
+    validator_set
+        .iter()
+        .map(|vk| {
+            (
+                vk.ed25519_key.clone(),
+                ValidatorPeer::from_validator_key(vk.clone()),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
