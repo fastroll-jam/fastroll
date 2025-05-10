@@ -1,5 +1,12 @@
-use crate::{cert::load_mock_certs_and_key, dangerous_verifier::SkipServerVerification};
-use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
+use crate::{
+    certs::{cert::load_mock_certs_and_key, dangerous_verifier::SkipServerVerification},
+    error::NetworkError,
+};
+use fr_crypto::types::Ed25519PubKey;
+use quinn::{
+    crypto::rustls::{QuicClientConfig, QuicServerConfig},
+    Connection,
+};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV6},
@@ -21,8 +28,18 @@ impl QuicEndpoint {
         }
     }
 
-    pub fn endpoint(&self) -> &quinn::Endpoint {
-        &self.inner
+    pub async fn connect(
+        &self,
+        peer_socket_addr: SocketAddrV6,
+        peer_ed25519_key: &Ed25519PubKey,
+    ) -> Result<Connection, NetworkError> {
+        Ok(self
+            .inner
+            .connect(
+                SocketAddr::V6(peer_socket_addr),
+                &peer_ed25519_key.as_dns_name(),
+            )?
+            .await?)
     }
 
     /// Configures a QUIC endpoint as a server, which can both initiate and accept connections.

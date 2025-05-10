@@ -1,5 +1,6 @@
-use crate::{jam_node::NodeInfo, keystore::load_dev_accounts_from_file};
+use crate::keystore::load_dev_accounts_from_file;
 use clap::{Parser, Subcommand, ValueEnum};
+use fr_network::manager::LocalNodeInfo;
 
 #[derive(Parser)]
 #[command()]
@@ -28,7 +29,7 @@ pub enum DevAccountName {
 }
 
 impl DevAccountName {
-    pub fn load_validator_key_info(&self) -> NodeInfo {
+    pub fn load_validator_key_info(&self) -> LocalNodeInfo {
         let devs = load_dev_accounts_from_file();
         match self {
             DevAccountName::Alice => devs.alice.into(),

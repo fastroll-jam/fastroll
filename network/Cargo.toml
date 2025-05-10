@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 fr-codec = { workspace = true }
+fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-state = { workspace = true }
 quinn = { workspace = true }

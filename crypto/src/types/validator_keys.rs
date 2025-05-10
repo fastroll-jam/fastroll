@@ -1,9 +1,15 @@
 use fr_codec::prelude::*;
 
-use crate::types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey};
-use fr_common::{ByteArray, ByteEncodable, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT};
+use crate::{
+    impl_byte_encodable,
+    types::{BandersnatchPubKey, BlsPubKey, Ed25519PubKey},
+};
+use fr_common::{
+    ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
+};
 use std::{
     fmt::{Display, Formatter},
+    net::{Ipv6Addr, SocketAddrV6},
     ops::{Deref, DerefMut},
 };
 
@@ -11,7 +17,29 @@ use std::{
 pub type BandersnatchRingRoot = ByteArray<144>;
 
 /// 128-byte validator metadata.
-pub type ValidatorMetadata = ByteArray<128>;
+#[derive(Debug, Clone, Hash, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct ValidatorMetadata(pub ByteArray<128>);
+impl_byte_encodable!(ValidatorMetadata);
+
+impl Deref for ValidatorMetadata {
+    type Target = ByteArray<128>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ValidatorMetadata {
+    pub fn socket_address(&self) -> SocketAddrV6 {
+        let ipv6: [u8; 16] = self[0..16]
+            .try_into()
+            .expect("Should have more than 16 bytes");
+        // Decode LE-encoded port number
+        let port = u16::decode_fixed(&mut &self[16..18], 2)
+            .expect("Should success to decode 2 bytes into u16");
+        SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0)
+    }
+}
 
 /// Represents a validator key, composed of 4 distinct components:
 /// - Bandersnatch public key (32 bytes)
@@ -23,7 +51,7 @@ pub type ValidatorMetadata = ByteArray<128>;
 /// stored as a fixed-size byte array.
 ///
 /// The final `ValidatorKey` type is a simple concatenation of each component.
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Hash, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,
     pub ed25519_key: Ed25519PubKey,
@@ -110,5 +138,21 @@ impl ValidatorKeySet {
             return None;
         }
         Some(&self[validator_index as usize])
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_get_socket_addr_from_metadata() {
+        let mut ipv6 = [0u8; 16];
+        ipv6[15] = 1;
+        let port = 9990;
+        let expected_socket_addr = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
+        let metadata = ValidatorMetadata::from_hex("0x0000000000000000000000000000000106270000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+        let socket_addr = metadata.socket_address();
+        assert_eq!(expected_socket_addr, socket_addr);
     }
 }
