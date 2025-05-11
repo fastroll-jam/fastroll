@@ -1,5 +1,5 @@
 use fr_state::error::StateManagerError;
-use quinn::{ConnectError, ConnectionError};
+use quinn::{ConnectError, ConnectionError, WriteError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,6 +10,8 @@ pub enum NetworkError {
     ConnectError(#[from] ConnectError),
     #[error("quinn ConnectionError: {0}")]
     ConnectionError(#[from] ConnectionError),
+    #[error("quinn WriteError: {0}")]
+    WriteError(#[from] WriteError),
     #[error("Invalid local address")]
     InvalidLocalAddr,
     #[error("The Ed25519 public key is not registered as a network validator peer")]

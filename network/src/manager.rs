@@ -130,7 +130,12 @@ impl NetworkManager {
             peer_addr.ip(),
             peer_addr.port()
         );
-        let (send_stream, recv_stream) = conn.open_bi().await?;
+        let (mut send_stream, recv_stream) = conn.open_bi().await?;
+
+        // Send initial request to the peer so that it can accept the stream.
+        let init_request = "Hello".as_bytes().to_vec();
+        send_stream.write_all(&init_request).await?;
+
         let up_0_stream = UpStream {
             stream_kind: UpStreamKind::BlockAnnouncement,
             send_stream,
