@@ -1,5 +1,6 @@
 use crate::{
     cli::{Cli, CliCommand},
+    genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
 };
 use clap::Parser;
@@ -11,18 +12,31 @@ use fr_db::{
 };
 use fr_extrinsics::pool::XtPool;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
-use fr_state::{config::StateManagerConfig, manager::StateManager};
+use fr_state::{
+    config::StateManagerConfig, manager::StateManager, test_utils::add_all_simple_state_entries,
+};
 use std::{error::Error, path::PathBuf, sync::Arc};
 
-fn init_storage() -> Result<(BlockHeaderDB, StateManager, XtPool), Box<dyn Error>> {
+fn init_storage(db_id: &str) -> Result<(BlockHeaderDB, StateManager, XtPool), Box<dyn Error>> {
     let core_db = Arc::new(CoreDB::open(
-        PathBuf::from("./.rocksdb"),
+        PathBuf::from(format!("./.rocksdb/{db_id}")),
         RocksDBOpts::default(),
     )?);
     let header_db = BlockHeaderDB::new(core_db.clone(), HEADER_CF_NAME, 1024, None);
     let state_manager = StateManager::from_core_db(core_db, StateManagerConfig::default());
     let xt_pool = XtPool::new(1024);
     Ok((header_db, state_manager, xt_pool))
+}
+
+async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
+    // Genesis header is the best header
+    let genesis_header = load_genesis_block_from_file().header;
+    jam_node.header_db.set_best_header(genesis_header);
+    // Init genesis simple state with initial validators: active set and pending set
+    add_all_simple_state_entries(&jam_node.state_manager, Some(genesis_simple_state())).await?;
+    // Commit genesis state
+    jam_node.state_manager.commit_dirty_cache().await?;
+    Ok(())
 }
 
 pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
@@ -40,22 +54,26 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             };
 
             let socket_addr = node_info.socket_addr;
-            let (header_db, state_manager, _xt_pool) = init_storage()?;
+            let (header_db, state_manager, _xt_pool) =
+                init_storage(format!("[{}]:{}", socket_addr.ip(), socket_addr.port()).as_str())?;
             tracing::info!("Storage initialized");
-            let state_manager = Arc::new(state_manager);
-            let network_manager = NetworkManager::new(
-                state_manager.clone(),
-                node_info,
-                QuicEndpoint::new(socket_addr),
-            )
-            .await?;
+            let network_manager =
+                NetworkManager::new(node_info, QuicEndpoint::new(socket_addr)).await?;
 
+            let state_manager = Arc::new(state_manager);
             let node = JamNode::new(
-                state_manager,
+                state_manager.clone(),
                 Arc::new(header_db),
                 Arc::new(network_manager),
             );
             tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager.local_node_info.socket_addr, node.network_manager.local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager.local_node_info.validator_key.ed25519_key.to_hex());
+            set_genesis_state(&node).await?;
+            tracing::info!("Genesis state set");
+            // Load initial validator peers from the genesis validator set state
+            node.network_manager
+                .load_validator_peers(state_manager)
+                .await?;
+            tracing::info!("Validator peers info loaded");
             Ok(node)
         }
     }

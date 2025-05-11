@@ -24,10 +24,21 @@ pub struct NetworkManager {
 
 impl NetworkManager {
     pub async fn new(
-        state_manager: Arc<StateManager>,
         local_node_info: LocalNodeInfo,
         endpoint: QuicEndpoint,
     ) -> Result<Self, NetworkError> {
+        Ok(Self {
+            local_node_info,
+            endpoint,
+            all_validator_peers: AllValidatorPeers::default(),
+            builders: Builders::default(),
+        })
+    }
+
+    pub async fn load_validator_peers(
+        &self,
+        state_manager: Arc<StateManager>,
+    ) -> Result<(), NetworkError> {
         // TODO: Predict validator set update on epoch progress
         let past_set = state_manager.get_past_set().await.ok();
         let active_set = state_manager.get_active_set().await.ok();
@@ -41,12 +52,10 @@ impl NetworkManager {
         all_validator_peers.extend(curr_epoch_peers);
         all_validator_peers.extend(next_epoch_peers);
 
-        Ok(Self {
-            local_node_info,
-            endpoint,
-            all_validator_peers: AllValidatorPeers(all_validator_peers),
-            builders: Builders::default(),
-        })
+        for (key, peer) in all_validator_peers.into_iter() {
+            self.all_validator_peers.insert(key, peer);
+        }
+        Ok(())
     }
 
     pub async fn run_as_server(&self) -> Result<(), NetworkError> {
@@ -75,6 +84,7 @@ impl NetworkManager {
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
+        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for entry in self.all_validator_peers.iter() {
             let (peer_key, peer) = entry.pair();
@@ -90,6 +100,7 @@ impl NetworkManager {
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
     pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
+        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         for entry in self.all_validator_peers.iter() {
             let (peer_key, peer) = entry.pair();
             if peer.conn.is_none() {
@@ -107,7 +118,7 @@ impl NetworkManager {
         let endpoint = self.endpoint.clone();
         let conn = endpoint.connect(peer_addr, peer_key).await?;
         tracing::info!(
-            "Connected to a peer {}@{}",
+            "Connected to a peer [{}]:{}",
             peer_addr.ip(),
             peer_addr.port()
         );

@@ -7,9 +7,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Bind to a socket address and start accepting connections
     let network_manager = node.network_manager.clone();
-    network_manager.run_as_server().await?;
+    let server_jh = tokio::spawn(async move { network_manager.run_as_server().await });
+    let network_manager = node.network_manager.clone();
+    let client_jh = tokio::spawn(async move { network_manager.connect_to_peers().await });
 
-    // TODO: Connect to peers, timeslot scheduling, tickets submission
-
+    client_jh.await??;
+    server_jh.await??;
+    // TODO: Timeslot scheduling, tickets submission
     Ok(())
 }

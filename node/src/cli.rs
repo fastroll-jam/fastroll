@@ -25,7 +25,7 @@ pub enum DevAccountName {
     Carol,
     David,
     Eve,
-    Ferdie,
+    Fergie,
 }
 
 impl DevAccountName {
@@ -37,7 +37,7 @@ impl DevAccountName {
             DevAccountName::Carol => devs.carol.into(),
             DevAccountName::David => devs.david.into(),
             DevAccountName::Eve => devs.eve.into(),
-            DevAccountName::Ferdie => devs.fergie.into(),
+            DevAccountName::Fergie => devs.fergie.into(),
         }
     }
 }

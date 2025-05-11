@@ -10,6 +10,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+#[derive(Default)]
 pub struct AllValidatorPeers(pub DashMap<Ed25519PubKey, ValidatorPeer>);
 
 impl Deref for AllValidatorPeers {
