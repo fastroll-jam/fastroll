@@ -59,7 +59,7 @@ impl NetworkManager {
     }
 
     pub async fn run_as_server(&self) -> Result<(), NetworkError> {
-        tracing::info!("Listening on {}", self.endpoint.local_addr()?);
+        tracing::info!("📡 Listening on {}", self.endpoint.local_addr()?);
         // Accept incoming connections
         let endpoint = self.endpoint.clone();
         while let Some(conn) = endpoint.accept().await {
@@ -90,6 +90,7 @@ impl NetworkManager {
             let (peer_key, peer) = entry.pair();
             if peer.conn.is_none()
                 && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
+                && &local_node_ed25519_key != peer_key
             {
                 self.connect_to_peer(peer.socket_addr, peer_key).await?;
             }
@@ -101,9 +102,10 @@ impl NetworkManager {
     pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
         tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
+        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for entry in self.all_validator_peers.iter() {
             let (peer_key, peer) = entry.pair();
-            if peer.conn.is_none() {
+            if peer.conn.is_none() && &local_node_ed25519_key != peer_key {
                 self.connect_to_peer(peer.socket_addr, peer_key).await?;
             }
         }
@@ -118,7 +120,7 @@ impl NetworkManager {
         let endpoint = self.endpoint.clone();
         let conn = endpoint.connect(peer_addr, peer_key).await?;
         tracing::info!(
-            "Connected to a peer [{}]:{}",
+            "🔌 Connected to a peer [{}]:{}",
             peer_addr.ip(),
             peer_addr.port()
         );
