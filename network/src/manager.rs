@@ -18,7 +18,7 @@ use std::{
 pub struct NetworkManager {
     pub local_node_info: LocalNodeInfo,
     pub endpoint: QuicEndpoint,
-    pub all_validator_peers: AllValidatorPeers,
+    pub all_validator_peers: Arc<AllValidatorPeers>,
     pub builders: Builders,
 }
 
@@ -30,7 +30,7 @@ impl NetworkManager {
         Ok(Self {
             local_node_info,
             endpoint,
-            all_validator_peers: AllValidatorPeers::default(),
+            all_validator_peers: Arc::new(AllValidatorPeers::default()),
             builders: Builders::default(),
         })
     }
@@ -65,22 +65,42 @@ impl NetworkManager {
         while let Some(conn) = endpoint.accept().await {
             tracing::info!("Accepted connection from {}", conn.remote_address());
             // Spawn an async task to handle the connection
-            tokio::spawn(async move { Self::handle_connection(conn).await });
+            let all_peers_cloned = self.all_validator_peers.clone();
+            tokio::spawn(async move { Self::handle_connection(conn, all_peers_cloned).await });
         }
         Ok(())
     }
 
-    async fn handle_connection(conn: quinn::Incoming) -> Result<(), NetworkError> {
+    async fn handle_connection(
+        conn: quinn::Incoming,
+        all_peers: Arc<AllValidatorPeers>,
+    ) -> Result<(), NetworkError> {
         let conn = conn.await?;
         tracing::info!(
             "🔌 Connected to a peer [{}]:{}",
             conn.remote_address().ip(),
             conn.remote_address().port()
         );
-        while let Ok((_send, _recv)) = conn.accept_bi().await {
-            // TODO: store the accepted UP stream handles in the `AllValidatorPeers`
+        while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
             tracing::info!("💡 Accepted an UP stream!");
+            // Handle the connection
+            let conn_cloned = conn.clone();
             tokio::spawn(async move {
+                // Store the accepted UP stream handles
+                let up_0_stream = UpStream {
+                    stream_kind: UpStreamKind::BlockAnnouncement,
+                    send_stream,
+                    recv_stream,
+                };
+                let peer_conn = PeerConnection::new(
+                    conn_cloned,
+                    LocalNodeRole::Initiator,
+                    HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+                );
+                // all_peers
+                //     .store_peer_connection_handle(peer_key, peer_conn).unwrap();
+                // TODO: index peers with socket addresses
+
                 tracing::info!("🧨 Handling connection...");
             });
         }
@@ -98,7 +118,19 @@ impl NetworkManager {
                 && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
                 && &local_node_ed25519_key != peer_key
             {
-                self.connect_to_peer(peer.socket_addr, peer_key).await?;
+                let endpoint_cloned = self.endpoint.clone();
+                let all_peers_cloned = self.all_validator_peers.clone();
+                let peer_socket_addr_cloned = peer.socket_addr.clone();
+                let peer_key_cloned = peer_key.clone();
+                tokio::spawn(async move {
+                    Self::connect_to_peer(
+                        endpoint_cloned,
+                        all_peers_cloned,
+                        peer_socket_addr_cloned,
+                        &peer_key_cloned,
+                    )
+                    .await
+                });
             }
         }
         Ok(())
@@ -112,18 +144,30 @@ impl NetworkManager {
         for entry in self.all_validator_peers.iter() {
             let (peer_key, peer) = entry.pair();
             if peer.conn.is_none() && &local_node_ed25519_key != peer_key {
-                self.connect_to_peer(peer.socket_addr, peer_key).await?;
+                let endpoint_cloned = self.endpoint.clone();
+                let all_peers_cloned = self.all_validator_peers.clone();
+                let peer_socket_addr_cloned = peer.socket_addr.clone();
+                let peer_key_cloned = peer_key.clone();
+                tokio::spawn(async move {
+                    Self::connect_to_peer(
+                        endpoint_cloned,
+                        all_peers_cloned,
+                        peer_socket_addr_cloned,
+                        &peer_key_cloned,
+                    )
+                    .await
+                });
             }
         }
         Ok(())
     }
 
     async fn connect_to_peer(
-        &self,
+        endpoint: QuicEndpoint,
+        all_peers: Arc<AllValidatorPeers>,
         peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
     ) -> Result<(), NetworkError> {
-        let endpoint = self.endpoint.clone();
         let conn = endpoint.connect(peer_addr, peer_key).await?;
         tracing::info!(
             "🔌 Connected to a peer [{}]:{}",
@@ -146,8 +190,7 @@ impl NetworkManager {
             LocalNodeRole::Initiator,
             HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
         );
-        self.all_validator_peers
-            .store_peer_connection_handle(peer_key, peer_conn)?;
+        all_peers.store_peer_connection_handle(peer_key, peer_conn)?;
         Ok(())
     }
 
