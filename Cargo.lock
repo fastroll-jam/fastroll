@@ -844,6 +844,7 @@ dependencies = [
 name = "fr-network"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "fr-codec",
  "fr-common",
  "fr-crypto",
@@ -853,6 +854,7 @@ dependencies = [
  "rustls",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -97,7 +97,7 @@ impl BlockHeaderDB {
         self.best_header.lock().unwrap().clone()
     }
 
-    pub fn set_best_header(&mut self, new_best_header: BlockHeader) {
+    pub fn set_best_header(&self, new_best_header: BlockHeader) {
         let mut best_header = self.best_header.lock().unwrap();
         *best_header = new_best_header;
     }

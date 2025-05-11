@@ -3,10 +3,7 @@ use crate::{
     error::NetworkError,
 };
 use fr_crypto::types::Ed25519PubKey;
-use quinn::{
-    crypto::rustls::{QuicClientConfig, QuicServerConfig},
-    Connection,
-};
+use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV6},
@@ -15,6 +12,7 @@ use std::{
 
 pub const JAM_QUIC_ALPN: &[u8] = b"jamnp-s/0/03c6255f";
 
+#[derive(Debug, Clone)]
 pub struct QuicEndpoint {
     inner: quinn::Endpoint,
 }
@@ -28,11 +26,21 @@ impl QuicEndpoint {
         }
     }
 
+    pub fn local_addr(&self) -> Result<SocketAddr, NetworkError> {
+        self.inner
+            .local_addr()
+            .map_err(|_| NetworkError::InvalidLocalAddr)
+    }
+
+    pub async fn accept(&self) -> Option<quinn::Incoming> {
+        self.inner.accept().await
+    }
+
     pub async fn connect(
         &self,
         peer_socket_addr: SocketAddrV6,
         peer_ed25519_key: &Ed25519PubKey,
-    ) -> Result<Connection, NetworkError> {
+    ) -> Result<quinn::Connection, NetworkError> {
         Ok(self
             .inner
             .connect(

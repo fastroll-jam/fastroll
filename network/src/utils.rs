@@ -1,7 +1,8 @@
 use crate::peers::ValidatorPeer;
+use dashmap::DashMap;
 use fr_common::ByteEncodable;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKeySet};
-use std::collections::HashMap;
+use std::net::SocketAddrV6;
 
 #[allow(dead_code)]
 pub(crate) fn preferred_initiator<'a>(
@@ -17,12 +18,12 @@ pub(crate) fn preferred_initiator<'a>(
 
 pub(crate) fn validator_set_to_peers(
     validator_set: ValidatorKeySet,
-) -> HashMap<Ed25519PubKey, ValidatorPeer> {
+) -> DashMap<SocketAddrV6, ValidatorPeer> {
     validator_set
         .iter()
         .map(|vk| {
             (
-                vk.ed25519_key.clone(),
+                vk.metadata.socket_address(),
                 ValidatorPeer::from_validator_key(vk.clone()),
             )
         })

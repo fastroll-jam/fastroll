@@ -1,10 +1,12 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, PeerConnection, ValidatorPeer},
+    peers::{AllValidatorPeers, Builders, PeerConnection},
     streams::{LocalNodeRole, UpStream, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
+use core::net::SocketAddr;
+use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
@@ -15,25 +17,35 @@ use std::{
 };
 
 pub struct NetworkManager {
-    pub state_manager: Arc<StateManager>,
     pub local_node_info: LocalNodeInfo,
     pub endpoint: QuicEndpoint,
-    pub all_validator_peers: AllValidatorPeers,
+    pub all_validator_peers: Arc<AllValidatorPeers>,
     pub builders: Builders,
 }
 
 impl NetworkManager {
     pub async fn new(
-        state_manager: Arc<StateManager>,
         local_node_info: LocalNodeInfo,
         endpoint: QuicEndpoint,
     ) -> Result<Self, NetworkError> {
+        Ok(Self {
+            local_node_info,
+            endpoint,
+            all_validator_peers: Arc::new(AllValidatorPeers::default()),
+            builders: Builders::default(),
+        })
+    }
+
+    pub async fn load_validator_peers(
+        &self,
+        state_manager: Arc<StateManager>,
+    ) -> Result<(), NetworkError> {
         // TODO: Predict validator set update on epoch progress
         let past_set = state_manager.get_past_set().await.ok();
         let active_set = state_manager.get_active_set().await.ok();
         let staging_set = state_manager.get_staging_set().await.ok();
 
-        let mut all_validator_peers = HashMap::new();
+        let mut all_validator_peers = DashMap::new();
         let prev_epoch_peers = validator_set_to_peers(past_set.unwrap_or_default().0);
         let curr_epoch_peers = validator_set_to_peers(active_set.unwrap_or_default().0);
         let next_epoch_peers = validator_set_to_peers(staging_set.unwrap_or_default().0);
@@ -41,45 +53,142 @@ impl NetworkManager {
         all_validator_peers.extend(curr_epoch_peers);
         all_validator_peers.extend(next_epoch_peers);
 
-        Ok(Self {
-            state_manager,
-            local_node_info,
-            endpoint,
-            all_validator_peers: AllValidatorPeers(all_validator_peers),
-            builders: Builders::default(),
-        })
+        for (key, peer) in all_validator_peers.into_iter() {
+            self.all_validator_peers.insert(key, peer);
+        }
+        Ok(())
+    }
+
+    pub async fn run_as_server(&self) -> Result<(), NetworkError> {
+        tracing::info!("📡 Listening on {}", self.endpoint.local_addr()?);
+        // Accept incoming connections
+        let endpoint = self.endpoint.clone();
+        while let Some(conn) = endpoint.accept().await {
+            tracing::info!("Accepted connection from {}", conn.remote_address());
+            // Spawn an async task to handle the connection
+            let all_peers_cloned = self.all_validator_peers.clone();
+            tokio::spawn(async move { Self::handle_connection(conn, all_peers_cloned).await });
+        }
+        Ok(())
+    }
+
+    async fn handle_connection(
+        conn: quinn::Incoming,
+        all_peers: Arc<AllValidatorPeers>,
+    ) -> Result<(), NetworkError> {
+        let conn = conn.await?;
+        let SocketAddr::V6(socket_addr) = conn.remote_address() else {
+            return Err(NetworkError::InvalidPeerAddrFormat);
+        };
+        tracing::info!(
+            "🔌 Connected to a peer [{}]:{}",
+            socket_addr.ip(),
+            socket_addr.port()
+        );
+        while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
+            tracing::info!("💡 Accepted an UP stream!");
+            // Handle the connection
+            let conn_cloned = conn.clone();
+            let all_peers_cloned = all_peers.clone();
+            tokio::spawn(async move {
+                // Store the accepted UP stream handles
+                let up_0_stream = UpStream {
+                    stream_kind: UpStreamKind::BlockAnnouncement,
+                    send_stream,
+                    recv_stream,
+                };
+                let peer_conn = PeerConnection::new(
+                    conn_cloned,
+                    LocalNodeRole::Initiator,
+                    HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+                );
+                all_peers_cloned
+                    .store_peer_connection_handle(&socket_addr, peer_conn)
+                    .unwrap();
+
+                tracing::info!("🧨 Handling connection...");
+            });
+        }
+        Ok(())
     }
 
     /// Connect to all network peers if the local node is the preferred initiator.
-    pub async fn connect_to_peers(&mut self) -> Result<(), NetworkError> {
+    pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
+        tracing::info!("Connecting to peers...");
+        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
-        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
+        for entry in self.all_validator_peers.iter() {
+            let peer = entry.value();
             if peer.conn.is_none()
-                && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
+                && &local_node_ed25519_key
+                    == preferred_initiator(&local_node_ed25519_key, &peer.ed25519_key)
+                && local_node_ed25519_key != peer.ed25519_key
             {
-                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
+                let endpoint_cloned = self.endpoint.clone();
+                let all_peers_cloned = self.all_validator_peers.clone();
+                let peer_socket_addr_cloned = peer.socket_addr;
+                let peer_key_cloned = peer.ed25519_key.clone();
+                tokio::spawn(async move {
+                    Self::connect_to_peer(
+                        endpoint_cloned,
+                        all_peers_cloned,
+                        peer_socket_addr_cloned,
+                        &peer_key_cloned,
+                    )
+                    .await
+                });
             }
         }
         Ok(())
     }
 
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
-    pub async fn connect_to_all_peers(&mut self) -> Result<(), NetworkError> {
-        for (peer_key, peer) in self.all_validator_peers.iter_mut() {
-            if peer.conn.is_none() {
-                Self::connect_to_peer(&self.endpoint, peer_key, peer).await?;
+    pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
+        tracing::info!("Connecting to all peers...");
+        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
+        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
+        for entry in self.all_validator_peers.iter() {
+            let peer = entry.value();
+            if peer.conn.is_none() && local_node_ed25519_key != peer.ed25519_key {
+                let endpoint_cloned = self.endpoint.clone();
+                let all_peers_cloned = self.all_validator_peers.clone();
+                let peer_socket_addr_cloned = peer.socket_addr;
+                let peer_key_cloned = peer.ed25519_key.clone();
+                tokio::spawn(async move {
+                    Self::connect_to_peer(
+                        endpoint_cloned,
+                        all_peers_cloned,
+                        peer_socket_addr_cloned,
+                        &peer_key_cloned,
+                    )
+                    .await
+                });
             }
         }
         Ok(())
     }
 
     async fn connect_to_peer(
-        endpoint: &QuicEndpoint,
+        endpoint: QuicEndpoint,
+        all_peers: Arc<AllValidatorPeers>,
+        peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
-        peer: &mut ValidatorPeer,
     ) -> Result<(), NetworkError> {
-        let conn = endpoint.connect(peer.socket_addr, peer_key).await?;
-        let (send_stream, recv_stream) = conn.open_bi().await?;
+        let conn = endpoint.connect(peer_addr, peer_key).await?;
+        let SocketAddr::V6(socket_addr) = conn.remote_address() else {
+            return Err(NetworkError::InvalidPeerAddrFormat);
+        };
+        tracing::info!(
+            "🔌 Connected to a peer [{}]:{}",
+            socket_addr.ip(),
+            socket_addr.port()
+        );
+        let (mut send_stream, recv_stream) = conn.open_bi().await?;
+
+        // Send initial request to the peer so that it can accept the stream.
+        let init_request = "Hello".as_bytes().to_vec();
+        send_stream.write_all(&init_request).await?;
+
         let up_0_stream = UpStream {
             stream_kind: UpStreamKind::BlockAnnouncement,
             send_stream,
@@ -90,7 +199,7 @@ impl NetworkManager {
             LocalNodeRole::Initiator,
             HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
         );
-        peer.conn = Some(peer_conn);
+        all_peers.store_peer_connection_handle(&socket_addr, peer_conn)?;
         Ok(())
     }
 

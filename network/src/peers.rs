@@ -1,4 +1,8 @@
-use crate::streams::{LocalNodeRole, UpStream, UpStreamKind};
+use crate::{
+    error::NetworkError,
+    streams::{LocalNodeRole, UpStream, UpStreamKind},
+};
+use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use std::{
     collections::HashMap,
@@ -6,10 +10,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub struct AllValidatorPeers(pub HashMap<Ed25519PubKey, ValidatorPeer>);
+#[derive(Default)]
+pub struct AllValidatorPeers(pub DashMap<SocketAddrV6, ValidatorPeer>);
 
 impl Deref for AllValidatorPeers {
-    type Target = HashMap<Ed25519PubKey, ValidatorPeer>;
+    type Target = DashMap<SocketAddrV6, ValidatorPeer>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -19,6 +24,21 @@ impl Deref for AllValidatorPeers {
 impl DerefMut for AllValidatorPeers {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl AllValidatorPeers {
+    pub fn store_peer_connection_handle(
+        &self,
+        socket_addr: &SocketAddrV6,
+        conn: PeerConnection,
+    ) -> Result<(), NetworkError> {
+        if let Some(mut peer) = self.get_mut(socket_addr) {
+            peer.conn = Some(conn);
+            Ok(())
+        } else {
+            Err(NetworkError::ValidatorPeerKeyNotFound)
+        }
     }
 }
 
