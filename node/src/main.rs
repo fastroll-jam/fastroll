@@ -15,8 +15,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         network_manager.connect_to_all_peers().await.unwrap();
     });
 
-    client_jh.await?;
     server_jh.await??;
+    client_jh.await?;
     // TODO: Timeslot scheduling, tickets submission
     Ok(())
 }

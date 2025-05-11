@@ -11,10 +11,10 @@ use std::{
 };
 
 #[derive(Default)]
-pub struct AllValidatorPeers(pub DashMap<Ed25519PubKey, ValidatorPeer>);
+pub struct AllValidatorPeers(pub DashMap<SocketAddrV6, ValidatorPeer>);
 
 impl Deref for AllValidatorPeers {
-    type Target = DashMap<Ed25519PubKey, ValidatorPeer>;
+    type Target = DashMap<SocketAddrV6, ValidatorPeer>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -30,10 +30,10 @@ impl DerefMut for AllValidatorPeers {
 impl AllValidatorPeers {
     pub fn store_peer_connection_handle(
         &self,
-        key: &Ed25519PubKey,
+        socket_addr: &SocketAddrV6,
         conn: PeerConnection,
     ) -> Result<(), NetworkError> {
-        if let Some(mut peer) = self.get_mut(key) {
+        if let Some(mut peer) = self.get_mut(socket_addr) {
             peer.conn = Some(conn);
             Ok(())
         } else {

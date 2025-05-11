@@ -5,6 +5,7 @@ use crate::{
     streams::{LocalNodeRole, UpStream, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
+use core::net::SocketAddr;
 use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
@@ -76,15 +77,19 @@ impl NetworkManager {
         all_peers: Arc<AllValidatorPeers>,
     ) -> Result<(), NetworkError> {
         let conn = conn.await?;
+        let SocketAddr::V6(socket_addr) = conn.remote_address() else {
+            return Err(NetworkError::InvalidPeerAddrFormat);
+        };
         tracing::info!(
             "🔌 Connected to a peer [{}]:{}",
-            conn.remote_address().ip(),
-            conn.remote_address().port()
+            socket_addr.ip(),
+            socket_addr.port()
         );
         while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
             tracing::info!("💡 Accepted an UP stream!");
             // Handle the connection
             let conn_cloned = conn.clone();
+            let all_peers_cloned = all_peers.clone();
             tokio::spawn(async move {
                 // Store the accepted UP stream handles
                 let up_0_stream = UpStream {
@@ -97,9 +102,9 @@ impl NetworkManager {
                     LocalNodeRole::Initiator,
                     HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
                 );
-                // all_peers
-                //     .store_peer_connection_handle(peer_key, peer_conn).unwrap();
-                // TODO: index peers with socket addresses
+                all_peers_cloned
+                    .store_peer_connection_handle(&socket_addr, peer_conn)
+                    .unwrap();
 
                 tracing::info!("🧨 Handling connection...");
             });
@@ -113,15 +118,16 @@ impl NetworkManager {
         tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for entry in self.all_validator_peers.iter() {
-            let (peer_key, peer) = entry.pair();
+            let peer = entry.value();
             if peer.conn.is_none()
-                && &local_node_ed25519_key == preferred_initiator(&local_node_ed25519_key, peer_key)
-                && &local_node_ed25519_key != peer_key
+                && &local_node_ed25519_key
+                    == preferred_initiator(&local_node_ed25519_key, &peer.ed25519_key)
+                && local_node_ed25519_key != peer.ed25519_key
             {
                 let endpoint_cloned = self.endpoint.clone();
                 let all_peers_cloned = self.all_validator_peers.clone();
-                let peer_socket_addr_cloned = peer.socket_addr.clone();
-                let peer_key_cloned = peer_key.clone();
+                let peer_socket_addr_cloned = peer.socket_addr;
+                let peer_key_cloned = peer.ed25519_key.clone();
                 tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
@@ -142,12 +148,12 @@ impl NetworkManager {
         tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         for entry in self.all_validator_peers.iter() {
-            let (peer_key, peer) = entry.pair();
-            if peer.conn.is_none() && &local_node_ed25519_key != peer_key {
+            let peer = entry.value();
+            if peer.conn.is_none() && local_node_ed25519_key != peer.ed25519_key {
                 let endpoint_cloned = self.endpoint.clone();
                 let all_peers_cloned = self.all_validator_peers.clone();
-                let peer_socket_addr_cloned = peer.socket_addr.clone();
-                let peer_key_cloned = peer_key.clone();
+                let peer_socket_addr_cloned = peer.socket_addr;
+                let peer_key_cloned = peer.ed25519_key.clone();
                 tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
@@ -169,10 +175,13 @@ impl NetworkManager {
         peer_key: &Ed25519PubKey,
     ) -> Result<(), NetworkError> {
         let conn = endpoint.connect(peer_addr, peer_key).await?;
+        let SocketAddr::V6(socket_addr) = conn.remote_address() else {
+            return Err(NetworkError::InvalidPeerAddrFormat);
+        };
         tracing::info!(
             "🔌 Connected to a peer [{}]:{}",
-            peer_addr.ip(),
-            peer_addr.port()
+            socket_addr.ip(),
+            socket_addr.port()
         );
         let (mut send_stream, recv_stream) = conn.open_bi().await?;
 
@@ -190,7 +199,7 @@ impl NetworkManager {
             LocalNodeRole::Initiator,
             HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
         );
-        all_peers.store_peer_connection_handle(peer_key, peer_conn)?;
+        all_peers.store_peer_connection_handle(&socket_addr, peer_conn)?;
         Ok(())
     }
 

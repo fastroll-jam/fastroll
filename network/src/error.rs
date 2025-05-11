@@ -14,6 +14,8 @@ pub enum NetworkError {
     WriteError(#[from] WriteError),
     #[error("Invalid local address")]
     InvalidLocalAddr,
+    #[error("Invalid peer address format: should be SocketAddrV6")]
+    InvalidPeerAddrFormat,
     #[error("The Ed25519 public key is not registered as a network validator peer")]
     ValidatorPeerKeyNotFound,
 }
