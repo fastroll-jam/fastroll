@@ -72,10 +72,16 @@ impl NetworkManager {
 
     async fn handle_connection(conn: quinn::Incoming) -> Result<(), NetworkError> {
         let conn = conn.await?;
+        tracing::info!(
+            "🔌 Connected to a peer [{}]:{}",
+            conn.remote_address().ip(),
+            conn.remote_address().port()
+        );
         while let Ok((_send, _recv)) = conn.accept_bi().await {
             // TODO: store the accepted UP stream handles in the `AllValidatorPeers`
+            tracing::info!("💡 Accepted an UP stream!");
             tokio::spawn(async move {
-                tracing::info!("Handling connection...");
+                tracing::info!("🧨 Handling connection...");
             });
         }
         Ok(())
