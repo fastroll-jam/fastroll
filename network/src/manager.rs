@@ -39,22 +39,28 @@ impl NetworkManager {
     pub async fn load_validator_peers(
         &self,
         state_manager: Arc<StateManager>,
+        local_node_socket_addr: SocketAddrV6,
     ) -> Result<(), NetworkError> {
         // TODO: Predict validator set update on epoch progress
-        let past_set = state_manager.get_past_set().await.ok();
-        let active_set = state_manager.get_active_set().await.ok();
-        let staging_set = state_manager.get_staging_set().await.ok();
+        let past_set = state_manager.get_past_set().await?;
+        let active_set = state_manager.get_active_set().await?;
+        let staging_set = state_manager.get_staging_set().await?;
 
         let mut all_validator_peers = DashMap::new();
-        let prev_epoch_peers = validator_set_to_peers(past_set.unwrap_or_default().0);
-        let curr_epoch_peers = validator_set_to_peers(active_set.unwrap_or_default().0);
-        let next_epoch_peers = validator_set_to_peers(staging_set.unwrap_or_default().0);
+        let prev_epoch_peers = validator_set_to_peers(past_set.0);
+        let curr_epoch_peers = validator_set_to_peers(active_set.0);
+        let next_epoch_peers = validator_set_to_peers(staging_set.0);
         all_validator_peers.extend(prev_epoch_peers);
         all_validator_peers.extend(curr_epoch_peers);
         all_validator_peers.extend(next_epoch_peers);
 
-        for (key, peer) in all_validator_peers.into_iter() {
-            self.all_validator_peers.insert(key, peer);
+        for (socket_addr, peer) in all_validator_peers.into_iter() {
+            // TODO: remove the comparison between default_socket_addr after updating validator set types to have empty vec as a default value
+            let default_socket_addr =
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), 0, 0, 0);
+            if socket_addr != local_node_socket_addr && socket_addr != default_socket_addr {
+                self.all_validator_peers.insert(socket_addr, peer);
+            }
         }
         Ok(())
     }
@@ -115,8 +121,9 @@ impl NetworkManager {
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
-        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
+
+        let mut handles = Vec::with_capacity(self.all_validator_peers.len());
         for entry in self.all_validator_peers.iter() {
             let peer = entry.value();
             if peer.conn.is_none()
@@ -128,7 +135,7 @@ impl NetworkManager {
                 let all_peers_cloned = self.all_validator_peers.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
                 let peer_key_cloned = peer.ed25519_key.clone();
-                tokio::spawn(async move {
+                let jh = tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
@@ -137,7 +144,11 @@ impl NetworkManager {
                     )
                     .await
                 });
+                handles.push(jh);
             }
+        }
+        for handle in handles {
+            handle.await??;
         }
         Ok(())
     }
@@ -145,8 +156,9 @@ impl NetworkManager {
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
     pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
-        tracing::trace!("All Peers: {:?}", self.all_validator_peers.0);
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
+
+        let mut handles = Vec::with_capacity(self.all_validator_peers.len());
         for entry in self.all_validator_peers.iter() {
             let peer = entry.value();
             if peer.conn.is_none() && local_node_ed25519_key != peer.ed25519_key {
@@ -154,7 +166,7 @@ impl NetworkManager {
                 let all_peers_cloned = self.all_validator_peers.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
                 let peer_key_cloned = peer.ed25519_key.clone();
-                tokio::spawn(async move {
+                let jh = tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
@@ -163,7 +175,19 @@ impl NetworkManager {
                     )
                     .await
                 });
+                handles.push(jh);
             }
+        }
+        for handle in handles {
+            handle.await??;
+        }
+        // Debugging: check all connected peers
+        for e in self.all_validator_peers.iter() {
+            tracing::debug!(
+                "SocketAddr: {}, connected: {}",
+                e.socket_addr,
+                e.conn.is_some()
+            );
         }
         Ok(())
     }

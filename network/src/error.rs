@@ -1,6 +1,7 @@
 use fr_state::error::StateManagerError;
 use quinn::{ConnectError, ConnectionError, WriteError};
 use thiserror::Error;
+use tokio::task::JoinError;
 
 #[derive(Debug, Error)]
 pub enum NetworkError {
@@ -12,6 +13,8 @@ pub enum NetworkError {
     ConnectionError(#[from] ConnectionError),
     #[error("quinn WriteError: {0}")]
     WriteError(#[from] WriteError),
+    #[error("tokio JoinError: {0}")]
+    JoinError(#[from] JoinError),
     #[error("Invalid local address")]
     InvalidLocalAddr,
     #[error("Invalid peer address format: should be SocketAddrV6")]
