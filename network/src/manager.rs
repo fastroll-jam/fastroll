@@ -113,7 +113,7 @@ impl NetworkManager {
                         };
                         let peer_conn = PeerConnection::new(
                             conn_cloned,
-                            LocalNodeRole::Initiator,
+                            LocalNodeRole::Acceptor,
                             HashMap::from([(stream_kind, up_stream)]),
                         );
                         all_peers_cloned
