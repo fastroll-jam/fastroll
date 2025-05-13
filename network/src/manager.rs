@@ -101,14 +101,20 @@ impl NetworkManager {
         while let Ok((_send_stream, mut recv_stream)) = conn.accept_bi().await {
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
-                recv_stream.read_exact(&mut stream_kind_buf).await.unwrap(); // single-byte stream-kind identifier
-                let stream_kind = StreamKind::from_u8(stream_kind_buf[0]).unwrap();
+                if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
+                    tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
+                    return;
+                }
+                let Ok(stream_kind) = StreamKind::from_u8(stream_kind_buf[0]) else {
+                    tracing::error!("Invalid stream-kind identifier: {}", stream_kind_buf[0]);
+                    return;
+                };
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
                         tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
                     }
-                    StreamKind::CE(_ce_stream_kind) => {
-                        unimplemented!()
+                    StreamKind::CE(stream_kind) => {
+                        tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
                     }
                 }
                 tracing::info!("🧨 Handling connection...");
