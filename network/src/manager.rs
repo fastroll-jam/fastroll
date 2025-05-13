@@ -2,7 +2,7 @@ use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, PeerConnection},
-    streams::{LocalNodeRole, StreamKind, UpStream, UpStreamKind},
+    streams::{LocalNodeRole, StreamKind, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -91,11 +91,14 @@ impl NetworkManager {
             socket_addr.port()
         );
 
+        // Store the accepted connection handle
+        all_peers.store_peer_connection_handle(
+            &socket_addr,
+            PeerConnection::new(conn.clone(), LocalNodeRole::Acceptor),
+        )?;
+
         // TODO: Monitor connection closure
-        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
-            // Handle the connection
-            let conn_cloned = conn.clone();
-            let all_peers_cloned = all_peers.clone();
+        while let Ok((_send_stream, mut recv_stream)) = conn.accept_bi().await {
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 recv_stream.read_exact(&mut stream_kind_buf).await.unwrap(); // single-byte stream-kind identifier
@@ -103,22 +106,6 @@ impl NetworkManager {
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
                         tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
-
-                        // Store the accepted UP stream handles
-                        let up_stream = UpStream {
-                            stream_kind,
-                            send_stream,
-                            recv_stream,
-                        };
-                        let peer_conn = PeerConnection::new(
-                            conn_cloned,
-                            LocalNodeRole::Acceptor,
-                            DashMap::default(),
-                        );
-                        peer_conn.add_up_stream(up_stream);
-                        all_peers_cloned
-                            .store_peer_connection_handle(&socket_addr, peer_conn)
-                            .unwrap();
                     }
                     StreamKind::CE(_ce_stream_kind) => {
                         unimplemented!()
@@ -221,20 +208,19 @@ impl NetworkManager {
             socket_addr.ip(),
             socket_addr.port()
         );
-        let (mut send_stream, recv_stream) = conn.open_bi().await?;
+
+        let (mut send_stream, _recv_stream) = conn.open_bi().await?;
 
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
         let stream_kind = UpStreamKind::BlockAnnouncement;
         let stream_kind_byte = vec![stream_kind as u8];
         send_stream.write_all(&stream_kind_byte).await?;
 
-        let peer_conn = PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default());
-        peer_conn.add_up_stream(UpStream {
-            stream_kind,
-            send_stream,
-            recv_stream,
-        });
-        all_peers.store_peer_connection_handle(&socket_addr, peer_conn)?;
+        // Store the opened connection handle
+        all_peers.store_peer_connection_handle(
+            &socket_addr,
+            PeerConnection::new(conn, LocalNodeRole::Initiator),
+        )?;
         Ok(())
     }
 

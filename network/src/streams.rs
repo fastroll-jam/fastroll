@@ -1,13 +1,4 @@
 use crate::error::NetworkError;
-use quinn::{RecvStream, SendStream};
-
-/// Persistent UP stream handles
-#[derive(Debug)]
-pub struct UpStream {
-    pub stream_kind: UpStreamKind,
-    pub send_stream: SendStream,
-    pub recv_stream: RecvStream,
-}
 
 #[repr(u8)]
 #[derive(Debug)]

@@ -1,7 +1,4 @@
-use crate::{
-    error::NetworkError,
-    streams::{LocalNodeRole, UpStream, UpStreamKind},
-};
+use crate::{error::NetworkError, streams::LocalNodeRole};
 use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use std::{
@@ -94,30 +91,19 @@ impl ValidatorPeer {
     }
 }
 
-/// A connection to a peer with UP stream handles.
+/// A connection to a peer.
 #[derive(Debug)]
 pub struct PeerConnection {
     pub conn: quinn::Connection,
     pub local_node_role: LocalNodeRole,
-    pub up_stream_handles: DashMap<UpStreamKind, UpStream>,
 }
 
 impl PeerConnection {
-    pub fn new(
-        conn: quinn::Connection,
-        local_node_role: LocalNodeRole,
-        up_stream_handles: DashMap<UpStreamKind, UpStream>,
-    ) -> Self {
+    pub fn new(conn: quinn::Connection, local_node_role: LocalNodeRole) -> Self {
         Self {
             conn,
             local_node_role,
-            up_stream_handles,
         }
-    }
-
-    pub fn add_up_stream(&self, up_stream: UpStream) {
-        self.up_stream_handles
-            .insert(up_stream.stream_kind, up_stream);
     }
 }
 
