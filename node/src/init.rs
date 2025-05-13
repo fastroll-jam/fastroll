@@ -71,7 +71,7 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             tracing::info!("Genesis state set");
             // Load initial validator peers from the genesis validator set state
             node.network_manager
-                .load_validator_peers(state_manager)
+                .load_validator_peers(state_manager, socket_addr)
                 .await?;
             tracing::info!("Validator peers info loaded");
             Ok(node)
