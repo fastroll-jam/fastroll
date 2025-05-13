@@ -79,34 +79,40 @@ impl NetworkManager {
     }
 
     async fn handle_connection(
-        conn: quinn::Incoming,
+        incoming_conn: quinn::Incoming,
         all_peers: Arc<AllValidatorPeers>,
     ) -> Result<(), NetworkError> {
-        let conn = conn.await?;
+        let conn = incoming_conn.await?;
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
             return Err(NetworkError::InvalidPeerAddrFormat);
         };
         tracing::info!(
-            "🔌 Connected to a peer [{}]:{}",
+            "🔌 [Acceptor] Connected to a peer [{}]:{}",
             socket_addr.ip(),
             socket_addr.port()
         );
-        while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
-            tracing::info!("💡 Accepted an UP stream!");
+
+        // TODO: Monitor connection closure
+        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
             // Handle the connection
             let conn_cloned = conn.clone();
             let all_peers_cloned = all_peers.clone();
             tokio::spawn(async move {
+                let mut stream_kind_buf = [0u8; 1];
+                recv_stream.read_exact(&mut stream_kind_buf).await.unwrap(); // single-byte stream-kind identifier
+                let stream_kind = UpStreamKind::from_u8(stream_kind_buf[0]).unwrap();
+                tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
+
                 // Store the accepted UP stream handles
-                let up_0_stream = UpStream {
-                    stream_kind: UpStreamKind::BlockAnnouncement,
+                let up_stream = UpStream {
+                    stream_kind,
                     send_stream,
                     recv_stream,
                 };
                 let peer_conn = PeerConnection::new(
                     conn_cloned,
                     LocalNodeRole::Initiator,
-                    HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+                    HashMap::from([(stream_kind, up_stream)]),
                 );
                 all_peers_cloned
                     .store_peer_connection_handle(&socket_addr, peer_conn)
@@ -203,25 +209,26 @@ impl NetworkManager {
             return Err(NetworkError::InvalidPeerAddrFormat);
         };
         tracing::info!(
-            "🔌 Connected to a peer [{}]:{}",
+            "🔌 [Initiator] Connected to a peer [{}]:{}",
             socket_addr.ip(),
             socket_addr.port()
         );
         let (mut send_stream, recv_stream) = conn.open_bi().await?;
 
-        // Send initial request to the peer so that it can accept the stream.
-        let init_request = "Hello".as_bytes().to_vec();
-        send_stream.write_all(&init_request).await?;
+        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
+        let stream_kind = UpStreamKind::BlockAnnouncement;
+        let stream_kind_byte = vec![stream_kind as u8];
+        send_stream.write_all(&stream_kind_byte).await?;
 
-        let up_0_stream = UpStream {
-            stream_kind: UpStreamKind::BlockAnnouncement,
+        let up_stream = UpStream {
+            stream_kind,
             send_stream,
             recv_stream,
         };
         let peer_conn = PeerConnection::new(
             conn,
             LocalNodeRole::Initiator,
-            HashMap::from([(UpStreamKind::BlockAnnouncement, up_0_stream)]),
+            HashMap::from([(stream_kind, up_stream)]),
         );
         all_peers.store_peer_connection_handle(&socket_addr, peer_conn)?;
         Ok(())

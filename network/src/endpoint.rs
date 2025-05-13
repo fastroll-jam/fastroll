@@ -3,11 +3,15 @@ use crate::{
     error::NetworkError,
 };
 use fr_crypto::types::Ed25519PubKey;
-use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
+use quinn::{
+    crypto::rustls::{QuicClientConfig, QuicServerConfig},
+    TransportConfig,
+};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV6},
     sync::Arc,
+    time::Duration,
 };
 
 pub const JAM_QUIC_ALPN: &[u8] = b"jamnp-s/0/03c6255f";
@@ -67,14 +71,24 @@ impl QuicEndpoint {
         certs: Vec<CertificateDer<'static>>,
         key: PrivateKeyDer<'static>,
     ) -> quinn::ServerConfig {
+        // Crypto Config
         let mut server_crypto = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certs.clone(), key)
             .unwrap();
         server_crypto.alpn_protocols = vec![JAM_QUIC_ALPN.to_vec()];
-        quinn::ServerConfig::with_crypto(Arc::new(
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(
             QuicServerConfig::try_from(server_crypto).unwrap(),
-        ))
+        ));
+
+        // Transport Config
+        let mut transport_config = TransportConfig::default();
+        transport_config
+            .keep_alive_interval(Some(Duration::from_secs(5)))
+            .max_idle_timeout(Some(Duration::from_secs(60).try_into().unwrap()));
+        server_config.transport = Arc::new(transport_config);
+
+        server_config
     }
 
     fn client_config() -> quinn::ClientConfig {
