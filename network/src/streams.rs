@@ -16,6 +16,15 @@ pub enum StreamKind {
     CE(CeStreamKind),
 }
 
+impl StreamKind {
+    pub fn from_u8(value: u8) -> Result<Self, NetworkError> {
+        match value {
+            0..=127 => Ok(StreamKind::UP(UpStreamKind::from_u8(value)?)),
+            128..=u8::MAX => Ok(StreamKind::CE(CeStreamKind::from_u8(value)?)),
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum UpStreamKind {

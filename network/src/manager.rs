@@ -2,7 +2,7 @@ use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, PeerConnection},
-    streams::{LocalNodeRole, UpStream, UpStreamKind},
+    streams::{LocalNodeRole, StreamKind, UpStream, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -100,24 +100,30 @@ impl NetworkManager {
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 recv_stream.read_exact(&mut stream_kind_buf).await.unwrap(); // single-byte stream-kind identifier
-                let stream_kind = UpStreamKind::from_u8(stream_kind_buf[0]).unwrap();
-                tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
+                let stream_kind = StreamKind::from_u8(stream_kind_buf[0]).unwrap();
+                match stream_kind {
+                    StreamKind::UP(stream_kind) => {
+                        tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
 
-                // Store the accepted UP stream handles
-                let up_stream = UpStream {
-                    stream_kind,
-                    send_stream,
-                    recv_stream,
-                };
-                let peer_conn = PeerConnection::new(
-                    conn_cloned,
-                    LocalNodeRole::Initiator,
-                    HashMap::from([(stream_kind, up_stream)]),
-                );
-                all_peers_cloned
-                    .store_peer_connection_handle(&socket_addr, peer_conn)
-                    .unwrap();
-
+                        // Store the accepted UP stream handles
+                        let up_stream = UpStream {
+                            stream_kind,
+                            send_stream,
+                            recv_stream,
+                        };
+                        let peer_conn = PeerConnection::new(
+                            conn_cloned,
+                            LocalNodeRole::Initiator,
+                            HashMap::from([(stream_kind, up_stream)]),
+                        );
+                        all_peers_cloned
+                            .store_peer_connection_handle(&socket_addr, peer_conn)
+                            .unwrap();
+                    }
+                    StreamKind::CE(_ce_stream_kind) => {
+                        unimplemented!()
+                    }
+                }
                 tracing::info!("🧨 Handling connection...");
             });
         }
