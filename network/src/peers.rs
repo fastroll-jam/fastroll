@@ -5,7 +5,6 @@ use crate::{
 use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use std::{
-    collections::HashMap,
     net::SocketAddrV6,
     ops::{Deref, DerefMut},
 };
@@ -100,20 +99,25 @@ impl ValidatorPeer {
 pub struct PeerConnection {
     pub conn: quinn::Connection,
     pub local_node_role: LocalNodeRole,
-    pub up_stream_handles: HashMap<UpStreamKind, UpStream>,
+    pub up_stream_handles: DashMap<UpStreamKind, UpStream>,
 }
 
 impl PeerConnection {
     pub fn new(
         conn: quinn::Connection,
         local_node_role: LocalNodeRole,
-        up_streams: HashMap<UpStreamKind, UpStream>,
+        up_stream_handles: DashMap<UpStreamKind, UpStream>,
     ) -> Self {
         Self {
             conn,
             local_node_role,
-            up_stream_handles: up_streams,
+            up_stream_handles,
         }
+    }
+
+    pub fn add_up_stream(&self, up_stream: UpStream) {
+        self.up_stream_handles
+            .insert(up_stream.stream_kind, up_stream);
     }
 }
 

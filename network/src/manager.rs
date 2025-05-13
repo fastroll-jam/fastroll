@@ -10,7 +10,6 @@ use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
-    collections::HashMap,
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
     sync::Arc,
@@ -114,8 +113,9 @@ impl NetworkManager {
                         let peer_conn = PeerConnection::new(
                             conn_cloned,
                             LocalNodeRole::Acceptor,
-                            HashMap::from([(stream_kind, up_stream)]),
+                            DashMap::default(),
                         );
+                        peer_conn.add_up_stream(up_stream);
                         all_peers_cloned
                             .store_peer_connection_handle(&socket_addr, peer_conn)
                             .unwrap();
@@ -204,6 +204,8 @@ impl NetworkManager {
         Ok(())
     }
 
+    /// Establishes a connection with a peer and open UP bi-streams. Once the connection is established
+    /// and UP streams are open, store those handles into `AllValidatorPeers`.
     async fn connect_to_peer(
         endpoint: QuicEndpoint,
         all_peers: Arc<AllValidatorPeers>,
@@ -226,16 +228,12 @@ impl NetworkManager {
         let stream_kind_byte = vec![stream_kind as u8];
         send_stream.write_all(&stream_kind_byte).await?;
 
-        let up_stream = UpStream {
+        let peer_conn = PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default());
+        peer_conn.add_up_stream(UpStream {
             stream_kind,
             send_stream,
             recv_stream,
-        };
-        let peer_conn = PeerConnection::new(
-            conn,
-            LocalNodeRole::Initiator,
-            HashMap::from([(stream_kind, up_stream)]),
-        );
+        });
         all_peers.store_peer_connection_handle(&socket_addr, peer_conn)?;
         Ok(())
     }
