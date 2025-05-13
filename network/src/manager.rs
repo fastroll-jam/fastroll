@@ -1,8 +1,8 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, PeerConnection},
-    streams::{LocalNodeRole, StreamKind, UpStreamKind},
+    peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
+    streams::{StreamKind, UpStreamHandle, UpStreamHandler, UpStreamKind},
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -14,6 +14,9 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::Arc,
 };
+use tokio::sync::mpsc;
+
+const UP_0_MPSC_BUFFER_SIZE: usize = 1024;
 
 pub struct NetworkManager {
     pub local_node_info: LocalNodeInfo,
@@ -94,11 +97,14 @@ impl NetworkManager {
         // Store the accepted connection handle
         all_peers.store_peer_connection_handle(
             &socket_addr,
-            PeerConnection::new(conn.clone(), LocalNodeRole::Acceptor),
+            PeerConnection::new(conn.clone(), LocalNodeRole::Acceptor, DashMap::default()),
         )?;
 
         // TODO: Monitor connection closure
-        while let Ok((_send_stream, mut recv_stream)) = conn.accept_bi().await {
+        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
+            // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
+            let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
+            let all_peers_cloned = all_peers.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
@@ -112,9 +118,24 @@ impl NetworkManager {
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
                         tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
+                        // Insert UpStreamHandle which contains mpsc sender handle to initiate outgoing QUIC stream message.
+                        if let Err(e) = all_peers_cloned.insert_up_stream_handle(
+                            &socket_addr,
+                            stream_kind,
+                            UpStreamHandle::new(stream_kind, mpsc_send.clone()),
+                        ) {
+                            tracing::error!("Failed to insert upstream handle: {e}");
+                        }
+                        UpStreamHandler::handle_up_stream(
+                            stream_kind,
+                            send_stream,
+                            recv_stream,
+                            mpsc_recv,
+                        );
                     }
                     StreamKind::CE(stream_kind) => {
                         tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
+                        unimplemented!()
                     }
                 }
                 tracing::info!("🧨 Handling connection...");
@@ -215,7 +236,7 @@ impl NetworkManager {
             socket_addr.port()
         );
 
-        let (mut send_stream, _recv_stream) = conn.open_bi().await?;
+        let (mut send_stream, recv_stream) = conn.open_bi().await?;
 
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
         let stream_kind = UpStreamKind::BlockAnnouncement;
@@ -225,8 +246,17 @@ impl NetworkManager {
         // Store the opened connection handle
         all_peers.store_peer_connection_handle(
             &socket_addr,
-            PeerConnection::new(conn, LocalNodeRole::Initiator),
+            PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default()),
         )?;
+        // Store the UP stream handle
+        let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
+        all_peers.insert_up_stream_handle(
+            &socket_addr,
+            stream_kind,
+            UpStreamHandle::new(stream_kind, mpsc_send),
+        )?;
+
+        UpStreamHandler::handle_up_stream(stream_kind, send_stream, recv_stream, mpsc_recv);
         Ok(())
     }
 

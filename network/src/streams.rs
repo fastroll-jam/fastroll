@@ -1,4 +1,6 @@
 use crate::error::NetworkError;
+use quinn::{RecvStream, SendStream};
+use tokio::sync::mpsc;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -94,8 +96,69 @@ impl CeStreamKind {
     }
 }
 
+/// A UP stream handle that can request an outgoing UP stream message via `UpStreamHandler`.
+#[allow(dead_code)]
 #[derive(Debug)]
-pub enum LocalNodeRole {
-    Initiator,
-    Acceptor,
+pub struct UpStreamHandle {
+    stream_kind: UpStreamKind,
+    mpsc_sender: mpsc::Sender<Vec<u8>>,
+}
+
+impl UpStreamHandle {
+    pub fn new(stream_kind: UpStreamKind, mpsc_sender: mpsc::Sender<Vec<u8>>) -> Self {
+        Self {
+            stream_kind,
+            mpsc_sender,
+        }
+    }
+}
+
+/// A UP stream handler that processes both incoming and outgoing UP stream messages.
+pub struct UpStreamHandler;
+impl UpStreamHandler {
+    pub fn handle_up_stream(
+        stream_kind: UpStreamKind,
+        send_stream: SendStream,
+        recv_stream: RecvStream,
+        mpsc_recv: mpsc::Receiver<Vec<u8>>,
+    ) {
+        match stream_kind {
+            UpStreamKind::BlockAnnouncement => {
+                tokio::spawn(async move { Self::handle_incoming_stream(recv_stream).await });
+                tokio::spawn(
+                    async move { Self::handle_outgoing_stream(send_stream, mpsc_recv).await },
+                );
+            }
+        }
+    }
+
+    async fn handle_incoming_stream(mut recv_stream: RecvStream) {
+        loop {
+            match recv_stream.read_chunk(1024, true).await {
+                Ok(Some(_chunk)) => {
+                    tracing::info!("Received Block Announcement");
+                }
+                Ok(None) => {
+                    tracing::warn!("UP0 stream closed");
+                    break;
+                }
+                Err(e) => {
+                    tracing::error!("Error receiving block announcement: {}", e);
+                }
+            }
+        }
+    }
+
+    async fn handle_outgoing_stream(
+        mut send_stream: SendStream,
+        mut mpsc_recv: mpsc::Receiver<Vec<u8>>,
+    ) {
+        while let Some(send_msg) = mpsc_recv.recv().await {
+            if let Err(e) = send_stream.write_all(send_msg.as_slice()).await {
+                tracing::error!("Error sending block announcement: {e}");
+                break;
+            }
+            tracing::info!("Sent Block Announcement");
+        }
+    }
 }

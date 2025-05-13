@@ -25,6 +25,8 @@ pub enum NetworkError {
     InvalidUpStreamKind(u8),
     #[error("Invalid CE stream kind value: {0}")]
     InvalidCeStreamKind(u8),
-    #[error("The Ed25519 public key is not registered as a network validator peer")]
-    ValidatorPeerKeyNotFound,
+    #[error("The socket address is not a known validator peer")]
+    PeerSocketAddrNotFound,
+    #[error("A connection with the peer is not yet established")]
+    PeerConnectionNotFound,
 }

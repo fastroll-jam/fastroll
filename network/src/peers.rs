@@ -1,10 +1,19 @@
-use crate::{error::NetworkError, streams::LocalNodeRole};
+use crate::{
+    error::NetworkError,
+    streams::{UpStreamHandle, UpStreamKind},
+};
 use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
 use std::{
     net::SocketAddrV6,
     ops::{Deref, DerefMut},
 };
+
+#[derive(Debug)]
+pub enum LocalNodeRole {
+    Initiator,
+    Acceptor,
+}
 
 #[derive(Default)]
 pub struct AllValidatorPeers(pub DashMap<SocketAddrV6, ValidatorPeer>);
@@ -33,7 +42,24 @@ impl AllValidatorPeers {
             peer.conn = Some(conn);
             Ok(())
         } else {
-            Err(NetworkError::ValidatorPeerKeyNotFound)
+            Err(NetworkError::PeerSocketAddrNotFound)
+        }
+    }
+
+    pub fn insert_up_stream_handle(
+        &self,
+        socket_addr: &SocketAddrV6,
+        kind: UpStreamKind,
+        handle: UpStreamHandle,
+    ) -> Result<Option<UpStreamHandle>, NetworkError> {
+        if let Some(peer) = self.get_mut(socket_addr) {
+            if let Some(conn) = &peer.conn {
+                Ok(conn.insert_up_stream_handle(kind, handle))
+            } else {
+                Err(NetworkError::PeerConnectionNotFound)
+            }
+        } else {
+            Err(NetworkError::PeerSocketAddrNotFound)
         }
     }
 }
@@ -96,14 +122,28 @@ impl ValidatorPeer {
 pub struct PeerConnection {
     pub conn: quinn::Connection,
     pub local_node_role: LocalNodeRole,
+    pub up_stream_handles: DashMap<UpStreamKind, UpStreamHandle>,
 }
 
 impl PeerConnection {
-    pub fn new(conn: quinn::Connection, local_node_role: LocalNodeRole) -> Self {
+    pub fn new(
+        conn: quinn::Connection,
+        local_node_role: LocalNodeRole,
+        up_stream_handles: DashMap<UpStreamKind, UpStreamHandle>,
+    ) -> Self {
         Self {
             conn,
             local_node_role,
+            up_stream_handles,
         }
+    }
+
+    fn insert_up_stream_handle(
+        &self,
+        kind: UpStreamKind,
+        handle: UpStreamHandle,
+    ) -> Option<UpStreamHandle> {
+        self.up_stream_handles.insert(kind, handle)
     }
 }
 
