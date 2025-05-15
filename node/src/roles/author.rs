@@ -61,7 +61,7 @@ pub struct BlockAuthor {
 }
 
 impl BlockAuthor {
-    pub async fn new_for_fallback_test(
+    pub fn new_for_fallback_test(
         state_manager: Arc<StateManager>,
         best_header: BlockHeader,
     ) -> Result<Self, BlockAuthorError> {

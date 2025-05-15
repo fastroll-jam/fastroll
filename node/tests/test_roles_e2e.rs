@@ -38,9 +38,10 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         .load_validator_peers(state_manager.clone(), socket_addr)
         .await?;
 
-    let role_manager = Arc::new(RoleManager::new(node_info, state_manager.clone()));
+    let role_manager = Arc::new(RoleManager::new(node_info.clone(), state_manager.clone()));
 
     Ok(JamNode::new(
+        node_info,
         state_manager,
         Arc::new(header_db),
         network_manager,
@@ -63,8 +64,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let best_header = author_node.header_db.get_best_header();
 
     // Block author role
-    let mut author =
-        BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header).await?;
+    let mut author = BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header)?;
     let (new_block, author_post_state_root) = author.author_block(author_node.header_db).await?;
 
     // --- Block importing

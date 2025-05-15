@@ -20,6 +20,9 @@ pub async fn extend_chain(
         .await?
     {
         tracing::info!("✍️ Role: Author");
+        let _author_pub_key = &jam_node.local_node_info.validator_key.bandersnatch_key;
+        let _best_header = jam_node.header_db.get_best_header();
+        // let mut author = BlockAuthor::new
         Ok(())
     } else {
         tracing::info!("👂 Role: Importer");

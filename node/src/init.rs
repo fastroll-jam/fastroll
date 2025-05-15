@@ -62,8 +62,9 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
                 NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
 
             let state_manager = Arc::new(state_manager);
-            let role_manager = RoleManager::new(node_info, state_manager.clone());
+            let role_manager = RoleManager::new(node_info.clone(), state_manager.clone());
             let node = JamNode::new(
+                node_info,
                 state_manager.clone(),
                 Arc::new(header_db),
                 Arc::new(network_manager),
