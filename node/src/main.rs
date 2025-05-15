@@ -1,4 +1,4 @@
-use fr_node::init::init_node;
+use fr_node::{init::init_node, timeslot_scheduler::TimeslotScheduler};
 use std::error::Error;
 
 #[tokio::main]
@@ -15,8 +15,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         network_manager.connect_to_all_peers().await.unwrap();
     });
 
+    // Spawn per-slot tasks
+    let slots_jh = tokio::spawn(async move { TimeslotScheduler::spawn_scheduled_tasks().await });
+
     server_jh.await??;
     client_jh.await?;
+    slots_jh.await?;
     // TODO: Timeslot scheduling, tickets submission
     Ok(())
 }
