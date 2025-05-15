@@ -1,11 +1,13 @@
+use crate::{jam_node::JamNode, roles::scheduled_tasks::extend_chain};
 use fr_clock::Clock;
 use fr_common::SLOT_DURATION;
 use fr_state::types::Timeslot;
+use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
 pub struct TimeslotScheduler;
 impl TimeslotScheduler {
-    pub async fn spawn_scheduled_tasks() {
+    pub async fn spawn_scheduled_tasks(jam_node: Arc<JamNode>) {
         let mut interval = interval(Duration::from_secs(SLOT_DURATION));
         loop {
             interval.tick().await;
@@ -17,8 +19,9 @@ impl TimeslotScheduler {
             } else {
                 tracing::info!("⏱️ {timeslot:?}");
             }
+            let jam_node_cloned = jam_node.clone();
             tokio::spawn(async move {
-                tracing::info!("Block task spawned");
+                extend_chain(jam_node_cloned, &timeslot).await.unwrap();
             });
         }
     }

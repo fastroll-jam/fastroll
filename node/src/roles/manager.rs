@@ -28,14 +28,14 @@ impl RoleManager {
 
     pub async fn is_author_of_slot(
         &self,
-        new_timeslot: Timeslot,
+        new_timeslot: &Timeslot,
     ) -> Result<bool, RoleManagerError> {
         let slot_sealer = self
             .state_manager
             .get_safrole()
             .await?
             .slot_sealers
-            .get_slot_sealer(&new_timeslot);
+            .get_slot_sealer(new_timeslot);
 
         // TODO: impl for ticket mode
         match slot_sealer {
