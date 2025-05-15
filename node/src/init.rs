@@ -63,8 +63,8 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
 
             let state_manager = Arc::new(state_manager);
             let role_manager = RoleManager::new(node_info.clone(), state_manager.clone());
-            let node = JamNode::new(
-                node_info,
+            let mut node = JamNode::new(
+                node_info.clone(),
                 state_manager.clone(),
                 Arc::new(header_db),
                 Arc::new(network_manager),
@@ -73,6 +73,14 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager.local_node_info.socket_addr, node.network_manager.local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager.local_node_info.validator_key.ed25519_key.to_hex());
             set_genesis_state(&node).await?;
             tracing::info!("Genesis state set");
+
+            // Set the local node's validator index based on the genesis active set
+            let curr_epoch_validator_index = state_manager
+                .get_active_set_clean()
+                .await?
+                .get_validator_index(&node_info.validator_key.bandersnatch_key);
+            node.set_curr_epoch_validator_index(curr_epoch_validator_index);
+
             // Load initial validator peers from the genesis validator set state
             node.network_manager
                 .load_validator_peers(state_manager, socket_addr)
