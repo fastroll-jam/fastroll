@@ -231,7 +231,7 @@ impl BlockAuthor {
     }
 
     /// Runs the final two STFs.
-    /// 1. Accumulates epoch entropy (`η0′` --> `η0′`)
+    /// 1. Accumulates epoch entropy (`η0` --> `η0′`)
     /// 2. Appends a new block history entry (`β†` --> `β′`)
     async fn run_final_state_transition(
         &self,
