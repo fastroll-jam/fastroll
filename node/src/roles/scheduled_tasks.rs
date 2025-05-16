@@ -1,4 +1,10 @@
-use crate::{jam_node::JamNode, roles::manager::RoleManagerError};
+use crate::{
+    jam_node::JamNode,
+    roles::{
+        author::{BlockAuthor, BlockAuthorError},
+        manager::RoleManagerError,
+    },
+};
 use fr_state::types::Timeslot;
 use std::sync::Arc;
 use thiserror::Error;
@@ -7,6 +13,8 @@ use thiserror::Error;
 pub enum ChainExtensionError {
     #[error("RoleManagerError: {0}")]
     RoleManagerError(#[from] RoleManagerError),
+    #[error("BlockAuthorError: {0}")]
+    BlockAuthorError(#[from] BlockAuthorError),
 }
 
 /// Authors or imports a new block for the current timeslot.
@@ -20,9 +28,23 @@ pub async fn extend_chain(
         .await?
     {
         tracing::info!("✍️ Role: Author");
-        let _author_pub_key = &jam_node.local_node_info.validator_key.bandersnatch_key;
-        let _best_header = jam_node.header_db.get_best_header();
-        // let mut author = BlockAuthor::new
+        let best_header = jam_node.header_db.get_best_header();
+        let mut author = BlockAuthor::new(
+            jam_node
+                .curr_epoch_validator_index
+                .expect("Epoch validator index should be set"),
+            jam_node.local_node_info.clone(),
+            jam_node.state_manager.clone(),
+            best_header,
+        )?;
+
+        let (new_block, post_state_root) = author.author_block(jam_node.header_db.clone()).await?;
+        tracing::info!(
+            "🎁 Authored a new block. Header: {}, Xts: {:?} post state root: {}",
+            new_block.header,
+            new_block.extrinsics,
+            post_state_root
+        );
         Ok(())
     } else {
         tracing::info!("👂 Role: Importer");

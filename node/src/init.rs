@@ -78,7 +78,7 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             let curr_epoch_validator_index = state_manager
                 .get_active_set_clean()
                 .await?
-                .get_validator_index(&node_info.validator_key.bandersnatch_key);
+                .get_validator_index(node_info.bandersnatch_key());
             node.set_curr_epoch_validator_index(curr_epoch_validator_index);
 
             // Load initial validator peers from the genesis validator set state

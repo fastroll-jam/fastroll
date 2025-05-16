@@ -43,7 +43,7 @@ impl RoleManager {
                 unimplemented!()
             }
             SlotSealer::BandersnatchPubKeys(key) => {
-                Ok(self.local_node_info.validator_key.bandersnatch_key == key)
+                Ok(self.local_node_info.bandersnatch_key() == &key)
             }
         }
     }

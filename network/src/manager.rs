@@ -7,7 +7,7 @@ use crate::{
 };
 use core::net::SocketAddr;
 use dashmap::DashMap;
-use fr_crypto::types::{Ed25519PubKey, ValidatorKey};
+use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
     fmt::{Display, Formatter},
@@ -294,5 +294,9 @@ impl LocalNodeInfo {
             socket_addr: SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0),
             validator_key,
         }
+    }
+
+    pub fn bandersnatch_key(&self) -> &BandersnatchPubKey {
+        &self.validator_key.bandersnatch_key
     }
 }

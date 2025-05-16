@@ -65,7 +65,8 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
 
     // Block author role
     let mut author = BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header)?;
-    let (new_block, author_post_state_root) = author.author_block(author_node.header_db).await?;
+    let (new_block, author_post_state_root) =
+        author.author_block_for_test(author_node.header_db).await?;
 
     // --- Block importing
 
