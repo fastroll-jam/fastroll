@@ -6,4 +6,5 @@ pub mod jam_node;
 pub mod keystore;
 pub mod roles;
 pub mod ticket_store;
+pub mod timeslot_scheduler;
 pub mod utils;

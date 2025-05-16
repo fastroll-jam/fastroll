@@ -1,5 +1,5 @@
-use fr_node::init::init_node;
-use std::error::Error;
+use fr_node::{init::init_node, timeslot_scheduler::TimeslotScheduler};
+use std::{error::Error, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -15,8 +15,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         network_manager.connect_to_all_peers().await.unwrap();
     });
 
-    server_jh.await??;
+    // Connect to all peers
     client_jh.await?;
+
+    // Spawn per-slot tasks
+    let jam_node = Arc::new(node);
+    let slots_jh =
+        tokio::spawn(async move { TimeslotScheduler::spawn_scheduled_tasks(jam_node).await });
+
+    slots_jh.await?;
+    server_jh.await??;
     // TODO: Timeslot scheduling, tickets submission
     Ok(())
 }

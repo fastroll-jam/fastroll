@@ -5,7 +5,7 @@ use fr_node::{
     cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
-    roles::{author::BlockAuthor, importer::BlockImporter},
+    roles::{author::BlockAuthor, importer::BlockImporter, manager::RoleManager},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
@@ -30,7 +30,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     let node_info = dev_account_name.load_validator_key_info();
     let socket_addr = node_info.socket_addr;
     let network_manager =
-        Arc::new(NetworkManager::new(node_info, QuicEndpoint::new(socket_addr_v6)).await?);
+        Arc::new(NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr_v6)).await?);
 
     // Load initial validator peers from the genesis validator set state
     let state_manager = Arc::new(state_manager);
@@ -38,11 +38,15 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         .load_validator_peers(state_manager.clone(), socket_addr)
         .await?;
 
-    Ok(JamNode {
+    let role_manager = Arc::new(RoleManager::new(node_info.clone(), state_manager.clone()));
+
+    Ok(JamNode::new(
+        node_info,
         state_manager,
-        header_db: Arc::new(header_db),
+        Arc::new(header_db),
         network_manager,
-    })
+        role_manager,
+    ))
 }
 
 /// Mocking block author role
@@ -60,9 +64,9 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let best_header = author_node.header_db.get_best_header();
 
     // Block author role
-    let mut author =
-        BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header).await?;
-    let (new_block, author_post_state_root) = author.author_block(author_node.header_db).await?;
+    let mut author = BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header)?;
+    let (new_block, author_post_state_root) =
+        author.author_block_for_test(author_node.header_db).await?;
 
     // --- Block importing
 

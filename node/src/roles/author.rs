@@ -10,6 +10,7 @@ use fr_block::{
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
 };
+use fr_clock::Clock;
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
@@ -20,16 +21,13 @@ use fr_crypto::{
     types::{BandersnatchPubKey, BandersnatchSecretKey},
     vrf::bandersnatch_vrf::VrfProver,
 };
+use fr_network::manager::LocalNodeInfo;
 use fr_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
 use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BlockAuthorError {
-    #[error("Block seal output hash doesn't match ticket proof output hash")]
-    InvalidBlockSealOutput,
-    #[error("System time is before the JAM common era")]
-    InvalidSysTime,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CommonTypeError: {0}")]
@@ -44,6 +42,12 @@ pub enum BlockAuthorError {
     ExtrinsicsError(#[from] ExtrinsicsError),
     #[error("BlockExecutionError: {0}")]
     BlockExecutionError(#[from] BlockExecutionError),
+    #[error("Block seal output hash doesn't match ticket proof output hash")]
+    InvalidBlockSealOutput,
+    #[error("System time is before the JAM common era")]
+    InvalidSysTime,
+    #[error("Author key is not found from the keystore")]
+    AuthorKeyNotFound,
 }
 
 struct AuthorInfo {
@@ -61,7 +65,28 @@ pub struct BlockAuthor {
 }
 
 impl BlockAuthor {
-    pub async fn new_for_fallback_test(
+    pub fn new(
+        validator_index: ValidatorIndex,
+        local_node_info: LocalNodeInfo,
+        state_manager: Arc<StateManager>,
+        best_header: BlockHeader,
+    ) -> Result<Self, BlockAuthorError> {
+        let author_pub_key = local_node_info.bandersnatch_key();
+        let author_sk =
+            load_author_secret_key(author_pub_key).ok_or(BlockAuthorError::AuthorKeyNotFound)?;
+        Ok(Self {
+            state_manager,
+            new_block: Block::default(),
+            best_header,
+            author_info: AuthorInfo {
+                author_index: validator_index,
+                author_sk,
+            },
+        })
+    }
+
+    /// Note: test-only
+    pub fn new_for_fallback_test(
         state_manager: Arc<StateManager>,
         best_header: BlockHeader,
     ) -> Result<Self, BlockAuthorError> {
@@ -114,6 +139,26 @@ impl BlockAuthor {
         Ok((self.new_block.clone(), post_state_root))
     }
 
+    /// Note: test-only
+    pub async fn author_block_for_test(
+        &mut self,
+        header_db: Arc<BlockHeaderDB>,
+    ) -> Result<(Block, Hash32), BlockAuthorError> {
+        let xt = Self::collect_extrinsics();
+        self.set_extrinsics(xt)?;
+        self.prelude_for_test()?;
+        let stf_output = self.run_initial_state_transition().await?;
+        let vrf_sig = self.epilogue(stf_output.clone()).await?;
+        self.seal_block_header().await?;
+        let new_header_hash = self.commit_header(header_db).await?;
+        self.run_final_state_transition(new_header_hash, &vrf_sig, stf_output)
+            .await?;
+        self.state_manager.commit_dirty_cache().await?;
+        let post_state_root = self.state_manager.merkle_root();
+        tracing::info!("Post State Root: {}", &post_state_root);
+        Ok((self.new_block.clone(), post_state_root))
+    }
+
     fn collect_extrinsics() -> Extrinsics {
         // FIXME: Actually collect from the Xt store
         Extrinsics::default()
@@ -137,10 +182,26 @@ impl BlockAuthor {
         self.new_block
             .header
             .set_author_index(self.author_info.author_index);
-        // FIXME: Currently using hard-coded test-only timeslot value
-        self.new_block.header.set_timeslot(12);
-        // self.new_block.header.set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
+        self.new_block
+            .header
+            .set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
 
+        Ok(())
+    }
+
+    /// Note: test-only
+    fn prelude_for_test(&mut self) -> Result<(), BlockAuthorError> {
+        let parent_hash = self.best_header.hash()?;
+        tracing::info!("Parent header hash: {}", &parent_hash);
+        let prior_state_root = self.state_manager.merkle_root();
+        tracing::info!("Prior state root: {}", &prior_state_root);
+        self.new_block.header.set_parent_hash(parent_hash);
+        self.new_block.header.set_prior_state_root(prior_state_root);
+        self.new_block
+            .header
+            .set_author_index(self.author_info.author_index);
+        // Uses hard-coded test-only timeslot value
+        self.new_block.header.set_timeslot(12);
         Ok(())
     }
 
@@ -231,7 +292,7 @@ impl BlockAuthor {
     }
 
     /// Runs the final two STFs.
-    /// 1. Accumulates epoch entropy (`η0′` --> `η0′`)
+    /// 1. Accumulates epoch entropy (`η0` --> `η0′`)
     /// 2. Appends a new block history entry (`β†` --> `β′`)
     async fn run_final_state_transition(
         &self,

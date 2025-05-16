@@ -139,6 +139,15 @@ impl ValidatorKeySet {
         }
         Some(&self[validator_index as usize])
     }
+
+    pub fn get_validator_index(
+        &self,
+        bandersnatch_key: &BandersnatchPubKey,
+    ) -> Option<ValidatorIndex> {
+        self.iter()
+            .position(|k| &k.bandersnatch_key == bandersnatch_key)
+            .map(|i| i as ValidatorIndex)
+    }
 }
 
 #[cfg(test)]
