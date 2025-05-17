@@ -98,7 +98,7 @@ impl CeStreamKind {
 
 /// A UP stream handle that can request an outgoing UP stream message via `UpStreamHandler`.
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpStreamHandle {
     stream_kind: UpStreamKind,
     mpsc_sender: mpsc::Sender<Vec<u8>>,
@@ -110,6 +110,10 @@ impl UpStreamHandle {
             stream_kind,
             mpsc_sender,
         }
+    }
+
+    pub async fn send_block_announcement(&self, blob: Vec<u8>) -> Result<(), NetworkError> {
+        Ok(self.mpsc_sender.send(blob).await?)
     }
 }
 
@@ -160,7 +164,7 @@ impl UpStreamHandler {
                 tracing::error!("Error sending block announcement: {e}");
                 break;
             }
-            tracing::info!("Sent Block Announcement");
+            tracing::debug!("📣 Sent Block Announcement to peer");
         }
     }
 }

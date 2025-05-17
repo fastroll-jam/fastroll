@@ -7,6 +7,7 @@ use crate::{
 };
 use core::net::SocketAddr;
 use dashmap::DashMap;
+use fr_block::types::block::BlockHeader;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
@@ -262,6 +263,27 @@ impl NetworkManager {
 
     fn local_node_ed25519_key(&self) -> &Ed25519PubKey {
         &self.local_node_info.validator_key.ed25519_key
+    }
+
+    pub async fn announce_block_to_all_peers(
+        &self,
+        block_header: &BlockHeader,
+    ) -> Result<(), NetworkError> {
+        tracing::debug!("Sending block announcement via mpsc channel...");
+        for peer in self.all_validator_peers.iter() {
+            if let Some(conn) = &peer.value().conn {
+                if let Some(handle_ref) =
+                    conn.up_stream_handles.get(&UpStreamKind::BlockAnnouncement)
+                {
+                    let handle = handle_ref.value();
+                    handle
+                        .send_block_announcement(block_header.block_announcement_blob()?)
+                        .await?
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

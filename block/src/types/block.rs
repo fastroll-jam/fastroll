@@ -194,6 +194,15 @@ impl BlockHeader {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
+    pub fn block_announcement_blob(&self) -> Result<Vec<u8>, BlockHeaderError> {
+        // Announcement = Header ++ Header Hash ++ Slot
+        let mut buf = vec![];
+        self.encode_to(&mut buf)?;
+        self.hash()?.encode_to(&mut buf)?;
+        self.timeslot_index().encode_to(&mut buf)?;
+        Ok(buf)
+    }
+
     // --- Getters
 
     pub fn parent_hash(&self) -> &Hash32 {

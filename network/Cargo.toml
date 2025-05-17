@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+fr-block = { workspace = true }
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }

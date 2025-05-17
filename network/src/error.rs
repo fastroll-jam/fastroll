@@ -1,11 +1,14 @@
+use fr_block::types::block::BlockHeaderError;
 use fr_state::error::StateManagerError;
 use quinn::{ConnectError, ConnectionError, ReadToEndError, WriteError};
 use thiserror::Error;
-use tokio::task::JoinError;
+use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
 #[derive(Debug, Error)]
 pub enum NetworkError {
-    #[error("StateManagerError: {0}")]
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
+    #[error("quinn ConnectError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("quinn ConnectError: {0}")]
     ConnectError(#[from] ConnectError),
@@ -17,6 +20,8 @@ pub enum NetworkError {
     ReadToEndError(#[from] ReadToEndError),
     #[error("tokio JoinError: {0}")]
     JoinError(#[from] JoinError),
+    #[error("tokio SendError<Vec<u8>>: {0}")]
+    SendError(#[from] SendError<Vec<u8>>),
     #[error("Invalid local address")]
     InvalidLocalAddr,
     #[error("Invalid peer address format: should be SocketAddrV6")]

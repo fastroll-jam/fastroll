@@ -5,12 +5,15 @@ use crate::{
         manager::RoleManagerError,
     },
 };
+use fr_network::error::NetworkError;
 use fr_state::types::Timeslot;
 use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ChainExtensionError {
+    #[error("NetworkError: {0}")]
+    NetworkError(#[from] NetworkError),
     #[error("RoleManagerError: {0}")]
     RoleManagerError(#[from] RoleManagerError),
     #[error("BlockAuthorError: {0}")]
@@ -45,6 +48,14 @@ pub async fn extend_chain(
             new_block.extrinsics,
             post_state_root
         );
+
+        // Note: For simplicity, announce the block to all peers in the network.
+        // TODO: Announce to neighbors in the grid structure as per JAMNP
+        jam_node
+            .network_manager
+            .announce_block_to_all_peers(&new_block.header)
+            .await?;
+
         Ok(())
     } else {
         tracing::info!("👂 Role: Importer");
