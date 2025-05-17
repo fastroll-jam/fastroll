@@ -10,9 +10,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_jh = tokio::spawn(async move { network_manager.run_as_server().await });
     let network_manager = node.network_manager.clone();
     let client_jh = tokio::spawn(async move {
-        network_manager.connect_to_peers().await.unwrap();
+        if let Err(e) = network_manager.connect_to_peers().await {
+            tracing::warn!("Failed to connect to peers: {}", e);
+        }
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await; // timeout
-        network_manager.connect_to_all_peers().await.unwrap();
+        if let Err(e) = network_manager.connect_to_all_peers().await {
+            tracing::error!("Failed to connect to all peers: {}", e);
+        }
     });
 
     // Connect to all peers

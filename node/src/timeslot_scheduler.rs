@@ -21,7 +21,9 @@ impl TimeslotScheduler {
             }
             let jam_node_cloned = jam_node.clone();
             tokio::spawn(async move {
-                extend_chain(jam_node_cloned, &timeslot).await.unwrap();
+                if let Err(e) = extend_chain(jam_node_cloned, &timeslot).await {
+                    tracing::error!("Chain extension error: {e}");
+                }
             });
         }
     }

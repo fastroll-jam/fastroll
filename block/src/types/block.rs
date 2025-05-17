@@ -8,14 +8,8 @@ use fr_crypto::{
     hash::{hash, Blake2b256},
     types::*,
 };
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct Block {
-    pub header: BlockHeader,
-    pub extrinsics: Extrinsics,
-}
 
 pub type BlockSeal = BandersnatchSig;
 pub type VrfSig = BandersnatchSig;
@@ -27,6 +21,12 @@ pub enum BlockHeaderError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct Block {
+    pub header: BlockHeader,
+    pub extrinsics: Extrinsics,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
@@ -194,6 +194,15 @@ impl BlockHeader {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
+    pub fn block_announcement_blob(&self) -> Result<Vec<u8>, BlockHeaderError> {
+        // Announcement = Header ++ Header Hash ++ Slot
+        let mut buf = vec![];
+        self.encode_to(&mut buf)?;
+        self.hash()?.encode_to(&mut buf)?;
+        self.timeslot_index().encode_to(&mut buf)?;
+        Ok(buf)
+    }
+
     // --- Getters
 
     pub fn parent_hash(&self) -> &Hash32 {
@@ -272,5 +281,21 @@ impl BlockHeader {
 
     pub fn set_block_seal(&mut self, block_seal: BlockSeal) {
         self.block_seal = block_seal;
+    }
+}
+
+#[derive(Clone, Debug, JamDecode)]
+pub struct BlockAnnouncement {
+    pub header: BlockHeader,
+    pub header_hash: Hash32,
+    pub timeslot: u32,
+}
+
+impl Display for BlockAnnouncement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Header: {}", self.header)?;
+        writeln!(f, "Header hash: {}", self.header_hash)?;
+        writeln!(f, "timeslot: {}", self.timeslot)?;
+        Ok(())
     }
 }
