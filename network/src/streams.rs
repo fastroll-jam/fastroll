@@ -144,6 +144,8 @@ impl UpStreamHandler {
                 }
                 Err(e) => {
                     tracing::error!("Error receiving block announcement: {}", e);
+                    // TODO: re-connect to peers
+                    break;
                 }
             }
         }
