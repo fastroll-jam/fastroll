@@ -1,4 +1,5 @@
 use fr_block::types::block::BlockHeaderError;
+use fr_codec::JamCodecError;
 use fr_state::error::StateManagerError;
 use quinn::{ConnectError, ConnectionError, ReadToEndError, WriteError};
 use thiserror::Error;
@@ -6,6 +7,8 @@ use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
 #[derive(Debug, Error)]
 pub enum NetworkError {
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("quinn ConnectError: {0}")]
