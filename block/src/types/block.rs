@@ -35,11 +35,36 @@ pub struct EpochMarkerValidatorKey {
     pub ed25519_key: Ed25519PubKey,
 }
 
+impl Display for EpochMarkerValidatorKey {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "ValidatorKey:")?;
+        writeln!(
+            f,
+            "\t\t\t\tbandersnatch_key: 0x{}",
+            &self.bandersnatch_key.to_hex()
+        )?;
+        write!(f, "\t\t\t\ted25519_key: 0x{}", &self.ed25519_key.to_hex())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarker {
     pub entropy: Hash32,
     pub tickets_entropy: Hash32,
     pub validators: Box<[EpochMarkerValidatorKey; VALIDATOR_COUNT]>,
+}
+
+impl Display for EpochMarker {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "EpochMarker: {{")?;
+        writeln!(f, "\t\tentropy: {}", &self.entropy)?;
+        writeln!(f, "\t\ttickets_entropy: {}", &self.tickets_entropy)?;
+        writeln!(f, "\t\tvalidators:")?;
+        for key in self.validators.as_ref() {
+            writeln!(f, "\t\t\t{}", key)?;
+        }
+        write!(f, "\t}}")
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -143,39 +168,49 @@ impl JamDecode for BlockHeader {
 }
 
 impl Display for BlockHeader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Block Header:")?;
         let offenders_encoded = self
             .data
             .offenders_marker
             .iter()
             .map(|key| key.to_hex())
             .collect::<Vec<_>>();
-
-        write!(
+        writeln!(f, "\tparent_hash: {},", self.parent_hash().encode_hex())?;
+        writeln!(
             f,
-            "BlockHeader {{\n\
-             \tparent_hash: {:?},\n\
-             \tparent_state_root: {:?},\n\
-             \textrinsic_hash: {:?},\n\
-             \ttimeslot_index: {},\n\
-             \tepoch_marker: {:?},\n\
-             \twinning_tickets_marker: {:?},\n\
-             \toffenders_marker: {:?},\n\
-             \tauthor_index: {:?},\n\
-             \tvrf_signature: {:?},\n\
-             \tblock_seal: {:?}\n\
-             }}",
-            self.parent_hash().encode_hex(),
-            self.parent_state_root().encode_hex(),
-            self.extrinsic_hash().encode_hex(),
-            self.timeslot_index(),
-            self.epoch_marker(),
-            self.winning_tickets_marker(),
-            offenders_encoded,
-            self.author_index(),
-            self.vrf_signature().to_hex(),
-            self.block_seal.to_hex(),
-        )
+            "\tparent_state_root: {},",
+            self.parent_state_root().encode_hex()
+        )?;
+        writeln!(
+            f,
+            "\textrinsic_hash: {},",
+            self.extrinsic_hash().encode_hex()
+        )?;
+        writeln!(f, "\ttimeslot_index: {},", self.timeslot_index())?;
+        match self.epoch_marker() {
+            Some(marker) => {
+                writeln!(f, "\tepoch_marker: {}", marker)?;
+            }
+            None => {
+                writeln!(f, "\tepoch_marker: None")?;
+            }
+        }
+        match self.winning_tickets_marker() {
+            Some(marker) => {
+                writeln!(f, "\twinning_tickets_marker:")?;
+                for ticket in marker.as_ref() {
+                    writeln!(f, "\t{}", ticket)?;
+                }
+            }
+            None => {
+                writeln!(f, "\twinning_tickets_marker: None")?;
+            }
+        }
+        writeln!(f, "\toffenders_marker: {:?},", offenders_encoded)?;
+        writeln!(f, "\tauthor_index: {},", self.author_index())?;
+        writeln!(f, "\tvrf_signature: 0x{},", self.vrf_signature().to_hex())?;
+        write!(f, "\tblock_seal: 0x{},", self.block_seal.to_hex())
     }
 }
 

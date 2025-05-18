@@ -53,7 +53,7 @@ impl UpStreamHandler {
                         tracing::error!("Failed to decode BlockAnnouncement");
                         continue;
                     };
-                    tracing::info!("Received Block Announcement: {block_announcement}");
+                    tracing::info!("Received Block Announcement:\n{block_announcement}");
                 }
                 Ok(None) => {
                     tracing::warn!("UP0 stream closed");
