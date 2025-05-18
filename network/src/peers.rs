@@ -1,6 +1,6 @@
 use crate::{
     error::NetworkError,
-    streams::{UpStreamHandle, UpStreamKind},
+    streams::{stream_kinds::UpStreamKind, up_streams::UpStreamHandle},
 };
 use dashmap::DashMap;
 use fr_crypto::types::{Ed25519PubKey, ValidatorKey};

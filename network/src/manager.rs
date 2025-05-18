@@ -2,7 +2,10 @@ use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
-    streams::{StreamKind, UpStreamHandle, UpStreamHandler, UpStreamKind},
+    streams::{
+        stream_kinds::{StreamKind, UpStreamKind},
+        up_streams::{UpStreamHandle, UpStreamHandler},
+    },
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -265,6 +268,7 @@ impl NetworkManager {
         &self.local_node_info.validator_key.ed25519_key
     }
 
+    /// UP-0: Block Announcement
     pub async fn announce_block_to_all_peers(
         &self,
         block_header: &BlockHeader,
@@ -282,7 +286,6 @@ impl NetworkManager {
                 }
             }
         }
-
         Ok(())
     }
 }
