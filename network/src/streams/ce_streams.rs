@@ -1,7 +1,8 @@
-use crate::error::NetworkError;
+use crate::{error::NetworkError, streams::stream_kinds::CeStreamKind, types::CHUNK_SIZE};
 use fr_block::types::block::Block;
 use fr_codec::prelude::*;
 use fr_common::Hash32;
+use std::future::Future;
 
 pub enum NodeRole {
     Node,
@@ -19,9 +20,12 @@ pub trait CeStream {
     type InitArgs: JamEncode + JamDecode;
     type RespArgs: JamEncode + JamDecode;
 
-    fn initiate(args: Self::InitArgs) -> Result<(), NetworkError>;
+    fn initiate(
+        conn: quinn::Connection,
+        args: Self::InitArgs,
+    ) -> impl Future<Output = Result<(), NetworkError>> + Send;
 
-    fn respond(args: Self::RespArgs) -> Result<(), NetworkError>;
+    fn respond(args: Self::RespArgs) -> impl Future<Output = Result<(), NetworkError>> + Send;
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
@@ -44,12 +48,38 @@ impl CeStream for BlockRequest {
     type InitArgs = BlockRequestInitArgs;
     type RespArgs = BlockRequestRespArgs;
 
-    fn initiate(args: Self::InitArgs) -> Result<(), NetworkError> {
-        let _data = args.encode()?;
+    async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
+        let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
+
+        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
+        let stream_kind = CeStreamKind::BlockRequest;
+        let stream_kind_byte = vec![stream_kind as u8];
+        send_stream.write_all(&stream_kind_byte).await?;
+
+        // Send a request
+        send_stream.write_all(&args.encode()?).await?;
+        // Close the stream
+        send_stream.finish()?;
+
+        match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+            Ok(Some(chunk)) => {
+                let mut bytes: &[u8] = &chunk.bytes;
+                let mut blocks = vec![];
+                while let Ok(block) = Block::decode(&mut bytes) {
+                    blocks.push(block);
+                }
+            }
+            Ok(None) => {
+                tracing::warn!("[CE128] Stream closed");
+            }
+            Err(e) => {
+                tracing::error!("[CE128] Error receiving blocks: {e}")
+            }
+        }
         Ok(())
     }
 
-    fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {
+    async fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {
         let _data = args.encode()?;
         Ok(())
     }

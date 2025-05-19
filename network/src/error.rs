@@ -1,7 +1,7 @@
 use fr_block::types::block::BlockHeaderError;
 use fr_codec::JamCodecError;
 use fr_state::error::StateManagerError;
-use quinn::{ConnectError, ConnectionError, ReadToEndError, WriteError};
+use quinn::{ClosedStream, ConnectError, ConnectionError, ReadToEndError, WriteError};
 use thiserror::Error;
 use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
@@ -17,6 +17,8 @@ pub enum NetworkError {
     ConnectError(#[from] ConnectError),
     #[error("quinn ConnectionError: {0}")]
     ConnectionError(#[from] ConnectionError),
+    #[error("quinn ClosedStream: {0}")]
+    ClosedStream(#[from] ClosedStream),
     #[error("quinn WriteError: {0}")]
     WriteError(#[from] WriteError),
     #[error("quinn ReadToEndError: {0}")]

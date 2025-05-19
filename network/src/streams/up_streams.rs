@@ -1,4 +1,8 @@
-use crate::{error::NetworkError, streams::stream_kinds::UpStreamKind, types::BlockAnnouncement};
+use crate::{
+    error::NetworkError,
+    streams::stream_kinds::UpStreamKind,
+    types::{BlockAnnouncement, CHUNK_SIZE},
+};
 use fr_codec::prelude::*;
 use quinn::{RecvStream, SendStream};
 use tokio::sync::mpsc;
@@ -45,7 +49,7 @@ impl UpStreamHandler {
 
     async fn handle_incoming_stream(mut recv_stream: RecvStream) {
         loop {
-            match recv_stream.read_chunk(1024, true).await {
+            match recv_stream.read_chunk(CHUNK_SIZE, true).await {
                 Ok(Some(chunk)) => {
                     let mut bytes: &[u8] = &chunk.bytes;
                     let Ok(block_announcement) = BlockAnnouncement::decode(&mut bytes) else {
@@ -55,11 +59,11 @@ impl UpStreamHandler {
                     tracing::info!("Received Block Announcement:\n{block_announcement}");
                 }
                 Ok(None) => {
-                    tracing::warn!("UP0 stream closed");
+                    tracing::warn!("[UP0] Stream closed");
                     break;
                 }
                 Err(e) => {
-                    tracing::error!("Error receiving block announcement: {}", e);
+                    tracing::error!("[UP0] Error receiving block announcement: {e}");
                     // TODO: re-connect to peers
                     break;
                 }
