@@ -2,12 +2,17 @@ use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
-    streams::{StreamKind, UpStreamHandle, UpStreamHandler, UpStreamKind},
+    streams::{
+        ce_streams::{BlockRequest, BlockRequestInitArgs, BlockRequestRespArgs, CeStream},
+        stream_kinds::{CeStreamKind, StreamKind, UpStreamKind},
+        up_streams::{UpStreamHandle, UpStreamHandler},
+    },
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
 use dashmap::DashMap;
 use fr_block::types::block::BlockHeader;
+use fr_codec::prelude::*;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
 use fr_state::manager::StateManager;
 use std::{
@@ -103,8 +108,6 @@ impl NetworkManager {
 
         // TODO: Monitor connection closure
         while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
-            // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
-            let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
             let all_peers_cloned = all_peers.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
@@ -118,6 +121,9 @@ impl NetworkManager {
                 };
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
+                        // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
+                        let (mpsc_send, mpsc_recv) =
+                            mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
                         tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
                         // Insert UpStreamHandle which contains mpsc sender handle to initiate outgoing QUIC stream message.
                         if let Err(e) = all_peers_cloned.insert_up_stream_handle(
@@ -136,7 +142,38 @@ impl NetworkManager {
                     }
                     StreamKind::CE(stream_kind) => {
                         tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
-                        unimplemented!()
+                        match stream_kind {
+                            CeStreamKind::BlockRequest => {
+                                const BLOCK_REQUEST_INIT_ARGS_SIZE: usize = 37;
+                                let mut init_args_buf = [0u8; BLOCK_REQUEST_INIT_ARGS_SIZE];
+                                if let Err(e) = recv_stream.read_exact(&mut init_args_buf).await {
+                                    tracing::error!("Failed to read block request: {e}");
+                                    return;
+                                }
+
+                                let _init_args = match BlockRequestInitArgs::decode(
+                                    &mut init_args_buf.as_slice(),
+                                ) {
+                                    Ok(init_args) => init_args,
+                                    Err(e) => {
+                                        tracing::error!(
+                                            "Failed decoding BlockRequestInitArgs: {e}"
+                                        );
+                                        return;
+                                    }
+                                };
+
+                                if let Err(e) =
+                                    BlockRequest::respond(BlockRequestRespArgs { blocks: vec![] })
+                                        .await
+                                {
+                                    tracing::error!("Failed to respond to block request: {e}");
+                                }
+                            }
+                            _ => {
+                                unimplemented!()
+                            }
+                        }
                     }
                 }
                 tracing::info!("🧨 Handling connection...");
@@ -265,6 +302,7 @@ impl NetworkManager {
         &self.local_node_info.validator_key.ed25519_key
     }
 
+    /// UP-0: Block Announcement
     pub async fn announce_block_to_all_peers(
         &self,
         block_header: &BlockHeader,
@@ -282,7 +320,6 @@ impl NetworkManager {
                 }
             }
         }
-
         Ok(())
     }
 }

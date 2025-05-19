@@ -43,7 +43,7 @@ pub async fn extend_chain(
 
         let (new_block, post_state_root) = author.author_block(jam_node.header_db.clone()).await?;
         tracing::info!(
-            "🎁 Authored a new block. Header: {}, Xts: {:?} post state root: {}",
+            "🎁 Authored a new block:\nHeader: {}\nXts: {:?} post state root: {}",
             new_block.header,
             new_block.extrinsics,
             post_state_root
