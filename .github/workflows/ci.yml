@@ -1,4 +1,4 @@
-name: Rust CI
+name: CI
 
 on:
   push:
@@ -15,16 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set rust toolchain version
-        run: rustup override set nightly
-      - name: Check rust toolchain version
-        run: rustup --version
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --component rustfmt
 
-      - name: Add rustfmt
-        run: rustup component add rustfmt
+      - name: Check rust version
+        run: rustc +nightly --version
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: cargo +nightly fmt --all -- --check
 
   clippy:
     name: Clippy
@@ -34,16 +32,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set rust toolchain version
-        run: rustup override set nightly
-      - name: Check rust toolchain version
-        run: rustup --version
+      - name: Install stable toolchain
+        run: rustup toolchain install stable --component clippy
 
-      - name: Add clippy
-        run: rustup component add clippy
+      - name: Check rust version
+        run: rustc +stable --version
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::all
+        run: cargo +stable clippy --workspace --all-targets --all-features -- -D warnings -W clippy::all
 
   test:
     name: Test
@@ -53,10 +49,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set rust toolchain version
-        run: rustup override set nightly
-      - name: Check rust toolchain version
-        run: rustup --version
+      - name: Install stable toolchain
+        run: rustup toolchain install stable
+
+      - name: Check rust version
+        run: rustc +stable --version
 
       - name: Install nextest release
         uses: taiki-e/install-action@9903ab6feadaec33945de535fe9d181b91802a55 # pin@v2
@@ -64,7 +61,7 @@ jobs:
           tool: nextest
 
       - name: Run tests
-        run: cargo nextest run --workspace --profile ci
+        run: cargo +stable nextest run --workspace --profile ci
 
   coverage:
     name: Coverage
@@ -74,13 +71,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set rust toolchain version
-        run: rustup override set nightly
-      - name: Check rust toolchain version
-        run: rustup --version
+      - name: Install stable toolchain
+        run: rustup toolchain install stable --component llvm-tools-preview
 
-      - name: Add llvm-tools-preview
-        run: rustup component add llvm-tools-preview
+      - name: Check rust version
+        run: rustc +stable --version
 
       - name: Install nextest release
         uses: taiki-e/install-action@9903ab6feadaec33945de535fe9d181b91802a55 # pin@v2
@@ -93,7 +88,7 @@ jobs:
           tool: cargo-llvm-cov
 
       - name: Collect code coverage data
-        run: cargo llvm-cov nextest --lcov --output-path lcov.info
+        run: cargo +stable llvm-cov nextest --lcov --output-path lcov.info
 
       - name: Upload coverage data to codecov
         uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # pin@v5
