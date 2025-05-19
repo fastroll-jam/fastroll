@@ -57,6 +57,7 @@ impl UpStreamHandler {
                         continue;
                     };
                     tracing::info!("Received Block Announcement:\n{block_announcement}");
+                    // TODO: send a block request to the author. connection handle required.
                 }
                 Ok(None) => {
                     tracing::warn!("[UP0] Stream closed");

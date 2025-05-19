@@ -25,6 +25,11 @@ pub trait CeStream {
         args: Self::InitArgs,
     ) -> impl Future<Output = Result<(), NetworkError>> + Send;
 
+    // TODO: Add a common DB interface handle as a param
+    fn process(
+        init_args: Self::InitArgs,
+    ) -> impl Future<Output = Result<Self::RespArgs, NetworkError>> + Send;
+
     fn respond(args: Self::RespArgs) -> impl Future<Output = Result<(), NetworkError>> + Send;
 }
 
@@ -37,7 +42,7 @@ pub struct BlockRequestInitArgs {
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct BlockRequestRespArgs {
-    block: Block,
+    pub blocks: Vec<Block>,
 }
 
 pub struct BlockRequest;
@@ -77,6 +82,10 @@ impl CeStream for BlockRequest {
             }
         }
         Ok(())
+    }
+
+    async fn process(_init_args: Self::InitArgs) -> Result<Self::RespArgs, NetworkError> {
+        unimplemented!()
     }
 
     async fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {
