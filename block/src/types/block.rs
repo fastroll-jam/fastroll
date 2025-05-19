@@ -61,7 +61,7 @@ impl Display for EpochMarker {
         writeln!(f, "\t\ttickets_entropy: {}", &self.tickets_entropy)?;
         writeln!(f, "\t\tvalidators:")?;
         for key in self.validators.as_ref() {
-            writeln!(f, "\t\t\t{}", key)?;
+            writeln!(f, "\t\t\t{key}")?;
         }
         write!(f, "\t}}")
     }
@@ -190,7 +190,7 @@ impl Display for BlockHeader {
         writeln!(f, "\ttimeslot_index: {},", self.timeslot_index())?;
         match self.epoch_marker() {
             Some(marker) => {
-                writeln!(f, "\tepoch_marker: {}", marker)?;
+                writeln!(f, "\tepoch_marker: {marker}")?;
             }
             None => {
                 writeln!(f, "\tepoch_marker: None")?;
@@ -200,14 +200,14 @@ impl Display for BlockHeader {
             Some(marker) => {
                 writeln!(f, "\twinning_tickets_marker:")?;
                 for ticket in marker.as_ref() {
-                    writeln!(f, "\t{}", ticket)?;
+                    writeln!(f, "\t{ticket}")?;
                 }
             }
             None => {
                 writeln!(f, "\twinning_tickets_marker: None")?;
             }
         }
-        writeln!(f, "\toffenders_marker: {:?},", offenders_encoded)?;
+        writeln!(f, "\toffenders_marker: {offenders_encoded:?},")?;
         writeln!(f, "\tauthor_index: {},", self.author_index())?;
         writeln!(f, "\tvrf_signature: 0x{},", self.vrf_signature().to_hex())?;
         write!(f, "\tblock_seal: 0x{},", self.block_seal.to_hex())
