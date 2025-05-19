@@ -1,5 +1,4 @@
-use crate::{error::NetworkError, streams::stream_kinds::UpStreamKind};
-use fr_block::types::block::BlockAnnouncement;
+use crate::{error::NetworkError, streams::stream_kinds::UpStreamKind, types::BlockAnnouncement};
 use fr_codec::prelude::*;
 use quinn::{RecvStream, SendStream};
 use tokio::sync::mpsc;
