@@ -60,8 +60,7 @@ impl CeStream for BlockRequest {
         let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
 
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
-        let stream_kind = CeStreamKind::BlockRequest;
-        let stream_kind_byte = vec![stream_kind as u8];
+        let stream_kind_byte = vec![CeStreamKind::BlockRequest as u8];
         send_stream.write_all(&stream_kind_byte).await?;
 
         // Send a request
