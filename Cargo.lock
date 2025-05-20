@@ -1005,6 +1005,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fr-storage"
+version = "0.1.0"
+
+[[package]]
 name = "fr-transition"
 version = "0.1.0"
 dependencies = [

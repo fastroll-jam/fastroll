@@ -21,6 +21,7 @@ members = [
     "pvm/pvm-types",
     "state",
     "state/state-merkle",
+    "storage",
     "transition",
 ]
 
@@ -48,6 +49,7 @@ fr-pvm-invocation = { path = "pvm/pvm-invocation" }
 fr-pvm-types = { path = "pvm/pvm-types" }
 fr-state = { path = "state" }
 fr-state-merkle = { path = "state/state-merkle" }
+fr-storage = { path = "storage" }
 fr-transition = { path = "transition" }
 # External dependencies
 ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }
