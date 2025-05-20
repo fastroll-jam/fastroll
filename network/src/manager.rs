@@ -14,7 +14,7 @@ use dashmap::DashMap;
 use fr_block::types::block::BlockHeader;
 use fr_codec::prelude::*;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
-use fr_state::manager::StateManager;
+use fr_storage::NodeStorage;
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
@@ -46,18 +46,16 @@ impl NetworkManager {
 
     pub async fn load_validator_peers(
         &self,
-        state_manager: Arc<StateManager>,
+        storage: Arc<NodeStorage>,
         local_node_socket_addr: SocketAddrV6,
     ) -> Result<(), NetworkError> {
         // TODO: Predict validator set update on epoch progress
-        let past_set = state_manager.get_past_set().await?;
-        let active_set = state_manager.get_active_set().await?;
-        let staging_set = state_manager.get_staging_set().await?;
+        let effective_validators = storage.effective_validators().await?;
 
         let mut all_validator_peers = DashMap::new();
-        let prev_epoch_peers = validator_set_to_peers(past_set.0);
-        let curr_epoch_peers = validator_set_to_peers(active_set.0);
-        let next_epoch_peers = validator_set_to_peers(staging_set.0);
+        let prev_epoch_peers = validator_set_to_peers(effective_validators.past_set.0);
+        let curr_epoch_peers = validator_set_to_peers(effective_validators.active_set.0);
+        let next_epoch_peers = validator_set_to_peers(effective_validators.staging_set.0);
         all_validator_peers.extend(prev_epoch_peers);
         all_validator_peers.extend(curr_epoch_peers);
         all_validator_peers.extend(next_epoch_peers);

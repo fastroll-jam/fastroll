@@ -1,6 +1,6 @@
 //! Storage Interface
 use fr_block::header_db::BlockHeaderDB;
-use fr_state::{error::StateManagerError, manager::StateManager};
+use fr_state::{error::StateManagerError, manager::StateManager, types::EffectiveValidators};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -30,5 +30,17 @@ impl NodeStorage {
 
     pub fn header_db(&self) -> Arc<BlockHeaderDB> {
         self.header_db.clone()
+    }
+
+    /// Gets effective validators of the previous, current and the next epoch.
+    pub async fn effective_validators(&self) -> Result<EffectiveValidators, NodeStorageError> {
+        let past_set = self.state_manager.get_past_set().await?;
+        let active_set = self.state_manager.get_active_set().await?;
+        let staging_set = self.state_manager.get_staging_set().await?;
+        Ok(EffectiveValidators {
+            past_set,
+            active_set,
+            staging_set,
+        })
     }
 }

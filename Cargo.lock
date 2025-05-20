@@ -867,7 +867,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "fr-state",
+ "fr-storage",
  "quinn",
  "rcgen",
  "rustls",

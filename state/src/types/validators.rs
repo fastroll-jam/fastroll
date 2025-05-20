@@ -89,6 +89,12 @@ fn fmt_validator_set(
     write!(f, "}}")
 }
 
+pub struct EffectiveValidators {
+    pub past_set: PastSet,
+    pub active_set: ActiveSet,
+    pub staging_set: StagingSet,
+}
+
 /// A validator set that will become active in a future epoch.
 ///
 /// At the beginning of each epoch, this set is loaded into the Safrole state `γ_k`
