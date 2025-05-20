@@ -9,6 +9,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-storage = { workspace = true }
+async-trait = { workspace = true }
 dashmap = { workspace = true }
 quinn = { workspace = true }
 rcgen = { workspace = true }

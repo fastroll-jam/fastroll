@@ -1,9 +1,9 @@
 use crate::{error::NetworkError, streams::stream_kinds::CeStreamKind, types::CHUNK_SIZE};
+use async_trait::async_trait;
 use fr_block::types::block::Block;
 use fr_codec::prelude::*;
 use fr_common::Hash32;
 use fr_storage::{node_storage::NodeStorage, server_trait::NodeServerTrait};
-use std::future::Future;
 
 pub enum NodeRole {
     Node,
@@ -14,6 +14,7 @@ pub enum NodeRole {
     Auditor,
 }
 
+#[async_trait]
 pub trait CeStream {
     const INITIATOR_ROLE: NodeRole;
     const ACCEPTOR_ROLE: NodeRole;
@@ -22,17 +23,14 @@ pub trait CeStream {
     type RespArgs: JamEncode + JamDecode;
     type Storage: NodeServerTrait;
 
-    fn initiate(
-        conn: quinn::Connection,
-        args: Self::InitArgs,
-    ) -> impl Future<Output = Result<(), NetworkError>> + Send;
+    async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
 
-    fn process(
+    async fn process(
         storage: &Self::Storage,
         init_args: Self::InitArgs,
-    ) -> impl Future<Output = Result<Self::RespArgs, NetworkError>> + Send;
+    ) -> Result<Self::RespArgs, NetworkError>;
 
-    fn respond(args: Self::RespArgs) -> impl Future<Output = Result<(), NetworkError>> + Send;
+    async fn respond(args: Self::RespArgs) -> Result<(), NetworkError>;
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
@@ -48,6 +46,8 @@ pub struct BlockRequestRespArgs {
 }
 
 pub struct BlockRequest;
+
+#[async_trait]
 impl CeStream for BlockRequest {
     const INITIATOR_ROLE: NodeRole = NodeRole::Node;
     const ACCEPTOR_ROLE: NodeRole = NodeRole::Node;
