@@ -33,18 +33,14 @@ pub async fn extend_chain(
     .await?
     {
         tracing::info!("✍️ Role: Author");
-        let best_header = jam_node.storage().header_db().get_best_header();
         let mut author = BlockAuthor::new(
             jam_node
                 .curr_epoch_validator_index
                 .expect("Epoch validator index should be set"),
             jam_node.local_node_info().clone(),
-            jam_node.storage().state_manager(),
-            best_header,
         )?;
 
-        let (new_block, post_state_root) =
-            author.author_block(jam_node.storage().header_db()).await?;
+        let (new_block, post_state_root) = author.author_block(jam_node.storage()).await?;
         tracing::info!(
             "🎁 Authored a new block:\nHeader: {}\nXts: {:?} post state root: {}",
             new_block.header,

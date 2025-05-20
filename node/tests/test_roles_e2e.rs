@@ -60,15 +60,11 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Init DB and StateManager
     let author_node =
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9999, 0, 0)).await?;
-    // Get the best header of the best chain
-    let best_header = author_node.storage().header_db().get_best_header();
 
     // Block author role
-    let mut author =
-        BlockAuthor::new_for_fallback_test(author_node.storage().state_manager(), best_header)?;
-    let (new_block, author_post_state_root) = author
-        .author_block_for_test(author_node.storage().header_db())
-        .await?;
+    let mut author = BlockAuthor::new_for_fallback_test()?;
+    let (new_block, author_post_state_root) =
+        author.author_block_for_test(author_node.storage()).await?;
 
     // --- Block importing
 
