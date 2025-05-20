@@ -2,7 +2,6 @@ use crate::{
     cli::{Cli, CliCommand},
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
-    roles::manager::RoleManager,
 };
 use clap::Parser;
 use fr_block::header_db::BlockHeaderDB;
@@ -62,13 +61,11 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
                 NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
 
             let state_manager = Arc::new(state_manager);
-            let role_manager = RoleManager::new(node_info.clone(), state_manager.clone());
             let mut node = JamNode::new(
                 node_info.clone(),
                 state_manager.clone(),
                 Arc::new(header_db),
                 Arc::new(network_manager),
-                Arc::new(role_manager),
             );
             tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager.local_node_info.socket_addr, node.network_manager.local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager.local_node_info.validator_key.ed25519_key.to_hex());
             set_genesis_state(&node).await?;

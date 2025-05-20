@@ -5,7 +5,7 @@ use fr_node::{
     cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
-    roles::{author::BlockAuthor, importer::BlockImporter, manager::RoleManager},
+    roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
 use std::{
@@ -38,14 +38,11 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         .load_validator_peers(state_manager.clone(), socket_addr)
         .await?;
 
-    let role_manager = Arc::new(RoleManager::new(node_info.clone(), state_manager.clone()));
-
     Ok(JamNode::new(
         node_info,
         state_manager,
         Arc::new(header_db),
         network_manager,
-        role_manager,
     ))
 }
 

@@ -2,7 +2,7 @@ use crate::{
     jam_node::JamNode,
     roles::{
         author::{BlockAuthor, BlockAuthorError},
-        manager::RoleManagerError,
+        manager::{RoleManager, RoleManagerError},
     },
 };
 use fr_network::error::NetworkError;
@@ -25,10 +25,12 @@ pub async fn extend_chain(
     jam_node: Arc<JamNode>,
     new_timeslot: &Timeslot,
 ) -> Result<(), ChainExtensionError> {
-    if jam_node
-        .role_manager
-        .is_author_of_slot(new_timeslot)
-        .await?
+    if RoleManager::is_author_of_slot(
+        jam_node.state_manager.clone(),
+        jam_node.local_node_info.clone(),
+        new_timeslot,
+    )
+    .await?
     {
         tracing::info!("✍️ Role: Author");
         let best_header = jam_node.header_db.get_best_header();
