@@ -199,8 +199,7 @@ impl BlockAuthor {
         &self,
         storage: &NodeStorage,
     ) -> Result<BlockExecutionOutput, BlockAuthorError> {
-        let executor = BlockExecutor::new(storage.state_manager().clone());
-        Ok(executor.run_state_transition(&self.new_block).await?)
+        Ok(BlockExecutor::run_state_transition(storage, &self.new_block).await?)
     }
 
     /// Sets missing header fields with contexts produced during the STF run.
@@ -293,15 +292,14 @@ impl BlockAuthor {
         vrf_sig: &VrfSig,
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
-        let executor = BlockExecutor::new(storage.state_manager());
-        executor.accumulate_entropy(vrf_sig).await?;
-        executor
-            .append_block_history(
-                new_header_hash,
-                stf_output.accumulate_root,
-                stf_output.reported_packages,
-            )
-            .await?;
+        BlockExecutor::accumulate_entropy(storage, vrf_sig).await?;
+        BlockExecutor::append_block_history(
+            storage,
+            new_header_hash,
+            stf_output.accumulate_root,
+            stf_output.reported_packages,
+        )
+        .await?;
         Ok(())
     }
 }

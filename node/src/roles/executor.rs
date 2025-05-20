@@ -8,7 +8,8 @@ use fr_crypto::traits::VrfSignature;
 use fr_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
-use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
+use fr_state::{error::StateManagerError, types::Timeslot};
+use fr_storage::NodeStorage;
 use fr_transition::{
     error::TransitionError,
     procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
@@ -29,7 +30,6 @@ use fr_transition::{
         validators::{transition_active_set, transition_past_set},
     },
 };
-use std::sync::Arc;
 use thiserror::Error;
 use tokio::try_join;
 
@@ -53,18 +53,11 @@ pub struct BlockExecutionOutput {
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 
-pub struct BlockExecutor {
-    state_manager: Arc<StateManager>,
-}
-
+pub struct BlockExecutor;
 impl BlockExecutor {
-    pub fn new(state_manager: Arc<StateManager>) -> Self {
-        Self { state_manager }
-    }
-
     // TODO: Split this more so that header could be finalized earlier with necessary STFs run first.
     pub async fn run_state_transition(
-        &self,
+        storage: &NodeStorage,
         block: &Block,
     ) -> Result<BlockExecutionOutput, BlockExecutionError> {
         let xt_cloned = block.extrinsics.clone();
@@ -72,53 +65,53 @@ impl BlockExecutor {
         let assurances_xt = block.extrinsics.assurances.clone();
         let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
-        let prev_timeslot = self.state_manager.get_timeslot().await?;
+        let prev_timeslot = storage.state_manager().get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
         let parent_hash = block.header.data.parent_hash.clone();
         let parent_state_root = block.header.data.prior_state_root.clone();
         let author_index = block.header.data.author_index;
 
         // Timeslot STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         spawn_timed("timeslot_stf", async move {
             transition_timeslot(manager, &header_timeslot).await
         })
         .await??;
 
         // Epoch progress check
-        let curr_timeslot = self.state_manager.get_timeslot().await?;
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
         let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
 
         // --- Spawn STF tasks
 
         // Disputes STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let disputes_xt_cloned = disputes_xt.clone();
         let disputes_jh = spawn_timed("disputes_stf", async move {
             transition_disputes(manager, &disputes_xt_cloned, prev_timeslot).await
         });
 
         // Entropy STF (on-epoch-change transition only)
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let entropy_jh = spawn_timed("entropy_stf", async move {
             transition_epoch_entropy_on_epoch_change(manager, epoch_progressed).await
         });
 
         // PastSet STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let past_set_jh = spawn_timed("pastset_stf", async move {
             transition_past_set(manager, epoch_progressed).await
         });
 
         // ActiveSet STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let active_set_jh = spawn_timed("active_set_stf", async move {
             transition_active_set(manager, epoch_progressed).await
         });
 
         // Reports STF
         // TODO: remove `unwrap`s
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let disputes_xt_cloned = disputes_xt.clone();
         let guarantees_xt_cloned = guarantees_xt.clone();
         let reports_jh = spawn_timed("reports_stf", async move {
@@ -141,7 +134,7 @@ impl BlockExecutor {
         });
 
         // Authorizer STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
             transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
         });
@@ -151,7 +144,7 @@ impl BlockExecutor {
         try_join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh)?;
 
         // Safrole STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let safrole_jh = spawn_timed("safrole_stf", async move {
             transition_safrole(
                 manager,
@@ -164,22 +157,22 @@ impl BlockExecutor {
         });
 
         // OnChainStatistics STF
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let stats_jh = spawn_timed("stats_stf", async move {
             transition_onchain_statistics(manager, epoch_progressed, author_index, &xt_cloned).await
         });
 
         // Accumulate STF
         let (available_reports, reported_packages) = reports_jh.await?;
-        let acc_queue = self.state_manager.get_accumulate_queue().await?;
-        let acc_history = self.state_manager.get_accumulate_history().await?;
+        let acc_queue = storage.state_manager().get_accumulate_queue().await?;
+        let acc_history = storage.state_manager().get_accumulate_history().await?;
         let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
             available_reports,
             &acc_queue,
             &acc_history,
             prev_timeslot.slot(),
         );
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let acc_jh = spawn_timed("acc_stf", async move {
             let acc_summary = transition_on_accumulate(manager.clone(), &accumulatable_reports)
                 .await
@@ -201,14 +194,14 @@ impl BlockExecutor {
         let (accumulate_root, _, _, _) = try_join!(acc_jh, auth_pool_jh, safrole_jh, stats_jh)?;
 
         // BlockHistory STF (the first half only)
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         spawn_timed("history_stf", async move {
             transition_block_history_parent_root(manager.clone(), parent_state_root).await
         })
         .await??;
 
         // Collect header markers
-        let manager = self.state_manager.clone();
+        let manager = storage.state_manager();
         let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
         let offenders_marker = disputes_xt.collect_offender_keys();
 
@@ -221,21 +214,23 @@ impl BlockExecutor {
     }
 
     /// The second EpochEntropy STF
-    pub async fn accumulate_entropy(&self, vrf_sig: &VrfSig) -> Result<(), BlockExecutionError> {
-        transition_epoch_entropy_per_block(self.state_manager.clone(), vrf_sig.output_hash())
-            .await?;
+    pub async fn accumulate_entropy(
+        storage: &NodeStorage,
+        vrf_sig: &VrfSig,
+    ) -> Result<(), BlockExecutionError> {
+        transition_epoch_entropy_per_block(storage.state_manager(), vrf_sig.output_hash()).await?;
         Ok(())
     }
 
     /// The second BlockHistory STF
     pub async fn append_block_history(
-        &self,
+        storage: &NodeStorage,
         header_hash: Hash32,
         accumulate_root: Hash32,
         reported_packages: Vec<ReportedWorkPackage>,
     ) -> Result<(), BlockExecutionError> {
         transition_block_history_append(
-            self.state_manager.clone(),
+            storage.state_manager(),
             header_hash,
             accumulate_root,
             reported_packages,

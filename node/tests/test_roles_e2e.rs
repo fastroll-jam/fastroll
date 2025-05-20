@@ -71,13 +71,10 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Init DB and StateManager
     let importer_node =
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0)).await?;
-    // Get the best header of the best chain
-    let best_header = importer_node.storage().header_db().get_best_header();
 
     // Block importer role
-    let mut importer = BlockImporter::new(importer_node.storage(), Some(best_header));
-    importer.import_block(new_block).await?;
-    let importer_post_state_root = importer.validate_block().await?;
+    let importer_post_state_root =
+        BlockImporter::import_block(importer_node.storage(), new_block).await?;
     assert_eq!(author_post_state_root, importer_post_state_root);
 
     Ok(())
