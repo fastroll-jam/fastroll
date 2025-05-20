@@ -1007,6 +1007,11 @@ dependencies = [
 [[package]]
 name = "fr-storage"
 version = "0.1.0"
+dependencies = [
+ "fr-block",
+ "fr-state",
+ "thiserror 2.0.12",
+]
 
 [[package]]
 name = "fr-transition"
