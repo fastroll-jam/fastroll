@@ -24,7 +24,7 @@ use fr_state::{
     error::StateManagerError,
     types::{SlotSealer, Timeslot},
 };
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::try_join;

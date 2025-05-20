@@ -1,6 +1,6 @@
 use fr_block::types::block::BlockHeaderError;
 use fr_codec::JamCodecError;
-use fr_storage::NodeStorageError;
+use fr_storage::node_storage::NodeStorageError;
 use quinn::{ClosedStream, ConnectError, ConnectionError, ReadToEndError, WriteError};
 use thiserror::Error;
 use tokio::{sync::mpsc::error::SendError, task::JoinError};

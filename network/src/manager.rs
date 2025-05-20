@@ -14,7 +14,7 @@ use dashmap::DashMap;
 use fr_block::types::block::BlockHeader;
 use fr_codec::prelude::*;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},

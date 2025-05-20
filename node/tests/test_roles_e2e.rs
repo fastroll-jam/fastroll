@@ -8,7 +8,7 @@ use fr_node::{
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::{
     error::Error,
     net::{Ipv6Addr, SocketAddrV6},

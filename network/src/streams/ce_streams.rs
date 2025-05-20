@@ -2,6 +2,7 @@ use crate::{error::NetworkError, streams::stream_kinds::CeStreamKind, types::CHU
 use fr_block::types::block::Block;
 use fr_codec::prelude::*;
 use fr_common::Hash32;
+use fr_storage::{node_storage::NodeStorage, server_trait::NodeServerTrait};
 use std::future::Future;
 
 pub enum NodeRole {
@@ -19,14 +20,15 @@ pub trait CeStream {
 
     type InitArgs: JamEncode + JamDecode;
     type RespArgs: JamEncode + JamDecode;
+    type Storage: NodeServerTrait;
 
     fn initiate(
         conn: quinn::Connection,
         args: Self::InitArgs,
     ) -> impl Future<Output = Result<(), NetworkError>> + Send;
 
-    // TODO: Add a common DB interface handle as a param
     fn process(
+        storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> impl Future<Output = Result<Self::RespArgs, NetworkError>> + Send;
 
@@ -36,8 +38,8 @@ pub trait CeStream {
 #[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct BlockRequestInitArgs {
     header_hash: Hash32,
-    ascending: bool,
-    maximum_blocks: u32,
+    ascending_excl: bool,
+    max_blocks: u32,
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
@@ -52,6 +54,7 @@ impl CeStream for BlockRequest {
 
     type InitArgs = BlockRequestInitArgs;
     type RespArgs = BlockRequestRespArgs;
+    type Storage = NodeStorage;
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
         let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
@@ -84,8 +87,16 @@ impl CeStream for BlockRequest {
         Ok(())
     }
 
-    async fn process(_init_args: Self::InitArgs) -> Result<Self::RespArgs, NetworkError> {
-        unimplemented!()
+    async fn process(
+        storage: &Self::Storage,
+        init_args: Self::InitArgs,
+    ) -> Result<Self::RespArgs, NetworkError> {
+        let blocks = storage.get_blocks(
+            init_args.header_hash,
+            init_args.ascending_excl,
+            init_args.max_blocks,
+        );
+        Ok(Self::RespArgs { blocks })
     }
 
     async fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {

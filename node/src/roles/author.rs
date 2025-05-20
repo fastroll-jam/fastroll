@@ -23,7 +23,7 @@ use fr_crypto::{
 };
 use fr_network::manager::LocalNodeInfo;
 use fr_state::{error::StateManagerError, types::SlotSealer};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
 

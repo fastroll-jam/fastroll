@@ -1010,6 +1010,7 @@ name = "fr-storage"
 version = "0.1.0"
 dependencies = [
  "fr-block",
+ "fr-common",
  "fr-state",
  "thiserror 2.0.12",
 ]

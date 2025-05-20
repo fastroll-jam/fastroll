@@ -1,6 +1,6 @@
 use fr_common::ValidatorIndex;
 use fr_network::manager::{LocalNodeInfo, NetworkManager};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 
 pub struct JamNode {
