@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 pub struct JamNode {
     pub curr_epoch_validator_index: Option<ValidatorIndex>,
-    pub local_node_info: LocalNodeInfo,
-    pub storage: Arc<NodeStorage>,
-    pub network_manager: Arc<NetworkManager>,
+    local_node_info: LocalNodeInfo,
+    storage: Arc<NodeStorage>,
+    network_manager: Arc<NetworkManager>,
 }
 
 impl JamNode {
@@ -22,6 +22,18 @@ impl JamNode {
             storage,
             network_manager,
         }
+    }
+
+    pub fn local_node_info(&self) -> &LocalNodeInfo {
+        &self.local_node_info
+    }
+
+    pub fn storage(&self) -> Arc<NodeStorage> {
+        self.storage.clone()
+    }
+
+    pub fn network_manager(&self) -> Arc<NetworkManager> {
+        self.network_manager.clone()
     }
 
     pub fn set_curr_epoch_validator_index(&mut self, index: Option<ValidatorIndex>) {

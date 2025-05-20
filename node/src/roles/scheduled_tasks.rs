@@ -26,25 +26,25 @@ pub async fn extend_chain(
     new_timeslot: &Timeslot,
 ) -> Result<(), ChainExtensionError> {
     if RoleManager::is_author_of_slot(
-        jam_node.storage.state_manager(),
-        jam_node.local_node_info.clone(),
+        jam_node.storage().state_manager(),
+        jam_node.local_node_info().clone(),
         new_timeslot,
     )
     .await?
     {
         tracing::info!("✍️ Role: Author");
-        let best_header = jam_node.storage.header_db().get_best_header();
+        let best_header = jam_node.storage().header_db().get_best_header();
         let mut author = BlockAuthor::new(
             jam_node
                 .curr_epoch_validator_index
                 .expect("Epoch validator index should be set"),
-            jam_node.local_node_info.clone(),
-            jam_node.storage.state_manager(),
+            jam_node.local_node_info().clone(),
+            jam_node.storage().state_manager(),
             best_header,
         )?;
 
         let (new_block, post_state_root) =
-            author.author_block(jam_node.storage.header_db()).await?;
+            author.author_block(jam_node.storage().header_db()).await?;
         tracing::info!(
             "🎁 Authored a new block:\nHeader: {}\nXts: {:?} post state root: {}",
             new_block.header,
@@ -55,7 +55,7 @@ pub async fn extend_chain(
         // Note: For simplicity, announce the block to all peers in the network.
         // TODO: Announce to neighbors in the grid structure as per JAMNP
         jam_node
-            .network_manager
+            .network_manager()
             .announce_block_to_all_peers(&new_block.header)
             .await?;
 
