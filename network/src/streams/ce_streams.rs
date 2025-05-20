@@ -19,9 +19,9 @@ pub trait CeStream {
     const INITIATOR_ROLE: NodeRole;
     const ACCEPTOR_ROLE: NodeRole;
 
-    type InitArgs: JamEncode + JamDecode;
+    type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode;
-    type Storage: NodeServerTrait;
+    type Storage: NodeServerTrait + Sync;
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
 
@@ -31,6 +31,14 @@ pub trait CeStream {
     ) -> Result<Self::RespArgs, NetworkError>;
 
     async fn respond(args: Self::RespArgs) -> Result<(), NetworkError>;
+
+    async fn process_and_respond(
+        storage: &Self::Storage,
+        init_args: Self::InitArgs,
+    ) -> Result<(), NetworkError> {
+        let resp_args = Self::process(storage, init_args).await?;
+        Self::respond(resp_args).await
+    }
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
