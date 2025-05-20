@@ -4,9 +4,9 @@ use crate::{
     roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
 };
 use fr_block::{
-    header_db::{BlockHeaderDB, BlockHeaderDBError},
+    header_db::BlockHeaderDBError,
     types::{
-        block::{Block, BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
+        block::{Block, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
 };
@@ -22,7 +22,8 @@ use fr_crypto::{
     vrf::bandersnatch_vrf::VrfProver,
 };
 use fr_network::manager::LocalNodeInfo;
-use fr_state::{error::StateManagerError, manager::StateManager, types::SlotSealer};
+use fr_state::{error::StateManagerError, types::SlotSealer};
+use fr_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -58,9 +59,7 @@ struct AuthorInfo {
 }
 
 pub struct BlockAuthor {
-    state_manager: Arc<StateManager>,
     new_block: Block,
-    best_header: BlockHeader,
     author_info: AuthorInfo,
 }
 
@@ -68,16 +67,12 @@ impl BlockAuthor {
     pub fn new(
         validator_index: ValidatorIndex,
         local_node_info: LocalNodeInfo,
-        state_manager: Arc<StateManager>,
-        best_header: BlockHeader,
     ) -> Result<Self, BlockAuthorError> {
         let author_pub_key = local_node_info.bandersnatch_key();
         let author_sk =
             load_author_secret_key(author_pub_key).ok_or(BlockAuthorError::AuthorKeyNotFound)?;
         Ok(Self {
-            state_manager,
             new_block: Block::default(),
-            best_header,
             author_info: AuthorInfo {
                 author_index: validator_index,
                 author_sk,
@@ -86,10 +81,7 @@ impl BlockAuthor {
     }
 
     /// Note: test-only
-    pub fn new_for_fallback_test(
-        state_manager: Arc<StateManager>,
-        best_header: BlockHeader,
-    ) -> Result<Self, BlockAuthorError> {
+    pub fn new_for_fallback_test() -> Result<Self, BlockAuthorError> {
         // Hard-coded author info for tests
         let author_pub_key = BandersnatchPubKey::from_hex(
             "0xf16e5352840afb47e206b5c89f560f2611835855cf2e6ebad1acc9520a72591d",
@@ -99,9 +91,7 @@ impl BlockAuthor {
         let author_index = 5;
 
         Ok(Self {
-            state_manager,
             new_block: Block::default(),
-            best_header,
             author_info: AuthorInfo {
                 author_index,
                 author_sk,
@@ -111,29 +101,29 @@ impl BlockAuthor {
 
     pub async fn author_block(
         &mut self,
-        header_db: Arc<BlockHeaderDB>,
+        storage: Arc<NodeStorage>,
     ) -> Result<(Block, Hash32), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
         self.set_extrinsics(xt)?;
-        self.prelude()?;
+        self.prelude(&storage)?;
 
         // STF phase #1
-        let stf_output = self.run_initial_state_transition().await?;
-        let vrf_sig = self.epilogue(stf_output.clone()).await?;
-        self.seal_block_header().await?;
+        let stf_output = self.run_initial_state_transition(&storage).await?;
+        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
+        self.seal_block_header(&storage).await?;
 
         // Commit block header and finalize block
-        let new_header_hash = self.commit_header(header_db).await?;
+        let new_header_hash = self.commit_header(&storage).await?;
 
         // STF phase #2
-        self.run_final_state_transition(new_header_hash, &vrf_sig, stf_output)
+        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
             .await?;
 
         // Commit the state transitions
         // TODO: Defer more STF runs to post-header-commit.
         // Note: Also some STFs can be run asynchronously after committing the header.
-        self.state_manager.commit_dirty_cache().await?;
-        let post_state_root = self.state_manager.merkle_root();
+        storage.state_manager().commit_dirty_cache().await?;
+        let post_state_root = storage.state_manager().merkle_root();
         tracing::info!("Post State Root: {}", &post_state_root);
 
         Ok((self.new_block.clone(), post_state_root))
@@ -142,19 +132,19 @@ impl BlockAuthor {
     /// Note: test-only
     pub async fn author_block_for_test(
         &mut self,
-        header_db: Arc<BlockHeaderDB>,
+        storage: Arc<NodeStorage>,
     ) -> Result<(Block, Hash32), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
         self.set_extrinsics(xt)?;
-        self.prelude_for_test()?;
-        let stf_output = self.run_initial_state_transition().await?;
-        let vrf_sig = self.epilogue(stf_output.clone()).await?;
-        self.seal_block_header().await?;
-        let new_header_hash = self.commit_header(header_db).await?;
-        self.run_final_state_transition(new_header_hash, &vrf_sig, stf_output)
+        self.prelude_for_test(&storage)?;
+        let stf_output = self.run_initial_state_transition(&storage).await?;
+        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
+        self.seal_block_header(&storage).await?;
+        let new_header_hash = self.commit_header(&storage).await?;
+        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
             .await?;
-        self.state_manager.commit_dirty_cache().await?;
-        let post_state_root = self.state_manager.merkle_root();
+        storage.state_manager().commit_dirty_cache().await?;
+        let post_state_root = storage.state_manager().merkle_root();
         tracing::info!("Post State Root: {}", &post_state_root);
         Ok((self.new_block.clone(), post_state_root))
     }
@@ -171,10 +161,10 @@ impl BlockAuthor {
     }
 
     /// Sets header fields required for running STFs in advance.
-    fn prelude(&mut self) -> Result<(), BlockAuthorError> {
-        let parent_hash = self.best_header.hash()?;
+    fn prelude(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+        let parent_hash = storage.header_db().get_best_header().hash()?;
         tracing::info!("Parent header hash: {}", &parent_hash);
-        let prior_state_root = self.state_manager.merkle_root();
+        let prior_state_root = storage.state_manager().merkle_root();
         tracing::info!("Prior state root: {}", &prior_state_root);
 
         self.new_block.header.set_parent_hash(parent_hash);
@@ -190,10 +180,10 @@ impl BlockAuthor {
     }
 
     /// Note: test-only
-    fn prelude_for_test(&mut self) -> Result<(), BlockAuthorError> {
-        let parent_hash = self.best_header.hash()?;
+    fn prelude_for_test(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+        let parent_hash = storage.header_db().get_best_header().hash()?;
         tracing::info!("Parent header hash: {}", &parent_hash);
-        let prior_state_root = self.state_manager.merkle_root();
+        let prior_state_root = storage.state_manager().merkle_root();
         tracing::info!("Prior state root: {}", &prior_state_root);
         self.new_block.header.set_parent_hash(parent_hash);
         self.new_block.header.set_prior_state_root(prior_state_root);
@@ -205,25 +195,28 @@ impl BlockAuthor {
         Ok(())
     }
 
-    async fn run_initial_state_transition(&self) -> Result<BlockExecutionOutput, BlockAuthorError> {
-        let executor = BlockExecutor::new(self.state_manager.clone());
-        Ok(executor.run_state_transition(&self.new_block).await?)
+    async fn run_initial_state_transition(
+        &self,
+        storage: &NodeStorage,
+    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
+        Ok(BlockExecutor::run_state_transition(storage, &self.new_block).await?)
     }
 
     /// Sets missing header fields with contexts produced during the STF run.
     async fn epilogue(
         &mut self,
+        storage: &NodeStorage,
         stf_output: BlockExecutionOutput,
     ) -> Result<VrfSig, BlockAuthorError> {
         // Sign VRF
-        let curr_timeslot = self.state_manager.get_timeslot().await?;
-        let curr_slot_sealer = self
-            .state_manager
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
+        let curr_slot_sealer = storage
+            .state_manager()
             .get_safrole()
             .await?
             .slot_sealers
             .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
         let curr_entropy_3 = epoch_entropy.third_history();
         let vrf_sig = sign_entropy_source_vrf_signature(
             &curr_slot_sealer,
@@ -249,17 +242,17 @@ impl BlockAuthor {
     }
 
     /// Seal the block header
-    async fn seal_block_header(&mut self) -> Result<(), BlockAuthorError> {
+    async fn seal_block_header(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
         let new_header_data = self.new_block.header.data.clone();
         // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
-        let curr_timeslot = self.state_manager.get_timeslot().await?;
-        let curr_slot_sealer = self
-            .state_manager
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
+        let curr_slot_sealer = storage
+            .state_manager()
             .get_safrole()
             .await?
             .slot_sealers
             .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
         let curr_entropy_3 = epoch_entropy.third_history();
 
         let seal = match curr_slot_sealer {
@@ -280,11 +273,9 @@ impl BlockAuthor {
         Ok(())
     }
 
-    async fn commit_header(
-        &mut self,
-        header_db: Arc<BlockHeaderDB>,
-    ) -> Result<Hash32, BlockAuthorError> {
-        let new_header_hash = header_db
+    async fn commit_header(&mut self, storage: &NodeStorage) -> Result<Hash32, BlockAuthorError> {
+        let new_header_hash = storage
+            .header_db()
             .commit_header(self.new_block.header.clone())
             .await?;
         tracing::info!("New block created. Header hash: {new_header_hash}");
@@ -296,19 +287,19 @@ impl BlockAuthor {
     /// 2. Appends a new block history entry (`β†` --> `β′`)
     async fn run_final_state_transition(
         &self,
+        storage: &NodeStorage,
         new_header_hash: Hash32,
         vrf_sig: &VrfSig,
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
-        let executor = BlockExecutor::new(self.state_manager.clone());
-        executor.accumulate_entropy(vrf_sig).await?;
-        executor
-            .append_block_history(
-                new_header_hash,
-                stf_output.accumulate_root,
-                stf_output.reported_packages,
-            )
-            .await?;
+        BlockExecutor::accumulate_entropy(storage, vrf_sig).await?;
+        BlockExecutor::append_block_history(
+            storage,
+            new_header_hash,
+            stf_output.accumulate_root,
+            stf_output.reported_packages,
+        )
+        .await?;
         Ok(())
     }
 }

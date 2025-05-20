@@ -13,25 +13,14 @@ pub enum RoleManagerError {
     StateManagerError(#[from] StateManagerError),
 }
 
-pub struct RoleManager {
-    local_node_info: LocalNodeInfo,
-    state_manager: Arc<StateManager>,
-}
-
+pub struct RoleManager;
 impl RoleManager {
-    pub fn new(local_node_info: LocalNodeInfo, state_manager: Arc<StateManager>) -> Self {
-        Self {
-            local_node_info,
-            state_manager,
-        }
-    }
-
     pub async fn is_author_of_slot(
-        &self,
+        state_manager: Arc<StateManager>,
+        local_node_info: LocalNodeInfo,
         new_timeslot: &Timeslot,
     ) -> Result<bool, RoleManagerError> {
-        let slot_sealer = self
-            .state_manager
+        let slot_sealer = state_manager
             .get_safrole()
             .await?
             .slot_sealers
@@ -42,9 +31,7 @@ impl RoleManager {
             SlotSealer::Ticket(_ticket) => {
                 unimplemented!()
             }
-            SlotSealer::BandersnatchPubKeys(key) => {
-                Ok(self.local_node_info.bandersnatch_key() == &key)
-            }
+            SlotSealer::BandersnatchPubKeys(key) => Ok(local_node_info.bandersnatch_key() == &key),
         }
     }
 }

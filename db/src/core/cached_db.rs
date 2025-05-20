@@ -32,7 +32,7 @@ impl CacheItem for Vec<u8> {
 /// A RocksDB column family DB type with a built-in cache.
 pub struct CachedDB<K, V>
 where
-    K: Hash + Eq,
+    K: Hash + Eq + AsRef<[u8]> + Clone,
     V: CacheItem,
 {
     /// RocksDB core

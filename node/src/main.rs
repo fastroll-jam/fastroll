@@ -6,9 +6,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let node = init_node().await?;
 
     // Bind to a socket address and start accepting connections
-    let network_manager = node.network_manager.clone();
+    let network_manager = node.network_manager();
     let server_jh = tokio::spawn(async move { network_manager.run_as_server().await });
-    let network_manager = node.network_manager.clone();
+    let network_manager = node.network_manager();
     let client_jh = tokio::spawn(async move {
         if let Err(e) = network_manager.connect_to_peers().await {
             tracing::warn!("Failed to connect to peers: {}", e);

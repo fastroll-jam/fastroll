@@ -892,6 +892,7 @@ dependencies = [
  "fr-network",
  "fr-pvm-invocation",
  "fr-state",
+ "fr-storage",
  "fr-transition",
  "serde",
  "thiserror 2.0.12",
@@ -1002,6 +1003,15 @@ dependencies = [
  "hex",
  "thiserror 2.0.12",
  "tracing",
+]
+
+[[package]]
+name = "fr-storage"
+version = "0.1.0"
+dependencies = [
+ "fr-block",
+ "fr-state",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
