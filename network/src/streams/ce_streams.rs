@@ -108,6 +108,7 @@ impl CeStream for BlockRequest {
 
     async fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {
         let _data = args.encode()?;
+        // TODO: send respond
         Ok(())
     }
 }

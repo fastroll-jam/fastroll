@@ -3,11 +3,12 @@ use std::{error::Error, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let node = init_node().await?;
+    let node = Arc::new(init_node().await?);
 
     // Bind to a socket address and start accepting connections
-    let network_manager = node.network_manager();
-    let server_jh = tokio::spawn(async move { network_manager.run_as_server().await });
+    let node_cloned = node.clone();
+    let server_jh = tokio::spawn(async move { node_cloned.run_as_server().await });
+
     let network_manager = node.network_manager();
     let client_jh = tokio::spawn(async move {
         if let Err(e) = network_manager.connect_to_peers().await {
@@ -23,9 +24,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     client_jh.await?;
 
     // Spawn per-slot tasks
-    let jam_node = Arc::new(node);
     let slots_jh =
-        tokio::spawn(async move { TimeslotScheduler::spawn_scheduled_tasks(jam_node).await });
+        tokio::spawn(async move { TimeslotScheduler::spawn_scheduled_tasks(node).await });
 
     slots_jh.await?;
     server_jh.await??;

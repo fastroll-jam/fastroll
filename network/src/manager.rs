@@ -3,7 +3,7 @@ use crate::{
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
     streams::{
-        ce_streams::{BlockRequest, BlockRequestInitArgs, BlockRequestRespArgs, CeStream},
+        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
         stream_kinds::{CeStreamKind, StreamKind, UpStreamKind},
         up_streams::{UpStreamHandle, UpStreamHandler},
     },
@@ -71,20 +71,8 @@ impl NetworkManager {
         Ok(())
     }
 
-    pub async fn run_as_server(&self) -> Result<(), NetworkError> {
-        tracing::info!("📡 Listening on {}", self.endpoint.local_addr()?);
-        // Accept incoming connections
-        let endpoint = self.endpoint.clone();
-        while let Some(conn) = endpoint.accept().await {
-            tracing::info!("Accepted connection from {}", conn.remote_address());
-            // Spawn an async task to handle the connection
-            let all_peers_cloned = self.all_validator_peers.clone();
-            tokio::spawn(async move { Self::handle_connection(conn, all_peers_cloned).await });
-        }
-        Ok(())
-    }
-
-    async fn handle_connection(
+    pub async fn handle_connection(
+        storage: Arc<NodeStorage>,
         incoming_conn: quinn::Incoming,
         all_peers: Arc<AllValidatorPeers>,
     ) -> Result<(), NetworkError> {
@@ -107,6 +95,7 @@ impl NetworkManager {
         // TODO: Monitor connection closure
         while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
+            let storage_cloned = storage.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
@@ -149,7 +138,7 @@ impl NetworkManager {
                                     return;
                                 }
 
-                                let _init_args = match BlockRequestInitArgs::decode(
+                                let init_args = match BlockRequestInitArgs::decode(
                                     &mut init_args_buf.as_slice(),
                                 ) {
                                     Ok(init_args) => init_args,
@@ -162,10 +151,10 @@ impl NetworkManager {
                                 };
 
                                 if let Err(e) =
-                                    BlockRequest::respond(BlockRequestRespArgs { blocks: vec![] })
+                                    BlockRequest::process_and_respond(&storage_cloned, init_args)
                                         .await
                                 {
-                                    tracing::error!("Failed to respond to block request: {e}");
+                                    tracing::error!("Failed to process Block Request: {e}");
                                 }
                             }
                             _ => {
