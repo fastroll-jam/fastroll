@@ -8,6 +8,7 @@ use fr_node::{
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
+use fr_storage::NodeStorage;
 use std::{
     error::Error,
     net::{Ipv6Addr, SocketAddrV6},
@@ -32,18 +33,20 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     let network_manager =
         Arc::new(NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr_v6)).await?);
 
+    // Construct JamNode
+    let node_storage = Arc::new(NodeStorage::new(
+        Arc::new(state_manager),
+        Arc::new(header_db),
+    ));
+
+    let node = JamNode::new(node_info, node_storage, network_manager);
+
     // Load initial validator peers from the genesis validator set state
-    let state_manager = Arc::new(state_manager);
-    network_manager
-        .load_validator_peers(state_manager.clone(), socket_addr)
+    node.network_manager
+        .load_validator_peers(node.storage.state_manager(), socket_addr)
         .await?;
 
-    Ok(JamNode::new(
-        node_info,
-        state_manager,
-        Arc::new(header_db),
-        network_manager,
-    ))
+    Ok(node)
 }
 
 /// Mocking block author role
@@ -58,12 +61,14 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let author_node =
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9999, 0, 0)).await?;
     // Get the best header of the best chain
-    let best_header = author_node.header_db.get_best_header();
+    let best_header = author_node.storage.header_db().get_best_header();
 
     // Block author role
-    let mut author = BlockAuthor::new_for_fallback_test(author_node.state_manager, best_header)?;
-    let (new_block, author_post_state_root) =
-        author.author_block_for_test(author_node.header_db).await?;
+    let mut author =
+        BlockAuthor::new_for_fallback_test(author_node.storage.state_manager(), best_header)?;
+    let (new_block, author_post_state_root) = author
+        .author_block_for_test(author_node.storage.header_db())
+        .await?;
 
     // --- Block importing
 
@@ -71,14 +76,10 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     let importer_node =
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0)).await?;
     // Get the best header of the best chain
-    let best_header = importer_node.header_db.get_best_header();
+    let best_header = importer_node.storage.header_db().get_best_header();
 
     // Block importer role
-    let mut importer = BlockImporter::new(
-        importer_node.state_manager,
-        importer_node.header_db,
-        Some(best_header),
-    );
+    let mut importer = BlockImporter::new(importer_node.storage, Some(best_header));
     importer.import_block(new_block).await?;
     let importer_post_state_root = importer.validate_block().await?;
     assert_eq!(author_post_state_root, importer_post_state_root);

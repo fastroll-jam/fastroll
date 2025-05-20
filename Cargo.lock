@@ -892,6 +892,7 @@ dependencies = [
  "fr-network",
  "fr-pvm-invocation",
  "fr-state",
+ "fr-storage",
  "fr-transition",
  "serde",
  "thiserror 2.0.12",

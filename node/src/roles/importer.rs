@@ -5,12 +5,9 @@ use crate::{
     },
     utils::spawn_timed,
 };
-use fr_block::{
-    header_db::BlockHeaderDB,
-    types::{
-        block::{Block, BlockHeader, BlockHeaderError},
-        extrinsics::ExtrinsicsError,
-    },
+use fr_block::types::{
+    block::{Block, BlockHeader, BlockHeaderError},
+    extrinsics::ExtrinsicsError,
 };
 use fr_codec::prelude::*;
 use fr_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
@@ -25,9 +22,9 @@ use fr_extrinsics::validation::{
 };
 use fr_state::{
     error::StateManagerError,
-    manager::StateManager,
     types::{SlotSealer, Timeslot},
 };
+use fr_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::try_join;
@@ -67,28 +64,22 @@ pub enum BlockImportError {
 }
 
 pub struct BlockImporter {
-    state_manager: Arc<StateManager>,
-    header_db: Arc<BlockHeaderDB>,
+    node_storage: Arc<NodeStorage>,
     best_header: BlockHeader,
     imported_block: Block,
 }
 
 impl BlockImporter {
-    pub fn new(
-        state_manager: Arc<StateManager>,
-        header_db: Arc<BlockHeaderDB>,
-        best_header: Option<BlockHeader>,
-    ) -> Self {
+    pub fn new(node_storage: Arc<NodeStorage>, best_header: Option<BlockHeader>) -> Self {
         Self {
-            state_manager,
-            header_db,
+            node_storage,
             best_header: best_header.unwrap_or_default(),
             imported_block: Block::default(),
         }
     }
 
     pub async fn import_block(&mut self, block: Block) -> Result<(), BlockImportError> {
-        let best_header = self.header_db.get_best_header();
+        let best_header = self.node_storage.header_db().get_best_header();
         self.best_header = best_header;
         tracing::info!(
             "Block imported. Parent hash: {}",
@@ -112,7 +103,11 @@ impl BlockImporter {
 
     /// Note: Currently, each STF validates Xt types as well.
     async fn validate_xts(&self) -> Result<(), BlockImportError> {
-        let prior_timeslot = self.state_manager.get_timeslot_clean().await?;
+        let prior_timeslot = self
+            .node_storage
+            .state_manager()
+            .get_timeslot_clean()
+            .await?;
         let curr_timeslot_index = self.imported_block.header.timeslot_index();
 
         // Clone necessary data to spawn async tasks
@@ -123,11 +118,11 @@ impl BlockImporter {
         let assurances = self.imported_block.extrinsics.assurances.clone();
         let disputes = self.imported_block.extrinsics.disputes.clone();
 
-        let tickets_validator = TicketsXtValidator::new(self.state_manager.clone());
-        let preimages_validator = PreimagesXtValidator::new(self.state_manager.clone());
-        let guarantees_validator = GuaranteesXtValidator::new(self.state_manager.clone());
-        let assurances_validator = AssurancesXtValidator::new(self.state_manager.clone());
-        let disputes_validator = DisputesXtValidator::new(self.state_manager.clone());
+        let tickets_validator = TicketsXtValidator::new(self.node_storage.state_manager());
+        let preimages_validator = PreimagesXtValidator::new(self.node_storage.state_manager());
+        let guarantees_validator = GuaranteesXtValidator::new(self.node_storage.state_manager());
+        let assurances_validator = AssurancesXtValidator::new(self.node_storage.state_manager());
+        let disputes_validator = DisputesXtValidator::new(self.node_storage.state_manager());
 
         let tickets_jh = spawn_timed("validate_tickets", async move {
             tickets_validator.validate(&tickets).await
@@ -174,17 +169,21 @@ impl BlockImporter {
     async fn get_post_states(
         &self,
     ) -> Result<(SlotSealer, BandersnatchPubKey, Hash32), BlockImportError> {
-        let curr_safrole = self.state_manager.get_safrole().await?;
+        let curr_safrole = self.node_storage.state_manager().get_safrole().await?;
         let curr_timeslot = Timeslot::new(self.imported_block.header.timeslot_index());
         let curr_slot_sealer = curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot);
 
-        let curr_active_set = self.state_manager.get_active_set().await?;
+        let curr_active_set = self.node_storage.state_manager().get_active_set().await?;
         let curr_author_index = self.imported_block.header.author_index();
         let curr_author_bandersnatch_key = curr_active_set
             .get_validator_bandersnatch_key(curr_author_index)
             .ok_or(BlockImportError::InvalidAuthorIndex)?;
 
-        let curr_epoch_entropy = self.state_manager.get_epoch_entropy().await?;
+        let curr_epoch_entropy = self
+            .node_storage
+            .state_manager()
+            .get_epoch_entropy()
+            .await?;
         let curr_entropy_3 = curr_epoch_entropy.third_history();
 
         Ok((
@@ -299,7 +298,7 @@ impl BlockImporter {
     }
 
     async fn run_state_transition(&self) -> Result<Hash32, BlockImportError> {
-        let executor = BlockExecutor::new(self.state_manager.clone());
+        let executor = BlockExecutor::new(self.node_storage.state_manager());
         let output = executor.run_state_transition(&self.imported_block).await?;
         executor
             .accumulate_entropy(&self.imported_block.header.vrf_signature())
@@ -312,7 +311,10 @@ impl BlockImporter {
             )
             .await?;
         // TODO: additional validation on output
-        self.state_manager.commit_dirty_cache().await?;
-        Ok(self.state_manager.merkle_root())
+        self.node_storage
+            .state_manager()
+            .commit_dirty_cache()
+            .await?;
+        Ok(self.node_storage.state_manager().merkle_root())
     }
 }

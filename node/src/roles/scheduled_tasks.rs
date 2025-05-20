@@ -26,24 +26,25 @@ pub async fn extend_chain(
     new_timeslot: &Timeslot,
 ) -> Result<(), ChainExtensionError> {
     if RoleManager::is_author_of_slot(
-        jam_node.state_manager.clone(),
+        jam_node.storage.state_manager(),
         jam_node.local_node_info.clone(),
         new_timeslot,
     )
     .await?
     {
         tracing::info!("✍️ Role: Author");
-        let best_header = jam_node.header_db.get_best_header();
+        let best_header = jam_node.storage.header_db().get_best_header();
         let mut author = BlockAuthor::new(
             jam_node
                 .curr_epoch_validator_index
                 .expect("Epoch validator index should be set"),
             jam_node.local_node_info.clone(),
-            jam_node.state_manager.clone(),
+            jam_node.storage.state_manager(),
             best_header,
         )?;
 
-        let (new_block, post_state_root) = author.author_block(jam_node.header_db.clone()).await?;
+        let (new_block, post_state_root) =
+            author.author_block(jam_node.storage.header_db()).await?;
         tracing::info!(
             "🎁 Authored a new block:\nHeader: {}\nXts: {:?} post state root: {}",
             new_block.header,

@@ -17,6 +17,13 @@ pub struct NodeStorage {
 }
 
 impl NodeStorage {
+    pub fn new(state_manager: Arc<StateManager>, header_db: Arc<BlockHeaderDB>) -> Self {
+        Self {
+            state_manager,
+            header_db,
+        }
+    }
+
     pub fn state_manager(&self) -> Arc<StateManager> {
         self.state_manager.clone()
     }
