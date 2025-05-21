@@ -18,12 +18,27 @@ pub enum NodeRole {
 pub trait CeStream {
     const INITIATOR_ROLE: NodeRole;
     const ACCEPTOR_ROLE: NodeRole;
+    const CE_STREAM_KIND: CeStreamKind;
 
     type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode + Send;
     type Storage: NodeServerTrait + Sync;
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
+
+    async fn send_ce_request(
+        send_stream: &mut quinn::SendStream,
+        args: Self::InitArgs,
+    ) -> Result<(), NetworkError> {
+        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
+        let stream_kind_byte = vec![Self::CE_STREAM_KIND as u8];
+        send_stream.write_all(&stream_kind_byte).await?;
+        // Send a request
+        send_stream.write_all(&args.encode()?).await?;
+        // Close the stream
+        send_stream.finish()?;
+        Ok(())
+    }
 
     async fn process(
         storage: &Self::Storage,
@@ -66,6 +81,7 @@ pub struct BlockRequest;
 impl CeStream for BlockRequest {
     const INITIATOR_ROLE: NodeRole = NodeRole::Node;
     const ACCEPTOR_ROLE: NodeRole = NodeRole::Node;
+    const CE_STREAM_KIND: CeStreamKind = CeStreamKind::BlockRequest;
 
     type InitArgs = BlockRequestInitArgs;
     type RespArgs = BlockRequestRespArgs;
@@ -73,15 +89,7 @@ impl CeStream for BlockRequest {
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
         let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
-
-        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
-        let stream_kind_byte = vec![CeStreamKind::BlockRequest as u8];
-        send_stream.write_all(&stream_kind_byte).await?;
-
-        // Send a request
-        send_stream.write_all(&args.encode()?).await?;
-        // Close the stream
-        send_stream.finish()?;
+        Self::send_ce_request(&mut send_stream, args).await?;
 
         match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
