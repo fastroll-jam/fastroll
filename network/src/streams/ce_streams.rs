@@ -14,6 +14,33 @@ pub enum NodeRole {
     Auditor,
 }
 
+mod ce_stream_utils {
+    use super::*;
+
+    pub(super) async fn send_ce_request<T: CeStream>(
+        send_stream: &mut quinn::SendStream,
+        args: T::InitArgs,
+    ) -> Result<(), NetworkError> {
+        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
+        let stream_kind_byte = vec![T::CE_STREAM_KIND as u8];
+        send_stream.write_all(&stream_kind_byte).await?;
+        // Send a request
+        send_stream.write_all(&args.encode()?).await?;
+        // Close the stream
+        send_stream.finish()?;
+        tracing::info!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
+        Ok(())
+    }
+
+    pub(super) async fn respond<T: CeStream + ?Sized>(
+        send_stream: &mut quinn::SendStream,
+        args: T::RespArgs,
+    ) -> Result<(), NetworkError> {
+        send_stream.write_all(args.encode()?.as_slice()).await?;
+        Ok(())
+    }
+}
+
 #[async_trait]
 pub trait CeStream {
     const INITIATOR_ROLE: NodeRole;
@@ -26,33 +53,10 @@ pub trait CeStream {
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
 
-    async fn send_ce_request(
-        send_stream: &mut quinn::SendStream,
-        args: Self::InitArgs,
-    ) -> Result<(), NetworkError> {
-        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
-        let stream_kind_byte = vec![Self::CE_STREAM_KIND as u8];
-        send_stream.write_all(&stream_kind_byte).await?;
-        // Send a request
-        send_stream.write_all(&args.encode()?).await?;
-        // Close the stream
-        send_stream.finish()?;
-        tracing::info!("[CE128] Sent block request");
-        Ok(())
-    }
-
     async fn process(
         storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> Result<Self::RespArgs, NetworkError>;
-
-    async fn respond(
-        send_stream: &mut quinn::SendStream,
-        args: Self::RespArgs,
-    ) -> Result<(), NetworkError> {
-        send_stream.write_all(args.encode()?.as_slice()).await?;
-        Ok(())
-    }
 
     async fn process_and_respond(
         send_stream: &mut quinn::SendStream,
@@ -60,7 +64,7 @@ pub trait CeStream {
         init_args: Self::InitArgs,
     ) -> Result<(), NetworkError> {
         let resp_args = Self::process(storage, init_args).await?;
-        Self::respond(send_stream, resp_args).await
+        ce_stream_utils::respond::<Self>(send_stream, resp_args).await
     }
 }
 
@@ -90,7 +94,7 @@ impl CeStream for BlockRequest {
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
         let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
-        Self::send_ce_request(&mut send_stream, args).await?;
+        ce_stream_utils::send_ce_request::<Self>(&mut send_stream, args).await?;
         match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
                 let mut bytes: &[u8] = &chunk.bytes;
