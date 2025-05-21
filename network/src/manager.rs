@@ -12,7 +12,7 @@ use crate::{
 };
 use core::net::SocketAddr;
 use dashmap::DashMap;
-use fr_block::types::block::BlockHeader;
+use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
 use fr_storage::node_storage::NodeStorage;
@@ -76,6 +76,7 @@ impl NetworkManager {
         storage: Arc<NodeStorage>,
         incoming_conn: quinn::Incoming,
         all_peers: Arc<AllValidatorPeers>,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         let conn = incoming_conn.await?;
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
@@ -98,6 +99,7 @@ impl NetworkManager {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();
             let conn_cloned = conn.clone();
+            let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
@@ -128,6 +130,7 @@ impl NetworkManager {
                             send_stream,
                             recv_stream,
                             mpsc_recv,
+                            block_import_mpsc_sender_cloned,
                         );
                     }
                     StreamKind::CE(stream_kind) => {
@@ -180,7 +183,10 @@ impl NetworkManager {
     }
 
     /// Connect to all network peers if the local node is the preferred initiator.
-    pub async fn connect_to_peers(&self) -> Result<(), NetworkError> {
+    pub async fn connect_to_peers(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
 
@@ -196,12 +202,14 @@ impl NetworkManager {
                 let all_peers_cloned = self.all_validator_peers.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
                 let peer_key_cloned = peer.ed25519_key.clone();
+                let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
                 let jh = tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
                         peer_socket_addr_cloned,
                         &peer_key_cloned,
+                        block_import_mpsc_sender_cloned,
                     )
                     .await
                 });
@@ -215,7 +223,10 @@ impl NetworkManager {
     }
 
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
-    pub async fn connect_to_all_peers(&self) -> Result<(), NetworkError> {
+    pub async fn connect_to_all_peers(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
 
@@ -227,12 +238,14 @@ impl NetworkManager {
                 let all_peers_cloned = self.all_validator_peers.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
                 let peer_key_cloned = peer.ed25519_key.clone();
+                let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
                 let jh = tokio::spawn(async move {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
                         peer_socket_addr_cloned,
                         &peer_key_cloned,
+                        block_import_mpsc_sender_cloned,
                     )
                     .await
                 });
@@ -260,6 +273,7 @@ impl NetworkManager {
         all_peers: Arc<AllValidatorPeers>,
         peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         let conn = endpoint.connect(peer_addr, peer_key).await?;
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
@@ -291,7 +305,14 @@ impl NetworkManager {
             UpStreamHandle::new(stream_kind, mpsc_send),
         )?;
 
-        UpStreamHandler::handle_up_stream(conn, stream_kind, send_stream, recv_stream, mpsc_recv);
+        UpStreamHandler::handle_up_stream(
+            conn,
+            stream_kind,
+            send_stream,
+            recv_stream,
+            mpsc_recv,
+            block_import_mpsc_sender,
+        );
         Ok(())
     }
 

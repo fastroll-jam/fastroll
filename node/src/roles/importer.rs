@@ -27,7 +27,7 @@ use fr_state::{
 use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::try_join;
+use tokio::{sync::mpsc, try_join};
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
@@ -65,6 +65,24 @@ pub enum BlockImportError {
 
 pub struct BlockImporter;
 impl BlockImporter {
+    pub async fn run_block_importer(
+        storage: Arc<NodeStorage>,
+        mut block_import_mpsc_recv: mpsc::Receiver<Block>,
+    ) {
+        while let Some(block) = block_import_mpsc_recv.recv().await {
+            match Self::import_block(storage.clone(), block).await {
+                Ok(post_state_root) => {
+                    tracing::info!(
+                        "✅ Block validated successfully: {post_state_root}"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Block Import Error: {e}")
+                }
+            }
+        }
+    }
+
     pub async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
