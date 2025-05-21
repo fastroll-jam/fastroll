@@ -18,9 +18,10 @@ mod ce_stream_utils {
     use super::*;
 
     pub(super) async fn send_ce_request<T: CeStream>(
-        send_stream: &mut quinn::SendStream,
+        conn: quinn::Connection,
         args: T::InitArgs,
-    ) -> Result<(), NetworkError> {
+    ) -> Result<quinn::RecvStream, NetworkError> {
+        let (mut send_stream, recv_stream) = conn.open_bi().await?;
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
         let stream_kind_byte = vec![T::CE_STREAM_KIND as u8];
         send_stream.write_all(&stream_kind_byte).await?;
@@ -29,7 +30,7 @@ mod ce_stream_utils {
         // Close the stream
         send_stream.finish()?;
         tracing::info!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
-        Ok(())
+        Ok(recv_stream)
     }
 
     pub(super) async fn respond<T: CeStream + ?Sized>(
@@ -49,7 +50,10 @@ pub trait CeStream {
 
     type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode + Send;
+    type RespType;
     type Storage: NodeServerTrait + Sync;
+
+    fn decode_response(bytes: &mut &[u8]) -> Self::RespType;
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
 
@@ -90,18 +94,23 @@ impl CeStream for BlockRequest {
 
     type InitArgs = BlockRequestInitArgs;
     type RespArgs = BlockRequestRespArgs;
+    type RespType = Vec<Block>;
     type Storage = NodeStorage;
 
+    fn decode_response(bytes: &mut &[u8]) -> Self::RespType {
+        let mut blocks = vec![];
+        while let Ok(block) = Block::decode(bytes) {
+            blocks.push(block);
+        }
+        blocks
+    }
+
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
-        let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
-        ce_stream_utils::send_ce_request::<Self>(&mut send_stream, args).await?;
+        let mut recv_stream = ce_stream_utils::send_ce_request::<Self>(conn, args).await?;
         match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
                 let mut bytes: &[u8] = &chunk.bytes;
-                let mut blocks = vec![];
-                while let Ok(block) = Block::decode(&mut bytes) {
-                    blocks.push(block);
-                }
+                let blocks = Self::decode_response(&mut bytes);
                 tracing::info!("[CE128] Received blocks. Length: {}", blocks.len());
             }
             Ok(None) => {
