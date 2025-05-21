@@ -96,6 +96,7 @@ impl NetworkManager {
         while let Ok((mut send_stream, mut recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();
+            let conn_cloned = conn.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
@@ -121,6 +122,7 @@ impl NetworkManager {
                             tracing::error!("Failed to insert upstream handle: {e}");
                         }
                         UpStreamHandler::handle_up_stream(
+                            conn_cloned,
                             stream_kind,
                             send_stream,
                             recv_stream,
@@ -131,7 +133,7 @@ impl NetworkManager {
                         tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
                         match stream_kind {
                             CeStreamKind::BlockRequest => {
-                                const BLOCK_REQUEST_INIT_ARGS_SIZE: usize = 37;
+                                const BLOCK_REQUEST_INIT_ARGS_SIZE: usize = 34;
                                 let mut init_args_buf = [0u8; BLOCK_REQUEST_INIT_ARGS_SIZE];
                                 if let Err(e) = recv_stream.read_exact(&mut init_args_buf).await {
                                     tracing::error!("Failed to read block request: {e}");
@@ -166,7 +168,6 @@ impl NetworkManager {
                         }
                     }
                 }
-                tracing::info!("🧨 Handling connection...");
             });
         }
         Ok(())
@@ -274,7 +275,7 @@ impl NetworkManager {
         // Store the opened connection handle
         all_peers.store_peer_connection_handle(
             &socket_addr,
-            PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default()),
+            PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
         )?;
         // Store the UP stream handle
         let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
@@ -284,7 +285,7 @@ impl NetworkManager {
             UpStreamHandle::new(stream_kind, mpsc_send),
         )?;
 
-        UpStreamHandler::handle_up_stream(stream_kind, send_stream, recv_stream, mpsc_recv);
+        UpStreamHandler::handle_up_stream(conn, stream_kind, send_stream, recv_stream, mpsc_recv);
         Ok(())
     }
 
