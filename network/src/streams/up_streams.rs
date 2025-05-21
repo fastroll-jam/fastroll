@@ -66,7 +66,7 @@ impl UpStreamHandler {
                         block_announcement.header_hash
                     );
                     // Request the block
-                    if let Err(e) = BlockRequest::initiate(
+                    if let Err(e) = BlockRequest::request(
                         conn_cloned,
                         BlockRequestInitArgs {
                             header_hash: block_announcement.header_hash,

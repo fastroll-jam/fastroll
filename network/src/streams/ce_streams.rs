@@ -37,6 +37,30 @@ mod ce_stream_utils {
         Ok(recv_stream)
     }
 
+    pub(super) async fn read_respond<T>(
+        recv_stream: &mut quinn::RecvStream,
+    ) -> Result<Option<T::RespType>, NetworkError>
+    where
+        T: CeStream + ?Sized,
+    {
+        let resp = match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+            Ok(Some(chunk)) => {
+                let mut bytes: &[u8] = &chunk.bytes;
+                tracing::info!("[{}] Received respond", T::CE_STREAM_KIND);
+                Some(T::decode_response(&mut bytes))
+            }
+            Ok(None) => {
+                tracing::warn!("[{}] Stream closed", T::CE_STREAM_KIND);
+                None
+            }
+            Err(e) => {
+                tracing::error!("[{}] Error receiving respond: {e}", T::CE_STREAM_KIND);
+                None
+            }
+        };
+        Ok(resp)
+    }
+
     pub(super) async fn respond<T>(
         send_stream: &mut quinn::SendStream,
         args: T::RespArgs,
@@ -60,22 +84,9 @@ pub trait CeStream {
     type RespType;
     type Storage: NodeServerTrait + Sync;
 
-    async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
+    async fn request(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
         let mut recv_stream = ce_stream_utils::open_stream_and_request::<Self>(conn, args).await?;
-        match recv_stream.read_chunk(CHUNK_SIZE, true).await {
-            Ok(Some(chunk)) => {
-                let mut bytes: &[u8] = &chunk.bytes;
-                let _resp = Self::decode_response(&mut bytes);
-                // TODO: handle response
-                tracing::info!("[{}] Received respond", Self::CE_STREAM_KIND);
-            }
-            Ok(None) => {
-                tracing::warn!("[{}] Stream closed", Self::CE_STREAM_KIND);
-            }
-            Err(e) => {
-                tracing::error!("[{}] Error receiving blocks: {e}", Self::CE_STREAM_KIND)
-            }
-        }
+        let _resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream).await?;
         Ok(())
     }
 
