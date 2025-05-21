@@ -5,5 +5,6 @@ edition.workspace = true
 
 [dependencies]
 fr-block = { workspace = true }
+fr-common = { workspace = true }
 fr-state = { workspace = true }
 thiserror = { workspace = true }

@@ -9,7 +9,7 @@ use fr_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
 use fr_state::{error::StateManagerError, types::Timeslot};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use fr_transition::{
     error::TransitionError,
     procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},

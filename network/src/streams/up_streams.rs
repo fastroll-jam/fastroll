@@ -1,6 +1,9 @@
 use crate::{
     error::NetworkError,
-    streams::stream_kinds::UpStreamKind,
+    streams::{
+        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
+        stream_kinds::UpStreamKind,
+    },
     types::{BlockAnnouncement, CHUNK_SIZE},
 };
 use fr_codec::prelude::*;
@@ -32,6 +35,7 @@ impl UpStreamHandle {
 pub struct UpStreamHandler;
 impl UpStreamHandler {
     pub fn handle_up_stream(
+        conn: quinn::Connection,
         stream_kind: UpStreamKind,
         send_stream: SendStream,
         recv_stream: RecvStream,
@@ -39,7 +43,7 @@ impl UpStreamHandler {
     ) {
         match stream_kind {
             UpStreamKind::BlockAnnouncement => {
-                tokio::spawn(async move { Self::handle_incoming_stream(recv_stream).await });
+                tokio::spawn(async move { Self::handle_incoming_stream(conn, recv_stream).await });
                 tokio::spawn(
                     async move { Self::handle_outgoing_stream(send_stream, mpsc_recv).await },
                 );
@@ -47,17 +51,33 @@ impl UpStreamHandler {
         }
     }
 
-    async fn handle_incoming_stream(mut recv_stream: RecvStream) {
+    async fn handle_incoming_stream(conn: quinn::Connection, mut recv_stream: RecvStream) {
         loop {
+            let conn_cloned = conn.clone();
             match recv_stream.read_chunk(CHUNK_SIZE, true).await {
                 Ok(Some(chunk)) => {
                     let mut bytes: &[u8] = &chunk.bytes;
                     let Ok(block_announcement) = BlockAnnouncement::decode(&mut bytes) else {
-                        tracing::error!("Failed to decode BlockAnnouncement");
+                        tracing::error!("[UP0] Failed to decode BlockAnnouncement");
                         continue;
                     };
-                    tracing::info!("Received Block Announcement:\n{block_announcement}");
-                    // TODO: send a block request to the author. connection handle required.
+                    tracing::info!(
+                        "[UP0] Received Block Announcement ({})",
+                        block_announcement.header_hash
+                    );
+                    // Request the block
+                    if let Err(e) = BlockRequest::initiate(
+                        conn_cloned,
+                        BlockRequestInitArgs {
+                            header_hash: block_announcement.header_hash,
+                            ascending_excl: false,
+                            max_blocks: 1,
+                        },
+                    )
+                    .await
+                    {
+                        tracing::error!("[UP0 | CE128] Block request failed: {e}");
+                    }
                 }
                 Ok(None) => {
                     tracing::warn!("[UP0] Stream closed");

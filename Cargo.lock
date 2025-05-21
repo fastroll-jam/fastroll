@@ -862,12 +862,13 @@ dependencies = [
 name = "fr-network"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "dashmap",
  "fr-block",
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "fr-state",
+ "fr-storage",
  "quinn",
  "rcgen",
  "rustls",
@@ -1010,6 +1011,7 @@ name = "fr-storage"
 version = "0.1.0"
 dependencies = [
  "fr-block",
+ "fr-common",
  "fr-state",
  "thiserror 2.0.12",
 ]

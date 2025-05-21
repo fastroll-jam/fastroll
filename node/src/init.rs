@@ -15,7 +15,7 @@ use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_state::{
     config::StateManagerConfig, manager::StateManager, test_utils::add_all_simple_state_entries,
 };
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::{error::Error, path::PathBuf, sync::Arc};
 
 fn init_storage(db_id: &str) -> Result<(BlockHeaderDB, StateManager, XtPool), Box<dyn Error>> {
@@ -93,7 +93,7 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
 
             // Load initial validator peers from the genesis validator set state
             node.network_manager()
-                .load_validator_peers(node.storage().state_manager(), socket_addr)
+                .load_validator_peers(node.storage(), socket_addr)
                 .await?;
             tracing::info!("Validator peers info loaded");
             Ok(node)

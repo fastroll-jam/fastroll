@@ -8,7 +8,7 @@ use fr_node::{
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
-use fr_storage::NodeStorage;
+use fr_storage::node_storage::NodeStorage;
 use std::{
     error::Error,
     net::{Ipv6Addr, SocketAddrV6},
@@ -43,7 +43,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
 
     // Load initial validator peers from the genesis validator set state
     node.network_manager()
-        .load_validator_peers(node.storage().state_manager(), socket_addr)
+        .load_validator_peers(node.storage(), socket_addr)
         .await?;
 
     Ok(node)

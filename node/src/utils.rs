@@ -9,7 +9,7 @@ where
     tokio::spawn(async move {
         let start = Instant::now();
         let result = fut.await;
-        tracing::info!(%task_name, "task completed in {:?} μs", start.elapsed().as_micros());
+        tracing::debug!(%task_name, "task completed in {:?} μs", start.elapsed().as_micros());
         result
     })
 }

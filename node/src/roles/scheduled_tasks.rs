@@ -5,6 +5,7 @@ use crate::{
         manager::{RoleManager, RoleManagerError},
     },
 };
+use fr_block::types::block::BlockHeaderError;
 use fr_network::error::NetworkError;
 use fr_state::types::Timeslot;
 use std::sync::Arc;
@@ -16,6 +17,8 @@ pub enum ChainExtensionError {
     NetworkError(#[from] NetworkError),
     #[error("RoleManagerError: {0}")]
     RoleManagerError(#[from] RoleManagerError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
     #[error("BlockAuthorError: {0}")]
     BlockAuthorError(#[from] BlockAuthorError),
 }
@@ -41,8 +44,9 @@ pub async fn extend_chain(
         )?;
 
         let (new_block, post_state_root) = author.author_block(jam_node.storage()).await?;
-        tracing::info!(
-            "🎁 Authored a new block:\nHeader: {}\nXts: {:?} post state root: {}",
+        tracing::info!("🎁 Authored a new block ({})", new_block.header.hash()?);
+        tracing::trace!(
+            "Header: {}\nXts: {:?} post state root: {}",
             new_block.header,
             new_block.extrinsics,
             post_state_root

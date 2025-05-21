@@ -3,10 +3,11 @@ use crate::{
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
     streams::{
-        ce_streams::{BlockRequest, BlockRequestInitArgs, BlockRequestRespArgs, CeStream},
+        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
         stream_kinds::{CeStreamKind, StreamKind, UpStreamKind},
         up_streams::{UpStreamHandle, UpStreamHandler},
     },
+    types::CHUNK_SIZE,
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -14,7 +15,7 @@ use dashmap::DashMap;
 use fr_block::types::block::BlockHeader;
 use fr_codec::prelude::*;
 use fr_crypto::types::{BandersnatchPubKey, Ed25519PubKey, ValidatorKey};
-use fr_state::manager::StateManager;
+use fr_storage::node_storage::NodeStorage;
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
@@ -46,18 +47,16 @@ impl NetworkManager {
 
     pub async fn load_validator_peers(
         &self,
-        state_manager: Arc<StateManager>,
+        storage: Arc<NodeStorage>,
         local_node_socket_addr: SocketAddrV6,
     ) -> Result<(), NetworkError> {
         // TODO: Predict validator set update on epoch progress
-        let past_set = state_manager.get_past_set().await?;
-        let active_set = state_manager.get_active_set().await?;
-        let staging_set = state_manager.get_staging_set().await?;
+        let effective_validators = storage.effective_validators().await?;
 
         let mut all_validator_peers = DashMap::new();
-        let prev_epoch_peers = validator_set_to_peers(past_set.0);
-        let curr_epoch_peers = validator_set_to_peers(active_set.0);
-        let next_epoch_peers = validator_set_to_peers(staging_set.0);
+        let prev_epoch_peers = validator_set_to_peers(effective_validators.past_set.0);
+        let curr_epoch_peers = validator_set_to_peers(effective_validators.active_set.0);
+        let next_epoch_peers = validator_set_to_peers(effective_validators.staging_set.0);
         all_validator_peers.extend(prev_epoch_peers);
         all_validator_peers.extend(curr_epoch_peers);
         all_validator_peers.extend(next_epoch_peers);
@@ -73,20 +72,8 @@ impl NetworkManager {
         Ok(())
     }
 
-    pub async fn run_as_server(&self) -> Result<(), NetworkError> {
-        tracing::info!("📡 Listening on {}", self.endpoint.local_addr()?);
-        // Accept incoming connections
-        let endpoint = self.endpoint.clone();
-        while let Some(conn) = endpoint.accept().await {
-            tracing::info!("Accepted connection from {}", conn.remote_address());
-            // Spawn an async task to handle the connection
-            let all_peers_cloned = self.all_validator_peers.clone();
-            tokio::spawn(async move { Self::handle_connection(conn, all_peers_cloned).await });
-        }
-        Ok(())
-    }
-
-    async fn handle_connection(
+    pub async fn handle_connection(
+        storage: Arc<NodeStorage>,
         incoming_conn: quinn::Incoming,
         all_peers: Arc<AllValidatorPeers>,
     ) -> Result<(), NetworkError> {
@@ -107,8 +94,10 @@ impl NetworkManager {
         )?;
 
         // TODO: Monitor connection closure
-        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
+        while let Ok((mut send_stream, mut recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
+            let storage_cloned = storage.clone();
+            let conn_cloned = conn.clone();
             tokio::spawn(async move {
                 let mut stream_kind_buf = [0u8; 1];
                 if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
@@ -134,6 +123,7 @@ impl NetworkManager {
                             tracing::error!("Failed to insert upstream handle: {e}");
                         }
                         UpStreamHandler::handle_up_stream(
+                            conn_cloned,
                             stream_kind,
                             send_stream,
                             recv_stream,
@@ -144,30 +134,38 @@ impl NetworkManager {
                         tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
                         match stream_kind {
                             CeStreamKind::BlockRequest => {
-                                const BLOCK_REQUEST_INIT_ARGS_SIZE: usize = 37;
-                                let mut init_args_buf = [0u8; BLOCK_REQUEST_INIT_ARGS_SIZE];
-                                if let Err(e) = recv_stream.read_exact(&mut init_args_buf).await {
-                                    tracing::error!("Failed to read block request: {e}");
-                                    return;
-                                }
+                                let mut init_args_bytes: &[u8] =
+                                    match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+                                        Ok(Some(chunk)) => &chunk.bytes.clone(),
+                                        Ok(None) => {
+                                            tracing::warn!("[CE128] Stream closed");
+                                            return;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "[CE128] Failed to read block request: {e}"
+                                            );
+                                            return;
+                                        }
+                                    };
 
-                                let _init_args = match BlockRequestInitArgs::decode(
-                                    &mut init_args_buf.as_slice(),
-                                ) {
-                                    Ok(init_args) => init_args,
-                                    Err(e) => {
-                                        tracing::error!(
-                                            "Failed decoding BlockRequestInitArgs: {e}"
-                                        );
-                                        return;
-                                    }
+                                let Ok(init_args) =
+                                    BlockRequestInitArgs::decode(&mut init_args_bytes)
+                                else {
+                                    tracing::error!(
+                                        "[CE128] Failed to decode BlockRequestInitArgs"
+                                    );
+                                    return;
                                 };
 
-                                if let Err(e) =
-                                    BlockRequest::respond(BlockRequestRespArgs { blocks: vec![] })
-                                        .await
+                                if let Err(e) = BlockRequest::process_and_respond(
+                                    &mut send_stream,
+                                    &storage_cloned,
+                                    init_args,
+                                )
+                                .await
                                 {
-                                    tracing::error!("Failed to respond to block request: {e}");
+                                    tracing::error!("[CE128] Failed to process Block Request: {e}");
                                 }
                             }
                             _ => {
@@ -176,7 +174,6 @@ impl NetworkManager {
                         }
                     }
                 }
-                tracing::info!("🧨 Handling connection...");
             });
         }
         Ok(())
@@ -284,7 +281,7 @@ impl NetworkManager {
         // Store the opened connection handle
         all_peers.store_peer_connection_handle(
             &socket_addr,
-            PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default()),
+            PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
         )?;
         // Store the UP stream handle
         let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
@@ -294,7 +291,7 @@ impl NetworkManager {
             UpStreamHandle::new(stream_kind, mpsc_send),
         )?;
 
-        UpStreamHandler::handle_up_stream(stream_kind, send_stream, recv_stream, mpsc_recv);
+        UpStreamHandler::handle_up_stream(conn, stream_kind, send_stream, recv_stream, mpsc_recv);
         Ok(())
     }
 
