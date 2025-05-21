@@ -4,6 +4,7 @@ use fr_block::types::block::Block;
 use fr_codec::prelude::*;
 use fr_common::Hash32;
 use fr_storage::{node_storage::NodeStorage, server_trait::NodeServerTrait};
+use std::fmt::Debug;
 
 pub enum NodeRole {
     Node,
@@ -14,6 +15,64 @@ pub enum NodeRole {
     Auditor,
 }
 
+mod ce_stream_utils {
+    use super::*;
+
+    pub(super) async fn open_stream_and_request<T>(
+        conn: quinn::Connection,
+        args: T::InitArgs,
+    ) -> Result<quinn::RecvStream, NetworkError>
+    where
+        T: CeStream + ?Sized,
+    {
+        let (mut send_stream, recv_stream) = conn.open_bi().await?;
+        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
+        let stream_kind_byte = vec![T::CE_STREAM_KIND as u8];
+        send_stream.write_all(&stream_kind_byte).await?;
+        // Send a request
+        send_stream.write_all(&args.encode()?).await?;
+        // Close the stream
+        send_stream.finish()?;
+        tracing::info!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
+        Ok(recv_stream)
+    }
+
+    pub(super) async fn read_respond<T>(
+        recv_stream: &mut quinn::RecvStream,
+    ) -> Result<Option<T::RespType>, NetworkError>
+    where
+        T: CeStream + ?Sized,
+    {
+        let resp = match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+            Ok(Some(chunk)) => {
+                let mut bytes: &[u8] = &chunk.bytes;
+                tracing::info!("[{}] Received respond", T::CE_STREAM_KIND);
+                Some(T::decode_response(&mut bytes))
+            }
+            Ok(None) => {
+                tracing::warn!("[{}] Stream closed", T::CE_STREAM_KIND);
+                None
+            }
+            Err(e) => {
+                tracing::error!("[{}] Error receiving respond: {e}", T::CE_STREAM_KIND);
+                None
+            }
+        };
+        Ok(resp)
+    }
+
+    pub(super) async fn respond<T>(
+        send_stream: &mut quinn::SendStream,
+        args: T::RespArgs,
+    ) -> Result<(), NetworkError>
+    where
+        T: CeStream + ?Sized,
+    {
+        send_stream.write_all(args.encode()?.as_slice()).await?;
+        Ok(())
+    }
+}
+
 #[async_trait]
 pub trait CeStream {
     const INITIATOR_ROLE: NodeRole;
@@ -22,37 +81,21 @@ pub trait CeStream {
 
     type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode + Send;
+    type RespType;
     type Storage: NodeServerTrait + Sync;
 
-    async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
-
-    async fn send_ce_request(
-        send_stream: &mut quinn::SendStream,
-        args: Self::InitArgs,
-    ) -> Result<(), NetworkError> {
-        // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
-        let stream_kind_byte = vec![Self::CE_STREAM_KIND as u8];
-        send_stream.write_all(&stream_kind_byte).await?;
-        // Send a request
-        send_stream.write_all(&args.encode()?).await?;
-        // Close the stream
-        send_stream.finish()?;
-        tracing::info!("[CE128] Sent block request");
+    async fn request(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
+        let mut recv_stream = ce_stream_utils::open_stream_and_request::<Self>(conn, args).await?;
+        let _resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream).await?;
         Ok(())
     }
+
+    fn decode_response(bytes: &mut &[u8]) -> Self::RespType;
 
     async fn process(
         storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> Result<Self::RespArgs, NetworkError>;
-
-    async fn respond(
-        send_stream: &mut quinn::SendStream,
-        args: Self::RespArgs,
-    ) -> Result<(), NetworkError> {
-        send_stream.write_all(args.encode()?.as_slice()).await?;
-        Ok(())
-    }
 
     async fn process_and_respond(
         send_stream: &mut quinn::SendStream,
@@ -60,7 +103,7 @@ pub trait CeStream {
         init_args: Self::InitArgs,
     ) -> Result<(), NetworkError> {
         let resp_args = Self::process(storage, init_args).await?;
-        Self::respond(send_stream, resp_args).await
+        ce_stream_utils::respond::<Self>(send_stream, resp_args).await
     }
 }
 
@@ -86,28 +129,15 @@ impl CeStream for BlockRequest {
 
     type InitArgs = BlockRequestInitArgs;
     type RespArgs = BlockRequestRespArgs;
+    type RespType = Vec<Block>;
     type Storage = NodeStorage;
 
-    async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
-        let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
-        Self::send_ce_request(&mut send_stream, args).await?;
-        match recv_stream.read_chunk(CHUNK_SIZE, true).await {
-            Ok(Some(chunk)) => {
-                let mut bytes: &[u8] = &chunk.bytes;
-                let mut blocks = vec![];
-                while let Ok(block) = Block::decode(&mut bytes) {
-                    blocks.push(block);
-                }
-                tracing::info!("[CE128] Received blocks. Length: {}", blocks.len());
-            }
-            Ok(None) => {
-                tracing::warn!("[CE128] Stream closed");
-            }
-            Err(e) => {
-                tracing::error!("[CE128] Error receiving blocks: {e}")
-            }
+    fn decode_response(bytes: &mut &[u8]) -> Self::RespType {
+        let mut blocks = vec![];
+        while let Ok(block) = Block::decode(bytes) {
+            blocks.push(block);
         }
-        Ok(())
+        blocks
     }
 
     async fn process(

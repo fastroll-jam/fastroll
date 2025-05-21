@@ -124,7 +124,7 @@ impl BlockAuthor {
         // Note: Also some STFs can be run asynchronously after committing the header.
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
-        tracing::info!("Post State Root: {}", &post_state_root);
+        tracing::debug!("Post State Root: {}", &post_state_root);
 
         Ok((self.new_block.clone(), post_state_root))
     }
@@ -145,7 +145,7 @@ impl BlockAuthor {
             .await?;
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
-        tracing::info!("Post State Root: {}", &post_state_root);
+        tracing::debug!("Post State Root: {}", &post_state_root);
         Ok((self.new_block.clone(), post_state_root))
     }
 
@@ -163,9 +163,9 @@ impl BlockAuthor {
     /// Sets header fields required for running STFs in advance.
     fn prelude(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
         let parent_hash = storage.header_db().get_best_header().hash()?;
-        tracing::info!("Parent header hash: {}", &parent_hash);
+        tracing::debug!("Parent header hash: {}", &parent_hash);
         let prior_state_root = storage.state_manager().merkle_root();
-        tracing::info!("Prior state root: {}", &prior_state_root);
+        tracing::debug!("Prior state root: {}", &prior_state_root);
 
         self.new_block.header.set_parent_hash(parent_hash);
         self.new_block.header.set_prior_state_root(prior_state_root);
@@ -182,9 +182,9 @@ impl BlockAuthor {
     /// Note: test-only
     fn prelude_for_test(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
         let parent_hash = storage.header_db().get_best_header().hash()?;
-        tracing::info!("Parent header hash: {}", &parent_hash);
+        tracing::debug!("Parent header hash: {}", &parent_hash);
         let prior_state_root = storage.state_manager().merkle_root();
-        tracing::info!("Prior state root: {}", &prior_state_root);
+        tracing::debug!("Prior state root: {}", &prior_state_root);
         self.new_block.header.set_parent_hash(parent_hash);
         self.new_block.header.set_prior_state_root(prior_state_root);
         self.new_block

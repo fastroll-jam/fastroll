@@ -1,4 +1,5 @@
 use crate::error::NetworkError;
+use std::fmt::{Display, Formatter};
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -85,6 +86,12 @@ impl TryFrom<u8> for CeStreamKind {
             145 => Ok(CeStreamKind::JudgmentPublication),
             _ => Err(NetworkError::InvalidCeStreamKind(value)),
         }
+    }
+}
+
+impl Display for CeStreamKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CE{:?}", *self as u8)
     }
 }
 
