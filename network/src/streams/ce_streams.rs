@@ -20,7 +20,7 @@ pub trait CeStream {
     const ACCEPTOR_ROLE: NodeRole;
 
     type InitArgs: JamEncode + JamDecode + Send;
-    type RespArgs: JamEncode + JamDecode;
+    type RespArgs: JamEncode + JamDecode + Send;
     type Storage: NodeServerTrait + Sync;
 
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError>;
@@ -30,14 +30,21 @@ pub trait CeStream {
         init_args: Self::InitArgs,
     ) -> Result<Self::RespArgs, NetworkError>;
 
-    async fn respond(args: Self::RespArgs) -> Result<(), NetworkError>;
+    async fn respond(
+        send_stream: &mut quinn::SendStream,
+        args: Self::RespArgs,
+    ) -> Result<(), NetworkError> {
+        send_stream.write_all(args.encode()?.as_slice()).await?;
+        Ok(())
+    }
 
     async fn process_and_respond(
+        send_stream: &mut quinn::SendStream,
         storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> Result<(), NetworkError> {
         let resp_args = Self::process(storage, init_args).await?;
-        Self::respond(resp_args).await
+        Self::respond(send_stream, resp_args).await
     }
 }
 
@@ -104,11 +111,5 @@ impl CeStream for BlockRequest {
             init_args.max_blocks,
         );
         Ok(Self::RespArgs { blocks })
-    }
-
-    async fn respond(args: Self::RespArgs) -> Result<(), NetworkError> {
-        let _data = args.encode()?;
-        // TODO: send respond
-        Ok(())
     }
 }

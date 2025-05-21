@@ -93,7 +93,7 @@ impl NetworkManager {
         )?;
 
         // TODO: Monitor connection closure
-        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
+        while let Ok((mut send_stream, mut recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();
             tokio::spawn(async move {
@@ -150,9 +150,12 @@ impl NetworkManager {
                                     }
                                 };
 
-                                if let Err(e) =
-                                    BlockRequest::process_and_respond(&storage_cloned, init_args)
-                                        .await
+                                if let Err(e) = BlockRequest::process_and_respond(
+                                    &mut send_stream,
+                                    &storage_cloned,
+                                    init_args,
+                                )
+                                .await
                                 {
                                     tracing::error!("Failed to process Block Request: {e}");
                                 }
