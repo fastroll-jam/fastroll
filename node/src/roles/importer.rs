@@ -10,7 +10,7 @@ use fr_block::types::{
     extrinsics::ExtrinsicsError,
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -39,8 +39,8 @@ pub enum BlockImportError {
     InvalidFallbackAuthorKey,
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
-    #[error("Block header contains invalid parent hash")]
-    InvalidParentHash,
+    #[error("Block header contains invalid parent hash. Parent hash: {0}, Best header hash: {1}")]
+    InvalidParentHash(String, String),
     #[error("Block header contains timeslot that is later than the current system time")]
     TimeslotInFuture,
     #[error("Block header contains timeslot earlier than the parent header")]
@@ -72,9 +72,7 @@ impl BlockImporter {
         while let Some(block) = block_import_mpsc_recv.recv().await {
             match Self::import_block(storage.clone(), block).await {
                 Ok(post_state_root) => {
-                    tracing::info!(
-                        "✅ Block validated successfully: {post_state_root}"
-                    );
+                    tracing::info!("✅ Block validated successfully: {post_state_root}");
                 }
                 Err(e) => {
                     tracing::error!("Block Import Error: {e}")
@@ -220,8 +218,13 @@ impl BlockImporter {
         best_header: &BlockHeader,
         block: &Block,
     ) -> Result<(), BlockImportError> {
-        if block.header.parent_hash() != &best_header.hash()? {
-            return Err(BlockImportError::InvalidParentHash);
+        let parent_hash = block.header.parent_hash();
+        let best_header_hash = best_header.hash()?;
+        if parent_hash != &best_header_hash {
+            return Err(BlockImportError::InvalidParentHash(
+                parent_hash.to_hex(),
+                best_header_hash.to_hex(),
+            ));
         };
         Ok(())
     }
