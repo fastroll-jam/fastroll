@@ -43,9 +43,9 @@ pub trait CeStream {
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct BlockRequestInitArgs {
-    header_hash: Hash32,
-    ascending_excl: bool,
-    max_blocks: u32,
+    pub header_hash: Hash32,
+    pub ascending_excl: bool,
+    pub max_blocks: u32,
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
