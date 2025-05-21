@@ -149,11 +149,13 @@ impl CeStream for BlockRequest {
         storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> Result<Self::RespArgs, NetworkError> {
-        let blocks = storage.get_blocks(
-            init_args.header_hash,
-            init_args.ascending_excl,
-            init_args.max_blocks,
-        );
+        let blocks = storage
+            .get_blocks(
+                init_args.header_hash,
+                init_args.ascending_excl,
+                init_args.max_blocks,
+            )
+            .await?;
         Ok(Self::RespArgs { blocks })
     }
 }

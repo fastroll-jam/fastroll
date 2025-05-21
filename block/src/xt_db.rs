@@ -36,8 +36,14 @@ impl XtDB {
         Ok(self.db.cf_handle()?)
     }
 
-    /// Get a block header by its hash from the cache or the DB.
+    /// Get an extrinsics entry by its hash from the cache or the DB.
     pub async fn get_xt(&self, xt_hash: &Hash32) -> Result<Option<Extrinsics>, XtDBError> {
         Ok(self.db.get_entry(xt_hash).await?)
+    }
+
+    /// Set an extrinsics entry.
+    pub async fn set_xt(&self, xt_hash: &Hash32, xts: Extrinsics) -> Result<(), XtDBError> {
+        self.db.put_entry(xt_hash, xts).await?;
+        Ok(())
     }
 }

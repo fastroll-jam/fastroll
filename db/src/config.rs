@@ -3,6 +3,7 @@ use rocksdb::{ColumnFamilyDescriptor, Options};
 pub const STATE_CF_NAME: &str = "state_cf";
 pub const MERKLE_CF_NAME: &str = "merkle_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
+pub const XT_CF_NAME: &str = "xt_cf";
 
 pub struct RocksDBOpts {
     pub opts: Options,
@@ -24,6 +25,7 @@ impl RocksDBOpts {
             ColumnFamilyDescriptor::new(STATE_CF_NAME, Options::default()),
             ColumnFamilyDescriptor::new(MERKLE_CF_NAME, Options::default()),
             ColumnFamilyDescriptor::new(HEADER_CF_NAME, Options::default()),
+            ColumnFamilyDescriptor::new(XT_CF_NAME, Options::default()),
         ]
     }
 

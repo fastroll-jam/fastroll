@@ -5,7 +5,7 @@ use crate::{
         manager::{RoleManager, RoleManagerError},
     },
 };
-use fr_block::types::block::BlockHeaderError;
+use fr_block::{header_db::BlockHeaderDBError, types::block::BlockHeaderError, xt_db::XtDBError};
 use fr_network::error::NetworkError;
 use fr_state::types::Timeslot;
 use std::sync::Arc;
@@ -19,6 +19,10 @@ pub enum ChainExtensionError {
     RoleManagerError(#[from] RoleManagerError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("XtDBError: {0}")]
+    XtDBError(#[from] XtDBError),
     #[error("BlockAuthorError: {0}")]
     BlockAuthorError(#[from] BlockAuthorError),
 }
@@ -52,11 +56,26 @@ pub async fn extend_chain(
             post_state_root
         );
 
+        let storage = jam_node.storage();
+
+        // TODO: proper block finalization
+        let new_header = new_block.header;
+        storage.header_db().set_best_header(new_header.clone());
+        storage
+            .header_db()
+            .commit_header(new_header.clone())
+            .await?;
+
+        storage
+            .xt_db()
+            .set_xt(new_header.extrinsic_hash(), new_block.extrinsics)
+            .await?;
+
         // Note: For simplicity, announce the block to all peers in the network.
         // TODO: Announce to neighbors in the grid structure as per JAMNP
         jam_node
             .network_manager()
-            .announce_block_to_all_peers(&new_block.header)
+            .announce_block_to_all_peers(&new_header)
             .await?;
 
         Ok(())
