@@ -30,7 +30,6 @@ pub trait CeStream {
         send_stream: &mut quinn::SendStream,
         args: Self::InitArgs,
     ) -> Result<(), NetworkError> {
-        let stream_id = send_stream.id();
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
         let stream_kind_byte = vec![Self::CE_STREAM_KIND as u8];
         send_stream.write_all(&stream_kind_byte).await?;
@@ -38,7 +37,7 @@ pub trait CeStream {
         send_stream.write_all(&args.encode()?).await?;
         // Close the stream
         send_stream.finish()?;
-        tracing::info!("[CE128] Sent block request | {stream_id}");
+        tracing::info!("[CE128] Sent block request");
         Ok(())
     }
 
@@ -92,7 +91,6 @@ impl CeStream for BlockRequest {
     async fn initiate(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
         let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
         Self::send_ce_request(&mut send_stream, args).await?;
-        let stream_id = recv_stream.id();
         match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
                 let mut bytes: &[u8] = &chunk.bytes;
@@ -100,16 +98,13 @@ impl CeStream for BlockRequest {
                 while let Ok(block) = Block::decode(&mut bytes) {
                     blocks.push(block);
                 }
-                tracing::info!(
-                    "[CE128] Received blocks. Length: {} | {stream_id}",
-                    blocks.len()
-                );
+                tracing::info!("[CE128] Received blocks. Length: {}", blocks.len());
             }
             Ok(None) => {
-                tracing::warn!("[CE128] Stream closed | {stream_id}");
+                tracing::warn!("[CE128] Stream closed");
             }
             Err(e) => {
-                tracing::error!("[CE128] Error receiving blocks: {e} | {stream_id}")
+                tracing::error!("[CE128] Error receiving blocks: {e}")
             }
         }
         Ok(())

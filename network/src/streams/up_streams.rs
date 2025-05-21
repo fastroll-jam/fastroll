@@ -52,18 +52,17 @@ impl UpStreamHandler {
     }
 
     async fn handle_incoming_stream(conn: quinn::Connection, mut recv_stream: RecvStream) {
-        let stream_id = recv_stream.id();
         loop {
             let conn_cloned = conn.clone();
             match recv_stream.read_chunk(CHUNK_SIZE, true).await {
                 Ok(Some(chunk)) => {
                     let mut bytes: &[u8] = &chunk.bytes;
                     let Ok(block_announcement) = BlockAnnouncement::decode(&mut bytes) else {
-                        tracing::error!("Failed to decode BlockAnnouncement");
+                        tracing::error!("[UP0] Failed to decode BlockAnnouncement");
                         continue;
                     };
                     tracing::info!(
-                        "[UP0] Received Block Announcement ({}) | {stream_id}",
+                        "[UP0] Received Block Announcement ({})",
                         block_announcement.header_hash
                     );
                     // Request the block
@@ -77,15 +76,15 @@ impl UpStreamHandler {
                     )
                     .await
                     {
-                        tracing::error!("[UP0 | CE128] Block request failed: {e} | {stream_id}");
+                        tracing::error!("[UP0 | CE128] Block request failed: {e}");
                     }
                 }
                 Ok(None) => {
-                    tracing::warn!("[UP0] Stream closed | {stream_id}");
+                    tracing::warn!("[UP0] Stream closed");
                     break;
                 }
                 Err(e) => {
-                    tracing::error!("[UP0] Error receiving block announcement: {e} | {stream_id}");
+                    tracing::error!("[UP0] Error receiving block announcement: {e}");
                     // TODO: re-connect to peers
                     break;
                 }

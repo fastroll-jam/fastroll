@@ -7,6 +7,7 @@ use crate::{
         stream_kinds::{CeStreamKind, StreamKind, UpStreamKind},
         up_streams::{UpStreamHandle, UpStreamHandler},
     },
+    types::CHUNK_SIZE,
     utils::{preferred_initiator, validator_set_to_peers},
 };
 use core::net::SocketAddr;
@@ -133,23 +134,28 @@ impl NetworkManager {
                         tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
                         match stream_kind {
                             CeStreamKind::BlockRequest => {
-                                const BLOCK_REQUEST_INIT_ARGS_SIZE: usize = 34;
-                                let mut init_args_buf = [0u8; BLOCK_REQUEST_INIT_ARGS_SIZE];
-                                if let Err(e) = recv_stream.read_exact(&mut init_args_buf).await {
-                                    tracing::error!("Failed to read block request: {e}");
-                                    return;
-                                }
+                                let mut init_args_bytes: &[u8] =
+                                    match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+                                        Ok(Some(chunk)) => &chunk.bytes.clone(),
+                                        Ok(None) => {
+                                            tracing::warn!("[CE128] Stream closed");
+                                            return;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "[CE128] Failed to read block request: {e}"
+                                            );
+                                            return;
+                                        }
+                                    };
 
-                                let init_args = match BlockRequestInitArgs::decode(
-                                    &mut init_args_buf.as_slice(),
-                                ) {
-                                    Ok(init_args) => init_args,
-                                    Err(e) => {
-                                        tracing::error!(
-                                            "Failed decoding BlockRequestInitArgs: {e}"
-                                        );
-                                        return;
-                                    }
+                                let Ok(init_args) =
+                                    BlockRequestInitArgs::decode(&mut init_args_bytes)
+                                else {
+                                    tracing::error!(
+                                        "[CE128] Failed to decode BlockRequestInitArgs"
+                                    );
+                                    return;
                                 };
 
                                 if let Err(e) = BlockRequest::process_and_respond(
@@ -159,7 +165,7 @@ impl NetworkManager {
                                 )
                                 .await
                                 {
-                                    tracing::error!("Failed to process Block Request: {e}");
+                                    tracing::error!("[CE128] Failed to process Block Request: {e}");
                                 }
                             }
                             _ => {

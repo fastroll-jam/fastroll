@@ -25,7 +25,7 @@ impl NodeServerTrait for NodeStorage {
         _max_blocks: u32,
     ) -> Vec<Block> {
         // FIXME: unimplemented!()
-        vec![Block::default(), Block::default()]
+        vec![Block::default()]
     }
 }
 
