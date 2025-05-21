@@ -56,7 +56,7 @@ impl JamNode {
             let all_peers_cloned = self.network_manager.all_validator_peers.clone();
             let storage_cloned = self.storage.clone();
             tokio::spawn(async move {
-                NetworkManager::handle_connection(storage_cloned, conn, all_peers_cloned).await
+                NetworkManager::accept_connection(storage_cloned, conn, all_peers_cloned).await
             });
         }
         Ok(())

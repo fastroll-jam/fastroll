@@ -72,7 +72,7 @@ impl NetworkManager {
         Ok(())
     }
 
-    pub async fn handle_connection(
+    pub async fn accept_connection(
         storage: Arc<NodeStorage>,
         incoming_conn: quinn::Incoming,
         all_peers: Arc<AllValidatorPeers>,

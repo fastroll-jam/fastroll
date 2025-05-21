@@ -65,8 +65,8 @@ impl UpStreamHandler {
                         "[UP0] Received Block Announcement ({})",
                         block_announcement.header_hash
                     );
-                    // Request the block
-                    if let Err(e) = BlockRequest::request(
+                    // Request the block to the announcer
+                    match BlockRequest::request(
                         conn_cloned,
                         BlockRequestInitArgs {
                             header_hash: block_announcement.header_hash,
@@ -76,7 +76,13 @@ impl UpStreamHandler {
                     )
                     .await
                     {
-                        tracing::error!("[UP0 | CE128] Block request failed: {e}");
+                        Ok(blocks) => {
+                            // TODO: Validate the received block
+                            let _imported_block = blocks[0].clone();
+                        }
+                        Err(e) => {
+                            tracing::error!("[UP0 | CE128] Block request failed: {e}");
+                        }
                     }
                 }
                 Ok(None) => {

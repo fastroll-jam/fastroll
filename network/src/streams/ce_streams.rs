@@ -84,10 +84,15 @@ pub trait CeStream {
     type RespType;
     type Storage: NodeServerTrait + Sync;
 
-    async fn request(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
+    async fn request(
+        conn: quinn::Connection,
+        args: Self::InitArgs,
+    ) -> Result<Self::RespType, NetworkError> {
         let mut recv_stream = ce_stream_utils::open_stream_and_request::<Self>(conn, args).await?;
-        let _resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream).await?;
-        Ok(())
+        let resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream)
+            .await?
+            .ok_or(NetworkError::CeStreamRecvError)?;
+        Ok(resp)
     }
 
     fn decode_response(bytes: &mut &[u8]) -> Self::RespType;
