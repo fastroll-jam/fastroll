@@ -68,7 +68,8 @@ mod ce_stream_utils {
     where
         T: CeStream + ?Sized,
     {
-        send_stream.write_all(args.encode()?.as_slice()).await?;
+        let args_encoded = T::encode_response_args(args)?;
+        send_stream.write_all(args_encoded.as_slice()).await?;
         Ok(())
     }
 }
@@ -81,7 +82,7 @@ pub trait CeStream {
 
     type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode + Send;
-    type RespType;
+    type RespType: Debug;
     type Storage: NodeServerTrait + Sync;
 
     async fn request(
@@ -110,6 +111,8 @@ pub trait CeStream {
         let resp_args = Self::process(storage, init_args).await?;
         ce_stream_utils::respond::<Self>(send_stream, resp_args).await
     }
+
+    fn encode_response_args(args: Self::RespArgs) -> Result<Vec<u8>, NetworkError>;
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
@@ -157,5 +160,10 @@ impl CeStream for BlockRequest {
             )
             .await?;
         Ok(Self::RespArgs { blocks })
+    }
+
+    fn encode_response_args(args: Self::RespArgs) -> Result<Vec<u8>, NetworkError> {
+        let blocks_count = args.blocks.len();
+        Ok(args.blocks.encode_fixed(blocks_count)?)
     }
 }
