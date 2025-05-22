@@ -69,7 +69,7 @@ impl UpStreamHandler {
                         tracing::error!("[UP0] Failed to decode BlockAnnouncement");
                         continue;
                     };
-                    tracing::info!(
+                    tracing::debug!(
                         "[UP0] Received Block Announcement ({})",
                         block_announcement.header_hash
                     );

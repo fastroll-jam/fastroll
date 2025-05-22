@@ -82,7 +82,7 @@ impl NetworkManager {
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
             return Err(NetworkError::InvalidPeerAddrFormat);
         };
-        tracing::info!(
+        tracing::debug!(
             "🔌 [Acceptor] Connected to a peer [{}]:{}",
             socket_addr.ip(),
             socket_addr.port()
@@ -115,7 +115,7 @@ impl NetworkManager {
                         // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
                         let (mpsc_send, mpsc_recv) =
                             mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
-                        tracing::info!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
+                        tracing::debug!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
                         // Insert UpStreamHandle which contains mpsc sender handle to initiate outgoing QUIC stream message.
                         if let Err(e) = all_peers_cloned.insert_up_stream_handle(
                             &socket_addr,
@@ -134,7 +134,7 @@ impl NetworkManager {
                         );
                     }
                     StreamKind::CE(stream_kind) => {
-                        tracing::info!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
+                        tracing::debug!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
                         match stream_kind {
                             CeStreamKind::BlockRequest => {
                                 let mut init_args_bytes: &[u8] =
@@ -263,6 +263,10 @@ impl NetworkManager {
                 e.conn.is_some()
             );
         }
+        tracing::info!(
+            "All peers connected. Peers count: {}",
+            self.all_validator_peers.len()
+        );
         Ok(())
     }
 
@@ -279,7 +283,7 @@ impl NetworkManager {
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
             return Err(NetworkError::InvalidPeerAddrFormat);
         };
-        tracing::info!(
+        tracing::debug!(
             "🔌 [Initiator] Connected to a peer [{}]:{}",
             socket_addr.ip(),
             socket_addr.port()

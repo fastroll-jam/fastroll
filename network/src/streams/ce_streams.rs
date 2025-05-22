@@ -33,7 +33,7 @@ mod ce_stream_utils {
         send_stream.write_all(&args.encode()?).await?;
         // Close the stream
         send_stream.finish()?;
-        tracing::info!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
+        tracing::debug!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
         Ok(recv_stream)
     }
 
@@ -46,7 +46,7 @@ mod ce_stream_utils {
         let resp = match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
                 let mut bytes: &[u8] = &chunk.bytes;
-                tracing::info!("[{}] Received respond", T::CE_STREAM_KIND);
+                tracing::debug!("[{}] Received respond", T::CE_STREAM_KIND);
                 Some(T::decode_response(&mut bytes))
             }
             Ok(None) => {

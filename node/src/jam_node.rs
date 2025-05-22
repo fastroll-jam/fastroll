@@ -56,7 +56,7 @@ impl JamNode {
         // Accept incoming connections
         let endpoint = self.network_manager.endpoint.clone();
         while let Some(conn) = endpoint.accept().await {
-            tracing::info!("Accepted connection from {}", conn.remote_address());
+            tracing::debug!("Accepted connection from {}", conn.remote_address());
             // Spawn an async task to handle the connection
             let all_peers_cloned = self.network_manager.all_validator_peers.clone();
             let storage_cloned = self.storage.clone();
