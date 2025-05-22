@@ -80,9 +80,7 @@ impl BlockImporter {
             let timeslot_index = block.header.timeslot_index();
             match Self::import_block(storage.clone(), block).await {
                 Ok(_post_state_root) => {
-                    tracing::info!(
-                        "✅ Block validated ({header_hash}) (slot: {timeslot_index})"
-                    );
+                    tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
                 }
                 Err(e) => {
                     tracing::error!("Block Import Error: {e}")
