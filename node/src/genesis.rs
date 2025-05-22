@@ -7,7 +7,7 @@ use fr_conformance_tests::{
 use fr_crypto::types::ValidatorKeySet;
 use fr_state::{
     test_utils::SimpleStates,
-    types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers},
+    types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers, StagingSet},
 };
 use std::path::PathBuf;
 
@@ -30,12 +30,13 @@ pub fn genesis_simple_state() -> SimpleStates {
     let genesis_entropy_2 = Hash32::default();
     let genesis_fallback_keys =
         generate_fallback_keys(&genesis_validator_set, &genesis_entropy_2).unwrap();
-    tracing::trace!("🔑 genesis fallback keys");
+    tracing::debug!("🔑 genesis fallback keys");
     for key in genesis_fallback_keys.iter() {
-        tracing::trace!("0x{}", key.to_hex());
+        tracing::debug!("0x{}", key.to_hex());
     }
     SimpleStates {
         active_set: ActiveSet(genesis_validator_set.clone()),
+        staging_set: StagingSet(genesis_validator_set.clone()),
         safrole: SafroleState {
             pending_set: genesis_validator_set,
             slot_sealers: SlotSealers::BandersnatchPubKeys(Box::new(genesis_fallback_keys)),

@@ -45,7 +45,7 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
         .set_xt(&Hash32::default(), Extrinsics::default())
         .await?;
 
-    // Init genesis simple state with initial validators: active set and pending set
+    // Init genesis simple state with initial validators: active set, staging set and Safrole pending set
     add_all_simple_state_entries(&storage.state_manager(), Some(genesis_simple_state())).await?;
 
     // Commit genesis state
