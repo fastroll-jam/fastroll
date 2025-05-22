@@ -70,9 +70,19 @@ impl BlockImporter {
         mut block_import_mpsc_recv: mpsc::Receiver<Block>,
     ) {
         while let Some(block) = block_import_mpsc_recv.recv().await {
+            let header_hash = match block.header.hash() {
+                Ok(hash) => hash,
+                Err(e) => {
+                    tracing::error!("Block Import Error (Header hashing failed): {e}");
+                    return;
+                }
+            };
+            let timeslot_index = block.header.timeslot_index();
             match Self::import_block(storage.clone(), block).await {
-                Ok(post_state_root) => {
-                    tracing::info!("✅ Block validated successfully: {post_state_root}");
+                Ok(_post_state_root) => {
+                    tracing::info!(
+                        "✅ Block validated ({header_hash}) (slot: {timeslot_index})"
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Block Import Error: {e}")
@@ -86,8 +96,9 @@ impl BlockImporter {
         block: Block,
     ) -> Result<Hash32, BlockImportError> {
         tracing::info!(
-            "Block imported. Parent hash: {}",
-            &block.header.data.parent_hash
+            "📥 Block imported  ({}) (slot: {})",
+            &block.header.hash()?,
+            block.header.timeslot_index()
         );
         Self::validate_block(storage, block).await
     }

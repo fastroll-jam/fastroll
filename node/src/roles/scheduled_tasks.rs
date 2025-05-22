@@ -48,7 +48,11 @@ pub async fn extend_chain(
         )?;
 
         let (new_block, post_state_root) = author.author_block(jam_node.storage()).await?;
-        tracing::info!("🎁 Authored a new block ({})", new_block.header.hash()?);
+        tracing::info!(
+            "🎁 Authored a new block ({}) (slot: {})",
+            new_block.header.hash()?,
+            new_block.header.timeslot_index()
+        );
         tracing::trace!(
             "Header: {}\nXts: {:?} post state root: {}",
             new_block.header,

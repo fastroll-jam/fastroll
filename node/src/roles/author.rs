@@ -292,7 +292,7 @@ impl BlockAuthor {
             .header_db()
             .commit_header(self.new_block.header.clone())
             .await?;
-        tracing::info!("New block created. Header hash: {new_header_hash}");
+        tracing::debug!("New block header committed. Header hash: {new_header_hash}");
         Ok(new_header_hash)
     }
 
