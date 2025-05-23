@@ -3,6 +3,9 @@ use crate::{Balance, UnsignedGas};
 /// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;
 
+/// JAM common era UNIX timestamp in millis.
+pub const COMMON_ERA_TIMESTAMP_MILLIS: u64 = COMMON_ERA_TIMESTAMP * 1_000;
+
 /// Size of Hash type in octets.
 pub const HASH_SIZE: usize = 32;
 

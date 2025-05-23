@@ -1,5 +1,5 @@
 use crate::{jam_node::JamNode, roles::scheduled_tasks::extend_chain};
-use fr_clock::Clock;
+use fr_clock::JamClock;
 use fr_common::SLOT_DURATION;
 use fr_state::types::Timeslot;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ impl TimeslotScheduler {
         loop {
             interval.tick().await;
             let timeslot = Timeslot::new(
-                Clock::now_jam_timeslot().expect("System time should be in JAM common era"),
+                JamClock::now_jam_timeslot().expect("System time should be in JAM common era"),
             );
             if timeslot.is_epoch_start() {
                 tracing::info!("🏁 New epoch: {:?}, {timeslot:?}", timeslot.epoch())

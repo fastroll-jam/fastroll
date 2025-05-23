@@ -11,7 +11,7 @@ use fr_block::{
     },
     xt_db::XtDBError,
 };
-use fr_clock::Clock;
+use fr_clock::JamClock;
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
@@ -188,7 +188,7 @@ impl BlockAuthor {
             .set_author_index(self.author_info.author_index);
         self.new_block
             .header
-            .set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
+            .set_timeslot(JamClock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
 
         Ok(())
     }
