@@ -39,4 +39,6 @@ pub enum NetworkError {
     PeerSocketAddrNotFound,
     #[error("A connection with the peer is not yet established")]
     PeerConnectionNotFound,
+    #[error("Failed to receive respond from CE stream")]
+    CeStreamRecvError,
 }

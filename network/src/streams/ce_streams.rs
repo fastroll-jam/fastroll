@@ -33,7 +33,7 @@ mod ce_stream_utils {
         send_stream.write_all(&args.encode()?).await?;
         // Close the stream
         send_stream.finish()?;
-        tracing::info!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
+        tracing::debug!("[{}] Sent CE stream request", T::CE_STREAM_KIND);
         Ok(recv_stream)
     }
 
@@ -46,7 +46,7 @@ mod ce_stream_utils {
         let resp = match recv_stream.read_chunk(CHUNK_SIZE, true).await {
             Ok(Some(chunk)) => {
                 let mut bytes: &[u8] = &chunk.bytes;
-                tracing::info!("[{}] Received respond", T::CE_STREAM_KIND);
+                tracing::debug!("[{}] Received respond", T::CE_STREAM_KIND);
                 Some(T::decode_response(&mut bytes))
             }
             Ok(None) => {
@@ -68,7 +68,8 @@ mod ce_stream_utils {
     where
         T: CeStream + ?Sized,
     {
-        send_stream.write_all(args.encode()?.as_slice()).await?;
+        let args_encoded = T::encode_response_args(args)?;
+        send_stream.write_all(args_encoded.as_slice()).await?;
         Ok(())
     }
 }
@@ -81,13 +82,18 @@ pub trait CeStream {
 
     type InitArgs: JamEncode + JamDecode + Send;
     type RespArgs: JamEncode + JamDecode + Send;
-    type RespType;
+    type RespType: Debug;
     type Storage: NodeServerTrait + Sync;
 
-    async fn request(conn: quinn::Connection, args: Self::InitArgs) -> Result<(), NetworkError> {
+    async fn request(
+        conn: quinn::Connection,
+        args: Self::InitArgs,
+    ) -> Result<Self::RespType, NetworkError> {
         let mut recv_stream = ce_stream_utils::open_stream_and_request::<Self>(conn, args).await?;
-        let _resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream).await?;
-        Ok(())
+        let resp = ce_stream_utils::read_respond::<Self>(&mut recv_stream)
+            .await?
+            .ok_or(NetworkError::CeStreamRecvError)?;
+        Ok(resp)
     }
 
     fn decode_response(bytes: &mut &[u8]) -> Self::RespType;
@@ -105,6 +111,8 @@ pub trait CeStream {
         let resp_args = Self::process(storage, init_args).await?;
         ce_stream_utils::respond::<Self>(send_stream, resp_args).await
     }
+
+    fn encode_response_args(args: Self::RespArgs) -> Result<Vec<u8>, NetworkError>;
 }
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
@@ -144,11 +152,18 @@ impl CeStream for BlockRequest {
         storage: &Self::Storage,
         init_args: Self::InitArgs,
     ) -> Result<Self::RespArgs, NetworkError> {
-        let blocks = storage.get_blocks(
-            init_args.header_hash,
-            init_args.ascending_excl,
-            init_args.max_blocks,
-        );
+        let blocks = storage
+            .get_blocks(
+                init_args.header_hash,
+                init_args.ascending_excl,
+                init_args.max_blocks,
+            )
+            .await?;
         Ok(Self::RespArgs { blocks })
+    }
+
+    fn encode_response_args(args: Self::RespArgs) -> Result<Vec<u8>, NetworkError> {
+        let blocks_count = args.blocks.len();
+        Ok(args.blocks.encode_fixed(blocks_count)?)
     }
 }

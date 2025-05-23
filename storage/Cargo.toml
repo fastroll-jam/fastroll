@@ -7,4 +7,5 @@ edition.workspace = true
 fr-block = { workspace = true }
 fr-common = { workspace = true }
 fr-state = { workspace = true }
+async-trait = { workspace = true }
 thiserror = { workspace = true }

@@ -10,7 +10,7 @@ use fr_block::types::{
     extrinsics::ExtrinsicsError,
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, HASH_SIZE, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -27,7 +27,7 @@ use fr_state::{
 use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::try_join;
+use tokio::{sync::mpsc, try_join};
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
@@ -39,8 +39,8 @@ pub enum BlockImportError {
     InvalidFallbackAuthorKey,
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
-    #[error("Block header contains invalid parent hash")]
-    InvalidParentHash,
+    #[error("Block header contains invalid parent hash. Parent hash: {0}, Best header hash: {1}")]
+    InvalidParentHash(String, String),
     #[error("Block header contains timeslot that is later than the current system time")]
     TimeslotInFuture,
     #[error("Block header contains timeslot earlier than the parent header")]
@@ -65,13 +65,38 @@ pub enum BlockImportError {
 
 pub struct BlockImporter;
 impl BlockImporter {
+    pub async fn run_block_importer(
+        storage: Arc<NodeStorage>,
+        mut block_import_mpsc_recv: mpsc::Receiver<Block>,
+    ) {
+        while let Some(block) = block_import_mpsc_recv.recv().await {
+            let header_hash = match block.header.hash() {
+                Ok(hash) => hash,
+                Err(e) => {
+                    tracing::error!("Block Import Error (Header hashing failed): {e}");
+                    return;
+                }
+            };
+            let timeslot_index = block.header.timeslot_index();
+            match Self::import_block(storage.clone(), block).await {
+                Ok(_post_state_root) => {
+                    tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
+                }
+                Err(e) => {
+                    tracing::error!("Block Import Error: {e}")
+                }
+            }
+        }
+    }
+
     pub async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<Hash32, BlockImportError> {
         tracing::info!(
-            "Block imported. Parent hash: {}",
-            &block.header.data.parent_hash
+            "📥 Block imported  ({}) (slot: {})",
+            &block.header.hash()?,
+            block.header.timeslot_index()
         );
         Self::validate_block(storage, block).await
     }
@@ -148,7 +173,7 @@ impl BlockImporter {
         block: &Block,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
-        Self::validate_parent_hash(&best_header, block)?;
+        // Self::validate_parent_hash(&best_header, block)?; // FIXME: check finality & best header
         Self::validate_timeslot_index(&best_header, block)?;
         // self.validate_prior_state_root()?; // TODO: impl
         Self::validate_xt_hash(block)?;
@@ -198,12 +223,18 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn validate_parent_hash(
         best_header: &BlockHeader,
         block: &Block,
     ) -> Result<(), BlockImportError> {
-        if block.header.parent_hash() != &best_header.hash()? {
-            return Err(BlockImportError::InvalidParentHash);
+        let parent_hash = block.header.parent_hash();
+        let best_header_hash = best_header.hash()?;
+        if parent_hash != &best_header_hash {
+            return Err(BlockImportError::InvalidParentHash(
+                parent_hash.to_hex(),
+                best_header_hash.to_hex(),
+            ));
         };
         Ok(())
     }

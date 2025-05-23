@@ -1,6 +1,11 @@
 use crate::server_trait::NodeServerTrait;
-use fr_block::{header_db::BlockHeaderDB, types::block::Block};
-use fr_common::Hash32;
+use async_trait::async_trait;
+use fr_block::{
+    header_db::{BlockHeaderDB, BlockHeaderDBError},
+    types::block::Block,
+    xt_db::{XtDB, XtDBError},
+};
+use fr_common::{ByteEncodable, Hash32};
 use fr_state::{error::StateManagerError, manager::StateManager, types::EffectiveValidators};
 use std::sync::Arc;
 use thiserror::Error;
@@ -9,31 +14,50 @@ use thiserror::Error;
 pub enum NodeStorageError {
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("XtDBError: {0}")]
+    XtDBError(#[from] XtDBError),
+    #[error("Header with hash {0} not found from the HeaderDB")]
+    HeaderNotFoundFromDB(String),
+    #[error("Xts with hash {0} not found from the XtDB")]
+    XtsNotFoundFromDB(String),
 }
 
-// TODO: Add storages for Block(Extrinsics), Shards, etc.
+// TODO: Add storages for Shards, etc.
 pub struct NodeStorage {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
+    xt_db: Arc<XtDB>,
 }
 
+#[async_trait]
 impl NodeServerTrait for NodeStorage {
-    fn get_blocks(
+    async fn get_blocks(
         &self,
-        _header_hash: Hash32,
-        _ascending_excl: bool,
-        _max_blocks: u32,
-    ) -> Vec<Block> {
-        // FIXME: unimplemented!()
-        vec![Block::default()]
+        header_hash: Hash32,
+        ascending_excl: bool,
+        max_blocks: u32,
+    ) -> Result<Vec<Block>, NodeStorageError> {
+        if !ascending_excl && max_blocks == 1 {
+            let block = self.get_block(&header_hash).await?;
+            Ok(vec![block])
+        } else {
+            unimplemented!()
+        }
     }
 }
 
 impl NodeStorage {
-    pub fn new(state_manager: Arc<StateManager>, header_db: Arc<BlockHeaderDB>) -> Self {
+    pub fn new(
+        state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
+        xt_db: Arc<XtDB>,
+    ) -> Self {
         Self {
             state_manager,
             header_db,
+            xt_db,
         }
     }
 
@@ -43,6 +67,10 @@ impl NodeStorage {
 
     pub fn header_db(&self) -> Arc<BlockHeaderDB> {
         self.header_db.clone()
+    }
+
+    pub fn xt_db(&self) -> Arc<XtDB> {
+        self.xt_db.clone()
     }
 
     /// Gets effective validators of the previous, current and the next epoch.
@@ -55,5 +83,20 @@ impl NodeStorage {
             active_set,
             staging_set,
         })
+    }
+
+    async fn get_block(&self, header_hash: &Hash32) -> Result<Block, NodeStorageError> {
+        let header = self
+            .header_db
+            .get_header(header_hash)
+            .await?
+            .ok_or(NodeStorageError::HeaderNotFoundFromDB(header_hash.to_hex()))?;
+        let xt_hash = header.extrinsic_hash();
+        let extrinsics = self
+            .xt_db
+            .get_xt(xt_hash)
+            .await?
+            .ok_or(NodeStorageError::XtsNotFoundFromDB(xt_hash.to_hex()))?;
+        Ok(Block { header, extrinsics })
     }
 }

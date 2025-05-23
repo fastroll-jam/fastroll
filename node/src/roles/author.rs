@@ -9,8 +9,9 @@ use fr_block::{
         block::{Block, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
+    xt_db::XtDBError,
 };
-use fr_clock::Clock;
+use fr_clock::JamClock;
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
@@ -37,6 +38,8 @@ pub enum BlockAuthorError {
     StateManagerError(#[from] StateManagerError),
     #[error("BlockHeaderDBError: {0}")]
     BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("XtDBError: {0}")]
+    XtDBError(#[from] XtDBError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("ExtrinsicsError: {0}")]
@@ -104,7 +107,8 @@ impl BlockAuthor {
         storage: Arc<NodeStorage>,
     ) -> Result<(Block, Hash32), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
-        self.set_extrinsics(xt)?;
+        let xt_hash = xt.hash()?;
+        self.set_extrinsics(xt.clone(), xt_hash.clone())?;
         self.prelude(&storage)?;
 
         // STF phase #1
@@ -126,6 +130,9 @@ impl BlockAuthor {
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
 
+        // Store extrinsics
+        storage.xt_db().set_xt(&xt_hash, xt).await?;
+
         Ok((self.new_block.clone(), post_state_root))
     }
 
@@ -135,7 +142,8 @@ impl BlockAuthor {
         storage: Arc<NodeStorage>,
     ) -> Result<(Block, Hash32), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
-        self.set_extrinsics(xt)?;
+        let xt_hash = xt.hash()?;
+        self.set_extrinsics(xt.clone(), xt_hash.clone())?;
         self.prelude_for_test(&storage)?;
         let stf_output = self.run_initial_state_transition(&storage).await?;
         let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
@@ -146,6 +154,8 @@ impl BlockAuthor {
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
+        // Store extrinsics
+        storage.xt_db().set_xt(&xt_hash, xt).await?;
         Ok((self.new_block.clone(), post_state_root))
     }
 
@@ -154,9 +164,13 @@ impl BlockAuthor {
         Extrinsics::default()
     }
 
-    fn set_extrinsics(&mut self, xts: Extrinsics) -> Result<(), BlockAuthorError> {
-        self.new_block.extrinsics = xts.clone();
-        self.new_block.header.set_extrinsic_hash(xts.hash()?);
+    fn set_extrinsics(
+        &mut self,
+        xts: Extrinsics,
+        xts_hash: Hash32,
+    ) -> Result<(), BlockAuthorError> {
+        self.new_block.extrinsics = xts;
+        self.new_block.header.set_extrinsic_hash(xts_hash);
         Ok(())
     }
 
@@ -174,7 +188,7 @@ impl BlockAuthor {
             .set_author_index(self.author_info.author_index);
         self.new_block
             .header
-            .set_timeslot(Clock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
+            .set_timeslot(JamClock::now_jam_timeslot().ok_or(BlockAuthorError::InvalidSysTime)?);
 
         Ok(())
     }
@@ -278,7 +292,7 @@ impl BlockAuthor {
             .header_db()
             .commit_header(self.new_block.header.clone())
             .await?;
-        tracing::info!("New block created. Header hash: {new_header_hash}");
+        tracing::debug!("New block header committed. Header hash: {new_header_hash}");
         Ok(new_header_hash)
     }
 

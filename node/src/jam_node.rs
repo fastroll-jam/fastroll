@@ -1,3 +1,4 @@
+use fr_block::types::block::Block;
 use fr_common::ValidatorIndex;
 use fr_network::{
     error::NetworkError,
@@ -5,6 +6,7 @@ use fr_network::{
 };
 use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub struct JamNode {
     pub curr_epoch_validator_index: Option<ValidatorIndex>,
@@ -43,7 +45,10 @@ impl JamNode {
         self.curr_epoch_validator_index = index;
     }
 
-    pub async fn run_as_server(&self) -> Result<(), NetworkError> {
+    pub async fn run_as_server(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) -> Result<(), NetworkError> {
         tracing::info!(
             "📡 Listening on {}",
             self.network_manager.endpoint.local_addr()?
@@ -51,12 +56,19 @@ impl JamNode {
         // Accept incoming connections
         let endpoint = self.network_manager.endpoint.clone();
         while let Some(conn) = endpoint.accept().await {
-            tracing::info!("Accepted connection from {}", conn.remote_address());
+            tracing::debug!("Accepted connection from {}", conn.remote_address());
             // Spawn an async task to handle the connection
             let all_peers_cloned = self.network_manager.all_validator_peers.clone();
             let storage_cloned = self.storage.clone();
+            let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
-                NetworkManager::handle_connection(storage_cloned, conn, all_peers_cloned).await
+                NetworkManager::accept_connection(
+                    storage_cloned,
+                    conn,
+                    all_peers_cloned,
+                    block_import_mpsc_sender_cloned,
+                )
+                .await
             });
         }
         Ok(())

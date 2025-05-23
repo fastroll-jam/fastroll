@@ -6,6 +6,7 @@ use crate::{
     },
     types::{BlockAnnouncement, CHUNK_SIZE},
 };
+use fr_block::types::block::Block;
 use fr_codec::prelude::*;
 use quinn::{RecvStream, SendStream};
 use tokio::sync::mpsc;
@@ -40,10 +41,13 @@ impl UpStreamHandler {
         send_stream: SendStream,
         recv_stream: RecvStream,
         mpsc_recv: mpsc::Receiver<Vec<u8>>,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
     ) {
         match stream_kind {
             UpStreamKind::BlockAnnouncement => {
-                tokio::spawn(async move { Self::handle_incoming_stream(conn, recv_stream).await });
+                tokio::spawn(async move {
+                    Self::handle_incoming_stream(conn, recv_stream, block_import_mpsc_sender).await
+                });
                 tokio::spawn(
                     async move { Self::handle_outgoing_stream(send_stream, mpsc_recv).await },
                 );
@@ -51,9 +55,12 @@ impl UpStreamHandler {
         }
     }
 
-    async fn handle_incoming_stream(conn: quinn::Connection, mut recv_stream: RecvStream) {
+    async fn handle_incoming_stream(
+        conn: quinn::Connection,
+        mut recv_stream: RecvStream,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) {
         loop {
-            let conn_cloned = conn.clone();
             match recv_stream.read_chunk(CHUNK_SIZE, true).await {
                 Ok(Some(chunk)) => {
                     let mut bytes: &[u8] = &chunk.bytes;
@@ -61,23 +68,41 @@ impl UpStreamHandler {
                         tracing::error!("[UP0] Failed to decode BlockAnnouncement");
                         continue;
                     };
-                    tracing::info!(
+                    tracing::debug!(
                         "[UP0] Received Block Announcement ({})",
                         block_announcement.header_hash
                     );
-                    // Request the block
-                    if let Err(e) = BlockRequest::request(
-                        conn_cloned,
-                        BlockRequestInitArgs {
-                            header_hash: block_announcement.header_hash,
-                            ascending_excl: false,
-                            max_blocks: 1,
-                        },
-                    )
-                    .await
-                    {
-                        tracing::error!("[UP0 | CE128] Block request failed: {e}");
-                    }
+
+                    // Request the block to the announcer
+                    let conn_cloned = conn.clone();
+                    let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
+                    tokio::spawn(async move {
+                        match BlockRequest::request(
+                            conn_cloned,
+                            BlockRequestInitArgs {
+                                header_hash: block_announcement.header_hash,
+                                ascending_excl: false,
+                                max_blocks: 1,
+                            },
+                        )
+                        .await
+                        {
+                            Ok(blocks) => {
+                                // Block Importer: validate the received block
+                                if let Err(e) = block_import_mpsc_sender_cloned
+                                    .send(blocks[0].clone())
+                                    .await
+                                {
+                                    tracing::error!(
+                                        "Block Importer mpsc channel receiver closed: {e}"
+                                    )
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("[UP0 | CE128] Block request failed: {e}");
+                            }
+                        }
+                    });
                 }
                 Ok(None) => {
                     tracing::warn!("[UP0] Stream closed");

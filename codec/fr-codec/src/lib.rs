@@ -631,6 +631,25 @@ impl JamDecodeFixed for BitVec {
     }
 }
 
+impl<T: JamEncode> JamEncodeFixed for Vec<T> {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn encode_to_fixed<O: JamOutput>(
+        &self,
+        dest: &mut O,
+        size: usize,
+    ) -> Result<(), JamCodecError> {
+        if self.len() != size {
+            return Err(JamCodecError::InvalidSize(format!(
+                "Vector length ({}) does not match the expected size in byte ({})",
+                self.len(),
+                size
+            )));
+        }
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
 impl JamDecodeFixed for Vec<u8> {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
 
@@ -744,6 +763,17 @@ mod tests {
             .encode_to_fixed(&mut dest, 4)
             .expect("Fixed encoding must succeed");
         assert_eq!(dest, vec![0x78, 0x56, 0x34, 0x12]);
+    }
+
+    #[test]
+    fn test_fixed_vec_encoding() {
+        let value: Vec<u8> = vec![1, 2, 3, 4];
+        let mut dest = Vec::new();
+        value
+            .encode_to_fixed(&mut dest, 4)
+            .expect("Fixed encoding must succeed");
+        // With no length prefix
+        assert_eq!(dest, vec![1, 2, 3, 4]);
     }
 
     #[test]
