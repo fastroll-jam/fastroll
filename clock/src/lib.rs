@@ -43,15 +43,13 @@ impl<T: UnixTimeProvider> Clock<T> {
     }
 
     pub fn now_jam_timeslot() -> Option<u32> {
-        Some((Self::seconds_since_common_era()? / SLOT_DURATION) as u32 + 1)
+        Some((Self::seconds_since_common_era()? / SLOT_DURATION) as u32)
     }
 
     pub fn millis_until_next_timeslot_boundary() -> Option<u64> {
         let millis_since_common_era = Self::millis_since_common_era()?;
-        let offset_millis = millis_since_common_era.checked_sub(
-            (((Self::now_jam_timeslot()? as u64).checked_sub(1)?) * SLOT_DURATION) * 1_000,
-        )?;
-
+        let offset_millis = millis_since_common_era
+            .checked_sub(((Self::now_jam_timeslot()? as u64) * SLOT_DURATION) * 1_000)?;
         (SLOT_DURATION * 1_000).checked_sub(offset_millis)
     }
 }
@@ -88,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_now_jam_timeslot() {
-        assert_eq!(TestClock::now_jam_timeslot(), Some(2));
+        assert_eq!(TestClock::now_jam_timeslot(), Some(1));
     }
 
     #[test]

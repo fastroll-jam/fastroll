@@ -57,14 +57,18 @@ impl Timeslot {
         self.0 % EPOCH_LENGTH as u32
     }
 
-    pub fn to_unix_timestamp(&self) -> u64 {
-        let slot_duration_secs = self.0 as u64 * SLOT_DURATION;
-        COMMON_ERA_TIMESTAMP + slot_duration_secs
-    }
-
     /// Checks if the timeslot value is in the future compared to the current UTC time
     pub fn is_in_future(&self) -> bool {
         let current_unix_timestamp = TimeProvider::now_unix_timestamp();
-        self.to_unix_timestamp() > current_unix_timestamp
+        self.timeslot_beginning_to_unix_timestamp() > current_unix_timestamp
+    }
+
+    fn timeslot_beginning_to_unix_timestamp(&self) -> u64 {
+        if self.0 == 0 {
+            COMMON_ERA_TIMESTAMP
+        } else {
+            let slot_duration_secs = (self.0 - 1) as u64 * SLOT_DURATION;
+            COMMON_ERA_TIMESTAMP + slot_duration_secs
+        }
     }
 }
