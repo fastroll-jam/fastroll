@@ -115,25 +115,14 @@ impl NetworkManager {
                 };
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
-                        // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
-                        let (mpsc_send, mpsc_recv) =
-                            mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
-                        tracing::debug!("💡 Accepted a UP stream. StreamKind: {stream_kind:?}");
-                        // Insert UpStreamHandle which contains mpsc sender handle to initiate outgoing QUIC stream message.
-                        if let Err(e) = all_peers_cloned.insert_up_stream_handle(
-                            &socket_addr,
-                            stream_kind,
-                            UpStreamHandle::new(stream_kind, mpsc_send.clone()),
-                        ) {
-                            tracing::error!("Failed to insert upstream handle: {e}");
-                        }
-                        UpStreamHandler::handle_up_stream(
+                        Self::handle_up_stream(
                             conn_cloned,
                             stream_kind,
                             send_stream,
                             recv_stream,
-                            mpsc_recv,
                             block_import_mpsc_sender_cloned,
+                            all_peers_cloned,
+                            &socket_addr,
                         );
                     }
                     StreamKind::CE(stream_kind) => {
@@ -184,6 +173,41 @@ impl NetworkManager {
         }
         Ok(())
     }
+
+    fn handle_up_stream(
+        conn: quinn::Connection,
+        stream_kind: UpStreamKind,
+        send_stream: quinn::SendStream,
+        recv_stream: quinn::RecvStream,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+        all_peers: Arc<AllValidatorPeers>,
+        socket_addr: &SocketAddrV6,
+    ) {
+        // Open a mpsc channel to route outgoing QUIC stream messages initiated by the internal system.
+        let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
+        tracing::debug!("💡 Handling a UP stream ({stream_kind:?})");
+
+        // Insert UpStreamHandle which contains mpsc sender handle to initiate outgoing QUIC stream message.
+        if let Err(e) = all_peers.insert_up_stream_handle(
+            socket_addr,
+            stream_kind,
+            UpStreamHandle::new(stream_kind, mpsc_send),
+        ) {
+            tracing::error!("Failed to insert upstream handle: {e}");
+        }
+
+        UpStreamHandler::handle_up_stream(
+            conn,
+            stream_kind,
+            send_stream,
+            recv_stream,
+            mpsc_recv,
+            block_import_mpsc_sender,
+        );
+    }
+
+    #[allow(dead_code)]
+    async fn handle_ce_streams() {}
 
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(
@@ -282,21 +306,15 @@ impl NetworkManager {
             &socket_addr,
             PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
         )?;
-        // Store the UP stream handle
-        let (mpsc_send, mpsc_recv) = mpsc::channel::<Vec<u8>>(UP_0_MPSC_BUFFER_SIZE);
-        all_peers.insert_up_stream_handle(
-            &socket_addr,
-            stream_kind,
-            UpStreamHandle::new(stream_kind, mpsc_send),
-        )?;
 
-        UpStreamHandler::handle_up_stream(
+        Self::handle_up_stream(
             conn,
             stream_kind,
             send_stream,
             recv_stream,
-            mpsc_recv,
             block_import_mpsc_sender,
+            all_peers,
+            &socket_addr,
         );
         Ok(())
     }
