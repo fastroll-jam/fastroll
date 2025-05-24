@@ -1,7 +1,7 @@
 use crate::{
     endpoint::QuicEndpoint,
     error::NetworkError,
-    peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
+    peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection, ValidatorPeer},
     streams::{
         ce_streams::{
             block_request::{BlockRequest, BlockRequestInitArgs},
@@ -191,38 +191,14 @@ impl NetworkManager {
         block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
-        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
-
-        let mut handles = Vec::with_capacity(self.all_validator_peers.len());
-        for entry in self.all_validator_peers.iter() {
-            let peer = entry.value();
-            if peer.conn.is_none()
-                && &local_node_ed25519_key
-                    == preferred_initiator(&local_node_ed25519_key, &peer.ed25519_key)
-                && local_node_ed25519_key != peer.ed25519_key
-            {
-                let endpoint_cloned = self.endpoint.clone();
-                let all_peers_cloned = self.all_validator_peers.clone();
-                let peer_socket_addr_cloned = peer.socket_addr;
-                let peer_key_cloned = peer.ed25519_key.clone();
-                let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
-                let jh = tokio::spawn(async move {
-                    Self::connect_to_peer(
-                        endpoint_cloned,
-                        all_peers_cloned,
-                        peer_socket_addr_cloned,
-                        &peer_key_cloned,
-                        block_import_mpsc_sender_cloned,
-                    )
-                    .await
-                });
-                handles.push(jh);
-            }
-        }
-        for handle in handles {
-            handle.await??;
-        }
-        Ok(())
+        let predicate = |peer: &ValidatorPeer, local_node_ed25519_key: &Ed25519PubKey| -> bool {
+            peer.conn.is_none()
+                && local_node_ed25519_key != &peer.ed25519_key
+                && local_node_ed25519_key
+                    == preferred_initiator(local_node_ed25519_key, &peer.ed25519_key)
+        };
+        self.connect_to_peers_internal(block_import_mpsc_sender, predicate)
+            .await
     }
 
     /// Connect to all network peers that are not yet connected regardless of preferred initiator.
@@ -231,12 +207,26 @@ impl NetworkManager {
         block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
-        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
+        let predicate = |peer: &ValidatorPeer, local_node_ed25519_key: &Ed25519PubKey| -> bool {
+            peer.conn.is_none() && local_node_ed25519_key != &peer.ed25519_key
+        };
+        self.connect_to_peers_internal(block_import_mpsc_sender, predicate)
+            .await?;
+        // Debugging: check all connected peers
+        self.log_all_peers();
+        Ok(())
+    }
 
+    async fn connect_to_peers_internal(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+        predicate: impl Fn(&ValidatorPeer, &Ed25519PubKey) -> bool,
+    ) -> Result<(), NetworkError> {
+        let local_node_ed25519_key = self.local_node_ed25519_key().clone();
         let mut handles = Vec::with_capacity(self.all_validator_peers.len());
         for entry in self.all_validator_peers.iter() {
             let peer = entry.value();
-            if peer.conn.is_none() && local_node_ed25519_key != peer.ed25519_key {
+            if predicate(peer, &local_node_ed25519_key) {
                 let endpoint_cloned = self.endpoint.clone();
                 let all_peers_cloned = self.all_validator_peers.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
@@ -246,9 +236,9 @@ impl NetworkManager {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
+                        block_import_mpsc_sender_cloned,
                         peer_socket_addr_cloned,
                         &peer_key_cloned,
-                        block_import_mpsc_sender_cloned,
                     )
                     .await
                 });
@@ -258,18 +248,6 @@ impl NetworkManager {
         for handle in handles {
             handle.await??;
         }
-        // Debugging: check all connected peers
-        for e in self.all_validator_peers.iter() {
-            tracing::debug!(
-                "SocketAddr: {}, connected: {}",
-                e.socket_addr,
-                e.conn.is_some()
-            );
-        }
-        tracing::info!(
-            "All peers connected. Peers count: {}",
-            self.all_validator_peers.len()
-        );
         Ok(())
     }
 
@@ -278,9 +256,9 @@ impl NetworkManager {
     async fn connect_to_peer(
         endpoint: QuicEndpoint,
         all_peers: Arc<AllValidatorPeers>,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
         peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
-        block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         let conn = endpoint.connect(peer_addr, peer_key).await?;
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
@@ -321,6 +299,20 @@ impl NetworkManager {
             block_import_mpsc_sender,
         );
         Ok(())
+    }
+
+    fn log_all_peers(&self) {
+        for e in self.all_validator_peers.iter() {
+            tracing::debug!(
+                "SocketAddr: {}, connected: {}",
+                e.socket_addr,
+                e.conn.is_some()
+            );
+        }
+        tracing::info!(
+            "All peers connected. Peers count: {}",
+            self.all_validator_peers.len()
+        );
     }
 
     fn local_node_ed25519_key(&self) -> &Ed25519PubKey {
