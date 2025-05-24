@@ -155,7 +155,8 @@ impl NetworkManager {
                 );
             }
             StreamKind::CE(stream_kind) => {
-                Self::respond_ce_stream(stream_kind, send_stream, recv_stream, node_storage).await;
+                Self::run_ce_stream_responder(stream_kind, send_stream, recv_stream, node_storage)
+                    .await;
             }
         }
     }
@@ -192,7 +193,7 @@ impl NetworkManager {
         );
     }
 
-    async fn respond_ce_stream(
+    async fn run_ce_stream_responder(
         stream_kind: CeStreamKind,
         send_stream: quinn::SendStream,
         recv_stream: quinn::RecvStream,
@@ -287,6 +288,15 @@ impl NetworkManager {
             socket_addr.port()
         );
 
+        Self::open_up_streams(conn, &socket_addr, block_import_mpsc_sender, all_peers).await
+    }
+
+    async fn open_up_streams(
+        conn: quinn::Connection,
+        socket_addr: &SocketAddrV6,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+        all_peers: Arc<AllValidatorPeers>,
+    ) -> Result<(), NetworkError> {
         let (mut send_stream, recv_stream) = conn.open_bi().await?;
 
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
@@ -296,7 +306,7 @@ impl NetworkManager {
 
         // Store the opened connection handle
         all_peers.store_peer_connection_handle(
-            &socket_addr,
+            socket_addr,
             PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
         )?;
 
@@ -307,7 +317,7 @@ impl NetworkManager {
             recv_stream,
             block_import_mpsc_sender,
             all_peers,
-            &socket_addr,
+            socket_addr,
         );
         Ok(())
     }
