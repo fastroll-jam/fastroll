@@ -92,22 +92,13 @@ impl NetworkManager {
         )?;
 
         // TODO: Monitor connection closure
-        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
+        while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();
             let conn_cloned = conn.clone();
             let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
-                let stream_kind = match Self::read_stream_kind(&mut recv_stream).await {
-                    Ok(stream_kind) => stream_kind,
-                    Err(e) => {
-                        tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
-                        return;
-                    }
-                };
-
                 Self::handle_streams(
-                    stream_kind,
                     conn_cloned,
                     send_stream,
                     recv_stream,
@@ -133,15 +124,22 @@ impl NetworkManager {
 
     #[allow(clippy::too_many_arguments)]
     async fn handle_streams(
-        stream_kind: StreamKind,
         conn: quinn::Connection,
         send_stream: quinn::SendStream,
-        recv_stream: quinn::RecvStream,
+        mut recv_stream: quinn::RecvStream,
         block_import_mpsc_sender: mpsc::Sender<Block>,
         node_storage: Arc<NodeStorage>,
         all_peers: Arc<AllValidatorPeers>,
         socket_addr: &SocketAddrV6,
     ) {
+        let stream_kind = match Self::read_stream_kind(&mut recv_stream).await {
+            Ok(stream_kind) => stream_kind,
+            Err(e) => {
+                tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
+                return;
+            }
+        };
+
         match stream_kind {
             StreamKind::UP(stream_kind) => {
                 Self::run_up_stream_handler(
@@ -288,15 +286,27 @@ impl NetworkManager {
             socket_addr.port()
         );
 
-        Self::open_up_streams(conn, &socket_addr, block_import_mpsc_sender, all_peers).await
+        let (stream_kind, send_stream, recv_stream) =
+            Self::open_up_streams(conn.clone(), &socket_addr, all_peers.clone()).await?;
+
+        Self::run_up_stream_handler(
+            conn,
+            stream_kind,
+            send_stream,
+            recv_stream,
+            block_import_mpsc_sender,
+            all_peers,
+            &socket_addr,
+        );
+
+        Ok(())
     }
 
     async fn open_up_streams(
         conn: quinn::Connection,
         socket_addr: &SocketAddrV6,
-        block_import_mpsc_sender: mpsc::Sender<Block>,
         all_peers: Arc<AllValidatorPeers>,
-    ) -> Result<(), NetworkError> {
+    ) -> Result<(UpStreamKind, quinn::SendStream, quinn::RecvStream), NetworkError> {
         let (mut send_stream, recv_stream) = conn.open_bi().await?;
 
         // Send a single-byte stream kind identifier to the peer so that it can accept the stream.
@@ -307,19 +317,9 @@ impl NetworkManager {
         // Store the opened connection handle
         all_peers.store_peer_connection_handle(
             socket_addr,
-            PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
+            PeerConnection::new(conn, LocalNodeRole::Initiator, DashMap::default()),
         )?;
-
-        Self::run_up_stream_handler(
-            conn,
-            stream_kind,
-            send_stream,
-            recv_stream,
-            block_import_mpsc_sender,
-            all_peers,
-            socket_addr,
-        );
-        Ok(())
+        Ok((stream_kind, send_stream, recv_stream))
     }
 
     fn log_all_peers(&self) {
