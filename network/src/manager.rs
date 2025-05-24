@@ -150,7 +150,7 @@ impl NetworkManager {
     ) {
         match stream_kind {
             StreamKind::UP(stream_kind) => {
-                Self::handle_up_stream(
+                Self::run_up_stream_handler(
                     conn,
                     stream_kind,
                     send_stream,
@@ -161,12 +161,12 @@ impl NetworkManager {
                 );
             }
             StreamKind::CE(stream_kind) => {
-                Self::handle_ce_stream(stream_kind, send_stream, recv_stream, node_storage).await;
+                Self::respond_ce_stream(stream_kind, send_stream, recv_stream, node_storage).await;
             }
         }
     }
 
-    fn handle_up_stream(
+    fn run_up_stream_handler(
         conn: quinn::Connection,
         stream_kind: UpStreamKind,
         send_stream: quinn::SendStream,
@@ -188,7 +188,7 @@ impl NetworkManager {
             tracing::error!("Failed to insert upstream handle: {e}");
         }
 
-        UpStreamHandler::handle_up_stream(
+        UpStreamHandler::run(
             conn,
             stream_kind,
             send_stream,
@@ -198,13 +198,13 @@ impl NetworkManager {
         );
     }
 
-    async fn handle_ce_stream(
+    async fn respond_ce_stream(
         stream_kind: CeStreamKind,
         mut send_stream: quinn::SendStream,
         mut recv_stream: quinn::RecvStream,
         node_storage: Arc<NodeStorage>,
     ) {
-        tracing::debug!("💡 Handling a CE stream ({stream_kind:?})");
+        tracing::debug!("💡 Handling a CE stream request ({stream_kind:?})");
         match stream_kind {
             CeStreamKind::BlockRequest => {
                 let mut init_args_bytes: &[u8] =
@@ -336,7 +336,7 @@ impl NetworkManager {
             PeerConnection::new(conn.clone(), LocalNodeRole::Initiator, DashMap::default()),
         )?;
 
-        Self::handle_up_stream(
+        Self::run_up_stream_handler(
             conn,
             stream_kind,
             send_stream,

@@ -38,7 +38,7 @@ impl UpStreamHandle {
 /// A UP stream handler that processes both incoming and outgoing UP stream messages.
 pub struct UpStreamHandler;
 impl UpStreamHandler {
-    pub fn handle_up_stream(
+    pub fn run(
         conn: quinn::Connection,
         stream_kind: UpStreamKind,
         send_stream: SendStream,
