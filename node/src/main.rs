@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
     let server_jh = tokio::spawn(async move {
         node_cloned
-            .run_as_server(block_import_mpsc_sender_cloned)
+            .run_acceptor(block_import_mpsc_sender_cloned)
             .await
     });
 

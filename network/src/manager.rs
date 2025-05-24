@@ -71,12 +71,11 @@ impl NetworkManager {
     }
 
     pub async fn accept_connection(
-        storage: Arc<NodeStorage>,
-        incoming_conn: quinn::Incoming,
-        all_peers: Arc<AllValidatorPeers>,
+        conn: quinn::Connection,
         block_import_mpsc_sender: mpsc::Sender<Block>,
+        all_peers: Arc<AllValidatorPeers>,
+        storage: Arc<NodeStorage>,
     ) -> Result<(), NetworkError> {
-        let conn = incoming_conn.await?;
         let SocketAddr::V6(socket_addr) = conn.remote_address() else {
             return Err(NetworkError::InvalidPeerAddrFormat);
         };
