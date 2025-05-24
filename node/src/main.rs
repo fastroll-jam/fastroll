@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Bind to a socket address and start accepting connections
     let node_cloned = node.clone();
     let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
-    let server_jh = tokio::spawn(async move {
+    let acceptor_jh = tokio::spawn(async move {
         node_cloned
             .run_acceptor(block_import_mpsc_sender_cloned)
             .await
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     importer_jh.await?;
     slots_jh.await?;
-    server_jh.await??;
+    acceptor_jh.await??;
     // TODO: Timeslot scheduling, tickets submission
     Ok(())
 }
