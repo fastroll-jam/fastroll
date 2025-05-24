@@ -83,9 +83,11 @@ impl JamNode {
         block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
         let network_manager = self.network_manager();
+        let storage = self.storage();
+
         // Connect to peers as preferred initiator
         network_manager
-            .connect_to_peers(block_import_mpsc_sender.clone())
+            .connect_to_peers(block_import_mpsc_sender.clone(), storage.clone())
             .await?;
 
         // Wait until timeout
@@ -93,7 +95,7 @@ impl JamNode {
 
         // Connect to all remaining peers after timeout
         network_manager
-            .connect_to_all_peers(block_import_mpsc_sender)
+            .connect_to_all_peers(block_import_mpsc_sender, storage)
             .await?;
         Ok(())
     }

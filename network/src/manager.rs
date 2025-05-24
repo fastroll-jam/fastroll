@@ -98,7 +98,7 @@ impl NetworkManager {
             let conn_cloned = conn.clone();
             let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
-                Self::handle_streams(
+                Self::handle_all_streams(
                     conn_cloned,
                     send_stream,
                     recv_stream,
@@ -123,7 +123,7 @@ impl NetworkManager {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn handle_streams(
+    async fn handle_all_streams(
         conn: quinn::Connection,
         send_stream: quinn::SendStream,
         mut recv_stream: quinn::RecvStream,
@@ -205,6 +205,7 @@ impl NetworkManager {
     pub async fn connect_to_peers(
         &self,
         block_import_mpsc_sender: mpsc::Sender<Block>,
+        storage: Arc<NodeStorage>,
     ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to peers...");
         let predicate = |peer: &ValidatorPeer, local_node_ed25519_key: &Ed25519PubKey| -> bool {
@@ -213,7 +214,7 @@ impl NetworkManager {
                 && local_node_ed25519_key
                     == preferred_initiator(local_node_ed25519_key, &peer.ed25519_key)
         };
-        self.connect_to_peers_internal(block_import_mpsc_sender, predicate)
+        self.connect_to_peers_internal(block_import_mpsc_sender, storage, predicate)
             .await
     }
 
@@ -221,12 +222,13 @@ impl NetworkManager {
     pub async fn connect_to_all_peers(
         &self,
         block_import_mpsc_sender: mpsc::Sender<Block>,
+        storage: Arc<NodeStorage>,
     ) -> Result<(), NetworkError> {
         tracing::info!("Connecting to all peers...");
         let predicate = |peer: &ValidatorPeer, local_node_ed25519_key: &Ed25519PubKey| -> bool {
             peer.conn.is_none() && local_node_ed25519_key != &peer.ed25519_key
         };
-        self.connect_to_peers_internal(block_import_mpsc_sender, predicate)
+        self.connect_to_peers_internal(block_import_mpsc_sender, storage, predicate)
             .await?;
         // Debugging: check all connected peers
         self.log_all_peers();
@@ -236,6 +238,7 @@ impl NetworkManager {
     async fn connect_to_peers_internal(
         &self,
         block_import_mpsc_sender: mpsc::Sender<Block>,
+        storage: Arc<NodeStorage>,
         predicate: impl Fn(&ValidatorPeer, &Ed25519PubKey) -> bool,
     ) -> Result<(), NetworkError> {
         let local_node_ed25519_key = self.local_node_ed25519_key().clone();
@@ -245,6 +248,7 @@ impl NetworkManager {
             if predicate(peer, &local_node_ed25519_key) {
                 let endpoint_cloned = self.endpoint.clone();
                 let all_peers_cloned = self.all_validator_peers.clone();
+                let storage_cloned = storage.clone();
                 let peer_socket_addr_cloned = peer.socket_addr;
                 let peer_key_cloned = peer.ed25519_key.clone();
                 let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
@@ -252,6 +256,7 @@ impl NetworkManager {
                     Self::connect_to_peer(
                         endpoint_cloned,
                         all_peers_cloned,
+                        storage_cloned,
                         block_import_mpsc_sender_cloned,
                         peer_socket_addr_cloned,
                         &peer_key_cloned,
@@ -272,6 +277,7 @@ impl NetworkManager {
     async fn connect_to_peer(
         endpoint: QuicEndpoint,
         all_peers: Arc<AllValidatorPeers>,
+        storage: Arc<NodeStorage>,
         block_import_mpsc_sender: mpsc::Sender<Block>,
         peer_addr: SocketAddrV6,
         peer_key: &Ed25519PubKey,
@@ -290,15 +296,53 @@ impl NetworkManager {
             Self::open_up_streams(conn.clone(), &socket_addr, all_peers.clone()).await?;
 
         Self::run_up_stream_handler(
-            conn,
+            conn.clone(),
             stream_kind,
             send_stream,
             recv_stream,
-            block_import_mpsc_sender,
-            all_peers,
+            block_import_mpsc_sender.clone(),
+            all_peers.clone(),
             &socket_addr,
         );
 
+        tokio::spawn(async move {
+            while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
+                let stream_kind = match Self::read_stream_kind(&mut recv_stream).await {
+                    Ok(stream_kind) => stream_kind,
+                    Err(e) => {
+                        tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
+                        continue;
+                    }
+                };
+
+                let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
+                let all_peers_cloned = all_peers.clone();
+                let node_storage_cloned = storage.clone();
+
+                match stream_kind {
+                    StreamKind::UP(stream_kind) => {
+                        Self::run_up_stream_handler(
+                            conn.clone(),
+                            stream_kind,
+                            send_stream,
+                            recv_stream,
+                            block_import_mpsc_sender_cloned,
+                            all_peers_cloned,
+                            &socket_addr,
+                        );
+                    }
+                    StreamKind::CE(stream_kind) => {
+                        Self::run_ce_stream_responder(
+                            stream_kind,
+                            send_stream,
+                            recv_stream,
+                            node_storage_cloned,
+                        )
+                        .await;
+                    }
+                }
+            }
+        });
         Ok(())
     }
 
