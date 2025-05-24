@@ -98,7 +98,7 @@ impl NetworkManager {
         )?;
 
         // TODO: Monitor connection closure
-        while let Ok((mut send_stream, mut recv_stream)) = conn.accept_bi().await {
+        while let Ok((send_stream, mut recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();
             let conn_cloned = conn.clone();
@@ -125,47 +125,13 @@ impl NetworkManager {
                         );
                     }
                     StreamKind::CE(stream_kind) => {
-                        tracing::debug!("💡 Accepted a CE stream. StreamKind: {stream_kind:?}");
-                        match stream_kind {
-                            CeStreamKind::BlockRequest => {
-                                let mut init_args_bytes: &[u8] =
-                                    match recv_stream.read_chunk(CHUNK_SIZE, true).await {
-                                        Ok(Some(chunk)) => &chunk.bytes.clone(),
-                                        Ok(None) => {
-                                            tracing::warn!("[CE128] Stream closed");
-                                            return;
-                                        }
-                                        Err(e) => {
-                                            tracing::error!(
-                                                "[CE128] Failed to read block request: {e}"
-                                            );
-                                            return;
-                                        }
-                                    };
-
-                                let Ok(init_args) =
-                                    BlockRequestInitArgs::decode(&mut init_args_bytes)
-                                else {
-                                    tracing::error!(
-                                        "[CE128] Failed to decode BlockRequestInitArgs"
-                                    );
-                                    return;
-                                };
-
-                                if let Err(e) = BlockRequest::process_and_respond(
-                                    &mut send_stream,
-                                    &storage_cloned,
-                                    init_args,
-                                )
-                                .await
-                                {
-                                    tracing::error!("[CE128] Failed to process Block Request: {e}");
-                                }
-                            }
-                            _ => {
-                                unimplemented!()
-                            }
-                        }
+                        Self::handle_ce_stream(
+                            stream_kind,
+                            send_stream,
+                            recv_stream,
+                            storage_cloned,
+                        )
+                        .await;
                     }
                 }
             });
@@ -214,8 +180,45 @@ impl NetworkManager {
         );
     }
 
-    #[allow(dead_code)]
-    fn handle_ce_streams() {}
+    async fn handle_ce_stream(
+        stream_kind: CeStreamKind,
+        mut send_stream: quinn::SendStream,
+        mut recv_stream: quinn::RecvStream,
+        node_storage: Arc<NodeStorage>,
+    ) {
+        tracing::debug!("💡 Handling a CE stream ({stream_kind:?})");
+        match stream_kind {
+            CeStreamKind::BlockRequest => {
+                let mut init_args_bytes: &[u8] =
+                    match recv_stream.read_chunk(CHUNK_SIZE, true).await {
+                        Ok(Some(chunk)) => &chunk.bytes.clone(),
+                        Ok(None) => {
+                            tracing::warn!("[CE128] Stream closed");
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::error!("[CE128] Failed to read block request: {e}");
+                            return;
+                        }
+                    };
+
+                let Ok(init_args) = BlockRequestInitArgs::decode(&mut init_args_bytes) else {
+                    tracing::error!("[CE128] Failed to decode BlockRequestInitArgs");
+                    return;
+                };
+
+                if let Err(e) =
+                    BlockRequest::process_and_respond(&mut send_stream, &node_storage, init_args)
+                        .await
+                {
+                    tracing::error!("[CE128] Failed to process Block Request: {e}");
+                }
+            }
+            _ => {
+                unimplemented!()
+            }
+        }
+    }
 
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(
