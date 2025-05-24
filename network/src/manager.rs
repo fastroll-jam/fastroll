@@ -104,15 +104,14 @@ impl NetworkManager {
             let conn_cloned = conn.clone();
             let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
-                let mut stream_kind_buf = [0u8; 1];
-                if let Err(e) = recv_stream.read_exact(&mut stream_kind_buf).await {
-                    tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
-                    return;
-                }
-                let Ok(stream_kind) = StreamKind::from_u8(stream_kind_buf[0]) else {
-                    tracing::error!("Invalid stream-kind identifier: {}", stream_kind_buf[0]);
-                    return;
+                let stream_kind = match Self::read_stream_kind(&mut recv_stream).await {
+                    Ok(stream_kind) => stream_kind,
+                    Err(e) => {
+                        tracing::error!("Failed to read a single-byte stream-kind identifier: {e}");
+                        return;
+                    }
                 };
+
                 match stream_kind {
                     StreamKind::UP(stream_kind) => {
                         Self::handle_up_stream(
@@ -174,6 +173,15 @@ impl NetworkManager {
         Ok(())
     }
 
+    async fn read_stream_kind(
+        recv_stream: &mut quinn::RecvStream,
+    ) -> Result<StreamKind, NetworkError> {
+        let mut stream_kind_buf = [0u8; 1];
+        recv_stream.read_exact(&mut stream_kind_buf).await?;
+        let stream_kind = stream_kind_buf[0];
+        StreamKind::from_u8(stream_kind).map_err(|_| NetworkError::InvalidStreamKind(stream_kind))
+    }
+
     fn handle_up_stream(
         conn: quinn::Connection,
         stream_kind: UpStreamKind,
@@ -207,7 +215,7 @@ impl NetworkManager {
     }
 
     #[allow(dead_code)]
-    async fn handle_ce_streams() {}
+    fn handle_ce_streams() {}
 
     /// Connect to all network peers if the local node is the preferred initiator.
     pub async fn connect_to_peers(
