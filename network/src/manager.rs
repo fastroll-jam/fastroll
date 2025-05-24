@@ -112,28 +112,17 @@ impl NetworkManager {
                     }
                 };
 
-                match stream_kind {
-                    StreamKind::UP(stream_kind) => {
-                        Self::handle_up_stream(
-                            conn_cloned,
-                            stream_kind,
-                            send_stream,
-                            recv_stream,
-                            block_import_mpsc_sender_cloned,
-                            all_peers_cloned,
-                            &socket_addr,
-                        );
-                    }
-                    StreamKind::CE(stream_kind) => {
-                        Self::handle_ce_stream(
-                            stream_kind,
-                            send_stream,
-                            recv_stream,
-                            storage_cloned,
-                        )
-                        .await;
-                    }
-                }
+                Self::handle_streams(
+                    stream_kind,
+                    conn_cloned,
+                    send_stream,
+                    recv_stream,
+                    block_import_mpsc_sender_cloned,
+                    storage_cloned,
+                    all_peers_cloned,
+                    &socket_addr,
+                )
+                .await;
             });
         }
         Ok(())
@@ -146,6 +135,35 @@ impl NetworkManager {
         recv_stream.read_exact(&mut stream_kind_buf).await?;
         let stream_kind = stream_kind_buf[0];
         StreamKind::from_u8(stream_kind).map_err(|_| NetworkError::InvalidStreamKind(stream_kind))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn handle_streams(
+        stream_kind: StreamKind,
+        conn: quinn::Connection,
+        send_stream: quinn::SendStream,
+        recv_stream: quinn::RecvStream,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+        node_storage: Arc<NodeStorage>,
+        all_peers: Arc<AllValidatorPeers>,
+        socket_addr: &SocketAddrV6,
+    ) {
+        match stream_kind {
+            StreamKind::UP(stream_kind) => {
+                Self::handle_up_stream(
+                    conn,
+                    stream_kind,
+                    send_stream,
+                    recv_stream,
+                    block_import_mpsc_sender,
+                    all_peers,
+                    socket_addr,
+                );
+            }
+            StreamKind::CE(stream_kind) => {
+                Self::handle_ce_stream(stream_kind, send_stream, recv_stream, node_storage).await;
+            }
+        }
     }
 
     fn handle_up_stream(
