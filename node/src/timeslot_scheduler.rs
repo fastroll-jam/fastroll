@@ -17,7 +17,7 @@ impl TimeslotScheduler {
         };
         let next_boundary = Instant::now() + Duration::from_millis(millis);
         let mut interval = interval_at(next_boundary, Duration::from_secs(SLOT_DURATION));
-        tracing::info!("Aligning to the timeslot boundary...");
+        tracing::info!("Waiting until timeslot boundary...");
         interval.tick().await; // Align the timeslot
 
         loop {
