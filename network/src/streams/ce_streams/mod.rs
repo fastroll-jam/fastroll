@@ -5,6 +5,7 @@ use fr_storage::server_trait::NodeServerTrait;
 use std::fmt::Debug;
 
 pub mod block_request;
+pub mod responder;
 
 pub enum NodeRole {
     Node,
