@@ -3,7 +3,10 @@ use crate::{
     error::NetworkError,
     peers::{AllValidatorPeers, Builders, LocalNodeRole, PeerConnection},
     streams::{
-        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
+        ce_streams::{
+            block_request::{BlockRequest, BlockRequestInitArgs},
+            CeStream,
+        },
         stream_kinds::{CeStreamKind, StreamKind, UpStreamKind},
         up_streams::{UpStreamHandle, UpStreamHandler},
     },

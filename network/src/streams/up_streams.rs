@@ -1,7 +1,10 @@
 use crate::{
     error::NetworkError,
     streams::{
-        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
+        ce_streams::{
+            block_request::{BlockRequest, BlockRequestInitArgs},
+            CeStream,
+        },
         stream_kinds::UpStreamKind,
     },
     types::{BlockAnnouncement, CHUNK_SIZE},
