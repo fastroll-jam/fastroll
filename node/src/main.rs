@@ -22,26 +22,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await
     });
 
-    let network_manager = node.network_manager();
+    let node_cloned = node.clone();
     let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
     let client_jh = tokio::spawn(async move {
-        if let Err(e) = network_manager
-            .connect_to_peers(block_import_mpsc_sender_cloned.clone())
+        node_cloned
+            .run_initiator(block_import_mpsc_sender_cloned)
             .await
-        {
-            tracing::warn!("Failed to connect to peers: {}", e);
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await; // timeout
-        if let Err(e) = network_manager
-            .connect_to_all_peers(block_import_mpsc_sender_cloned)
-            .await
-        {
-            tracing::error!("Failed to connect to all peers: {}", e);
-        }
     });
 
     // Connect to all peers
-    client_jh.await?;
+    if let Err(e) = client_jh.await? {
+        tracing::error!("Peer connection error: {e}");
+    }
 
     let storage = node.storage();
     let importer_jh = tokio::spawn(async move {

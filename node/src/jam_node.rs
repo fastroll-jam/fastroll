@@ -77,4 +77,24 @@ impl JamNode {
         }
         Ok(())
     }
+
+    pub async fn run_initiator(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) -> Result<(), NetworkError> {
+        let network_manager = self.network_manager();
+        // Connect to peers as preferred initiator
+        network_manager
+            .connect_to_peers(block_import_mpsc_sender.clone())
+            .await?;
+
+        // Wait until timeout
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        // Connect to all remaining peers after timeout
+        network_manager
+            .connect_to_all_peers(block_import_mpsc_sender)
+            .await?;
+        Ok(())
+    }
 }
