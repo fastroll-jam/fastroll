@@ -1,7 +1,10 @@
 use crate::{
     error::NetworkError,
     streams::{
-        ce_streams::{BlockRequest, BlockRequestInitArgs, CeStream},
+        ce_streams::{
+            block_request::{BlockRequest, BlockRequestInitArgs},
+            CeStream,
+        },
         stream_kinds::UpStreamKind,
     },
     types::{BlockAnnouncement, CHUNK_SIZE},
@@ -35,7 +38,7 @@ impl UpStreamHandle {
 /// A UP stream handler that processes both incoming and outgoing UP stream messages.
 pub struct UpStreamHandler;
 impl UpStreamHandler {
-    pub fn handle_up_stream(
+    pub fn run(
         conn: quinn::Connection,
         stream_kind: UpStreamKind,
         send_stream: SendStream,

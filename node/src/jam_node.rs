@@ -45,7 +45,7 @@ impl JamNode {
         self.curr_epoch_validator_index = index;
     }
 
-    pub async fn run_as_server(
+    pub async fn run_acceptor(
         &self,
         block_import_mpsc_sender: mpsc::Sender<Block>,
     ) -> Result<(), NetworkError> {
@@ -55,22 +55,48 @@ impl JamNode {
         );
         // Accept incoming connections
         let endpoint = self.network_manager.endpoint.clone();
-        while let Some(conn) = endpoint.accept().await {
-            tracing::debug!("Accepted connection from {}", conn.remote_address());
+        while let Some(incoming_conn) = endpoint.accept().await {
+            tracing::debug!(
+                "Accepted connection from {}",
+                incoming_conn.remote_address()
+            );
             // Spawn an async task to handle the connection
             let all_peers_cloned = self.network_manager.all_validator_peers.clone();
             let storage_cloned = self.storage.clone();
             let block_import_mpsc_sender_cloned = block_import_mpsc_sender.clone();
             tokio::spawn(async move {
+                let conn = incoming_conn.await.unwrap();
                 NetworkManager::accept_connection(
-                    storage_cloned,
                     conn,
-                    all_peers_cloned,
                     block_import_mpsc_sender_cloned,
+                    all_peers_cloned,
+                    storage_cloned,
                 )
                 .await
             });
         }
+        Ok(())
+    }
+
+    pub async fn run_initiator(
+        &self,
+        block_import_mpsc_sender: mpsc::Sender<Block>,
+    ) -> Result<(), NetworkError> {
+        let network_manager = self.network_manager();
+        let storage = self.storage();
+
+        // Connect to peers as preferred initiator
+        network_manager
+            .connect_to_peers(block_import_mpsc_sender.clone(), storage.clone())
+            .await?;
+
+        // Wait until timeout
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        // Connect to all remaining peers after timeout
+        network_manager
+            .connect_to_all_peers(block_import_mpsc_sender, storage)
+            .await?;
         Ok(())
     }
 }

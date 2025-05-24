@@ -1,7 +1,9 @@
 use fr_block::types::block::BlockHeaderError;
 use fr_codec::JamCodecError;
 use fr_storage::node_storage::NodeStorageError;
-use quinn::{ClosedStream, ConnectError, ConnectionError, ReadToEndError, WriteError};
+use quinn::{
+    ClosedStream, ConnectError, ConnectionError, ReadExactError, ReadToEndError, WriteError,
+};
 use thiserror::Error;
 use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
@@ -23,6 +25,8 @@ pub enum NetworkError {
     WriteError(#[from] WriteError),
     #[error("quinn ReadToEndError: {0}")]
     ReadToEndError(#[from] ReadToEndError),
+    #[error("quinn ReadExactError: {0}")]
+    ReadExactError(#[from] ReadExactError),
     #[error("tokio JoinError: {0}")]
     JoinError(#[from] JoinError),
     #[error("tokio SendError<Vec<u8>>: {0}")]
@@ -31,6 +35,8 @@ pub enum NetworkError {
     InvalidLocalAddr,
     #[error("Invalid peer address format: should be SocketAddrV6")]
     InvalidPeerAddrFormat,
+    #[error("Invalid stream kind value: {0}")]
+    InvalidStreamKind(u8),
     #[error("Invalid UP stream kind value: {0}")]
     InvalidUpStreamKind(u8),
     #[error("Invalid CE stream kind value: {0}")]
