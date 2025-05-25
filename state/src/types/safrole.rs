@@ -131,6 +131,24 @@ impl Default for SlotSealers {
     }
 }
 
+impl Display for SlotSealers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tickets(tickets) => {
+                for ticket in tickets.iter() {
+                    writeln!(f, "{},", ticket)?;
+                }
+            }
+            Self::BandersnatchPubKeys(keys) => {
+                for key in keys.iter() {
+                    writeln!(f, "0x{},", key.to_hex())?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl JamEncode for SlotSealers {
     fn size_hint(&self) -> usize {
         match self {

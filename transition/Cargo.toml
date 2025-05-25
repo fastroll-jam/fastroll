@@ -13,3 +13,4 @@ fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
