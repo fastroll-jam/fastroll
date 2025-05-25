@@ -7,6 +7,7 @@ members = [
     "codec/fr-codec",
     "codec/fr-codec-derive",
     "common",
+    "common/limited-vec",
     "conformance-tests",
     "crypto",
     "db",
@@ -39,6 +40,7 @@ fr-conformance-tests = { path = "conformance-tests" }
 fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-extrinsics = { path = "extrinsics" }
+fr-limited-vec = { path = "common/limited-vec" }
 fr-merkle = { path = "merkle" }
 fr-network = { path = "network" }
 fr-node = { path = "node" }
