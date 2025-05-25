@@ -175,10 +175,10 @@ impl IetfVrfVerifierCore {
             .verify(input, output, aux_data, &signature.proof)
             .is_err()
         {
-            tracing::error!("Ring signature verification failure");
+            tracing::error!("VRF signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        tracing::debug!("Ietf signature verified");
+        tracing::debug!("VRF signature verified");
 
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
