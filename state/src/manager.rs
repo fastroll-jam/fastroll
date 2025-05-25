@@ -443,7 +443,7 @@ impl StateManager {
         // Update the merkle root of the MerkleDB
         self.merkle_db
             .update_root(merkle_db_write_set.get_new_root().clone());
-        tracing::debug!(
+        tracing::trace!(
             "Merkle root updated: {}",
             &merkle_db_write_set.get_new_root()
         );
@@ -504,7 +504,7 @@ impl StateManager {
             // Update the WorkingSet root
             self.merkle_db
                 .update_root(merkle_db_write_set.get_new_root().clone());
-            tracing::debug!(
+            tracing::trace!(
                 "Merkle root updated: {}",
                 &merkle_db_write_set.get_new_root()
             );

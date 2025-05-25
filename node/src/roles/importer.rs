@@ -35,8 +35,11 @@ pub enum BlockImportError {
     InvalidXtHash,
     #[error("Block header contains invalid author index")]
     InvalidAuthorIndex,
-    #[error("Block header is sealed with invalid fallback key")]
-    InvalidFallbackAuthorKey,
+    #[error("Block header is sealed with invalid fallback key. Reserved slot sealer key: {slot_sealer_key}, actual author key: {author_key}")]
+    InvalidFallbackAuthorKey {
+        slot_sealer_key: String,
+        author_key: String,
+    },
     #[error("Block header seal doesn't match the ticket")]
     InvalidBlockSealOutput,
     #[error("Block header contains invalid parent hash. Parent hash: {0}, Best header hash: {1}")]
@@ -180,7 +183,9 @@ impl BlockImporter {
         Ok(())
     }
 
-    /// Gets posterior state values required for header signatures validation
+    /// Gets posterior state values required for header signatures validation.
+    ///
+    /// Note: this method is called after running STFs.
     async fn get_post_states(
         storage: &NodeStorage,
         block: &Block,
@@ -286,7 +291,10 @@ impl BlockImporter {
             }
             SlotSealer::BandersnatchPubKeys(key) => {
                 if key != curr_author_bandersnatch_key {
-                    return Err(BlockImportError::InvalidFallbackAuthorKey);
+                    return Err(BlockImportError::InvalidFallbackAuthorKey {
+                        slot_sealer_key: key.to_hex(),
+                        author_key: curr_author_bandersnatch_key.to_hex(),
+                    });
                 }
                 let mut vrf_input = Vec::with_capacity(X_F.len() + curr_entropy_3.len());
                 vrf_input.extend_from_slice(X_F);

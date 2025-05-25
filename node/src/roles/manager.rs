@@ -4,6 +4,7 @@ use fr_state::{
     manager::StateManager,
     types::{SlotSealer, Timeslot},
 };
+use fr_transition::state_prediction::slot_sealers::predict_post_slot_sealer;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -20,11 +21,7 @@ impl RoleManager {
         local_node_info: LocalNodeInfo,
         new_timeslot: &Timeslot,
     ) -> Result<bool, RoleManagerError> {
-        let slot_sealer = state_manager
-            .get_safrole()
-            .await?
-            .slot_sealers
-            .get_slot_sealer(new_timeslot);
+        let slot_sealer = predict_post_slot_sealer(state_manager, new_timeslot.slot()).await?;
 
         // TODO: impl for ticket mode
         match slot_sealer {
