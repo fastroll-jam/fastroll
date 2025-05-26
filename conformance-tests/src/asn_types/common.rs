@@ -32,10 +32,10 @@ use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-    BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochFallbackKeys,
-    EpochTickets, EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports,
-    PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry, SlotSealers,
-    Timeslot, ValidatorStats, ValidatorStatsEntry,
+    BlockHistoryEntry, CoreStats, CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy,
+    EpochFallbackKeys, EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec,
+    OnChainStatistics, PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices,
+    ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1112,11 +1112,11 @@ impl From<EpochValidatorStats> for AsnActivityRecords {
 
 impl From<AsnActivityRecords> for EpochValidatorStats {
     fn from(value: AsnActivityRecords) -> Self {
-        let mut stats = from_fn(|_| ValidatorStatsEntry::default());
-        for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = ValidatorStatsEntry::from(record);
+        let mut stats = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+        for record in value.0.into_iter() {
+            stats.push(ValidatorStatsEntry::from(record));
         }
-        Self::new(Box::new(stats))
+        Self::new(EpochValidatorStatsFixedVec::try_from_vec(stats).unwrap())
     }
 }
 
@@ -1167,11 +1167,11 @@ pub struct AsnCoreActivityRecords([AsnCoreActivityRecord; ASN_CORE_COUNT]);
 
 impl From<AsnCoreActivityRecords> for CoreStats {
     fn from(value: AsnCoreActivityRecords) -> Self {
-        let mut stats = from_fn(|_| CoreStatsEntry::default());
-        for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = CoreStatsEntry::from(record);
+        let mut stats = Vec::with_capacity(ASN_CORE_COUNT);
+        for record in value.0.into_iter() {
+            stats.push(CoreStatsEntry::from(record));
         }
-        Self(Box::new(stats))
+        Self(CoreStatsFixedVec::try_from_vec(stats).unwrap())
     }
 }
 

@@ -8,6 +8,7 @@ use fr_common::{
     workloads::RefineStats, CoreIndex, ServiceId, UnsignedGas, ValidatorIndex, CORE_COUNT,
     VALIDATOR_COUNT,
 };
+use fr_limited_vec::FixedVec;
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -76,40 +77,34 @@ impl JamDecode for ValidatorStatsEntry {
     }
 }
 
+pub type EpochValidatorStatsFixedVec = FixedVec<ValidatorStatsEntry, VALIDATOR_COUNT>;
+
 /// Holds statistics for all validator activities during a single epoch.
 /// Each entry tracks activities such as block production, ticket introduction, and assurances.
 ///
 /// This structure is used both to accumulate statistics for the current epoch
 /// and to store completed statistics for the previous epoch.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochValidatorStats {
-    items: Box<[ValidatorStatsEntry; VALIDATOR_COUNT]>,
+    items: EpochValidatorStatsFixedVec,
 }
 
 impl Deref for EpochValidatorStats {
     type Target = [ValidatorStatsEntry];
 
     fn deref(&self) -> &Self::Target {
-        &*self.items
+        self.items.as_ref()
     }
 }
 
 impl DerefMut for EpochValidatorStats {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.items
-    }
-}
-
-impl Default for EpochValidatorStats {
-    fn default() -> Self {
-        Self {
-            items: Box::new([ValidatorStatsEntry::default(); VALIDATOR_COUNT]),
-        }
+        self.items.as_mut()
     }
 }
 
 impl EpochValidatorStats {
-    pub fn new(items: Box<[ValidatorStatsEntry; VALIDATOR_COUNT]>) -> Self {
+    pub fn new(items: EpochValidatorStatsFixedVec) -> Self {
         Self { items }
     }
 
@@ -196,9 +191,11 @@ impl CoreStatsEntry {
     }
 }
 
+pub type CoreStatsFixedVec = FixedVec<CoreStatsEntry, CORE_COUNT>;
+
 /// The core activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct CoreStats(pub Box<[CoreStatsEntry; CORE_COUNT]>);
+pub struct CoreStats(pub CoreStatsFixedVec);
 
 impl CoreStats {
     pub fn core_stats_entry_mut(&mut self, core_index: CoreIndex) -> &mut CoreStatsEntry {
