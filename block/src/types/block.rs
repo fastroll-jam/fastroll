@@ -14,7 +14,7 @@ use thiserror::Error;
 
 pub type BlockSeal = BandersnatchSig;
 pub type VrfSig = BandersnatchSig;
-pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
+pub type WinningTicketsMarker = FixedVec<Ticket, EPOCH_LENGTH>;
 pub type EpochValidators = FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT>;
 
 #[derive(Debug, Error)]
@@ -201,7 +201,7 @@ impl Display for BlockHeader {
         match self.winning_tickets_marker() {
             Some(marker) => {
                 writeln!(f, "\twinning_tickets_marker:")?;
-                for ticket in marker.as_ref() {
+                for ticket in marker.iter() {
                     writeln!(f, "\t{ticket}")?;
                 }
             }

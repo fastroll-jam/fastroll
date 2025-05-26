@@ -128,9 +128,9 @@ async fn handle_ticket_accumulation(
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot().await?.slot_phase();
     if current_slot_phase as usize >= TICKET_CONTEST_DURATION {
-        return Err(TransitionError::XtValidationError(
-            XtError::TicketSubmissionClosed(current_slot_phase),
-        ));
+        return Err(TransitionError::XtError(XtError::TicketSubmissionClosed(
+            current_slot_phase,
+        )));
     }
 
     // Validate ticket extrinsic data.
@@ -145,7 +145,7 @@ async fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole_clean().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::XtValidationError(XtError::DuplicateTicket));
+            return Err(TransitionError::XtError(XtError::DuplicateTicket));
         }
         curr_ticket_accumulator.add(ticket);
     }

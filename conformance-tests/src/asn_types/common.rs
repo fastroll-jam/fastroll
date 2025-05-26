@@ -5,6 +5,7 @@ use bit_vec::BitVec;
 use fr_block::types::{
     block::{
         Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey, EpochValidators,
+        WinningTicketsMarker,
     },
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
@@ -2085,6 +2086,13 @@ pub struct AsnHeader {
 
 impl From<AsnHeader> for BlockHeader {
     fn from(value: AsnHeader) -> Self {
+        let winning_tickets = value.tickets_mark.map(|e| {
+            let mut tickets = Vec::with_capacity(e.len());
+            for asn_ticket in e {
+                tickets.push(Ticket::from(asn_ticket));
+            }
+            WinningTicketsMarker::try_from_vec(tickets).unwrap()
+        });
         Self {
             data: BlockHeaderData {
                 parent_hash: Hash32::from(value.parent),
@@ -2092,13 +2100,7 @@ impl From<AsnHeader> for BlockHeader {
                 extrinsic_hash: Hash32::from(value.extrinsic_hash),
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
-                winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                    let mut tickets_array = from_fn(|_| Ticket::default());
-                    for (i, ticket) in tickets.into_iter().enumerate() {
-                        tickets_array[i] = ticket.into();
-                    }
-                    tickets_array
-                }),
+                winning_tickets_marker: winning_tickets,
                 offenders_marker: value
                     .offenders_mark
                     .into_iter()

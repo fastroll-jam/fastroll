@@ -37,7 +37,8 @@ pub async fn mark_safrole_header_markers(
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
         let marker_vec_outside_in = outside_in_vec(current_safrole.ticket_accumulator.into_vec());
-        Some(marker_vec_outside_in.try_into().unwrap())
+        let marker = WinningTicketsMarker::try_from_vec(marker_vec_outside_in)?;
+        Some(marker)
     } else {
         None
     };

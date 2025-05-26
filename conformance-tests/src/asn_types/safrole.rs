@@ -36,11 +36,21 @@ pub struct AsnOutputMarks {
 
 impl From<SafroleHeaderMarkers> for AsnOutputMarks {
     fn from(value: SafroleHeaderMarkers) -> Self {
+        let mut tickets_mark_arr = [AsnTicketBody::default(); ASN_EPOCH_LENGTH];
+        let tickets_mark = match value.winning_tickets_marker {
+            Some(marker) => {
+                marker
+                    .iter()
+                    .enumerate()
+                    .for_each(|(i, e)| tickets_mark_arr[i] = AsnTicketBody::from(e.clone()));
+                Some(tickets_mark_arr)
+            }
+            None => None,
+        };
+
         Self {
             epoch_mark: value.epoch_marker.map(AsnEpochMark::from),
-            tickets_mark: value
-                .winning_tickets_marker
-                .map(|tickets| tickets.map(AsnTicketBody::from)),
+            tickets_mark,
         }
     }
 }
