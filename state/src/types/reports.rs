@@ -9,10 +9,8 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
 use fr_crypto::{hash, Blake2b256};
-use std::{
-    array::from_fn,
-    fmt::{Display, Formatter},
-};
+use fr_limited_vec::FixedVec;
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -23,19 +21,14 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
+pub type PendingReportsFixedVec = FixedVec<Option<PendingReport>, CORE_COUNT>;
+
 /// Work reports pending availability by assurers.
 ///
 /// Represents `ρ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct PendingReports(pub Box<[Option<PendingReport>; CORE_COUNT]>);
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct PendingReports(pub PendingReportsFixedVec);
 impl_simple_state_component!(PendingReports, PendingReports);
-
-impl Default for PendingReports {
-    fn default() -> Self {
-        let arr = from_fn(|_| None);
-        Self(Box::new(arr))
-    }
-}
 
 impl Display for PendingReports {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

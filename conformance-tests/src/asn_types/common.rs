@@ -34,8 +34,8 @@ use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
     BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochFallbackKeys,
     EpochTickets, EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports,
-    PrivilegedServices, ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats,
-    ValidatorStatsEntry,
+    PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry, SlotSealers,
+    Timeslot, ValidatorStats, ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -385,10 +385,10 @@ pub struct AsnAvailAssignments([Option<AsnAvailAssignment>; ASN_CORE_COUNT]);
 
 impl From<AsnAvailAssignments> for PendingReports {
     fn from(value: AsnAvailAssignments) -> Self {
-        let mut reports: [Option<PendingReport>; ASN_CORE_COUNT] = Default::default();
+        let mut reports = Vec::with_capacity(ASN_CORE_COUNT);
 
-        for (i, item) in value.0.iter().enumerate() {
-            reports[i] = match item {
+        for item in value.0.iter() {
+            let maybe_report = match item {
                 Some(assignment) => {
                     let work_report = assignment.clone().report.into();
                     let pending_report = PendingReport {
@@ -399,9 +399,10 @@ impl From<AsnAvailAssignments> for PendingReports {
                 }
                 None => None,
             };
+            reports.push(maybe_report);
         }
 
-        PendingReports(Box::new(reports))
+        PendingReports(PendingReportsFixedVec::try_from_vec(reports).unwrap())
     }
 }
 
