@@ -372,6 +372,38 @@ impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> 
     }
 }
 
+// `FixedVec` gets encoded without length discriminator
+impl<T, const SIZE: usize> JamEncode for FixedVec<T, SIZE>
+where
+    T: JamEncode + Default + Clone,
+{
+    fn size_hint(&self) -> usize {
+        SIZE
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
+impl<T, const SIZE: usize> JamDecode for FixedVec<T, SIZE>
+where
+    T: JamDecode + Default + Clone,
+{
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut vec = Vec::with_capacity(SIZE);
+        for _ in 0..SIZE {
+            vec.push(T::decode(input)?)
+        }
+
+        let fixed_vec = Self::try_from_vec(vec).expect("size checked");
+        Ok(fixed_vec)
+    }
+}
+
 impl JamEncode for BitVec {
     fn size_hint(&self) -> usize {
         let length_size = self.len().div_ceil(8).size_hint();

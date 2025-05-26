@@ -739,6 +739,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-db",
+ "fr-limited-vec",
  "thiserror 2.0.12",
 ]
 
@@ -1034,6 +1035,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-extrinsics",
+ "fr-limited-vec",
  "fr-merkle",
  "fr-pvm-invocation",
  "fr-pvm-types",

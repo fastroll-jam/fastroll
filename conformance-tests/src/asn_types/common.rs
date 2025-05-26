@@ -3,7 +3,9 @@ use crate::serde_utils::{
 };
 use bit_vec::BitVec;
 use fr_block::types::{
-    block::{Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey},
+    block::{
+        Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey, EpochValidators,
+    },
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
         disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
@@ -22,6 +24,7 @@ use fr_common::{
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
     ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -2038,14 +2041,14 @@ pub struct AsnEpochMark {
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = from_fn(|_| EpochMarkerValidatorKey::default());
-        for (i, key) in value.validators.into_iter().enumerate() {
-            validators_array[i] = EpochMarkerValidatorKey::from(key);
+        let mut validator_keys = Vec::with_capacity(VALIDATOR_COUNT);
+        for key in value.validators.into_iter() {
+            validator_keys.push(EpochMarkerValidatorKey::from(key));
         }
         Self {
             entropy: Hash32::from(value.entropy),
             tickets_entropy: Hash32::from(value.tickets_entropy),
-            validators: Box::new(validators_array),
+            validators: EpochValidators::try_from_vec(validator_keys).unwrap(),
         }
     }
 }
