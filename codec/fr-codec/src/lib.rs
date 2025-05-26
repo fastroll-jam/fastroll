@@ -11,6 +11,7 @@
 use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use fr_codec_derive::*;
+use fr_limited_vec::{FixedVec, LimitedVec};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
@@ -341,6 +342,36 @@ impl<T: JamDecode> JamDecode for Vec<T> {
     }
 }
 
+impl<T: JamEncode, const MAX_SIZE: usize> JamEncode for LimitedVec<T, MAX_SIZE> {
+    fn size_hint(&self) -> usize {
+        self.len().size_hint() + self.iter().map(|e| e.size_hint()).sum::<usize>()
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.len().encode_to(dest)?; // length discriminator
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
+impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let len = usize::decode(input)?; // length discriminator
+        if len >= MAX_SIZE {
+            return Err(JamCodecError::InvalidSize(
+                "LimitedVec size limit exceeded".to_string(),
+            ));
+        }
+        let mut vec = Vec::with_capacity(len);
+        for _ in 0..len {
+            vec.push(T::decode(input)?);
+        }
+        Ok(Self::try_from_vec(vec).expect("size checked"))
+    }
+}
+
 impl JamEncode for BitVec {
     fn size_hint(&self) -> usize {
         let length_size = self.len().div_ceil(8).size_hint();
@@ -660,6 +691,53 @@ impl JamDecodeFixed for Vec<u8> {
         let mut buffer = vec![0u8; size];
         input.read(&mut buffer)?;
         Ok(buffer)
+    }
+}
+
+impl<T, const SIZE: usize> JamEncodeFixed for FixedVec<T, SIZE>
+where
+    T: JamEncode + Default + Clone,
+{
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn encode_to_fixed<O: JamOutput>(
+        &self,
+        dest: &mut O,
+        size: usize,
+    ) -> Result<(), JamCodecError> {
+        if SIZE != size {
+            return Err(JamCodecError::InvalidSize(format!(
+                "FixedVec length ({}) does not match the expected size in byte ({})",
+                SIZE, size
+            )));
+        }
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
+impl<T, const SIZE: usize> JamDecodeFixed for FixedVec<T, SIZE>
+where
+    T: JamDecode + Default + Clone,
+{
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        if SIZE != size {
+            return Err(JamCodecError::InvalidSize(format!(
+                "FixedVec length ({}) does not match the expected size in byte ({})",
+                SIZE, size
+            )));
+        }
+        let mut vec = Vec::with_capacity(SIZE);
+        for _ in 0..SIZE {
+            vec.push(T::decode(input)?)
+        }
+
+        let fixed_vec = Self::try_from_vec(vec).expect("size checked");
+        Ok(fixed_vec)
     }
 }
 
