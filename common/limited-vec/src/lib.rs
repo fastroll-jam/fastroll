@@ -1,3 +1,4 @@
+use std::ops::{Index, IndexMut};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,6 +37,13 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         self.inner.iter()
     }
 
+    pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
+        if vec.len() >= MAX_SIZE {
+            return Err(LimitedVecError::InvalidVecSize);
+        }
+        Ok(Self { inner: vec })
+    }
+
     pub fn try_push(&mut self, item: T) -> Result<(), LimitedVecError> {
         if self.inner.len() >= MAX_SIZE {
             return Err(LimitedVecError::LimitedVecFull);
@@ -69,12 +77,41 @@ impl<'a, T, const MAX_SIZE: usize> IntoIterator for &'a mut LimitedVec<T, MAX_SI
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct FixedVec<T, const SIZE: usize> {
+impl<T, const MAX_SIZE: usize> Index<usize> for LimitedVec<T, MAX_SIZE> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.inner[index]
+    }
+}
+
+impl<T, const MAX_SIZE: usize> IndexMut<usize> for LimitedVec<T, MAX_SIZE> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.inner[index]
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FixedVec<T, const SIZE: usize>
+where
+    T: Default + Clone,
+{
     inner: Vec<T>,
 }
 
-impl<T, const SIZE: usize> FixedVec<T, SIZE> {
+impl<T, const SIZE: usize> Default for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    fn default() -> Self {
+        Self::try_from_vec(vec![T::default(); SIZE]).expect("size checked")
+    }
+}
+
+impl<T, const SIZE: usize> FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -98,7 +135,10 @@ impl<T, const SIZE: usize> FixedVec<T, SIZE> {
     }
 }
 
-impl<T, const SIZE: usize> IntoIterator for FixedVec<T, SIZE> {
+impl<T, const SIZE: usize> IntoIterator for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
     type Item = T;
     type IntoIter = std::vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
@@ -106,7 +146,10 @@ impl<T, const SIZE: usize> IntoIterator for FixedVec<T, SIZE> {
     }
 }
 
-impl<'a, T, const SIZE: usize> IntoIterator for &'a FixedVec<T, SIZE> {
+impl<'a, T, const SIZE: usize> IntoIterator for &'a FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
     type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
@@ -114,10 +157,33 @@ impl<'a, T, const SIZE: usize> IntoIterator for &'a FixedVec<T, SIZE> {
     }
 }
 
-impl<'a, T, const SIZE: usize> IntoIterator for &'a mut FixedVec<T, SIZE> {
+impl<'a, T, const SIZE: usize> IntoIterator for &'a mut FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
     type Item = &'a mut T;
     type IntoIter = std::slice::IterMut<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter_mut()
+    }
+}
+
+impl<T, const SIZE: usize> Index<usize> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.inner[index]
+    }
+}
+
+impl<T, const SIZE: usize> IndexMut<usize> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.inner[index]
     }
 }
