@@ -1,13 +1,13 @@
 use crate::error::TransitionError;
 use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
+use fr_common::{ticket::Ticket, Hash32, TICKET_CONTEST_DURATION};
 use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{
-        generate_fallback_keys, outside_in_vec, ActiveSet, SafroleState, SlotSealers,
+        generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleState, SlotSealers,
         TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
@@ -109,11 +109,10 @@ pub(crate) fn update_slot_sealers(
         ));
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
-        let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
-            outside_in_vec(safrole.ticket_accumulator.as_vec())
-                .try_into()
-                .unwrap();
-        safrole.slot_sealers = SlotSealers::Tickets(Box::new(ticket_accumulator_outside_in));
+        let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());
+        let epoch_tickets = EpochTickets::try_from_vec(ticket_accumulator_outside_in)
+            .expect("ticket accumulator length exceeds EPOCH_LENGTH");
+        safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
     }
 }
 

@@ -8,12 +8,16 @@ use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
+use fr_limited_vec::FixedVec;
 use std::{
     array::from_fn,
     collections::BinaryHeap,
     fmt::{Display, Formatter},
 };
 use thiserror::Error;
+
+pub type EpochTickets = FixedVec<Ticket, EPOCH_LENGTH>;
+pub type EpochFallbackKeys = FixedVec<BandersnatchPubKey, EPOCH_LENGTH>;
 
 #[derive(Error, Debug)]
 pub enum SlotSealerError {
@@ -120,14 +124,14 @@ impl Default for SlotSealer {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotSealers {
-    Tickets(Box<[Ticket; EPOCH_LENGTH]>),
+    Tickets(EpochTickets),
     BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
+    // BandersnatchPubKeys(FixedVec<BandersnatchPubKey, EPOCH_LENGTH>),
 }
 
 impl Default for SlotSealers {
     fn default() -> Self {
-        let arr = from_fn(|_| Ticket::default());
-        Self::Tickets(Box::new(arr))
+        Self::Tickets(EpochTickets::default())
     }
 }
 
@@ -152,7 +156,7 @@ impl Display for SlotSealers {
 impl JamEncode for SlotSealers {
     fn size_hint(&self) -> usize {
         match self {
-            SlotSealers::Tickets(tickets) => 1 + tickets.size_hint(),
+            SlotSealers::Tickets(_) => 1 + EPOCH_LENGTH,
             SlotSealers::BandersnatchPubKeys(keys) => 1 + keys.size_hint(),
         }
     }
@@ -161,7 +165,7 @@ impl JamEncode for SlotSealers {
         match self {
             SlotSealers::Tickets(tickets) => {
                 0u8.encode_to(dest)?;
-                tickets.encode_to(dest)?;
+                tickets.encode_to_fixed(dest, EPOCH_LENGTH)?;
                 Ok(())
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
@@ -181,13 +185,12 @@ impl JamDecode for SlotSealers {
                 for _ in 0..EPOCH_LENGTH {
                     tickets.push(Ticket::decode(input)?);
                 }
-                let boxed_tickets: Box<[Ticket; EPOCH_LENGTH]> =
-                    tickets.into_boxed_slice().try_into().map_err(|_| {
-                        JamCodecError::ConversionError(
-                            "Failed to convert to Box<[Ticket; EPOCH_LENGTH]>".into(),
-                        )
-                    })?;
-                Ok(SlotSealers::Tickets(boxed_tickets))
+                let epoch_tickets = FixedVec::try_from_vec(tickets).map_err(|_| {
+                    JamCodecError::ConversionError(
+                        "EpochTickets has more than EPOCH_LENGTH entries".to_string(),
+                    )
+                })?;
+                Ok(SlotSealers::Tickets(epoch_tickets))
             }
             1 => {
                 let mut keys = Vec::with_capacity(EPOCH_LENGTH);

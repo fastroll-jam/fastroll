@@ -756,6 +756,7 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "fr-codec-derive",
+ "fr-limited-vec",
  "thiserror 2.0.12",
 ]
 
@@ -986,6 +987,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-db",
+ "fr-limited-vec",
  "fr-merkle",
  "fr-state-merkle",
  "hex",
