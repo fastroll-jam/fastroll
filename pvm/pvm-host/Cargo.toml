@@ -7,6 +7,7 @@ edition.workspace = true
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
+fr-limited-vec = { workspace = true }
 fr-state = { workspace = true }
 fr-pvm-core = { workspace = true }
 fr-pvm-types = { workspace = true }

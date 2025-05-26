@@ -1150,7 +1150,7 @@ impl HostFunction {
                 let item_idx = vm.regs[11].as_usize()?;
                 let segment_idx = vm.regs[12].as_usize()?;
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
-                    &*imports[item_idx][segment_idx]
+                    imports[item_idx][segment_idx].as_ref()
                 } else {
                     continue_none!()
                 }
@@ -1160,7 +1160,7 @@ impl HostFunction {
                 let item_idx = x.invoke_args.item_idx;
                 let segment_idx = vm.regs[11].as_usize()?;
                 if segment_idx < imports[item_idx].len() {
-                    &*imports[item_idx][segment_idx]
+                    imports[item_idx][segment_idx].as_ref()
                 } else {
                     continue_none!()
                 }
