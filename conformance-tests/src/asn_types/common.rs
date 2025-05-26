@@ -26,16 +26,17 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, MAX_AUTH_POOL_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
-    AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-    BlockHistoryEntry, CoreStats, CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy,
-    EpochFallbackKeys, EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec,
-    OnChainStatistics, PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices,
-    ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthPoolFixedVec, AuthQueue,
+    BlockHistory, BlockHistoryEntry, CoreAuthPool, CoreStats, CoreStatsEntry, CoreStatsFixedVec,
+    DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats,
+    EpochValidatorStatsFixedVec, OnChainStatistics, PendingReport, PendingReports,
+    PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry, SlotSealers,
+    Timeslot, ValidatorStats, ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -502,7 +503,7 @@ impl From<Authorizer> for AsnAuthorizer {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct AsnAuthPool(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -510,26 +511,30 @@ pub struct AsnAuthPools([AsnAuthPool; ASN_CORE_COUNT]);
 
 impl From<AsnAuthPools> for AuthPool {
     fn from(value: AsnAuthPools) -> Self {
-        // let pool = value
-        //     .0
-        //     .map(|p| p.0.into_iter().map(Hash32::from).collect::<Vec<_>>());
-        // Self(Box::new(pool))
-        Self(Box::new(value.0.map(|p| {
-            p.0.into_iter().map(Hash32::from).collect::<Vec<_>>()
-        })))
+        let mut auth_pool_vec = Vec::with_capacity(ASN_CORE_COUNT);
+        for asn_core_authorizers in value.0 {
+            let mut core_authorizers = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
+            for asn_authorizer in asn_core_authorizers.0.into_iter() {
+                core_authorizers.push(Hash32::from(asn_authorizer));
+            }
+            auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
+        }
+        Self(AuthPoolFixedVec::try_from_vec(auth_pool_vec).unwrap())
     }
 }
 
 impl From<AuthPool> for AsnAuthPools {
     fn from(value: AuthPool) -> Self {
-        let asn_pool = value.0.map(|hashes| {
-            let asn_hashes = hashes
-                .into_iter()
-                .map(AsnOpaqueHash::from)
-                .collect::<Vec<_>>();
-            AsnAuthPool(asn_hashes)
-        });
-        Self(asn_pool)
+        let mut asn_auth_pools_arr: [AsnAuthPool; ASN_CORE_COUNT] =
+            from_fn(|_| AsnAuthPool::default());
+        for (i, core_authorizers) in value.0.into_iter().enumerate() {
+            let mut asn_auth_pool_vec = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
+            for authorizer in core_authorizers {
+                asn_auth_pool_vec.push(AsnAuthorizerHash::from(authorizer));
+            }
+            asn_auth_pools_arr[i] = AsnAuthPool(asn_auth_pool_vec);
+        }
+        Self(asn_auth_pools_arr)
     }
 }
 

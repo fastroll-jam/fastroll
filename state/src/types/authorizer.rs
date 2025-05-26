@@ -4,6 +4,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, Hash32, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
+use fr_limited_vec::{FixedVec, LimitedVec};
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},
@@ -16,19 +17,15 @@ pub enum AuthPoolError {
     InvalidCoreIndex(CoreIndex),
 }
 
+pub type CoreAuthPool = LimitedVec<Hash32, MAX_AUTH_POOL_SIZE>;
+pub type AuthPoolFixedVec = FixedVec<CoreAuthPool, CORE_COUNT>;
+
 /// The authorizer pool.
 ///
 /// Represents `α` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AuthPool(pub Box<[Vec<Hash32>; CORE_COUNT]>); // Vec<Hash32> length up to `O = 8`
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct AuthPool(pub AuthPoolFixedVec);
 impl_simple_state_component!(AuthPool, AuthPool);
-
-impl Default for AuthPool {
-    fn default() -> Self {
-        let arr = from_fn(|_| Vec::with_capacity(MAX_AUTH_POOL_SIZE));
-        Self(Box::new(arr))
-    }
-}
 
 impl Display for AuthPool {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -49,7 +46,7 @@ impl AuthPool {
         if core_index as usize >= CORE_COUNT {
             return Err(AuthPoolError::InvalidCoreIndex(core_index));
         }
-        Ok(&self.0[core_index as usize])
+        Ok(self.0[core_index as usize].as_ref())
     }
 }
 

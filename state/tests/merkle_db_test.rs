@@ -22,8 +22,8 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // --- 1. Add one state entry, initializing the Merkle Trie
     tracing::info!("1. Add the first state entry.");
     let mut auth_pool = AuthPool::default();
-    auth_pool.0[0].push(simple_hash("00"));
-    auth_pool.0[1].push(simple_hash("01"));
+    auth_pool.0[0].try_push(simple_hash("00")).unwrap();
+    auth_pool.0[1].try_push(simple_hash("01")).unwrap();
     let auth_pool_expected = auth_pool.clone();
 
     // Apply state mutation
@@ -89,7 +89,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     tracing::info!("3. Update state entry.");
     state_manager
         .with_mut_auth_pool(StateMut::Update, |pool| {
-            pool.0[1].push(simple_hash("02"));
+            pool.0[1].try_push(simple_hash("02")).unwrap();
         })
         .await?;
     let auth_pool_expected = state_manager.get_auth_pool().await?;

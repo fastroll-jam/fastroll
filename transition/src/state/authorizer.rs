@@ -46,7 +46,7 @@ pub async fn transition_auth_pool(
                 if core_pool.len() == MAX_AUTH_POOL_SIZE {
                     core_pool.remove(0);
                 }
-                core_pool.push(queue_entry);
+                core_pool.shift_push(queue_entry);
             }
         })
         .await?;

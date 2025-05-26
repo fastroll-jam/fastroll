@@ -42,7 +42,7 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
     }
 
     pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
-        if vec.len() >= MAX_SIZE {
+        if vec.len() > MAX_SIZE {
             return Err(LimitedVecError::InvalidVecSize);
         }
         Ok(Self { inner: vec })
@@ -54,6 +54,21 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         }
         self.inner.push(item);
         Ok(())
+    }
+
+    pub fn shift_push(&mut self, item: T) -> Option<T> {
+        if self.inner.len() == MAX_SIZE {
+            let oldest = self.inner.remove(0);
+            self.inner.push(item);
+            Some(oldest)
+        } else {
+            self.inner.push(item);
+            None
+        }
+    }
+
+    pub fn remove(&mut self, index: usize) -> T {
+        self.inner.remove(index)
     }
 }
 

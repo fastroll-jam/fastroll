@@ -359,7 +359,7 @@ impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> 
         Self: Sized,
     {
         let len = usize::decode(input)?; // length discriminator
-        if len >= MAX_SIZE {
+        if len > MAX_SIZE {
             return Err(JamCodecError::InvalidSize(
                 "LimitedVec size limit exceeded".to_string(),
             ));
