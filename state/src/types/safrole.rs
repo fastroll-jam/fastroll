@@ -161,12 +161,12 @@ impl JamEncode for SlotSealers {
         match self {
             SlotSealers::Tickets(tickets) => {
                 0u8.encode_to(dest)?;
-                tickets.encode_to_fixed(dest, EPOCH_LENGTH)?;
+                tickets.encode_to(dest)?;
                 Ok(())
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 1u8.encode_to(dest)?;
-                keys.encode_to_fixed(dest, EPOCH_LENGTH)?;
+                keys.encode_to(dest)?;
                 Ok(())
             }
         }

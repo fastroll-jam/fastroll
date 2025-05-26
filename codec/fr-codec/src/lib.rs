@@ -726,53 +726,6 @@ impl JamDecodeFixed for Vec<u8> {
     }
 }
 
-impl<T, const SIZE: usize> JamEncodeFixed for FixedVec<T, SIZE>
-where
-    T: JamEncode + Default + Clone,
-{
-    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
-
-    fn encode_to_fixed<O: JamOutput>(
-        &self,
-        dest: &mut O,
-        size: usize,
-    ) -> Result<(), JamCodecError> {
-        if SIZE != size {
-            return Err(JamCodecError::InvalidSize(format!(
-                "FixedVec length ({}) does not match the expected size in byte ({})",
-                SIZE, size
-            )));
-        }
-        self.iter().try_for_each(|e| e.encode_to(dest))
-    }
-}
-
-impl<T, const SIZE: usize> JamDecodeFixed for FixedVec<T, SIZE>
-where
-    T: JamDecode + Default + Clone,
-{
-    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
-
-    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        if SIZE != size {
-            return Err(JamCodecError::InvalidSize(format!(
-                "FixedVec length ({}) does not match the expected size in byte ({})",
-                SIZE, size
-            )));
-        }
-        let mut vec = Vec::with_capacity(SIZE);
-        for _ in 0..SIZE {
-            vec.push(T::decode(input)?)
-        }
-
-        let fixed_vec = Self::try_from_vec(vec).expect("size checked");
-        Ok(fixed_vec)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
