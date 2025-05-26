@@ -8,6 +8,7 @@ pub enum LimitedVecError {
     InvalidVecSize,
 }
 
+#[derive(Debug, Clone)]
 pub struct LimitedVec<T, const MAX_SIZE: usize> {
     inner: Vec<T>,
 }
@@ -46,6 +47,7 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct FixedVec<T, const SIZE: usize> {
     inner: Vec<T>,
 }
