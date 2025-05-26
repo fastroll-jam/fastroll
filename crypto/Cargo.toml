@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
+fr-limited-vec = { workspace = true }
 ark-vrf = { workspace = true }
 base32 = { workspace = true }
 blake2 = { workspace = true }

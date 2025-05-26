@@ -293,12 +293,12 @@ impl From<AsnValidatorData> for ValidatorKey {
 }
 
 pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
-    let mut validator_keys = from_fn(|_| ValidatorKey::default());
-    for (i, validator_data) in data.iter().enumerate() {
-        validator_keys[i] = ValidatorKey::from(validator_data.clone());
+    let mut keys_vec = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+    for validator_data in data.iter() {
+        keys_vec.push(ValidatorKey::from(validator_data.clone()));
     }
 
-    ValidatorKeySet(Box::new(validator_keys))
+    ValidatorKeySet(ValidatorKeys::try_from_vec(keys_vec).unwrap())
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {

@@ -5,7 +5,6 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_crypto::types::*;
 use std::{
-    array::from_fn,
     collections::HashSet,
     fmt::{Display, Formatter},
     ops::{Deref, DerefMut},
@@ -101,7 +100,7 @@ pub struct EffectiveValidators {
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// Represents `ι` in the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct StagingSet(pub ValidatorKeySet);
 impl_simple_state_component!(StagingSet, StagingSet);
 
@@ -121,21 +120,14 @@ impl DerefMut for StagingSet {
 
 impl Display for StagingSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        fmt_validator_set(f, "StagingSet", self.as_ref())
-    }
-}
-
-impl Default for StagingSet {
-    fn default() -> Self {
-        let arr = from_fn(|_| ValidatorKey::default());
-        Self(ValidatorKeySet(Box::new(arr)))
+        fmt_validator_set(f, "StagingSet", self.as_slice())
     }
 }
 
 /// A validator set that is active in the current epoch.
 ///
 /// Represents `κ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ActiveSet(pub ValidatorKeySet);
 impl_simple_state_component!(ActiveSet, ActiveSet);
 
@@ -155,21 +147,14 @@ impl DerefMut for ActiveSet {
 
 impl Display for ActiveSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        fmt_validator_set(f, "ActiveSet", self.as_ref())
-    }
-}
-
-impl Default for ActiveSet {
-    fn default() -> Self {
-        let arr = from_fn(|_| ValidatorKey::default());
-        Self(ValidatorKeySet(Box::new(arr)))
+        fmt_validator_set(f, "ActiveSet", self.as_slice())
     }
 }
 
 /// A validator set that was active in the previous epoch.
 ///
 /// Represents `λ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct PastSet(pub ValidatorKeySet);
 impl_simple_state_component!(PastSet, PastSet);
 
@@ -189,13 +174,6 @@ impl DerefMut for PastSet {
 
 impl Display for PastSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        fmt_validator_set(f, "PastSet", self.as_ref())
-    }
-}
-
-impl Default for PastSet {
-    fn default() -> Self {
-        let arr = from_fn(|_| ValidatorKey::default());
-        Self(ValidatorKeySet(Box::new(arr)))
+        fmt_validator_set(f, "PastSet", self.as_slice())
     }
 }

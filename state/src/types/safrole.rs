@@ -10,7 +10,6 @@ use fr_common::{
 use fr_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use fr_limited_vec::FixedVec;
 use std::{
-    array::from_fn,
     collections::BinaryHeap,
     fmt::{Display, Formatter},
 };
@@ -30,7 +29,7 @@ pub enum SlotSealerError {
 /// State components associated with the Safrole protocol.
 ///
 /// Represents `γ` of the GP.
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode)]
 pub struct SafroleState {
     /// `γ_k`: Pending validator key set, which will be active in the next epoch.
     /// This set is used to determine the Bandersnatch ring root for the next epoch.
@@ -44,17 +43,6 @@ pub struct SafroleState {
     pub ticket_accumulator: TicketAccumulator,
 }
 impl_simple_state_component!(SafroleState, SafroleState);
-
-impl Default for SafroleState {
-    fn default() -> Self {
-        Self {
-            pending_set: ValidatorKeySet(Box::new(from_fn(|_| ValidatorKey::default()))),
-            ring_root: BandersnatchRingRoot::default(),
-            slot_sealers: SlotSealers::default(),
-            ticket_accumulator: TicketAccumulator::default(),
-        }
-    }
-}
 
 impl Display for SafroleState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -90,8 +78,7 @@ impl Display for SafroleState {
 
 impl JamDecode for SafroleState {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        let arr = from_fn(|_| ValidatorKey::default());
-        let mut pending_set = ValidatorKeySet(Box::new(arr));
+        let mut pending_set = ValidatorKeySet::default();
         for validator in pending_set.iter_mut() {
             *validator = ValidatorKey::decode(input)?;
         }

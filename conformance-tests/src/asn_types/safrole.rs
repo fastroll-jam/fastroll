@@ -5,7 +5,7 @@ use fr_crypto::types::BandersnatchRingRoot;
 use fr_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
 use fr_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{array::from_fn, fmt::Debug};
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -107,7 +107,11 @@ pub fn safrole_state_to_gammas(
     AsnTicketsOrKeys,
     AsnBandersnatchRingRoot,
 ) {
-    let gamma_k = safrole.pending_set.0.map(AsnValidatorData::from);
+    let mut gamma_k: AsnValidatorsData = from_fn(|_| AsnValidatorData::default());
+
+    for (i, key) in safrole.pending_set.0.iter().enumerate() {
+        gamma_k[i] = AsnValidatorData::from(key.clone())
+    }
     let gamma_a = safrole
         .ticket_accumulator
         .clone()
