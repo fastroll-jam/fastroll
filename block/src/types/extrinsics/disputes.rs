@@ -5,6 +5,7 @@ use fr_common::{
     VALIDATORS_SUPER_MAJORITY,
 };
 use fr_crypto::types::*;
+use fr_limited_vec::FixedVec;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
@@ -127,6 +128,8 @@ impl DisputesXt {
     }
 }
 
+pub type Judgments = FixedVec<Judgment, VALIDATORS_SUPER_MAJORITY>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
     /// `r`: The work report hash.
@@ -134,7 +137,7 @@ pub struct Verdict {
     /// `a`: The epoch index.
     pub epoch_index: u32,
     /// **`j`**: The judgments.
-    pub judgments: Box<[Judgment; VALIDATORS_SUPER_MAJORITY]>,
+    pub judgments: Judgments,
 }
 
 impl Display for Verdict {
@@ -183,7 +186,7 @@ impl JamDecode for Verdict {
         Ok(Self {
             report_hash: Hash32::decode(input)?,
             epoch_index: u32::decode_fixed(input, 4)?,
-            judgments: Box::<[Judgment; VALIDATORS_SUPER_MAJORITY]>::decode(input)?,
+            judgments: Judgments::decode(input)?,
         })
     }
 }

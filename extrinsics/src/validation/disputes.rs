@@ -183,7 +183,7 @@ impl DisputesXtValidator {
         }
 
         // Check if judgments are sorted
-        if !entry.judgments.is_sorted() {
+        if !entry.judgments.iter().is_sorted() {
             return Err(XtError::JudgmentsNotSorted);
         }
 

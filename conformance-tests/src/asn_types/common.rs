@@ -9,7 +9,9 @@ use fr_block::types::{
     },
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
-        disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
+        disputes::{
+            Culprit, DisputesXt, Fault, Judgment, Judgments, OffendersHeaderMarker, Verdict,
+        },
         guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
         preimages::{PreimagesXt, PreimagesXtEntry},
         tickets::{TicketsXt, TicketsXtEntry},
@@ -24,8 +26,7 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
-    VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -1481,16 +1482,16 @@ pub struct AsnDisputeVerdict {
 
 impl From<AsnDisputeVerdict> for Verdict {
     fn from(value: AsnDisputeVerdict) -> Self {
-        let mut judgments: [Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1] = Default::default();
+        let mut judgments = Vec::with_capacity(ASN_VALIDATORS_SUPER_MAJORITY);
 
-        for (i, vote) in value.votes.into_iter().enumerate() {
-            judgments[i] = vote.into()
+        for vote in value.votes.into_iter() {
+            judgments.push(vote.into());
         }
 
         Self {
             report_hash: Hash32::from(value.target),
             epoch_index: value.age,
-            judgments: Box::new(judgments),
+            judgments: Judgments::try_from_vec(judgments).unwrap(),
         }
     }
 }
