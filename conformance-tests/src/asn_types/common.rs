@@ -27,9 +27,10 @@ use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-    BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochTickets,
-    EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports, PrivilegedServices,
-    ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochFallbackKeys,
+    EpochTickets, EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports,
+    PrivilegedServices, ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats,
+    ValidatorStatsEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1350,11 +1351,12 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
                 SlotSealers::Tickets(epoch_tickets)
             }
             AsnTicketsOrKeys::keys(epoch_keys) => {
-                let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
-                for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = BandersnatchPubKey(Hash32::from(key))
+                let mut keys = Vec::with_capacity(ASN_EPOCH_LENGTH);
+                for key in epoch_keys.into_iter() {
+                    keys.push(BandersnatchPubKey(Hash32::from(key)));
                 }
-                SlotSealers::BandersnatchPubKeys(Box::new(keys))
+                let epoch_keys = EpochFallbackKeys::try_from_vec(keys).unwrap();
+                SlotSealers::BandersnatchPubKeys(epoch_keys)
             }
         }
     }

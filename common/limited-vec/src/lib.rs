@@ -37,6 +37,10 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         self.inner.iter()
     }
 
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
+        self.inner.iter_mut()
+    }
+
     pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
         if vec.len() >= MAX_SIZE {
             return Err(LimitedVecError::InvalidVecSize);
@@ -125,6 +129,10 @@ where
 
     pub fn iter(&self) -> std::slice::Iter<T> {
         self.inner.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
+        self.inner.iter_mut()
     }
 
     pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {

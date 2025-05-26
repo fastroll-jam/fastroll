@@ -39,7 +39,7 @@ pub fn genesis_simple_state() -> SimpleStates {
         staging_set: StagingSet(genesis_validator_set.clone()),
         safrole: SafroleState {
             pending_set: genesis_validator_set,
-            slot_sealers: SlotSealers::BandersnatchPubKeys(Box::new(genesis_fallback_keys)),
+            slot_sealers: SlotSealers::BandersnatchPubKeys(genesis_fallback_keys),
             ..Default::default()
         },
         ..Default::default()

@@ -104,9 +104,10 @@ pub(crate) fn update_slot_sealers(
 
     if is_fallback {
         tracing::trace!("New epoch.Prev slot sealers:\n{}", &safrole.slot_sealers);
-        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(Box::new(
-            generate_fallback_keys(curr_active_set, curr_entropy_2).unwrap(),
-        ));
+        let fallback_keys = generate_fallback_keys(curr_active_set, curr_entropy_2)
+            .expect("Failed to generate fallback keys");
+
+        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(fallback_keys);
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
         let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());

@@ -125,13 +125,12 @@ impl Default for SlotSealer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotSealers {
     Tickets(EpochTickets),
-    BandersnatchPubKeys(Box<[BandersnatchPubKey; EPOCH_LENGTH]>),
-    // BandersnatchPubKeys(FixedVec<BandersnatchPubKey, EPOCH_LENGTH>),
+    BandersnatchPubKeys(EpochFallbackKeys),
 }
 
 impl Default for SlotSealers {
     fn default() -> Self {
-        Self::Tickets(EpochTickets::default())
+        Self::BandersnatchPubKeys(EpochFallbackKeys::default())
     }
 }
 
@@ -155,10 +154,7 @@ impl Display for SlotSealers {
 
 impl JamEncode for SlotSealers {
     fn size_hint(&self) -> usize {
-        match self {
-            SlotSealers::Tickets(_) => 1 + EPOCH_LENGTH,
-            SlotSealers::BandersnatchPubKeys(keys) => 1 + keys.size_hint(),
-        }
+        1 + EPOCH_LENGTH
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -170,7 +166,7 @@ impl JamEncode for SlotSealers {
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
                 1u8.encode_to(dest)?;
-                keys.encode_to(dest)?;
+                keys.encode_to_fixed(dest, EPOCH_LENGTH)?;
                 Ok(())
             }
         }
@@ -197,13 +193,12 @@ impl JamDecode for SlotSealers {
                 for _ in 0..EPOCH_LENGTH {
                     keys.push(BandersnatchPubKey::decode(input)?);
                 }
-                let boxed_keys: Box<[BandersnatchPubKey; EPOCH_LENGTH]> =
-                    keys.into_boxed_slice().try_into().map_err(|_| {
-                        JamCodecError::ConversionError(
-                            "Failed to convert to Box<[BandersnatchPubKey; EPOCH_LENGTH]>".into(),
-                        )
-                    })?;
-                Ok(SlotSealers::BandersnatchPubKeys(boxed_keys))
+                let epoch_keys = FixedVec::try_from_vec(keys).map_err(|_| {
+                    JamCodecError::ConversionError(
+                        "EpochFallbackKeys has more than EPOCH_LENGTH entries".to_string(),
+                    )
+                })?;
+                Ok(SlotSealers::BandersnatchPubKeys(epoch_keys))
             }
             _ => Err(JamCodecError::ConversionError(
                 "Invalid SlotSealers type discriminator".into(),
@@ -256,12 +251,11 @@ impl SlotSealers {
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
     entropy: &Hash32,
-) -> Result<[BandersnatchPubKey; EPOCH_LENGTH], SlotSealerError> {
-    let mut bandersnatch_keys: [BandersnatchPubKey; EPOCH_LENGTH] =
-        from_fn(|_| BandersnatchPubKey::default());
+) -> Result<FixedVec<BandersnatchPubKey, EPOCH_LENGTH>, SlotSealerError> {
+    let mut fallback_keys = EpochFallbackKeys::default();
     let entropy_vec = entropy.to_vec();
 
-    for (i, key) in bandersnatch_keys.iter_mut().enumerate() {
+    for (i, key) in fallback_keys.iter_mut().enumerate() {
         let i_encoded = (i as u32)
             .encode_fixed(4)
             .map_err(SlotSealerError::CodecError)?;
@@ -278,7 +272,7 @@ pub fn generate_fallback_keys(
             .expect("Should exist; index is modulo");
     }
 
-    Ok(bandersnatch_keys)
+    Ok(fallback_keys)
 }
 
 /// The ticket accumulator which holds submitted tickets sorted by their id with a length limit of `EPOCH_LENGTH`.
