@@ -8,15 +8,9 @@ pub enum LimitedVecError {
     InvalidVecSize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LimitedVec<T, const MAX_SIZE: usize> {
     inner: Vec<T>,
-}
-
-impl<T, const MAX_SIZE: usize> Default for LimitedVec<T, MAX_SIZE> {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
@@ -38,6 +32,10 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         self.inner.as_slice()
     }
 
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.inner.iter()
+    }
+
     pub fn try_push(&mut self, item: T) -> Result<(), LimitedVecError> {
         if self.inner.len() >= MAX_SIZE {
             return Err(LimitedVecError::LimitedVecFull);
@@ -47,7 +45,31 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
     }
 }
 
-#[derive(Debug, Clone)]
+impl<T, const MAX_SIZE: usize> IntoIterator for LimitedVec<T, MAX_SIZE> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl<'a, T, const MAX_SIZE: usize> IntoIterator for &'a LimitedVec<T, MAX_SIZE> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl<'a, T, const MAX_SIZE: usize> IntoIterator for &'a mut LimitedVec<T, MAX_SIZE> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter_mut()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FixedVec<T, const SIZE: usize> {
     inner: Vec<T>,
 }
@@ -64,10 +86,38 @@ impl<T, const SIZE: usize> FixedVec<T, SIZE> {
         self.inner.as_slice()
     }
 
+    pub fn iter(&self) -> std::slice::Iter<T> {
+        self.inner.iter()
+    }
+
     pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
         if vec.len() != SIZE {
             return Err(LimitedVecError::InvalidVecSize);
         }
         Ok(Self { inner: vec })
+    }
+}
+
+impl<T, const SIZE: usize> IntoIterator for FixedVec<T, SIZE> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl<'a, T, const SIZE: usize> IntoIterator for &'a FixedVec<T, SIZE> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl<'a, T, const SIZE: usize> IntoIterator for &'a mut FixedVec<T, SIZE> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter_mut()
     }
 }
