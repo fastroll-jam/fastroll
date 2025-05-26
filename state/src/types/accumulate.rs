@@ -13,6 +13,7 @@ pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 pub type AccumulateQueueFixedVec = FixedVec<Vec<WorkReportDepsMap>, EPOCH_LENGTH>;
+pub type AccumulateHistoryFixedVec = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_LENGTH>;
 
 /// A queue of work reports pending accumulation due to unresolved dependencies.
 ///
@@ -81,7 +82,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    pub items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
+    pub items: AccumulateHistoryFixedVec,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
@@ -92,11 +93,15 @@ impl AccumulateHistory {
     }
 
     pub fn add(&mut self, entry: BTreeSet<WorkPackageHash>) {
-        self.items.rotate_left(1);
+        Self::rotate_left_history(&mut self.items, 1);
         self.items[EPOCH_LENGTH - 1] = entry;
     }
 
     pub fn last_history(&self) -> Option<&BTreeSet<WorkPackageHash>> {
-        self.items.last()
+        self.items.as_ref().last()
+    }
+
+    fn rotate_left_history(history: &mut AccumulateHistoryFixedVec, mid: usize) {
+        history.as_mut().rotate_left(mid);
     }
 }

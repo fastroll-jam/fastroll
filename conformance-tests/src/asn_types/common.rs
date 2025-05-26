@@ -26,19 +26,19 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, MAX_AUTH_POOL_SIZE,
-    VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, EPOCH_LENGTH,
+    MAX_AUTH_POOL_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
-    AccountMetadata, AccumulateHistory, AccumulateQueue, AccumulateQueueFixedVec, AuthPool,
-    AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec, BlockHistory, BlockHistoryEntry, CoreAuthPool,
-    CoreAuthQueue, CoreStats, CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy,
-    EpochFallbackKeys, EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec,
-    OnChainStatistics, PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices,
-    ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
-    WorkReportDepsMap,
+    AccountMetadata, AccumulateHistory, AccumulateHistoryFixedVec, AccumulateQueue,
+    AccumulateQueueFixedVec, AuthPool, AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec,
+    BlockHistory, BlockHistoryEntry, CoreAuthPool, CoreAuthQueue, CoreStats, CoreStatsEntry,
+    CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets,
+    EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics, PendingReport,
+    PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry,
+    SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry, WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1951,13 +1951,13 @@ pub struct AsnAccumulateHistory(Vec<Vec<AsnWorkPackageHash>>); // SIZE(epoch-len
 
 impl From<AsnAccumulateHistory> for AccumulateHistory {
     fn from(value: AsnAccumulateHistory) -> Self {
-        let mut items_arr = from_fn(|_| BTreeSet::new());
-        value.0.into_iter().enumerate().for_each(|(i, wps)| {
+        let mut items_vec = Vec::with_capacity(EPOCH_LENGTH);
+        value.0.into_iter().for_each(|wps| {
             let hash_set = BTreeSet::from_iter(wps.into_iter().map(Hash32::from));
-            items_arr[i] = hash_set;
+            items_vec.push(hash_set);
         });
         Self {
-            items: Box::new(items_arr),
+            items: AccumulateHistoryFixedVec::try_from_vec(items_vec).unwrap(),
         }
     }
 }
