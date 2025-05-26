@@ -32,12 +32,13 @@ use fr_common::{
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
-    AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthPoolFixedVec, AuthQueue,
-    AuthQueueFixedVec, BlockHistory, BlockHistoryEntry, CoreAuthPool, CoreAuthQueue, CoreStats,
-    CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys,
-    EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics,
-    PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats,
-    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    AccountMetadata, AccumulateHistory, AccumulateQueue, AccumulateQueueFixedVec, AuthPool,
+    AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec, BlockHistory, BlockHistoryEntry, CoreAuthPool,
+    CoreAuthQueue, CoreStats, CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy,
+    EpochFallbackKeys, EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec,
+    OnChainStatistics, PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices,
+    ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1906,8 +1907,8 @@ pub struct AsnAccumulateQueue(Vec<Vec<AsnAccumulateQueueRecord>>); // SIZE(epoch
 
 impl From<AsnAccumulateQueue> for AccumulateQueue {
     fn from(value: AsnAccumulateQueue) -> Self {
-        let mut items_arr = from_fn(|_| Vec::new());
-        value.0.into_iter().enumerate().for_each(|(i, records)| {
+        let mut items_vec: Vec<Vec<WorkReportDepsMap>> = Vec::with_capacity(ASN_EPOCH_LENGTH);
+        value.0.into_iter().for_each(|records| {
             let records_converted = records
                 .into_iter()
                 .map(|record| {
@@ -1917,10 +1918,10 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
                     (wr, deps)
                 })
                 .collect();
-            items_arr[i] = records_converted;
+            items_vec.push(records_converted);
         });
         Self {
-            items: Box::new(items_arr),
+            items: AccumulateQueueFixedVec::try_from_vec(items_vec).unwrap(),
         }
     }
 }
