@@ -846,6 +846,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
+ "fr-limited-vec",
  "fr-state",
  "hex",
  "thiserror 2.0.12",

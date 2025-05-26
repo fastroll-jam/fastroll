@@ -3,6 +3,7 @@ use fr_common::{
     CoreIndex, Hash32, CORE_COUNT, EPOCH_LENGTH, GUARANTOR_ROTATION_PERIOD, VALIDATOR_COUNT,
 };
 use fr_crypto::types::ValidatorKeySet;
+use fr_limited_vec::FixedVec;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -18,9 +19,13 @@ pub enum GuarantorAssignmentError {
     StateManagerError(#[from] StateManagerError),
 }
 
+pub type CoreIndices = FixedVec<CoreIndex, VALIDATOR_COUNT>;
+
 pub struct GuarantorAssignment {
-    pub core_indices: Box<[CoreIndex; VALIDATOR_COUNT]>, // c
-    pub validator_keys: ValidatorKeySet,                 // k
+    /// `c`: Indices of cores allocated to validators, indexed by validator indices.
+    pub core_indices: CoreIndices,
+    /// `k`: Validator keys indexed by validator indices.
+    pub validator_keys: ValidatorKeySet,
 }
 
 impl GuarantorAssignment {
@@ -55,9 +60,11 @@ impl GuarantorAssignment {
         active_set.nullify_punished_validators(&punish_set);
 
         Ok(Self {
-            core_indices: Self::permute_validator_indices(entropy_2, current_timeslot)
-                .try_into()
-                .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
+            core_indices: CoreIndices::try_from_vec(Self::permute_validator_indices(
+                entropy_2,
+                current_timeslot,
+            ))
+            .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
             validator_keys: active_set.0,
         })
     }
@@ -87,11 +94,10 @@ impl GuarantorAssignment {
         validator_set.nullify_punished_validators(&punish_set);
 
         Ok(Self {
-            core_indices: Self::permute_validator_indices(
+            core_indices: CoreIndices::try_from_vec(Self::permute_validator_indices(
                 entropy,
                 Timeslot::new(previous_timeslot_value),
-            )
-            .try_into()
+            ))
             .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
             validator_keys: validator_set.clone(),
         })
