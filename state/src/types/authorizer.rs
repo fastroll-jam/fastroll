@@ -5,10 +5,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, Hash32, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
 use fr_limited_vec::{FixedVec, LimitedVec};
-use std::{
-    array::from_fn,
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -50,16 +47,12 @@ impl AuthPool {
     }
 }
 
+pub type CoreAuthQueue = FixedVec<Hash32, AUTH_QUEUE_SIZE>;
+pub type AuthQueueFixedVec = FixedVec<CoreAuthQueue, CORE_COUNT>;
+
 /// The authorizer queue.
 ///
 /// Represents `φ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AuthQueue(pub Box<[[Hash32; AUTH_QUEUE_SIZE]; CORE_COUNT]>);
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct AuthQueue(pub AuthQueueFixedVec);
 impl_simple_state_component!(AuthQueue, AuthQueue);
-
-impl Default for AuthQueue {
-    fn default() -> Self {
-        let arr = from_fn(|_| from_fn(|_| Hash32::default()));
-        Self(Box::new(arr))
-    }
-}
