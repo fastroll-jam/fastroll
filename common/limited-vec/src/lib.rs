@@ -57,6 +57,18 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
     }
 }
 
+impl<T, const MAX_SIZE: usize> AsRef<[T]> for LimitedVec<T, MAX_SIZE> {
+    fn as_ref(&self) -> &[T] {
+        self.inner.as_ref()
+    }
+}
+
+impl<T, const MAX_SIZE: usize> AsMut<[T]> for LimitedVec<T, MAX_SIZE> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.inner.as_mut()
+    }
+}
+
 impl<T, const MAX_SIZE: usize> IntoIterator for LimitedVec<T, MAX_SIZE> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -140,6 +152,24 @@ where
             return Err(LimitedVecError::InvalidVecSize);
         }
         Ok(Self { inner: vec })
+    }
+}
+
+impl<T, const SIZE: usize> AsRef<[T]> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    fn as_ref(&self) -> &[T] {
+        self.inner.as_ref()
+    }
+}
+
+impl<T, const SIZE: usize> AsMut<[T]> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    fn as_mut(&mut self) -> &mut [T] {
+        self.inner.as_mut()
     }
 }
 
