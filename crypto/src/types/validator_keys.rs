@@ -7,6 +7,7 @@ use crate::{
 use fr_common::{
     ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
 };
+use fr_limited_vec::FixedVec;
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
@@ -99,12 +100,14 @@ impl ValidatorKey {
     }
 }
 
+pub type ValidatorKeys = FixedVec<ValidatorKey, VALIDATOR_COUNT>;
+
 /// Set of `VALIDATOR_COUNT` validator keys.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct ValidatorKeySet(pub Box<[ValidatorKey; VALIDATOR_COUNT]>);
+pub struct ValidatorKeySet(pub ValidatorKeys);
 
 impl Deref for ValidatorKeySet {
-    type Target = [ValidatorKey; VALIDATOR_COUNT];
+    type Target = ValidatorKeys;
     fn deref(&self) -> &Self::Target {
         &self.0
     }

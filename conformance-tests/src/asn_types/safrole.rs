@@ -5,7 +5,7 @@ use fr_crypto::types::BandersnatchRingRoot;
 use fr_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
 use fr_transition::procedures::chain_extension::SafroleHeaderMarkers;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{array::from_fn, fmt::Debug};
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -36,11 +36,21 @@ pub struct AsnOutputMarks {
 
 impl From<SafroleHeaderMarkers> for AsnOutputMarks {
     fn from(value: SafroleHeaderMarkers) -> Self {
+        let mut tickets_mark_arr = [AsnTicketBody::default(); ASN_EPOCH_LENGTH];
+        let tickets_mark = match value.winning_tickets_marker {
+            Some(marker) => {
+                marker
+                    .iter()
+                    .enumerate()
+                    .for_each(|(i, e)| tickets_mark_arr[i] = AsnTicketBody::from(e.clone()));
+                Some(tickets_mark_arr)
+            }
+            None => None,
+        };
+
         Self {
             epoch_mark: value.epoch_marker.map(AsnEpochMark::from),
-            tickets_mark: value
-                .winning_tickets_marker
-                .map(|tickets| tickets.map(AsnTicketBody::from)),
+            tickets_mark,
         }
     }
 }
@@ -97,7 +107,11 @@ pub fn safrole_state_to_gammas(
     AsnTicketsOrKeys,
     AsnBandersnatchRingRoot,
 ) {
-    let gamma_k = safrole.pending_set.0.map(AsnValidatorData::from);
+    let mut gamma_k: AsnValidatorsData = from_fn(|_| AsnValidatorData::default());
+
+    for (i, key) in safrole.pending_set.0.iter().enumerate() {
+        gamma_k[i] = AsnValidatorData::from(key.clone())
+    }
     let gamma_a = safrole
         .ticket_accumulator
         .clone()

@@ -8,12 +8,14 @@ use fr_crypto::{
     hash::{hash, Blake2b256},
     types::*,
 };
+use fr_limited_vec::FixedVec;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 pub type BlockSeal = BandersnatchSig;
 pub type VrfSig = BandersnatchSig;
-pub type WinningTicketsMarker = [Ticket; EPOCH_LENGTH];
+pub type WinningTicketsMarker = FixedVec<Ticket, EPOCH_LENGTH>;
+pub type EpochValidators = FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT>;
 
 #[derive(Debug, Error)]
 pub enum BlockHeaderError {
@@ -51,7 +53,7 @@ impl Display for EpochMarkerValidatorKey {
 pub struct EpochMarker {
     pub entropy: Hash32,
     pub tickets_entropy: Hash32,
-    pub validators: Box<[EpochMarkerValidatorKey; VALIDATOR_COUNT]>,
+    pub validators: EpochValidators,
 }
 
 impl Display for EpochMarker {
@@ -60,7 +62,7 @@ impl Display for EpochMarker {
         writeln!(f, "\t\tentropy: {}", &self.entropy)?;
         writeln!(f, "\t\ttickets_entropy: {}", &self.tickets_entropy)?;
         writeln!(f, "\t\tvalidators:")?;
-        for key in self.validators.as_ref() {
+        for key in self.validators.iter() {
             writeln!(f, "\t\t\t{key}")?;
         }
         write!(f, "\t}}")
@@ -199,7 +201,7 @@ impl Display for BlockHeader {
         match self.winning_tickets_marker() {
             Some(marker) => {
                 writeln!(f, "\twinning_tickets_marker:")?;
-                for ticket in marker.as_ref() {
+                for ticket in marker.iter() {
                     writeln!(f, "\t{ticket}")?;
                 }
             }

@@ -739,6 +739,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-db",
+ "fr-limited-vec",
  "thiserror 2.0.12",
 ]
 
@@ -756,6 +757,7 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "fr-codec-derive",
+ "fr-limited-vec",
  "thiserror 2.0.12",
 ]
 
@@ -817,6 +819,7 @@ dependencies = [
  "ed25519-dalek",
  "fr-codec",
  "fr-common",
+ "fr-limited-vec",
  "hex",
  "rand 0.8.5",
  "sha3",
@@ -843,8 +846,16 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
+ "fr-limited-vec",
  "fr-state",
  "hex",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fr-limited-vec"
+version = "0.1.0"
+dependencies = [
  "thiserror 2.0.12",
 ]
 
@@ -920,6 +931,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
+ "fr-limited-vec",
  "fr-pvm-core",
  "fr-pvm-types",
  "fr-state",
@@ -964,6 +976,7 @@ version = "0.1.0"
 dependencies = [
  "fr-codec",
  "fr-common",
+ "fr-limited-vec",
  "thiserror 2.0.12",
 ]
 
@@ -979,6 +992,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-db",
+ "fr-limited-vec",
  "fr-merkle",
  "fr-state-merkle",
  "hex",
@@ -1025,6 +1039,7 @@ dependencies = [
  "fr-common",
  "fr-crypto",
  "fr-extrinsics",
+ "fr-limited-vec",
  "fr-merkle",
  "fr-pvm-invocation",
  "fr-pvm-types",

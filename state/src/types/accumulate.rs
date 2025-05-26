@@ -5,32 +5,26 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{Hash32, EPOCH_LENGTH};
-use std::{array::from_fn, collections::BTreeSet};
+use fr_limited_vec::FixedVec;
+use std::collections::BTreeSet;
 
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
+pub type AccumulateQueueFixedVec = FixedVec<Vec<WorkReportDepsMap>, EPOCH_LENGTH>;
+pub type AccumulateHistoryFixedVec = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_LENGTH>;
 
 /// A queue of work reports pending accumulation due to unresolved dependencies.
 ///
 /// The queue entries have fixed indices, by the slot phase `m` within an epoch of length `E`.
 ///
 /// Represents `θ` of the GP.
-#[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
-    pub items: Box<[Vec<WorkReportDepsMap>; EPOCH_LENGTH]>,
+    pub items: AccumulateQueueFixedVec,
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
-
-impl Default for AccumulateQueue {
-    fn default() -> Self {
-        let arr = from_fn(|_| Vec::with_capacity(EPOCH_LENGTH));
-        Self {
-            items: Box::new(arr),
-        }
-    }
-}
 
 impl AccumulateQueue {
     pub fn new() -> Self {
@@ -74,8 +68,12 @@ impl AccumulateQueue {
     ) -> Vec<WorkReportDepsMap> {
         let slot_phase = timeslot_index as usize % EPOCH_LENGTH; // m
         let mut queue_ordered = self.items.clone();
-        queue_ordered.rotate_left(slot_phase);
+        Self::rotate_left_queue(&mut queue_ordered, slot_phase);
         queue_ordered.into_iter().flatten().collect()
+    }
+
+    fn rotate_left_queue(queue: &mut AccumulateQueueFixedVec, mid: usize) {
+        queue.as_mut().rotate_left(mid);
     }
 }
 
@@ -84,7 +82,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    pub items: Box<[BTreeSet<WorkPackageHash>; EPOCH_LENGTH]>,
+    pub items: AccumulateHistoryFixedVec,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
@@ -95,11 +93,15 @@ impl AccumulateHistory {
     }
 
     pub fn add(&mut self, entry: BTreeSet<WorkPackageHash>) {
-        self.items.rotate_left(1);
+        Self::rotate_left_history(&mut self.items, 1);
         self.items[EPOCH_LENGTH - 1] = entry;
     }
 
     pub fn last_history(&self) -> Option<&BTreeSet<WorkPackageHash>> {
-        self.items.last()
+        self.items.as_ref().last()
+    }
+
+    fn rotate_left_history(history: &mut AccumulateHistoryFixedVec, mid: usize) {
+        history.as_mut().rotate_left(mid);
     }
 }

@@ -10,6 +10,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true, features = ["default"] }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
+fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
 fr-state-merkle = { workspace = true }
 bit-vec = { workspace = true }

@@ -8,5 +8,6 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
+fr-limited-vec = { workspace = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }

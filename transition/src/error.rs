@@ -1,6 +1,7 @@
 use fr_block::header_db::BlockHeaderDBError;
 use fr_crypto::error::CryptoError;
 use fr_extrinsics::validation::error::XtError;
+use fr_limited_vec::LimitedVecError;
 use fr_merkle::common::MerkleError;
 use fr_pvm_invocation::prelude::PVMError;
 use fr_state::{
@@ -22,18 +23,20 @@ pub enum TransitionError {
     #[error("Crypto Serialization Error")]
     CryptoSerializationError,
     // External errors
-    #[error("Extrinsic validation error: {0}")]
-    XtValidationError(#[from] XtError),
-    #[error("Slot Sealer error: {0}")]
+    #[error("XtError: {0}")]
+    XtError(#[from] XtError),
+    #[error("SlotSealerError: {0}")]
     SlotSealerError(#[from] SlotSealerError),
-    #[error("Crypto error: {0}")]
+    #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
-    #[error("StateManager error: {0}")]
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
+    #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
-    #[error("BlockHeaderDB error: {0}")]
+    #[error("BlockHeaderDBError: {0}")]
     BlockHeaderDBError(#[from] BlockHeaderDBError),
-    #[error("Merkle error: {0}")]
+    #[error("MerkleError: {0}")]
     MerkleError(#[from] MerkleError),
-    #[error("PVM error: {0}")]
+    #[error("PVMError: {0}")]
     PVMError(#[from] PVMError),
 }

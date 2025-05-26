@@ -1,13 +1,13 @@
 use crate::error::TransitionError;
 use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, Hash32, EPOCH_LENGTH, TICKET_CONTEST_DURATION};
+use fr_common::{ticket::Ticket, Hash32, TICKET_CONTEST_DURATION};
 use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_state::{
     cache::StateMut,
     manager::StateManager,
     types::{
-        generate_fallback_keys, outside_in_vec, ActiveSet, SafroleState, SlotSealers,
+        generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleState, SlotSealers,
         TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
@@ -104,16 +104,16 @@ pub(crate) fn update_slot_sealers(
 
     if is_fallback {
         tracing::trace!("New epoch.Prev slot sealers:\n{}", &safrole.slot_sealers);
-        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(Box::new(
-            generate_fallback_keys(curr_active_set, curr_entropy_2).unwrap(),
-        ));
+        let fallback_keys = generate_fallback_keys(curr_active_set, curr_entropy_2)
+            .expect("Failed to generate fallback keys");
+
+        safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(fallback_keys);
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
-        let ticket_accumulator_outside_in: [Ticket; EPOCH_LENGTH] =
-            outside_in_vec(safrole.ticket_accumulator.as_vec())
-                .try_into()
-                .unwrap();
-        safrole.slot_sealers = SlotSealers::Tickets(Box::new(ticket_accumulator_outside_in));
+        let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());
+        let epoch_tickets = EpochTickets::try_from_vec(ticket_accumulator_outside_in)
+            .expect("ticket accumulator length exceeds EPOCH_LENGTH");
+        safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
     }
 }
 
@@ -128,9 +128,9 @@ async fn handle_ticket_accumulation(
     // Check if the current timeslot is within the ticket submission period.
     let current_slot_phase = state_manager.get_timeslot().await?.slot_phase();
     if current_slot_phase as usize >= TICKET_CONTEST_DURATION {
-        return Err(TransitionError::XtValidationError(
-            XtError::TicketSubmissionClosed(current_slot_phase),
-        ));
+        return Err(TransitionError::XtError(XtError::TicketSubmissionClosed(
+            current_slot_phase,
+        )));
     }
 
     // Validate ticket extrinsic data.
@@ -145,7 +145,7 @@ async fn handle_ticket_accumulation(
     let mut curr_ticket_accumulator = state_manager.get_safrole_clean().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::XtValidationError(XtError::DuplicateTicket));
+            return Err(TransitionError::XtError(XtError::DuplicateTicket));
         }
         curr_ticket_accumulator.add(ticket);
     }

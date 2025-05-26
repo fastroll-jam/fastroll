@@ -2,8 +2,9 @@ use crate::error::TransitionError;
 use fr_block::types::block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker};
 use fr_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use fr_crypto::types::ValidatorKeySet;
+use fr_limited_vec::FixedVec;
 use fr_state::{manager::StateManager, types::outside_in_vec};
-use std::{array::from_fn, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct SafroleHeaderMarkers {
@@ -36,7 +37,8 @@ pub async fn mark_safrole_header_markers(
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
         let marker_vec_outside_in = outside_in_vec(current_safrole.ticket_accumulator.into_vec());
-        Some(marker_vec_outside_in.try_into().unwrap())
+        let marker = WinningTicketsMarker::try_from_vec(marker_vec_outside_in)?;
+        Some(marker)
     } else {
         None
     };
@@ -49,13 +51,14 @@ pub async fn mark_safrole_header_markers(
 
 fn extract_epoch_marker_keys(
     validator_set: &ValidatorKeySet,
-) -> Box<[EpochMarkerValidatorKey; VALIDATOR_COUNT]> {
-    let mut result = Box::new(from_fn(|_| EpochMarkerValidatorKey::default()));
-    for (index, validator) in validator_set.iter().enumerate() {
-        result[index] = EpochMarkerValidatorKey {
-            bandersnatch_key: validator.bandersnatch_key.clone(),
-            ed25519_key: validator.ed25519_key.clone(),
-        }
+) -> FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT> {
+    let mut result = Vec::with_capacity(VALIDATOR_COUNT);
+    for key in validator_set.iter() {
+        result.push(EpochMarkerValidatorKey {
+            bandersnatch_key: key.bandersnatch_key.clone(),
+            ed25519_key: key.ed25519_key.clone(),
+        });
     }
-    result
+
+    FixedVec::try_from_vec(result).expect("size checked")
 }

@@ -6,21 +6,17 @@ use fr_transition::error::TransitionError;
 pub fn map_error_to_custom_code(e: TransitionError) -> SafroleErrorCode {
     match e {
         TransitionError::InvalidTimeslot { .. } => SafroleErrorCode::bad_slot,
-        TransitionError::XtValidationError(XtError::TicketSubmissionClosed(_)) => {
+        TransitionError::XtError(XtError::TicketSubmissionClosed(_)) => {
             SafroleErrorCode::unexpected_ticket
         }
-        TransitionError::XtValidationError(XtError::TicketsNotSorted) => {
-            SafroleErrorCode::bad_ticket_order
-        }
-        TransitionError::XtValidationError(XtError::InvalidTicketProof(_)) => {
+        TransitionError::XtError(XtError::TicketsNotSorted) => SafroleErrorCode::bad_ticket_order,
+        TransitionError::XtError(XtError::InvalidTicketProof(_)) => {
             SafroleErrorCode::bad_ticket_proof
         }
-        TransitionError::XtValidationError(XtError::InvalidTicketAttemptNumber(_)) => {
+        TransitionError::XtError(XtError::InvalidTicketAttemptNumber(_)) => {
             SafroleErrorCode::bad_ticket_attempt
         }
-        TransitionError::XtValidationError(XtError::DuplicateTicket) => {
-            SafroleErrorCode::duplicate_ticket
-        }
+        TransitionError::XtError(XtError::DuplicateTicket) => SafroleErrorCode::duplicate_ticket,
         _ => SafroleErrorCode::reserved,
     }
 }

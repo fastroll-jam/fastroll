@@ -11,6 +11,7 @@
 use bit_vec::BitVec;
 #[cfg(feature = "derive")]
 pub use fr_codec_derive::*;
+use fr_limited_vec::{FixedVec, LimitedVec};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
@@ -338,6 +339,68 @@ impl<T: JamDecode> JamDecode for Vec<T> {
             vec.push(T::decode(input)?);
         }
         Ok(vec)
+    }
+}
+
+impl<T: JamEncode, const MAX_SIZE: usize> JamEncode for LimitedVec<T, MAX_SIZE> {
+    fn size_hint(&self) -> usize {
+        self.len().size_hint() + self.iter().map(|e| e.size_hint()).sum::<usize>()
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.len().encode_to(dest)?; // length discriminator
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
+impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let len = usize::decode(input)?; // length discriminator
+        if len > MAX_SIZE {
+            return Err(JamCodecError::InvalidSize(
+                "LimitedVec size limit exceeded".to_string(),
+            ));
+        }
+        let mut vec = Vec::with_capacity(len);
+        for _ in 0..len {
+            vec.push(T::decode(input)?);
+        }
+        Ok(Self::try_from_vec(vec).expect("size checked"))
+    }
+}
+
+// `FixedVec` gets encoded without length discriminator
+impl<T, const SIZE: usize> JamEncode for FixedVec<T, SIZE>
+where
+    T: JamEncode + Default + Clone,
+{
+    fn size_hint(&self) -> usize {
+        SIZE
+    }
+
+    fn encode_to<O: JamOutput>(&self, dest: &mut O) -> Result<(), JamCodecError> {
+        self.iter().try_for_each(|e| e.encode_to(dest))
+    }
+}
+
+impl<T, const SIZE: usize> JamDecode for FixedVec<T, SIZE>
+where
+    T: JamDecode + Default + Clone,
+{
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut vec = Vec::with_capacity(SIZE);
+        for _ in 0..SIZE {
+            vec.push(T::decode(input)?)
+        }
+
+        let fixed_vec = Self::try_from_vec(vec).expect("size checked");
+        Ok(fixed_vec)
     }
 }
 

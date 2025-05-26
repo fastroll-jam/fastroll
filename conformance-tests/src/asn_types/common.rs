@@ -3,10 +3,15 @@ use crate::serde_utils::{
 };
 use bit_vec::BitVec;
 use fr_block::types::{
-    block::{Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey},
+    block::{
+        Block, BlockHeader, BlockHeaderData, EpochMarker, EpochMarkerValidatorKey, EpochValidators,
+        WinningTicketsMarker,
+    },
     extrinsics::{
         assurances::{AssurancesXt, AssurancesXtEntry},
-        disputes::{Culprit, DisputesXt, Fault, Judgment, OffendersHeaderMarker, Verdict},
+        disputes::{
+            Culprit, DisputesXt, Fault, Judgment, Judgments, OffendersHeaderMarker, Verdict,
+        },
         guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
         preimages::{PreimagesXt, PreimagesXtEntry},
         tickets::{TicketsXt, TicketsXtEntry},
@@ -21,15 +26,19 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, FLOOR_TWO_THIRDS_VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, EPOCH_LENGTH,
+    MAX_AUTH_POOL_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
-    AccountMetadata, AccumulateHistory, AccumulateQueue, AuthPool, AuthQueue, BlockHistory,
-    BlockHistoryEntry, CoreStats, CoreStatsEntry, DisputesState, EpochEntropy, EpochValidatorStats,
-    OnChainStatistics, PendingReport, PendingReports, PrivilegedServices, ServiceStats,
-    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    AccountMetadata, AccumulateHistory, AccumulateHistoryFixedVec, AccumulateQueue,
+    AccumulateQueueFixedVec, AuthPool, AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec,
+    BlockHistory, BlockHistoryEntry, CoreAuthPool, CoreAuthQueue, CoreStats, CoreStatsEntry,
+    CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets,
+    EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics, PendingReport,
+    PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry,
+    SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry, WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -287,12 +296,12 @@ impl From<AsnValidatorData> for ValidatorKey {
 }
 
 pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
-    let mut validator_keys = from_fn(|_| ValidatorKey::default());
-    for (i, validator_data) in data.iter().enumerate() {
-        validator_keys[i] = ValidatorKey::from(validator_data.clone());
+    let mut keys_vec = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+    for validator_data in data.iter() {
+        keys_vec.push(ValidatorKey::from(validator_data.clone()));
     }
 
-    ValidatorKeySet(Box::new(validator_keys))
+    ValidatorKeySet(ValidatorKeys::try_from_vec(keys_vec).unwrap())
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
@@ -379,10 +388,10 @@ pub struct AsnAvailAssignments([Option<AsnAvailAssignment>; ASN_CORE_COUNT]);
 
 impl From<AsnAvailAssignments> for PendingReports {
     fn from(value: AsnAvailAssignments) -> Self {
-        let mut reports: [Option<PendingReport>; ASN_CORE_COUNT] = Default::default();
+        let mut reports = Vec::with_capacity(ASN_CORE_COUNT);
 
-        for (i, item) in value.0.iter().enumerate() {
-            reports[i] = match item {
+        for item in value.0.iter() {
+            let maybe_report = match item {
                 Some(assignment) => {
                     let work_report = assignment.clone().report.into();
                     let pending_report = PendingReport {
@@ -393,9 +402,10 @@ impl From<AsnAvailAssignments> for PendingReports {
                 }
                 None => None,
             };
+            reports.push(maybe_report);
         }
 
-        PendingReports(Box::new(reports))
+        PendingReports(PendingReportsFixedVec::try_from_vec(reports).unwrap())
     }
 }
 
@@ -495,7 +505,7 @@ impl From<Authorizer> for AsnAuthorizer {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct AsnAuthPool(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -503,30 +513,34 @@ pub struct AsnAuthPools([AsnAuthPool; ASN_CORE_COUNT]);
 
 impl From<AsnAuthPools> for AuthPool {
     fn from(value: AsnAuthPools) -> Self {
-        // let pool = value
-        //     .0
-        //     .map(|p| p.0.into_iter().map(Hash32::from).collect::<Vec<_>>());
-        // Self(Box::new(pool))
-        Self(Box::new(value.0.map(|p| {
-            p.0.into_iter().map(Hash32::from).collect::<Vec<_>>()
-        })))
+        let mut auth_pool_vec = Vec::with_capacity(ASN_CORE_COUNT);
+        for asn_core_authorizers in value.0 {
+            let mut core_authorizers = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
+            for asn_authorizer in asn_core_authorizers.0.into_iter() {
+                core_authorizers.push(Hash32::from(asn_authorizer));
+            }
+            auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
+        }
+        Self(AuthPoolFixedVec::try_from_vec(auth_pool_vec).unwrap())
     }
 }
 
 impl From<AuthPool> for AsnAuthPools {
     fn from(value: AuthPool) -> Self {
-        let asn_pool = value.0.map(|hashes| {
-            let asn_hashes = hashes
-                .into_iter()
-                .map(AsnOpaqueHash::from)
-                .collect::<Vec<_>>();
-            AsnAuthPool(asn_hashes)
-        });
-        Self(asn_pool)
+        let mut asn_auth_pools_arr: [AsnAuthPool; ASN_CORE_COUNT] =
+            from_fn(|_| AsnAuthPool::default());
+        for (i, core_authorizers) in value.0.into_iter().enumerate() {
+            let mut asn_auth_pool_vec = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
+            for authorizer in core_authorizers {
+                asn_auth_pool_vec.push(AsnAuthorizerHash::from(authorizer));
+            }
+            asn_auth_pools_arr[i] = AsnAuthPool(asn_auth_pool_vec);
+        }
+        Self(asn_auth_pools_arr)
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct AsnAuthQueue(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -534,24 +548,30 @@ pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
 
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
-        let queue = value.0.map(|q| {
-            let mut hashes = from_fn(|_| Hash32::default());
-            for (i, h) in q.0.into_iter().enumerate() {
-                hashes[i] = Hash32::from(h);
+        let mut auth_queue_vec = Vec::with_capacity(ASN_CORE_COUNT);
+        for asn_auth_queue in value.0 {
+            let mut core_queue = Vec::with_capacity(AUTH_QUEUE_SIZE);
+            for asn_authorizer in asn_auth_queue.0.into_iter() {
+                core_queue.push(Hash32::from(asn_authorizer));
             }
-            hashes
-        });
-        Self(Box::new(queue))
+            auth_queue_vec.push(CoreAuthQueue::try_from_vec(core_queue).unwrap());
+        }
+        Self(AuthQueueFixedVec::try_from_vec(auth_queue_vec).unwrap())
     }
 }
 
 impl From<AuthQueue> for AsnAuthQueues {
     fn from(value: AuthQueue) -> Self {
-        let asn_queue = value.0.map(|q| {
-            let asn_hashes = q.into_iter().map(AsnOpaqueHash::from).collect::<Vec<_>>();
-            AsnAuthQueue(asn_hashes)
-        });
-        Self(asn_queue)
+        let mut asn_auth_queues_arr: [AsnAuthQueue; ASN_CORE_COUNT] =
+            from_fn(|_| AsnAuthQueue::default());
+        for (i, core_queue) in value.0.into_iter().enumerate() {
+            let mut asn_auth_queue_vec = Vec::with_capacity(AUTH_QUEUE_SIZE);
+            for authorizer in core_queue {
+                asn_auth_queue_vec.push(AsnAuthorizerHash::from(authorizer));
+            }
+            asn_auth_queues_arr[i] = AsnAuthQueue(asn_auth_queue_vec);
+        }
+        Self(asn_auth_queues_arr)
     }
 }
 
@@ -1105,11 +1125,11 @@ impl From<EpochValidatorStats> for AsnActivityRecords {
 
 impl From<AsnActivityRecords> for EpochValidatorStats {
     fn from(value: AsnActivityRecords) -> Self {
-        let mut stats = from_fn(|_| ValidatorStatsEntry::default());
-        for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = ValidatorStatsEntry::from(record);
+        let mut stats = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+        for record in value.0.into_iter() {
+            stats.push(ValidatorStatsEntry::from(record));
         }
-        Self::new(Box::new(stats))
+        Self::new(EpochValidatorStatsFixedVec::try_from_vec(stats).unwrap())
     }
 }
 
@@ -1160,11 +1180,11 @@ pub struct AsnCoreActivityRecords([AsnCoreActivityRecord; ASN_CORE_COUNT]);
 
 impl From<AsnCoreActivityRecords> for CoreStats {
     fn from(value: AsnCoreActivityRecords) -> Self {
-        let mut stats = from_fn(|_| CoreStatsEntry::default());
-        for (i, record) in value.0.into_iter().enumerate() {
-            stats[i] = CoreStatsEntry::from(record);
+        let mut stats = Vec::with_capacity(ASN_CORE_COUNT);
+        for record in value.0.into_iter() {
+            stats.push(CoreStatsEntry::from(record));
         }
-        Self(Box::new(stats))
+        Self(CoreStatsFixedVec::try_from_vec(stats).unwrap())
     }
 }
 
@@ -1339,21 +1359,23 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
     fn from(value: AsnTicketsOrKeys) -> Self {
         match value {
             AsnTicketsOrKeys::tickets(ticket_bodies) => {
-                let mut tickets: [Ticket; ASN_EPOCH_LENGTH] = Default::default();
-                for (i, ticket_body) in ticket_bodies.into_iter().enumerate() {
-                    tickets[i] = Ticket {
+                let mut tickets = Vec::with_capacity(ASN_EPOCH_LENGTH);
+                for ticket_body in ticket_bodies.into_iter() {
+                    tickets.push(Ticket {
                         id: Hash32::from(ticket_body.id),
                         attempt: ticket_body.attempt,
-                    };
+                    });
                 }
-                SlotSealers::Tickets(Box::new(tickets))
+                let epoch_tickets = EpochTickets::try_from_vec(tickets).unwrap();
+                SlotSealers::Tickets(epoch_tickets)
             }
             AsnTicketsOrKeys::keys(epoch_keys) => {
-                let mut keys: [BandersnatchPubKey; ASN_EPOCH_LENGTH] = Default::default();
-                for (i, key) in epoch_keys.into_iter().enumerate() {
-                    keys[i] = BandersnatchPubKey(Hash32::from(key))
+                let mut keys = Vec::with_capacity(ASN_EPOCH_LENGTH);
+                for key in epoch_keys.into_iter() {
+                    keys.push(BandersnatchPubKey(Hash32::from(key)));
                 }
-                SlotSealers::BandersnatchPubKeys(Box::new(keys))
+                let epoch_keys = EpochFallbackKeys::try_from_vec(keys).unwrap();
+                SlotSealers::BandersnatchPubKeys(epoch_keys)
             }
         }
     }
@@ -1474,16 +1496,16 @@ pub struct AsnDisputeVerdict {
 
 impl From<AsnDisputeVerdict> for Verdict {
     fn from(value: AsnDisputeVerdict) -> Self {
-        let mut judgments: [Judgment; FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1] = Default::default();
+        let mut judgments = Vec::with_capacity(ASN_VALIDATORS_SUPER_MAJORITY);
 
-        for (i, vote) in value.votes.into_iter().enumerate() {
-            judgments[i] = vote.into()
+        for vote in value.votes.into_iter() {
+            judgments.push(vote.into());
         }
 
         Self {
             report_hash: Hash32::from(value.target),
             epoch_index: value.age,
-            judgments: Box::new(judgments),
+            judgments: Judgments::try_from_vec(judgments).unwrap(),
         }
     }
 }
@@ -1885,8 +1907,8 @@ pub struct AsnAccumulateQueue(Vec<Vec<AsnAccumulateQueueRecord>>); // SIZE(epoch
 
 impl From<AsnAccumulateQueue> for AccumulateQueue {
     fn from(value: AsnAccumulateQueue) -> Self {
-        let mut items_arr = from_fn(|_| Vec::new());
-        value.0.into_iter().enumerate().for_each(|(i, records)| {
+        let mut items_vec: Vec<Vec<WorkReportDepsMap>> = Vec::with_capacity(ASN_EPOCH_LENGTH);
+        value.0.into_iter().for_each(|records| {
             let records_converted = records
                 .into_iter()
                 .map(|record| {
@@ -1896,10 +1918,10 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
                     (wr, deps)
                 })
                 .collect();
-            items_arr[i] = records_converted;
+            items_vec.push(records_converted);
         });
         Self {
-            items: Box::new(items_arr),
+            items: AccumulateQueueFixedVec::try_from_vec(items_vec).unwrap(),
         }
     }
 }
@@ -1929,13 +1951,13 @@ pub struct AsnAccumulateHistory(Vec<Vec<AsnWorkPackageHash>>); // SIZE(epoch-len
 
 impl From<AsnAccumulateHistory> for AccumulateHistory {
     fn from(value: AsnAccumulateHistory) -> Self {
-        let mut items_arr = from_fn(|_| BTreeSet::new());
-        value.0.into_iter().enumerate().for_each(|(i, wps)| {
+        let mut items_vec = Vec::with_capacity(EPOCH_LENGTH);
+        value.0.into_iter().for_each(|wps| {
             let hash_set = BTreeSet::from_iter(wps.into_iter().map(Hash32::from));
-            items_arr[i] = hash_set;
+            items_vec.push(hash_set);
         });
         Self {
-            items: Box::new(items_arr),
+            items: AccumulateHistoryFixedVec::try_from_vec(items_vec).unwrap(),
         }
     }
 }
@@ -2035,14 +2057,14 @@ pub struct AsnEpochMark {
 
 impl From<AsnEpochMark> for EpochMarker {
     fn from(value: AsnEpochMark) -> Self {
-        let mut validators_array = from_fn(|_| EpochMarkerValidatorKey::default());
-        for (i, key) in value.validators.into_iter().enumerate() {
-            validators_array[i] = EpochMarkerValidatorKey::from(key);
+        let mut validator_keys = Vec::with_capacity(VALIDATOR_COUNT);
+        for key in value.validators.into_iter() {
+            validator_keys.push(EpochMarkerValidatorKey::from(key));
         }
         Self {
             entropy: Hash32::from(value.entropy),
             tickets_entropy: Hash32::from(value.tickets_entropy),
-            validators: Box::new(validators_array),
+            validators: EpochValidators::try_from_vec(validator_keys).unwrap(),
         }
     }
 }
@@ -2079,6 +2101,13 @@ pub struct AsnHeader {
 
 impl From<AsnHeader> for BlockHeader {
     fn from(value: AsnHeader) -> Self {
+        let winning_tickets = value.tickets_mark.map(|e| {
+            let mut tickets = Vec::with_capacity(e.len());
+            for asn_ticket in e {
+                tickets.push(Ticket::from(asn_ticket));
+            }
+            WinningTicketsMarker::try_from_vec(tickets).unwrap()
+        });
         Self {
             data: BlockHeaderData {
                 parent_hash: Hash32::from(value.parent),
@@ -2086,13 +2115,7 @@ impl From<AsnHeader> for BlockHeader {
                 extrinsic_hash: Hash32::from(value.extrinsic_hash),
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
-                winning_tickets_marker: value.tickets_mark.map(|tickets| {
-                    let mut tickets_array = from_fn(|_| Ticket::default());
-                    for (i, ticket) in tickets.into_iter().enumerate() {
-                        tickets_array[i] = ticket.into();
-                    }
-                    tickets_array
-                }),
+                winning_tickets_marker: winning_tickets,
                 offenders_marker: value
                     .offenders_mark
                     .into_iter()

@@ -8,6 +8,7 @@ fr-block = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-extrinsics = { workspace = true }
+fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }

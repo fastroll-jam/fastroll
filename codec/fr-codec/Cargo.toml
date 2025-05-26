@@ -8,5 +8,6 @@ derive = ["fr-codec-derive"]
 
 [dependencies]
 fr-codec-derive = { workspace = true, optional = true }
+fr-limited-vec = { workspace = true }
 bit-vec = { workspace = true }
 thiserror = { workspace = true }
