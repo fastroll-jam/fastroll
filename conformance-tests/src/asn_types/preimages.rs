@@ -3,7 +3,9 @@ use crate::asn_types::common::{
 };
 use fr_block::types::extrinsics::preimages::PreimagesXt;
 use fr_common::{Hash32, LookupsKey, Octets};
-use fr_state::types::{AccountLookupsEntry, AccountPreimagesEntry, Timeslot};
+use fr_state::types::{
+    AccountLookupsEntry, AccountLookupsEntryTimeslots, AccountPreimagesEntry, Timeslot,
+};
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]
@@ -88,9 +90,12 @@ impl From<LookupMetaMapEntry> for AsnLookupMetaMapEntry {
 
 impl From<AsnLookupMetaMapEntry> for LookupMetaMapEntry {
     fn from(value: AsnLookupMetaMapEntry) -> Self {
+        let timeslots_vec: Vec<Timeslot> = value.value.into_iter().map(Timeslot::new).collect();
         Self {
             key: value.key.into(),
-            data: AccountLookupsEntry::new(value.value.into_iter().map(Timeslot::new).collect()),
+            data: AccountLookupsEntry::new(
+                AccountLookupsEntryTimeslots::try_from_vec(timeslots_vec).unwrap(),
+            ),
         }
     }
 }

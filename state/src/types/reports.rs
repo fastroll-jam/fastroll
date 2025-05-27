@@ -21,13 +21,13 @@ pub enum PendingReportsError {
     InvalidCoreIndex(CoreIndex),
 }
 
-pub type PendingReportsFixedVec = FixedVec<Option<PendingReport>, CORE_COUNT>;
+pub type CorePendingReportsEntries = FixedVec<Option<PendingReport>, CORE_COUNT>;
 
 /// Work reports pending availability by assurers.
 ///
 /// Represents `ρ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct PendingReports(pub PendingReportsFixedVec);
+pub struct PendingReports(pub CorePendingReportsEntries);
 impl_simple_state_component!(PendingReports, PendingReports);
 
 impl Display for PendingReports {

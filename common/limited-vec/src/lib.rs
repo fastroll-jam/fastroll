@@ -9,9 +9,15 @@ pub enum LimitedVecError {
     InvalidVecSize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LimitedVec<T, const MAX_SIZE: usize> {
     inner: Vec<T>,
+}
+
+impl<T, const MAX_SIZE: usize> Default for LimitedVec<T, MAX_SIZE> {
+    fn default() -> Self {
+        Self { inner: Vec::new() }
+    }
 }
 
 impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
@@ -27,6 +33,10 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    pub fn last(&self) -> Option<&T> {
+        self.inner.last()
     }
 
     pub fn as_slice(&self) -> &[T] {
@@ -53,6 +63,19 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
             return Err(LimitedVecError::LimitedVecFull);
         }
         self.inner.push(item);
+        Ok(())
+    }
+
+    pub fn try_extend(&mut self, vec: Vec<T>) -> Result<(), LimitedVecError> {
+        let added_length = self
+            .inner
+            .len()
+            .checked_add(vec.len())
+            .ok_or(LimitedVecError::InvalidVecSize)?;
+        if added_length > MAX_SIZE {
+            return Err(LimitedVecError::LimitedVecFull);
+        }
+        self.inner.extend(vec);
         Ok(())
     }
 

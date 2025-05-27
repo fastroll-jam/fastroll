@@ -1,19 +1,24 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use bit_vec::BitVec;
 use fr_codec::prelude::*;
-use fr_common::{CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY};
+use fr_common::{
+    CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+};
 use fr_crypto::types::*;
+use fr_limited_vec::LimitedVec;
 use std::{cmp::Ordering, ops::Deref};
+
+pub type AssurancesXtEntries = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports
 /// on assigned cores.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AssurancesXt {
-    pub items: Vec<AssurancesXtEntry>,
+    pub items: AssurancesXtEntries,
 }
 
 impl Deref for AssurancesXt {
-    type Target = Vec<AssurancesXtEntry>;
+    type Target = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
 
     fn deref(&self) -> &Self::Target {
         &self.items

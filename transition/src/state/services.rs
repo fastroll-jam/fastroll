@@ -363,7 +363,9 @@ pub async fn transition_services_integrate_preimages(
         let lookups_key = (preimage_data_hash, preimage_data_len as u32);
         state_manager
             .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| {
-                entry.value.push(curr_timeslot);
+                entry.value.try_push(curr_timeslot).expect(
+                    "Lookups metadata storage should have an empty timeslot sequence entry to integrate preimages.",
+                );
             })
             .await?
     }

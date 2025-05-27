@@ -12,8 +12,8 @@ pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
-pub type AccumulateQueueFixedVec = FixedVec<Vec<WorkReportDepsMap>, EPOCH_LENGTH>;
-pub type AccumulateHistoryFixedVec = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_LENGTH>;
+pub type AccumulateQueueEntries = FixedVec<Vec<WorkReportDepsMap>, EPOCH_LENGTH>;
+pub type AccumulateHistoryEntries = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_LENGTH>;
 
 /// A queue of work reports pending accumulation due to unresolved dependencies.
 ///
@@ -22,7 +22,7 @@ pub type AccumulateHistoryFixedVec = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_L
 /// Represents `θ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
-    pub items: AccumulateQueueFixedVec,
+    pub items: AccumulateQueueEntries,
 }
 impl_simple_state_component!(AccumulateQueue, AccumulateQueue);
 
@@ -72,7 +72,7 @@ impl AccumulateQueue {
         queue_ordered.into_iter().flatten().collect()
     }
 
-    fn rotate_left_queue(queue: &mut AccumulateQueueFixedVec, mid: usize) {
+    fn rotate_left_queue(queue: &mut AccumulateQueueEntries, mid: usize) {
         queue.as_mut().rotate_left(mid);
     }
 }
@@ -82,7 +82,7 @@ impl AccumulateQueue {
 /// Represents `ξ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateHistory {
-    pub items: AccumulateHistoryFixedVec,
+    pub items: AccumulateHistoryEntries,
 }
 impl_simple_state_component!(AccumulateHistory, AccumulateHistory);
 
@@ -101,7 +101,7 @@ impl AccumulateHistory {
         self.items.as_ref().last()
     }
 
-    fn rotate_left_history(history: &mut AccumulateHistoryFixedVec, mid: usize) {
+    fn rotate_left_history(history: &mut AccumulateHistoryEntries, mid: usize) {
         history.as_mut().rotate_left(mid);
     }
 }

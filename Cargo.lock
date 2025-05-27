@@ -776,6 +776,7 @@ version = "0.1.0"
 dependencies = [
  "cfg-if",
  "fr-codec",
+ "fr-limited-vec",
  "hex",
  "thiserror 2.0.12",
  "time",

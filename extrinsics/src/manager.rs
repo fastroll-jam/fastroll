@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use crate::pool::{OpaqueXtEntry, XtPool, XtPoolError};
 use fr_block::types::extrinsics::{
-    assurances::{AssurancesXt, AssurancesXtEntry},
+    assurances::{AssurancesXt, AssurancesXtEntries, AssurancesXtEntry},
     disputes::{Culprit, DisputesXt, Fault, Verdict},
-    guarantees::{GuaranteesXt, GuaranteesXtEntry},
+    guarantees::{GuaranteesXt, GuaranteesXtEntries, GuaranteesXtEntry},
     preimages::{PreimagesXt, PreimagesXtEntry},
     tickets::{TicketsXt, TicketsXtEntry},
     XtType,
@@ -46,11 +46,12 @@ impl XtManager {
         pool: &XtPool,
         timeslot_index: u32,
     ) -> Result<GuaranteesXt, XtPoolError> {
-        let items: Vec<GuaranteesXtEntry> =
+        let items_vec: Vec<GuaranteesXtEntry> =
             Self::get_extrinsics(pool, XtType::Guarantee, timeslot_index)?
                 .into_iter()
                 .filter_map(|entry| GuaranteesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
+        let items = GuaranteesXtEntries::try_from_vec(items_vec)?;
         Ok(GuaranteesXt { items })
     }
 
@@ -58,11 +59,12 @@ impl XtManager {
         pool: &XtPool,
         timeslot_index: u32,
     ) -> Result<AssurancesXt, XtPoolError> {
-        let items: Vec<AssurancesXtEntry> =
+        let items_vec: Vec<AssurancesXtEntry> =
             Self::get_extrinsics(pool, XtType::Assurance, timeslot_index)?
                 .into_iter()
                 .filter_map(|entry| AssurancesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
+        let items = AssurancesXtEntries::try_from_vec(items_vec)?;
         Ok(AssurancesXt { items })
     }
 

@@ -15,13 +15,13 @@ pub enum AuthPoolError {
 }
 
 pub type CoreAuthPool = LimitedVec<Hash32, MAX_AUTH_POOL_SIZE>;
-pub type AuthPoolFixedVec = FixedVec<CoreAuthPool, CORE_COUNT>;
+pub type CoreAuthPoolEntries = FixedVec<CoreAuthPool, CORE_COUNT>;
 
 /// The authorizer pool.
 ///
 /// Represents `α` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AuthPool(pub AuthPoolFixedVec);
+pub struct AuthPool(pub CoreAuthPoolEntries);
 impl_simple_state_component!(AuthPool, AuthPool);
 
 impl Display for AuthPool {
@@ -48,11 +48,11 @@ impl AuthPool {
 }
 
 pub type CoreAuthQueue = FixedVec<Hash32, AUTH_QUEUE_SIZE>;
-pub type AuthQueueFixedVec = FixedVec<CoreAuthQueue, CORE_COUNT>;
+pub type CoreAuthQueueEntries = FixedVec<CoreAuthQueue, CORE_COUNT>;
 
 /// The authorizer queue.
 ///
 /// Represents `φ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct AuthQueue(pub AuthQueueFixedVec);
+pub struct AuthQueue(pub CoreAuthQueueEntries);
 impl_simple_state_component!(AuthQueue, AuthQueue);

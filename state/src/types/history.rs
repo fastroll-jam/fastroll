@@ -5,25 +5,24 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HISTORY_LENGTH};
 use fr_crypto::Keccak256;
+use fr_limited_vec::LimitedVec;
 use fr_merkle::mmr::MerkleMountainRange;
+
+pub type BlockHistoryEntries = LimitedVec<BlockHistoryEntry, BLOCK_HISTORY_LENGTH>;
 
 /// The recent block histories.
 ///
 /// Represents `β` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct BlockHistory(pub Vec<BlockHistoryEntry>); // Length up to H = 8.
+pub struct BlockHistory(pub BlockHistoryEntries);
 impl_simple_state_component!(BlockHistory, BlockHistory);
 
 impl BlockHistory {
     /// Appends a new block history entry.
     ///
-    /// The history retains the most recent `H` entries, removing the oldest entries if it's full.
+    /// The history retains the most recent `H` entries.
     pub fn append(&mut self, entry: BlockHistoryEntry) {
-        self.0.push(entry);
-
-        if self.0.len() > BLOCK_HISTORY_LENGTH {
-            self.0.remove(0); // Remove the oldest history entry.
-        }
+        self.0.shift_push(entry);
     }
 
     /// Returns the most recent block history.
@@ -63,7 +62,7 @@ impl BlockHistory {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockHistoryEntry {
     pub header_hash: Hash32,
     pub accumulation_result_mmr: MerkleMountainRange<Keccak256>,

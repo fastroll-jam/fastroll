@@ -1,7 +1,7 @@
 use crate::validation::error::XtError;
 use fr_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
 use fr_codec::prelude::*;
-use fr_common::{CoreIndex, Hash32, CORE_COUNT, VALIDATOR_COUNT, X_A};
+use fr_common::{CoreIndex, Hash32, CORE_COUNT, X_A};
 use fr_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
@@ -44,16 +44,8 @@ impl AssurancesXtValidator {
         extrinsic: &AssurancesXt,
         header_parent_hash: &Hash32,
     ) -> Result<(), XtError> {
-        // Check the length limit
-        if extrinsic.len() > VALIDATOR_COUNT {
-            return Err(XtError::AssurancesEntryLimitExceeded(
-                extrinsic.len(),
-                VALIDATOR_COUNT,
-            ));
-        }
-
         // Check if the entries are sorted
-        if !extrinsic.is_sorted() {
+        if !extrinsic.as_ref().is_sorted() {
             return Err(XtError::AssurancesNotSorted);
         }
 

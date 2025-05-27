@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 fr-codec = { workspace = true, features = ["derive"] }
+fr-limited-vec = { workspace = true }
 cfg-if = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }

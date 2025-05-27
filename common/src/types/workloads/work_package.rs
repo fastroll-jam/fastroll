@@ -1,7 +1,11 @@
 use crate::{
-    workloads::common::RefinementContext, Hash32, Octets, ServiceId, UnsignedGas, HASH_SIZE,
+    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, Hash32, Octets,
+    ServiceId, UnsignedGas, HASH_SIZE,
 };
 use fr_codec::prelude::*;
+use fr_limited_vec::LimitedVec;
+
+pub type WorkItems = LimitedVec<WorkItem, MAX_WORK_ITEMS_PER_PACKAGE>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkPackage {
@@ -13,8 +17,8 @@ pub struct WorkPackage {
     pub authorizer: Authorizer,
     /// **`x`**: Refinement context
     pub context: RefinementContext,
-    /// **`w`**: Sequence of work items (16 items at most)
-    pub work_items: Vec<WorkItem>,
+    /// **`w`**: Sequence of work items
+    pub work_items: WorkItems,
 }
 
 impl JamEncode for WorkPackage {
@@ -46,7 +50,7 @@ impl JamDecode for WorkPackage {
             authorizer_service_id: ServiceId::decode_fixed(input, 4)?,
             authorizer: Authorizer::decode(input)?,
             context: RefinementContext::decode(input)?,
-            work_items: Vec::<WorkItem>::decode(input)?,
+            work_items: WorkItems::decode(input)?,
         })
     }
 }

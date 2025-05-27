@@ -1,7 +1,9 @@
 use crate::{
-    workloads::common::RefinementContext, CoreIndex, Hash32, Octets, ServiceId, UnsignedGas,
+    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CoreIndex, Hash32,
+    Octets, ServiceId, UnsignedGas,
 };
 use fr_codec::prelude::*;
+use fr_limited_vec::LimitedVec;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
@@ -16,6 +18,8 @@ pub enum WorkReportError {
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
 }
+
+pub type WorkDigests = LimitedVec<WorkDigest, MAX_WORK_ITEMS_PER_PACKAGE>;
 
 /// Represents a work report generated from refinement of a work package,
 /// to be integrated into the on-chain state via the accumulation process.
@@ -35,8 +39,8 @@ pub struct WorkReport {
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
-    /// **`r`**: Work digests, with at least 1 and no more than 16 items
-    pub digests: Vec<WorkDigest>,
+    /// **`r`**: Work digests
+    pub digests: WorkDigests,
     /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
     pub auth_gas_used: UnsignedGas,
 }
@@ -100,7 +104,7 @@ impl JamDecode for WorkReport {
             authorizer_hash: Hash32::decode(input)?,
             auth_trace: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
-            digests: Vec::<WorkDigest>::decode(input)?,
+            digests: WorkDigests::decode(input)?,
             auth_gas_used: UnsignedGas::decode(input)?,
         })
     }
@@ -140,7 +144,7 @@ impl WorkReport {
     }
 
     pub fn digests(&self) -> &[WorkDigest] {
-        &self.digests
+        self.digests.as_ref()
     }
 
     pub fn auth_trace(&self) -> &[u8] {
