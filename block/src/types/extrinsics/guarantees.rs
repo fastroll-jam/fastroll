@@ -1,21 +1,24 @@
 use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use fr_codec::prelude::*;
-use fr_common::{workloads::work_report::WorkReport, ValidatorIndex};
+use fr_common::{workloads::work_report::WorkReport, ValidatorIndex, CORE_COUNT};
 use fr_crypto::{
     hash::{hash, Blake2b256},
     types::*,
 };
+use fr_limited_vec::LimitedVec;
 use std::{cmp::Ordering, ops::Deref};
+
+pub type GuaranteesXtLimitedVec = LimitedVec<GuaranteesXtEntry, CORE_COUNT>;
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesXt {
-    pub items: Vec<GuaranteesXtEntry>,
+    pub items: GuaranteesXtLimitedVec,
 }
 
 impl Deref for GuaranteesXt {
-    type Target = Vec<GuaranteesXtEntry>;
+    type Target = LimitedVec<GuaranteesXtEntry, CORE_COUNT>;
 
     fn deref(&self) -> &Self::Target {
         &self.items

@@ -8,9 +8,8 @@ use fr_common::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, CORE_COUNT, GUARANTOR_ROTATION_PERIOD,
-    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT,
-    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
+    MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -80,16 +79,8 @@ impl GuaranteesXtValidator {
         extrinsic: &GuaranteesXt,
         header_timeslot_index: u32,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
-        // Check the length limit
-        if extrinsic.len() > CORE_COUNT {
-            return Err(XtError::GuaranteesEntryLimitExceeded(
-                extrinsic.len(),
-                CORE_COUNT,
-            ));
-        }
-
         // Check if the entries are sorted
-        if !extrinsic.is_sorted() {
+        if !extrinsic.as_ref().is_sorted() {
             return Err(XtError::GuaranteesNotSorted);
         }
 

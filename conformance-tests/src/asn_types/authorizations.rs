@@ -1,7 +1,9 @@
 use crate::asn_types::common::*;
 use fr_common::Hash32;
 
-use fr_block::types::extrinsics::guarantees::{GuaranteesXt, GuaranteesXtEntry};
+use fr_block::types::extrinsics::guarantees::{
+    GuaranteesXt, GuaranteesXtEntry, GuaranteesXtLimitedVec,
+};
 use fr_common::workloads::work_report::WorkReport;
 use fr_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
@@ -27,7 +29,7 @@ pub struct Input {
 /// Converts `Input` into `GuaranteesXt` type.
 impl From<Input> for GuaranteesXt {
     fn from(value: Input) -> Self {
-        let mut guarantees = Vec::with_capacity(value.auths.len());
+        let mut guarantees_vec = Vec::with_capacity(value.auths.len());
 
         for auth in value.auths {
             let report = WorkReport {
@@ -36,8 +38,9 @@ impl From<Input> for GuaranteesXt {
                 ..Default::default()
             };
 
-            guarantees.push(GuaranteesXtEntry::new(report, value.slot));
+            guarantees_vec.push(GuaranteesXtEntry::new(report, value.slot));
         }
+        let guarantees = GuaranteesXtLimitedVec::try_from_vec(guarantees_vec).unwrap();
         Self { items: guarantees }
     }
 }

@@ -8,11 +8,13 @@ use fr_block::types::{
         WinningTicketsMarker,
     },
     extrinsics::{
-        assurances::{AssurancesXt, AssurancesXtEntry},
+        assurances::{AssurancesXt, AssurancesXtEntry, AssurancesXtLimitedVec},
         disputes::{
             Culprit, DisputesXt, Fault, Judgment, Judgments, OffendersHeaderMarker, Verdict,
         },
-        guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
+        guarantees::{
+            GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry, GuaranteesXtLimitedVec,
+        },
         preimages::{PreimagesXt, PreimagesXtEntry},
         tickets::{TicketsXt, TicketsXtEntry},
         Extrinsics,
@@ -1798,7 +1800,10 @@ pub struct AsnAssurancesXt(pub Vec<AsnAvailAssurance>);
 impl From<AsnAssurancesXt> for AssurancesXt {
     fn from(value: AsnAssurancesXt) -> Self {
         Self {
-            items: value.0.into_iter().map(AssurancesXtEntry::from).collect(),
+            items: AssurancesXtLimitedVec::try_from_vec(
+                value.0.into_iter().map(AssurancesXtEntry::from).collect(),
+            )
+            .unwrap(),
         }
     }
 }
@@ -1884,7 +1889,10 @@ pub struct AsnGuaranteesXt(pub Vec<AsnReportGuarantee>);
 impl From<AsnGuaranteesXt> for GuaranteesXt {
     fn from(value: AsnGuaranteesXt) -> Self {
         Self {
-            items: value.0.into_iter().map(GuaranteesXtEntry::from).collect(),
+            items: GuaranteesXtLimitedVec::try_from_vec(
+                value.0.into_iter().map(GuaranteesXtEntry::from).collect(),
+            )
+            .unwrap(),
         }
     }
 }

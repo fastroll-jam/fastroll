@@ -3,6 +3,7 @@ use fr_block::types::extrinsics::{
     ExtrinsicsError, XtEntry, XtType,
 };
 use fr_common::Hash32;
+use fr_limited_vec::LimitedVecError;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
@@ -18,6 +19,8 @@ pub enum XtPoolError {
     Full,
     #[error("ExtrinsicsError: {0}")]
     ExtrinsicsError(#[from] ExtrinsicsError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
 }
 
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
