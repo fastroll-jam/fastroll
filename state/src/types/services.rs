@@ -11,6 +11,7 @@ use fr_common::{
     Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
     MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
+use fr_limited_vec::LimitedVec;
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -340,9 +341,11 @@ impl AccountPreimagesEntry {
     }
 }
 
+pub type AccountLookupsEntryLimitedVec = LimitedVec<Timeslot, 3>;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountLookupsEntry {
-    pub value: Vec<Timeslot>, // serialized timeslot list; length up to 3
+    pub value: AccountLookupsEntryLimitedVec,
 }
 impl_account_state_component!(AccountLookupsEntry, AccountLookupsEntry);
 
@@ -372,12 +375,18 @@ impl JamDecode for AccountLookupsEntry {
             timeslots.push(timeslot)
         }
 
-        Ok(Self { value: timeslots })
+        Ok(Self {
+            value: LimitedVec::<Timeslot, 3>::try_from_vec(timeslots).map_err(|_| {
+                JamCodecError::InvalidSize(
+                    "Invalid timeslots sequence length in AccountLookupsEntry".to_string(),
+                )
+            })?,
+        })
     }
 }
 
 impl AccountLookupsEntry {
-    pub fn new(value: Vec<Timeslot>) -> Self {
+    pub fn new(value: LimitedVec<Timeslot, 3>) -> Self {
         Self { value }
     }
 }

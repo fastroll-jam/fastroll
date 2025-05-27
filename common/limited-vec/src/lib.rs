@@ -29,6 +29,10 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         self.inner.is_empty()
     }
 
+    pub fn last(&self) -> Option<&T> {
+        self.inner.last()
+    }
+
     pub fn as_slice(&self) -> &[T] {
         self.inner.as_slice()
     }
@@ -53,6 +57,19 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
             return Err(LimitedVecError::LimitedVecFull);
         }
         self.inner.push(item);
+        Ok(())
+    }
+
+    pub fn try_extend(&mut self, vec: Vec<T>) -> Result<(), LimitedVecError> {
+        let added_length = self
+            .inner
+            .len()
+            .checked_add(vec.len())
+            .ok_or(LimitedVecError::InvalidVecSize)?;
+        if added_length > MAX_SIZE {
+            return Err(LimitedVecError::LimitedVecFull);
+        }
+        self.inner.extend(vec);
         Ok(())
     }
 

@@ -835,7 +835,7 @@ impl HostFunction {
                     continue_huh!()
                 }
                 // Add current timeslot to the timeslot vector.
-                entry.value.push(timeslot);
+                entry.value.try_push(timeslot)?;
                 entry
             }
             None => {

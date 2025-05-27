@@ -1,5 +1,6 @@
 use fr_codec::JamCodecError;
 use fr_crypto::error::CryptoError;
+use fr_limited_vec::LimitedVecError;
 use fr_pvm_core::{error::VMCoreError, state::memory::MemoryError};
 use fr_state::error::StateManagerError;
 use thiserror::Error;
@@ -29,6 +30,8 @@ pub enum HostCallError {
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
     #[error("MemoryError: {0}")]
     MemoryError(#[from] MemoryError),
     #[error("VMCoreError: {0}")]
@@ -46,6 +49,8 @@ pub enum PartialStateError {
     AccountNotFoundFromGlobalState,
     #[error("Attempted to delete account storage/preimage entry that doesn't exist")]
     MissingAccountEntryDeletion,
+    #[error("LimitedVecError: {0}")]
+    LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
 }

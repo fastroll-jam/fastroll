@@ -34,11 +34,12 @@ use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateHistoryFixedVec, AccumulateQueue,
     AccumulateQueueFixedVec, AuthPool, AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec,
-    BlockHistory, BlockHistoryEntry, CoreAuthPool, CoreAuthQueue, CoreStats, CoreStatsEntry,
-    CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets,
-    EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics, PendingReport,
-    PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats, ServiceStatsEntry,
-    SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry, WorkReportDepsMap,
+    BlockHistory, BlockHistoryEntry, BlockHistoryFixedVec, CoreAuthPool, CoreAuthQueue, CoreStats,
+    CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys,
+    EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics,
+    PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats,
+    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1060,7 +1061,9 @@ pub struct AsnBlocksHistory(pub Vec<AsnBlockInfo>);
 
 impl From<AsnBlocksHistory> for BlockHistory {
     fn from(value: AsnBlocksHistory) -> Self {
-        Self(value.0.into_iter().map(BlockHistoryEntry::from).collect())
+        let history_vec: Vec<BlockHistoryEntry> =
+            value.0.into_iter().map(BlockHistoryEntry::from).collect();
+        Self(BlockHistoryFixedVec::try_from_vec(history_vec).unwrap())
     }
 }
 
