@@ -51,15 +51,6 @@ use std::{
 // ----------------------------------------------------
 // -- Constants
 // ----------------------------------------------------
-
-// pub const ASN_VALIDATORS_COUNT: usize = 6;
-//
-// pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = 5;
-//
-// pub const ASN_EPOCH_LENGTH: usize = 12;
-//
-// pub const ASN_CORE_COUNT: usize = 2;
-
 pub const ASN_VALIDATORS_COUNT: usize = VALIDATOR_COUNT;
 
 pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = VALIDATORS_SUPER_MAJORITY;
