@@ -24,7 +24,7 @@ use fr_common::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         ReportedWorkPackage, SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
-        WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
+        WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
     ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, EPOCH_LENGTH,
     MAX_AUTH_POOL_SIZE, VALIDATOR_COUNT,
@@ -714,7 +714,10 @@ impl From<AsnWorkPackage> for WorkPackage {
             authorizer_service_id: value.auth_code_host,
             authorizer: value.authorizer.into(),
             context: value.context.into(),
-            work_items: value.items.into_iter().map(WorkItem::from).collect(),
+            work_items: WorkItems::try_from_vec(
+                value.items.into_iter().map(WorkItem::from).collect(),
+            )
+            .unwrap(),
         }
     }
 }

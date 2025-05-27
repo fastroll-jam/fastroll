@@ -9,9 +9,15 @@ pub enum LimitedVecError {
     InvalidVecSize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LimitedVec<T, const MAX_SIZE: usize> {
     inner: Vec<T>,
+}
+
+impl<T, const MAX_SIZE: usize> Default for LimitedVec<T, MAX_SIZE> {
+    fn default() -> Self {
+        Self { inner: Vec::new() }
+    }
 }
 
 impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {

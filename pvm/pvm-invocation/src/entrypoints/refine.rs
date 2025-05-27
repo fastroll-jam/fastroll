@@ -109,7 +109,7 @@ impl RefineInvocation {
     ) -> Result<RefineResult, PVMError> {
         tracing::info!("Ψ_R (refine) invoked.");
 
-        let Some(work_item) = args.package.work_items.get(args.item_idx) else {
+        let Some(work_item) = args.package.work_items.as_slice().get(args.item_idx) else {
             return Ok(RefineResult::bad());
         };
 
