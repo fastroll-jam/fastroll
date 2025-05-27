@@ -26,8 +26,8 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, EPOCH_LENGTH,
-    MAX_AUTH_POOL_SIZE, VALIDATOR_COUNT,
+    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
+    MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -43,7 +43,6 @@ use fr_state::types::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    array::from_fn,
     collections::{BTreeMap, BTreeSet},
     fmt,
     fmt::{Debug, Display},
@@ -53,13 +52,21 @@ use std::{
 // -- Constants
 // ----------------------------------------------------
 
-pub const ASN_VALIDATORS_COUNT: usize = 6;
+// pub const ASN_VALIDATORS_COUNT: usize = 6;
+//
+// pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = 5;
+//
+// pub const ASN_EPOCH_LENGTH: usize = 12;
+//
+// pub const ASN_CORE_COUNT: usize = 2;
 
-pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = 5;
+pub const ASN_VALIDATORS_COUNT: usize = VALIDATOR_COUNT;
 
-pub const ASN_EPOCH_LENGTH: usize = 12;
+pub const ASN_VALIDATORS_SUPER_MAJORITY: usize = VALIDATORS_SUPER_MAJORITY;
 
-pub const ASN_CORE_COUNT: usize = 2;
+pub const ASN_EPOCH_LENGTH: usize = EPOCH_LENGTH;
+
+pub const ASN_CORE_COUNT: usize = CORE_COUNT;
 
 // ----------------------------------------------------
 // -- Simple Types
@@ -245,7 +252,7 @@ pub type AsnEntropy = AsnOpaqueHash;
 
 pub type AsnHeaderHash = AsnOpaqueHash;
 
-pub type AsnValidatorsData = [AsnValidatorData; ASN_VALIDATORS_COUNT];
+pub type AsnValidatorsData = Vec<AsnValidatorData>;
 
 pub type AsnWorkPackageHash = AsnOpaqueHash;
 
@@ -306,11 +313,10 @@ pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKe
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
-    let mut validators_data = AsnValidatorsData::default();
-    for (i, key) in data.iter().enumerate() {
-        validators_data[i] = AsnValidatorData::from(key.clone());
+    let mut validators_data = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+    for key in data.iter() {
+        validators_data.push(AsnValidatorData::from(key.clone()));
     }
-
     validators_data
 }
 
@@ -385,7 +391,7 @@ impl From<AsnAvailAssignment> for PendingReport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnAvailAssignments([Option<AsnAvailAssignment>; ASN_CORE_COUNT]);
+pub struct AsnAvailAssignments(Vec<Option<AsnAvailAssignment>>);
 
 impl From<AsnAvailAssignments> for PendingReports {
     fn from(value: AsnAvailAssignments) -> Self {
@@ -412,10 +418,10 @@ impl From<AsnAvailAssignments> for PendingReports {
 
 impl From<PendingReports> for AsnAvailAssignments {
     fn from(value: PendingReports) -> Self {
-        let mut assignments: [Option<AsnAvailAssignment>; ASN_CORE_COUNT] = Default::default();
+        let mut assignments = Vec::with_capacity(ASN_CORE_COUNT);
 
-        for (i, report_option) in value.0.iter().enumerate() {
-            assignments[i] = match report_option {
+        for report_option in value.0.iter() {
+            let assignment = match report_option {
                 Some(pending_report) => {
                     let report = pending_report.clone().work_report.into();
                     let assignment = AsnAvailAssignment {
@@ -426,6 +432,7 @@ impl From<PendingReports> for AsnAvailAssignments {
                 }
                 None => None,
             };
+            assignments.push(assignment);
         }
 
         AsnAvailAssignments(assignments)
@@ -510,7 +517,7 @@ impl From<Authorizer> for AsnAuthorizer {
 pub struct AsnAuthPool(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthPools([AsnAuthPool; ASN_CORE_COUNT]);
+pub struct AsnAuthPools(Vec<AsnAuthPool>);
 
 impl From<AsnAuthPools> for AuthPool {
     fn from(value: AsnAuthPools) -> Self {
@@ -528,14 +535,13 @@ impl From<AsnAuthPools> for AuthPool {
 
 impl From<AuthPool> for AsnAuthPools {
     fn from(value: AuthPool) -> Self {
-        let mut asn_auth_pools_arr: [AsnAuthPool; ASN_CORE_COUNT] =
-            from_fn(|_| AsnAuthPool::default());
-        for (i, core_authorizers) in value.0.into_iter().enumerate() {
+        let mut asn_auth_pools_arr = Vec::with_capacity(ASN_CORE_COUNT);
+        for core_authorizers in value.0.into_iter() {
             let mut asn_auth_pool_vec = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
             for authorizer in core_authorizers {
                 asn_auth_pool_vec.push(AsnAuthorizerHash::from(authorizer));
             }
-            asn_auth_pools_arr[i] = AsnAuthPool(asn_auth_pool_vec);
+            asn_auth_pools_arr.push(AsnAuthPool(asn_auth_pool_vec));
         }
         Self(asn_auth_pools_arr)
     }
@@ -545,7 +551,7 @@ impl From<AuthPool> for AsnAuthPools {
 pub struct AsnAuthQueue(Vec<AsnAuthorizerHash>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AsnAuthQueues([AsnAuthQueue; ASN_CORE_COUNT]);
+pub struct AsnAuthQueues(Vec<AsnAuthQueue>);
 
 impl From<AsnAuthQueues> for AuthQueue {
     fn from(value: AsnAuthQueues) -> Self {
@@ -563,14 +569,13 @@ impl From<AsnAuthQueues> for AuthQueue {
 
 impl From<AuthQueue> for AsnAuthQueues {
     fn from(value: AuthQueue) -> Self {
-        let mut asn_auth_queues_arr: [AsnAuthQueue; ASN_CORE_COUNT] =
-            from_fn(|_| AsnAuthQueue::default());
-        for (i, core_queue) in value.0.into_iter().enumerate() {
+        let mut asn_auth_queues_arr = Vec::with_capacity(ASN_CORE_COUNT);
+        for core_queue in value.0.into_iter() {
             let mut asn_auth_queue_vec = Vec::with_capacity(AUTH_QUEUE_SIZE);
             for authorizer in core_queue {
                 asn_auth_queue_vec.push(AsnAuthorizerHash::from(authorizer));
             }
-            asn_auth_queues_arr[i] = AsnAuthQueue(asn_auth_queue_vec);
+            asn_auth_queues_arr.push(AsnAuthQueue(asn_auth_queue_vec));
         }
         Self(asn_auth_queues_arr)
     }
@@ -1120,13 +1125,13 @@ impl From<AsnActivityRecord> for ValidatorStatsEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnActivityRecords([AsnActivityRecord; ASN_VALIDATORS_COUNT]);
+pub struct AsnActivityRecords(Vec<AsnActivityRecord>);
 
 impl From<EpochValidatorStats> for AsnActivityRecords {
     fn from(value: EpochValidatorStats) -> Self {
-        let mut records = from_fn(|_| AsnActivityRecord::default());
-        for (i, entry) in value.iter().enumerate() {
-            records[i] = AsnActivityRecord::from(*entry);
+        let mut records = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+        for entry in value.iter() {
+            records.push(AsnActivityRecord::from(*entry));
         }
         Self(records)
     }
@@ -1185,7 +1190,7 @@ impl From<CoreStatsEntry> for AsnCoreActivityRecord {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct AsnCoreActivityRecords([AsnCoreActivityRecord; ASN_CORE_COUNT]);
+pub struct AsnCoreActivityRecords(Vec<AsnCoreActivityRecord>);
 
 impl From<AsnCoreActivityRecords> for CoreStats {
     fn from(value: AsnCoreActivityRecords) -> Self {
@@ -1199,9 +1204,9 @@ impl From<AsnCoreActivityRecords> for CoreStats {
 
 impl From<CoreStats> for AsnCoreActivityRecords {
     fn from(value: CoreStats) -> Self {
-        let mut records = from_fn(|_| AsnCoreActivityRecord::default());
-        for (i, entry) in value.0.iter().enumerate() {
-            records[i] = AsnCoreActivityRecord::from(entry.clone());
+        let mut records = Vec::with_capacity(ASN_CORE_COUNT);
+        for entry in value.0.iter() {
+            records.push(AsnCoreActivityRecord::from(entry.clone()));
         }
         Self(records)
     }
@@ -1353,9 +1358,9 @@ impl From<Ticket> for AsnTicketBody {
     }
 }
 
-pub type AsnTicketsBodies = [AsnTicketBody; ASN_EPOCH_LENGTH];
+pub type AsnTicketsBodies = Vec<AsnTicketBody>;
 
-pub type AsnEpochKeys = [AsnBandersnatchKey; ASN_EPOCH_LENGTH];
+pub type AsnEpochKeys = Vec<AsnBandersnatchKey>;
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -1395,18 +1400,18 @@ impl From<SlotSealers> for AsnTicketsOrKeys {
         match value {
             SlotSealers::Tickets(tickets) => {
                 let mut ticket_bodies: AsnTicketsBodies = Default::default();
-                for (i, ticket) in tickets.into_iter().enumerate() {
-                    ticket_bodies[i] = AsnTicketBody {
+                for ticket in tickets.into_iter() {
+                    ticket_bodies.push(AsnTicketBody {
                         id: AsnOpaqueHash::from(ticket.id),
                         attempt: ticket.attempt,
-                    };
+                    });
                 }
                 AsnTicketsOrKeys::tickets(ticket_bodies)
             }
             SlotSealers::BandersnatchPubKeys(keys) => {
-                let mut epoch_keys: AsnEpochKeys = Default::default();
-                for (i, key) in keys.into_iter().enumerate() {
-                    epoch_keys[i] = AsnBandersnatchKey::from(key);
+                let mut epoch_keys: AsnEpochKeys = Vec::with_capacity(ASN_EPOCH_LENGTH);
+                for key in keys.into_iter() {
+                    epoch_keys.push(AsnBandersnatchKey::from(key));
                 }
                 AsnTicketsOrKeys::keys(epoch_keys)
             }
@@ -1494,7 +1499,7 @@ impl From<Judgment> for AsnDisputeJudgement {
     }
 }
 
-pub type DisputeJudgements = [AsnDisputeJudgement; ASN_VALIDATORS_SUPER_MAJORITY];
+pub type DisputeJudgements = Vec<AsnDisputeJudgement>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AsnDisputeVerdict {
@@ -1521,13 +1526,13 @@ impl From<AsnDisputeVerdict> for Verdict {
 
 impl From<Verdict> for AsnDisputeVerdict {
     fn from(value: Verdict) -> Self {
-        let mut votes: [AsnDisputeJudgement; ASN_VALIDATORS_SUPER_MAJORITY] = Default::default();
-        for (i, judgment) in value.judgments.iter().enumerate() {
-            votes[i] = AsnDisputeJudgement {
+        let mut votes = Vec::with_capacity(ASN_VALIDATORS_SUPER_MAJORITY);
+        for judgment in value.judgments.iter() {
+            votes.push(AsnDisputeJudgement {
                 vote: judgment.is_report_valid,
                 index: judgment.voter,
                 signature: AsnEd25519Signature::from(judgment.voter_signature.clone()),
-            };
+            })
         }
 
         AsnDisputeVerdict {
@@ -2098,7 +2103,7 @@ impl From<EpochMarker> for AsnEpochMark {
     }
 }
 
-pub type AsnTicketsMark = [AsnTicketBody; ASN_EPOCH_LENGTH];
+pub type AsnTicketsMark = Vec<AsnTicketBody>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnHeader {
