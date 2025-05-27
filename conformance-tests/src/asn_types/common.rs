@@ -22,7 +22,7 @@ use fr_common::{
     ticket::Ticket,
     workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
-        ReportedWorkPackage, SegmentRootLookupTable, WorkDigest,
+        ReportedWorkPackage, SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
@@ -947,7 +947,10 @@ impl From<AsnWorkReport> for WorkReport {
             authorizer_hash: Hash32::from(value.authorizer_hash),
             auth_trace: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
-            digests: value.results.into_iter().map(WorkDigest::from).collect(),
+            digests: WorkDigests::try_from_vec(
+                value.results.into_iter().map(WorkDigest::from).collect(),
+            )
+            .unwrap(),
             auth_gas_used: value.auth_gas_used,
         }
     }
