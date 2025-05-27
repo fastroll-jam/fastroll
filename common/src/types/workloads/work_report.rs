@@ -289,7 +289,7 @@ impl Display for ReportedWorkPackage {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct RefineStats {
     /// `u`: The actual amount of gas used during refinement.
     pub refine_gas_used: UnsignedGas,
@@ -313,7 +313,7 @@ impl Display for RefineStats {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkDigest {
     /// `s`: Associated service id.
     pub service_id: ServiceId,
@@ -391,12 +391,6 @@ impl WorkDigest {
 pub enum WorkExecutionResult {
     Output(Octets),
     Error(WorkExecutionError),
-}
-
-impl Default for WorkExecutionResult {
-    fn default() -> Self {
-        Self::Output(Octets::default())
-    }
 }
 
 impl Display for WorkExecutionResult {
