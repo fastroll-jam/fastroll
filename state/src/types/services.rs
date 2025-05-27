@@ -341,11 +341,11 @@ impl AccountPreimagesEntry {
     }
 }
 
-pub type AccountLookupsEntryLimitedVec = LimitedVec<Timeslot, 3>;
+pub type AccountLookupsEntryTimeslots = LimitedVec<Timeslot, 3>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountLookupsEntry {
-    pub value: AccountLookupsEntryLimitedVec,
+    pub value: AccountLookupsEntryTimeslots,
 }
 impl_account_state_component!(AccountLookupsEntry, AccountLookupsEntry);
 

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use crate::pool::{OpaqueXtEntry, XtPool, XtPoolError};
 use fr_block::types::extrinsics::{
-    assurances::{AssurancesXt, AssurancesXtEntry, AssurancesXtLimitedVec},
+    assurances::{AssurancesXt, AssurancesXtEntries, AssurancesXtEntry},
     disputes::{Culprit, DisputesXt, Fault, Verdict},
-    guarantees::{GuaranteesXt, GuaranteesXtEntry, GuaranteesXtLimitedVec},
+    guarantees::{GuaranteesXt, GuaranteesXtEntries, GuaranteesXtEntry},
     preimages::{PreimagesXt, PreimagesXtEntry},
     tickets::{TicketsXt, TicketsXtEntry},
     XtType,
@@ -51,7 +51,7 @@ impl XtManager {
                 .into_iter()
                 .filter_map(|entry| GuaranteesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
-        let items = GuaranteesXtLimitedVec::try_from_vec(items_vec)?;
+        let items = GuaranteesXtEntries::try_from_vec(items_vec)?;
         Ok(GuaranteesXt { items })
     }
 
@@ -64,7 +64,7 @@ impl XtManager {
                 .into_iter()
                 .filter_map(|entry| AssurancesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
-        let items = AssurancesXtLimitedVec::try_from_vec(items_vec)?;
+        let items = AssurancesXtEntries::try_from_vec(items_vec)?;
         Ok(AssurancesXt { items })
     }
 

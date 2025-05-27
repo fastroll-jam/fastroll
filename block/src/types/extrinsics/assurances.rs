@@ -8,13 +8,13 @@ use fr_crypto::types::*;
 use fr_limited_vec::LimitedVec;
 use std::{cmp::Ordering, ops::Deref};
 
-pub type AssurancesXtLimitedVec = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
+pub type AssurancesXtEntries = LimitedVec<AssurancesXtEntry, VALIDATOR_COUNT>;
 
 /// The assurances extrinsic submitted by validators assuring the availability of work reports
 /// on assigned cores.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AssurancesXt {
-    pub items: AssurancesXtLimitedVec,
+    pub items: AssurancesXtEntries,
 }
 
 impl Deref for AssurancesXt {

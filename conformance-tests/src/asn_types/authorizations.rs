@@ -2,7 +2,7 @@ use crate::asn_types::common::*;
 use fr_common::Hash32;
 
 use fr_block::types::extrinsics::guarantees::{
-    GuaranteesXt, GuaranteesXtEntry, GuaranteesXtLimitedVec,
+    GuaranteesXt, GuaranteesXtEntries, GuaranteesXtEntry,
 };
 use fr_common::workloads::work_report::WorkReport;
 use fr_state::types::Timeslot;
@@ -40,7 +40,7 @@ impl From<Input> for GuaranteesXt {
 
             guarantees_vec.push(GuaranteesXtEntry::new(report, value.slot));
         }
-        let guarantees = GuaranteesXtLimitedVec::try_from_vec(guarantees_vec).unwrap();
+        let guarantees = GuaranteesXtEntries::try_from_vec(guarantees_vec).unwrap();
         Self { items: guarantees }
     }
 }

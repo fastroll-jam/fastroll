@@ -8,13 +8,13 @@ use fr_crypto::Keccak256;
 use fr_limited_vec::LimitedVec;
 use fr_merkle::mmr::MerkleMountainRange;
 
-pub type BlockHistoryFixedVec = LimitedVec<BlockHistoryEntry, BLOCK_HISTORY_LENGTH>;
+pub type BlockHistoryEntries = LimitedVec<BlockHistoryEntry, BLOCK_HISTORY_LENGTH>;
 
 /// The recent block histories.
 ///
 /// Represents `β` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct BlockHistory(pub BlockHistoryFixedVec);
+pub struct BlockHistory(pub BlockHistoryEntries);
 impl_simple_state_component!(BlockHistory, BlockHistory);
 
 impl BlockHistory {

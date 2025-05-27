@@ -77,7 +77,7 @@ impl JamDecode for ValidatorStatsEntry {
     }
 }
 
-pub type EpochValidatorStatsFixedVec = FixedVec<ValidatorStatsEntry, VALIDATOR_COUNT>;
+pub type ValidatorStatsEntries = FixedVec<ValidatorStatsEntry, VALIDATOR_COUNT>;
 
 /// Holds statistics for all validator activities during a single epoch.
 /// Each entry tracks activities such as block production, ticket introduction, and assurances.
@@ -86,7 +86,7 @@ pub type EpochValidatorStatsFixedVec = FixedVec<ValidatorStatsEntry, VALIDATOR_C
 /// and to store completed statistics for the previous epoch.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochValidatorStats {
-    items: EpochValidatorStatsFixedVec,
+    items: ValidatorStatsEntries,
 }
 
 impl Deref for EpochValidatorStats {
@@ -104,7 +104,7 @@ impl DerefMut for EpochValidatorStats {
 }
 
 impl EpochValidatorStats {
-    pub fn new(items: EpochValidatorStatsFixedVec) -> Self {
+    pub fn new(items: ValidatorStatsEntries) -> Self {
         Self { items }
     }
 
@@ -191,11 +191,11 @@ impl CoreStatsEntry {
     }
 }
 
-pub type CoreStatsFixedVec = FixedVec<CoreStatsEntry, CORE_COUNT>;
+pub type CoreStatsEntries = FixedVec<CoreStatsEntry, CORE_COUNT>;
 
 /// The core activities statistics recorded on-chain, on a per-block basis.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct CoreStats(pub CoreStatsFixedVec);
+pub struct CoreStats(pub CoreStatsEntries);
 
 impl CoreStats {
     pub fn core_stats_entry_mut(&mut self, core_index: CoreIndex) -> &mut CoreStatsEntry {

@@ -8,13 +8,11 @@ use fr_block::types::{
         WinningTicketsMarker,
     },
     extrinsics::{
-        assurances::{AssurancesXt, AssurancesXtEntry, AssurancesXtLimitedVec},
+        assurances::{AssurancesXt, AssurancesXtEntries, AssurancesXtEntry},
         disputes::{
             Culprit, DisputesXt, Fault, Judgment, Judgments, OffendersHeaderMarker, Verdict,
         },
-        guarantees::{
-            GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry, GuaranteesXtLimitedVec,
-        },
+        guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntries, GuaranteesXtEntry},
         preimages::{PreimagesXt, PreimagesXtEntry},
         tickets::{TicketsXt, TicketsXtEntry},
         Extrinsics,
@@ -34,13 +32,13 @@ use fr_common::{
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
-    AccountMetadata, AccumulateHistory, AccumulateHistoryFixedVec, AccumulateQueue,
-    AccumulateQueueFixedVec, AuthPool, AuthPoolFixedVec, AuthQueue, AuthQueueFixedVec,
-    BlockHistory, BlockHistoryEntry, BlockHistoryFixedVec, CoreAuthPool, CoreAuthQueue, CoreStats,
-    CoreStatsEntry, CoreStatsFixedVec, DisputesState, EpochEntropy, EpochFallbackKeys,
-    EpochTickets, EpochValidatorStats, EpochValidatorStatsFixedVec, OnChainStatistics,
-    PendingReport, PendingReports, PendingReportsFixedVec, PrivilegedServices, ServiceStats,
-    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntry,
+    AccountMetadata, AccumulateHistory, AccumulateHistoryEntries, AccumulateQueue,
+    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
+    BlockHistoryEntry, CoreAuthPool, CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries,
+    CorePendingReportsEntries, CoreStats, CoreStatsEntries, CoreStatsEntry, DisputesState,
+    EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats, OnChainStatistics,
+    PendingReport, PendingReports, PrivilegedServices, ServiceStats, ServiceStatsEntry,
+    SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntries, ValidatorStatsEntry,
     WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
@@ -408,7 +406,7 @@ impl From<AsnAvailAssignments> for PendingReports {
             reports.push(maybe_report);
         }
 
-        PendingReports(PendingReportsFixedVec::try_from_vec(reports).unwrap())
+        PendingReports(CorePendingReportsEntries::try_from_vec(reports).unwrap())
     }
 }
 
@@ -524,7 +522,7 @@ impl From<AsnAuthPools> for AuthPool {
             }
             auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
         }
-        Self(AuthPoolFixedVec::try_from_vec(auth_pool_vec).unwrap())
+        Self(CoreAuthPoolEntries::try_from_vec(auth_pool_vec).unwrap())
     }
 }
 
@@ -559,7 +557,7 @@ impl From<AsnAuthQueues> for AuthQueue {
             }
             auth_queue_vec.push(CoreAuthQueue::try_from_vec(core_queue).unwrap());
         }
-        Self(AuthQueueFixedVec::try_from_vec(auth_queue_vec).unwrap())
+        Self(CoreAuthQueueEntries::try_from_vec(auth_queue_vec).unwrap())
     }
 }
 
@@ -1071,7 +1069,7 @@ impl From<AsnBlocksHistory> for BlockHistory {
     fn from(value: AsnBlocksHistory) -> Self {
         let history_vec: Vec<BlockHistoryEntry> =
             value.0.into_iter().map(BlockHistoryEntry::from).collect();
-        Self(BlockHistoryFixedVec::try_from_vec(history_vec).unwrap())
+        Self(BlockHistoryEntries::try_from_vec(history_vec).unwrap())
     }
 }
 
@@ -1140,7 +1138,7 @@ impl From<AsnActivityRecords> for EpochValidatorStats {
         for record in value.0.into_iter() {
             stats.push(ValidatorStatsEntry::from(record));
         }
-        Self::new(EpochValidatorStatsFixedVec::try_from_vec(stats).unwrap())
+        Self::new(ValidatorStatsEntries::try_from_vec(stats).unwrap())
     }
 }
 
@@ -1195,7 +1193,7 @@ impl From<AsnCoreActivityRecords> for CoreStats {
         for record in value.0.into_iter() {
             stats.push(CoreStatsEntry::from(record));
         }
-        Self(CoreStatsFixedVec::try_from_vec(stats).unwrap())
+        Self(CoreStatsEntries::try_from_vec(stats).unwrap())
     }
 }
 
@@ -1800,7 +1798,7 @@ pub struct AsnAssurancesXt(pub Vec<AsnAvailAssurance>);
 impl From<AsnAssurancesXt> for AssurancesXt {
     fn from(value: AsnAssurancesXt) -> Self {
         Self {
-            items: AssurancesXtLimitedVec::try_from_vec(
+            items: AssurancesXtEntries::try_from_vec(
                 value.0.into_iter().map(AssurancesXtEntry::from).collect(),
             )
             .unwrap(),
@@ -1889,7 +1887,7 @@ pub struct AsnGuaranteesXt(pub Vec<AsnReportGuarantee>);
 impl From<AsnGuaranteesXt> for GuaranteesXt {
     fn from(value: AsnGuaranteesXt) -> Self {
         Self {
-            items: GuaranteesXtLimitedVec::try_from_vec(
+            items: GuaranteesXtEntries::try_from_vec(
                 value.0.into_iter().map(GuaranteesXtEntry::from).collect(),
             )
             .unwrap(),
@@ -1938,7 +1936,7 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
             items_vec.push(records_converted);
         });
         Self {
-            items: AccumulateQueueFixedVec::try_from_vec(items_vec).unwrap(),
+            items: AccumulateQueueEntries::try_from_vec(items_vec).unwrap(),
         }
     }
 }
@@ -1974,7 +1972,7 @@ impl From<AsnAccumulateHistory> for AccumulateHistory {
             items_vec.push(hash_set);
         });
         Self {
-            items: AccumulateHistoryFixedVec::try_from_vec(items_vec).unwrap(),
+            items: AccumulateHistoryEntries::try_from_vec(items_vec).unwrap(),
         }
     }
 }

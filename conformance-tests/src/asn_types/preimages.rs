@@ -4,7 +4,7 @@ use crate::asn_types::common::{
 use fr_block::types::extrinsics::preimages::PreimagesXt;
 use fr_common::{Hash32, LookupsKey, Octets};
 use fr_state::types::{
-    AccountLookupsEntry, AccountLookupsEntryLimitedVec, AccountPreimagesEntry, Timeslot,
+    AccountLookupsEntry, AccountLookupsEntryTimeslots, AccountPreimagesEntry, Timeslot,
 };
 use serde::{Deserialize, Serialize};
 
@@ -94,7 +94,7 @@ impl From<AsnLookupMetaMapEntry> for LookupMetaMapEntry {
         Self {
             key: value.key.into(),
             data: AccountLookupsEntry::new(
-                AccountLookupsEntryLimitedVec::try_from_vec(timeslots_vec).unwrap(),
+                AccountLookupsEntryTimeslots::try_from_vec(timeslots_vec).unwrap(),
             ),
         }
     }

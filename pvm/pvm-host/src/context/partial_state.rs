@@ -4,9 +4,9 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        AccountLookupsEntryExt, AccountLookupsEntryLimitedVec, AccountMetadata,
-        AccountPartialState, AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta,
-        AuthQueue, PrivilegedServices, StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
+        AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState,
+        AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta, AuthQueue,
+        PrivilegedServices, StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
     },
 };
 use std::{
@@ -707,7 +707,7 @@ impl AccountsSandboxMap {
         else {
             return Ok(false);
         };
-        lookups_entry.value = AccountLookupsEntryLimitedVec::new();
+        lookups_entry.value = AccountLookupsEntryTimeslots::new();
         self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
             .await?;
         Ok(true)

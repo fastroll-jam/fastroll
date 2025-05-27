@@ -8,13 +8,13 @@ use fr_crypto::{
 use fr_limited_vec::LimitedVec;
 use std::{cmp::Ordering, ops::Deref};
 
-pub type GuaranteesXtLimitedVec = LimitedVec<GuaranteesXtEntry, CORE_COUNT>;
+pub type GuaranteesXtEntries = LimitedVec<GuaranteesXtEntry, CORE_COUNT>;
 
 /// Represents a sequence of validator guarantees affirming the validity of a work report
 /// to be processed on-chain.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct GuaranteesXt {
-    pub items: GuaranteesXtLimitedVec,
+    pub items: GuaranteesXtEntries,
 }
 
 impl Deref for GuaranteesXt {
