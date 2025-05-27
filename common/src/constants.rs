@@ -1,4 +1,9 @@
-use crate::{Balance, UnsignedGas};
+use crate::{Balance, UnsignedGas, VALIDATOR_COUNT};
+
+// --- Derived values from `VALIDATOR_COUNT`.
+pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
+pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;
+pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
 
 /// JAM common era UNIX timestamp; 1200 UTC on January 1st, 2025.
 pub const COMMON_ERA_TIMESTAMP: u64 = 1_735_732_800;

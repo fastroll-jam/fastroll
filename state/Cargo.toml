@@ -7,7 +7,7 @@ edition.workspace = true
 fr-block = { workspace = true }
 fr-clock = { workspace = true }
 fr-codec = { workspace = true }
-fr-common = { workspace = true, features = ["default"] }
+fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-limited-vec = { workspace = true }

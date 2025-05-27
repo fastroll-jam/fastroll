@@ -1,8 +1,5 @@
 /// `V`: The total number of validators.
 pub const VALIDATOR_COUNT: usize = 1_023;
-pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
-pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;
-pub const VALIDATORS_SUPER_MAJORITY: usize = FLOOR_TWO_THIRDS_VALIDATOR_COUNT + 1;
 
 /// `C`: The total number of cores.
 pub const CORE_COUNT: usize = 341;
