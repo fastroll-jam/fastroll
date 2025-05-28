@@ -38,6 +38,9 @@ jobs:
       - name: Check rust version
         run: rustc +stable --version
 
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
+
       - name: Run clippy
         run: cargo +stable clippy --workspace --all-targets --all-features -- -D warnings -W clippy::all
 
@@ -54,6 +57,9 @@ jobs:
 
       - name: Check rust version
         run: rustc +stable --version
+
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
 
       - name: Install nextest release
         uses: taiki-e/install-action@9903ab6feadaec33945de535fe9d181b91802a55 # pin@v2
@@ -76,6 +82,9 @@ jobs:
 
       - name: Check rust version
         run: rustc +stable --version
+
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
 
       - name: Install nextest release
         uses: taiki-e/install-action@9903ab6feadaec33945de535fe9d181b91802a55 # pin@v2
