@@ -211,6 +211,21 @@ impl PVMInterface {
                 HostFunction::host_info(service_id, &pvm.state, state_manager, context).await?
             }
 
+            // ---Refine Functions
+            HostCallType::HISTORICAL_LOOKUP => {
+                HostFunction::host_historical_lookup(service_id, &pvm.state, context, state_manager)
+                    .await?
+            }
+            HostCallType::FETCH => HostFunction::host_fetch(&pvm.state, context)?,
+            HostCallType::EXPORT => HostFunction::host_export(&pvm.state, context)?,
+            HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
+            HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,
+            HostCallType::POKE => HostFunction::host_poke(&pvm.state, context)?,
+            HostCallType::ZERO => HostFunction::host_zero(&pvm.state, context)?,
+            HostCallType::VOID => HostFunction::host_void(&pvm.state, context)?,
+            HostCallType::INVOKE => HostFunction::host_invoke(&pvm.state, context)?,
+            HostCallType::EXPUNGE => HostFunction::host_expunge(&pvm.state, context)?,
+
             // --- Accumulate Functions
             HostCallType::BLESS => HostFunction::host_bless(&pvm.state, context)?,
             HostCallType::ASSIGN => HostFunction::host_assign(&pvm.state, context)?,
@@ -236,21 +251,6 @@ impl PVMInterface {
                 HostFunction::host_forget(&pvm.state, state_manager, context).await?
             }
             HostCallType::YIELD => HostFunction::host_yield(&pvm.state, context).await?,
-
-            // ---Refine Functions
-            HostCallType::HISTORICAL_LOOKUP => {
-                HostFunction::host_historical_lookup(service_id, &pvm.state, context, state_manager)
-                    .await?
-            }
-            HostCallType::FETCH => HostFunction::host_fetch(&pvm.state, context)?,
-            HostCallType::EXPORT => HostFunction::host_export(&pvm.state, context)?,
-            HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
-            HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,
-            HostCallType::POKE => HostFunction::host_poke(&pvm.state, context)?,
-            HostCallType::ZERO => HostFunction::host_zero(&pvm.state, context)?,
-            HostCallType::VOID => HostFunction::host_void(&pvm.state, context)?,
-            HostCallType::INVOKE => HostFunction::host_invoke(&pvm.state, context)?,
-            HostCallType::EXPUNGE => HostFunction::host_expunge(&pvm.state, context)?,
         };
 
         Ok(result)
