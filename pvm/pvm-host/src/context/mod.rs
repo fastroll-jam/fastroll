@@ -6,7 +6,7 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use fr_codec::prelude::*;
-use fr_common::{Balance, Hash32, LookupsKey, ServiceId, UnsignedGas};
+use fr_common::{Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
@@ -21,7 +21,7 @@ use fr_state::{
     },
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -172,6 +172,8 @@ pub struct AccumulateHostContext {
     pub deferred_transfers: Vec<DeferredTransfer>,
     /// `y`: Accumulation result hash
     pub yielded_accumulate_hash: Option<Hash32>,
+    /// **`p`**: Provided preimage data
+    pub provided_preimages: HashSet<(ServiceId, Octets)>,
     pub gas_used: UnsignedGas,
 }
 

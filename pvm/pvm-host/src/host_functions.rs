@@ -1523,4 +1523,68 @@ impl HostFunction {
         x.yielded_accumulate_hash = Some(commitment_hash);
         continue_ok!()
     }
+
+    /// Provides preimage data requested by services.
+    pub async fn host_provide(
+        service_id: ServiceId,
+        vm: &VMState,
+        state_manager: Arc<StateManager>,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_accumulate_x!(context);
+
+        let service_id_reg = vm.regs[7].value();
+        let offset = vm.regs[8].as_mem_address()?; // o
+        let preimage_size = vm.regs[9].as_usize()?; // z
+
+        let service_id = if service_id_reg == u64::MAX {
+            service_id
+        } else {
+            service_id_reg as ServiceId
+        };
+
+        if !vm.memory.is_address_range_readable(offset, preimage_size)? {
+            host_call_panic!()
+        }
+
+        let preimage_data = vm.memory.read_bytes(offset, preimage_size)?;
+
+        // Service account not found
+        if x.partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_manager.clone(), service_id)
+            .await?
+            .is_none()
+        {
+            continue_who!()
+        }
+
+        // Check current lookups entry
+        let lookups_key = (hash::<Blake2b256>(&preimage_data)?, preimage_size as u32);
+        let Some(lookups_entry) = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .await?
+        else {
+            // Preimage not requested
+            continue_huh!()
+        };
+        if lookups_entry.timeslots_length() != 0 {
+            // Preimage not requested
+            continue_huh!()
+        }
+
+        // Check the partial state provided preimages set
+        let provided_preimage_entry = (service_id, Octets::from_vec(preimage_data));
+        if x.provided_preimages.contains(&provided_preimage_entry) {
+            // Preimage already included in the partial state
+            continue_huh!()
+        }
+
+        // Insert the preimage entry
+        x.provided_preimages.insert(provided_preimage_entry);
+        continue_ok!()
+    }
 }
