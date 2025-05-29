@@ -8,21 +8,18 @@ use tokio::time::{interval_at, Duration, Instant};
 pub struct TimeslotScheduler;
 impl TimeslotScheduler {
     pub async fn spawn_scheduled_tasks(jam_node: Arc<JamNode>) {
-        let millis = match JamClock::millis_until_next_timeslot_boundary() {
-            Some(millis) => millis,
+        let next_boundary = match JamClock::millis_until_next_timeslot_boundary() {
+            Some(millis) => Instant::now() + Duration::from_millis(millis),
             None => {
                 tracing::warn!("Failed to calculate the next timeslot boundary");
                 return;
             }
         };
-        let next_boundary = Instant::now() + Duration::from_millis(millis);
         let mut interval = interval_at(next_boundary, Duration::from_secs(SLOT_DURATION));
         tracing::info!("Waiting until timeslot boundary...");
-        interval.tick().await; // Align the timeslot
 
         loop {
             interval.tick().await;
-
             let timeslot = match JamClock::now_jam_timeslot() {
                 Some(slot) => Timeslot::new(slot),
                 None => {
