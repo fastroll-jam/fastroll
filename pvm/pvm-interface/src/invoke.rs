@@ -251,6 +251,9 @@ impl PVMInterface {
                 HostFunction::host_forget(&pvm.state, state_manager, context).await?
             }
             HostCallType::YIELD => HostFunction::host_yield(&pvm.state, context).await?,
+            HostCallType::PROVIDE => {
+                HostFunction::host_provide(service_id, &pvm.state, state_manager, context).await?
+            }
         };
 
         Ok(result)
