@@ -72,7 +72,7 @@ impl AccumulateInvocation {
         }
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
-        let curr_entropy = epoch_entropy.current();
+        let curr_entropy = epoch_entropy.current(); // TODO: ensure this value is post entropy accumulation (`η0′`).
         let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = AccumulateVMArgs {
