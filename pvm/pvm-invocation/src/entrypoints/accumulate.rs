@@ -1,5 +1,5 @@
 use fr_codec::prelude::*;
-use fr_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE};
+use fr_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
 use fr_pvm_host::{
     context::{
@@ -14,7 +14,7 @@ use fr_pvm_interface::{
 };
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
-    invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
+    invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
 };
 use fr_state::manager::StateManager;
 use std::sync::Arc;
@@ -26,8 +26,8 @@ struct AccumulateVMArgs {
     timeslot_index: u32,
     /// `s` of `AccumulateInvokeArgs`
     accumulate_host: ServiceId,
-    /// **`o`** of `AccumulateInvokeArgs`
-    operands: Vec<AccumulateOperand>,
+    /// Length of **`o`** of `AccumulateInvokeArgs`
+    operands_count: usize,
 }
 
 #[derive(Default)]
@@ -62,8 +62,14 @@ impl AccumulateInvocation {
         tracing::info!("Ψ_A (accumulate) invoked.");
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
+            tracing::warn!("Accumulate service code not found.");
             return Ok(AccumulateResult::default());
         };
+
+        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
+            tracing::warn!("Accumulate service code exceeds maximum allowed.");
+            return Ok(AccumulateResult::default());
+        }
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
         let curr_entropy = epoch_entropy.current();
@@ -72,7 +78,7 @@ impl AccumulateInvocation {
         let vm_args = AccumulateVMArgs {
             timeslot_index: curr_timeslot.slot(),
             accumulate_host: args.accumulate_host,
-            operands: args.operands.clone(),
+            operands_count: args.operands.len(),
         };
 
         let ctx = AccumulateHostContext::new(
