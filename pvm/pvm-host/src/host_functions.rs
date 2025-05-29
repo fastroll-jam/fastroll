@@ -150,9 +150,7 @@ impl HostCallResult {
 
 pub struct HostFunction;
 impl HostFunction {
-    //
-    // General Functions
-    //
+    // --- General Functions
 
     /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
     /// for executing this instruction.
@@ -398,9 +396,515 @@ impl HostFunction {
         )
     }
 
-    //
-    // Accumulate Functions
-    //
+    // --- Refine Functions
+
+    /// Performs a historical preimage lookup for the specified account and hash,
+    /// retrieving the preimage data if available.
+    ///
+    /// This is the only stateful operation in the refinement process and allows auditors to access
+    /// states required for execution of the refinement through historical lookups.
+    pub async fn host_historical_lookup(
+        refine_service_id: ServiceId,
+        vm: &VMState,
+        context: &mut InvocationContext,
+        state_manager: Arc<StateManager>,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_refine_x!(context);
+
+        let service_id_reg = vm.regs[7].value();
+        let hash_offset = vm.regs[8].as_mem_address()?;
+        let buf_offset = vm.regs[9].as_mem_address()?;
+
+        let service_id = if service_id_reg == u64::MAX
+            || state_manager.account_exists(refine_service_id).await?
+        {
+            refine_service_id
+        } else if state_manager
+            .account_exists(vm.regs[7].as_service_id()?)
+            .await?
+        {
+            vm.regs[7].as_service_id()?
+        } else {
+            continue_none!()
+        };
+
+        if !vm
+            .memory
+            .is_address_range_readable(hash_offset, HASH_SIZE)?
+        {
+            host_call_panic!()
+        }
+
+        let lookup_hash =
+            Hash32::decode(&mut vm.memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
+
+        let preimage = state_manager
+            .lookup_historical_preimage(
+                service_id,
+                &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
+                &lookup_hash,
+            )
+            .await?
+            .unwrap_or_default();
+
+        let preimage_offset = vm.regs[10].as_usize()?.min(preimage.len()); // f
+        let lookup_size = vm.regs[11]
+            .as_usize()?
+            .min(preimage.len() - preimage_offset); // l
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, lookup_size)?
+        {
+            host_call_panic!()
+        }
+
+        continue_with_vm_change!(
+            r7: preimage.len(),
+            mem_offset: buf_offset,
+            mem_data: preimage[preimage_offset..preimage_offset + lookup_size].to_vec()
+        )
+    }
+
+    /// Fetches various data types introduced as arguments of the refine invocation.
+    /// This includes work-package data, authorizer trace and imports data.
+    pub fn host_fetch(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_refine_x!(context);
+        let data_id = vm.regs[10].as_usize()?;
+
+        let data: &[u8] = match data_id {
+            0 => &x.invoke_args.package.encode()?,
+            1 => &x.invoke_args.auth_trace,
+            2 => {
+                let item_idx = vm.regs[11].as_usize()?;
+                let items_len = x.invoke_args.package.work_items.len();
+                if item_idx < items_len {
+                    &x.invoke_args.package.work_items[item_idx].payload_blob
+                } else {
+                    continue_none!()
+                }
+            }
+            3 => {
+                let items = &x.invoke_args.package.work_items;
+                let item_idx = vm.regs[11].as_usize()?;
+                let xt_idx = vm.regs[12].as_usize()?;
+                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
+                    } else {
+                        continue_none!()
+                    }
+                } else {
+                    continue_none!()
+                }
+            }
+            4 => {
+                let items = &x.invoke_args.package.work_items;
+                let item_idx = x.invoke_args.item_idx;
+                let xt_idx = vm.regs[11].as_usize()?;
+                if xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
+                    } else {
+                        continue_none!()
+                    }
+                } else {
+                    continue_none!()
+                }
+            }
+            5 => {
+                let imports = &x.invoke_args.import_segments;
+                let item_idx = vm.regs[11].as_usize()?;
+                let segment_idx = vm.regs[12].as_usize()?;
+                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].as_ref()
+                } else {
+                    continue_none!()
+                }
+            }
+            6 => {
+                let imports = &x.invoke_args.import_segments;
+                let item_idx = x.invoke_args.item_idx;
+                let segment_idx = vm.regs[11].as_usize()?;
+                if segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].as_ref()
+                } else {
+                    continue_none!()
+                }
+            }
+            7 => &x.invoke_args.package.authorizer.config_blob,
+            _ => {
+                continue_none!()
+            }
+        };
+
+        let buf_offset = vm.regs[7].as_mem_address()?; // o
+        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
+        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, data_read_size)?
+        {
+            host_call_panic!()
+        }
+
+        continue_with_vm_change!(
+            r7: data.len(),
+            mem_offset: buf_offset,
+            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
+        )
+    }
+
+    /// Appends an entry to the export segments vector using the value loaded from memory.
+    /// This export segments vector will be written to the ImportDA after the successful execution
+    /// of the refinement process.
+    pub fn host_export(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let offset = vm.regs[7].as_mem_address()?; // p
+        let export_size = vm.regs[8].as_usize()?.min(SEGMENT_SIZE); // z
+
+        if !vm.memory.is_address_range_readable(offset, export_size)? {
+            host_call_panic!()
+        }
+
+        let next_export_segments_offset =
+            x.export_segments.len() + x.invoke_args.export_segments_offset;
+        if next_export_segments_offset >= MAX_EXPORTS_PER_PACKAGE {
+            continue_full!()
+        }
+
+        let data_segment: ExportDataSegment =
+            zero_pad_as_array::<SEGMENT_SIZE>(vm.memory.read_bytes(offset, export_size)?)
+                .ok_or(HostCallError::DataSegmentTooLarge)?;
+
+        x.export_segments.push(data_segment);
+
+        continue_with_vm_change!(r7: next_export_segments_offset)
+    }
+
+    /// Initializes an inner VM with the specified program and the initial program counter.
+    ///
+    /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
+    pub fn host_machine(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let program_offset = vm.regs[7].as_mem_address()?; // p_o
+        let program_size = vm.regs[8].as_usize()?; // p_z
+        let initial_pc = vm.regs[9].value(); // i
+
+        if !vm
+            .memory
+            .is_address_range_readable(program_offset, program_size)?
+        {
+            host_call_panic!()
+        }
+
+        let program = vm.memory.read_bytes(program_offset, program_size)?;
+        // Validate the program blob can be `deblob`ed properly
+        if ProgramLoader::deblob_program_code(&program).is_err() {
+            continue_huh!()
+        }
+
+        let inner_vm = InnerPVM::new(program, initial_pc);
+        let inner_vm_id = x.add_pvm_instance(inner_vm); // n
+
+        continue_with_vm_change!(r7: inner_vm_id)
+    }
+
+    /// Peeks data from the inner VM memory and copies it to the external host VM memory.
+    ///
+    /// `HostVM` `<--(peek)--` `InnerVM`
+    pub fn host_peek(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let memory_offset = vm.regs[8].as_mem_address()?; // o
+        let inner_memory_offset = vm.regs[9].as_mem_address()?; // s
+        let data_size = vm.regs[10].as_usize()?; // z
+
+        if !vm
+            .memory
+            .is_address_range_writable(memory_offset, data_size)?
+        {
+            host_call_panic!()
+        }
+
+        let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
+            continue_oob!()
+        }
+        let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
+
+        continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_data: data)
+    }
+
+    /// Pokes data into the inner VM memory from the external host VM memory.
+    ///
+    /// `HostVM` `--(poke)-->` `InnerVM`
+    pub fn host_poke(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let memory_offset = vm.regs[8].as_mem_address()?; // s
+        let inner_memory_offset = vm.regs[9].as_mem_address()?; // o
+        let data_size = vm.regs[10].as_usize()?; // z
+
+        if !vm
+            .memory
+            .is_address_range_readable(memory_offset, data_size)?
+        {
+            host_call_panic!()
+        }
+
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
+            continue_oob!()
+        }
+        let data = vm.memory.read_bytes(memory_offset, data_size)?;
+
+        inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
+
+        continue_ok!()
+    }
+
+    /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
+    pub fn host_zero(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
+        let pages_count = vm.regs[9].as_usize()?; // c
+
+        if inner_memory_page_offset < 16
+            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
+        {
+            continue_huh!()
+        }
+
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        // set values
+        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
+        let data_size = pages_count * PAGE_SIZE;
+        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
+
+        // set access types
+        let page_start = inner_memory_page_offset;
+        let page_end = inner_memory_page_offset + pages_count;
+        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
+
+        continue_ok!()
+    }
+
+    /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
+    pub fn host_void(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
+        let pages_count = vm.regs[9].as_usize()?; // c
+
+        if inner_memory_page_offset < 16
+            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
+        {
+            continue_huh!()
+        }
+
+        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
+            continue_who!()
+        };
+
+        let page_start = inner_memory_page_offset;
+        let page_end = inner_memory_page_offset + pages_count;
+        // should not have a page already `Inaccessible` within the range
+        if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
+            continue_huh!()
+        }
+
+        // set values
+        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
+        let data_size = pages_count * PAGE_SIZE;
+        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
+
+        // set access types
+        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
+
+        continue_ok!()
+    }
+
+    /// Invokes the inner VM with its program using the PVM general invocation function `Ψ`.
+    ///
+    /// The gas limit and initial register values for the inner VM are read from the memory of the host VM.
+    /// Upon completion, the posterior state (e.g., gas counter, memory, registers) of the inner VM is
+    /// written back to the memory of the host VM, while the final state of the inner VM's memory
+    /// is preserved within the inner VM.
+    pub fn host_invoke(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let memory_offset = vm.regs[8].as_mem_address()?; // o
+
+        if !vm.memory.is_address_range_writable(memory_offset, 112)? {
+            host_call_panic!()
+        }
+
+        let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
+            continue_who!()
+        };
+
+        let gas_limit =
+            UnsignedGas::decode_fixed(&mut vm.memory.read_bytes(memory_offset, 8)?.as_slice(), 8)?;
+
+        let mut regs = [Register::default(); REGISTERS_COUNT];
+        for (i, reg) in regs.iter_mut().enumerate() {
+            reg.value = RegValue::decode_fixed(
+                &mut vm
+                    .memory
+                    .read_bytes(memory_offset + 8 + 8 * i as MemAddress, 8)?
+                    .as_slice(),
+                8,
+            )?;
+        }
+
+        // Construct a new `VMState` and `ProgramState` for the general invocation function.
+        let mut inner_vm_state_copy = VMState {
+            regs,
+            memory: inner_vm_mut.memory.clone(),
+            pc: inner_vm_mut.pc,
+            gas_counter: gas_limit
+                .try_into()
+                .expect("Gas limit should fit in `SignedGas`"),
+        };
+        let inner_vm_program_code = &inner_vm_mut.program_code;
+        let mut inner_vm_program_state = ProgramState::default();
+
+        let inner_vm_exit_reason = Interpreter::invoke_general(
+            &mut inner_vm_state_copy,
+            &mut inner_vm_program_state,
+            inner_vm_program_code,
+        )?;
+
+        // Apply the mutation of the `VMState` to the InnerVM state of the refine context
+        inner_vm_mut.pc = inner_vm_state_copy.pc;
+        inner_vm_mut.memory = inner_vm_state_copy.memory;
+
+        // 112-byte mem write
+        let mut host_buf = vec![];
+        (inner_vm_state_copy.gas_counter as UnsignedGas).encode_to_fixed(&mut host_buf, 8)?;
+        for reg in inner_vm_state_copy.regs {
+            reg.value.encode_to_fixed(&mut host_buf, 8)?;
+        }
+
+        match inner_vm_exit_reason {
+            ExitReason::HostCall(host_call_type) => {
+                inner_vm_mut.pc += 1;
+                continue_with_vm_change!(
+                    r7: HOST,
+                    r8: host_call_type,
+                    mem_offset: memory_offset,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::PageFault(address) => {
+                continue_with_vm_change!(
+                    r7: FAULT,
+                    r8: address,
+                    mem_offset: memory_offset,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::OutOfGas => {
+                continue_with_vm_change!(
+                    r7: OOG,
+                    mem_offset: memory_offset,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::Panic => {
+                continue_with_vm_change!(
+                    r7: PANIC,
+                    mem_offset: memory_offset,
+                    mem_data: host_buf
+                )
+            }
+            ExitReason::RegularHalt => {
+                continue_with_vm_change!(
+                    r7: HALT,
+                    mem_offset: memory_offset,
+                    mem_data: host_buf
+                )
+            }
+
+            _ => Err(HostCallError::InvalidExitReason),
+        }
+    }
+
+    /// Removes an inner VM instance from the refine context and returns its final pc.
+    pub fn host_expunge(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_mut_refine_x!(context);
+
+        let inner_vm_id = vm.regs[7].as_usize()?; // n
+
+        let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
+            continue_who!()
+        };
+        let final_pc = inner_vm.pc;
+
+        x.remove_pvm_instance(inner_vm_id);
+
+        continue_with_vm_change!(r7: final_pc)
+    }
+
+    // --- Accumulate Functions
 
     /// Assigns new privileged services: manager (m), assign (a), designate (v) and
     /// always-accumulates (g) to the accumulate context partial state.
@@ -1020,513 +1524,67 @@ impl HostFunction {
         continue_ok!()
     }
 
-    //
-    // Refine Functions
-    //
-
-    /// Performs a historical preimage lookup for the specified account and hash,
-    /// retrieving the preimage data if available.
-    ///
-    /// This is the only stateful operation in the refinement process and allows auditors to access
-    /// states required for execution of the refinement through historical lookups.
-    pub async fn host_historical_lookup(
-        refine_service_id: ServiceId,
+    /// Provides preimage data requested by services.
+    pub async fn host_provide(
+        service_id: ServiceId,
         vm: &VMState,
-        context: &mut InvocationContext,
         state_manager: Arc<StateManager>,
+        context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
         check_out_of_gas!(vm.gas_counter);
-        let x = get_refine_x!(context);
+        let x = get_mut_accumulate_x!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let hash_offset = vm.regs[8].as_mem_address()?;
-        let buf_offset = vm.regs[9].as_mem_address()?;
+        let offset = vm.regs[8].as_mem_address()?; // o
+        let preimage_size = vm.regs[9].as_usize()?; // z
 
-        let service_id = if service_id_reg == u64::MAX
-            || state_manager.account_exists(refine_service_id).await?
-        {
-            refine_service_id
-        } else if state_manager
-            .account_exists(vm.regs[7].as_service_id()?)
-            .await?
-        {
-            vm.regs[7].as_service_id()?
+        let service_id = if service_id_reg == u64::MAX {
+            service_id
         } else {
-            continue_none!()
+            service_id_reg as ServiceId
         };
 
-        if !vm
-            .memory
-            .is_address_range_readable(hash_offset, HASH_SIZE)?
-        {
+        if !vm.memory.is_address_range_readable(offset, preimage_size)? {
             host_call_panic!()
         }
 
-        let lookup_hash =
-            Hash32::decode(&mut vm.memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
+        let preimage_data = vm.memory.read_bytes(offset, preimage_size)?;
 
-        let preimage = state_manager
-            .lookup_historical_preimage(
-                service_id,
-                &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
-                &lookup_hash,
-            )
+        // Service account not found
+        if x.partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_manager.clone(), service_id)
             .await?
-            .unwrap_or_default();
-
-        let preimage_offset = vm.regs[10].as_usize()?.min(preimage.len()); // f
-        let lookup_size = vm.regs[11]
-            .as_usize()?
-            .min(preimage.len() - preimage_offset); // l
-
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, lookup_size)?
+            .is_none()
         {
-            host_call_panic!()
+            continue_who!()
         }
 
-        continue_with_vm_change!(
-            r7: preimage.len(),
-            mem_offset: buf_offset,
-            mem_data: preimage[preimage_offset..preimage_offset + lookup_size].to_vec()
-        )
-    }
-
-    /// Fetches various data types introduced as arguments of the refine invocation.
-    /// This includes work-package data, authorizer trace and imports data.
-    pub fn host_fetch(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_refine_x!(context);
-        let data_id = vm.regs[10].as_usize()?;
-
-        let data: &[u8] = match data_id {
-            0 => &x.invoke_args.package.encode()?,
-            1 => &x.invoke_args.auth_trace,
-            2 => {
-                let item_idx = vm.regs[11].as_usize()?;
-                let items_len = x.invoke_args.package.work_items.len();
-                if item_idx < items_len {
-                    &x.invoke_args.package.work_items[item_idx].payload_blob
-                } else {
-                    continue_none!()
-                }
-            }
-            3 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = vm.regs[11].as_usize()?;
-                let xt_idx = vm.regs[12].as_usize()?;
-                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            4 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = x.invoke_args.item_idx;
-                let xt_idx = vm.regs[11].as_usize()?;
-                if xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            5 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = vm.regs[11].as_usize()?;
-                let segment_idx = vm.regs[12].as_usize()?;
-                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            6 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = x.invoke_args.item_idx;
-                let segment_idx = vm.regs[11].as_usize()?;
-                if segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            7 => &x.invoke_args.package.authorizer.config_blob,
-            _ => {
-                continue_none!()
-            }
+        // Check current lookups entry
+        let lookups_key = (hash::<Blake2b256>(&preimage_data)?, preimage_size as u32);
+        let Some(lookups_entry) = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .await?
+        else {
+            // Preimage not requested
+            continue_huh!()
         };
-
-        let buf_offset = vm.regs[7].as_mem_address()?; // o
-        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
-        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
-
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, data_read_size)?
-        {
-            host_call_panic!()
-        }
-
-        continue_with_vm_change!(
-            r7: data.len(),
-            mem_offset: buf_offset,
-            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
-        )
-    }
-
-    /// Appends an entry to the export segments vector using the value loaded from memory.
-    /// This export segments vector will be written to the ImportDA after the successful execution
-    /// of the refinement process.
-    pub fn host_export(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let offset = vm.regs[7].as_mem_address()?; // p
-        let export_size = vm.regs[8].as_usize()?.min(SEGMENT_SIZE); // z
-
-        if !vm.memory.is_address_range_readable(offset, export_size)? {
-            host_call_panic!()
-        }
-
-        let next_export_segments_offset =
-            x.export_segments.len() + x.invoke_args.export_segments_offset;
-        if next_export_segments_offset >= MAX_EXPORTS_PER_PACKAGE {
-            continue_full!()
-        }
-
-        let data_segment: ExportDataSegment =
-            zero_pad_as_array::<SEGMENT_SIZE>(vm.memory.read_bytes(offset, export_size)?)
-                .ok_or(HostCallError::DataSegmentTooLarge)?;
-
-        x.export_segments.push(data_segment);
-
-        continue_with_vm_change!(r7: next_export_segments_offset)
-    }
-
-    /// Initializes an inner VM with the specified program and the initial program counter.
-    ///
-    /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
-    pub fn host_machine(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let program_offset = vm.regs[7].as_mem_address()?; // p_o
-        let program_size = vm.regs[8].as_usize()?; // p_z
-        let initial_pc = vm.regs[9].value(); // i
-
-        if !vm
-            .memory
-            .is_address_range_readable(program_offset, program_size)?
-        {
-            host_call_panic!()
-        }
-
-        let program = vm.memory.read_bytes(program_offset, program_size)?;
-        // Validate the program blob can be `deblob`ed properly
-        if ProgramLoader::deblob_program_code(&program).is_err() {
+        if lookups_entry.timeslots_length() != 0 {
+            // Preimage not requested
             continue_huh!()
         }
 
-        let inner_vm = InnerPVM::new(program, initial_pc);
-        let inner_vm_id = x.add_pvm_instance(inner_vm); // n
-
-        continue_with_vm_change!(r7: inner_vm_id)
-    }
-
-    /// Peeks data from the inner VM memory and copies it to the external host VM memory.
-    ///
-    /// `HostVM` `<--(peek)--` `InnerVM`
-    pub fn host_peek(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // o
-        let inner_memory_offset = vm.regs[9].as_mem_address()?; // s
-        let data_size = vm.regs[10].as_usize()?; // z
-
-        if !vm
-            .memory
-            .is_address_range_writable(memory_offset, data_size)?
-        {
-            host_call_panic!()
+        // Check the partial state provided preimages set
+        let provided_preimage_entry = (service_id, Octets::from_vec(preimage_data));
+        if x.provided_preimages.contains(&provided_preimage_entry) {
+            // Preimage already included in the partial state
+            continue_huh!()
         }
 
-        let Some(inner_memory) = x.get_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
-        if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
-            continue_oob!()
-        }
-        let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
-
-        continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_data: data)
-    }
-
-    /// Pokes data into the inner VM memory from the external host VM memory.
-    ///
-    /// `HostVM` `--(poke)-->` `InnerVM`
-    pub fn host_poke(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // s
-        let inner_memory_offset = vm.regs[9].as_mem_address()?; // o
-        let data_size = vm.regs[10].as_usize()?; // z
-
-        if !vm
-            .memory
-            .is_address_range_readable(memory_offset, data_size)?
-        {
-            host_call_panic!()
-        }
-
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
-        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
-            continue_oob!()
-        }
-        let data = vm.memory.read_bytes(memory_offset, data_size)?;
-
-        inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
-
+        // Insert the preimage entry
+        x.provided_preimages.insert(provided_preimage_entry);
         continue_ok!()
-    }
-
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
-    pub fn host_zero(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
-        let pages_count = vm.regs[9].as_usize()?; // c
-
-        if inner_memory_page_offset < 16
-            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
-        {
-            continue_huh!()
-        }
-
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
-        let page_start = inner_memory_page_offset;
-        let page_end = inner_memory_page_offset + pages_count;
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
-
-        continue_ok!()
-    }
-
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
-    pub fn host_void(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
-        let pages_count = vm.regs[9].as_usize()?; // c
-
-        if inner_memory_page_offset < 16
-            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
-        {
-            continue_huh!()
-        }
-
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
-        };
-
-        let page_start = inner_memory_page_offset;
-        let page_end = inner_memory_page_offset + pages_count;
-        // should not have a page already `Inaccessible` within the range
-        if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            continue_huh!()
-        }
-
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
-
-        continue_ok!()
-    }
-
-    /// Invokes the inner VM with its program using the PVM general invocation function `Ψ`.
-    ///
-    /// The gas limit and initial register values for the inner VM are read from the memory of the host VM.
-    /// Upon completion, the posterior state (e.g., gas counter, memory, registers) of the inner VM is
-    /// written back to the memory of the host VM, while the final state of the inner VM's memory
-    /// is preserved within the inner VM.
-    pub fn host_invoke(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // o
-
-        if !vm.memory.is_address_range_writable(memory_offset, 112)? {
-            host_call_panic!()
-        }
-
-        let Some(inner_vm_mut) = x.pvm_instances.get_mut(&inner_vm_id) else {
-            continue_who!()
-        };
-
-        let gas_limit =
-            UnsignedGas::decode_fixed(&mut vm.memory.read_bytes(memory_offset, 8)?.as_slice(), 8)?;
-
-        let mut regs = [Register::default(); REGISTERS_COUNT];
-        for (i, reg) in regs.iter_mut().enumerate() {
-            reg.value = RegValue::decode_fixed(
-                &mut vm
-                    .memory
-                    .read_bytes(memory_offset + 8 + 8 * i as MemAddress, 8)?
-                    .as_slice(),
-                8,
-            )?;
-        }
-
-        // Construct a new `VMState` and `ProgramState` for the general invocation function.
-        let mut inner_vm_state_copy = VMState {
-            regs,
-            memory: inner_vm_mut.memory.clone(),
-            pc: inner_vm_mut.pc,
-            gas_counter: gas_limit
-                .try_into()
-                .expect("Gas limit should fit in `SignedGas`"),
-        };
-        let inner_vm_program_code = &inner_vm_mut.program_code;
-        let mut inner_vm_program_state = ProgramState::default();
-
-        let inner_vm_exit_reason = Interpreter::invoke_general(
-            &mut inner_vm_state_copy,
-            &mut inner_vm_program_state,
-            inner_vm_program_code,
-        )?;
-
-        // Apply the mutation of the `VMState` to the InnerVM state of the refine context
-        inner_vm_mut.pc = inner_vm_state_copy.pc;
-        inner_vm_mut.memory = inner_vm_state_copy.memory;
-
-        // 112-byte mem write
-        let mut host_buf = vec![];
-        (inner_vm_state_copy.gas_counter as UnsignedGas).encode_to_fixed(&mut host_buf, 8)?;
-        for reg in inner_vm_state_copy.regs {
-            reg.value.encode_to_fixed(&mut host_buf, 8)?;
-        }
-
-        match inner_vm_exit_reason {
-            ExitReason::HostCall(host_call_type) => {
-                inner_vm_mut.pc += 1;
-                continue_with_vm_change!(
-                    r7: HOST,
-                    r8: host_call_type,
-                    mem_offset: memory_offset,
-                    mem_data: host_buf
-                )
-            }
-            ExitReason::PageFault(address) => {
-                continue_with_vm_change!(
-                    r7: FAULT,
-                    r8: address,
-                    mem_offset: memory_offset,
-                    mem_data: host_buf
-                )
-            }
-            ExitReason::OutOfGas => {
-                continue_with_vm_change!(
-                    r7: OOG,
-                    mem_offset: memory_offset,
-                    mem_data: host_buf
-                )
-            }
-            ExitReason::Panic => {
-                continue_with_vm_change!(
-                    r7: PANIC,
-                    mem_offset: memory_offset,
-                    mem_data: host_buf
-                )
-            }
-            ExitReason::RegularHalt => {
-                continue_with_vm_change!(
-                    r7: HALT,
-                    mem_offset: memory_offset,
-                    mem_data: host_buf
-                )
-            }
-
-            _ => Err(HostCallError::InvalidExitReason),
-        }
-    }
-
-    /// Removes an inner VM instance from the refine context and returns its final pc.
-    pub fn host_expunge(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-
-        let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
-            continue_who!()
-        };
-        let final_pc = inner_vm.pc;
-
-        x.remove_pvm_instance(inner_vm_id);
-
-        continue_with_vm_change!(r7: final_pc)
     }
 }

@@ -1,14 +1,11 @@
 use fr_codec::prelude::*;
-use fr_common::{Balance, ServiceId, UnsignedGas};
+use fr_common::{Balance, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE};
 use fr_pvm_host::{
     context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
     error::HostCallError::InvalidContext,
 };
 use fr_pvm_interface::{error::PVMError, invoke::PVMInterface};
-use fr_pvm_types::{
-    constants::ON_TRANSFER_INITIAL_PC,
-    invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
-};
+use fr_pvm_types::{constants::ON_TRANSFER_INITIAL_PC, invoke_args::OnTransferInvokeArgs};
 use fr_state::manager::StateManager;
 use std::sync::Arc;
 
@@ -24,8 +21,8 @@ struct OnTransferVMArgs {
     timeslot_index: u32,
     /// `s` of `OnTransferInvokeArgs`
     destination: ServiceId,
-    /// **`t`** of `OnTransferInvokeArgs`
-    transfers: Vec<DeferredTransfer>,
+    /// Length of **`t`** of `OnTransferInvokeArgs`
+    transfers_count: usize,
 }
 
 #[derive(Default)]
@@ -83,15 +80,21 @@ impl OnTransferInvocation {
         let total_gas_limit = args.transfers.iter().map(|t| t.gas_limit).sum();
 
         let Some(account_code) = state_manager.get_account_code(args.destination).await? else {
+            tracing::warn!("OnTransfer service code not found.");
             return Ok(OnTransferResult::default());
         };
+
+        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
+            tracing::warn!("OnTransfer service code exceeds maximum allowed.");
+            return Ok(OnTransferResult::default());
+        }
 
         let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = OnTransferVMArgs {
             timeslot_index: curr_timeslot.slot(),
             destination: args.destination,
-            transfers: args.transfers.clone(),
+            transfers_count: args.transfers.len(),
         };
 
         let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination).await?;

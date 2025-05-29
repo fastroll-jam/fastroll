@@ -389,6 +389,10 @@ impl AccountLookupsEntry {
     pub fn new(value: LimitedVec<Timeslot, 3>) -> Self {
         Self { value }
     }
+
+    pub fn timeslots_length(&self) -> usize {
+        self.value.len()
+    }
 }
 
 /// An extended type of `AccountLookupsEntry` that include additional metadata about the preimage

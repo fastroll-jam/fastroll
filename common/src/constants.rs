@@ -72,6 +72,9 @@ pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
 
 // --- Data Size Limits
 
+/// `W_A`: The maximum size of is-authorized code in octets.
+pub const MAX_IS_AUTHORIZED_CODE_SIZE: usize = 64_000;
+
 /// `W_B`: The maximum size of an encoded work-package together with its extrinsic data and import implications, in octets.
 pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 12 * (1 << 20);
 
