@@ -17,7 +17,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue,
-        PrivilegedServices, StagingSet, Timeslot,
+        PrivilegedServices, StagingSet,
     },
 };
 use std::{
@@ -183,14 +183,14 @@ impl AccumulateHostContext {
         partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
         entropy: Hash32,
-        timeslot: &Timeslot,
+        timeslot_index: u32,
     ) -> Result<Self, HostCallError> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
                 state_manager,
                 accumulate_host,
                 entropy,
-                timeslot,
+                timeslot_index,
             )
             .await?,
             accumulate_host,
@@ -203,12 +203,12 @@ impl AccumulateHostContext {
         state_manager: Arc<StateManager>,
         accumulate_host: ServiceId,
         entropy: Hash32,
-        timeslot: &Timeslot,
+        timeslot_index: u32,
     ) -> Result<ServiceId, HostCallError> {
         let mut buf = vec![];
         accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
-        timeslot.slot().encode_to(&mut buf)?;
+        timeslot_index.encode_to(&mut buf)?;
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;

@@ -1,5 +1,5 @@
 use fr_codec::prelude::*;
-use fr_common::{Hash32, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
+use fr_common::{Hash32, Octets, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
 use fr_pvm_host::{
     context::{
@@ -17,7 +17,7 @@ use fr_pvm_types::{
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
 };
 use fr_state::manager::StateManager;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 /// `Ψ_M` invocation function arguments for `Ψ_A`
 #[derive(JamEncode)]
@@ -40,6 +40,8 @@ pub struct AccumulateResult {
     pub yielded_accumulate_hash: Option<Hash32>,
     /// `u`: Amount of gas used by a single-service accumulation
     pub gas_used: UnsignedGas,
+    /// **`p`**: Provided preimage entries during accumulation
+    pub provided_preimages: HashSet<(ServiceId, Octets)>,
     pub accumulate_host: ServiceId,
 }
 
@@ -73,10 +75,9 @@ impl AccumulateInvocation {
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
         let curr_entropy = epoch_entropy.current(); // TODO: ensure this value is post entropy accumulation (`η0′`).
-        let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = AccumulateVMArgs {
-            timeslot_index: curr_timeslot.slot(),
+            timeslot_index: args.curr_timeslot_index,
             accumulate_host: args.accumulate_host,
             operands_count: args.operands.len(),
         };
@@ -86,7 +87,7 @@ impl AccumulateInvocation {
             partial_state.clone(),
             args.accumulate_host,
             curr_entropy.clone(),
-            &curr_timeslot,
+            args.curr_timeslot_index,
         )
         .await?;
         let ctx_pair = AccumulateHostContextPair {
@@ -127,6 +128,7 @@ impl AccumulateInvocation {
                     yielded_accumulate_hash: accumulate_result_hash,
                     gas_used: x.gas_used,
                     accumulate_host: x.accumulate_host,
+                    provided_preimages: x.provided_preimages,
                 })
             }
             PVMInvocationOutput::OutputUnavailable => Ok(AccumulateResult {
@@ -135,6 +137,7 @@ impl AccumulateInvocation {
                 yielded_accumulate_hash: x.yielded_accumulate_hash,
                 gas_used: x.gas_used,
                 accumulate_host: x.accumulate_host,
+                provided_preimages: x.provided_preimages,
             }),
             PVMInvocationOutput::OutOfGas(_) | PVMInvocationOutput::Panic(_) => {
                 Ok(AccumulateResult {
@@ -143,6 +146,7 @@ impl AccumulateInvocation {
                     yielded_accumulate_hash: y.yielded_accumulate_hash,
                     gas_used: x.gas_used, // Note: taking gas usage from the `x` context
                     accumulate_host: x.accumulate_host,
+                    provided_preimages: y.provided_preimages,
                 })
             }
         }

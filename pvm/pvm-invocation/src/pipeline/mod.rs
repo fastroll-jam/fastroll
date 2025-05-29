@@ -1,7 +1,9 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
 use fr_codec::prelude::*;
-use fr_common::{workloads::work_report::WorkReport, Hash32, ServiceId, UnsignedGas};
-use fr_crypto::Keccak256;
+use fr_common::{
+    workloads::work_report::WorkReport, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas,
+};
+use fr_crypto::{hash, Blake2b256, Keccak256};
 use fr_merkle::well_balanced_tree::WellBalancedMerkleTree;
 use fr_pvm_host::context::partial_state::AccumulatePartialState;
 use fr_pvm_interface::error::PVMError;
@@ -11,9 +13,12 @@ use fr_pvm_types::{
         AccumulationGasPair, AccumulationGasPairs, AccumulationOutputPair, AccumulationOutputPairs,
     },
 };
-use fr_state::manager::StateManager;
+use fr_state::{
+    manager::StateManager,
+    types::{AccountPreimagesEntry, Timeslot},
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
 };
 
@@ -148,20 +153,24 @@ async fn accumulate_parallel(
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
 ) -> Result<ParallelAccumulationResult, PVMError> {
-    let mut services: BTreeSet<ServiceId> = reports
+    let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
+
+    let mut service_ids: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.digests().iter())
         .map(|wd| wd.service_id)
         .collect();
-    services.extend(always_accumulate_services.keys().cloned());
+    service_ids.extend(always_accumulate_services.keys().cloned());
 
-    let mut service_gas_pairs = Vec::new();
+    let services_count = service_ids.len();
+
+    let mut service_gas_pairs = Vec::with_capacity(services_count);
     let mut service_output_pairs = BTreeSet::new();
     let mut deferred_transfers = Vec::new();
 
     // Concurrent accumulate invocations grouped by service ids.
-    let mut handles = Vec::with_capacity(services.len());
-    for service in services {
+    let mut handles = Vec::with_capacity(services_count);
+    for service_id in service_ids {
         let state_manager_cloned = state_manager.clone();
         let reports_cloned = reports.clone();
         let always_accumulate_services_cloned = always_accumulate_services.clone();
@@ -171,10 +180,11 @@ async fn accumulate_parallel(
         let handle = tokio::spawn(async move {
             accumulate_single_service(
                 state_manager_cloned,
+                partial_state_cloned,
                 reports_cloned,
                 always_accumulate_services_cloned,
-                service,
-                partial_state_cloned,
+                service_id,
+                curr_timeslot_index,
             )
             .await
         });
@@ -201,6 +211,13 @@ async fn accumulate_parallel(
             accumulate_result.accumulate_host,
             partial_state_union,
             accumulate_result.partial_state,
+        )
+        .await;
+        add_provided_preimages(
+            state_manager.clone(),
+            partial_state_union,
+            accumulate_result.provided_preimages,
+            curr_timeslot_index,
         )
         .await;
     }
@@ -252,15 +269,55 @@ async fn add_partial_state_change(
         .expect("should not be None");
 }
 
+/// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
+async fn add_provided_preimages(
+    state_manager: Arc<StateManager>,
+    partial_state_union: &mut AccumulatePartialState,
+    provided_images: HashSet<(ServiceId, Octets)>,
+    curr_timeslot_index: u32,
+) {
+    for (service_id, octets) in provided_images {
+        // Construct storage keys
+        let preimages_key =
+            hash::<Blake2b256>(&octets).expect("should be able to hash some octets");
+        let lookups_key: LookupsKey = (preimages_key.clone(), octets.len() as u32);
+
+        // Insert an entry to the preimages storage
+        partial_state_union
+            .accounts_sandbox
+            .insert_account_preimages_entry(
+                state_manager.clone(),
+                service_id,
+                preimages_key,
+                AccountPreimagesEntry::new(octets),
+            )
+            .await
+            .unwrap();
+
+        // Push a timeslot value to the corresponding preimages lookups entry
+        partial_state_union
+            .accounts_sandbox
+            .push_timeslot_to_account_lookups_entry(
+                state_manager.clone(),
+                service_id,
+                lookups_key,
+                Timeslot::new(curr_timeslot_index),
+            )
+            .await
+            .unwrap();
+    }
+}
+
 /// Invokes the `accumulate` PVM entrypoint for a single service.
 ///
 /// Represents `Δ1` of the GP.
 async fn accumulate_single_service(
     state_manager: Arc<StateManager>,
+    partial_state: AccumulatePartialState,
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
-    partial_state: AccumulatePartialState,
+    curr_timeslot_index: u32,
 ) -> Result<AccumulateResult, PVMError> {
     let operands = build_operands(&reports, service_id);
     let mut gas_limit = always_accumulate_services
@@ -281,6 +338,7 @@ async fn accumulate_single_service(
         state_manager,
         &partial_state,
         &AccumulateInvokeArgs {
+            curr_timeslot_index,
             accumulate_host: service_id,
             gas_limit,
             operands,

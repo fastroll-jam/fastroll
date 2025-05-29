@@ -12,12 +12,32 @@ use std::collections::HashMap;
 /// within host function execution contexts. The timeslot index (`t`) is directly fetched
 /// from the state manager.
 pub struct AccumulateInvokeArgs {
+    /// `t`: Current timeslot index
+    pub curr_timeslot_index: u32,
     /// `s`: The id of the service account to run the accumulation process
     pub accumulate_host: ServiceId,
     /// `g`: The maximum amount of gas allowed for the accumulation process
     pub gas_limit: UnsignedGas,
     /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
     pub operands: Vec<AccumulateOperand>,
+}
+
+#[derive(Clone, JamEncode)]
+pub struct AccumulateOperand {
+    /// `h`: Work package hash (`work_package_hash` of `AvailSpecs`)
+    pub work_package_hash: Hash32,
+    /// `e`: Work report segment root (`segment_root` of `AvailSpecs`)
+    pub segment_root: Hash32,
+    /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
+    pub authorizer_hash: Hash32,
+    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
+    pub auth_trace: Vec<u8>,
+    /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
+    pub work_item_payload_hash: Hash32,
+    /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)
+    pub accumulate_gas_limit: UnsignedGas,
+    /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
+    pub refine_result: WorkExecutionResult,
 }
 
 /// Accumulate entry-point function arguments
@@ -54,24 +74,6 @@ pub struct RefineInvokeArgs {
     /// A mapping form `ExtrinsicInfo` to its corresponding extrinsic data blob.
     /// This is expected to be known by guarantors.
     pub extrinsic_data_map: HashMap<ExtrinsicInfo, Vec<u8>>,
-}
-
-#[derive(Clone, JamEncode)]
-pub struct AccumulateOperand {
-    /// `h`: Work package hash (`work_package_hash` of `AvailSpecs`)
-    pub work_package_hash: Hash32,
-    /// `e`: Work report segment root (`segment_root` of `AvailSpecs`)
-    pub segment_root: Hash32,
-    /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
-    pub authorizer_hash: Hash32,
-    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
-    pub auth_trace: Vec<u8>,
-    /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
-    pub work_item_payload_hash: Hash32,
-    /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)
-    pub accumulate_gas_limit: UnsignedGas,
-    /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
-    pub refine_result: WorkExecutionResult,
 }
 
 #[derive(Clone, JamEncode)]
