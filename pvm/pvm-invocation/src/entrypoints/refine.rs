@@ -110,12 +110,14 @@ impl RefineInvocation {
         tracing::info!("Ψ_R (refine) invoked.");
 
         let Some(work_item) = args.package.work_items.as_slice().get(args.item_idx) else {
+            tracing::warn!("Invalid work item index.");
             return Ok(RefineResult::bad());
         };
 
         // Check the service account to run refinement exists in the global state
         let service_exists = state_manager.account_exists(work_item.service_id).await?;
         if !service_exists {
+            tracing::warn!("Service account associated with the refinement not found.");
             return Ok(RefineResult::bad());
         }
 
@@ -129,10 +131,12 @@ impl RefineInvocation {
             .await?
         else {
             // Failed to get the `refine` code from the service account
+            tracing::warn!("Refine service code not found.");
             return Ok(RefineResult::bad());
         };
 
         if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
+            tracing::warn!("Refine service code exceeds maximum allowed.");
             return Ok(RefineResult::big());
         }
 

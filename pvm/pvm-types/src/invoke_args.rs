@@ -2,7 +2,7 @@ use crate::common::ExportDataSegment;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
-    Balance, Hash32, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,
+    Balance, CoreIndex, Hash32, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
 
@@ -28,6 +28,14 @@ pub struct OnTransferInvokeArgs {
     pub destination: ServiceId,
     /// **`t`**: A vector of `DeferredTransfer`s
     pub transfers: Vec<DeferredTransfer>,
+}
+
+/// Is-authorized entry-point function arguments
+pub struct IsAuthorizedInvokeArgs {
+    /// **`p`**: Work package
+    pub package: WorkPackage,
+    /// `c`: Core index to process the work package
+    pub core_index: CoreIndex,
 }
 
 /// Refine entry-point function arguments
