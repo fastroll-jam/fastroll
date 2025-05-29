@@ -412,7 +412,7 @@ impl JamEncode for WorkExecutionResult {
             WorkExecutionResult::Output(data) => {
                 1 + data.size_hint() // with 1 byte prefix
             }
-            WorkExecutionResult::Error(_) => 1, // 1 byte succinct encoding
+            WorkExecutionResult::Error(err) => err.size_hint(),
         }
     }
 
@@ -423,13 +423,7 @@ impl JamEncode for WorkExecutionResult {
                 data.encode_to(dest)?;
                 Ok(())
             }
-            WorkExecutionResult::Error(error) => match error {
-                WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
-                WorkExecutionError::Panic => 2u8.encode_to(dest),
-                WorkExecutionError::BadExports => 3u8.encode_to(dest),
-                WorkExecutionError::Bad => 4u8.encode_to(dest),
-                WorkExecutionError::Big => 5u8.encode_to(dest),
-            },
+            WorkExecutionResult::Error(err) => err.encode_to(dest),
         }
     }
 }
@@ -444,8 +438,9 @@ impl JamDecode for WorkExecutionResult {
             1 => Ok(WorkExecutionResult::Error(WorkExecutionError::OutOfGas)),
             2 => Ok(WorkExecutionResult::Error(WorkExecutionError::Panic)),
             3 => Ok(WorkExecutionResult::Error(WorkExecutionError::BadExports)),
-            4 => Ok(WorkExecutionResult::Error(WorkExecutionError::Bad)),
-            5 => Ok(WorkExecutionResult::Error(WorkExecutionError::Big)),
+            4 => Ok(WorkExecutionResult::Error(WorkExecutionError::Oversize)),
+            5 => Ok(WorkExecutionResult::Error(WorkExecutionError::Bad)),
+            6 => Ok(WorkExecutionResult::Error(WorkExecutionError::Big)),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionResult prefix".into(),
             )),
@@ -491,10 +486,29 @@ pub enum WorkExecutionError {
     Panic,
     /// `⊚`: The reported number of exports made is invalid
     BadExports,
+    /// `⊝`: The sum of auth output and all work outputs sizes exceeds `WORK_REPORT_OUTPUT_SIZE_LIMIT`
+    Oversize,
     /// `BAD`: Service code not available for lookup
     Bad,
     /// `BIG`: Code size exceeds `MAX_SERVICE_CODE_SIZE`
     Big,
+}
+
+impl JamEncode for WorkExecutionError {
+    fn size_hint(&self) -> usize {
+        1 // 1-byte succinct encoding
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        match self {
+            WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
+            WorkExecutionError::Panic => 2u8.encode_to(dest),
+            WorkExecutionError::BadExports => 3u8.encode_to(dest),
+            WorkExecutionError::Oversize => 4u8.encode_to(dest),
+            WorkExecutionError::Bad => 5u8.encode_to(dest),
+            WorkExecutionError::Big => 6u8.encode_to(dest),
+        }
+    }
 }
 
 impl JamDecode for WorkExecutionError {
@@ -503,8 +517,9 @@ impl JamDecode for WorkExecutionError {
             1 => Ok(WorkExecutionError::OutOfGas),
             2 => Ok(WorkExecutionError::Panic),
             3 => Ok(WorkExecutionError::BadExports),
-            4 => Ok(WorkExecutionError::Bad),
-            5 => Ok(WorkExecutionError::Big),
+            4 => Ok(WorkExecutionError::Oversize),
+            5 => Ok(WorkExecutionError::Bad),
+            6 => Ok(WorkExecutionError::Big),
             _ => Err(JamCodecError::InputError(
                 "Invalid WorkExecutionError prefix".into(),
             )),
