@@ -223,7 +223,9 @@ impl AccumulateHostContext {
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
         let modulus = (1u64 << 32) - (1 << 9);
-        let initial_check_id = (hash_as_u64 % modulus) + (1 << 8);
+        let initial_check_id = (hash_as_u64 % modulus)
+            .checked_add(1 << 8)
+            .ok_or(HostCallError::ServiceIdOverflow)?;
         let new_service_id = state_manager.check(initial_check_id as ServiceId).await?;
 
         Ok(new_service_id)
@@ -317,7 +319,10 @@ impl AccumulateHostContext {
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
-        account_metadata.balance += amount;
+        account_metadata
+            .balance
+            .checked_add(amount)
+            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
         self.partial_state
             .accounts_sandbox
             .mark_account_metadata_updated(state_manager, self.accumulate_host)
