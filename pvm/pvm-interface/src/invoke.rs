@@ -198,6 +198,7 @@ impl PVMInterface {
         let result = match h {
             // --- General Functions
             HostCallType::GAS => HostFunction::host_gas(&pvm.state)?,
+            HostCallType::FETCH => HostFunction::host_fetch(&pvm.state, context)?,
             HostCallType::LOOKUP => {
                 HostFunction::host_lookup(service_id, &pvm.state, state_manager, context).await?
             }
@@ -216,7 +217,6 @@ impl PVMInterface {
                 HostFunction::host_historical_lookup(service_id, &pvm.state, context, state_manager)
                     .await?
             }
-            HostCallType::FETCH => HostFunction::host_fetch(&pvm.state, context)?,
             HostCallType::EXPORT => HostFunction::host_export(&pvm.state, context)?,
             HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
             HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,

@@ -161,6 +161,101 @@ impl HostFunction {
         continue_with_vm_change!(r7: gas_remaining)
     }
 
+    /// Fetches various data types introduced as arguments of PVM entry-point invocations.
+    pub fn host_fetch(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        check_out_of_gas!(vm.gas_counter);
+        let x = get_refine_x!(context);
+        let data_id = vm.regs[10].as_usize()?;
+
+        let data: &[u8] = match data_id {
+            0 => &x.invoke_args.package.encode()?,
+            1 => &x.invoke_args.auth_trace,
+            2 => {
+                let item_idx = vm.regs[11].as_usize()?;
+                let items_len = x.invoke_args.package.work_items.len();
+                if item_idx < items_len {
+                    &x.invoke_args.package.work_items[item_idx].payload_blob
+                } else {
+                    continue_none!()
+                }
+            }
+            3 => {
+                let items = &x.invoke_args.package.work_items;
+                let item_idx = vm.regs[11].as_usize()?;
+                let xt_idx = vm.regs[12].as_usize()?;
+                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
+                    } else {
+                        continue_none!()
+                    }
+                } else {
+                    continue_none!()
+                }
+            }
+            4 => {
+                let items = &x.invoke_args.package.work_items;
+                let item_idx = x.invoke_args.item_idx;
+                let xt_idx = vm.regs[11].as_usize()?;
+                if xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
+                        xt_blob
+                    } else {
+                        continue_none!()
+                    }
+                } else {
+                    continue_none!()
+                }
+            }
+            5 => {
+                let imports = &x.invoke_args.import_segments;
+                let item_idx = vm.regs[11].as_usize()?;
+                let segment_idx = vm.regs[12].as_usize()?;
+                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].as_ref()
+                } else {
+                    continue_none!()
+                }
+            }
+            6 => {
+                let imports = &x.invoke_args.import_segments;
+                let item_idx = x.invoke_args.item_idx;
+                let segment_idx = vm.regs[11].as_usize()?;
+                if segment_idx < imports[item_idx].len() {
+                    imports[item_idx][segment_idx].as_ref()
+                } else {
+                    continue_none!()
+                }
+            }
+            7 => &x.invoke_args.package.authorizer.config_blob,
+            _ => {
+                continue_none!()
+            }
+        };
+
+        let buf_offset = vm.regs[7].as_mem_address()?; // o
+        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
+        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, data_read_size)?
+        {
+            host_call_panic!()
+        }
+
+        continue_with_vm_change!(
+            r7: data.len(),
+            mem_offset: buf_offset,
+            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
+        )
+    }
+
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
     /// and writes it into memory.
     pub async fn host_lookup(
@@ -464,102 +559,6 @@ impl HostFunction {
             r7: preimage.len(),
             mem_offset: buf_offset,
             mem_data: preimage[preimage_offset..preimage_offset + lookup_size].to_vec()
-        )
-    }
-
-    /// Fetches various data types introduced as arguments of the refine invocation.
-    /// This includes work-package data, authorizer trace and imports data.
-    pub fn host_fetch(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_refine_x!(context);
-        let data_id = vm.regs[10].as_usize()?;
-
-        let data: &[u8] = match data_id {
-            0 => &x.invoke_args.package.encode()?,
-            1 => &x.invoke_args.auth_trace,
-            2 => {
-                let item_idx = vm.regs[11].as_usize()?;
-                let items_len = x.invoke_args.package.work_items.len();
-                if item_idx < items_len {
-                    &x.invoke_args.package.work_items[item_idx].payload_blob
-                } else {
-                    continue_none!()
-                }
-            }
-            3 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = vm.regs[11].as_usize()?;
-                let xt_idx = vm.regs[12].as_usize()?;
-                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            4 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = x.invoke_args.item_idx;
-                let xt_idx = vm.regs[11].as_usize()?;
-                if xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            5 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = vm.regs[11].as_usize()?;
-                let segment_idx = vm.regs[12].as_usize()?;
-                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            6 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = x.invoke_args.item_idx;
-                let segment_idx = vm.regs[11].as_usize()?;
-                if segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            7 => &x.invoke_args.package.authorizer.config_blob,
-            _ => {
-                continue_none!()
-            }
-        };
-
-        let buf_offset = vm.regs[7].as_mem_address()?; // o
-        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
-        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
-
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, data_read_size)?
-        {
-            host_call_panic!()
-        }
-
-        continue_with_vm_change!(
-            r7: data.len(),
-            mem_offset: buf_offset,
-            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
         )
     }
 
