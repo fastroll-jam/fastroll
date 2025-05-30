@@ -3,7 +3,7 @@ use fr_common::{
     workloads::WorkExecutionResult, CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
     MAX_IS_AUTHORIZED_CODE_SIZE,
 };
-use fr_pvm_host::context::InvocationContext;
+use fr_pvm_host::context::{InvocationContext, IsAuthorizedHostContext};
 use fr_pvm_interface::{
     error::PVMError,
     invoke::{PVMInterface, PVMInvocationResult},
@@ -104,7 +104,7 @@ impl IsAuthorizedInvocation {
             IS_AUTHORIZED_INITIAL_PC,
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
             &vm_args.encode()?,
-            &mut InvocationContext::X_I, // not used
+            &mut InvocationContext::X_I(IsAuthorizedHostContext::new(args.clone())),
         )
         .await?;
 

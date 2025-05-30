@@ -11,7 +11,10 @@ use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
-    invoke_args::{AccumulateInvokeArgs, DeferredTransfer, OnTransferInvokeArgs, RefineInvokeArgs},
+    invoke_args::{
+        AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, OnTransferInvokeArgs,
+        RefineInvokeArgs,
+    },
 };
 use fr_state::{
     manager::StateManager,
@@ -36,7 +39,7 @@ pub trait AccountsSandboxHolder {
 #[allow(clippy::large_enum_variant)]
 pub enum InvocationContext {
     /// `is_authorized` host-call context (no context)
-    X_I,
+    X_I(IsAuthorizedHostContext),
     /// `refine` host-call context
     X_R(RefineHostContext),
     /// `accumulate` host-call context pair
@@ -95,12 +98,26 @@ impl InvocationContext {
     }
 }
 
+/// `is_authorized` host state context, which holds invoke args only.
+pub struct IsAuthorizedHostContext {
+    /// IsAuthorized entry-point function invocation args (read-only)
+    pub invoke_args: IsAuthorizedInvokeArgs,
+}
+
+impl IsAuthorizedHostContext {
+    pub fn new(invoke_args: IsAuthorizedInvokeArgs) -> Self {
+        Self { invoke_args }
+    }
+}
+
 /// Represents the contextual state maintained throughout the `on_transfer` process.
 #[derive(Clone, Default)]
 pub struct OnTransferHostContext {
     pub accounts_sandbox: AccountsSandboxMap,
     /// OnTransfer entry-point function invocation args (read-only)
     pub invoke_args: OnTransferInvokeArgs,
+    /// Current entropy value (`η0′`)
+    pub curr_entropy: Hash32,
 }
 
 impl AccountsSandboxHolder for OnTransferHostContext {
@@ -113,6 +130,7 @@ impl OnTransferHostContext {
     pub async fn new(
         state_manager: Arc<StateManager>,
         recipient: ServiceId,
+        curr_entropy: Hash32,
         invoke_args: OnTransferInvokeArgs,
     ) -> Result<Self, HostCallError> {
         let mut accounts_sandbox = AccountsSandboxMap::default();
@@ -122,6 +140,7 @@ impl OnTransferHostContext {
         Ok(Self {
             accounts_sandbox,
             invoke_args,
+            curr_entropy,
         })
     }
 }
@@ -182,6 +201,8 @@ pub struct AccumulateHostContext {
     pub provided_preimages: HashSet<(ServiceId, Octets)>,
     /// Accumulate entry-point function invocation args (read-only)
     pub invoke_args: AccumulateInvokeArgs,
+    /// Current entropy value (`η0′`)
+    pub curr_entropy: Hash32,
     pub gas_used: UnsignedGas,
 }
 
@@ -190,7 +211,7 @@ impl AccumulateHostContext {
         state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
-        entropy: Hash32,
+        curr_entropy: Hash32,
         timeslot_index: u32,
         invoke_args: AccumulateInvokeArgs,
     ) -> Result<Self, HostCallError> {
@@ -198,13 +219,14 @@ impl AccumulateHostContext {
             next_new_service_id: Self::initialize_new_service_id(
                 state_manager,
                 accumulate_host,
-                entropy,
+                curr_entropy.clone(),
                 timeslot_index,
             )
             .await?,
             accumulate_host,
             partial_state,
             invoke_args,
+            curr_entropy,
             ..Default::default()
         })
     }
@@ -413,6 +435,9 @@ pub struct RefineHostContext {
     pub(crate) pvm_instances: HashMap<usize, InnerPVM>,
     /// **`e`**: Export data segments
     pub export_segments: Vec<ExportDataSegment>,
+    /// Entropy value that can be used in off-chain refine stage
+    /// TODO: inject proper refine entropy (placeholder for now)
+    pub refine_entropy: Hash32,
     /// Refine entry-point function invocation args (read-only)
     pub invoke_args: RefineInvokeArgs,
 }

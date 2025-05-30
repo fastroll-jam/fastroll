@@ -53,6 +53,7 @@ pub struct OnTransferInvokeArgs {
 }
 
 /// Is-authorized entry-point function arguments
+#[derive(Clone)]
 pub struct IsAuthorizedInvokeArgs {
     /// **`p`**: Work package
     pub package: WorkPackage,

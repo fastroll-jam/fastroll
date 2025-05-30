@@ -97,8 +97,15 @@ impl OnTransferInvocation {
             transfers_count: args.transfers.len(),
         };
 
-        let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination, args.clone())
-            .await?;
+        let epoch_entropy = state_manager.get_epoch_entropy().await?;
+        let curr_entropy = epoch_entropy.current();
+        let ctx = OnTransferHostContext::new(
+            state_manager.clone(),
+            args.destination,
+            curr_entropy.clone(),
+            args.clone(),
+        )
+        .await?;
         let mut on_transfer_ctx = InvocationContext::X_T(ctx);
 
         let result = PVMInterface::invoke_with_args(
