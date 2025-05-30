@@ -11,7 +11,7 @@ use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
-    invoke_args::{DeferredTransfer, RefineInvokeArgs},
+    invoke_args::{AccumulateInvokeArgs, DeferredTransfer, OnTransferInvokeArgs, RefineInvokeArgs},
 };
 use fr_state::{
     manager::StateManager,
@@ -99,6 +99,8 @@ impl InvocationContext {
 #[derive(Clone, Default)]
 pub struct OnTransferHostContext {
     pub accounts_sandbox: AccountsSandboxMap,
+    /// OnTransfer entry-point function invocation args (read-only)
+    pub invoke_args: OnTransferInvokeArgs,
 }
 
 impl AccountsSandboxHolder for OnTransferHostContext {
@@ -111,12 +113,16 @@ impl OnTransferHostContext {
     pub async fn new(
         state_manager: Arc<StateManager>,
         recipient: ServiceId,
+        invoke_args: OnTransferInvokeArgs,
     ) -> Result<Self, HostCallError> {
         let mut accounts_sandbox = AccountsSandboxMap::default();
         let recipient_account_sandbox =
             AccountSandbox::from_service_id(state_manager, recipient).await?;
         accounts_sandbox.insert(recipient, recipient_account_sandbox);
-        Ok(Self { accounts_sandbox })
+        Ok(Self {
+            accounts_sandbox,
+            invoke_args,
+        })
     }
 }
 
@@ -174,6 +180,8 @@ pub struct AccumulateHostContext {
     pub yielded_accumulate_hash: Option<Hash32>,
     /// **`p`**: Provided preimage data
     pub provided_preimages: HashSet<(ServiceId, Octets)>,
+    /// Accumulate entry-point function invocation args (read-only)
+    pub invoke_args: AccumulateInvokeArgs,
     pub gas_used: UnsignedGas,
 }
 
@@ -184,6 +192,7 @@ impl AccumulateHostContext {
         accumulate_host: ServiceId,
         entropy: Hash32,
         timeslot_index: u32,
+        invoke_args: AccumulateInvokeArgs,
     ) -> Result<Self, HostCallError> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
@@ -195,6 +204,7 @@ impl AccumulateHostContext {
             .await?,
             accumulate_host,
             partial_state,
+            invoke_args,
             ..Default::default()
         })
     }

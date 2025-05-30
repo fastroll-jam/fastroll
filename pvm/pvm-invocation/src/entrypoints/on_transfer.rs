@@ -97,7 +97,8 @@ impl OnTransferInvocation {
             transfers_count: args.transfers.len(),
         };
 
-        let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination).await?;
+        let ctx = OnTransferHostContext::new(state_manager.clone(), args.destination, args.clone())
+            .await?;
         let mut on_transfer_ctx = InvocationContext::X_T(ctx);
 
         let result = PVMInterface::invoke_with_args(
@@ -111,15 +112,12 @@ impl OnTransferInvocation {
         )
         .await?;
 
-        let OnTransferHostContext {
-            mut accounts_sandbox,
-        } = if let InvocationContext::X_T(x) = on_transfer_ctx {
-            x
-        } else {
+        let InvocationContext::X_T(mut post_x) = on_transfer_ctx else {
             return Err(PVMError::HostCallError(InvalidContext));
         };
 
-        let recipient_sandbox = accounts_sandbox
+        let recipient_sandbox = post_x
+            .accounts_sandbox
             .get_account_sandbox(state_manager, args.destination)
             .await?
             .cloned();

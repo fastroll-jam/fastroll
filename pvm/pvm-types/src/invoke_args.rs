@@ -11,6 +11,7 @@ use std::collections::HashMap;
 /// Note: The partial state (**`u`**) is implicitly loaded when accessing the global state
 /// within host function execution contexts. The timeslot index (`t`) is directly fetched
 /// from the state manager.
+#[derive(Clone, Default)]
 pub struct AccumulateInvokeArgs {
     /// `t`: Current timeslot index
     pub curr_timeslot_index: u32,
@@ -43,6 +44,7 @@ pub struct AccumulateOperand {
 /// Accumulate entry-point function arguments
 ///
 /// Note: The timeslot index (`t`) is directly fetched from the state manager.
+#[derive(Clone, Default)]
 pub struct OnTransferInvokeArgs {
     /// `s`: Destination (recipient) service account index of the transfer
     pub destination: ServiceId,
