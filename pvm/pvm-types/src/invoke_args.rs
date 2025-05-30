@@ -65,7 +65,7 @@ pub struct RefineInvokeArgs {
     pub item_idx: usize,
     /// `p`: Work package that contains the work item to be refined
     pub package: WorkPackage,
-    /// **`o`**: Authorization trace blob
+    /// **`r`**: Authorization trace blob
     pub auth_trace: Vec<u8>,
     /// **`ī`**: Fixed-length data segments imported from the import DA
     pub import_segments: Vec<Vec<ExportDataSegment>>,

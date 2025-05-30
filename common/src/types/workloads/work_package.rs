@@ -67,7 +67,7 @@ pub struct Authorizer {
 pub struct WorkItem {
     /// `s`: Associated service id
     pub service_id: ServiceId,
-    /// `c`: Code hash of the service, at the time of reporting
+    /// `h`: Code hash of the service, at the time of reporting
     pub service_code_hash: Hash32,
     /// **`y`**: Work item payload blob
     pub payload_blob: Octets,
