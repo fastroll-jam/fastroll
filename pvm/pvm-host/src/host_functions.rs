@@ -698,8 +698,9 @@ impl HostFunction {
         continue_ok!()
     }
 
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
-    pub fn host_zero(
+    /// Allocates or deallocates a range of inner VM memory pages.
+    /// This is done by updating accessibility of the pages. Optionally, values can be cleared.
+    pub fn host_pages(
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
@@ -709,8 +710,10 @@ impl HostFunction {
         let inner_vm_id = vm.regs[7].as_usize()?; // n
         let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
         let pages_count = vm.regs[9].as_usize()?; // c
+        let mode = vm.regs[10].as_usize()?; // r
 
-        if inner_memory_page_offset < 16
+        if mode > 4
+            || inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
             continue_huh!()
@@ -720,55 +723,28 @@ impl HostFunction {
             continue_who!()
         };
 
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
+        // cannot allocate new pages without clearing values
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
-
-        continue_ok!()
-    }
-
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
-    pub fn host_void(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
-        let pages_count = vm.regs[9].as_usize()?; // c
-
-        if inner_memory_page_offset < 16
-            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
-        {
+        if mode > 2 && !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
             continue_huh!()
         }
 
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
+        // conditionally clear values
+        if mode < 3 {
+            let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
+            let data_size = pages_count * PAGE_SIZE;
+            inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
+        }
+
+        // set access types
+        let access_type = match mode {
+            0 => AccessType::Inaccessible,
+            1 | 3 => AccessType::ReadOnly,
+            2 | 4 => AccessType::ReadWrite,
+            _ => continue_huh!(),
         };
-
-        let page_start = inner_memory_page_offset;
-        let page_end = inner_memory_page_offset + pages_count;
-        // should not have a page already `Inaccessible` within the range
-        if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            continue_huh!()
-        }
-
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
+        inner_memory_mut.set_page_range_access(page_start..page_end, access_type)?;
 
         continue_ok!()
     }

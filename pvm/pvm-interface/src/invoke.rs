@@ -221,8 +221,7 @@ impl PVMInterface {
             HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
             HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,
             HostCallType::POKE => HostFunction::host_poke(&pvm.state, context)?,
-            HostCallType::ZERO => HostFunction::host_zero(&pvm.state, context)?,
-            HostCallType::VOID => HostFunction::host_void(&pvm.state, context)?,
+            HostCallType::PAGES => HostFunction::host_pages(&pvm.state, context)?,
             HostCallType::INVOKE => HostFunction::host_invoke(&pvm.state, context)?,
             HostCallType::EXPUNGE => HostFunction::host_expunge(&pvm.state, context)?,
 

@@ -15,9 +15,7 @@ pub enum HostCallType {
     MACHINE = 8,
     PEEK = 9,
     POKE = 10,
-    // TODO: remove `ZERO`, `VOID` and add `PAGES`
-    ZERO = 100,
-    VOID = 101,
+    PAGES = 11,
     INVOKE = 12,
     EXPUNGE = 13,
     // Accumulate Functions
@@ -52,6 +50,7 @@ impl TryFrom<u8> for HostCallType {
             8 => Ok(HostCallType::MACHINE),
             9 => Ok(HostCallType::PEEK),
             10 => Ok(HostCallType::POKE),
+            11 => Ok(HostCallType::PAGES),
             12 => Ok(HostCallType::INVOKE),
             13 => Ok(HostCallType::EXPUNGE),
             14 => Ok(HostCallType::BLESS),
