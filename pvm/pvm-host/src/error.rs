@@ -20,6 +20,10 @@ pub enum HostCallError {
     InvalidRegisters,
     #[error("Invalid memory write request as a result of host function execution")]
     InvalidMemoryWrite,
+    #[error("Service id overflowed")]
+    ServiceIdOverflow,
+    #[error("Service account balance overflowed")]
+    BalanceOverflow,
     #[error("Account not found from the global account state")]
     AccountNotFound,
     #[error("Exit reason of the PVM invocation is invalid")]

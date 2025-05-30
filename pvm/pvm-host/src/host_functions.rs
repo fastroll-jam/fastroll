@@ -7,7 +7,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage, Hash32,
+    Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
     MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
     TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
@@ -24,7 +25,7 @@ use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     exit_reason::ExitReason,
-    invoke_args::DeferredTransfer,
+    invoke_args::{DeferredTransfer, RefineInvokeArgs},
 };
 use fr_state::{
     error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
@@ -159,6 +160,190 @@ impl HostFunction {
         let gas_remaining =
             (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
         continue_with_vm_change!(r7: gas_remaining)
+    }
+
+    /// Fetches various data types introduced as arguments of PVM entry-point invocations.
+    pub fn host_fetch(
+        vm: &VMState,
+        context: &mut InvocationContext,
+    ) -> Result<HostCallResult, HostCallError> {
+        let data_id = vm.regs[10].as_usize()?;
+
+        let data: &[u8] = match context {
+            InvocationContext::X_I(ctx) => match data_id {
+                0 => &encode_constants_for_fetch_hostcall()?,
+                id @ 7..=13 => {
+                    let work_package = &ctx.invoke_args.package;
+                    match Self::fetch_work_package_data(work_package, id, &vm.regs) {
+                        Some(data) => &data.clone(),
+                        None => continue_none!(),
+                    }
+                }
+                _ => continue_none!(),
+            },
+            InvocationContext::X_R(ctx) => match data_id {
+                0 => &encode_constants_for_fetch_hostcall()?,
+                1 => ctx.refine_entropy.as_slice(),
+                2 => &ctx.invoke_args.auth_trace,
+                id @ 3..=6 => {
+                    match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, &vm.regs) {
+                        Some(data) => &data.clone(),
+                        None => continue_none!(),
+                    }
+                }
+                id @ 7..=13 => {
+                    let work_package = &ctx.invoke_args.package;
+                    match Self::fetch_work_package_data(work_package, id, &vm.regs) {
+                        Some(data) => &data.clone(),
+                        None => continue_none!(),
+                    }
+                }
+                _ => continue_none!(),
+            },
+            InvocationContext::X_A(pair) => {
+                let x = pair.get_x();
+                match data_id {
+                    0 => &encode_constants_for_fetch_hostcall()?,
+                    1 => x.curr_entropy.as_slice(),
+                    14 => &x.invoke_args.operands.encode()?,
+                    15 => {
+                        let operands = &x.invoke_args.operands;
+                        let operand_idx = vm.regs[11].as_usize()?;
+                        if operand_idx < operands.len() {
+                            &operands[operand_idx].encode()?
+                        } else {
+                            continue_none!()
+                        }
+                    }
+                    _ => continue_none!(),
+                }
+            }
+            InvocationContext::X_T(ctx) => match data_id {
+                0 => &encode_constants_for_fetch_hostcall()?,
+                1 => ctx.curr_entropy.as_slice(),
+                16 => &ctx.invoke_args.transfers.encode()?,
+                17 => {
+                    let transfers = &ctx.invoke_args.transfers;
+                    let transfer_idx = vm.regs[11].as_usize()?;
+                    if transfer_idx < transfers.len() {
+                        &transfers[transfer_idx].encode()?
+                    } else {
+                        continue_none!()
+                    }
+                }
+                _ => continue_none!(),
+            },
+        };
+
+        let buf_offset = vm.regs[7].as_mem_address()?; // o
+        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
+        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, data_read_size)?
+        {
+            host_call_panic!()
+        }
+
+        continue_with_vm_change!(
+            r7: data.len(),
+            mem_offset: buf_offset,
+            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
+        )
+    }
+
+    fn fetch_work_package_data(
+        package: &WorkPackage,
+        data_id: usize,
+        regs: &[Register],
+    ) -> Option<Vec<u8>> {
+        match data_id {
+            7 => package.encode().ok(),
+            8 => package.authorizer.encode().ok(),
+            9 => Some(package.auth_token.clone().into_vec()),
+            10 => package.context.encode().ok(),
+            11 => {
+                let mut work_items_buf = Vec::with_capacity(package.work_items.len());
+                for item in package.work_items.iter() {
+                    let work_item_encoded = match item.encode_for_fetch_hostcall() {
+                        Ok(encoded) => encoded,
+                        Err(_) => return None,
+                    };
+                    work_items_buf.push(work_item_encoded);
+                }
+                work_items_buf.encode().ok()
+            }
+            12 => {
+                let work_item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                if work_item_idx >= package.work_items.len() {
+                    return None;
+                }
+                let work_item = &package.work_items[work_item_idx];
+                work_item.encode_for_fetch_hostcall().ok()
+            }
+            13 => {
+                let work_item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                if work_item_idx >= package.work_items.len() {
+                    return None;
+                }
+                let work_item = &package.work_items[work_item_idx];
+                Some(work_item.payload_blob.clone().into_vec())
+            }
+            _ => None,
+        }
+    }
+
+    fn fetch_imports_extrinsics_data(
+        invoke_args: &RefineInvokeArgs,
+        data_id: usize,
+        regs: &[Register],
+    ) -> Option<Vec<u8>> {
+        match data_id {
+            3 => {
+                let items = &invoke_args.package.work_items;
+                let item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let xt_idx = regs[12].as_usize().expect("12 is a valid reg index");
+                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    invoke_args.extrinsic_data_map.get(xt_info).cloned()
+                } else {
+                    None
+                }
+            }
+            4 => {
+                let items = &invoke_args.package.work_items;
+                let item_idx = invoke_args.item_idx;
+                let xt_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                if xt_idx < items[item_idx].extrinsic_data_info.len() {
+                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
+                    invoke_args.extrinsic_data_map.get(xt_info).cloned()
+                } else {
+                    None
+                }
+            }
+            5 => {
+                let item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let segment_idx = regs[12].as_usize().expect("12 is a valid reg index");
+                let imports = &invoke_args.import_segments;
+                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
+                    Some(imports[item_idx][segment_idx].as_ref().to_vec())
+                } else {
+                    None
+                }
+            }
+            6 => {
+                let item_idx = invoke_args.item_idx;
+                let segment_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let imports = &invoke_args.import_segments;
+                if segment_idx < imports[item_idx].len() {
+                    Some(imports[item_idx][segment_idx].as_ref().to_vec())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 
     /// Fetches the preimage of the specified hash from the given service account's preimage storage
@@ -467,102 +652,6 @@ impl HostFunction {
         )
     }
 
-    /// Fetches various data types introduced as arguments of the refine invocation.
-    /// This includes work-package data, authorizer trace and imports data.
-    pub fn host_fetch(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_refine_x!(context);
-        let data_id = vm.regs[10].as_usize()?;
-
-        let data: &[u8] = match data_id {
-            0 => &x.invoke_args.package.encode()?,
-            1 => &x.invoke_args.auth_trace,
-            2 => {
-                let item_idx = vm.regs[11].as_usize()?;
-                let items_len = x.invoke_args.package.work_items.len();
-                if item_idx < items_len {
-                    &x.invoke_args.package.work_items[item_idx].payload_blob
-                } else {
-                    continue_none!()
-                }
-            }
-            3 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = vm.regs[11].as_usize()?;
-                let xt_idx = vm.regs[12].as_usize()?;
-                if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            4 => {
-                let items = &x.invoke_args.package.work_items;
-                let item_idx = x.invoke_args.item_idx;
-                let xt_idx = vm.regs[11].as_usize()?;
-                if xt_idx < items[item_idx].extrinsic_data_info.len() {
-                    let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
-                    if let Some(xt_blob) = x.invoke_args.extrinsic_data_map.get(xt_info) {
-                        xt_blob
-                    } else {
-                        continue_none!()
-                    }
-                } else {
-                    continue_none!()
-                }
-            }
-            5 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = vm.regs[11].as_usize()?;
-                let segment_idx = vm.regs[12].as_usize()?;
-                if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            6 => {
-                let imports = &x.invoke_args.import_segments;
-                let item_idx = x.invoke_args.item_idx;
-                let segment_idx = vm.regs[11].as_usize()?;
-                if segment_idx < imports[item_idx].len() {
-                    imports[item_idx][segment_idx].as_ref()
-                } else {
-                    continue_none!()
-                }
-            }
-            7 => &x.invoke_args.package.authorizer.config_blob,
-            _ => {
-                continue_none!()
-            }
-        };
-
-        let buf_offset = vm.regs[7].as_mem_address()?; // o
-        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
-        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
-
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, data_read_size)?
-        {
-            host_call_panic!()
-        }
-
-        continue_with_vm_change!(
-            r7: data.len(),
-            mem_offset: buf_offset,
-            mem_data: data[data_read_offset..data_read_offset + data_read_size].to_vec()
-        )
-    }
-
     /// Appends an entry to the export segments vector using the value loaded from memory.
     /// This export segments vector will be written to the ImportDA after the successful execution
     /// of the refinement process.
@@ -698,8 +787,9 @@ impl HostFunction {
         continue_ok!()
     }
 
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `ReadWrite`.
-    pub fn host_zero(
+    /// Allocates or deallocates a range of inner VM memory pages.
+    /// This is done by updating accessibility of the pages. Optionally, values can be cleared.
+    pub fn host_pages(
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
@@ -709,8 +799,10 @@ impl HostFunction {
         let inner_vm_id = vm.regs[7].as_usize()?; // n
         let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
         let pages_count = vm.regs[9].as_usize()?; // c
+        let mode = vm.regs[10].as_usize()?; // r
 
-        if inner_memory_page_offset < 16
+        if mode > 4
+            || inner_memory_page_offset < 16
             || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
         {
             continue_huh!()
@@ -720,55 +812,28 @@ impl HostFunction {
             continue_who!()
         };
 
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
+        // cannot allocate new pages without clearing values
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::ReadWrite)?;
-
-        continue_ok!()
-    }
-
-    /// Sets the specified range of inner VM memory pages to zeros and marks them as `Inaccessible`.
-    pub fn host_void(
-        vm: &VMState,
-        context: &mut InvocationContext,
-    ) -> Result<HostCallResult, HostCallError> {
-        check_out_of_gas!(vm.gas_counter);
-        let x = get_mut_refine_x!(context);
-
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
-        let pages_count = vm.regs[9].as_usize()?; // c
-
-        if inner_memory_page_offset < 16
-            || inner_memory_page_offset + pages_count >= (1 << 32) / PAGE_SIZE
-        {
+        if mode > 2 && !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
             continue_huh!()
         }
 
-        let Some(inner_memory_mut) = x.get_mut_inner_vm_memory(inner_vm_id) else {
-            continue_who!()
+        // conditionally clear values
+        if mode < 3 {
+            let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
+            let data_size = pages_count * PAGE_SIZE;
+            inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
+        }
+
+        // set access types
+        let access_type = match mode {
+            0 => AccessType::Inaccessible,
+            1 | 3 => AccessType::ReadOnly,
+            2 | 4 => AccessType::ReadWrite,
+            _ => continue_huh!(),
         };
-
-        let page_start = inner_memory_page_offset;
-        let page_end = inner_memory_page_offset + pages_count;
-        // should not have a page already `Inaccessible` within the range
-        if !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
-            continue_huh!()
-        }
-
-        // set values
-        let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
-        let data_size = pages_count * PAGE_SIZE;
-        inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
-
-        // set access types
-        inner_memory_mut.set_page_range_access(page_start..page_end, AccessType::Inaccessible)?;
+        inner_memory_mut.set_page_range_access(page_start..page_end, access_type)?;
 
         continue_ok!()
     }

@@ -67,7 +67,7 @@ pub struct Authorizer {
 pub struct WorkItem {
     /// `s`: Associated service id
     pub service_id: ServiceId,
-    /// `c`: Code hash of the service, at the time of reporting
+    /// `h`: Code hash of the service, at the time of reporting
     pub service_code_hash: Hash32,
     /// **`y`**: Work item payload blob
     pub payload_blob: Octets,
@@ -124,6 +124,23 @@ impl JamDecode for WorkItem {
             extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
             export_segment_count: u16::decode_fixed(input, 2)?,
         })
+    }
+}
+
+impl WorkItem {
+    pub fn encode_for_fetch_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
+        let mut buf = vec![];
+        self.service_id.encode_to_fixed(&mut buf, 4)?;
+        self.service_code_hash.encode_to(&mut buf)?;
+        self.refine_gas_limit.encode_to_fixed(&mut buf, 8)?;
+        self.accumulate_gas_limit.encode_to_fixed(&mut buf, 8)?;
+        self.export_segment_count.encode_to_fixed(&mut buf, 2)?;
+        self.import_segment_ids.len().encode_to_fixed(&mut buf, 2)?;
+        self.extrinsic_data_info
+            .len()
+            .encode_to_fixed(&mut buf, 2)?;
+        self.payload_blob.len().encode_to_fixed(&mut buf, 4)?;
+        Ok(buf)
     }
 }
 

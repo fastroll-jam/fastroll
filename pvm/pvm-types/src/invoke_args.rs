@@ -11,6 +11,7 @@ use std::collections::HashMap;
 /// Note: The partial state (**`u`**) is implicitly loaded when accessing the global state
 /// within host function execution contexts. The timeslot index (`t`) is directly fetched
 /// from the state manager.
+#[derive(Clone, Default)]
 pub struct AccumulateInvokeArgs {
     /// `t`: Current timeslot index
     pub curr_timeslot_index: u32,
@@ -30,19 +31,20 @@ pub struct AccumulateOperand {
     pub segment_root: Hash32,
     /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
     pub authorizer_hash: Hash32,
-    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
-    pub auth_trace: Vec<u8>,
     /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
     /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)
     pub accumulate_gas_limit: UnsignedGas,
     /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
     pub refine_result: WorkExecutionResult,
+    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
+    pub auth_trace: Vec<u8>,
 }
 
 /// Accumulate entry-point function arguments
 ///
 /// Note: The timeslot index (`t`) is directly fetched from the state manager.
+#[derive(Clone, Default)]
 pub struct OnTransferInvokeArgs {
     /// `s`: Destination (recipient) service account index of the transfer
     pub destination: ServiceId,
@@ -51,6 +53,7 @@ pub struct OnTransferInvokeArgs {
 }
 
 /// Is-authorized entry-point function arguments
+#[derive(Clone)]
 pub struct IsAuthorizedInvokeArgs {
     /// **`p`**: Work package
     pub package: WorkPackage,
@@ -65,7 +68,7 @@ pub struct RefineInvokeArgs {
     pub item_idx: usize,
     /// `p`: Work package that contains the work item to be refined
     pub package: WorkPackage,
-    /// **`o`**: Authorization trace blob
+    /// **`r`**: Authorization trace blob
     pub auth_trace: Vec<u8>,
     /// **`ī`**: Fixed-length data segments imported from the import DA
     pub import_segments: Vec<Vec<ExportDataSegment>>,

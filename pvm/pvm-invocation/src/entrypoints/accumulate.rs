@@ -88,6 +88,7 @@ impl AccumulateInvocation {
             args.accumulate_host,
             curr_entropy.clone(),
             args.curr_timeslot_index,
+            args.clone(),
         )
         .await?;
         let ctx_pair = AccumulateHostContextPair {
@@ -107,12 +108,10 @@ impl AccumulateInvocation {
         )
         .await?;
 
-        let AccumulateHostContextPair { x, y } =
-            if let InvocationContext::X_A(pair) = accumulate_ctx {
-                pair
-            } else {
-                return Err(PVMError::HostCallError(InvalidContext));
-            };
+        let InvocationContext::X_A(pair) = accumulate_ctx else {
+            return Err(PVMError::HostCallError(InvalidContext));
+        };
+        let AccumulateHostContextPair { x, y } = pair;
 
         match result.output {
             PVMInvocationOutput::Output(output) => {

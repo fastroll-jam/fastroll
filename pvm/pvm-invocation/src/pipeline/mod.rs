@@ -358,10 +358,10 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
                     work_package_hash: wr.work_package_hash().clone(),
                     segment_root: wr.segment_root().clone(),
                     authorizer_hash: wr.authorizer_hash().clone(),
-                    auth_trace: wr.auth_trace().to_vec(),
                     work_item_payload_hash: wd.payload_hash.clone(),
                     accumulate_gas_limit: wd.accumulate_gas_limit,
                     refine_result: wd.refine_result.clone(),
+                    auth_trace: wr.auth_trace().to_vec(),
                 })
         })
         .collect()
