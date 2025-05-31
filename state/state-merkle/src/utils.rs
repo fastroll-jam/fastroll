@@ -4,7 +4,7 @@ use crate::{
     types::nodes::{ChildType, MerkleNode},
 };
 use bit_vec::BitVec;
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use std::{collections::Bound, ops::RangeBounds};
 
 /// The `bits` function of the GP (MSB-first encoding for each byte)
@@ -77,7 +77,7 @@ where
 /// Determines whether the new leaf node will be placed as the left or right child in the trie,
 /// relative to the sibling node.
 pub(crate) fn added_leaf_child_side(
-    new_leaf_state_key: Hash32,
+    new_leaf_state_key: StateKey,
     sibling_leaf_partial_state_key: &BitVec,
 ) -> Result<ChildType, StateMerkleError> {
     let new_leaf_state_key = bits_encode_msb(new_leaf_state_key.as_slice());

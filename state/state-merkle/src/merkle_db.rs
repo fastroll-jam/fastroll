@@ -14,7 +14,7 @@ use crate::{
 };
 use bit_vec::BitVec;
 use dashmap::DashMap;
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
@@ -25,9 +25,9 @@ use std::sync::{Arc, Mutex};
 /// Leaf node write operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum MerkleWriteOp {
-    Add(Hash32, Vec<u8>),    // (state_key, state_val)
-    Update(Hash32, Vec<u8>), // (state_key, state_val)
-    Remove(Hash32),          // state_key
+    Add(StateKey, Vec<u8>),    // (state_key, state_val)
+    Update(StateKey, Vec<u8>), // (state_key, state_val)
+    Remove(StateKey),          // state_key
 }
 
 /// Interim state of uncommitted Merkle nodes maintained during batch commitments.
@@ -204,7 +204,7 @@ impl MerkleDB {
     /// - Used for larger state values (> 32 bytes), with no size limit on the encoded data in the `StateDB`.
     ///
     /// # Arguments
-    /// * `state_key`: [`&Hash32`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
+    /// * `state_key`: [`&StateKey`] - A state key representing merkle path. The key work as merkle path to the leaf node that contains the state data.
     ///
     /// # Returns
     /// * `Ok(Option<(LeafType, Vec<u8>)>)` - An optional tuple containing:
@@ -218,7 +218,7 @@ impl MerkleDB {
     /// from the `StateDB` using the returned hash.
     pub async fn retrieve(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<(LeafType, Vec<u8>)>, StateMerkleError> {
         // println!("\n----- Retrieval");
         let state_key_bv = bits_encode_msb(state_key.as_slice());
@@ -293,7 +293,7 @@ impl MerkleDB {
     /// Then, generates `MerkleWriteSet` from the collected `AffectedNode`s.
     pub async fn collect_write_set(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         write_op: MerkleWriteOp,
     ) -> Result<DBWriteSet, StateMerkleError> {
         // Initialize local state variables
@@ -444,7 +444,7 @@ impl MerkleDB {
     fn create_add_branch_endpoint(
         current_node: &MerkleNode,
         child_side: bool,
-        state_key: Hash32,
+        state_key: StateKey,
         state_val: &[u8],
         depth: usize,
         sibling_child_hash: Hash32,
@@ -476,14 +476,14 @@ impl MerkleDB {
 
     fn create_add_leaf_endpoint(
         current_node: &MerkleNode,
-        state_key: Hash32,
+        state_key: StateKey,
         state_val: &[u8],
         depth: usize,
         partial_merkle_path: BitVec,
     ) -> Result<AffectedNode, StateMerkleError> {
-        // The partial state key of the sibling node
+        // The state key of the sibling node
         // of the new leaf node being added, extracted from its node data.
-        let leaf_state_key_248 = current_node.extract_partial_leaf_state_key()?;
+        let leaf_state_key_bv = current_node.extract_leaf_state_key_bv()?;
         Ok(AffectedNode::Endpoint(AffectedEndpoint {
             hash: current_node.hash.clone(),
             depth,
@@ -491,10 +491,10 @@ impl MerkleDB {
                 leaf_state_key: state_key.clone(),
                 leaf_state_val: state_val.to_vec(),
                 sibling_candidate_hash: current_node.hash.clone(),
-                added_leaf_child_side: added_leaf_child_side(state_key, &leaf_state_key_248)?,
+                added_leaf_child_side: added_leaf_child_side(state_key, &leaf_state_key_bv)?,
                 leaf_split_context: Some(LeafSplitContext {
                     partial_merkle_path,
-                    sibling_state_key_248: leaf_state_key_248,
+                    sibling_state_key_bv: leaf_state_key_bv,
                 }),
             }),
         }))
@@ -502,7 +502,7 @@ impl MerkleDB {
 
     fn create_update_leaf_endpoint(
         current_node: &MerkleNode,
-        state_key: Hash32,
+        state_key: StateKey,
         state_val: &[u8],
         depth: usize,
     ) -> AffectedNode {

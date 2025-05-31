@@ -5,7 +5,7 @@ use crate::types::{
     SafroleState, StagingSet, Timeslot,
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteArray, Hash32, LookupsKey, ServiceId, HASH_SIZE};
+use fr_common::{ByteArray, Hash32, LookupsKey, ServiceId, StateKey, STATE_KEY_SIZE};
 use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;
 
@@ -210,13 +210,13 @@ impl From<StateKeyConstant> for u8 {
     }
 }
 
-const fn construct_state_key(i: u8) -> Hash32 {
-    let mut key = [0u8; HASH_SIZE];
+const fn construct_state_key(i: u8) -> StateKey {
+    let mut key = [0u8; STATE_KEY_SIZE];
     key[0] = i;
     ByteArray(key)
 }
 
-pub const STATE_KEYS: [Hash32; 15] = [
+pub const STATE_KEYS: [StateKey; 15] = [
     construct_state_key(StateKeyConstant::AuthPool as u8),
     construct_state_key(StateKeyConstant::AuthQueue as u8),
     construct_state_key(StateKeyConstant::BlockHistory as u8),
@@ -234,16 +234,16 @@ pub const STATE_KEYS: [Hash32; 15] = [
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
 ];
 
-pub fn get_simple_state_key(key: StateKeyConstant) -> Hash32 {
+pub fn get_simple_state_key(key: StateKeyConstant) -> StateKey {
     STATE_KEYS[key as usize - 1].clone()
 }
 
-pub fn get_account_metadata_state_key(s: ServiceId) -> Hash32 {
-    let mut key = Hash32::default();
+pub fn get_account_metadata_state_key(s: ServiceId) -> StateKey {
+    let mut key = StateKey::default();
     key[0] = StateKeyConstant::AccountMetadata as u8;
     let encoded = s
         .encode_fixed(4)
-        .expect("encoding u32 should always be successful");
+        .expect("4-byte encoding of u32 type should be successful");
     key[1] = encoded[0];
     key[3] = encoded[1];
     key[5] = encoded[2];
@@ -251,52 +251,53 @@ pub fn get_account_metadata_state_key(s: ServiceId) -> Hash32 {
     key
 }
 
-fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> Hash32 {
-    let mut key = Hash32::default();
-    let s_bytes = s.to_be_bytes();
+fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
+    let mut key = StateKey::default();
+    let encoded = s
+        .encode_fixed(4)
+        .expect("4-byte encoding of u32 type should be successful");
+    let storage_key_component_hash = hash::<Blake2b256>(h).unwrap();
     for i in 0..4 {
-        key[i * 2] = s_bytes[i]; // 0, 2, 4, 6
-        key[i * 2 + 1] = h[i]; // 1, 3, 5, 7
+        key[i * 2] = encoded[i]; // 0, 2, 4, 6
+        key[i * 2 + 1] = storage_key_component_hash[i]; // 1, 3, 5, 7
     }
-    key[8..32].copy_from_slice(&h[4..28]);
-
+    key[8..31].copy_from_slice(&storage_key_component_hash[4..27]);
     key
 }
 
-pub fn get_account_storage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
-    let mut key_with_prefix = Hash32::default();
+pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Hash32) -> StateKey {
+    let mut key_with_prefix = ByteArray::<36>::default();
     key_with_prefix[0..4].copy_from_slice(
         &u32::MAX
             .encode_fixed(4)
-            .expect("encoding u32 should always be successful"),
+            .expect("encoding u32 should be successful"),
     );
-    key_with_prefix[4..].copy_from_slice(&key[0..28]);
+    key_with_prefix[4..].copy_from_slice(storage_key.as_slice());
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
-pub fn get_account_preimage_state_key(s: ServiceId, key: &Hash32) -> Hash32 {
-    let mut key_with_prefix = Hash32::default();
+pub fn get_account_preimage_state_key(s: ServiceId, preimage_key: &Hash32) -> StateKey {
+    let mut key_with_prefix = ByteArray::<36>::default();
     key_with_prefix[0..4].copy_from_slice(
         &(u32::MAX - 1)
             .encode_fixed(4)
-            .expect("encoding u32 should always be successful"),
+            .expect("encoding u32 should be successful"),
     );
-    key_with_prefix[4..].copy_from_slice(&key[1..29]);
+    key_with_prefix[4..].copy_from_slice(preimage_key.as_slice());
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
 pub fn get_account_lookups_state_key(
     s: ServiceId,
     lookups_key: &LookupsKey,
-) -> Result<Hash32, CryptoError> {
+) -> Result<StateKey, CryptoError> {
     let (h, l) = lookups_key;
-    let mut key_with_prefix = Hash32::default();
+    let mut key_with_prefix = ByteArray::<36>::default();
     key_with_prefix[0..4].copy_from_slice(
         &l.encode_fixed(4)
-            .expect("encoding u32 should always be successful"),
+            .expect("encoding u32 should be successful"),
     );
-    let hash_slice = &hash::<Blake2b256>(h.as_slice())?[2..30];
-    key_with_prefix[4..].copy_from_slice(hash_slice);
+    key_with_prefix[4..].copy_from_slice(h.as_slice());
 
     Ok(construct_storage_state_key(s, key_with_prefix.as_slice()))
 }

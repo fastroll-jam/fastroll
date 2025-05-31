@@ -4,7 +4,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use fr_codec::prelude::*;
-use fr_common::Hash32;
+use fr_common::StateKey;
 use fr_state_merkle::merkle_db::MerkleWriteOp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,7 +45,7 @@ impl CacheEntry {
 
     pub(crate) fn as_merkle_write_op(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<MerkleWriteOp, StateManagerError> {
         let CacheEntryStatus::Dirty(op) = &self.status else {
             return Err(StateManagerError::NotDirtyCache);
@@ -73,7 +73,7 @@ impl CacheEntry {
 
 /// A thread-safe mapping from state keys to their corresponding cache entries.
 pub(crate) struct StateCache {
-    inner: DashMap<Hash32, CacheEntry>,
+    inner: DashMap<StateKey, CacheEntry>,
 }
 
 impl Default for StateCache {
@@ -89,17 +89,17 @@ impl StateCache {
         }
     }
 
-    pub(crate) fn get_entry(&self, key: &Hash32) -> Option<CacheEntry> {
+    pub(crate) fn get_entry(&self, key: &StateKey) -> Option<CacheEntry> {
         self.inner.get(key).map(|entry| entry.clone())
     }
 
-    pub(crate) fn get_entry_status(&self, key: &Hash32) -> Option<CacheEntryStatus> {
+    pub(crate) fn get_entry_status(&self, key: &StateKey) -> Option<CacheEntryStatus> {
         self.inner.get(key).map(|entry| entry.status.clone())
     }
 
     pub(crate) fn get_entry_as_merkle_write_op(
         &self,
-        key: &Hash32,
+        key: &StateKey,
     ) -> Result<MerkleWriteOp, StateManagerError> {
         let entry = self
             .get_entry(key)
@@ -107,7 +107,7 @@ impl StateCache {
         entry.as_merkle_write_op(key)
     }
 
-    pub(crate) fn insert_entry(&self, key: Hash32, entry: CacheEntry) -> Option<CacheEntry> {
+    pub(crate) fn insert_entry(&self, key: StateKey, entry: CacheEntry) -> Option<CacheEntry> {
         self.inner.insert(key, entry)
     }
 
@@ -117,7 +117,7 @@ impl StateCache {
 
     pub(crate) fn with_mut_entry<T, F>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_mut: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
@@ -147,7 +147,7 @@ impl StateCache {
 
     pub(crate) fn mark_entry_clean_and_snapshot(
         &self,
-        key: &Hash32,
+        key: &StateKey,
     ) -> Result<(), StateManagerError> {
         let mut cache_entry = self
             .inner
@@ -157,7 +157,7 @@ impl StateCache {
         Ok(())
     }
 
-    pub(crate) fn collect_dirty(&self) -> Vec<(Hash32, CacheEntry)> {
+    pub(crate) fn collect_dirty(&self) -> Vec<(StateKey, CacheEntry)> {
         self.inner
             .iter()
             .filter_map(|entry_ref| match entry_ref.value().status {
@@ -169,7 +169,7 @@ impl StateCache {
             .collect()
     }
 
-    pub(crate) fn mark_entries_clean(&self, dirty_entries: &[(Hash32, CacheEntry)]) {
+    pub(crate) fn mark_entries_clean(&self, dirty_entries: &[(StateKey, CacheEntry)]) {
         for (key, _) in dirty_entries.iter() {
             if let Some(mut entry_mut) = self.inner.get_mut(key) {
                 entry_mut.value_mut().mark_clean_and_snapshot();

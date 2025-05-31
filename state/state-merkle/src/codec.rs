@@ -9,11 +9,10 @@ use crate::{
 };
 use bit_vec::BitVec;
 use fr_codec::prelude::*;
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use fr_crypto::{hash, Blake2b256};
 
 pub struct NodeCodec;
-
 impl NodeCodec {
     //
     // Node encoding functions
@@ -42,7 +41,7 @@ impl NodeCodec {
     /// Uses first bit as node type indicator (1 for leaf) and second bit for leaf type indicator
     /// (0 for embedded leaf and 1 for regular leaf)
     pub(crate) fn encode_leaf(
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_val: &[u8],
     ) -> Result<Vec<u8>, StateMerkleError> {
         let mut node = BitVec::new();
@@ -52,7 +51,7 @@ impl NodeCodec {
             let length_bits = bits_encode_msb(&state_val.len().encode_fixed(1)?); // 8 bits
 
             node.extend(slice_bitvec(&length_bits, 2..)?);
-            node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
+            node.extend(&bits_encode_msb(state_key.as_slice()));
             node.extend(bits_encode_msb(state_val));
 
             while node.len() < NODE_SIZE_BITS {
@@ -61,7 +60,7 @@ impl NodeCodec {
         } else {
             // indicator for the regular leaf node + zero padding
             node.extend(vec![true, true, false, false, false, false, false, false]);
-            node.extend(slice_bitvec(&bits_encode_msb(state_key.as_slice()), ..248)?);
+            node.extend(&bits_encode_msb(state_key.as_slice()));
             let value_hash = hash::<Blake2b256>(state_val)?;
             node.extend(bits_encode_msb(value_hash.as_slice()));
         }
@@ -198,13 +197,13 @@ impl NodeCodec {
                 Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
                     node_hash: node.hash.clone(),
                     value: bits_decode_msb(&slice_bitvec(&node_data_bv, 256..value_end_bit)?),
-                    partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
+                    state_key_bv: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
                 }))
             }
             NodeType::Leaf(LeafType::Regular) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
                 node_hash: node.hash.clone(),
                 val_hash: bitvec_to_hash32(&slice_bitvec(&node_data_bv, 256..)?)?,
-                partial_state_key: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
+                state_key_bv: slice_bitvec(&node_data_bv, 8..(8 + 248))?,
             })),
             _ => Err(StateMerkleError::InvalidNodeType),
         }
@@ -219,10 +218,8 @@ impl NodeCodec {
         node_data_bv: &BitVec,
         state_key: &BitVec,
     ) -> Result<(), StateMerkleError> {
-        let state_key_without_last_byte_extracted = slice_bitvec(node_data_bv, 8..256)?;
-        let state_key_without_last_byte = slice_bitvec(state_key, 0..248)?;
-
-        if state_key_without_last_byte_extracted != state_key_without_last_byte {
+        let state_key_extracted = slice_bitvec(node_data_bv, 8..256)?;
+        if &state_key_extracted != state_key {
             // reached to another leaf node with the same prefix
             Err(StateMerkleError::StateKeyMismatch)
         } else {

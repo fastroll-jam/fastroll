@@ -14,6 +14,9 @@ pub const COMMON_ERA_TIMESTAMP_MILLIS: u64 = COMMON_ERA_TIMESTAMP * 1_000;
 /// Size of Hash type in octets.
 pub const HASH_SIZE: usize = 32;
 
+/// Size of JAM state keys in octets.
+pub const STATE_KEY_SIZE: usize = 31;
+
 /// Size of validator public key in octets.
 pub const PUBLIC_KEY_SIZE: usize = 336;
 

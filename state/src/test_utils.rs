@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader, xt_db::XtDB};
-use fr_common::Hash32;
+use fr_common::StateKey;
 use fr_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, STATE_CF_NAME, XT_CF_NAME},
     core::core_db::CoreDB,
@@ -60,9 +60,9 @@ pub fn init_db_and_manager(
     )
 }
 
-pub fn random_state_key() -> Hash32 {
+pub fn random_state_key() -> StateKey {
     let mut rng = thread_rng();
-    Hash32::new(rng.gen())
+    StateKey::new(rng.gen())
 }
 
 pub fn random_state_val(max_len: usize) -> Vec<u8> {
@@ -236,7 +236,7 @@ pub async fn compare_all_simple_state_cache_and_db(
 
 pub async fn compare_cache_and_db<T: StateComponent>(
     state_manager: &StateManager,
-    state_key: &Hash32,
+    state_key: &StateKey,
 ) -> Result<bool, Box<dyn Error>> {
     let db_entry_encoded = state_manager
         .retrieve_state_encoded(state_key)

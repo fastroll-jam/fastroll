@@ -24,8 +24,8 @@ pub struct MerkleNode {
     ///
     /// Full node structures:
     /// - Branch node:        [0]  + [255-bit left child hash (partial)] + [256-bit right child hash]
-    /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key (partial)] + [encoded state value] + [zero padding]
-    /// - Regular leaf node:  [11] + [000000] + [248-bit state key (partial)] + [256-bit hash of encoded state value]
+    /// - Embedded leaf node: [10] + [6-bit value length] + [248-bit state key] + [encoded state value] + [zero padding]
+    /// - Regular leaf node:  [11] + [000000] + [248-bit state key] + [256-bit hash of encoded state value]
     pub data: Vec<u8>,
 }
 
@@ -86,11 +86,10 @@ impl MerkleNode {
         })
     }
 
-    /// Note: Since only the first 248 bits of the state key is encoded in the Leaf node data, we
-    /// cannot recover the full state key by parsing the leaf node data.
-    pub fn extract_partial_leaf_state_key(&self) -> Result<BitVec, StateMerkleError> {
+    /// Extracts 31-byte state key as a BitVec from the encoded leaf node data.
+    pub fn extract_leaf_state_key_bv(&self) -> Result<BitVec, StateMerkleError> {
         match self.check_node_type()? {
-            NodeType::Leaf(_) => Ok(self.parse_leaf()?.partial_state_key().clone()),
+            NodeType::Leaf(_) => Ok(self.parse_leaf()?.state_key_bv().clone()),
             _ => Err(StateMerkleError::InvalidNodeType),
         }
     }
@@ -100,12 +99,12 @@ impl MerkleNode {
             LeafParsed::EmbeddedLeaf(parsed) => Ok(LeafParsed::EmbeddedLeaf(EmbeddedLeafParsed {
                 node_hash: self.hash.clone(),
                 value: parsed.value,
-                partial_state_key: parsed.partial_state_key,
+                state_key_bv: parsed.state_key_bv,
             })),
             LeafParsed::RegularLeaf(parsed) => Ok(LeafParsed::RegularLeaf(RegularLeafParsed {
                 node_hash: self.hash.clone(),
                 val_hash: parsed.val_hash,
-                partial_state_key: parsed.partial_state_key,
+                state_key_bv: parsed.state_key_bv,
             })),
         }
     }
@@ -178,9 +177,7 @@ impl ChildType {
     }
 }
 
-//
-// Parsed Merkle Node Types (for debugging)
-//
+// --- Parsed Merkle Node Types (for debugging)
 
 pub enum NodeDataParsed {
     Branch(BranchParsed),
@@ -234,10 +231,10 @@ impl Display for LeafParsed {
 }
 
 impl LeafParsed {
-    fn partial_state_key(&self) -> &BitVec {
+    fn state_key_bv(&self) -> &BitVec {
         match self {
-            Self::EmbeddedLeaf(leaf) => &leaf.partial_state_key,
-            Self::RegularLeaf(leaf) => &leaf.partial_state_key,
+            Self::EmbeddedLeaf(leaf) => &leaf.state_key_bv,
+            Self::RegularLeaf(leaf) => &leaf.state_key_bv,
         }
     }
 }
@@ -248,8 +245,8 @@ pub struct EmbeddedLeafParsed {
     pub node_hash: Hash32,
     /// Embedded raw state value.
     pub value: Vec<u8>,
-    /// 248-bit partial state key of the entry that the leaf node represents.
-    pub partial_state_key: BitVec,
+    /// 248-bit state key of the entry that the leaf node represents.
+    pub state_key_bv: BitVec,
 }
 
 impl Display for EmbeddedLeafParsed {
@@ -262,7 +259,7 @@ impl Display for EmbeddedLeafParsed {
             }}",
             self.node_hash,
             hex::encode(&self.value),
-            self.partial_state_key
+            self.state_key_bv
         )
     }
 }
@@ -273,8 +270,8 @@ pub struct RegularLeafParsed {
     pub node_hash: Hash32,
     /// Hash of the state value. Used  as a key for the `StateDB` to retrieve the full encoded state value.
     pub val_hash: Hash32,
-    /// 248-bit partial state key of the entry that the leaf node represents.
-    pub partial_state_key: BitVec,
+    /// 248-bit state key of the entry that the leaf node represents.
+    pub state_key_bv: BitVec,
 }
 
 impl Display for RegularLeafParsed {
@@ -285,7 +282,7 @@ impl Display for RegularLeafParsed {
             \tval_hash: {},\n\
             \tState Key: 0b{},\n\
             }}",
-            self.node_hash, self.val_hash, self.partial_state_key
+            self.node_hash, self.val_hash, self.state_key_bv
         )
     }
 }

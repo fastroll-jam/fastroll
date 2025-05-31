@@ -1,5 +1,5 @@
 use crate::{codec::NodeCodec, types::nodes::MerkleNode};
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use fr_crypto::{hash, Blake2b256};
 
 pub fn simple_hash(seed: &str) -> Hash32 {
@@ -31,7 +31,7 @@ pub fn generate_branch(left: Hash32, right: Hash32) -> MerkleNode {
     MerkleNode::new(node_hash, node_data)
 }
 
-pub fn generate_embedded_leaf(state_key: Hash32, state_val: &[u8]) -> MerkleNode {
+pub fn generate_embedded_leaf(state_key: StateKey, state_val: &[u8]) -> MerkleNode {
     if state_val.len() > 32 {
         panic!("State data too large for embedded leaf")
     }
@@ -45,7 +45,7 @@ pub fn generate_embedded_leaf(state_key: Hash32, state_val: &[u8]) -> MerkleNode
     MerkleNode::new(node_hash, node_data)
 }
 
-pub fn generate_regular_leaf(state_key: Hash32, state_val: &[u8]) -> MerkleNode {
+pub fn generate_regular_leaf(state_key: StateKey, state_val: &[u8]) -> MerkleNode {
     if state_val.len() <= 32 {
         panic!("State data too small for regular leaf")
     }

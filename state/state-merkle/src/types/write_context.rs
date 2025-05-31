@@ -1,6 +1,6 @@
 use crate::types::nodes::ChildType;
 use bit_vec::BitVec;
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -23,7 +23,7 @@ impl Display for LeafWriteOpContext {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafUpdateContext {
     /// State key of the leaf node to be updated.
-    pub leaf_state_key: Hash32,
+    pub leaf_state_key: StateKey,
     /// State value of the leaf node to be updated.
     pub leaf_state_val: Vec<u8>,
     /// Leaf hash prior to the update.
@@ -52,15 +52,15 @@ pub struct LeafSplitContext {
     /// Partial merkle path from the root to the `AffectedNode`.
     /// Used for handling path compression at leaf node.
     pub partial_merkle_path: BitVec,
-    /// Partial 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
+    /// 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
     /// Used for handling path compression at leaf node.
-    pub sibling_state_key_248: BitVec,
+    pub sibling_state_key_bv: BitVec,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct LeafAddContext {
     /// State key of the leaf node to be added.
-    pub leaf_state_key: Hash32,
+    pub leaf_state_key: StateKey,
     /// State value of the leaf node to be added.
     pub leaf_state_val: Vec<u8>,
     /// Hash of the leaf node to be the sibling node after adding a new leaf node.
