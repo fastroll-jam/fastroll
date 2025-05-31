@@ -331,5 +331,7 @@ mod accumulate {
 
         // One report unlocks reports in the ready-queue.
         ready_queue_editing_3: "ready_queue_editing-3.json",
+
+        same_code_different_services_1: "same_code_different-services-1.json",
     }
 }
