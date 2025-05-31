@@ -288,7 +288,7 @@ impl AffectedNodesByDepth {
             let common_path_to_decompress = Self::get_common_path(
                 &leaf_split_ctx.partial_merkle_path,
                 new_leaf_state_key,
-                &leaf_split_ctx.sibling_state_key_248,
+                &leaf_split_ctx.sibling_state_key_bv,
             )?;
             let decompression_write_set = Self::generate_decompression_set(
                 common_path_to_decompress,

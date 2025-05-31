@@ -52,9 +52,9 @@ pub struct LeafSplitContext {
     /// Partial merkle path from the root to the `AffectedNode`.
     /// Used for handling path compression at leaf node.
     pub partial_merkle_path: BitVec,
-    /// Partial 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
+    /// 248-bit state key of the sibling candidate leaf node, which is parsed from its node data.
     /// Used for handling path compression at leaf node.
-    pub sibling_state_key_248: BitVec,
+    pub sibling_state_key_bv: BitVec,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-use crate::HASH_SIZE;
+use crate::{HASH_SIZE, STATE_KEY_SIZE};
 use fr_codec::prelude::*;
 use std::{
     array::from_fn,
@@ -12,6 +12,9 @@ pub mod workloads;
 
 /// 32-byte Hash type.
 pub type Hash32 = ByteArray<HASH_SIZE>;
+
+/// 31-byte State key type.
+pub type StateKey = ByteArray<STATE_KEY_SIZE>;
 
 /// Octets type; wrapper of `Vec<u8>`.
 pub type Octets = ByteSequence;

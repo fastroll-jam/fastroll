@@ -483,7 +483,7 @@ impl MerkleDB {
     ) -> Result<AffectedNode, StateMerkleError> {
         // The partial state key of the sibling node
         // of the new leaf node being added, extracted from its node data.
-        let leaf_state_key_248 = current_node.extract_partial_leaf_state_key()?;
+        let leaf_state_key_248 = current_node.extract_leaf_state_key()?;
         Ok(AffectedNode::Endpoint(AffectedEndpoint {
             hash: current_node.hash.clone(),
             depth,
@@ -494,7 +494,7 @@ impl MerkleDB {
                 added_leaf_child_side: added_leaf_child_side(state_key, &leaf_state_key_248)?,
                 leaf_split_context: Some(LeafSplitContext {
                     partial_merkle_path,
-                    sibling_state_key_248: leaf_state_key_248,
+                    sibling_state_key_bv: leaf_state_key_248,
                 }),
             }),
         }))
