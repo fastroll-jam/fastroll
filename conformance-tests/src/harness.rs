@@ -69,6 +69,10 @@ pub trait StateTransitionTest {
         pre_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError>;
+
+    fn assert_post_state(post_state: Self::State, test_case_post_state: Self::State) {
+        assert_eq!(post_state, test_case_post_state)
+    }
 }
 
 pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(), TransitionError> {
@@ -113,7 +117,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     // compare the actual and the expected post state
     let post_state =
         T::extract_post_state(state_manager, &test_case.pre_state, &maybe_error_code).await?;
-    assert_eq!(post_state, test_case.post_state);
+    T::assert_post_state(post_state, test_case.post_state);
 
     // compare the output
     let output = T::extract_output(

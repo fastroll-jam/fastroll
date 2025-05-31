@@ -240,6 +240,31 @@ mod accumulate {
                 accounts: curr_accounts,
             })
         }
+
+        fn assert_post_state(post_state: Self::State, test_case_post_state: Self::State) {
+            assert_eq!(post_state.slot, test_case_post_state.slot);
+            assert_eq!(post_state.entropy, test_case_post_state.entropy);
+            assert_eq!(post_state.ready_queue, test_case_post_state.ready_queue);
+            assert_eq!(post_state.accumulated, test_case_post_state.accumulated);
+            assert_eq!(post_state.privileges, test_case_post_state.privileges);
+            for (actual, expected) in post_state
+                .accounts
+                .into_iter()
+                .zip(test_case_post_state.accounts)
+            {
+                assert_eq!(actual.id, expected.id);
+                assert_eq!(actual.data.service, expected.data.service);
+                for (actual_preimages, expected_preimages) in actual
+                    .data
+                    .preimages
+                    .into_iter()
+                    .zip(expected.data.preimages)
+                {
+                    assert_eq!(actual_preimages.hash, expected_preimages.hash);
+                    assert_eq!(actual_preimages.blob, expected_preimages.blob);
+                }
+            }
+        }
     }
 
     generate_typed_tests! {
