@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, LookupsKey, ServiceId};
+use fr_common::{Hash32, LookupsKey, ServiceId, StateKey};
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
@@ -85,14 +85,14 @@ impl StateManager {
     /// Always retrieves state entry from the DB for test purpose.
     pub async fn get_raw_state_entry_from_db(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         self.retrieve_state_encoded(state_key).await
     }
 
     pub async fn add_raw_state_entry(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // State entry must not exist to be added
@@ -114,7 +114,7 @@ impl StateManager {
 
     pub async fn update_raw_state_entry(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         new_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be updated
@@ -135,7 +135,7 @@ impl StateManager {
 
     pub async fn remove_raw_state_entry(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be removed
         let old_state = self
@@ -155,7 +155,7 @@ impl StateManager {
 
     fn get_clean_cache_snapshot_as_state<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
@@ -170,7 +170,7 @@ impl StateManager {
 
     pub fn get_cache_entry_as_state<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
@@ -183,7 +183,7 @@ impl StateManager {
         Ok(None)
     }
 
-    pub fn is_cache_entry_dirty(&self, state_key: &Hash32) -> Result<bool, StateManagerError> {
+    pub fn is_cache_entry_dirty(&self, state_key: &StateKey) -> Result<bool, StateManagerError> {
         let entry = self
             .cache
             .get_entry(state_key)
@@ -191,7 +191,7 @@ impl StateManager {
         Ok(entry.is_dirty())
     }
 
-    fn insert_clean_cache_entry_and_snapshot<T>(&self, state_key: &Hash32, state_entry: T)
+    fn insert_clean_cache_entry_and_snapshot<T>(&self, state_key: &StateKey, state_entry: T)
     where
         T: StateComponent,
     {
@@ -318,7 +318,7 @@ impl StateManager {
     // TODO: mark as private
     pub async fn retrieve_state_encoded(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         let retrieved = match self.merkle_db.retrieve(state_key).await {
             Ok(val) => val,
@@ -376,7 +376,7 @@ impl StateManager {
     /// Commits a single dirty cache entry into `MerkleDB` and `StateDB`.
     pub async fn commit_single_dirty_cache(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<(), StateManagerError> {
         let entry_status = self
             .cache
@@ -543,7 +543,7 @@ impl StateManager {
     /// state cache or directly retrieving the clean value from the DB.
     async fn get_clean_state_entry_internal<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
@@ -566,7 +566,7 @@ impl StateManager {
 
     async fn get_state_entry_internal<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<T>, StateManagerError>
     where
         T: StateComponent,
@@ -589,7 +589,7 @@ impl StateManager {
 
     async fn with_mut_state_entry_internal<T, F>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_mut: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
@@ -616,7 +616,7 @@ impl StateManager {
 
     async fn add_state_entry_internal<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_entry: T,
     ) -> Result<(), StateManagerError>
     where
@@ -690,7 +690,7 @@ impl StateManager {
 
     async fn get_account_state_entry<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
     ) -> Result<Option<T>, StateManagerError>
     where
         T: AccountStateComponent,
@@ -700,7 +700,7 @@ impl StateManager {
 
     async fn with_mut_account_state_entry<T, F>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_mut: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
@@ -714,7 +714,7 @@ impl StateManager {
 
     async fn add_account_state_entry<T>(
         &self,
-        state_key: &Hash32,
+        state_key: &StateKey,
         state_entry: T,
     ) -> Result<(), StateManagerError>
     where

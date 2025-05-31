@@ -86,8 +86,8 @@ impl MerkleNode {
         })
     }
 
-    /// Extracts 31-byte state key from the encoded leaf node data.
-    pub fn extract_leaf_state_key(&self) -> Result<BitVec, StateMerkleError> {
+    /// Extracts 31-byte state key as a BitVec from the encoded leaf node data.
+    pub fn extract_leaf_state_key_bv(&self) -> Result<BitVec, StateMerkleError> {
         match self.check_node_type()? {
             NodeType::Leaf(_) => Ok(self.parse_leaf()?.state_key_bv().clone()),
             _ => Err(StateMerkleError::InvalidNodeType),

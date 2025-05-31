@@ -9,7 +9,7 @@ use crate::{
     write_set::{DBWriteSet, MerkleDBWriteSet, MerkleNodeWrite, StateDBWriteSet},
 };
 use bit_vec::BitVec;
-use fr_common::Hash32;
+use fr_common::{Hash32, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::BTreeMap,
@@ -407,33 +407,31 @@ impl AffectedNodesByDepth {
 
     fn get_common_path(
         partial_merkle_path: &BitVec,
-        new_leaf_state_key: &Hash32,
-        sibling_state_key_248: &BitVec,
+        new_leaf_state_key: &StateKey,
+        sibling_state_key_bv: &BitVec,
     ) -> Result<BitVec, StateMerkleError> {
         let new_leaf_state_key = bits_encode_msb(new_leaf_state_key.as_slice());
 
         // Validate inputs
         let partial_len = partial_merkle_path.len();
-        if partial_len > new_leaf_state_key.len() || partial_len > sibling_state_key_248.len() {
+        if partial_len > new_leaf_state_key.len() || partial_len > sibling_state_key_bv.len() {
             return Err(StateMerkleError::InvalidMerklePath);
         }
 
         for i in 0..partial_len {
             let bit = partial_merkle_path[i];
-            if new_leaf_state_key[i] != bit || sibling_state_key_248[i] != bit {
+            if new_leaf_state_key[i] != bit || sibling_state_key_bv[i] != bit {
                 return Err(StateMerkleError::InvalidMerklePath);
             }
         }
 
         // Check how many bits the new leaf state key and its sibling leaf state key have in common
         // after the `partial_merkle_path`.
-        // Here, we can only compare the first 248 bits of the state key, since that is what we can
-        // restore from the encoded sibling leaf node data.
         let mut common_path_to_decompress = BitVec::new();
         for (new_leaf_bit, sibling_leaf_bit) in new_leaf_state_key
             .iter()
             .skip(partial_len)
-            .zip(sibling_state_key_248.iter().skip(partial_len))
+            .zip(sibling_state_key_bv.iter().skip(partial_len))
         {
             if new_leaf_bit == sibling_leaf_bit {
                 common_path_to_decompress.push(new_leaf_bit)
