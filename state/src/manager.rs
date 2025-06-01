@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, LookupsKey, ServiceId, StateKey};
+use fr_common::{Hash32, LookupsKey, Octets, ServiceId, StateKey};
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
@@ -773,7 +773,7 @@ impl StateManager {
     pub async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Hash32,
+        storage_key: &Octets,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);
         self.get_account_state_entry(&state_key).await
@@ -783,7 +783,7 @@ impl StateManager {
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
-        storage_key: &Hash32,
+        storage_key: &Octets,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -797,7 +797,7 @@ impl StateManager {
     pub async fn add_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Hash32,
+        storage_key: &Octets,
         storage_entry: AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);

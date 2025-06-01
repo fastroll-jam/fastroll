@@ -5,7 +5,7 @@ use crate::types::{
     SafroleState, StagingSet, Timeslot,
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteArray, Hash32, LookupsKey, ServiceId, StateKey, STATE_KEY_SIZE};
+use fr_common::{ByteArray, Hash32, LookupsKey, Octets, ServiceId, StateKey, STATE_KEY_SIZE};
 use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use std::fmt::Debug;
 
@@ -265,7 +265,7 @@ fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
     key
 }
 
-pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Hash32) -> StateKey {
+pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Octets) -> StateKey {
     let mut key_with_prefix = ByteArray::<36>::default();
     key_with_prefix[0..4].copy_from_slice(
         &u32::MAX
