@@ -266,13 +266,13 @@ fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
 }
 
 pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Octets) -> StateKey {
-    let mut key_with_prefix = ByteArray::<36>::default();
-    key_with_prefix[0..4].copy_from_slice(
-        &u32::MAX
+    let mut key_with_prefix = Vec::with_capacity(4 + storage_key.len());
+    key_with_prefix.extend(
+        u32::MAX
             .encode_fixed(4)
             .expect("encoding u32 should be successful"),
     );
-    key_with_prefix[4..].copy_from_slice(storage_key.as_slice());
+    key_with_prefix.extend(storage_key.clone().into_vec());
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
