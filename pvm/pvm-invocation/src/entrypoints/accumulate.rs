@@ -65,12 +65,20 @@ impl AccumulateInvocation {
 
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             tracing::warn!("Accumulate service code not found.");
-            return Ok(AccumulateResult::default());
+            return Ok(AccumulateResult {
+                accumulate_host: args.accumulate_host,
+                partial_state: partial_state.clone(), // FIXME: not necessary when invocation cancelled
+                ..Default::default()
+            });
         };
 
         if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
             tracing::warn!("Accumulate service code exceeds maximum allowed.");
-            return Ok(AccumulateResult::default());
+            return Ok(AccumulateResult {
+                accumulate_host: args.accumulate_host,
+                partial_state: partial_state.clone(),
+                ..Default::default()
+            });
         }
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;

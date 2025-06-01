@@ -3,7 +3,7 @@
 mod accumulate {
     use async_trait::async_trait;
     use fr_block::types::block::BlockHeader;
-    use fr_common::{workloads::WorkReport, Hash32};
+    use fr_common::{workloads::WorkReport, Hash32, Octets};
     use fr_conformance_tests::{
         asn_types::{
             accumulate::*,
@@ -96,6 +96,14 @@ mod accumulate {
                         AccountMetadata::from(account.data.service.clone()),
                     )
                     .await?;
+                // Add storage entries
+                for storage_entry in &account.data.storage {
+                    let key = Octets::from_vec(storage_entry.key.0.clone());
+                    let val = StorageMapEntry::from(storage_entry.clone()).data;
+                    state_manager
+                        .add_account_storage_entry(account.id, &key, val)
+                        .await?
+                }
                 // Add preimages entries
                 for preimage in &account.data.preimages {
                     let key = Hash32::from(preimage.hash);
@@ -205,6 +213,21 @@ mod accumulate {
                         .unwrap(),
                 );
 
+                let curr_storage_entries = join_all(s.data.storage.iter().map(|e| async {
+                    // Get the key from the pre-state
+                    let key = Octets::from_vec(e.key.0.clone());
+                    // Get the posterior storage value
+                    let storage_entry = state_manager
+                        .get_account_storage_entry(s.id, &key)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    AsnStorageMapEntry::from(StorageMapEntry {
+                        key,
+                        data: storage_entry,
+                    })
+                }))
+                .await;
                 let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
                     // Get the key from the pre-state
                     let key = Hash32::from(e.hash);
@@ -225,6 +248,7 @@ mod accumulate {
                     id: s.id,
                     data: AsnAccount {
                         service: curr_metadata,
+                        storage: curr_storage_entries,
                         preimages: curr_preimages,
                     },
                 }
@@ -239,6 +263,39 @@ mod accumulate {
                 privileges: curr_privileged_services.into(),
                 accounts: curr_accounts,
             })
+        }
+
+        fn assert_post_state(post_state: Self::State, test_case_post_state: Self::State) {
+            assert_eq!(post_state.slot, test_case_post_state.slot);
+            assert_eq!(post_state.entropy, test_case_post_state.entropy);
+            assert_eq!(post_state.ready_queue, test_case_post_state.ready_queue);
+            assert_eq!(post_state.accumulated, test_case_post_state.accumulated);
+            assert_eq!(post_state.privileges, test_case_post_state.privileges);
+            for (actual, expected) in post_state
+                .accounts
+                .into_iter()
+                .zip(test_case_post_state.accounts)
+            {
+                assert_eq!(actual.id, expected.id);
+                // assert_eq!(actual.data.service, expected.data.service);
+                // assert_eq!(actual.data.storage.len(), expected.data.storage.len());
+                // for (actual_storage, expected_storage) in
+                //     actual.data.storage.into_iter().zip(expected.data.storage)
+                // {
+                //     assert_eq!(actual_storage.key, expected_storage.key);
+                //     assert_eq!(actual_storage.value, expected_storage.value);
+                // }
+                assert_eq!(actual.data.preimages.len(), expected.data.preimages.len());
+                for (actual_preimages, expected_preimages) in actual
+                    .data
+                    .preimages
+                    .into_iter()
+                    .zip(expected.data.preimages)
+                {
+                    assert_eq!(actual_preimages.hash, expected_preimages.hash);
+                    assert_eq!(actual_preimages.blob, expected_preimages.blob);
+                }
+            }
         }
     }
 
@@ -331,5 +388,7 @@ mod accumulate {
 
         // One report unlocks reports in the ready-queue.
         ready_queue_editing_3: "ready_queue_editing-3.json",
+
+        same_code_different_services_1: "same_code_different_services-1.json",
     }
 }

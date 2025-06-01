@@ -71,7 +71,7 @@ impl JamEncode for WorkReport {
     fn size_hint(&self) -> usize {
         self.specs.size_hint()
             + self.refinement_context.size_hint()
-            + 2
+            + self.core_index.size_hint()
             + self.authorizer_hash.size_hint()
             + self.auth_trace.size_hint()
             + self.segment_roots_lookup.size_hint()
@@ -82,7 +82,7 @@ impl JamEncode for WorkReport {
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         self.specs.encode_to(dest)?;
         self.refinement_context.encode_to(dest)?;
-        self.core_index.encode_to_fixed(dest, 2)?; // TODO: check - Not fixed encoding in GP
+        self.core_index.encode_to(dest)?;
         self.authorizer_hash.encode_to(dest)?;
         self.auth_trace.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;
@@ -100,7 +100,7 @@ impl JamDecode for WorkReport {
         Ok(Self {
             specs: AvailSpecs::decode(input)?,
             refinement_context: RefinementContext::decode(input)?,
-            core_index: CoreIndex::decode_fixed(input, 2)?,
+            core_index: CoreIndex::decode(input)?,
             authorizer_hash: Hash32::decode(input)?,
             auth_trace: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,

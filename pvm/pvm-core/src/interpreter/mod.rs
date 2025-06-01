@@ -153,7 +153,7 @@ impl Interpreter {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        tracing::trace!("{:?}", ins);
+        tracing::debug!("Op: {:?}", ins.op);
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),

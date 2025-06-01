@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
-    /// Prior statistics
-    pub statistics: AsnStatistics,
+    /// Current epoch validators statistics
+    pub vals_curr_stats: AsnActivityRecords,
+    /// Last epoch validators statistics
+    pub vals_last_stats: AsnActivityRecords,
     /// Prior timeslot
     pub slot: AsnTimeSlot,
     /// Posterior active validators

@@ -10,7 +10,10 @@ mod statistics {
     use fr_state::{
         error::StateManagerError,
         manager::StateManager,
-        types::{ActiveSet, OnChainStatistics, Timeslot},
+        types::{
+            ActiveSet, CoreStats, EpochValidatorStats, OnChainStatistics, ServiceStats, Timeslot,
+            ValidatorStats,
+        },
     };
     use fr_transition::{error::TransitionError, state::statistics::transition_onchain_statistics};
     use std::sync::Arc;
@@ -33,7 +36,15 @@ mod statistics {
             state_manager: Arc<StateManager>,
         ) -> Result<(), StateManagerError> {
             // Convert ASN pre-state into FastRoll types.
-            let pre_onchain_stats = OnChainStatistics::from(test_pre_state.statistics.clone());
+            let pre_onchain_stats = OnChainStatistics {
+                validator_stats: ValidatorStats {
+                    curr: EpochValidatorStats::from(test_pre_state.vals_curr_stats.clone()),
+                    prev: EpochValidatorStats::from(test_pre_state.vals_last_stats.clone()),
+                },
+                core_stats: CoreStats::default(),
+                service_stats: ServiceStats::default(),
+            };
+
             let pre_timeslot = Timeslot::new(test_pre_state.slot);
             let posterior_active_set = ActiveSet(validators_data_to_validator_set(
                 &test_pre_state.curr_validators,
@@ -101,7 +112,8 @@ mod statistics {
 
             // Convert FastRoll types post-state into ASN post-state
             Ok(State {
-                statistics: curr_onchain_stats.into(),
+                vals_curr_stats: curr_onchain_stats.validator_stats.curr.into(),
+                vals_last_stats: curr_onchain_stats.validator_stats.prev.into(),
                 slot: curr_timeslot.slot(),
                 curr_validators: validator_set_to_validators_data(&posterior_active_set),
             })
