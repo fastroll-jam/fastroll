@@ -278,13 +278,14 @@ mod accumulate {
             {
                 assert_eq!(actual.id, expected.id);
                 assert_eq!(actual.data.service, expected.data.service);
+                assert_eq!(actual.data.storage.len(), expected.data.storage.len());
                 for (actual_storage, expected_storage) in
                     actual.data.storage.into_iter().zip(expected.data.storage)
                 {
                     assert_eq!(actual_storage.key, expected_storage.key);
                     assert_eq!(actual_storage.value, expected_storage.value);
                 }
-
+                assert_eq!(actual.data.preimages.len(), expected.data.preimages.len());
                 for (actual_preimages, expected_preimages) in actual
                     .data
                     .preimages
