@@ -58,13 +58,13 @@ impl JamDecode for ProgramState {
 
 impl ProgramState {
     pub fn print_all_opcodes(&self) {
-        tracing::debug!("All Opcodes");
+        tracing::trace!("All Opcodes");
         self.instructions
             .iter()
             .zip(self.opcode_bitmask.iter())
             .for_each(|(byte, opcode)| {
                 if opcode {
-                    tracing::debug!("Op: {:?}", Opcode::from_u8(*byte).unwrap());
+                    tracing::trace!("Op: {:?}", Opcode::from_u8(*byte).unwrap());
                 }
             })
     }

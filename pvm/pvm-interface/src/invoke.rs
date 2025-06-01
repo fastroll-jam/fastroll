@@ -148,6 +148,7 @@ impl PVMInterface {
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
+                    tracing::debug!("Host function called: {h:?}");
                     Self::execute_host_function(pvm, state_manager.clone(), service_id, context, &h)
                         .await?
                 }
