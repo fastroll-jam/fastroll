@@ -800,6 +800,7 @@ dependencies = [
  "fr-pvm-invocation",
  "fr-pvm-types",
  "fr-state",
+ "fr-storage",
  "fr-transition",
  "futures",
  "hex",

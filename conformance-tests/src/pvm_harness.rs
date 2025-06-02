@@ -18,6 +18,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+
 // --- Types
 
 #[allow(non_camel_case_types)]
@@ -134,7 +135,6 @@ pub struct ParsedTestCase {
 // --- Test Harness
 
 pub struct PVMHarness;
-
 impl PVMHarness {
     const PATH_PREFIX: &'static str = "jamtestvectors-pvm/pvm/programs";
 

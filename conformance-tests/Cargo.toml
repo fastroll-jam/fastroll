@@ -15,6 +15,7 @@ fr-pvm-interface = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
+fr-storage = { workspace = true }
 fr-transition = { workspace = true }
 async-trait = { workspace = true }
 bit-vec = { workspace = true }
