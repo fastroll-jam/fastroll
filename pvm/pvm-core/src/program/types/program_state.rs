@@ -64,7 +64,7 @@ impl ProgramState {
             .zip(self.opcode_bitmask.iter())
             .for_each(|(byte, opcode)| {
                 if opcode {
-                    tracing::trace!("Op: {:?}", Opcode::from_u8(*byte).unwrap());
+                    tracing::trace!("Op: {:?}", Opcode::from_u8(*byte));
                 }
             })
     }

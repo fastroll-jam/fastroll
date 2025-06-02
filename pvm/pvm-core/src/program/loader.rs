@@ -57,7 +57,7 @@ impl ProgramLoader {
         for n in 1..instructions_len {
             if let Some(true) = program.opcode_bitmask.get(n) {
                 if let Some(&op_val) = program.instructions.get(n) {
-                    let op = Opcode::from_u8(op_val)?;
+                    let op = Opcode::from_u8(op_val);
                     if op.is_termination_opcode() {
                         let next_op_index = n + 1 + Interpreter::skip(n, &program.opcode_bitmask);
                         program.basic_block_start_indices.insert(next_op_index);

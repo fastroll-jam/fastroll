@@ -19,8 +19,6 @@ pub enum VMCoreError {
     ProgramArgsSizeLimitExceeded,
     #[error("Invalid instruction format")]
     InvalidInstructionFormat,
-    #[error("Invalid opcode")]
-    InvalidOpcode,
     #[error("Dynamic jump target {0} is out of bounds in the jump table")]
     JumpTableOutOfBounds(usize),
     #[error("Invalid register value")]

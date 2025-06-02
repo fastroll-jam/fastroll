@@ -60,7 +60,7 @@ impl Instruction {
         skip_distance: usize,
     ) -> Result<Self, VMCoreError> {
         use crate::program::instruction::opcode::Opcode::*;
-        let op = Opcode::from_u8(single_inst_blob[0])?;
+        let op = Opcode::from_u8(single_inst_blob[0]);
 
         // Note: the `single_inst_blob` is an octet slice that represents a single instruction.
         // Validate instruction blob length
