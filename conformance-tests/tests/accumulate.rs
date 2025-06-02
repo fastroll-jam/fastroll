@@ -2,14 +2,14 @@
 #![allow(unused_imports)]
 mod accumulate {
     use async_trait::async_trait;
+    use fr_asn_types::types::{
+        accumulate::*,
+        common::{AsnOpaqueHash, AsnServiceInfo},
+        preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
+    };
     use fr_block::types::block::BlockHeader;
     use fr_common::{workloads::WorkReport, Hash32, Octets};
     use fr_conformance_tests::{
-        asn_types::{
-            accumulate::*,
-            common::{AsnOpaqueHash, AsnServiceInfo},
-            preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
-        },
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };

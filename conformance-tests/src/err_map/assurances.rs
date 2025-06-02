@@ -1,4 +1,4 @@
-use crate::asn_types::assurances::AssurancesErrorCode;
+use fr_asn_types::types::assurances::AssurancesErrorCode;
 use fr_extrinsics::validation::error::XtError;
 use fr_transition::error::TransitionError;
 

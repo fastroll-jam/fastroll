@@ -1,10 +1,10 @@
 //! Preimages state transition conformance tests
 mod preimages {
     use async_trait::async_trait;
+    use fr_asn_types::types::preimages::*;
     use fr_block::types::block::BlockHeader;
     use fr_common::{Hash32, LookupsKey};
     use fr_conformance_tests::{
-        asn_types::preimages::*,
         err_map::preimages::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},

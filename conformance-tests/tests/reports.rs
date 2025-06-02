@@ -1,9 +1,9 @@
 //! Reports state transition conformance tests
 mod reports {
     use async_trait::async_trait;
+    use fr_asn_types::types::{common::*, reports::*};
     use fr_block::types::block::BlockHeader;
     use fr_conformance_tests::{
-        asn_types::{common::*, reports::*},
         err_map::reports::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},

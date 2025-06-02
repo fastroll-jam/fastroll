@@ -1,4 +1,4 @@
-use crate::asn_types::common::*;
+use crate::types::common::*;
 use fr_common::ServiceId;
 
 use fr_block::types::extrinsics::guarantees::GuaranteesXt;

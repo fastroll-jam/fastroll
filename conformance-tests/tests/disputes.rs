@@ -1,9 +1,9 @@
 //! Disputes state transition conformance tests
 mod disputes {
     use async_trait::async_trait;
+    use fr_asn_types::types::{common::*, disputes::*};
     use fr_block::types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker};
     use fr_conformance_tests::{
-        asn_types::{common::*, disputes::*},
         err_map::disputes::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},

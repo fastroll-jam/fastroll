@@ -2,6 +2,7 @@
 resolver = "2"
 
 members = [
+    "asn-types",
     "block",
     "clock",
     "codec/fr-codec",
@@ -31,6 +32,7 @@ edition = "2021"
 
 [workspace.dependencies]
 # Internal dependencies
+fr-asn-types = { path = "asn-types" }
 fr-block = { path = "block" }
 fr-clock = { path = "clock" }
 fr-codec = { path = "codec/fr-codec" }

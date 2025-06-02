@@ -1,4 +1,4 @@
-use crate::asn_types::common::*;
+use crate::types::common::*;
 use fr_block::types::extrinsics::assurances::AssurancesXt;
 use fr_common::{workloads::work_report::WorkReport, Hash32};
 use fr_state::types::Timeslot;

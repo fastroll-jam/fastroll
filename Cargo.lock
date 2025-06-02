@@ -730,6 +730,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "fr-asn-types"
+version = "0.1.0"
+dependencies = [
+ "bit-vec",
+ "fr-block",
+ "fr-common",
+ "fr-crypto",
+ "fr-merkle",
+ "fr-state",
+ "hex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fr-block"
 version = "0.1.0"
 dependencies = [
@@ -789,12 +804,14 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bit-vec",
+ "fr-asn-types",
  "fr-block",
  "fr-codec",
  "fr-common",
  "fr-crypto",
  "fr-extrinsics",
  "fr-merkle",
+ "fr-node",
  "fr-pvm-core",
  "fr-pvm-interface",
  "fr-pvm-invocation",
@@ -894,11 +911,11 @@ name = "fr-node"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "fr-asn-types",
  "fr-block",
  "fr-clock",
  "fr-codec",
  "fr-common",
- "fr-conformance-tests",
  "fr-crypto",
  "fr-db",
  "fr-extrinsics",

@@ -1,10 +1,10 @@
 //! Block history state transition conformance tests
 mod history {
     use async_trait::async_trait;
+    use fr_asn_types::types::history::*;
     use fr_block::types::block::BlockHeader;
     use fr_common::{workloads::ReportedWorkPackage, Hash32};
     use fr_conformance_tests::{
-        asn_types::history::*,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };

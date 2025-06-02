@@ -1,4 +1,4 @@
-use crate::asn_types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
+use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
 use fr_block::types::block::Block;
 use fr_common::{ByteSequence, Hash32, StateKey};
 use fr_state::{manager::StateManager, test_utils::init_db_and_manager};

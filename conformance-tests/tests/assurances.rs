@@ -1,10 +1,10 @@
 //! Assurances state transition conformance tests
 mod assurances {
     use async_trait::async_trait;
+    use fr_asn_types::types::{assurances::*, common::*};
     use fr_block::types::block::BlockHeader;
     use fr_common::Hash32;
     use fr_conformance_tests::{
-        asn_types::{assurances::*, common::*},
         err_map::assurances::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},

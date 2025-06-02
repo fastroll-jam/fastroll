@@ -1,4 +1,4 @@
-use crate::asn_types::disputes::DisputesErrorCode;
+use fr_asn_types::types::disputes::DisputesErrorCode;
 use fr_extrinsics::validation::error::XtError;
 use fr_transition::error::TransitionError;
 

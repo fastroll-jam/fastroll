@@ -1,5 +1,6 @@
 //! JAM Codec conformance tests
 mod codec {
+    use fr_asn_types::{types::common::*, utils::AsnTypeLoader};
     use fr_block::types::{
         block::{Block, BlockHeader},
         extrinsics::{
@@ -9,7 +10,6 @@ mod codec {
     };
     use fr_codec::prelude::*;
     use fr_common::workloads::{RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport};
-    use fr_conformance_tests::{asn_types::common::*, utils::AsnTypeLoader};
     use serde::{de::DeserializeOwned, Serialize};
     use std::{fmt::Debug, path::PathBuf};
 

@@ -1,4 +1,4 @@
-use crate::asn_types::common::*;
+use crate::types::common::*;
 use fr_block::types::extrinsics::Extrinsics;
 use fr_common::ValidatorIndex;
 use fr_state::types::Timeslot;

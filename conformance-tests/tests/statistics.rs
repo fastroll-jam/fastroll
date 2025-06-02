@@ -1,9 +1,9 @@
 //! Statistics state transition conformance tests
 mod statistics {
     use async_trait::async_trait;
+    use fr_asn_types::types::{common::*, statistics::*};
     use fr_block::types::{block::BlockHeader, extrinsics::Extrinsics};
     use fr_conformance_tests::{
-        asn_types::{common::*, statistics::*},
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };
