@@ -49,6 +49,13 @@ impl Instruction {
         })
     }
 
+    pub fn trap() -> Self {
+        Self {
+            op: Opcode::TRAP,
+            ..Default::default()
+        }
+    }
+
     /// Decodes a single instruction blob into an `Instruction` type.
     ///
     /// This function takes a byte slice representing an instruction and converts it

@@ -57,9 +57,9 @@ impl Interpreter {
         let curr_ins_idx = curr_pc as usize;
         let next_ins_idx = curr_ins_idx + 1 + skip_distance;
 
-        // Out of slice boundary
+        // Out of instructions slice boundary should be interpreted as TRAP.
         if next_ins_idx > instructions.len() {
-            return None;
+            return Some(Instruction::trap());
         }
 
         let mut inst_blob = &instructions[curr_ins_idx..next_ins_idx];

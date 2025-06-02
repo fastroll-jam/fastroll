@@ -10,7 +10,7 @@ use std::collections::HashSet;
 #[derive(Debug, Default)]
 pub struct ProgramState {
     /// `c`: Serialized instructions blob.
-    pub instructions: Vec<u8>, // TODO: define instruction_blob with endless zeroes padding
+    pub instructions: Vec<u8>,
     /// `j`: Dynamic jump table.
     pub jump_table: Vec<MemAddress>,
     /// `k`: Opcode bitmask.
