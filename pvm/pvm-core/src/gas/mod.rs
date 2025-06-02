@@ -11,8 +11,11 @@ impl GasCharger {
     ) -> Result<SignedGas, VMCoreError> {
         let gas_charge_signed: SignedGas = gas_charge
             .try_into()
-            .expect("Gas charge should fit in `SignedGas`");
-        vm_state.gas_counter -= gas_charge_signed;
+            .map_err(|_| VMCoreError::TooLargeGasCharge(gas_charge))?;
+        vm_state
+            .gas_counter
+            .checked_sub(gas_charge_signed)
+            .ok_or(VMCoreError::GasCounterOverflow)?;
         Ok(vm_state.gas_counter)
     }
 }

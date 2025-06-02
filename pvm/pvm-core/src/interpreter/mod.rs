@@ -53,6 +53,8 @@ impl Interpreter {
         curr_pc: RegValue,
         skip_distance: usize,
     ) -> Option<Instruction> {
+        const MAX_INST_BLOB_LENGTH: usize = 16;
+
         let curr_ins_idx = curr_pc as usize;
         let next_ins_idx = curr_ins_idx + 1 + skip_distance;
 
@@ -63,9 +65,9 @@ impl Interpreter {
 
         let mut inst_blob = &instructions[curr_ins_idx..next_ins_idx];
 
-        // Instruction blob length is not greater than 16
-        if inst_blob.len() > 16 {
-            inst_blob = &inst_blob[..16];
+        // Instruction blob length is not greater than `MAX_INST_BLOB_LENGTH`
+        if inst_blob.len() > MAX_INST_BLOB_LENGTH {
+            inst_blob = &inst_blob[..MAX_INST_BLOB_LENGTH];
         }
 
         Instruction::from_inst_blob(inst_blob, curr_pc, skip_distance).ok()
@@ -97,7 +99,7 @@ impl Interpreter {
 
         loop {
             let curr_pc = vm_state.pc;
-            let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
+            let skip_distance = Self::skip(curr_pc as usize, &program_state.opcode_bitmask);
             let Some(inst) =
                 Self::extract_single_inst(&program_state.instructions, curr_pc, skip_distance)
             else {
