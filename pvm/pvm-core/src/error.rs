@@ -1,5 +1,6 @@
 use crate::{program::instruction::opcode::Opcode, state::memory::MemoryError};
 use fr_codec::JamCodecError;
+use fr_common::UnsignedGas;
 use fr_pvm_types::common::MemAddress;
 use thiserror::Error;
 
@@ -8,16 +9,16 @@ use thiserror::Error;
 pub enum VMCoreError {
     #[error("Out of gas")]
     OutOfGas,
-    #[error("Too large gas counter value")]
-    TooLargeGasCounter,
+    #[error("Too large gas charge value: {0}")]
+    TooLargeGasCharge(UnsignedGas),
+    #[error("Gas counter value overflowed")]
+    GasCounterOverflow,
     #[error("Invalid program")]
     InvalidProgram,
     #[error("Program arguments size limit exceeded")]
     ProgramArgsSizeLimitExceeded,
     #[error("Invalid instruction format")]
     InvalidInstructionFormat,
-    #[error("Invalid opcode")]
-    InvalidOpcode,
     #[error("Dynamic jump target {0} is out of bounds in the jump table")]
     JumpTableOutOfBounds(usize),
     #[error("Invalid register value")]

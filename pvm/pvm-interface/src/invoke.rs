@@ -157,6 +157,10 @@ impl PVMInterface {
 
             match host_call_result.exit_reason {
                 exit_reason @ ExitReason::PageFault(_) => {
+                    // Host functions explicitly check memory accessibility prior to returning
+                    // the VM change set. Therefore, unless the host-call exit reason is `PageFault`,
+                    // `VMStateMutator::apply_host_call_state_change` can safely apply state changes
+                    // without handling page fault scenarios.
                     return Ok(ExtendedInvocationResult { exit_reason });
                 }
                 ExitReason::Continue => {

@@ -6,13 +6,16 @@ use crate::{
         types::program_state::ProgramState,
     },
     state::{
-        memory::MemoryError,
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
 };
 use bit_vec::BitVec;
-use fr_pvm_types::{common::RegValue, exit_reason::ExitReason};
+use fr_pvm_types::{
+    common::RegValue,
+    constants::{MAX_INST_BLOB_LENGTH, MAX_SKIP_DISTANCE},
+    exit_reason::ExitReason,
+};
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -24,9 +27,7 @@ impl Interpreter {
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
     pub(crate) fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
-        const MAX_SKIP: usize = 24;
-
-        for skip_distance in 0..=MAX_SKIP {
+        for skip_distance in 0..=MAX_SKIP_DISTANCE {
             if opcode_bitmask
                 .get(curr_opcode_index + 1 + skip_distance)
                 .unwrap_or(true)
@@ -35,7 +36,7 @@ impl Interpreter {
             }
         }
 
-        MAX_SKIP // Note: this case implies malformed program.
+        MAX_SKIP_DISTANCE // Note: this case implies malformed program.
     }
 
     /// Get the next pc value from the current VM state and the skip function
@@ -56,16 +57,16 @@ impl Interpreter {
         let curr_ins_idx = curr_pc as usize;
         let next_ins_idx = curr_ins_idx + 1 + skip_distance;
 
-        // Out of slice boundary
+        // Out of instructions slice boundary should be interpreted as TRAP.
         if next_ins_idx > instructions.len() {
-            return None;
+            return Some(Instruction::trap());
         }
 
         let mut inst_blob = &instructions[curr_ins_idx..next_ins_idx];
 
-        // Instruction blob length is not greater than 16
-        if inst_blob.len() > 16 {
-            inst_blob = &inst_blob[..16];
+        // Instruction blob length is not greater than `MAX_INST_BLOB_LENGTH`
+        if inst_blob.len() > MAX_INST_BLOB_LENGTH {
+            inst_blob = &inst_blob[..MAX_INST_BLOB_LENGTH];
         }
 
         Instruction::from_inst_blob(inst_blob, curr_pc, skip_distance).ok()
@@ -97,7 +98,7 @@ impl Interpreter {
 
         loop {
             let curr_pc = vm_state.pc;
-            let skip_distance = Self::skip(vm_state.pc as usize, &program_state.opcode_bitmask);
+            let skip_distance = Self::skip(curr_pc as usize, &program_state.opcode_bitmask);
             let Some(inst) =
                 Self::extract_single_inst(&program_state.instructions, curr_pc, skip_distance)
             else {
@@ -105,16 +106,7 @@ impl Interpreter {
             };
 
             let single_invocation_result =
-                match Self::invoke_single_step(vm_state, program_state, &inst) {
-                    Ok(result) => result,
-                    // TODO: better error type conversion
-                    Err(VMCoreError::PageFault(address))
-                    | Err(VMCoreError::MemoryError(MemoryError::AccessViolation(address))) => {
-                        return Ok(ExitReason::PageFault(address))
-                    }
-                    Err(e) => return Err(e),
-                };
-
+                Self::invoke_single_step(vm_state, program_state, &inst)?;
             let post_gas = match VMStateMutator::apply_state_change(
                 vm_state,
                 &single_invocation_result.state_change,

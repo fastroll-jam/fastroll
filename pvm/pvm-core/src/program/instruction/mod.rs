@@ -3,7 +3,10 @@ pub mod set;
 
 use crate::{error::VMCoreError, program::instruction::opcode::Opcode, utils::VMUtils};
 use fr_codec::prelude::*;
-use fr_pvm_types::{common::RegValue, constants::REGISTERS_COUNT};
+use fr_pvm_types::{
+    common::RegValue,
+    constants::{MAX_INST_BLOB_LENGTH, REGISTERS_COUNT},
+};
 
 #[derive(Debug, Default)]
 pub struct Instruction {
@@ -46,6 +49,13 @@ impl Instruction {
         })
     }
 
+    pub fn trap() -> Self {
+        Self {
+            op: Opcode::TRAP,
+            ..Default::default()
+        }
+    }
+
     /// Decodes a single instruction blob into an `Instruction` type.
     ///
     /// This function takes a byte slice representing an instruction and converts it
@@ -60,11 +70,11 @@ impl Instruction {
         skip_distance: usize,
     ) -> Result<Self, VMCoreError> {
         use crate::program::instruction::opcode::Opcode::*;
-        let op = Opcode::from_u8(single_inst_blob[0])?;
+        let op = Opcode::from_u8(single_inst_blob[0]);
 
         // Note: the `single_inst_blob` is an octet slice that represents a single instruction.
         // Validate instruction blob length
-        if single_inst_blob.len() > 16 {
+        if single_inst_blob.len() > MAX_INST_BLOB_LENGTH {
             return Err(VMCoreError::InvalidInstructionFormat);
         }
 
