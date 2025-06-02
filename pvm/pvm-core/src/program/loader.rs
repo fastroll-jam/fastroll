@@ -33,20 +33,37 @@ impl ProgramLoader {
     /// instruction sequence (c), opcode bitmask (k) and dynamic jump table (j).
     /// Used by `Ψ`.
     pub fn deblob_program_code(
-        code: &[u8],
+        mut code: &[u8],
     ) -> Result<(Vec<u8>, BitVec, Vec<MemAddress>), VMCoreError> {
-        let mut input = code;
-        let program = ProgramState::decode(&mut input)?;
+        let input = &mut code;
+
+        // Decode the length of the jump table (|j|)
+        let jump_table_len = usize::decode(input)?;
+
+        // Decode the jump table entry length in octets (z)
+        let z = u8::decode_fixed(input, 1)?;
+
+        // Decode the length of the instruction sequence (|c|)
+        let instructions_len = usize::decode(input)?;
+
+        // Decode the dynamic jump table (j)
+        let mut jump_table = Vec::with_capacity(jump_table_len);
+        for _ in 0..jump_table_len {
+            jump_table.push(MemAddress::decode_fixed(input, z as usize)?);
+        }
+
+        // Decode the instruction sequence (c)
+        let instructions = Vec::<u8>::decode_fixed(input, instructions_len)?;
+
+        // Decode the opcode bitmask (k)
+        // The length of `k` must be equivalent to the length of `c`, |k| = |c|
+        let opcode_bitmask = BitVec::decode_fixed(input, instructions_len)?;
 
         if !input.is_empty() {
             return Err(VMCoreError::InvalidProgram);
         }
 
-        Ok((
-            program.instructions,
-            program.opcode_bitmask,
-            program.jump_table,
-        ))
+        Ok((instructions, opcode_bitmask, jump_table))
     }
 
     /// Collects opcode indices that indicate beginning of basic blocks and sets the
