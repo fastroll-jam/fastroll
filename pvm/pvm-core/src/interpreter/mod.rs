@@ -6,7 +6,6 @@ use crate::{
         types::program_state::ProgramState,
     },
     state::{
-        memory::MemoryError,
         state_change::{VMStateChange, VMStateMutator},
         vm_state::VMState,
     },
@@ -107,16 +106,7 @@ impl Interpreter {
             };
 
             let single_invocation_result =
-                match Self::invoke_single_step(vm_state, program_state, &inst) {
-                    Ok(result) => result,
-                    // TODO: better error type conversion
-                    Err(VMCoreError::PageFault(address))
-                    | Err(VMCoreError::MemoryError(MemoryError::AccessViolation(address))) => {
-                        return Ok(ExitReason::PageFault(address))
-                    }
-                    Err(e) => return Err(e),
-                };
-
+                Self::invoke_single_step(vm_state, program_state, &inst)?;
             let post_gas = match VMStateMutator::apply_state_change(
                 vm_state,
                 &single_invocation_result.state_change,
