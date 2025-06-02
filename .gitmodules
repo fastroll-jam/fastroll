@@ -5,6 +5,10 @@
 	path = conformance-tests/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
 	branch = master
+[submodule "conformance-tests/jamtestvectors-polkajam-traces"]
+	path = conformance-tests/jamtestvectors-polkajam-traces
+	url = https://github.com/davxy/jam-test-vectors.git
+	branch = traces
 [submodule "conformance-tests/jamtestvectors-pvm"]
 	path = conformance-tests/jamtestvectors-pvm
 	url = https://github.com/koute/jamtestvectors.git
