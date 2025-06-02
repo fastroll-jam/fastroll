@@ -6,7 +6,7 @@ use crate::{
 use fr_common::{SignedGas, UnsignedGas};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, REGISTERS_COUNT},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, INST_BASE_GAS_CHARGE, REGISTERS_COUNT},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -25,12 +25,23 @@ impl MemWrite {
 }
 
 /// VM state change set resulting from a single instruction execution.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct VMStateChange {
     pub register_write: Option<(usize, RegValue)>,
     pub memory_write: Option<MemWrite>,
     pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,
+}
+
+impl Default for VMStateChange {
+    fn default() -> Self {
+        Self {
+            register_write: None,
+            memory_write: None,
+            new_pc: 0,
+            gas_charge: INST_BASE_GAS_CHARGE,
+        }
+    }
 }
 
 /// VM state change set resulting from a single host function execution.
