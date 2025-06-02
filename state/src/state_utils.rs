@@ -210,6 +210,33 @@ impl From<StateKeyConstant> for u8 {
     }
 }
 
+impl TryFrom<u8> for StateKeyConstant {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let state_key_constant = match value {
+            1 => StateKeyConstant::AuthPool,
+            2 => StateKeyConstant::AuthQueue,
+            3 => StateKeyConstant::BlockHistory,
+            4 => StateKeyConstant::SafroleState,
+            5 => StateKeyConstant::DisputesState,
+            6 => StateKeyConstant::EpochEntropy,
+            7 => StateKeyConstant::StagingSet,
+            8 => StateKeyConstant::ActiveSet,
+            9 => StateKeyConstant::PastSet,
+            10 => StateKeyConstant::PendingReports,
+            11 => StateKeyConstant::Timeslot,
+            12 => StateKeyConstant::PrivilegedServices,
+            13 => StateKeyConstant::OnChainStatistics,
+            14 => StateKeyConstant::AccumulateQueue,
+            15 => StateKeyConstant::AccumulateHistory,
+            255 => StateKeyConstant::AccountMetadata,
+            _ => return Err("Invalid state key constant"),
+        };
+        Ok(state_key_constant)
+    }
+}
+
 const fn construct_state_key(i: u8) -> StateKey {
     let mut key = [0u8; STATE_KEY_SIZE];
     key[0] = i;
