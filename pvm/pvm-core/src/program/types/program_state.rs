@@ -43,7 +43,6 @@ impl JamDecode for ProgramState {
 
         // Decode the opcode bitmask (k)
         // The length of `k` must be equivalent to the length of `c`, |k| = |c|
-        // TODO: add validation for the instruction length limit of 16?
         let opcode_bitmask = BitVec::decode_fixed(input, instructions_len)?;
 
         Ok(Self {

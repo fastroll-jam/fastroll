@@ -11,7 +11,11 @@ use crate::{
     },
 };
 use bit_vec::BitVec;
-use fr_pvm_types::{common::RegValue, exit_reason::ExitReason};
+use fr_pvm_types::{
+    common::RegValue,
+    constants::{MAX_INST_BLOB_LENGTH, MAX_SKIP_DISTANCE},
+    exit_reason::ExitReason,
+};
 
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
@@ -23,9 +27,7 @@ impl Interpreter {
     /// Skip function that calculates skip distance to the next instruction from the instruction
     /// sequence and the opcode bitmask
     pub(crate) fn skip(curr_opcode_index: usize, opcode_bitmask: &BitVec) -> usize {
-        const MAX_SKIP: usize = 24;
-
-        for skip_distance in 0..=MAX_SKIP {
+        for skip_distance in 0..=MAX_SKIP_DISTANCE {
             if opcode_bitmask
                 .get(curr_opcode_index + 1 + skip_distance)
                 .unwrap_or(true)
@@ -34,7 +36,7 @@ impl Interpreter {
             }
         }
 
-        MAX_SKIP // Note: this case implies malformed program.
+        MAX_SKIP_DISTANCE // Note: this case implies malformed program.
     }
 
     /// Get the next pc value from the current VM state and the skip function
@@ -52,8 +54,6 @@ impl Interpreter {
         curr_pc: RegValue,
         skip_distance: usize,
     ) -> Option<Instruction> {
-        const MAX_INST_BLOB_LENGTH: usize = 16;
-
         let curr_ins_idx = curr_pc as usize;
         let next_ins_idx = curr_ins_idx + 1 + skip_distance;
 

@@ -2,6 +2,12 @@
 use crate::common::RegValue;
 use fr_common::UnsignedGas;
 
+/// Maximum skip distance.
+pub const MAX_SKIP_DISTANCE: usize = 24;
+
+/// Maximum length of a single instruction in octets.
+pub const MAX_INST_BLOB_LENGTH: usize = 16;
+
 /// Base gas charge for host function execution.
 pub const HOSTCALL_BASE_GAS_CHARGE: UnsignedGas = 10;
 
