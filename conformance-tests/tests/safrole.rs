@@ -18,12 +18,13 @@ mod safrole {
         error::StateManagerError,
         manager::StateManager,
         types::{
-            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
+            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleHeaderMarkers, SafroleState,
+            StagingSet, Timeslot,
         },
     };
     use fr_transition::{
         error::TransitionError,
-        procedures::chain_extension::{mark_safrole_header_markers},
+        procedures::chain_extension::mark_safrole_header_markers,
         state::{
             entropy::{
                 transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block,
@@ -34,7 +35,6 @@ mod safrole {
         },
     };
     use std::sync::Arc;
-    use fr_state::types::SafroleHeaderMarkers;
 
     struct SafroleTest;
 

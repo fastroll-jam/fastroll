@@ -1,7 +1,11 @@
 use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
 use fr_block::types::block::Block;
 use fr_common::{ByteSequence, Hash32, StateKey};
-use fr_state::{manager::StateManager, test_utils::init_db_and_manager};
+use fr_node::roles::importer::BlockImporter;
+use fr_state::{
+    manager::StateManager,
+    test_utils::{add_all_simple_state_entries, init_db_and_manager},
+};
 use fr_storage::node_storage::NodeStorage;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -43,6 +47,12 @@ pub struct RawState {
 pub struct KeyValue {
     pub key: StateKey,
     pub value: ByteSequence,
+}
+
+pub struct TestCase {
+    pub pre_state: RawState,
+    pub block: Block,
+    pub post_state: RawState,
 }
 
 // --- Type Conversion
@@ -96,8 +106,12 @@ impl BlockImportHarness {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn convert_input_type(test_input: AsnRawState) -> RawState {
-        test_input.into()
+    fn convert_test_case(test_case: AsnTestCase) -> TestCase {
+        TestCase {
+            pre_state: test_case.pre_state.into(),
+            block: test_case.block.into(),
+            post_state: test_case.post_state.into(),
+        }
     }
 
     fn init_node_storage() -> NodeStorage {
@@ -123,29 +137,58 @@ impl BlockImportHarness {
     }
 
     async fn import_block(
-        _storage: Arc<NodeStorage>,
-        _block: Block,
+        storage: Arc<NodeStorage>,
+        block: Block,
     ) -> Result<Hash32, Box<dyn Error>> {
+        let post_state_root = BlockImporter::import_block(storage, block).await?;
+        Ok(post_state_root)
+    }
+
+    async fn _extract_post_state() -> Result<RawState, Box<dyn Error>> {
+        // TODO: Check if enumerating on all state entries would be effective
         unimplemented!()
     }
 
-    async fn extract_post_state() -> Result<(), Box<dyn Error>> {
-        Ok(())
+    async fn assert_post_state(
+        state_manager: &StateManager,
+        actual_post_state_root: Hash32,
+        expected_post_state: RawState,
+    ) {
+        assert_eq!(actual_post_state_root, expected_post_state.state_root);
+        for kv in expected_post_state.keyvals {
+            let actual_val = state_manager
+                .get_raw_state_entry_from_db(&kv.key)
+                .await
+                .expect("state value should exist")
+                .unwrap();
+            assert_eq!(actual_val, kv.value.into_vec())
+        }
     }
-
-    fn assert_post_state() {}
 }
 
 pub async fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
     // load test case
     let filename = PathBuf::from(filename);
     let test_case = BlockImportHarness::load_test_case(&filename);
-    let pre_state = BlockImportHarness::convert_input_type(test_case.pre_state);
+    let test_case = BlockImportHarness::convert_test_case(test_case);
 
     // init node storage
-    let storage = BlockImportHarness::init_node_storage();
+    let storage = Arc::new(BlockImportHarness::init_node_storage());
+    add_all_simple_state_entries(&storage.state_manager(), None).await?;
 
-    BlockImportHarness::commit_pre_state(&storage.state_manager(), pre_state).await?;
+    BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
+
+    // import block
+    let post_state_root =
+        BlockImportHarness::import_block(storage.clone(), test_case.block).await?;
+
+    // assertions
+    BlockImportHarness::assert_post_state(
+        &storage.state_manager(),
+        post_state_root,
+        test_case.post_state,
+    )
+    .await;
 
     Ok(())
 }
