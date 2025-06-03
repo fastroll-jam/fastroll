@@ -127,7 +127,7 @@ pub enum StateEntryType {
     /// The account preimages entries (values of `δ_p`).
     AccountPreimagesEntry(AccountPreimagesEntry),
     /// Test-only type.
-    Raw(Vec<u8>),
+    Raw(Octets),
 }
 
 impl JamEncode for StateEntryType {
@@ -152,7 +152,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::AccountStorageEntry(inner) => inner.size_hint(),
             StateEntryType::AccountLookupsEntry(inner) => inner.size_hint(),
             StateEntryType::AccountPreimagesEntry(inner) => inner.size_hint(),
-            StateEntryType::Raw(inner) => inner.size_hint(),
+            StateEntryType::Raw(inner) => inner.len(),
         }
     }
 
@@ -177,7 +177,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::AccountStorageEntry(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountLookupsEntry(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountPreimagesEntry(inner) => inner.encode_to(dest)?,
-            StateEntryType::Raw(inner) => inner.encode_to(dest)?,
+            StateEntryType::Raw(inner) => inner.encode_to_fixed(dest, inner.len())?,
         }
         Ok(())
     }

@@ -108,6 +108,39 @@ impl JamDecode for ByteSequence {
     }
 }
 
+impl JamEncodeFixed for ByteSequence {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn encode_to_fixed<T: JamOutput>(
+        &self,
+        dest: &mut T,
+        size: usize,
+    ) -> Result<(), JamCodecError> {
+        if self.len() != size {
+            return Err(JamCodecError::InvalidSize(format!(
+                "Vector length ({}) does not match the expected size in byte ({})",
+                self.len(),
+                size
+            )));
+        }
+        dest.write(self.as_slice());
+        Ok(())
+    }
+}
+
+impl JamDecodeFixed for ByteSequence {
+    const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
+
+    fn decode_fixed<I: JamInput>(input: &mut I, size: usize) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let mut buffer = vec![0u8; size];
+        input.read(&mut buffer)?;
+        Ok(Self(buffer))
+    }
+}
+
 impl ByteSequence {
     pub fn new(data: &[u8]) -> Self {
         Self(data.to_vec())

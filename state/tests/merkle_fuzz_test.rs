@@ -48,14 +48,13 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Verify the Additions
     for i in 0..n {
         tracing::debug!("Verifying added entry #{i}");
-        let state_val_db_encoded = state_manager
+        let raw_state_val_db = state_manager
             .get_raw_state_entry_from_db(&state_keys[i])
             .await?
             .expect("should not be None");
-        let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
         let state_val_expected = expected_state_values[i].clone();
 
-        assert_eq!(state_val_db, state_val_expected);
+        assert_eq!(raw_state_val_db, state_val_expected);
     }
     tracing::info!("--- Verified Additions");
 
@@ -100,12 +99,11 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Verify the Updates
     for (key, val_expected) in updated_values {
         tracing::debug!("Verifying updated entry with key {key}");
-        let state_val_db_encoded = state_manager
+        let raw_state_val_db = state_manager
             .get_raw_state_entry_from_db(key)
             .await?
             .expect("updated key must still exist");
-        let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
-        assert_eq!(state_val_db, val_expected);
+        assert_eq!(raw_state_val_db, val_expected);
     }
     tracing::info!("--- Verified Updates");
 
@@ -124,12 +122,11 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     let unchanged_keys = indices[(num_updates + num_removes)..].to_vec();
     for i in unchanged_keys {
         let key = &state_keys[i];
-        let state_val_db_encoded = state_manager
+        let raw_state_val_db = state_manager
             .get_raw_state_entry_from_db(key)
             .await?
             .expect("unchanged key should exist");
-        let state_val_db = Vec::<u8>::decode(&mut state_val_db_encoded.as_slice())?;
-        assert_eq!(state_val_db, expected_state_values[i]);
+        assert_eq!(raw_state_val_db, expected_state_values[i]);
     }
     tracing::info!("--- Verified Unchanged entries");
 

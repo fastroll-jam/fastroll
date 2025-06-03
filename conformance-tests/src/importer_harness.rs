@@ -1,18 +1,10 @@
 use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
 use fr_block::types::block::Block;
-use fr_codec::prelude::*;
-use fr_common::{ByteSequence, Hash32, ServiceId, StateKey};
+use fr_common::{ByteSequence, Hash32, StateKey};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
-    error::StateManagerError,
     manager::StateManager,
-    state_utils::StateKeyConstant as SC,
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
-    types::{
-        AccountMetadata, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
-        BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
-        PrivilegedServices, SafroleState, StagingSet, Timeslot,
-    },
 };
 use fr_storage::node_storage::NodeStorage;
 use serde::{Deserialize, Serialize};
@@ -55,123 +47,6 @@ pub struct RawState {
 pub struct KeyValue {
     pub key: StateKey,
     pub value: ByteSequence,
-}
-
-impl KeyValue {
-    /// Add the raw key-value pair as a typed entry to the `StateManager`.
-    pub async fn add_to_state_manager(
-        &self,
-        state_manager: &StateManager,
-    ) -> Result<(), StateManagerError> {
-        // TODO: Handle invalid state key(s). Currently naively classifies state key kinds.
-
-        let first_byte = self.key.as_slice()[0];
-        // FIXME: add state with const 16 (GP v0.6.7)
-        if first_byte <= 15 || first_byte == 255 {
-            // The entry represents simple state
-            let state_key_constant = SC::try_from(first_byte).unwrap();
-            match state_key_constant {
-                SC::AuthPool => {
-                    state_manager
-                        .add_auth_pool(AuthPool::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::AuthQueue => {
-                    state_manager
-                        .add_auth_queue(AuthQueue::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::BlockHistory => {
-                    state_manager
-                        .add_block_history(BlockHistory::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::SafroleState => {
-                    state_manager
-                        .add_safrole(SafroleState::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::DisputesState => {
-                    state_manager
-                        .add_disputes(DisputesState::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::EpochEntropy => {
-                    state_manager
-                        .add_epoch_entropy(EpochEntropy::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::StagingSet => {
-                    state_manager
-                        .add_staging_set(StagingSet::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::ActiveSet => {
-                    state_manager
-                        .add_active_set(ActiveSet::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::PastSet => {
-                    state_manager
-                        .add_past_set(PastSet::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::PendingReports => {
-                    state_manager
-                        .add_pending_reports(PendingReports::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-
-                SC::Timeslot => {
-                    state_manager
-                        .add_timeslot(Timeslot::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::PrivilegedServices => {
-                    state_manager
-                        .add_privileged_services(PrivilegedServices::decode(
-                            &mut self.value.as_slice(),
-                        )?)
-                        .await?;
-                }
-                SC::OnChainStatistics => {
-                    state_manager
-                        .add_onchain_statistics(OnChainStatistics::decode(
-                            &mut self.value.as_slice(),
-                        )?)
-                        .await?;
-                }
-                SC::AccumulateQueue => {
-                    state_manager
-                        .add_accumulate_queue(AccumulateQueue::decode(&mut self.value.as_slice())?)
-                        .await?;
-                }
-                SC::AccumulateHistory => {
-                    state_manager
-                        .add_accumulate_history(AccumulateHistory::decode(
-                            &mut self.value.as_slice(),
-                        )?)
-                        .await?;
-                }
-                SC::AccountMetadata => {
-                    let values = self.value.as_slice();
-                    let buf = vec![values[1], values[3], values[5], values[7]];
-                    let service_id = ServiceId::decode_fixed(&mut buf.as_slice(), 4)?;
-                    state_manager
-                        .add_account_metadata(
-                            service_id,
-                            AccountMetadata::decode(&mut self.value.as_slice())?,
-                        )
-                        .await?;
-                }
-            }
-            return Ok(());
-        }
-
-        // TODO: account storage entries
-
-        Ok(())
-    }
 }
 
 pub struct TestCase {
@@ -253,7 +128,9 @@ impl BlockImportHarness {
         pre_state: RawState,
     ) -> Result<(), Box<dyn Error>> {
         for kv in pre_state.keyvals {
-            kv.add_to_state_manager(state_manager).await?;
+            state_manager
+                .add_raw_state_entry(&kv.key, kv.value.into_vec())
+                .await?;
         }
         state_manager.commit_dirty_cache().await?;
         Ok(())
