@@ -1,6 +1,6 @@
 use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
 use fr_block::types::block::Block;
-use fr_common::{ByteSequence, Hash32, StateKey};
+use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, Hash32, StateKey};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
     manager::StateManager,
@@ -167,6 +167,9 @@ impl BlockImportHarness {
 }
 
 pub async fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
+    // Config tracing subscriber
+    setup_timed_tracing();
+
     // load test case
     let filename = PathBuf::from(filename);
     let test_case = BlockImportHarness::load_test_case(&filename);

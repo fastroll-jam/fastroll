@@ -63,6 +63,7 @@ pub async fn transition_on_accumulate(
     state_manager: Arc<StateManager>,
     reports: &[WorkReport], // W^*
 ) -> Result<AccumulateSummary, TransitionError> {
+    tracing::info!("Accumulating {} reports", reports.len());
     let always_accumulate_services = &state_manager
         .get_privileged_services()
         .await?
