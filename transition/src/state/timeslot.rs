@@ -27,6 +27,12 @@ fn validate_timeslot(
     prior_timeslot: &Timeslot,
     current_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
+    // Skip genesis block validation
+    let genesis_timeslot = Timeslot::new(0);
+    if prior_timeslot == &genesis_timeslot && current_timeslot == &genesis_timeslot {
+        return Ok(());
+    }
+
     // Timeslot value must be greater than the parent block
     if current_timeslot <= prior_timeslot {
         return Err(TransitionError::InvalidTimeslot {

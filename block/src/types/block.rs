@@ -31,6 +31,12 @@ pub struct Block {
     pub extrinsics: Extrinsics,
 }
 
+impl Block {
+    pub fn is_genesis(&self) -> bool {
+        self.header.data.parent_hash == Hash32::default()
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarkerValidatorKey {
     pub bandersnatch_key: BandersnatchPubKey,

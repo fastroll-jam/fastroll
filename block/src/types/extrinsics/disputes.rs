@@ -18,7 +18,7 @@ pub enum VerdictEvaluation {
     Invalid(usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct OffendersHeaderMarker {
     pub items: Vec<Ed25519PubKey>,
 }

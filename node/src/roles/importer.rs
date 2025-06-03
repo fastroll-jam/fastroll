@@ -108,6 +108,11 @@ impl BlockImporter {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<Hash32, BlockImportError> {
+        if block.is_genesis() {
+            // Skip genesis block validation
+            return Self::run_state_transition(&storage, &block).await;
+        }
+
         // Validate Xts
         Self::validate_xts(&storage, &block).await?;
         // Validate header fields (prior to STF)
@@ -337,15 +342,26 @@ impl BlockImporter {
         storage: &NodeStorage,
         block: &Block,
     ) -> Result<Hash32, BlockImportError> {
-        let output = BlockExecutor::run_state_transition(storage, block).await?;
-        BlockExecutor::accumulate_entropy(storage, &block.header.vrf_signature()).await?;
-        BlockExecutor::append_block_history(
-            storage,
-            block.header.hash()?,
-            output.accumulate_root,
-            output.reported_packages,
-        )
-        .await?;
+        if block.is_genesis() {
+            let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
+            BlockExecutor::append_block_history(
+                storage,
+                block.header.hash()?,
+                output.accumulate_root,
+                output.reported_packages,
+            )
+            .await?;
+        } else {
+            let output = BlockExecutor::run_state_transition(storage, block).await?;
+            BlockExecutor::accumulate_entropy(storage, &block.header.vrf_signature()).await?;
+            BlockExecutor::append_block_history(
+                storage,
+                block.header.hash()?,
+                output.accumulate_root,
+                output.reported_packages,
+            )
+            .await?;
+        };
         // TODO: additional validation on output
         storage.state_manager().commit_dirty_cache().await?;
         Ok(storage.state_manager().merkle_root())
