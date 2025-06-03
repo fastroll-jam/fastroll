@@ -97,7 +97,7 @@ impl From<AsnRawState> for RawState {
 struct BlockImportHarness;
 impl BlockImportHarness {
     // TODO: add `reports`, `safrole` test cases
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam-traces/traces/fallback";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/traces/fallback";
 
     fn load_test_case(filename: &Path) -> AsnTestCase {
         let path = PathBuf::from(Self::PATH_PREFIX).join(filename);
