@@ -245,6 +245,7 @@ impl StateManager {
         service_id: ServiceId,
     ) -> Result<Option<AccountCode>, StateManagerError> {
         let Some(metadata) = self.get_account_metadata(service_id).await? else {
+            tracing::warn!("Account with service id {service_id} not found");
             return Ok(None);
         };
         let code_preimage = self
