@@ -2,10 +2,7 @@ use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOp
 use fr_block::types::block::Block;
 use fr_common::{ByteSequence, Hash32, StateKey};
 use fr_node::roles::importer::BlockImporter;
-use fr_state::{
-    manager::StateManager,
-    test_utils::{add_all_simple_state_entries, init_db_and_manager},
-};
+use fr_state::{manager::StateManager, test_utils::init_db_and_manager};
 use fr_storage::node_storage::NodeStorage;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -161,7 +158,7 @@ impl BlockImportHarness {
                 .await
                 .expect("state value should exist")
                 .unwrap();
-            assert_eq!(actual_val, kv.value.into_vec())
+            assert_eq!(actual_val, kv.value.into_vec());
         }
     }
 }
@@ -174,7 +171,6 @@ pub async fn run_test_case(filename: &str) -> Result<(), Box<dyn Error>> {
 
     // init node storage
     let storage = Arc::new(BlockImportHarness::init_node_storage());
-    add_all_simple_state_entries(&storage.state_manager(), None).await?;
 
     BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
 
