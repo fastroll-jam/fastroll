@@ -9,9 +9,28 @@ use fr_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 /// Time timeslot index.
 ///
 /// Represents `τ` of the GP.
-#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq)]
 pub struct Timeslot(pub u32);
 impl_simple_state_component!(Timeslot, Timeslot);
+
+impl JamEncode for Timeslot {
+    fn size_hint(&self) -> usize {
+        4
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.0.encode_to_fixed(dest, 4)
+    }
+}
+
+impl JamDecode for Timeslot {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Self::decode_fixed(input, 4)
+    }
+}
 
 impl JamEncodeFixed for Timeslot {
     const SIZE_UNIT: SizeUnit = SizeUnit::Bytes;
