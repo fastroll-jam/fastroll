@@ -5,9 +5,16 @@ macro_rules! run_block_import_test {
     ($block_num:expr) => {
         paste::paste! {
             #[tokio::test]
-            async fn [<block_importer_ $block_num>]() -> Result<(), Box<dyn Error>> {
+            async fn [<block_import_fallback_ $block_num>]() -> Result<(), Box<dyn Error>> {
                 let test_file_name = format!("{:08}.json", $block_num);
-                run_test_case(&test_file_name).await?;
+                run_test_case("jamtestvectors-polkajam/traces/fallback", &test_file_name).await?;
+                Ok(())
+            }
+
+            #[tokio::test]
+            async fn [<block_import_safrole_ $block_num>]() -> Result<(), Box<dyn Error>> {
+                let test_file_name = format!("{:08}.json", $block_num);
+                run_test_case("jamtestvectors-polkajam/traces/safrole", &test_file_name).await?;
                 Ok(())
             }
         }
