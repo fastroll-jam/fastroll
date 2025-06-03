@@ -1,9 +1,9 @@
-use fr_block::types::block::Block;
-use fr_common::{ByteEncodable, Hash32};
-use fr_conformance_tests::{
-    asn_types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
+use fr_asn_types::{
+    types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
     utils::AsnTypeLoader,
 };
+use fr_block::types::block::Block;
+use fr_common::{ByteEncodable, Hash32};
 use fr_crypto::types::ValidatorKeySet;
 use fr_state::{
     test_utils::SimpleStates,

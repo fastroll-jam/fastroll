@@ -1,9 +1,9 @@
 //! Authorizers state transition conformance tests
 mod authorizations {
     use async_trait::async_trait;
+    use fr_asn_types::types::authorizations::*;
     use fr_block::types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt};
     use fr_conformance_tests::{
-        asn_types::authorizations::*,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
     };

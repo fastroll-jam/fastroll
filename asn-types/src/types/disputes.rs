@@ -1,4 +1,4 @@
-use crate::asn_types::common::*;
+use crate::types::common::*;
 use fr_block::types::extrinsics::disputes::DisputesXt;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

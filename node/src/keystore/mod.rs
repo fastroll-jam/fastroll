@@ -1,6 +1,6 @@
 //! Test-only keystore module
+use fr_asn_types::{types::common::AsnByteArray, utils::AsnTypeLoader};
 use fr_codec::prelude::*;
-use fr_conformance_tests::{asn_types::common::AsnByteArray, utils::AsnTypeLoader};
 use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use fr_network::manager::LocalNodeInfo;
 use serde::{Deserialize, Serialize};

@@ -1,9 +1,10 @@
-use crate::asn_types::common::*;
+use crate::types::common::*;
 use fr_block::types::extrinsics::tickets::TicketsXt;
 use fr_common::{ticket::Ticket, Hash32};
 use fr_crypto::types::BandersnatchRingRoot;
-use fr_state::types::{SafroleState, SlotSealers, TicketAccumulator, Timeslot};
-use fr_transition::procedures::chain_extension::SafroleHeaderMarkers;
+use fr_state::types::{
+    SafroleHeaderMarkers, SafroleState, SlotSealers, TicketAccumulator, Timeslot,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

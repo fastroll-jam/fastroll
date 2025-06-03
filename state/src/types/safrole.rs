@@ -3,6 +3,7 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
     types::Timeslot,
 };
+use fr_block::types::block::{EpochMarker, WinningTicketsMarker};
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
@@ -24,6 +25,12 @@ pub enum SlotSealerError {
     CryptoError(#[from] CryptoError),
     #[error("Codec error: {0}")]
     CodecError(#[from] JamCodecError),
+}
+
+#[derive(Clone)]
+pub struct SafroleHeaderMarkers {
+    pub epoch_marker: Option<EpochMarker>,
+    pub winning_tickets_marker: Option<WinningTicketsMarker>,
 }
 
 /// State components associated with the Safrole protocol.

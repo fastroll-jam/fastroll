@@ -8,11 +8,14 @@ use fr_crypto::traits::VrfSignature;
 use fr_pvm_invocation::pipeline::{
     accumulate_result_commitment, utils::collect_accumulatable_reports,
 };
-use fr_state::{error::StateManagerError, types::Timeslot};
+use fr_state::{
+    error::StateManagerError,
+    types::{SafroleHeaderMarkers, Timeslot},
+};
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::{
     error::TransitionError,
-    procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
+    procedures::chain_extension::mark_safrole_header_markers,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
         authorizer::transition_auth_pool,
@@ -210,6 +213,85 @@ impl BlockExecutor {
             safrole_markers,
             accumulate_root,
             reported_packages,
+        })
+    }
+
+    // FIXME: WIP
+    pub async fn run_genesis_state_transition(
+        storage: &NodeStorage,
+        block: &Block,
+    ) -> Result<BlockExecutionOutput, BlockExecutionError> {
+        let guarantees_xt = block.extrinsics.guarantees.clone();
+        let tickets_xt = block.extrinsics.tickets.clone();
+        let prev_timeslot = storage.state_manager().get_timeslot().await?;
+        let header_timeslot = Timeslot::new(block.header.timeslot_index());
+        let parent_state_root = block.header.data.prior_state_root.clone();
+
+        // Epoch progress check
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
+        let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
+
+        // --- Spawn STF tasks
+
+        // Entropy STF (on-epoch-change transition only)
+        let manager = storage.state_manager();
+        let entropy_jh = spawn_timed("entropy_stf", async move {
+            transition_epoch_entropy_on_epoch_change(manager, epoch_progressed).await
+        });
+
+        // PastSet STF
+        let manager = storage.state_manager();
+        let past_set_jh = spawn_timed("pastset_stf", async move {
+            transition_past_set(manager, epoch_progressed).await
+        });
+
+        // ActiveSet STF
+        let manager = storage.state_manager();
+        let active_set_jh = spawn_timed("active_set_stf", async move {
+            transition_active_set(manager, epoch_progressed).await
+        });
+
+        // Authorizer STF
+        let manager = storage.state_manager();
+        let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
+            transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
+        });
+
+        // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
+        #[allow(unused_must_use)]
+        try_join!(entropy_jh, past_set_jh, active_set_jh)?;
+
+        // Safrole STF
+        let manager = storage.state_manager();
+        let safrole_jh = spawn_timed("safrole_stf", async move {
+            transition_safrole(
+                manager,
+                &prev_timeslot,
+                &curr_timeslot,
+                epoch_progressed,
+                &tickets_xt,
+            )
+            .await
+        });
+        // Join remaining STF tasks
+        let (_, _) = try_join!(auth_pool_jh, safrole_jh)?;
+
+        // BlockHistory STF (the first half only)
+        let manager = storage.state_manager();
+        spawn_timed("history_stf", async move {
+            transition_block_history_parent_root(manager.clone(), parent_state_root).await
+        })
+        .await??;
+
+        // Collect header markers
+        let manager = storage.state_manager();
+        let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
+
+        Ok(BlockExecutionOutput {
+            offenders_marker: OffendersHeaderMarker::default(),
+            safrole_markers,
+            accumulate_root: Hash32::default(),
+            reported_packages: Vec::new(),
         })
     }
 

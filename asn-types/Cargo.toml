@@ -1,0 +1,15 @@
+[package]
+name = "fr-asn-types"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+fr-block = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
+fr-merkle = { workspace = true }
+fr-state = { workspace = true }
+bit-vec = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0.140"

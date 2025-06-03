@@ -1,13 +1,13 @@
 //! Safrole state transition conformance tests
 mod safrole {
     use async_trait::async_trait;
+    use fr_asn_types::types::{common::*, safrole::*};
     use fr_block::types::{
         block::BlockHeader,
         extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     };
     use fr_common::Hash32;
     use fr_conformance_tests::{
-        asn_types::{common::*, safrole::*},
         err_map::safrole::map_error_to_custom_code,
         generate_typed_tests,
         harness::{run_test_case, StateTransitionTest},
@@ -18,12 +18,13 @@ mod safrole {
         error::StateManagerError,
         manager::StateManager,
         types::{
-            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleState, StagingSet, Timeslot,
+            ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleHeaderMarkers, SafroleState,
+            StagingSet, Timeslot,
         },
     };
     use fr_transition::{
         error::TransitionError,
-        procedures::chain_extension::{mark_safrole_header_markers, SafroleHeaderMarkers},
+        procedures::chain_extension::mark_safrole_header_markers,
         state::{
             entropy::{
                 transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block,

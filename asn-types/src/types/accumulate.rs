@@ -1,4 +1,4 @@
-use crate::asn_types::{
+use crate::types::{
     common::{
         AccumulateRoot, AsnAccumulateHistory, AsnAccumulateQueue, AsnByteSequence, AsnEntropy,
         AsnPrivilegedServices, AsnServiceId, AsnServiceInfo, AsnTimeSlot, AsnWorkReport,

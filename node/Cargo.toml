@@ -4,11 +4,11 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+fr-asn-types = { workspace = true }
 fr-block = { workspace = true }
 fr-clock = { workspace = true }
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
-fr-conformance-tests = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-extrinsics = { workspace = true }

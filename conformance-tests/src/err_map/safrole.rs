@@ -1,4 +1,4 @@
-use crate::asn_types::safrole::SafroleErrorCode;
+use fr_asn_types::types::safrole::SafroleErrorCode;
 use fr_extrinsics::validation::error::XtError;
 use fr_transition::error::TransitionError;
 

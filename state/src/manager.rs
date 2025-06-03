@@ -104,8 +104,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                clean_snapshot: StateEntryType::Raw(state_val.clone()),
-                value: StateEntryType::Raw(state_val),
+                clean_snapshot: StateEntryType::Raw(Octets::from_vec(state_val.clone())),
+                value: StateEntryType::Raw(Octets::from_vec(state_val)),
                 status: CacheEntryStatus::Dirty(StateMut::Add),
             },
         );
@@ -125,8 +125,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                clean_snapshot: StateEntryType::Raw(old_state),
-                value: StateEntryType::Raw(new_val),
+                clean_snapshot: StateEntryType::Raw(Octets::from_vec(old_state)),
+                value: StateEntryType::Raw(Octets::from_vec(new_val)),
                 status: CacheEntryStatus::Dirty(StateMut::Update),
             },
         );
@@ -145,8 +145,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                value: StateEntryType::Raw(vec![]),
-                clean_snapshot: StateEntryType::Raw(old_state),
+                value: StateEntryType::Raw(Octets::default()),
+                clean_snapshot: StateEntryType::Raw(Octets::from_vec(old_state)),
                 status: CacheEntryStatus::Dirty(StateMut::Remove),
             },
         );

@@ -3,14 +3,11 @@ use fr_block::types::block::{EpochMarker, EpochMarkerValidatorKey, WinningTicket
 use fr_common::{TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
 use fr_crypto::types::ValidatorKeySet;
 use fr_limited_vec::FixedVec;
-use fr_state::{manager::StateManager, types::outside_in_vec};
+use fr_state::{
+    manager::StateManager,
+    types::{outside_in_vec, SafroleHeaderMarkers},
+};
 use std::sync::Arc;
-
-#[derive(Clone)]
-pub struct SafroleHeaderMarkers {
-    pub epoch_marker: Option<EpochMarker>,
-    pub winning_tickets_marker: Option<WinningTicketsMarker>,
-}
 
 pub async fn mark_safrole_header_markers(
     state_manager: Arc<StateManager>,
