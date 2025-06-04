@@ -54,7 +54,10 @@ impl GuaranteesXt {
         let mut buf = vec![];
         self.items.len().encode_to(&mut buf)?; // length discriminator
         for e in &self.items {
-            e.encode_to(&mut buf)?;
+            let report_hash = hash::<Blake2b256>(&e.work_report.encode()?)?;
+            report_hash.encode_to(&mut buf)?;
+            e.timeslot_index.encode_to_fixed(&mut buf, 4)?;
+            e.credentials.encode_to(&mut buf)?;
         }
         Ok(buf)
     }
