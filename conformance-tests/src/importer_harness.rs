@@ -160,7 +160,7 @@ impl BlockImportHarness {
                 .await
                 .unwrap()
             {
-                assert_eq!(actual_val, kv.value.into_vec());
+                assert_eq!(hex::encode(&actual_val), hex::encode(&*kv.value));
             } else {
                 tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
             };
