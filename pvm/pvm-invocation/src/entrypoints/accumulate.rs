@@ -72,7 +72,8 @@ impl AccumulateInvocation {
             });
         };
 
-        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
+        let code_len = account_code.code().len();
+        if code_len > MAX_SERVICE_CODE_SIZE {
             tracing::warn!("Accumulate service code exceeds maximum allowed.");
             return Ok(AccumulateResult {
                 accumulate_host: args.accumulate_host,
@@ -80,6 +81,7 @@ impl AccumulateInvocation {
                 ..Default::default()
             });
         }
+        tracing::debug!("Account code length: {code_len} octets");
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
         let curr_entropy = epoch_entropy.current(); // TODO: ensure this value is post entropy accumulation (`η0′`).

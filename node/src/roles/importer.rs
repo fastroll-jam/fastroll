@@ -31,8 +31,11 @@ use tokio::{sync::mpsc, try_join};
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
-    #[error("Block header contains invalid xt hash")]
-    InvalidXtHash,
+    #[error("Block header contains invalid xt hash. Found in block: {header_value}, calculated: {calculated}")]
+    InvalidXtHash {
+        header_value: String,
+        calculated: String,
+    },
     #[error("Block header contains invalid author index")]
     InvalidAuthorIndex,
     #[error("Block header is sealed with invalid fallback key. Reserved slot sealer key: {slot_sealer_key}, actual author key: {author_key}")]
@@ -270,7 +273,10 @@ impl BlockImporter {
 
     fn validate_xt_hash(block: &Block) -> Result<(), BlockImportError> {
         if block.header.extrinsic_hash() != &block.extrinsics.hash()? {
-            return Err(BlockImportError::InvalidXtHash);
+            return Err(BlockImportError::InvalidXtHash {
+                header_value: block.header.extrinsic_hash().encode_hex(),
+                calculated: block.extrinsics.hash()?.encode_hex(),
+            });
         }
         Ok(())
     }

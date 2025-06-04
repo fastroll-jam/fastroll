@@ -33,7 +33,6 @@ impl PVM {
         args: &[u8],
     ) -> Result<Self, PVMError> {
         let mut pvm = Self::default();
-        tracing::info!("PVM initialized.");
 
         // Check argument data size limit
         if args.len() > INIT_INPUT_SIZE {
@@ -42,6 +41,7 @@ impl PVM {
 
         // Decode program and check program size limit
         let formatted_program = FormattedProgram::from_standard_program(standard_program)?;
+        tracing::info!("PVM program decoded.");
         if !formatted_program.is_program_size_valid() {
             return Err(PVMError::VMCoreError(InvalidProgram));
         }
@@ -52,6 +52,7 @@ impl PVM {
         tracing::info!("PVM registers setup.");
         pvm.program_blob = formatted_program.code;
 
+        tracing::info!("PVM initialized.");
         Ok(pvm)
     }
 

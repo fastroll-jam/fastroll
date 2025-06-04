@@ -13,5 +13,6 @@ fr-merkle = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
+hex = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

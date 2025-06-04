@@ -248,6 +248,7 @@ impl StateManager {
             tracing::warn!("Account with service id {service_id} not found");
             return Ok(None);
         };
+        tracing::debug!("Code hash: {}", &metadata.code_hash.encode_hex());
         let code_preimage = self
             .get_account_preimages_entry(service_id, &metadata.code_hash)
             .await?;
