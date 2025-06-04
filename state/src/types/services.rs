@@ -311,11 +311,33 @@ impl AccountPartialState for AccountStorageEntry {}
 impl AccountPartialState for AccountPreimagesEntry {}
 impl AccountPartialState for AccountLookupsEntryExt {}
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct AccountStorageEntry {
     pub value: Octets,
 }
 impl_account_state_component!(AccountStorageEntry, AccountStorageEntry);
+
+impl JamEncode for AccountStorageEntry {
+    fn size_hint(&self) -> usize {
+        self.value.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.value.encode_to_fixed(dest, self.value.len())
+    }
+}
+
+impl JamDecode for AccountStorageEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        // Note: `AccountStorageEntry` should always read the entire input buffer.
+        let len = input.remaining_len();
+        let value = Octets::decode_fixed(input, len)?;
+        Ok(AccountStorageEntry { value })
+    }
+}
 
 impl AccountStorageEntry {
     pub fn new(value: Octets) -> Self {
@@ -329,11 +351,33 @@ impl StorageFootprint for AccountStorageEntry {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountPreimagesEntry {
     pub value: Octets,
 }
 impl_account_state_component!(AccountPreimagesEntry, AccountPreimagesEntry);
+
+impl JamEncode for AccountPreimagesEntry {
+    fn size_hint(&self) -> usize {
+        self.value.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.value.encode_to_fixed(dest, self.value.len())
+    }
+}
+
+impl JamDecode for AccountPreimagesEntry {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        // Note: `AccountPreimagesEntry` should always read the entire input buffer.
+        let len = input.remaining_len();
+        let value = Octets::decode_fixed(input, len)?;
+        Ok(AccountPreimagesEntry { value })
+    }
+}
 
 impl AccountPreimagesEntry {
     pub fn new(value: Octets) -> Self {

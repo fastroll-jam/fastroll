@@ -1062,6 +1062,7 @@ dependencies = [
  "fr-pvm-invocation",
  "fr-pvm-types",
  "fr-state",
+ "hex",
  "thiserror 2.0.12",
  "tracing",
 ]

@@ -96,6 +96,7 @@ impl PVMInterface {
         tracing::info!("Ψ_M invoked.");
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
         let Ok(mut pvm) = PVM::new_with_standard_program(standard_program, args) else {
+            tracing::error!("Failed to initialize PVM instance");
             return Ok(PVMInvocationResult::panic(0));
         };
         pvm.state.pc = pc;

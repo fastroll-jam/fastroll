@@ -17,6 +17,13 @@ macro_rules! run_block_import_test {
                 run_test_case("jamtestvectors-polkajam/traces/safrole", &test_file_name).await?;
                 Ok(())
             }
+
+            // #[tokio::test]
+            // async fn [<block_import_reports_ $block_num>]() -> Result<(), Box<dyn Error>> {
+            //     let test_file_name = format!("{:08}.json", $block_num);
+            //     run_test_case("jamtestvectors-polkajam/traces/reports-l0", &test_file_name).await?;
+            //     Ok(())
+            // }
         }
     };
 }
