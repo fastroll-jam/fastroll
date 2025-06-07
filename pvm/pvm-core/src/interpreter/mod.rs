@@ -120,6 +120,15 @@ impl Interpreter {
                 return Ok(ExitReason::OutOfGas);
             }
 
+            tracing::trace!(
+                "Op: {:?}({}), pc: {}, gas: {}, regs: {:?}",
+                inst.op,
+                inst.op as u8,
+                vm_state.pc,
+                vm_state.gas_counter,
+                vm_state.regs
+            );
+
             match single_invocation_result.exit_reason {
                 ExitReason::Continue => continue,
                 termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
@@ -145,7 +154,6 @@ impl Interpreter {
         program_state: &ProgramState,
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
-        tracing::debug!("Op: {:?}", ins.op);
         match ins.op {
             OP::TRAP => IS::trap(vm_state, program_state),
             OP::FALLTHROUGH => IS::fallthrough(vm_state, program_state),
