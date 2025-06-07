@@ -13,7 +13,7 @@ mod codec {
     use serde::{de::DeserializeOwned, Serialize};
     use std::{fmt::Debug, path::PathBuf};
 
-    const PATH_PREFIX: &str = "jamtestvectors-polkajam/codec/data";
+    const PATH_PREFIX: &str = "jamtestvectors-polkajam/codec/tiny";
 
     pub fn test_encode_decode<FastRollType, AsnType>(filename: &str)
     where
