@@ -76,7 +76,9 @@ impl GuarantorAssignment {
         let current_timeslot = state_manager.get_timeslot().await?;
         let punish_set = state_manager.get_disputes().await?.punish_set;
         let entropy = state_manager.get_epoch_entropy().await?;
-        let previous_timeslot_value = current_timeslot.slot() - GUARANTOR_ROTATION_PERIOD as u32;
+        let previous_timeslot_value = current_timeslot
+            .slot()
+            .saturating_sub(GUARANTOR_ROTATION_PERIOD as u32);
         let within_same_epoch = previous_timeslot_value / EPOCH_LENGTH as u32
             == current_timeslot.slot() / EPOCH_LENGTH as u32;
 
