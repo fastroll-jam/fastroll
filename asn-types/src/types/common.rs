@@ -23,7 +23,7 @@ use fr_common::{
     workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         ReportedWorkPackage, SegmentRootLookupTable, WorkDigest, WorkDigests,
-        WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
+        WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
     ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
@@ -746,7 +746,7 @@ pub enum AsnWorkExecResult {
     out_of_gas,
     panic,
     bad_exports,
-    oversize,
+    // oversize,
     bad_code,
     code_oversize,
 }
@@ -758,7 +758,7 @@ impl From<AsnWorkExecResult> for WorkExecutionResult {
             AsnWorkExecResult::out_of_gas => Self::Error(OutOfGas),
             AsnWorkExecResult::panic => Self::Error(Panic),
             AsnWorkExecResult::bad_exports => Self::Error(BadExports),
-            AsnWorkExecResult::oversize => Self::Error(Oversize),
+            // AsnWorkExecResult::oversize => Self::Error(Oversize),
             AsnWorkExecResult::bad_code => Self::Error(Bad),
             AsnWorkExecResult::code_oversize => Self::Error(Big),
         }
@@ -772,7 +772,7 @@ impl From<WorkExecutionResult> for AsnWorkExecResult {
             WorkExecutionResult::Error(OutOfGas) => Self::out_of_gas,
             WorkExecutionResult::Error(Panic) => Self::panic,
             WorkExecutionResult::Error(BadExports) => Self::bad_exports,
-            WorkExecutionResult::Error(Oversize) => Self::oversize,
+            // WorkExecutionResult::Error(Oversize) => Self::oversize,
             WorkExecutionResult::Error(Bad) => Self::bad_code,
             WorkExecutionResult::Error(Big) => Self::code_oversize,
         }
