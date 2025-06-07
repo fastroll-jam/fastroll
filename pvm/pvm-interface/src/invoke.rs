@@ -1,6 +1,9 @@
 use crate::{error::PVMError, pvm::PVM};
 use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, UnsignedGas};
-use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
+use fr_pvm_core::{
+    interpreter::Interpreter,
+    state::state_change::{HostCallVMStateChange, VMStateMutator},
+};
 use fr_pvm_host::{
     context::InvocationContext,
     error::HostCallError::InvalidExitReason,
@@ -227,7 +230,7 @@ impl PVMInterface {
             HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
             HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,
             HostCallType::POKE => HostFunction::host_poke(&pvm.state, context)?,
-            HostCallType::PAGES => HostFunction::host_pages(&pvm.state, context)?,
+            // HostCallType::PAGES => HostFunction::host_pages(&pvm.state, context)?,
             HostCallType::INVOKE => HostFunction::host_invoke(&pvm.state, context)?,
             HostCallType::EXPUNGE => HostFunction::host_expunge(&pvm.state, context)?,
 
@@ -256,9 +259,16 @@ impl PVMInterface {
                 HostFunction::host_forget(&pvm.state, state_manager, context).await?
             }
             HostCallType::YIELD => HostFunction::host_yield(&pvm.state, context).await?,
-            HostCallType::PROVIDE => {
-                HostFunction::host_provide(service_id, &pvm.state, state_manager, context).await?
-            }
+            // HostCallType::PROVIDE => {
+            //     HostFunction::host_provide(service_id, &pvm.state, state_manager, context).await?
+            // }
+            _ => HostCallResult {
+                vm_change: HostCallVMStateChange {
+                    gas_charge: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
         };
 
         Ok(result)
