@@ -1354,11 +1354,14 @@ impl HostFunction {
 
         let (r7, r8) = match entry.value.len() {
             0 => (0, 0),
-            1 => (1 + entry.value[0].slot() * (1 << 32), 0),
-            2 => (2 + entry.value[0].slot() * (1 << 32), entry.value[1].slot()),
+            1 => (1 + entry.value[0].slot() as u64 * (1 << 32), 0),
+            2 => (
+                2 + entry.value[0].slot() as u64 * (1 << 32),
+                entry.value[1].slot() as u64,
+            ),
             3 => (
-                3 + entry.value[0].slot() * (1 << 32),
-                entry.value[1].slot() + entry.value[2].slot() * (1 << 32),
+                3 + entry.value[0].slot() as u64 * (1 << 32),
+                entry.value[1].slot() as u64 + entry.value[2].slot() as u64 * (1 << 32),
             ),
             _ => panic!("Should not have more than 3 timeslot values"),
         };
