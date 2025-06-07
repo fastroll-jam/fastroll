@@ -169,7 +169,10 @@ async fn handle_per_block_transition(
     }
 
     state_manager
-        .with_mut_onchain_statistics(StateMut::Update, |stats| stats.core_stats = core_stats)
+        .with_mut_onchain_statistics(StateMut::Update, |stats| {
+            stats.core_stats = core_stats;
+            stats.service_stats = service_stats;
+        })
         .await?;
 
     Ok(())
