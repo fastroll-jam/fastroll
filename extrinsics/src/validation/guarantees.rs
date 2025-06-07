@@ -477,7 +477,7 @@ impl GuaranteesXtValidator {
         // Verify the timeslot of the work report is within a valid range (not older than the previous guarantor rotation)
         if entry_timeslot_index
             < GUARANTOR_ROTATION_PERIOD as u32
-                * ((current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32) - 1)
+                * ((current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32).saturating_sub(1))
         {
             return Err(XtError::WorkReportTimeslotTooOld);
         }
