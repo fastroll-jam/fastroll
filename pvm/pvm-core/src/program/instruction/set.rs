@@ -316,6 +316,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm1()?);
+        tracing::trace!("{:?} target: {target}\n", ins.op);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
@@ -346,6 +347,7 @@ impl InstructionSet {
         let imm1 = ins.imm1()?;
         let jump_address = reg_to_usize(rs1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -715,6 +717,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
+        tracing::trace!("{:?} target: {target}\n", ins.op);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
 
         Ok(SingleStepResult {
@@ -739,6 +742,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? == ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -761,6 +765,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? != ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -783,6 +788,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? < ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -805,6 +811,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? <= ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -827,6 +834,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? >= ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -849,6 +857,7 @@ impl InstructionSet {
         let condition = vm_state.read_rs1(ins)? > ins.imm1()?;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -873,6 +882,7 @@ impl InstructionSet {
         let condition = rs1_val < imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -898,6 +908,7 @@ impl InstructionSet {
         let condition = rs1_val <= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -922,6 +933,7 @@ impl InstructionSet {
         let condition = rs1_val >= imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -946,6 +958,7 @@ impl InstructionSet {
         let condition = rs1_val > imm_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2175,6 +2188,7 @@ impl InstructionSet {
         let condition = rs1_val == rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2199,6 +2213,7 @@ impl InstructionSet {
         let condition = rs1_val != rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2222,6 +2237,7 @@ impl InstructionSet {
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val < rs2_val;
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2247,6 +2263,7 @@ impl InstructionSet {
         let condition = rs1_val_s < rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2271,6 +2288,7 @@ impl InstructionSet {
         let condition = rs1_val >= rs2_val;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2295,6 +2313,7 @@ impl InstructionSet {
         let condition = rs1_val_s >= rs2_val_s;
 
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,
@@ -2320,6 +2339,7 @@ impl InstructionSet {
         let jump_address =
             reg_to_usize(vm_state.read_rs2(ins)?.wrapping_add(ins.imm2()?) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
+        tracing::trace!("{:?} target: {target}\n", ins.op);
 
         Ok(SingleStepResult {
             exit_reason,

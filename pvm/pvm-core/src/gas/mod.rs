@@ -12,7 +12,7 @@ impl GasCharger {
         let gas_charge_signed: SignedGas = gas_charge
             .try_into()
             .map_err(|_| VMCoreError::TooLargeGasCharge(gas_charge))?;
-        vm_state
+        vm_state.gas_counter = vm_state
             .gas_counter
             .checked_sub(gas_charge_signed)
             .ok_or(VMCoreError::GasCounterOverflow)?;

@@ -17,7 +17,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct StorageUsageDelta {
     pub items_count_delta: i32,
     pub octets_delta: i64,
@@ -32,11 +32,13 @@ impl StorageUsageDelta {
     }
 }
 
+#[derive(Debug)]
 pub struct AccountStorageUsageDelta {
     pub storage_delta: StorageUsageDelta,
     pub lookups_delta: StorageUsageDelta,
 }
 
+#[derive(Debug)]
 struct FootprintDelta {
     items_footprint_delta: i32,
     octets_footprint_delta: i64,
@@ -48,6 +50,7 @@ impl FootprintDelta {
     }
 }
 
+#[derive(Debug)]
 pub struct AccountFootprintDelta {
     storage_delta: FootprintDelta,
     lookups_delta: FootprintDelta,
@@ -442,7 +445,7 @@ impl AccountLookupsEntry {
 /// An extended type of `AccountLookupsEntry` that include additional metadata about the preimage
 /// entry size in octets. This is useful for tracking storage usage and calculating threshold balance
 /// of an account. This is NOT serialized as part of the global state.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AccountLookupsEntryExt {
     /// Length of the preimage data, which is also part of the lookups key
     pub preimage_length: u32,
