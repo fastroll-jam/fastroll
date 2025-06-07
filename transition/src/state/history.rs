@@ -44,7 +44,7 @@ pub async fn transition_block_history_append(
     state_manager: Arc<StateManager>,
     header_hash: Hash32,
     accumulate_root: Hash32,
-    reported_packages: Vec<ReportedWorkPackage>,
+    mut reported_packages: Vec<ReportedWorkPackage>,
 ) -> Result<(), TransitionError> {
     let block_history = state_manager.get_block_history().await?;
     let mut mmr = match block_history.get_latest_history().cloned() {
@@ -52,6 +52,9 @@ pub async fn transition_block_history_append(
         None => MerkleMountainRange::new(),
     };
     mmr.append(accumulate_root)?;
+
+    // `report_packages` entries must be sorted
+    reported_packages.sort_unstable();
 
     state_manager
         .with_mut_block_history(StateMut::Update, |history| {
