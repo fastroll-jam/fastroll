@@ -14,7 +14,7 @@ use fr_pvm_interface::{
 };
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
-    invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
+    invoke_args::{AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
 };
 use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
@@ -27,7 +27,7 @@ struct AccumulateVMArgs {
     /// `s` of `AccumulateInvokeArgs`
     accumulate_host: ServiceId,
     /// Length of **`o`** of `AccumulateInvokeArgs`
-    operands_count: usize,
+    operands_count: Vec<AccumulateOperand>,
 }
 
 #[derive(Default)]
@@ -89,7 +89,7 @@ impl AccumulateInvocation {
         let vm_args = AccumulateVMArgs {
             timeslot_index: args.curr_timeslot_index,
             accumulate_host: args.accumulate_host,
-            operands_count: args.operands.len(),
+            operands_count: args.operands.clone(),
         };
 
         let ctx = AccumulateHostContext::new(
