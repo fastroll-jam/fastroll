@@ -163,30 +163,30 @@ impl ValidatorStats {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct CoreStatsEntry {
-    /// `i`: The number of imported segments in the core.
-    pub imports_count: u16,
-    /// `x`: The number of extrinsics items used in the core.
-    pub extrinsics_count: u16,
-    /// `z`: The total size of extrinsics used in the core, in octets.
-    pub extrinsics_octets: u32,
-    /// `e`: The number of exported segments in the core.
-    pub exports_count: u16,
-    /// `u`: The actual amount of gas used during refinement in the core.
-    pub refine_gas_used: UnsignedGas,
-    /// `b`: Auditable work bundle length.
-    pub work_bundle_length: u32,
     /// `d`: The size of items placed in the Audit DA and the Import DA by available work reports in the core.
     pub da_items_size: u32,
     /// `p`: The number of assurers who attested availability for a work report in the core.
     pub assurers_count: u16,
+    /// `i`: The number of imported segments in the core.
+    pub imports_count: u16,
+    /// `e`: The number of exported segments in the core.
+    pub exports_count: u16,
+    /// `z`: The total size of extrinsics used in the core, in octets.
+    pub extrinsics_octets: u32,
+    /// `x`: The number of extrinsics items used in the core.
+    pub extrinsics_count: u16,
+    /// `b`: Auditable work bundle length.
+    pub work_bundle_length: u32,
+    /// `u`: The actual amount of gas used during refinement in the core.
+    pub refine_gas_used: UnsignedGas,
 }
 
 impl CoreStatsEntry {
     pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
         self.imports_count += refine_stats.imports_count;
-        self.extrinsics_count += refine_stats.extrinsics_count;
-        self.extrinsics_octets += refine_stats.extrinsics_octets;
         self.exports_count += refine_stats.exports_count;
+        self.extrinsics_octets += refine_stats.extrinsics_octets;
+        self.extrinsics_count += refine_stats.extrinsics_count;
         self.refine_gas_used += refine_stats.refine_gas_used;
     }
 }
@@ -205,26 +205,26 @@ impl CoreStats {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct ServiceStatsEntry {
-    /// `i`: The number of imported segments by the service.
-    pub imports_count: u16,
-    /// `x`: The number of extrinsics items used by the service.
-    pub extrinsics_count: u16,
-    /// `z`: The total size of extrinsics used by the service, in octets.
-    pub extrinsics_octets: u32,
-    /// `e`: The number of exported segments by the service.
-    pub exports_count: u16,
-    /// `r.0`: The number of work digests associated with the service.
-    pub work_digests_count: u16,
-    /// `r.1`: The actual amount of gas used during refinement of the service.
-    pub refine_gas_used: UnsignedGas,
     /// `p.0`: The number of preimage extrinsics introduced in the block, requested by the service.
     pub preimage_xts_count: u16,
     /// `p.1`: The total size of preimage extrinsics introduced in the block, requested by the service.
     pub preimage_blob_size: u32,
-    /// `a.0`: The total amount of gas used in the block by accumulation of the service.
-    pub accumulate_gas_used: UnsignedGas,
-    /// `a.1`: The number of accumulated reports in the block by the service.
+    /// `r.0`: The number of work digests associated with the service.
+    pub work_digests_count: u32,
+    /// `r.1`: The actual amount of gas used during refinement of the service.
+    pub refine_gas_used: UnsignedGas,
+    /// `i`: The number of imported segments by the service.
+    pub imports_count: u32,
+    /// `e`: The number of exported segments by the service.
+    pub exports_count: u32,
+    /// `z`: The total size of extrinsics used by the service, in octets.
+    pub extrinsics_octets: u32,
+    /// `x`: The number of extrinsics items used by the service.
+    pub extrinsics_count: u32,
+    /// `a.0`: The number of accumulated reports in the block by the service.
     pub accumulate_reports_count: u32,
+    /// `a.1`: The total amount of gas used in the block by accumulation of the service.
+    pub accumulate_gas_used: UnsignedGas,
     /// `t.0`: The number of transfers to the service in the block.
     pub on_transfer_transfers_count: u32,
     /// `t.1`: The total amount of gas used in the block by transfers to the service.
@@ -233,12 +233,12 @@ pub struct ServiceStatsEntry {
 
 impl ServiceStatsEntry {
     pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
-        self.imports_count += refine_stats.imports_count;
-        self.extrinsics_count += refine_stats.extrinsics_count;
-        self.extrinsics_octets += refine_stats.extrinsics_octets;
-        self.exports_count += refine_stats.exports_count;
-        self.refine_gas_used += refine_stats.refine_gas_used;
         self.work_digests_count += 1;
+        self.refine_gas_used += refine_stats.refine_gas_used;
+        self.imports_count += refine_stats.imports_count as u32;
+        self.extrinsics_count += refine_stats.extrinsics_count as u32;
+        self.extrinsics_octets += refine_stats.extrinsics_octets;
+        self.exports_count += refine_stats.exports_count as u32;
     }
 
     pub fn add_preimage_load(&mut self, preimage: &PreimagesXtEntry) {
