@@ -278,53 +278,106 @@ pub fn get_account_metadata_state_key(s: ServiceId) -> StateKey {
     key
 }
 
+// FIXME: Outdated (GP v0.6.6).
 fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
     let mut key = StateKey::default();
-    let encoded = s
-        .encode_fixed(4)
-        .expect("4-byte encoding of u32 type should be successful");
-    let storage_key_component_hash = hash::<Blake2b256>(h).unwrap();
+    let s_bytes = s.to_be_bytes();
     for i in 0..4 {
-        key[i * 2] = encoded[i]; // 0, 2, 4, 6
-        key[i * 2 + 1] = storage_key_component_hash[i]; // 1, 3, 5, 7
+        key[i * 2] = s_bytes[i]; // 0, 2, 4, 6
+        key[i * 2 + 1] = h[i]; // 1, 3, 5, 7
     }
-    key[8..31].copy_from_slice(&storage_key_component_hash[4..27]);
+    key[8..31].copy_from_slice(&h[4..27]);
     key
 }
 
-pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Octets) -> StateKey {
-    let mut key_with_prefix = Vec::with_capacity(4 + storage_key.len());
+// fn construct_storage_state_key(s: ServiceId, h: &[u8]) -> StateKey {
+//     let mut key = StateKey::default();
+//     let encoded = s
+//         .encode_fixed(4)
+//         .expect("4-byte encoding of u32 type should be successful");
+//     let storage_key_component_hash = hash::<Blake2b256>(h).unwrap();
+//     for i in 0..4 {
+//         key[i * 2] = encoded[i]; // 0, 2, 4, 6
+//         key[i * 2 + 1] = storage_key_component_hash[i]; // 1, 3, 5, 7
+//     }
+//     key[8..31].copy_from_slice(&storage_key_component_hash[4..27]);
+//     key
+// }
+
+// FIXME: Outdated (GP v0.6.6).
+pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Hash32) -> StateKey {
+    let mut key_with_prefix = Vec::with_capacity(4 + 28);
     key_with_prefix.extend(
         u32::MAX
             .encode_fixed(4)
             .expect("encoding u32 should be successful"),
     );
-    key_with_prefix.extend(storage_key.clone().into_vec());
+    key_with_prefix.extend(&storage_key[0..28]);
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
+// pub fn get_account_storage_state_key(s: ServiceId, storage_key: &Octets) -> StateKey {
+//     let mut key_with_prefix = Vec::with_capacity(4 + storage_key.len());
+//     key_with_prefix.extend(
+//         u32::MAX
+//             .encode_fixed(4)
+//             .expect("encoding u32 should be successful"),
+//     );
+//     key_with_prefix.extend(storage_key.clone().into_vec());
+//     construct_storage_state_key(s, key_with_prefix.as_slice())
+// }
+
+// FIXME: Outdated (GP v0.6.6).
 pub fn get_account_preimage_state_key(s: ServiceId, preimage_key: &Hash32) -> StateKey {
-    let mut key_with_prefix = ByteArray::<36>::default();
+    let mut key_with_prefix = ByteArray::<32>::default();
     key_with_prefix[0..4].copy_from_slice(
         &(u32::MAX - 1)
             .encode_fixed(4)
             .expect("encoding u32 should be successful"),
     );
-    key_with_prefix[4..].copy_from_slice(preimage_key.as_slice());
+    key_with_prefix[4..].copy_from_slice(&preimage_key[1..29]);
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
+// pub fn get_account_preimage_state_key(s: ServiceId, preimage_key: &Hash32) -> StateKey {
+//     let mut key_with_prefix = ByteArray::<36>::default();
+//     key_with_prefix[0..4].copy_from_slice(
+//         &(u32::MAX - 1)
+//             .encode_fixed(4)
+//             .expect("encoding u32 should be successful"),
+//     );
+//     key_with_prefix[4..].copy_from_slice(preimage_key.as_slice());
+//     construct_storage_state_key(s, key_with_prefix.as_slice())
+// }
+
+// FIXME: Outdated (GP v0.6.6).
 pub fn get_account_lookups_state_key(
     s: ServiceId,
     lookups_key: &LookupsKey,
 ) -> Result<StateKey, CryptoError> {
     let (h, l) = lookups_key;
-    let mut key_with_prefix = ByteArray::<36>::default();
+    let mut key_with_prefix = ByteArray::<31>::default();
     key_with_prefix[0..4].copy_from_slice(
         &l.encode_fixed(4)
             .expect("encoding u32 should be successful"),
     );
-    key_with_prefix[4..].copy_from_slice(h.as_slice());
+    let h_hash = hash::<Blake2b256>(h.as_slice())?;
+    key_with_prefix[4..].copy_from_slice(&h_hash[2..29]);
 
     Ok(construct_storage_state_key(s, key_with_prefix.as_slice()))
 }
+
+// pub fn get_account_lookups_state_key(
+//     s: ServiceId,
+//     lookups_key: &LookupsKey,
+// ) -> Result<StateKey, CryptoError> {
+//     let (h, l) = lookups_key;
+//     let mut key_with_prefix = ByteArray::<36>::default();
+//     key_with_prefix[0..4].copy_from_slice(
+//         &l.encode_fixed(4)
+//             .expect("encoding u32 should be successful"),
+//     );
+//     key_with_prefix[4..].copy_from_slice(h.as_slice());
+//
+//     Ok(construct_storage_state_key(s, key_with_prefix.as_slice()))
+// }
