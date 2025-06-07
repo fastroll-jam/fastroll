@@ -27,7 +27,7 @@ use fr_transition::{
             transition_reports_update_entries,
         },
         safrole::transition_safrole,
-        services::transition_on_accumulate,
+        services::{transition_on_accumulate, transition_services_integrate_preimages},
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
@@ -68,6 +68,7 @@ impl BlockExecutor {
         let assurances_xt = block.extrinsics.assurances.clone();
         let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
+        let preimages_xt = block.extrinsics.preimages.clone();
         let prev_timeslot = storage.state_manager().get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
         let parent_hash = block.header.data.parent_hash.clone();
@@ -111,6 +112,13 @@ impl BlockExecutor {
         let active_set_jh = spawn_timed("active_set_stf", async move {
             transition_active_set(manager, epoch_progressed).await
         });
+
+        // BlockHistory STF (the first half only)
+        let manager = storage.state_manager();
+        spawn_timed("history_stf", async move {
+            transition_block_history_parent_root(manager.clone(), parent_state_root).await
+        })
+        .await??;
 
         // Reports STF
         // TODO: remove `unwrap`s
@@ -196,10 +204,10 @@ impl BlockExecutor {
         // Join remaining STF tasks
         let (accumulate_root, _, _, _) = try_join!(acc_jh, auth_pool_jh, safrole_jh, stats_jh)?;
 
-        // BlockHistory STF (the first half only)
+        // Preimage integration STF
         let manager = storage.state_manager();
-        spawn_timed("history_stf", async move {
-            transition_block_history_parent_root(manager.clone(), parent_state_root).await
+        spawn_timed("preimage_stf", async move {
+            transition_services_integrate_preimages(manager.clone(), &preimages_xt).await
         })
         .await??;
 
