@@ -96,10 +96,8 @@ impl From<AsnRawState> for RawState {
 
 struct BlockImportHarness;
 impl BlockImportHarness {
-    fn load_test_case(path_prefix: &Path, filename: &Path) -> AsnTestCase {
-        let path = path_prefix.join(filename);
-        let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
-        let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
+    fn load_test_case(file_path: &Path) -> AsnTestCase {
+        let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
@@ -168,14 +166,12 @@ impl BlockImportHarness {
     }
 }
 
-pub async fn run_test_case(path_prefix: &str, filename: &str) -> Result<(), Box<dyn Error>> {
+pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
     // load test case
-    let path_prefix = PathBuf::from(path_prefix);
-    let filename = PathBuf::from(filename);
-    let test_case = BlockImportHarness::load_test_case(&path_prefix, &filename);
+    let test_case = BlockImportHarness::load_test_case(&PathBuf::from(file_path));
     let test_case = BlockImportHarness::convert_test_case(test_case);
 
     // init node storage
