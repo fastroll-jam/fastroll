@@ -135,7 +135,7 @@ impl AccumulateInvocation {
                     partial_state: x.partial_state,
                     deferred_transfers: x.deferred_transfers,
                     yielded_accumulate_hash: accumulate_result_hash,
-                    gas_used: x.gas_used,
+                    gas_used: result.gas_used,
                     accumulate_host: x.accumulate_host,
                     provided_preimages: x.provided_preimages,
                 })
@@ -144,7 +144,7 @@ impl AccumulateInvocation {
                 partial_state: x.partial_state,
                 deferred_transfers: x.deferred_transfers,
                 yielded_accumulate_hash: x.yielded_accumulate_hash,
-                gas_used: x.gas_used,
+                gas_used: result.gas_used,
                 accumulate_host: x.accumulate_host,
                 provided_preimages: x.provided_preimages,
             }),
@@ -153,7 +153,7 @@ impl AccumulateInvocation {
                     partial_state: y.partial_state,
                     deferred_transfers: y.deferred_transfers,
                     yielded_accumulate_hash: y.yielded_accumulate_hash,
-                    gas_used: x.gas_used, // Note: taking gas usage from the `x` context
+                    gas_used: result.gas_used, // Note: taking gas usage from the `x` context
                     accumulate_host: x.accumulate_host,
                     provided_preimages: y.provided_preimages,
                 })
