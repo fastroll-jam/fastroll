@@ -27,7 +27,10 @@ use fr_transition::{
             transition_reports_update_entries,
         },
         safrole::transition_safrole,
-        services::{transition_on_accumulate, transition_services_integrate_preimages},
+        services::{
+            transition_on_accumulate, transition_services_integrate_preimages,
+            transition_services_on_transfer,
+        },
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
@@ -167,18 +170,12 @@ impl BlockExecutor {
             .await
         });
 
-        // OnChainStatistics STF
-        let manager = storage.state_manager();
-        let stats_jh = spawn_timed("stats_stf", async move {
-            transition_onchain_statistics(manager, epoch_progressed, author_index, &xt_cloned).await
-        });
-
         // Accumulate STF
         let (available_reports, reported_packages) = reports_jh.await?;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
         let acc_history = storage.state_manager().get_accumulate_history().await?;
         let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
-            available_reports,
+            available_reports.clone(),
             &acc_queue,
             &acc_history,
             prev_timeslot.slot(),
@@ -198,16 +195,44 @@ impl BlockExecutor {
             transition_accumulate_queue(manager, &queued_reports, prev_timeslot, curr_timeslot)
                 .await
                 .unwrap();
-            accumulate_result_commitment(acc_summary.output_pairs)
+            (
+                acc_summary.deferred_transfers,
+                acc_summary.accumulate_stats,
+                accumulate_result_commitment(acc_summary.output_pairs),
+            )
         });
 
         // Join remaining STF tasks
-        let (accumulate_root, _, _, _) = try_join!(acc_jh, auth_pool_jh, safrole_jh, stats_jh)?;
+        let ((transfers, acc_stats, accumulate_root), _, _) =
+            try_join!(acc_jh, auth_pool_jh, safrole_jh)?;
+
+        // On-transfer STF
+        let manager = storage.state_manager();
+        let transfer_stats = spawn_timed("on_transfer_stf", async move {
+            transition_services_on_transfer(manager, &transfers).await
+        })
+        .await??;
+
+        // OnChainStatistics STF
+        let manager = storage.state_manager();
+        spawn_timed("stats_stf", async move {
+            transition_onchain_statistics(
+                manager,
+                epoch_progressed,
+                author_index,
+                &xt_cloned,
+                &available_reports,
+                acc_stats,
+                transfer_stats,
+            )
+            .await
+        })
+        .await??;
 
         // Preimage integration STF
         let manager = storage.state_manager();
         spawn_timed("preimage_stf", async move {
-            transition_services_integrate_preimages(manager.clone(), &preimages_xt).await
+            transition_services_integrate_preimages(manager, &preimages_xt).await
         })
         .await??;
 

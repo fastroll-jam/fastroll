@@ -17,6 +17,9 @@ pub async fn transition_onchain_statistics(
     epoch_progressed: bool,
     header_block_author_index: ValidatorIndex,
     xts: &Extrinsics,
+    available_reports: &[WorkReport],
+    accumulate_stats: AccumulateStats,
+    on_transfer_stats: OnTransferStats,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone()).await?;
@@ -25,16 +28,12 @@ pub async fn transition_onchain_statistics(
     // Validator stats accumulator transition (the first entry of the `ValidatorStats`)
     handle_validator_stats_accumulation(state_manager.clone(), header_block_author_index, xts)
         .await?;
-    // FIXME: Available reports, accumulate stats and on-transfer stats should be passes as args of the stats STF.
-    let available_reports: Vec<WorkReport> = Vec::new();
-    let accumulate_stats: AccumulateStats = AccumulateStats::default();
-    let on_transfer_stats: OnTransferStats = OnTransferStats::default();
     handle_per_block_transition(
         state_manager,
         &xts.assurances,
         &xts.guarantees,
         &xts.preimages,
-        &available_reports,
+        available_reports,
         &accumulate_stats,
         &on_transfer_stats,
     )

@@ -203,7 +203,6 @@ pub struct AccumulateHostContext {
     pub invoke_args: AccumulateInvokeArgs,
     /// Current entropy value (`η0′`)
     pub curr_entropy: Hash32,
-    pub gas_used: UnsignedGas,
 }
 
 impl AccumulateHostContext {
