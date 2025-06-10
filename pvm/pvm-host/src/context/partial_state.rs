@@ -447,7 +447,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
     ) -> Result<Option<SandboxEntryVersioned<AccountStorageEntry>>, PartialStateError> {
         let Some(sandbox) = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
