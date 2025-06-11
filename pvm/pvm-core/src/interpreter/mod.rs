@@ -88,8 +88,6 @@ impl Interpreter {
         program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
         program_code: &[u8],
     ) -> Result<ExitReason, VMCoreError> {
-        tracing::info!("Ψ invoked.");
-
         // Ensure the program state is initialized only once, as the general invocation
         // is triggered within a loop during the extended invocation.
         if !program_state.is_loaded {
@@ -120,8 +118,8 @@ impl Interpreter {
                 return Ok(ExitReason::OutOfGas);
             }
 
-            tracing::trace!(
-                "Op: {:?}({}), pc: {}, gas: {}, regs: {:?}",
+            tracing::debug!(
+                "{:?}({}) pc={} gas={} regs={:?}",
                 inst.op,
                 inst.op as u8,
                 vm_state.pc,

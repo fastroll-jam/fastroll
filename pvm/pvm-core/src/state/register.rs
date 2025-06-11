@@ -1,10 +1,17 @@
 use crate::error::VMCoreError;
 use fr_common::ServiceId;
 use fr_pvm_types::common::{MemAddress, RegValue};
+use std::fmt::{Debug, Formatter};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct Register {
     pub value: RegValue,
+}
+
+impl Debug for Register {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.value)
+    }
 }
 
 impl Register {
