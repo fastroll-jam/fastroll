@@ -30,6 +30,10 @@ impl StorageUsageDelta {
             octets_delta,
         }
     }
+
+    pub fn is_zero(&self) -> bool {
+        self.items_count_delta == 0 && self.octets_delta == 0
+    }
 }
 
 #[derive(Debug)]

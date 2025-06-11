@@ -28,7 +28,7 @@ use fr_pvm_types::{
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
 };
 use fr_state::{
-    error::StateManagerError::{LookupsEntryNotFound, StorageEntryNotFound},
+    error::StateManagerError::LookupsEntryNotFound,
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
@@ -505,18 +505,20 @@ impl HostFunction {
             maybe_prev_storage_entry.as_ref(),
             new_storage_entry.as_ref(),
         )
-        .ok_or(HostCallError::StateManagerError(StorageEntryNotFound))?;
+        .unwrap_or_default(); // Attempting to delete a storage entry that doesn't exist is basically a no-op
 
-        let metadata = accounts_sandbox
-            .get_account_metadata(state_manager.clone(), service_id)
-            .await?
-            .ok_or(HostCallError::AccountNotFound)?;
+        if !storage_usage_delta.is_zero() {
+            let metadata = accounts_sandbox
+                .get_account_metadata(state_manager.clone(), service_id)
+                .await?
+                .ok_or(HostCallError::AccountNotFound)?;
 
-        let simulated_threshold_balance =
-            metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
+            let simulated_threshold_balance =
+                metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
 
-        if simulated_threshold_balance > metadata.balance {
-            continue_full!()
+            if simulated_threshold_balance > metadata.balance {
+                continue_full!()
+            }
         }
 
         // Apply the state change
