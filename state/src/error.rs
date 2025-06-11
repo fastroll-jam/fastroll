@@ -17,8 +17,6 @@ pub enum StateManagerError {
     UnexpectedEntryType,
     #[error("Account not found")]
     AccountNotFound,
-    #[error("Account storage dictionary entry not found")]
-    StorageEntryNotFound,
     #[error("Account lookups dictionary entry not found")]
     LookupsEntryNotFound,
     #[error("Wrong StateMut operation type")]
