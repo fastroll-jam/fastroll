@@ -19,7 +19,7 @@ mod authorizations {
 
     #[async_trait]
     impl StateTransitionTest for AuthorizationsTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/authorizations/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/authorizations/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

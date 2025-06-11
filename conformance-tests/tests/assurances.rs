@@ -24,7 +24,7 @@ mod assurances {
 
     #[async_trait]
     impl StateTransitionTest for AssurancesTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/assurances/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/assurances/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

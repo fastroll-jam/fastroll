@@ -23,7 +23,7 @@ mod disputes {
 
     #[async_trait]
     impl StateTransitionTest for DisputesTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/disputes/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/disputes/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

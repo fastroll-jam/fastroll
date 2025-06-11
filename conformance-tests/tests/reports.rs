@@ -28,7 +28,7 @@ mod reports {
 
     #[async_trait]
     impl StateTransitionTest for ReportsTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/reports/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/reports/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

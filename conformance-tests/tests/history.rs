@@ -19,7 +19,7 @@ mod history {
 
     #[async_trait]
     impl StateTransitionTest for HistoryTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/history/data";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/history/data";
 
         type Input = Input;
         type JamInput = JamInput;

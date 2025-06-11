@@ -39,7 +39,7 @@ mod accumulate {
 
     #[async_trait]
     impl StateTransitionTest for AccumulateTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/accumulate/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/accumulate/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

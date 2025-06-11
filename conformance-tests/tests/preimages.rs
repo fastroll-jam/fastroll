@@ -21,7 +21,7 @@ mod preimages {
 
     #[async_trait]
     impl StateTransitionTest for PreimagesTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/preimages/data";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/preimages/data";
 
         type Input = Input;
         type JamInput = JamInput;

@@ -40,7 +40,7 @@ mod safrole {
 
     #[async_trait]
     impl StateTransitionTest for SafroleTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/safrole/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/safrole/tiny";
 
         type Input = Input;
         type JamInput = JamInput;

@@ -23,7 +23,7 @@ mod statistics {
 
     #[async_trait]
     impl StateTransitionTest for StatisticsTest {
-        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/statistics/tiny";
+        const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/statistics/tiny";
 
         type Input = Input;
         type JamInput = JamInput;
