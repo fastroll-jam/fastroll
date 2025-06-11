@@ -244,7 +244,7 @@ impl Memory {
     /// Check if a range of memory pages is readable.
     pub fn is_page_range_readable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
         if page_range.is_empty() {
-            return Ok(false);
+            return Ok(true);
         }
         for page_index in page_range.clone() {
             if !self.is_page_readable(page_index)? {
@@ -261,7 +261,7 @@ impl Memory {
         length: usize,
     ) -> Result<bool, MemoryError> {
         if length == 0 {
-            return Ok(false);
+            return Ok(true);
         }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
@@ -303,7 +303,7 @@ impl Memory {
     /// Check if a range of memory pages is writable.
     pub fn is_page_range_writable(&self, page_range: Range<usize>) -> Result<bool, MemoryError> {
         if page_range.is_empty() {
-            return Ok(false);
+            return Ok(true);
         }
         for page_index in page_range {
             if !self.is_page_writable(page_index)? {
@@ -320,7 +320,7 @@ impl Memory {
         length: usize,
     ) -> Result<bool, MemoryError> {
         if length == 0 {
-            return Ok(false);
+            return Ok(true);
         }
         let (start_page, _) = self.get_page_and_offset(start);
         let (end_page, _) = self.get_page_and_offset(start + (length - 1) as MemAddress);
