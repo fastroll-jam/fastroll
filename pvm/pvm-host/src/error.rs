@@ -26,6 +26,10 @@ pub enum HostCallError {
     BalanceOverflow,
     #[error("Account not found from the global account state")]
     AccountNotFound,
+    #[error("Failed to insert an entry from an account storage")]
+    AccountStorageInsertionFailed,
+    #[error("Failed to remove an entry from an account storage")]
+    AccountStorageRemovalFailed,
     #[error("Exit reason of the PVM invocation is invalid")]
     InvalidExitReason,
     #[error("State manager holding polluted data")]

@@ -369,8 +369,12 @@ impl HostFunction {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let hash_offset = vm.regs[8].as_mem_address()?; // h
-        let buf_offset = vm.regs[9].as_mem_address()?; // o
+        let Ok(hash_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(buf_offset) = vm.regs[9].as_mem_address() else {
+            host_call_panic!()
+        };
 
         let service_id = if service_id_reg == u64::MAX || service_id_reg == service_id as u64 {
             service_id
@@ -383,19 +387,28 @@ impl HostFunction {
         }
 
         // Read preimage storage key (hash) from the memory
-        let hash = octets_to_hash32(&vm.memory.read_bytes(hash_offset, 32)?)
+        let Ok(hash_octets) = vm.memory.read_bytes(hash_offset, 32) else {
+            host_call_panic!()
+        };
+        let hash = octets_to_hash32(&hash_octets)
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
-        let Some(entry) = accounts_sandbox
+        let Ok(Some(entry)) = accounts_sandbox
             .get_account_preimages_entry(state_manager, service_id, &hash)
-            .await?
+            .await
         else {
             continue_none!()
         };
 
         let preimage_size = entry.value.len();
-        let preimage_offset = vm.regs[10].as_usize()?.min(preimage_size); // f
-        let lookup_size = vm.regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
+        let preimage_offset = vm.regs[10]
+            .as_usize()
+            .unwrap_or(preimage_size)
+            .min(preimage_size);
+        let lookup_size = vm.regs[11]
+            .as_usize()
+            .unwrap_or(preimage_size - preimage_offset)
+            .min(preimage_size - preimage_offset);
 
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
@@ -420,9 +433,15 @@ impl HostFunction {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let key_offset = vm.regs[8].as_mem_address()?; // k_o
-        let key_size = vm.regs[9].as_usize()?; // k_z
-        let buf_offset = vm.regs[10].as_mem_address()?; // o
+        let Ok(key_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(key_size) = vm.regs[9].as_usize() else {
+            host_call_panic!()
+        };
+        let Ok(buf_offset) = vm.regs[10].as_mem_address() else {
+            host_call_panic!()
+        };
 
         let service_id = if service_id_reg == u64::MAX {
             service_id
@@ -434,20 +453,27 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let storage_key = Octets::from_vec(vm.memory.read_bytes(key_offset, key_size)?);
+        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
+            host_call_panic!()
+        };
+        let storage_key = Octets::from_vec(storage_key);
 
-        let Some(entry) = accounts_sandbox
+        let Ok(Some(entry)) = accounts_sandbox
             .get_account_storage_entry(state_manager, service_id, &storage_key)
-            .await?
+            .await
         else {
             continue_none!()
         };
 
         let storage_val_size = entry.value.len();
-        let storage_val_offset = vm.regs[11].as_usize()?.min(storage_val_size); // f
+        let storage_val_offset = vm.regs[11]
+            .as_usize()
+            .unwrap_or(storage_val_size)
+            .min(storage_val_size);
         let read_len = vm.regs[12]
-            .as_usize()?
-            .min(storage_val_size - storage_val_offset); // l
+            .as_usize()
+            .unwrap_or(storage_val_size - storage_val_offset)
+            .min(storage_val_size - storage_val_offset);
 
         if !vm.memory.is_address_range_writable(buf_offset, read_len) {
             host_call_panic!()
@@ -473,10 +499,18 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let key_offset = vm.regs[7].as_mem_address()?; // k_o
-        let key_size = vm.regs[8].as_usize()?; // k_z
-        let value_offset = vm.regs[9].as_mem_address()?; // v_o
-        let value_size = vm.regs[10].as_usize()?; // v_z
+        let Ok(key_offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(key_size) = vm.regs[8].as_usize() else {
+            host_call_panic!()
+        };
+        let Ok(value_offset) = vm.regs[9].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(value_size) = vm.regs[10].as_usize() else {
+            host_call_panic!()
+        };
 
         if !vm.memory.is_address_range_readable(key_offset, key_size)
             || (value_size > 0
@@ -487,12 +521,17 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let storage_key = Octets::from_vec(vm.memory.read_bytes(key_offset, key_size)?);
+        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
+            host_call_panic!()
+        };
+        let storage_key = Octets::from_vec(storage_key);
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
             .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
-            .await?;
+            .await
+            .ok()
+            .flatten();
 
         let prev_storage_val_size_or_return_code = if let Some(ref entry) = maybe_prev_storage_entry
         {
@@ -504,8 +543,11 @@ impl HostFunction {
         let new_storage_entry = if value_size == 0 {
             None
         } else {
+            let Ok(write_val) = vm.memory.read_bytes(value_offset, value_size) else {
+                host_call_panic!()
+            };
             Some(AccountStorageEntry {
-                value: Octets::from_vec(vm.memory.read_bytes(value_offset, value_size)?),
+                value: Octets::from_vec(write_val),
             })
         };
 
@@ -519,7 +561,7 @@ impl HostFunction {
             let metadata = accounts_sandbox
                 .get_account_metadata(state_manager.clone(), service_id)
                 .await?
-                .ok_or(HostCallError::AccountNotFound)?;
+                .ok_or(HostCallError::AccountNotFound)?; // unreachable (accumulate host / transfer subject account not found)
 
             let simulated_threshold_balance =
                 metadata.simulate_threshold_balance_after_mutation(Some(storage_usage_delta), None);
@@ -533,12 +575,14 @@ impl HostFunction {
         if let Some(new_entry) = new_storage_entry {
             accounts_sandbox
                 .insert_account_storage_entry(state_manager, service_id, storage_key, new_entry)
-                .await?;
+                .await
+                .map_err(|_| HostCallError::AccountStorageInsertionFailed)?; // unreachable (accumulate host / transfer subject account not found)
         } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
                 .remove_account_storage_entry(state_manager, service_id, storage_key)
-                .await?;
+                .await
+                .map_err(|_| HostCallError::AccountStorageRemovalFailed)?; // unreachable (accumulate host / transfer subject account not found)
         }
 
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
@@ -555,7 +599,9 @@ impl HostFunction {
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let buf_offset = vm.regs[8].as_mem_address()?; // o
+        let Ok(buf_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
 
         let service_id = if service_id_reg == u64::MAX {
             service_id
@@ -563,9 +609,9 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        let Some(metadata) = accounts_sandbox
+        let Ok(Some(metadata)) = accounts_sandbox
             .get_account_metadata(state_manager, service_id)
-            .await?
+            .await
         else {
             continue_none!()
         };
