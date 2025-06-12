@@ -117,7 +117,7 @@ impl PVMInterface {
                 if !pvm
                     .state
                     .memory
-                    .is_address_range_readable(start_address, data_len)?
+                    .is_address_range_readable(start_address, data_len)
                 {
                     return Ok(PVMInvocationResult::no_output(gas_used));
                 }
