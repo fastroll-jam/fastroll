@@ -364,7 +364,9 @@ impl Instruction {
                 u64::decode_fixed(&mut &buffer[..imm_size_val], imm_size_val)?,
                 imm_size_val,
             )
-            .ok_or(VMCoreError::InvalidInstructionFormat)?
+            .expect(
+                "imm_size_val should be a valid size input for the unsigned to signed conversion",
+            )
         } else {
             0
         };

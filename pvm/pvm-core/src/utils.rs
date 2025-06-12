@@ -72,7 +72,7 @@ impl VMUtils {
     /// # Returns
     ///
     /// The signed equivalent of the input, or None if `n` is greater than 8.
-    pub fn unsigned_to_signed(a: u64, n: usize) -> Option<i64> {
+    pub(crate) fn unsigned_to_signed(a: u64, n: usize) -> Option<i64> {
         match n {
             0..=8 => {
                 let max_positive = 1u64 << (8 * n - 1);
@@ -97,7 +97,8 @@ impl VMUtils {
     /// # Returns
     ///
     /// The unsigned equivalent of the input, or None if `n` is greater than 8.
-    pub fn signed_to_unsigned(a: i64, n: usize) -> Option<u64> {
+    #[allow(dead_code)]
+    pub(crate) fn signed_to_unsigned(a: i64, n: usize) -> Option<u64> {
         match n {
             0..=8 => {
                 let modulus = 1i64.wrapping_shl(8 * n as u32);
@@ -187,7 +188,8 @@ impl VMUtils {
     ///
     /// A vector of booleans representing the binary form of the input,
     /// or None if `n` is greater than 8.
-    pub fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
+    #[allow(dead_code)]
+    pub(crate) fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
         match n {
             0..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
@@ -232,7 +234,8 @@ impl VMUtils {
     ///
     /// The unsigned integer represented by the input binary form,
     /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
-    pub fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
+    #[allow(dead_code)]
+    pub(crate) fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
         if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
