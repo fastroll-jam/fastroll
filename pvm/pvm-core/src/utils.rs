@@ -72,14 +72,14 @@ impl VMUtils {
     /// # Returns
     ///
     /// The signed equivalent of the input, or None if `n` is greater than 8.
-    pub(crate) fn unsigned_to_signed(a: u64, n: usize) -> Option<i64> {
+    pub(crate) fn unsigned_to_signed(a: u64, n: usize) -> Option<i128> {
         match n {
             0..=8 => {
                 let max_positive = 1u64 << (8 * n - 1);
                 if a < max_positive {
-                    Some(a as i64)
+                    Some(a as i128)
                 } else {
-                    Some((a as i64) - (1i64.wrapping_shl(8 * n as u32)))
+                    Some((a as i128) - (1i128.wrapping_shl(8 * n as u32)))
                 }
             }
             _ => None,

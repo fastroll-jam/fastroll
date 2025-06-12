@@ -158,7 +158,7 @@ impl Instruction {
             JUMP_IND | LOAD_IMM | LOAD_U8 | LOAD_I8 | LOAD_U16 | LOAD_I16 | LOAD_U32 | LOAD_I32
             | LOAD_U64 | STORE_U8 | STORE_U16 | STORE_U32 | STORE_U64 => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let l_x = ImmSize::from(4.min(0.max(skip_distance - 1)));
+                let l_x = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(1))));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
 
                 Ok(Self::new(op, Some(r_a), None, None, Some(imm_x), None)?)
@@ -240,7 +240,7 @@ impl Instruction {
             | ROT_R_64_IMM_ALT | ROT_R_32_IMM | ROT_R_32_IMM_ALT => {
                 let r_a = 12.min(single_inst_blob[1] % 16) as usize;
                 let r_b = 12.min(single_inst_blob[1] / 16) as usize;
-                let l_x = ImmSize::from(4.min(0.max(skip_distance - 1)));
+                let l_x = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(1))));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
 
                 Ok(Self::new(
@@ -371,7 +371,7 @@ impl Instruction {
             0
         };
 
-        Ok((current_pc as i64 + pc_offset) as RegValue)
+        Ok((current_pc as i128 + pc_offset) as RegValue)
     }
 
     fn extract_imm_extended_width(
