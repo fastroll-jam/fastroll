@@ -647,42 +647,56 @@ impl HostFunction {
         let x = get_refine_x!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let hash_offset = vm.regs[8].as_mem_address()?;
-        let buf_offset = vm.regs[9].as_mem_address()?;
+        let Ok(hash_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(buf_offset) = vm.regs[9].as_mem_address() else {
+            host_call_panic!()
+        };
 
         let service_id = if service_id_reg == u64::MAX
             || state_manager.account_exists(refine_service_id).await?
         {
             refine_service_id
-        } else if state_manager
-            .account_exists(vm.regs[7].as_service_id()?)
-            .await?
-        {
-            vm.regs[7].as_service_id()?
         } else {
-            continue_none!()
+            let Ok(service_id_reg) = vm.regs[7].as_service_id() else {
+                continue_none!()
+            };
+            if state_manager.account_exists(service_id_reg).await? {
+                service_id_reg
+            } else {
+                continue_none!()
+            }
         };
 
         if !vm.memory.is_address_range_readable(hash_offset, HASH_SIZE) {
             host_call_panic!()
         }
 
-        let lookup_hash =
-            Hash32::decode(&mut vm.memory.read_bytes(hash_offset, HASH_SIZE)?.as_slice())?;
+        let Ok(lookup_hash_octets) = vm.memory.read_bytes(hash_offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
 
-        let preimage = state_manager
+        let Some(preimage) = state_manager
             .lookup_historical_preimage(
                 service_id,
                 &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
                 &lookup_hash,
             )
             .await?
-            .unwrap_or_default();
+        else {
+            continue_none!()
+        };
 
-        let preimage_offset = vm.regs[10].as_usize()?.min(preimage.len()); // f
+        let preimage_offset = vm.regs[10]
+            .as_usize()
+            .unwrap_or(preimage.len())
+            .min(preimage.len());
         let lookup_size = vm.regs[11]
-            .as_usize()?
-            .min(preimage.len() - preimage_offset); // l
+            .as_usize()
+            .unwrap_or(preimage.len() - preimage_offset)
+            .min(preimage.len() - preimage_offset);
 
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
@@ -705,8 +719,13 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // p
-        let export_size = vm.regs[8].as_usize()?.min(SEGMENT_SIZE); // z
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let export_size = vm.regs[8]
+            .as_usize()
+            .unwrap_or(SEGMENT_SIZE)
+            .min(SEGMENT_SIZE);
 
         if !vm.memory.is_address_range_readable(offset, export_size) {
             host_call_panic!()
@@ -718,9 +737,12 @@ impl HostFunction {
             continue_full!()
         }
 
+        let Ok(data_segment_octets) = vm.memory.read_bytes(offset, export_size) else {
+            host_call_panic!()
+        };
         let data_segment: ExportDataSegment =
-            zero_pad_as_array::<SEGMENT_SIZE>(vm.memory.read_bytes(offset, export_size)?)
-                .ok_or(HostCallError::DataSegmentTooLarge)?;
+            zero_pad_as_array::<SEGMENT_SIZE>(data_segment_octets)
+                .ok_or(HostCallError::DataSegmentTooLarge)?; // unreachable; export size bounded to `SEGMENT_SIZE`
 
         x.export_segments.push(data_segment);
 
@@ -737,9 +759,13 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let program_offset = vm.regs[7].as_mem_address()?; // p_o
-        let program_size = vm.regs[8].as_usize()?; // p_z
-        let initial_pc = vm.regs[9].value(); // i
+        let Ok(program_offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(program_size) = vm.regs[8].as_usize() else {
+            host_call_panic!()
+        };
+        let initial_pc = vm.regs[9].value();
 
         if !vm
             .memory
@@ -748,7 +774,9 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let program = vm.memory.read_bytes(program_offset, program_size)?;
+        let Ok(program) = vm.memory.read_bytes(program_offset, program_size) else {
+            host_call_panic!()
+        };
         // Validate the program blob can be `deblob`ed properly
         if ProgramLoader::deblob_program_code(&program).is_err() {
             continue_huh!()
@@ -770,10 +798,18 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // o
-        let inner_memory_offset = vm.regs[9].as_mem_address()?; // s
-        let data_size = vm.regs[10].as_usize()?; // z
+        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+            continue_who!()
+        };
+        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(inner_memory_offset) = vm.regs[9].as_mem_address() else {
+            continue_oob!()
+        };
+        let Ok(data_size) = vm.regs[10].as_usize() else {
+            continue_oob!()
+        };
 
         if !vm
             .memory
@@ -789,7 +825,9 @@ impl HostFunction {
         if !inner_memory.is_address_range_readable(inner_memory_offset, data_size) {
             continue_oob!()
         }
-        let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
+        let Ok(data) = inner_memory.read_bytes(inner_memory_offset, data_size) else {
+            continue_oob!()
+        };
 
         continue_with_vm_change!(r7: HostCallReturnCode::OK, mem_offset: memory_offset, mem_data: data)
     }
@@ -804,10 +842,18 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // s
-        let inner_memory_offset = vm.regs[9].as_mem_address()?; // o
-        let data_size = vm.regs[10].as_usize()?; // z
+        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+            continue_who!()
+        };
+        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(inner_memory_offset) = vm.regs[9].as_mem_address() else {
+            continue_oob!()
+        };
+        let Ok(data_size) = vm.regs[10].as_usize() else {
+            continue_oob!()
+        };
 
         if !vm
             .memory
@@ -823,9 +869,13 @@ impl HostFunction {
         if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size) {
             continue_oob!()
         }
-        let data = vm.memory.read_bytes(memory_offset, data_size)?;
+        let Ok(data) = vm.memory.read_bytes(memory_offset, data_size) else {
+            host_call_panic!()
+        };
 
-        inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data)?;
+        let Ok(_) = inner_memory_mut.write_bytes(inner_memory_offset as MemAddress, &data) else {
+            continue_oob!()
+        };
 
         continue_ok!()
     }
@@ -839,10 +889,18 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let inner_memory_page_offset = vm.regs[8].as_usize()?; // p
-        let pages_count = vm.regs[9].as_usize()?; // c
-        let mode = vm.regs[10].as_usize()?; // r
+        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+            continue_who!()
+        };
+        let Ok(inner_memory_page_offset) = vm.regs[8].as_usize() else {
+            continue_huh!()
+        };
+        let Ok(pages_count) = vm.regs[9].as_usize() else {
+            continue_huh!()
+        };
+        let Ok(mode) = vm.regs[10].as_usize() else {
+            continue_huh!()
+        };
 
         if mode > 4
             || inner_memory_page_offset < 16
@@ -866,7 +924,9 @@ impl HostFunction {
         if mode < 3 {
             let address_offset = (inner_memory_page_offset * PAGE_SIZE) as MemAddress;
             let data_size = pages_count * PAGE_SIZE;
-            inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size])?;
+            let Ok(_) = inner_memory_mut.write_bytes(address_offset, &vec![0u8; data_size]) else {
+                continue_huh!()
+            };
         }
 
         // set access types
@@ -876,7 +936,10 @@ impl HostFunction {
             2 | 4 => AccessType::ReadWrite,
             _ => continue_huh!(),
         };
-        inner_memory_mut.set_page_range_access(page_start..page_end, access_type)?;
+        let Ok(_) = inner_memory_mut.set_page_range_access(page_start..page_end, access_type)
+        else {
+            continue_huh!()
+        };
 
         continue_ok!()
     }
@@ -894,8 +957,12 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
-        let memory_offset = vm.regs[8].as_mem_address()?; // o
+        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+            continue_who!()
+        };
+        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
 
         if !vm.memory.is_address_range_writable(memory_offset, 112) {
             host_call_panic!()
@@ -905,18 +972,20 @@ impl HostFunction {
             continue_who!()
         };
 
-        let gas_limit =
-            UnsignedGas::decode_fixed(&mut vm.memory.read_bytes(memory_offset, 8)?.as_slice(), 8)?;
+        let Ok(gas_limit_octets) = vm.memory.read_bytes(memory_offset, 8) else {
+            host_call_panic!()
+        };
+        let gas_limit = UnsignedGas::decode_fixed(&mut gas_limit_octets.as_slice(), 8)?;
 
         let mut regs = [Register::default(); REGISTERS_COUNT];
         for (i, reg) in regs.iter_mut().enumerate() {
-            reg.value = RegValue::decode_fixed(
-                &mut vm
-                    .memory
-                    .read_bytes(memory_offset + 8 + 8 * i as MemAddress, 8)?
-                    .as_slice(),
-                8,
-            )?;
+            let Ok(read_val) = vm
+                .memory
+                .read_bytes(memory_offset + 8 + 8 * i as MemAddress, 8)
+            else {
+                host_call_panic!()
+            };
+            reg.value = RegValue::decode_fixed(&mut read_val.as_slice(), 8)?;
         }
 
         // Construct a new `VMState` and `ProgramState` for the general invocation function.
@@ -931,6 +1000,7 @@ impl HostFunction {
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
 
+        // TODO: revisit `Ψ` return types
         let inner_vm_exit_reason = Interpreter::invoke_general(
             &mut inner_vm_state_copy,
             &mut inner_vm_program_state,
@@ -1000,7 +1070,9 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let inner_vm_id = vm.regs[7].as_usize()?; // n
+        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+            continue_who!()
+        };
 
         let Some(inner_vm) = x.pvm_instances.get(&inner_vm_id) else {
             continue_who!()
