@@ -252,7 +252,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_writable(buf_offset, data_read_size)?
+            .is_address_range_writable(buf_offset, data_read_size)
         {
             host_call_panic!()
         }
@@ -378,7 +378,7 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        if !vm.memory.is_address_range_readable(hash_offset, 32)? {
+        if !vm.memory.is_address_range_readable(hash_offset, 32) {
             host_call_panic!()
         }
 
@@ -397,10 +397,7 @@ impl HostFunction {
         let preimage_offset = vm.regs[10].as_usize()?.min(preimage_size); // f
         let lookup_size = vm.regs[11].as_usize()?.min(preimage_size - preimage_offset); // l
 
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, lookup_size)?
-        {
+        if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
         }
 
@@ -433,7 +430,7 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        if !vm.memory.is_address_range_readable(key_offset, key_size)? {
+        if !vm.memory.is_address_range_readable(key_offset, key_size) {
             host_call_panic!()
         }
 
@@ -452,7 +449,7 @@ impl HostFunction {
             .as_usize()?
             .min(storage_val_size - storage_val_offset); // l
 
-        if !vm.memory.is_address_range_writable(buf_offset, read_len)? {
+        if !vm.memory.is_address_range_writable(buf_offset, read_len) {
             host_call_panic!()
         }
 
@@ -481,11 +478,11 @@ impl HostFunction {
         let value_offset = vm.regs[9].as_mem_address()?; // v_o
         let value_size = vm.regs[10].as_usize()?; // v_z
 
-        if !vm.memory.is_address_range_readable(key_offset, key_size)?
+        if !vm.memory.is_address_range_readable(key_offset, key_size)
             || (value_size > 0
                 && !vm
                     .memory
-                    .is_address_range_readable(value_offset, value_size)?)
+                    .is_address_range_readable(value_offset, value_size))
         {
             host_call_panic!()
         }
@@ -576,10 +573,7 @@ impl HostFunction {
         // Encode account metadata with JAM Codec
         let info = metadata.encode_for_info_hostcall()?;
 
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, info.len())?
-        {
+        if !vm.memory.is_address_range_writable(buf_offset, info.len()) {
             continue_oob!()
         }
 
@@ -623,10 +617,7 @@ impl HostFunction {
             continue_none!()
         };
 
-        if !vm
-            .memory
-            .is_address_range_readable(hash_offset, HASH_SIZE)?
-        {
+        if !vm.memory.is_address_range_readable(hash_offset, HASH_SIZE) {
             host_call_panic!()
         }
 
@@ -647,10 +638,7 @@ impl HostFunction {
             .as_usize()?
             .min(preimage.len() - preimage_offset); // l
 
-        if !vm
-            .memory
-            .is_address_range_writable(buf_offset, lookup_size)?
-        {
+        if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
         }
 
@@ -674,7 +662,7 @@ impl HostFunction {
         let offset = vm.regs[7].as_mem_address()?; // p
         let export_size = vm.regs[8].as_usize()?.min(SEGMENT_SIZE); // z
 
-        if !vm.memory.is_address_range_readable(offset, export_size)? {
+        if !vm.memory.is_address_range_readable(offset, export_size) {
             host_call_panic!()
         }
 
@@ -709,7 +697,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(program_offset, program_size)?
+            .is_address_range_readable(program_offset, program_size)
         {
             host_call_panic!()
         }
@@ -743,7 +731,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_writable(memory_offset, data_size)?
+            .is_address_range_writable(memory_offset, data_size)
         {
             host_call_panic!()
         }
@@ -752,7 +740,7 @@ impl HostFunction {
             continue_who!()
         };
 
-        if !inner_memory.is_address_range_readable(inner_memory_offset, data_size)? {
+        if !inner_memory.is_address_range_readable(inner_memory_offset, data_size) {
             continue_oob!()
         }
         let data = inner_memory.read_bytes(inner_memory_offset, data_size)?;
@@ -777,7 +765,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(memory_offset, data_size)?
+            .is_address_range_readable(memory_offset, data_size)
         {
             host_call_panic!()
         }
@@ -786,7 +774,7 @@ impl HostFunction {
             continue_who!()
         };
 
-        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size)? {
+        if !inner_memory_mut.is_address_range_writable(inner_memory_offset, data_size) {
             continue_oob!()
         }
         let data = vm.memory.read_bytes(memory_offset, data_size)?;
@@ -824,7 +812,7 @@ impl HostFunction {
         // cannot allocate new pages without clearing values
         let page_start = inner_memory_page_offset;
         let page_end = inner_memory_page_offset + pages_count;
-        if mode > 2 && !inner_memory_mut.is_page_range_readable(page_start..page_end)? {
+        if mode > 2 && !inner_memory_mut.is_page_range_readable(page_start..page_end) {
             continue_huh!()
         }
 
@@ -863,7 +851,7 @@ impl HostFunction {
         let inner_vm_id = vm.regs[7].as_usize()?; // n
         let memory_offset = vm.regs[8].as_mem_address()?; // o
 
-        if !vm.memory.is_address_range_writable(memory_offset, 112)? {
+        if !vm.memory.is_address_range_writable(memory_offset, 112) {
             host_call_panic!()
         }
 
@@ -1005,7 +993,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, 12 * always_accumulates_count)?
+            .is_address_range_readable(offset, 12 * always_accumulates_count)
         {
             host_call_panic!()
         }
@@ -1038,7 +1026,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, HASH_SIZE * AUTH_QUEUE_SIZE)?
+            .is_address_range_readable(offset, HASH_SIZE * AUTH_QUEUE_SIZE)
         {
             host_call_panic!()
         }
@@ -1071,7 +1059,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)?
+            .is_address_range_readable(offset, PUBLIC_KEY_SIZE * VALIDATOR_COUNT)
         {
             host_call_panic!()
         }
@@ -1131,7 +1119,7 @@ impl HostFunction {
         let gas_limit_g = vm.regs[9].value(); // g
         let gas_limit_m = vm.regs[10].value(); // m
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
@@ -1185,7 +1173,7 @@ impl HostFunction {
         let gas_limit_g = vm.regs[8].value(); // g
         let gas_limit_m = vm.regs[9].value(); // m
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
@@ -1214,7 +1202,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, TRANSFER_MEMO_SIZE)?
+            .is_address_range_readable(offset, TRANSFER_MEMO_SIZE)
         {
             host_call_panic!(gas_charge)
         }
@@ -1272,7 +1260,7 @@ impl HostFunction {
         let eject_address = vm.regs[7].as_service_id()?; // d
         let offset = vm.regs[8].as_mem_address()?; // o
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
         let preimage_hash =
@@ -1343,7 +1331,7 @@ impl HostFunction {
         let offset = vm.regs[7].as_mem_address()?; // o
         let preimage_size = vm.regs[8].as_u32()?; // z
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
         let preimage_hash =
@@ -1392,7 +1380,7 @@ impl HostFunction {
         let offset = vm.regs[7].as_mem_address()?; // o
         let lookups_size = vm.regs[8].as_u32()?; // z
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
@@ -1476,7 +1464,7 @@ impl HostFunction {
         let offset = vm.regs[7].as_mem_address()?;
         let lookup_len = vm.regs[8].as_u32()?;
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
@@ -1591,7 +1579,7 @@ impl HostFunction {
 
         let offset = vm.regs[7].as_mem_address()?; // o
 
-        if !vm.memory.is_address_range_readable(offset, HASH_SIZE)? {
+        if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
         let commitment_hash =
@@ -1621,7 +1609,7 @@ impl HostFunction {
             service_id_reg as ServiceId
         };
 
-        if !vm.memory.is_address_range_readable(offset, preimage_size)? {
+        if !vm.memory.is_address_range_readable(offset, preimage_size) {
             host_call_panic!()
         }
 
