@@ -452,10 +452,10 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
-            host_call_panic!()
-        };
-        let storage_key = Octets::from_vec(storage_key);
+        // let storage_key = Octets::from_vec(vm.memory.read_bytes(key_offset, key_size)?);
+        let mut key = service_id.encode_fixed(4)?;
+        key.extend(vm.memory.read_bytes(key_offset, key_size)?);
+        let storage_key = hash::<Blake2b256>(&key)?;
 
         let Ok(Some(entry)) = accounts_sandbox
             .get_account_storage_entry(state_manager, service_id, &storage_key)
@@ -520,10 +520,10 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let Ok(storage_key) = vm.memory.read_bytes(key_offset, key_size) else {
-            host_call_panic!()
-        };
-        let storage_key = Octets::from_vec(storage_key);
+        // let storage_key = Octets::from_vec(vm.memory.read_bytes(key_offset, key_size)?);
+        let mut key = service_id.encode_fixed(4)?;
+        key.extend(vm.memory.read_bytes(key_offset, key_size)?);
+        let storage_key = hash::<Blake2b256>(&key)?;
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
