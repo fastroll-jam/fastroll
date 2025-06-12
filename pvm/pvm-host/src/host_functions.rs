@@ -1106,8 +1106,12 @@ impl HostFunction {
             }
         };
 
-        let offset = vm.regs[10].as_mem_address()?; // o
-        let always_accumulates_count = vm.regs[11].as_usize()?; // n
+        let Ok(offset) = vm.regs[10].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
+            host_call_panic!()
+        };
 
         if !vm
             .memory
@@ -1119,14 +1123,17 @@ impl HostFunction {
         let mut always_accumulate_services = BTreeMap::new();
 
         for i in 0..always_accumulates_count {
-            let always_accumulate_serialized =
-                vm.memory.read_bytes(offset + 12 * i as MemAddress, 12)?;
+            let Ok(always_accumulate_serialized) =
+                vm.memory.read_bytes(offset + 12 * i as MemAddress, 12)
+            else {
+                host_call_panic!()
+            };
             let address = u32::decode_fixed(&mut always_accumulate_serialized.as_slice(), 4)?;
             let basic_gas = u64::decode_fixed(&mut always_accumulate_serialized.as_slice(), 8)?;
             always_accumulate_services.insert(address, basic_gas);
         }
 
-        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services)?;
+        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services);
         continue_ok!()
     }
 
@@ -1161,7 +1168,7 @@ impl HostFunction {
             queue_assignment.0[core_index][i] = Hash32::decode(&mut authorizer.as_slice())?;
         }
 
-        x.assign_new_auth_queue(queue_assignment)?;
+        x.assign_new_auth_queue(queue_assignment);
         continue_ok!()
     }
 
@@ -1191,7 +1198,7 @@ impl HostFunction {
             new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
         }
 
-        x.assign_new_staging_set(new_staging_set)?;
+        x.assign_new_staging_set(new_staging_set);
         continue_ok!()
     }
 

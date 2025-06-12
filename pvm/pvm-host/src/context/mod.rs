@@ -286,24 +286,21 @@ impl AccumulateHostContext {
         assign_service: ServiceId,
         designate_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
-    ) -> Result<(), HostCallError> {
+    ) {
         self.partial_state.new_privileges = Some(PrivilegedServices {
             manager_service,
             assign_service,
             designate_service,
             always_accumulate_services,
         });
-        Ok(())
     }
 
-    pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) -> Result<(), HostCallError> {
+    pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) {
         self.partial_state.new_auth_queue = Some(auth_queue);
-        Ok(())
     }
 
-    pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) -> Result<(), HostCallError> {
+    pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) {
         self.partial_state.new_staging_set = Some(staging_set);
-        Ok(())
     }
 
     pub async fn subtract_accumulator_balance(
