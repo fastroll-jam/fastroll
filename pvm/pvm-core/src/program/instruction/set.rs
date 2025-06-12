@@ -107,7 +107,9 @@ impl InstructionSet {
             ));
         }
 
-        let aligned_index = (a / JUMP_ALIGNMENT) - 1;
+        let aligned_index = (a / JUMP_ALIGNMENT)
+            .checked_sub(1)
+            .expect("`a` should be larger than zero");
         let &target = program_state
             .jump_table
             .get(aligned_index)
