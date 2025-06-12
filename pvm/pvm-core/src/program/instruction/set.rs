@@ -6,7 +6,7 @@ use crate::{
         state_change::{MemWrite, VMStateChange},
         vm_state::VMState,
     },
-    utils::VMUtils,
+    utils::{SextInputSize, VMUtils},
 };
 use fr_codec::prelude::*;
 use fr_pvm_types::{
@@ -409,7 +409,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_byte(imm_address)?;
-        let val_extended = VMUtils::sext(val, 1).ok_or(VMCoreError::InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val, SextInputSize::Octets1);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -454,7 +454,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 2)?;
         let val_decoded = u16::decode_fixed(&mut &val[..], 2)?;
-        let val_extended = VMUtils::sext(val_decoded, 2).ok_or(VMCoreError::InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets2);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -499,7 +499,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let val = vm_state.memory.read_bytes(imm_address, 4)?;
         let val_decoded = u32::decode_fixed(&mut &val[..], 4)?;
-        let val_extended = VMUtils::sext(val_decoded, 4).ok_or(VMCoreError::InvalidMemVal)?;
+        let val_extended = VMUtils::sext(val_decoded, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1492,8 +1492,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1574,8 +1573,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let result = vm_state.read_rs2(ins)?.wrapping_mul(ins.imm1()?);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1642,8 +1640,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let result = vm_state.read_rs2(ins)? << shift;
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1666,7 +1663,7 @@ impl InstructionSet {
         let shift = ins.imm1()? & 0x1F; // mod 32
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = (rs2_val & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1714,8 +1711,7 @@ impl InstructionSet {
             .imm1()?
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)?);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1783,8 +1779,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = ins.imm1()? << shift;
 
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1807,7 +1802,7 @@ impl InstructionSet {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let imm1 = ins.imm1()?;
         let result = (imm1 & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1941,7 +1936,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let result = vm_state.read_rs2(ins)? << shift;
-        let result_extended = VMUtils::sext(result, 8).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, SextInputSize::Octets8);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -1964,7 +1959,7 @@ impl InstructionSet {
         let shift = ins.imm1()? & 0x3F; // mod 64
         let rs2_val = vm_state.read_rs2(ins)?;
         let result = rs2_val >> shift;
-        let result_extended = VMUtils::sext(result, 8).ok_or(VMCoreError::InvalidImmVal)?;
+        let result_extended = VMUtils::sext(result, SextInputSize::Octets8);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2137,8 +2132,10 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(ins.imm1()?);
-        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs2(ins)?).rotate_right(rotate), 4)
-            .ok_or(VMCoreError::InvalidImmVal)?;
+        let result = VMUtils::sext(
+            reg_to_u32(vm_state.read_rs2(ins)?).rotate_right(rotate),
+            SextInputSize::Octets4,
+        );
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2159,8 +2156,10 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
-        let result = VMUtils::sext(reg_to_u32(ins.imm1()?).rotate_right(rotate), 4)
-            .ok_or(VMCoreError::InvalidImmVal)?;
+        let result = VMUtils::sext(
+            reg_to_u32(ins.imm1()?).rotate_right(rotate),
+            SextInputSize::Octets4,
+        );
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2368,8 +2367,7 @@ impl InstructionSet {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_add(vm_state.read_rs2(ins)?);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2393,8 +2391,7 @@ impl InstructionSet {
             .read_rs1(ins)?
             .wrapping_add(1 << 32)
             .wrapping_sub(vm_state.read_rs2(ins)? & 0xFFFF_FFFF);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2417,8 +2414,7 @@ impl InstructionSet {
         let result = vm_state
             .read_rs1(ins)?
             .wrapping_mul(vm_state.read_rs2(ins)?);
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2443,7 +2439,7 @@ impl InstructionSet {
         let result = if divisor == 0 {
             u64::MAX
         } else {
-            VMUtils::sext(dividend / divisor, 4).ok_or(VMCoreError::InvalidRegVal)?
+            VMUtils::sext(dividend / divisor, SextInputSize::Octets4)
         };
 
         Ok(SingleStepResult {
@@ -2496,9 +2492,9 @@ impl InstructionSet {
         let dividend = vm_state.read_rs1(ins)? & 0xFFFF_FFFF;
         let divisor = vm_state.read_rs2(ins)? & 0xFFFF_FFFF;
         let result = if divisor == 0 {
-            VMUtils::sext(dividend, 4).ok_or(VMCoreError::InvalidRegVal)?
+            VMUtils::sext(dividend, SextInputSize::Octets4)
         } else {
-            VMUtils::sext(dividend % divisor, 4).ok_or(VMCoreError::InvalidRegVal)?
+            VMUtils::sext(dividend % divisor, SextInputSize::Octets4)
         };
 
         Ok(SingleStepResult {
@@ -2547,8 +2543,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = vm_state.read_rs1(ins)? << shift;
-        let result_extended =
-            VMUtils::sext(result & 0xFFFF_FFFF, 4).ok_or(VMCoreError::InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result & 0xFFFF_FFFF, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -2570,7 +2565,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let shift = vm_state.read_rs2(ins)? & 0x1F; // mod 32
         let result = (vm_state.read_rs1(ins)? & 0xFFFF_FFFF) >> shift;
-        let result_extended = VMUtils::sext(result, 4).ok_or(VMCoreError::InvalidRegVal)?;
+        let result_extended = VMUtils::sext(result, SextInputSize::Octets4);
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3094,8 +3089,10 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
-        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_left(rotate), 4)
-            .ok_or(VMCoreError::InvalidImmVal)?;
+        let result = VMUtils::sext(
+            reg_to_u32(vm_state.read_rs1(ins)?).rotate_left(rotate),
+            SextInputSize::Octets4,
+        );
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,
@@ -3137,8 +3134,10 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let rotate = reg_to_u32(vm_state.read_rs2(ins)?);
-        let result = VMUtils::sext(reg_to_u32(vm_state.read_rs1(ins)?).rotate_right(rotate), 4)
-            .ok_or(VMCoreError::InvalidImmVal)?;
+        let result = VMUtils::sext(
+            reg_to_u32(vm_state.read_rs1(ins)?).rotate_right(rotate),
+            SextInputSize::Octets4,
+        );
 
         Ok(SingleStepResult {
             exit_reason: ExitReason::Continue,

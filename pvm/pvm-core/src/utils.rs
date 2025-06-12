@@ -1,11 +1,46 @@
+use crate::program::instruction::ImmSize;
 use bit_vec::BitVec;
 use fr_pvm_types::{
     common::RegValue,
     constants::{INIT_ZONE_SIZE, PAGE_SIZE},
 };
 
-pub struct VMUtils;
+/// Signed extension input size in octets.
+pub enum SextInputSize {
+    Octets0,
+    Octets1,
+    Octets2,
+    Octets3,
+    Octets4,
+    Octets8,
+}
 
+impl SextInputSize {
+    pub fn as_usize(&self) -> usize {
+        match self {
+            Self::Octets0 => 0,
+            Self::Octets1 => 1,
+            Self::Octets2 => 2,
+            Self::Octets3 => 3,
+            Self::Octets4 => 4,
+            Self::Octets8 => 8,
+        }
+    }
+}
+
+impl From<ImmSize> for SextInputSize {
+    fn from(value: ImmSize) -> Self {
+        match value {
+            ImmSize::Octets0 => Self::Octets0,
+            ImmSize::Octets1 => Self::Octets1,
+            ImmSize::Octets2 => Self::Octets2,
+            ImmSize::Octets3 => Self::Octets3,
+            ImmSize::Octets4 => Self::Octets4,
+        }
+    }
+}
+
+pub struct VMUtils;
 impl VMUtils {
     //
     // Program initialization util functions
@@ -234,22 +269,17 @@ impl VMUtils {
     ///
     /// # Returns
     ///
-    /// The sign-extended 64-bit unsigned integer, or None if `n` is greater than 4.
-    pub fn sext<T>(compact_val: T, n: usize) -> Option<RegValue>
+    /// The sign-extended 64-bit unsigned integer.
+    pub fn sext<T>(compact_val: T, n: SextInputSize) -> RegValue
     where
         T: Into<i128> + Copy,
     {
-        match n {
-            0..=4 | 8 => {
-                let val = compact_val.into();
-                let msb = (val >> (8 * n - 1)) & 1;
-                if msb == 1 {
-                    Some((val + (RegValue::MAX as i128 - (1 << (8 * n as i128)) + 1)) as RegValue)
-                } else {
-                    Some(val as RegValue)
-                }
-            }
-            _ => None,
+        let val = compact_val.into();
+        let msb = (val >> (8 * n.as_usize() - 1)) & 1;
+        if msb == 1 {
+            (val + (RegValue::MAX as i128 - (1 << (8 * n.as_usize() as i128)) + 1)) as RegValue
+        } else {
+            val as RegValue
         }
     }
 
