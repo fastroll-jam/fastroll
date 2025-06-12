@@ -28,7 +28,6 @@ use fr_pvm_types::{
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
 };
 use fr_state::{
-    error::StateManagerError::LookupsEntryNotFound,
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
@@ -1314,15 +1313,20 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
-        let gas_limit_g = vm.regs[8].value(); // g
-        let gas_limit_m = vm.regs[9].value(); // m
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let gas_limit_g = vm.regs[8].value();
+        let gas_limit_m = vm.regs[9].value();
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
-        let code_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
 
         x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
             .await?;
@@ -1337,10 +1341,14 @@ impl HostFunction {
     ) -> Result<HostCallResult, HostCallError> {
         let x = get_mut_accumulate_x!(context);
 
-        let dest = vm.regs[7].as_service_id()?; // d
-        let amount = vm.regs[8].value(); // a
-        let gas_limit = vm.regs[9].value(); // l
-        let offset = vm.regs[10].as_mem_address()?; // o
+        let Ok(dest) = vm.regs[7].as_service_id() else {
+            continue_who!()
+        };
+        let amount = vm.regs[8].value();
+        let gas_limit = vm.regs[9].value();
+        let Ok(offset) = vm.regs[10].as_mem_address() else {
+            host_call_panic!()
+        };
         let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
 
         check_out_of_gas!(vm.gas_counter, gas_charge);
@@ -1402,14 +1410,20 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let eject_address = vm.regs[7].as_service_id()?; // d
-        let offset = vm.regs[8].as_mem_address()?; // o
+        let Ok(eject_address) = vm.regs[7].as_service_id() else {
+            continue_who!()
+        };
+        let Ok(offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
-        let preimage_hash =
-            Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(preimage_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let preimage_hash = Hash32::decode(&mut preimage_hash_octets.as_slice())?;
 
         if eject_address == x.accumulate_host {
             continue_who!()
@@ -1473,14 +1487,20 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
-        let preimage_size = vm.regs[8].as_u32()?; // z
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(preimage_size) = vm.regs[8].as_u32() else {
+            continue_none!()
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
-        let preimage_hash =
-            Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(preimage_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let preimage_hash = Hash32::decode(&mut preimage_hash_octets.as_slice())?;
 
         let lookups_key = (preimage_hash, preimage_size);
         let Some(entry) = x
@@ -1522,14 +1542,24 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
-        let lookups_size = vm.regs[8].as_u32()?; // z
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        // TODO: Determine whether lookups size larger than `u32::MAX` should be allowed.
+        // TODO: For now, continues with `FULL` code with no further threshold balance check.
+        // TODO: Also check `host_query`, `host_forget` which assume those lookups entry doesn't exist.
+        let Ok(lookups_size) = vm.regs[8].as_u32() else {
+            continue_full!()
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
-        let lookup_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(lookup_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
         let lookups_key = (lookup_hash, lookups_size);
 
         let prev_lookups_entry = x
@@ -1549,7 +1579,9 @@ impl HostFunction {
                     continue_huh!()
                 }
                 // Add current timeslot to the timeslot vector.
-                entry.value.try_push(timeslot)?;
+                let Ok(_) = entry.value.try_push(timeslot) else {
+                    continue_huh!()
+                };
                 entry
             }
             None => {
@@ -1564,7 +1596,7 @@ impl HostFunction {
                     None,
                     new_lookups_octets_usage.as_ref(),
                 )
-                .ok_or(HostCallError::StateManagerError(LookupsEntryNotFound))?;
+                .unwrap_or_default(); // Attempting to delete a storage entry that doesn't exist is basically a no-op
 
                 let accumulator_metadata =
                     x.get_accumulator_metadata(state_manager.clone()).await?;
@@ -1606,14 +1638,21 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?;
-        let lookup_len = vm.regs[8].as_u32()?;
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(lookup_len) = vm.regs[8].as_u32() else {
+            continue_huh!()
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
-        let lookup_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(lookup_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
         let lookups_key = (lookup_hash.clone(), lookup_len);
         let lookups_entry = x
             .partial_state
@@ -1722,13 +1761,17 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
-        let commitment_hash =
-            Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(commitment_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let commitment_hash = Hash32::decode(&mut commitment_hash_octets.as_slice())?;
 
         x.yielded_accumulate_hash = Some(commitment_hash);
         continue_ok!()
@@ -1745,8 +1788,12 @@ impl HostFunction {
         let x = get_mut_accumulate_x!(context);
 
         let service_id_reg = vm.regs[7].value();
-        let offset = vm.regs[8].as_mem_address()?; // o
-        let preimage_size = vm.regs[9].as_usize()?; // z
+        let Ok(offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(preimage_size) = vm.regs[9].as_usize() else {
+            host_call_panic!()
+        };
 
         let service_id = if service_id_reg == u64::MAX {
             service_id
@@ -1758,7 +1805,9 @@ impl HostFunction {
             host_call_panic!()
         }
 
-        let preimage_data = vm.memory.read_bytes(offset, preimage_size)?;
+        let Ok(preimage_data) = vm.memory.read_bytes(offset, preimage_size) else {
+            host_call_panic!()
+        };
 
         // Service account not found
         if x.partial_state
