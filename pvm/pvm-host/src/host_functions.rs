@@ -1137,6 +1137,7 @@ impl HostFunction {
         continue_ok!()
     }
 
+    // TODO: align with GP v0.6.7 (assign services array)
     /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
     /// in the accumulate context partial state.
     pub fn host_assign(
@@ -1146,8 +1147,12 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let core_index = vm.regs[7].as_usize()?;
-        let offset = vm.regs[8].as_mem_address()?; // o
+        let Ok(core_index) = vm.regs[7].as_usize() else {
+            continue_core!()
+        };
+        let Ok(offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
 
         if !vm
             .memory
@@ -1162,9 +1167,12 @@ impl HostFunction {
 
         let mut queue_assignment = AuthQueue::default();
         for i in 0..AUTH_QUEUE_SIZE {
-            let authorizer = vm
+            let Ok(authorizer) = vm
                 .memory
-                .read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)?;
+                .read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
+            else {
+                host_call_panic!()
+            };
             queue_assignment.0[core_index][i] = Hash32::decode(&mut authorizer.as_slice())?;
         }
 
@@ -1172,6 +1180,7 @@ impl HostFunction {
         continue_ok!()
     }
 
+    // TODO: align with GP v0.6.7 (privilege check)
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
@@ -1180,7 +1189,9 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
 
         if !vm
             .memory
@@ -1191,10 +1202,12 @@ impl HostFunction {
 
         let mut new_staging_set = StagingSet::default();
         for i in 0..VALIDATOR_COUNT {
-            let validator_key = vm.memory.read_bytes(
+            let Ok(validator_key) = vm.memory.read_bytes(
                 offset + (PUBLIC_KEY_SIZE * i) as MemAddress,
                 PUBLIC_KEY_SIZE,
-            )?;
+            ) else {
+                host_call_panic!()
+            };
             new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
         }
 
@@ -1239,16 +1252,23 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let offset = vm.regs[7].as_mem_address()?; // o
-        let code_lookup_len = vm.regs[8].as_u32()?; // l
-        let gas_limit_g = vm.regs[9].value(); // g
-        let gas_limit_m = vm.regs[10].value(); // m
+        let Ok(offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(code_lookup_len) = vm.regs[8].as_u32() else {
+            host_call_panic!()
+        };
+        let gas_limit_g = vm.regs[9].value();
+        let gas_limit_m = vm.regs[10].value();
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
         }
 
-        let code_hash = Hash32::decode(&mut vm.memory.read_bytes(offset, HASH_SIZE)?.as_slice())?;
+        let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
+            host_call_panic!()
+        };
+        let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
         let new_account_threshold_balance =
             AccountMetadata::get_initial_threshold_balance(code_lookup_len);
 
