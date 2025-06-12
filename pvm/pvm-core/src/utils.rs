@@ -277,6 +277,11 @@ impl VMUtils {
     where
         T: Into<i128> + Copy,
     {
+        if n.as_usize() == 0 {
+            // zero is the only valid input for `compact_val` in this case
+            return 0;
+        }
+
         let val = compact_val.into();
         let msb = (val >> (8 * n.as_usize() - 1)) & 1;
         if msb == 1 {
