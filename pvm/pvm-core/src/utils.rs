@@ -1,11 +1,46 @@
+use crate::program::instruction::ImmSize;
 use bit_vec::BitVec;
 use fr_pvm_types::{
     common::RegValue,
     constants::{INIT_ZONE_SIZE, PAGE_SIZE},
 };
 
-pub struct VMUtils;
+/// Signed extension input size in octets.
+pub enum SextInputSize {
+    Octets0,
+    Octets1,
+    Octets2,
+    Octets3,
+    Octets4,
+    Octets8,
+}
 
+impl SextInputSize {
+    pub fn as_usize(&self) -> usize {
+        match self {
+            Self::Octets0 => 0,
+            Self::Octets1 => 1,
+            Self::Octets2 => 2,
+            Self::Octets3 => 3,
+            Self::Octets4 => 4,
+            Self::Octets8 => 8,
+        }
+    }
+}
+
+impl From<ImmSize> for SextInputSize {
+    fn from(value: ImmSize) -> Self {
+        match value {
+            ImmSize::Octets0 => Self::Octets0,
+            ImmSize::Octets1 => Self::Octets1,
+            ImmSize::Octets2 => Self::Octets2,
+            ImmSize::Octets3 => Self::Octets3,
+            ImmSize::Octets4 => Self::Octets4,
+        }
+    }
+}
+
+pub struct VMUtils;
 impl VMUtils {
     //
     // Program initialization util functions
@@ -37,14 +72,14 @@ impl VMUtils {
     /// # Returns
     ///
     /// The signed equivalent of the input, or None if `n` is greater than 8.
-    pub fn unsigned_to_signed(a: u64, n: usize) -> Option<i64> {
+    pub(crate) fn unsigned_to_signed(a: u64, n: usize) -> Option<i128> {
         match n {
             0..=8 => {
                 let max_positive = 1u64 << (8 * n - 1);
                 if a < max_positive {
-                    Some(a as i64)
+                    Some(a as i128)
                 } else {
-                    Some((a as i64) - (1i64.wrapping_shl(8 * n as u32)))
+                    Some((a as i128) - (1i128.wrapping_shl(8 * n as u32)))
                 }
             }
             _ => None,
@@ -62,7 +97,8 @@ impl VMUtils {
     /// # Returns
     ///
     /// The unsigned equivalent of the input, or None if `n` is greater than 8.
-    pub fn signed_to_unsigned(a: i64, n: usize) -> Option<u64> {
+    #[allow(dead_code)]
+    pub(crate) fn signed_to_unsigned(a: i64, n: usize) -> Option<u64> {
         match n {
             0..=8 => {
                 let modulus = 1i64.wrapping_shl(8 * n as u32);
@@ -152,7 +188,8 @@ impl VMUtils {
     ///
     /// A vector of booleans representing the binary form of the input,
     /// or None if `n` is greater than 8.
-    pub fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
+    #[allow(dead_code)]
+    pub(crate) fn int_to_bits(x: u64, n: u64) -> Option<BitVec> {
         match n {
             0..=8 => {
                 let mut result = BitVec::from_elem((8 * n) as usize, false);
@@ -197,7 +234,8 @@ impl VMUtils {
     ///
     /// The unsigned integer represented by the input binary form,
     /// or None if `n` is greater than 8, or if the input vector's length doesn't match `8 * n`.
-    pub fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
+    #[allow(dead_code)]
+    pub(crate) fn bits_to_int(x: &BitVec, n: u64) -> Option<u64> {
         if n > 8 || x.len() != (8 * n) as usize {
             return None;
         }
@@ -234,22 +272,22 @@ impl VMUtils {
     ///
     /// # Returns
     ///
-    /// The sign-extended 64-bit unsigned integer, or None if `n` is greater than 4.
-    pub fn sext<T>(compact_val: T, n: usize) -> Option<RegValue>
+    /// The sign-extended 64-bit unsigned integer.
+    pub fn sext<T>(compact_val: T, n: SextInputSize) -> RegValue
     where
         T: Into<i128> + Copy,
     {
-        match n {
-            0..=4 | 8 => {
-                let val = compact_val.into();
-                let msb = (val >> (8 * n - 1)) & 1;
-                if msb == 1 {
-                    Some((val + (RegValue::MAX as i128 - (1 << (8 * n as i128)) + 1)) as RegValue)
-                } else {
-                    Some(val as RegValue)
-                }
-            }
-            _ => None,
+        if n.as_usize() == 0 {
+            // zero is the only valid input for `compact_val` in this case
+            return 0;
+        }
+
+        let val = compact_val.into();
+        let msb = (val >> (8 * n.as_usize() - 1)) & 1;
+        if msb == 1 {
+            (val + (RegValue::MAX as i128 - (1 << (8 * n.as_usize() as i128)) + 1)) as RegValue
+        } else {
+            val as RegValue
         }
     }
 
