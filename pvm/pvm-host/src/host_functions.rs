@@ -167,7 +167,9 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        let data_id = vm.regs[10].as_usize()?;
+        let Ok(data_id) = vm.regs[10].as_usize() else {
+            continue_none!()
+        };
 
         let data: &[u8] = match context {
             InvocationContext::X_I(ctx) => match data_id {
@@ -208,7 +210,9 @@ impl HostFunction {
                     14 => &x.invoke_args.operands.encode()?,
                     15 => {
                         let operands = &x.invoke_args.operands;
-                        let operand_idx = vm.regs[11].as_usize()?;
+                        let Ok(operand_idx) = vm.regs[11].as_usize() else {
+                            continue_none!()
+                        };
                         if operand_idx < operands.len() {
                             &operands[operand_idx].encode()?
                         } else {
@@ -224,7 +228,9 @@ impl HostFunction {
                 16 => &ctx.invoke_args.transfers.encode()?,
                 17 => {
                     let transfers = &ctx.invoke_args.transfers;
-                    let transfer_idx = vm.regs[11].as_usize()?;
+                    let Ok(transfer_idx) = vm.regs[11].as_usize() else {
+                        continue_none!()
+                    };
                     if transfer_idx < transfers.len() {
                         &transfers[transfer_idx].encode()?
                     } else {
@@ -235,9 +241,14 @@ impl HostFunction {
             },
         };
 
-        let buf_offset = vm.regs[7].as_mem_address()?; // o
-        let data_read_offset = vm.regs[8].as_usize()?.min(data.len()); // f
-        let data_read_size = vm.regs[9].as_usize()?.min(data.len() - data_read_offset); // l
+        let Ok(buf_offset) = vm.regs[7].as_mem_address() else {
+            host_call_panic!()
+        };
+        let data_read_offset = vm.regs[8].as_usize().unwrap_or(data.len()).min(data.len());
+        let data_read_size = vm.regs[9]
+            .as_usize()
+            .unwrap_or(data.len() - data_read_offset)
+            .min(data.len() - data_read_offset);
 
         if !vm
             .memory
