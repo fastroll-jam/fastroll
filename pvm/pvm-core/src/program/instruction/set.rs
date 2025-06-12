@@ -1010,7 +1010,7 @@ impl InstructionSet {
         let expand_size = vm_state.read_rs1(ins)? as usize;
 
         // find the first sequence of inaccessible memory cells that can satisfy the requested size
-        let alloc_start = vm_state.memory.get_break(expand_size)?;
+        let alloc_start = vm_state.memory.get_break(expand_size);
 
         // try expanding the heap area
         vm_state.memory.expand_heap(alloc_start, expand_size)?;
