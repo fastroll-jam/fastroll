@@ -22,14 +22,26 @@ impl NodeCodec {
     ///
     /// Drops the first bit of the left child hash to fit node data in 512 bits.
     /// Uses the first bit as a node type indicator (0 for branch).
+    ///
+    /// The dropped bit is cached into the `node_hash_cache` of `MerkleDB`
+    /// if the `merkle_db` handle is provided.
     pub(crate) fn encode_branch(
         left: &Hash32,
         right: &Hash32,
+        merkle_db: Option<&MerkleDB>,
     ) -> Result<Vec<u8>, StateMerkleError> {
         let mut node = BitVec::from_elem(1, false); // indicator for the branch node
-        node.extend(slice_bitvec(&bits_encode_msb(left.as_slice()), 1..)?);
+        let bits_encoded = bits_encode_msb(left.as_slice());
+        let dropped_bit = bits_encoded
+            .get(0)
+            .expect("Hash32 should have more than 1 bit");
+        let left_255 = slice_bitvec(&bits_encoded, 1..)?;
+        node.extend(left_255.clone());
         node.extend(bits_encode_msb(right.as_slice()));
 
+        if let Some(merkle_db) = merkle_db {
+            merkle_db.node_hash_cache.insert(left_255, dropped_bit);
+        }
         Ok(bits_decode_msb(&node))
     }
 

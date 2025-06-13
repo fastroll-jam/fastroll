@@ -77,6 +77,11 @@ pub struct MerkleDB {
     root: Mutex<Hash32>,
     /// Working set of uncommitted Merkle nodes.
     pub working_set: WorkingSet,
+    /// A cache storing the mapping of the last 255 bits of a left child's node hash to its first bit.
+    /// When a branch node is encoded from two child nodes, the first bit of the left child's hash
+    /// is dropped. This cache helps to reconstruct the full left child hash from branch node data,
+    /// reducing DB hits.
+    pub node_hash_cache: DashMap<BitVec, bool>,
 }
 
 impl MerkleDB {
@@ -85,6 +90,7 @@ impl MerkleDB {
             db: CachedDB::new(core, cf_name, cache_size),
             root: Mutex::new(Hash32::default()),
             working_set: WorkingSet::new(),
+            node_hash_cache: DashMap::new(),
         }
     }
 
@@ -125,12 +131,20 @@ impl MerkleDB {
 
         let mut full_bits = hash_bv.clone();
 
+        // Check the node hash cache
+        if let Some(first_bit) = self.node_hash_cache.get(hash_bv) {
+            full_bits.insert(0, *first_bit);
+            return bitvec_to_hash32(&full_bits);
+        }
+
         // Try 0 bit
         full_bits.insert(0, false);
         if let Some(node_with_hash_0) = self
             .get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)
             .await?
         {
+            // Insert to the node hash cache
+            self.node_hash_cache.insert(hash_bv.clone(), false);
             return Ok(node_with_hash_0.hash);
         }
 
@@ -140,6 +154,8 @@ impl MerkleDB {
             .get_node_with_working_set(&bitvec_to_hash32(&full_bits)?)
             .await?
         {
+            // Insert to the node hash cache
+            self.node_hash_cache.insert(hash_bv.clone(), true);
             return Ok(node_with_hash_1.hash);
         }
 
@@ -341,7 +357,7 @@ impl MerkleDB {
                                 sibling_child_hash,
                             );
                             affected_nodes.insert(depth, endpoint);
-                            return affected_nodes.into_merkle_write_set();
+                            return affected_nodes.into_merkle_write_set(self);
                         }
 
                         // If child_hash of chosen on the merkle path (following the bit `b`) is
@@ -364,7 +380,7 @@ impl MerkleDB {
                                 remove_ctx,
                             );
                             affected_nodes.insert(depth, endpoint);
-                            return affected_nodes.into_merkle_write_set();
+                            return affected_nodes.into_merkle_write_set(self);
                         }
                     }
 
@@ -414,7 +430,7 @@ impl MerkleDB {
                                 partial_merkle_path,
                             )?;
                             affected_nodes.insert(depth, endpoint);
-                            affected_nodes.into_merkle_write_set()
+                            affected_nodes.into_merkle_write_set(self)
                         }
                         MerkleWriteOp::Update(state_key, state_val) => {
                             // Reached endpoint of the traversal.
@@ -425,7 +441,7 @@ impl MerkleDB {
                                 depth,
                             );
                             affected_nodes.insert(depth, endpoint);
-                            affected_nodes.into_merkle_write_set()
+                            affected_nodes.into_merkle_write_set(self)
                         }
                         MerkleWriteOp::Remove(_state_key) => {
                             Err(StateMerkleError::MerkleRemovalFailed)

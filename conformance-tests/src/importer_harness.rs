@@ -136,7 +136,6 @@ impl BlockImportHarness {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<Hash32, Box<dyn Error>> {
-        tracing::debug!("Imported a block: {}", block.header.hash()?.encode_hex());
         let post_state_root = BlockImporter::import_block(storage, block).await?;
         Ok(post_state_root)
     }
