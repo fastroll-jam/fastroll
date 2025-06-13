@@ -82,6 +82,19 @@ impl StateManager {
         }
     }
 
+    pub async fn get_raw_state_entry(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        // Check the cache
+        if let Some(entry) = self.cache.get_entry(state_key) {
+            if let StateEntryType::Raw(octets) = entry.value {
+                return Ok(Some(octets.into_vec()));
+            }
+        }
+        self.retrieve_state_encoded(state_key).await
+    }
+
     /// Always retrieves state entry from the DB for test purpose.
     pub async fn get_raw_state_entry_from_db(
         &self,
