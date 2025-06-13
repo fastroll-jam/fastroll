@@ -20,7 +20,7 @@ pub fn some_blob() -> Vec<u8> {
 }
 
 pub fn generate_branch(left: Hash32, right: Hash32) -> MerkleNode {
-    let node_data = NodeCodec::encode_branch(&left, &right).unwrap();
+    let node_data = NodeCodec::encode_branch(&left, &right, None).unwrap();
     let node_hash = hash::<Blake2b256>(&node_data).unwrap();
     tracing::trace!(
         "+++ Generated Branch: Hash({}), Left({}), Right({})",

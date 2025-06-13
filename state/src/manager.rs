@@ -26,6 +26,7 @@ use fr_state_merkle::{
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
 use std::{collections::HashMap, sync::Arc};
+use tracing::instrument;
 
 pub struct StateManager {
     state_db: StateDB,
@@ -80,6 +81,19 @@ impl StateManager {
             merkle_db,
             cache: StateCache::default(),
         }
+    }
+
+    pub async fn get_raw_state_entry(
+        &self,
+        state_key: &StateKey,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        // Check the cache
+        if let Some(entry) = self.cache.get_entry(state_key) {
+            if let StateEntryType::Raw(octets) = entry.value {
+                return Ok(Some(octets.into_vec()));
+            }
+        }
+        self.retrieve_state_encoded(state_key).await
     }
 
     /// Always retrieves state entry from the DB for test purpose.
@@ -458,8 +472,10 @@ impl StateManager {
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
+    #[instrument(level = "debug", skip(self))]
     pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let mut dirty_entries = self.cache.collect_dirty();
+        tracing::debug!("committing {} dirty cache entries", dirty_entries.len());
         if dirty_entries.is_empty() {
             return Ok(());
         }
@@ -477,6 +493,7 @@ impl StateManager {
         let mut merkle_db_wb = WriteBatch::default();
         let mut state_db_wb = WriteBatch::default();
 
+        tracing::debug!("collecting DB write set");
         for (state_key, entry) in &dirty_entries {
             // Convert dirty cache entries into write batch and commit to the MerkleDB
             let DBWriteSet {
