@@ -136,7 +136,6 @@ impl BlockImportHarness {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<Hash32, Box<dyn Error>> {
-        tracing::debug!("Imported a block: {}", block.header.hash()?.encode_hex());
         let post_state_root = BlockImporter::import_block(storage, block).await?;
         Ok(post_state_root)
     }
@@ -153,11 +152,7 @@ impl BlockImportHarness {
     ) {
         assert_eq!(actual_post_state_root, expected_post_state.state_root);
         for kv in expected_post_state.keyvals {
-            if let Some(actual_val) = state_manager
-                .get_raw_state_entry_from_db(&kv.key)
-                .await
-                .unwrap()
-            {
+            if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap() {
                 assert_eq!(hex::encode(&actual_val), hex::encode(&*kv.value));
             } else {
                 tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());

@@ -1,6 +1,7 @@
 use crate::{
     codec::NodeCodec,
     error::StateMerkleError,
+    merkle_db::MerkleDB,
     types::{
         nodes::ChildType,
         write_context::{LeafAddContext, LeafRemoveContext, LeafUpdateContext, LeafWriteOpContext},
@@ -123,7 +124,10 @@ impl Display for AffectedNodesByDepth {
 impl AffectedNodesByDepth {
     /// Converts a collection of `AffectedNode`s into a `DBWriteSet`
     /// for committing changes to the `MerkleDB` and `StateDB`.
-    pub(crate) fn into_merkle_write_set(self) -> Result<DBWriteSet, StateMerkleError> {
+    pub(crate) fn into_merkle_write_set(
+        self,
+        merkle_db: &MerkleDB,
+    ) -> Result<DBWriteSet, StateMerkleError> {
         if self.is_empty() {
             return Ok(DBWriteSet::default());
         }
@@ -137,6 +141,7 @@ impl AffectedNodesByDepth {
             let is_root_node = iter_rev.peek().is_none();
 
             let maybe_new_root = Self::process_affected_node(
+                merkle_db,
                 affected_node,
                 &mut merkle_db_write_set,
                 &mut state_db_write_set,
@@ -152,17 +157,22 @@ impl AffectedNodesByDepth {
     }
 
     fn process_affected_node(
+        merkle_db: &MerkleDB,
         affected_node: &AffectedNode,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         state_db_write_set: &mut StateDBWriteSet,
         is_root_node: bool,
     ) -> Result<Option<Hash32>, StateMerkleError> {
         let maybe_root = match affected_node {
-            AffectedNode::PathNode(path_node) => {
-                Self::process_affected_path_node(path_node, merkle_db_write_set, is_root_node)?
-            }
+            AffectedNode::PathNode(path_node) => Self::process_affected_path_node(
+                merkle_db,
+                path_node,
+                merkle_db_write_set,
+                is_root_node,
+            )?,
             AffectedNode::Endpoint(endpoint) => match &endpoint.leaf_write_op_context {
                 LeafWriteOpContext::Add(ctx) => Self::process_add_affected_endpoint(
+                    merkle_db,
                     endpoint,
                     ctx,
                     state_db_write_set,
@@ -175,9 +185,12 @@ impl AffectedNodesByDepth {
                     merkle_db_write_set,
                     is_root_node,
                 )?,
-                LeafWriteOpContext::Remove(ctx) => {
-                    Self::process_remove_affected_endpoint(ctx, merkle_db_write_set, is_root_node)?
-                }
+                LeafWriteOpContext::Remove(ctx) => Self::process_remove_affected_endpoint(
+                    merkle_db,
+                    ctx,
+                    merkle_db_write_set,
+                    is_root_node,
+                )?,
             },
         };
 
@@ -187,6 +200,7 @@ impl AffectedNodesByDepth {
     /// `PathNode` is always a branch node. With the potentially updated child nodes,
     /// encode a new branch node and put it into `merkle_db_write_set`.
     fn process_affected_path_node(
+        merkle_db: &MerkleDB,
         path_node: &AffectedPathNode,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
@@ -209,7 +223,7 @@ impl AffectedNodesByDepth {
             });
 
         // Updated branch node data after the partial merkle write.
-        let node_data = NodeCodec::encode_branch(&left_hash, &right_hash)?;
+        let node_data = NodeCodec::encode_branch(&left_hash, &right_hash, Some(merkle_db))?;
         let node_hash = hash::<Blake2b256>(&node_data)?;
 
         let merkle_write = MerkleNodeWrite::new(node_hash.clone(), node_data);
@@ -247,6 +261,7 @@ impl AffectedNodesByDepth {
     /// the endpoint `AffectedNode`, pointing the new leaf node and its sibling
     /// node as children.
     fn process_add_affected_endpoint(
+        merkle_db: &MerkleDB,
         endpoint: &AffectedEndpoint,
         ctx: &LeafAddContext,
         state_db_write_set: &mut StateDBWriteSet,
@@ -272,7 +287,7 @@ impl AffectedNodesByDepth {
         };
 
         let new_branch_node_data =
-            NodeCodec::encode_branch(new_branch_left_hash, new_branch_right_hash)?;
+            NodeCodec::encode_branch(new_branch_left_hash, new_branch_right_hash, Some(merkle_db))?;
         let new_branch_node_hash = hash::<Blake2b256>(&new_branch_node_data)?;
         let new_branch_merkle_write =
             MerkleNodeWrite::new(new_branch_node_hash.clone(), new_branch_node_data);
@@ -291,6 +306,7 @@ impl AffectedNodesByDepth {
                 &leaf_split_ctx.sibling_state_key_bv,
             )?;
             let decompression_write_set = Self::generate_decompression_set(
+                merkle_db,
                 common_path_to_decompress,
                 &ctx.sibling_candidate_hash,
                 added_leaf_write,
@@ -366,6 +382,7 @@ impl AffectedNodesByDepth {
     /// If the sibling is a leaf, the endpoint becomes a full-branch with some potential merkle path
     /// compression.
     fn process_remove_affected_endpoint(
+        merkle_db: &MerkleDB,
         ctx: &LeafRemoveContext,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
@@ -391,7 +408,7 @@ impl AffectedNodesByDepth {
             }
         }
 
-        let post_parent_data = NodeCodec::encode_branch(&left, &right)?;
+        let post_parent_data = NodeCodec::encode_branch(&left, &right, Some(merkle_db))?;
         let post_parent_data_new_hash = hash::<Blake2b256>(&post_parent_data)?;
         merkle_db_write_set.insert(
             ctx.post_parent_hash.clone(),
@@ -450,6 +467,7 @@ impl AffectedNodesByDepth {
     /// Returns `Vec<(Hash32, MerkleNodeWrite)>`, where the `Hash32` is used as a key in `MerkleDBWriteSet` map.
     /// The vector must be ordered bottom-up, so the last entry will represent the node at the top level.
     fn generate_decompression_set(
+        merkle_db: &MerkleDB,
         common_path_to_decompress: BitVec,
         sibling_hash: &Hash32,
         new_leaf_write: MerkleNodeWrite,
@@ -484,7 +502,8 @@ impl AffectedNodesByDepth {
             } else {
                 (child_hash, Hash32::default())
             };
-            let single_child_branch_data = NodeCodec::encode_branch(&left_child, &right_child)?;
+            let single_child_branch_data =
+                NodeCodec::encode_branch(&left_child, &right_child, Some(merkle_db))?;
             let single_child_branch_hash = hash::<Blake2b256>(&single_child_branch_data)?;
 
             let merkle_write_lookup_key = if is_top_branch {
