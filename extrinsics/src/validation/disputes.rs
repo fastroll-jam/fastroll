@@ -52,6 +52,13 @@ impl DisputesXtValidator {
         extrinsic: &DisputesXt,
         prior_timeslot: &Timeslot,
     ) -> Result<(), XtError> {
+        if extrinsic.verdicts.is_empty()
+            && extrinsic.culprits.is_empty()
+            && extrinsic.faults.is_empty()
+        {
+            return Ok(());
+        }
+
         // Check if the entries are sorted
         if !extrinsic.verdicts.is_sorted() {
             return Err(XtError::VerdictsNotSorted);
@@ -88,6 +95,10 @@ impl DisputesXtValidator {
                 extrinsic,
             )
             .await?;
+        }
+
+        if extrinsic.culprits.is_empty() && extrinsic.faults.is_empty() {
+            return Ok(());
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
