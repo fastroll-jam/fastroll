@@ -37,6 +37,10 @@ impl TicketsXtValidator {
 
     /// Validates the entire `TicketsXt`.
     pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtError> {
+        if extrinsic.is_empty() {
+            return Ok(());
+        }
+
         // Check the slot phase
         let current_slot_phase = self.state_manger.get_timeslot().await?.slot_phase();
         if current_slot_phase >= TICKET_CONTEST_DURATION as u32 && !extrinsic.is_empty() {

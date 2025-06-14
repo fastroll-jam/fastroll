@@ -44,6 +44,10 @@ impl AssurancesXtValidator {
         extrinsic: &AssurancesXt,
         header_parent_hash: &Hash32,
     ) -> Result<(), XtError> {
+        if extrinsic.is_empty() {
+            return Ok(());
+        }
+
         // Check if the entries are sorted
         if !extrinsic.as_ref().is_sorted() {
             return Err(XtError::AssurancesNotSorted);
