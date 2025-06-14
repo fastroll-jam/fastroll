@@ -167,42 +167,28 @@ impl StateManager {
         Ok(())
     }
 
-    fn get_clean_cache_snapshot_as_state<T>(
-        &self,
-        state_key: &StateKey,
-    ) -> Result<Option<T>, StateManagerError>
+    fn get_clean_cache_snapshot_as_state<T>(&self, state_key: &StateKey) -> Option<T>
     where
         T: StateComponent,
     {
         if let Some(entry) = self.cache.get_entry(state_key) {
             if let Some(state_entry) = T::from_entry_type(&entry.clean_snapshot) {
-                return Ok(Some(state_entry.clone()));
+                return Some(state_entry.clone());
             }
         }
-        Ok(None)
+        None
     }
 
-    pub fn get_cache_entry_as_state<T>(
-        &self,
-        state_key: &StateKey,
-    ) -> Result<Option<T>, StateManagerError>
+    pub fn get_cache_entry_as_state<T>(&self, state_key: &StateKey) -> Option<T>
     where
         T: StateComponent,
     {
         if let Some(entry) = self.cache.get_entry(state_key) {
             if let Some(state_entry) = T::from_entry_type(&entry.value) {
-                return Ok(Some(state_entry.clone()));
+                return Some(state_entry.clone());
             }
         }
-        Ok(None)
-    }
-
-    pub fn is_cache_entry_dirty(&self, state_key: &StateKey) -> Result<bool, StateManagerError> {
-        let entry = self
-            .cache
-            .get_entry(state_key)
-            .ok_or(StateManagerError::CacheEntryNotFound)?;
-        Ok(entry.is_dirty())
+        None
     }
 
     fn insert_clean_cache_entry_and_snapshot<T>(&self, state_key: &StateKey, state_entry: T)
@@ -568,7 +554,7 @@ impl StateManager {
         T: StateComponent,
     {
         // Check the cache
-        if let Some(clean_snapshot) = self.get_clean_cache_snapshot_as_state(state_key)? {
+        if let Some(clean_snapshot) = self.get_clean_cache_snapshot_as_state(state_key) {
             return Ok(Some(clean_snapshot));
         }
 
@@ -591,7 +577,7 @@ impl StateManager {
         T: StateComponent,
     {
         // Check the cache
-        if let Some(state_entry) = self.get_cache_entry_as_state(state_key)? {
+        if let Some(state_entry) = self.get_cache_entry_as_state(state_key) {
             return Ok(Some(state_entry));
         }
 

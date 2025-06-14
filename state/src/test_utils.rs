@@ -243,6 +243,6 @@ pub async fn compare_cache_and_db<T: StateComponent>(
         .await?
         .unwrap();
     let db_entry = T::decode(&mut db_entry_encoded.as_slice())?;
-    let cache_entry = state_manager.get_cache_entry_as_state(state_key)?.unwrap();
+    let cache_entry = state_manager.get_cache_entry_as_state(state_key).unwrap();
     Ok(db_entry == cache_entry)
 }
