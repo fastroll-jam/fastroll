@@ -161,13 +161,6 @@ pub enum ChildType {
 }
 
 impl ChildType {
-    pub fn opposite(&self) -> Self {
-        match self {
-            ChildType::Left => ChildType::Right,
-            ChildType::Right => ChildType::Left,
-        }
-    }
-
     pub fn from_bit(bit: bool) -> Self {
         if bit {
             ChildType::Right

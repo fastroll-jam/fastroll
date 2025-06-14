@@ -12,18 +12,10 @@ pub enum HostCallError {
     DataSegmentTooLarge,
     #[error("Invalid host call invocation context")]
     InvalidContext,
-    #[error("Account not found in the service account partial state")]
-    AccountNotFoundInPartialState,
     #[error("Accumulator account is not initialized in the service accounts partial state")]
     AccumulatorAccountNotInitialized,
-    #[error("Invalid register indices")]
-    InvalidRegisters,
-    #[error("Invalid memory write request as a result of host function execution")]
-    InvalidMemoryWrite,
     #[error("Service id overflowed")]
     ServiceIdOverflow,
-    #[error("Service account balance overflowed")]
-    BalanceOverflow,
     #[error("Account not found from the global account state")]
     AccountNotFound,
     #[error("Failed to insert an entry from an account storage")]
@@ -32,8 +24,6 @@ pub enum HostCallError {
     AccountStorageRemovalFailed,
     #[error("Exit reason of the PVM invocation is invalid")]
     InvalidExitReason,
-    #[error("State manager holding polluted data")]
-    StateManagerPollution,
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]
@@ -55,8 +45,6 @@ pub enum HostCallError {
 pub enum PartialStateError {
     #[error("Account not found from the global state")]
     AccountNotFoundFromGlobalState,
-    #[error("Attempted to delete account storage/preimage entry that doesn't exist")]
-    MissingAccountEntryDeletion,
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]

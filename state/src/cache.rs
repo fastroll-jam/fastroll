@@ -39,10 +39,6 @@ impl CacheEntry {
         }
     }
 
-    pub(crate) fn is_dirty(&self) -> bool {
-        matches!(self.status, CacheEntryStatus::Dirty(_))
-    }
-
     pub(crate) fn as_merkle_write_op(
         &self,
         state_key: &StateKey,
