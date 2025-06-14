@@ -140,6 +140,17 @@ impl BlockImporter {
         let assurances = block.extrinsics.assurances.clone();
         let disputes = block.extrinsics.disputes.clone();
 
+        tracing::debug!("tickets_xt count={}", tickets.len());
+        tracing::debug!("preimages_xt count={}", preimages.len());
+        tracing::debug!("guarantees_xt count={}", guarantees.len());
+        tracing::debug!("assurances_xt count={}", assurances.len());
+        tracing::debug!(
+            "disputes_xt count: verdicts={}, culprits={}, faults={}",
+            disputes.verdicts.len(),
+            disputes.culprits.len(),
+            disputes.faults.len(),
+        );
+
         let tickets_validator = TicketsXtValidator::new(storage.state_manager());
         let preimages_validator = PreimagesXtValidator::new(storage.state_manager());
         let guarantees_validator = GuaranteesXtValidator::new(storage.state_manager());

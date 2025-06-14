@@ -79,6 +79,10 @@ impl GuaranteesXtValidator {
         extrinsic: &GuaranteesXt,
         header_timeslot_index: u32,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
+        if extrinsic.is_empty() {
+            return Ok(Vec::new());
+        }
+
         // Check if the entries are sorted
         if !extrinsic.as_ref().is_sorted() {
             return Err(XtError::GuaranteesNotSorted);

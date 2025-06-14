@@ -29,6 +29,10 @@ impl PreimagesXtValidator {
 
     /// Validates the entire `PreimagesXt`.
     pub async fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtError> {
+        if extrinsic.is_empty() {
+            return Ok(());
+        }
+
         // Check if the entries are sorted
         if !extrinsic.is_sorted() {
             return Err(XtError::PreimageLookupsNotSorted);
