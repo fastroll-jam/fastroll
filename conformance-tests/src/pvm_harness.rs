@@ -1,3 +1,4 @@
+use fr_common::utils::tracing::setup_timed_tracing;
 use fr_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
@@ -213,6 +214,9 @@ impl PVMHarness {
 }
 
 pub fn run_test_case(filename: &str) {
+    // Config tracing subscriber
+    setup_timed_tracing();
+
     // load test case
     let filename = PathBuf::from(filename);
     let test_case = PVMHarness::load_test_case(&filename);
@@ -247,11 +251,9 @@ pub fn run_test_case(filename: &str) {
         _ => panic!("Unexpected exit reason"),
     };
 
-    // Bypass gas_counter for now, since it is not finalized yet
     // assert_eq!(pvm.state, expected_vm);
-    // TODO: test gas counter and pc values
-    // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter);
-    // assert_eq!(pvm.state.pc, expected_vm.pc);
+    // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter); // FIXME: Skipped due to issues in page-fault test cases
+    assert_eq!(pvm.state.pc, expected_vm.pc);
     assert_eq!(pvm.state.regs, expected_vm.regs);
     assert_eq!(pvm.state.memory, expected_vm.memory);
     assert_eq!(actual_status, expected_status);
