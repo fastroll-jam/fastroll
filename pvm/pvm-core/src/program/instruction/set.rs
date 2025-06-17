@@ -58,7 +58,7 @@ impl InstructionSet {
         program_state: &ProgramState,
         target: MemAddress,
         condition: bool,
-    ) -> Result<(ExitReason, MemAddress), VMCoreError> {
+    ) -> Result<(ExitReason, RegValue), VMCoreError> {
         match (
             condition,
             program_state
@@ -67,13 +67,10 @@ impl InstructionSet {
         ) {
             (false, _) => Ok((
                 ExitReason::Continue,
-                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
+                Interpreter::next_pc(vm_state, program_state),
             )),
-            (true, true) => Ok((ExitReason::Continue, target)),
-            (true, false) => Ok((
-                ExitReason::Panic,
-                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
-            )),
+            (true, true) => Ok((ExitReason::Continue, target as RegValue)),
+            (true, false) => Ok((ExitReason::Panic, vm_state.pc)),
         }
     }
 
@@ -87,24 +84,18 @@ impl InstructionSet {
         vm_state: &VMState,
         program_state: &ProgramState,
         a: usize,
-    ) -> Result<(ExitReason, MemAddress), VMCoreError> {
+    ) -> Result<(ExitReason, RegValue), VMCoreError> {
         const SPECIAL_HALT_VALUE: usize = (1 << 32) - (1 << 16);
 
         if a == SPECIAL_HALT_VALUE {
-            return Ok((
-                ExitReason::RegularHalt,
-                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
-            ));
+            return Ok((ExitReason::RegularHalt, vm_state.pc));
         }
 
         let jump_table_len = program_state.jump_table.len();
 
         // Check if the argument `a` is valid and compute the target
         if a == 0 || a > jump_table_len * JUMP_ALIGNMENT || a % JUMP_ALIGNMENT != 0 {
-            return Ok((
-                ExitReason::Panic,
-                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
-            ));
+            return Ok((ExitReason::Panic, vm_state.pc));
         }
 
         let aligned_index = (a / JUMP_ALIGNMENT)
@@ -119,12 +110,9 @@ impl InstructionSet {
             .basic_block_start_indices
             .contains(&(target as usize))
         {
-            Ok((ExitReason::Continue, target))
+            Ok((ExitReason::Continue, target as RegValue))
         } else {
-            Ok((
-                ExitReason::Panic,
-                reg_to_mem_address(Interpreter::next_pc(vm_state, program_state)),
-            ))
+            Ok((ExitReason::Panic, vm_state.pc))
         }
     }
 
@@ -137,12 +125,14 @@ impl InstructionSet {
     /// Opcode: 0
     pub fn trap(
         vm_state: &VMState,
-        program_state: &ProgramState,
+        _program_state: &ProgramState,
     ) -> Result<SingleStepResult, VMCoreError> {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
-                new_pc: Interpreter::next_pc(vm_state, program_state),
+                // TODO: Revisit (Test vectors assume `TRAP` doesn't alter pc values)
+                // new_pc: Interpreter::next_pc(vm_state, program_state),
+                new_pc: vm_state.pc,
                 ..Default::default()
             },
         })
@@ -324,7 +314,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -354,7 +344,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -726,7 +716,7 @@ impl InstructionSet {
             exit_reason,
             state_change: VMStateChange {
                 register_write: Some((ins.rs1()?, ins.imm1()?)),
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -749,7 +739,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -772,7 +762,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -795,7 +785,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -818,7 +808,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -841,7 +831,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -864,7 +854,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -889,7 +879,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -915,7 +905,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -940,7 +930,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -965,7 +955,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2194,7 +2184,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2219,7 +2209,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2243,7 +2233,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2269,7 +2259,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2294,7 +2284,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2319,7 +2309,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason,
             state_change: VMStateChange {
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
@@ -2346,7 +2336,7 @@ impl InstructionSet {
             exit_reason,
             state_change: VMStateChange {
                 register_write: Some((ins.rs1()?, ins.imm1()?)),
-                new_pc: target as RegValue,
+                new_pc: target,
                 ..Default::default()
             },
         })
