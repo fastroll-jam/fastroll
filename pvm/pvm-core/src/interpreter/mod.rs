@@ -17,6 +17,7 @@ use fr_pvm_types::{
     exit_reason::ExitReason,
 };
 
+#[derive(Debug)]
 pub struct SingleStepResult {
     pub exit_reason: ExitReason,
     pub state_change: VMStateChange,
@@ -111,7 +112,10 @@ impl Interpreter {
             ) {
                 Ok(post_gas) => post_gas,
                 Err(VMCoreError::InvalidMemZone) => return Ok(ExitReason::Panic),
-                Err(VMCoreError::PageFault(address)) => return Ok(ExitReason::PageFault(address)),
+                Err(VMCoreError::PageFault(address)) => {
+                    vm_state.pc = 0; // TODO: Revisit (test vectors assume page-fault resets pc value but not in GP)
+                    return Ok(ExitReason::PageFault(address));
+                }
                 Err(e) => return Err(e),
             };
             if post_gas < 0 {
@@ -131,7 +135,7 @@ impl Interpreter {
                 ExitReason::Continue => continue,
                 termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
                     // Reset the program counter
-                    vm_state.pc = 0;
+                    // vm_state.pc = 0; // TODO: Revisit (test vectors assume panic/halt doesn't reset pc value but not in GP)
                     return Ok(termination);
                 }
                 other => return Ok(other),

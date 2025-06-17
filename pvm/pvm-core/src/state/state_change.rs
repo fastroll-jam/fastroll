@@ -75,6 +75,12 @@ impl VMStateMutator {
         vm_state: &mut VMState,
         change: &VMStateChange,
     ) -> Result<SignedGas, VMCoreError> {
+        // Apply PC change
+        vm_state.pc = change.new_pc;
+
+        // Check gas counter and apply gas change
+        let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
+
         // Apply register changes
         if let Some((reg_index, new_val)) = change.register_write {
             if reg_index >= REGISTERS_COUNT {
@@ -101,11 +107,7 @@ impl VMStateMutator {
                 Err(e) => return Err(e.into()),
             }
         }
-        // Apply PC change
-        vm_state.pc = change.new_pc;
 
-        // Check gas counter and apply gas change
-        let post_gas = GasCharger::apply_gas_cost(vm_state, change.gas_charge)?;
         Ok(post_gas)
     }
 
