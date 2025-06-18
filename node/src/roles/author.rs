@@ -5,6 +5,7 @@ use crate::{
 };
 use fr_block::{
     header_db::BlockHeaderDBError,
+    post_state_root_db::PostStateRootDbError,
     types::{
         block::{Block, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::{Extrinsics, ExtrinsicsError},
@@ -40,6 +41,8 @@ pub enum BlockAuthorError {
     BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("XtDBError: {0}")]
     XtDBError(#[from] XtDBError),
+    #[error("PostStateRootDbError: {0}")]
+    PostStateRootDBError(#[from] PostStateRootDbError),
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
     #[error("ExtrinsicsError: {0}")]
@@ -130,6 +133,13 @@ impl BlockAuthor {
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
 
+        // Store post state root
+        let new_block_hash = self.new_block.header.hash()?;
+        storage
+            .post_state_root_db()
+            .set_post_state_root(&new_block_hash, post_state_root.clone())
+            .await?;
+
         // Store extrinsics
         storage.xt_db().set_xt(&xt_hash, xt).await?;
 
@@ -154,6 +164,12 @@ impl BlockAuthor {
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
+        // Store post state root
+        let new_block_hash = self.new_block.header.hash()?;
+        storage
+            .post_state_root_db()
+            .set_post_state_root(&new_block_hash, post_state_root.clone())
+            .await?;
         // Store extrinsics
         storage.xt_db().set_xt(&xt_hash, xt).await?;
         Ok((self.new_block.clone(), post_state_root))

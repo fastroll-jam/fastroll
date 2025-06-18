@@ -19,6 +19,7 @@ use std::{
 async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode, Box<dyn Error>> {
     // Genesis header is the best header
     let genesis_header = load_genesis_block_from_file().header;
+    let genesis_header_hash = genesis_header.hash()?;
     let (header_db, xt_db, state_manager, post_state_root_db) =
         init_db_and_manager(Some(genesis_header));
 
@@ -26,6 +27,12 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
     add_all_simple_state_entries(&state_manager, Some(genesis_simple_state())).await?;
     // Commit genesis state
     state_manager.commit_dirty_cache().await?;
+
+    // Commit posterior state root of the genesis block
+    let post_state_root = state_manager.merkle_root();
+    post_state_root_db
+        .set_post_state_root(&genesis_header_hash, post_state_root)
+        .await?;
 
     // Init network manager with dev account
     let dev_account_name = DevAccountName::Fergie;

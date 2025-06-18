@@ -43,6 +43,7 @@ fn init_storage(db_id: &str) -> Result<Arc<NodeStorage>, Box<dyn Error>> {
 async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     // Genesis header is the best header
     let genesis_header = load_genesis_block_from_file().header;
+    let genesis_header_hash = genesis_header.hash()?;
     let storage = jam_node.storage();
     storage.header_db().set_best_header(genesis_header.clone());
     storage.header_db().commit_header(genesis_header).await?;
@@ -58,6 +59,13 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
 
     // Commit genesis state
     storage.state_manager().commit_dirty_cache().await?;
+
+    // Commit posterior state root of the genesis block
+    let post_state_root = storage.state_manager().merkle_root();
+    storage
+        .post_state_root_db()
+        .set_post_state_root(&genesis_header_hash, post_state_root)
+        .await?;
     Ok(())
 }
 
