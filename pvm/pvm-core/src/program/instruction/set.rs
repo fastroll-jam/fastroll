@@ -1,7 +1,8 @@
 use crate::{
-    continue_with_reg_write,
+    continue_with_mem_write, continue_with_reg_write,
     error::VMCoreError,
     interpreter::{Interpreter, SingleStepResult},
+    jump_result, jump_result_with_reg_write,
     program::{instruction::Instruction, types::program_state::ProgramState},
     state::{
         state_change::{MemWrite, VMStateChange},
@@ -168,7 +169,6 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_host_call_type = reg_to_u8(ins.imm1()?);
-
         let exit_reason = ExitReason::HostCall(
             HostCallType::from_u8(imm_host_call_type).ok_or(VMCoreError::InvalidHostCallType)?,
         );
@@ -212,15 +212,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = vec![(imm_value & 0xFF) as u8]; // mod 2^8
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u16` integer type
@@ -234,15 +226,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF) as u16).encode_fixed(2)?; // mod 2^16
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u32` integer type
@@ -256,15 +240,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = ((imm_value & 0xFFFF_FFFF) as u32).encode_fixed(4)?; // mod 2^32
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, imm_address, value)
     }
 
     /// Store immediate argument value to the memory as `u64` integer type
@@ -278,15 +254,7 @@ impl InstructionSet {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let imm_value = ins.imm2()?;
         let value = imm_value.encode_fixed(8)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, imm_address, value)
     }
 
     //
@@ -304,14 +272,7 @@ impl InstructionSet {
         let target = reg_to_mem_address(ins.imm1()?);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     //
@@ -334,14 +295,7 @@ impl InstructionSet {
         let jump_address = reg_to_usize(rs1_val.wrapping_add(imm1) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Load an immediate value into a register
@@ -464,15 +418,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u8(vm_state.read_rs1(ins)? & 0xFF);
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, vec![rs1_val])),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, imm_address, vec![rs1_val])
     }
 
     /// Store register value to memory as 16-bit unsigned integer
@@ -485,15 +431,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF);
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(2)?)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(
+            vm_state,
+            program_state,
+            imm_address,
+            rs1_val.encode_fixed(2)?
+        )
     }
 
     /// Store register value to memory as 32-bit unsigned integer
@@ -506,15 +449,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF);
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(4)?)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(
+            vm_state,
+            program_state,
+            imm_address,
+            rs1_val.encode_fixed(4)?
+        )
     }
 
     /// Store register value to memory as 64-bit unsigned integer
@@ -527,15 +467,12 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_address = reg_to_mem_address(ins.imm1()?);
         let rs1_val = reg_to_u64(vm_state.read_rs1(ins)?);
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(imm_address, rs1_val.encode_fixed(8)?)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(
+            vm_state,
+            program_state,
+            imm_address,
+            rs1_val.encode_fixed(8)?
+        )
     }
 
     //
@@ -552,15 +489,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(ins.imm2()? & 0xFF)];
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store immediate 16-bit value to memory indirectly
@@ -573,15 +502,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(ins.imm2()? & 0xFFFF).encode_fixed(2)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store immediate 32-bit value to memory indirectly
@@ -595,15 +516,7 @@ impl InstructionSet {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         // TODO: check the GP if `mod 2^32` not needed here
         let value = reg_to_u32(ins.imm2()?).encode_fixed(4)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store immediate 64-bit value to memory indirectly
@@ -616,15 +529,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(ins.imm2()?).encode_fixed(8)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     //
@@ -642,15 +547,7 @@ impl InstructionSet {
         let target = reg_to_mem_address(ins.imm2()?);
         tracing::trace!("{:?} target: {target}\n", ins.op);
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, true)?;
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                register_write: Some((ins.rs1()?, ins.imm1()?)),
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result_with_reg_write!(exit_reason, target, ins.rs1()?, ins.imm1()?)
     }
 
     /// Branch if equal to immediate
@@ -663,17 +560,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? == ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if not equal to immediate
@@ -686,17 +575,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? != ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than immediate (unsigned)
@@ -709,17 +590,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? < ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than or equal to immediate (unsigned)
@@ -732,17 +605,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? <= ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than or equal to immediate (unsigned)
@@ -755,17 +620,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? >= ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than immediate (unsigned)
@@ -778,17 +635,9 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let target = reg_to_mem_address(ins.imm2()?);
         let condition = vm_state.read_rs1(ins)? > ins.imm1()?;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than immediate (signed)
@@ -803,17 +652,9 @@ impl InstructionSet {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val < imm_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than or equal to immediate (signed)
@@ -827,19 +668,10 @@ impl InstructionSet {
         let target = reg_to_mem_address(ins.imm2()?);
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
-
         let condition = rs1_val <= imm_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than or equal to immediate (signed)
@@ -854,17 +686,9 @@ impl InstructionSet {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val >= imm_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than immediate (signed)
@@ -879,17 +703,9 @@ impl InstructionSet {
         let rs1_val = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let imm_val = VMUtils::u64_to_i64(ins.imm1()?);
         let condition = rs1_val > imm_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     //
@@ -1077,15 +893,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = vec![reg_to_u8(vm_state.read_rs1(ins)? & 0xFF)];
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store 16-bit value to memory indirectly
@@ -1098,15 +906,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u16(vm_state.read_rs1(ins)? & 0xFFFF).encode_fixed(2)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store 32-bit value to memory indirectly
@@ -1119,15 +919,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u32(vm_state.read_rs1(ins)? & 0xFFFF_FFFF).encode_fixed(4)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Store 64-bit value to memory indirectly
@@ -1140,15 +932,7 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs2(ins)?.wrapping_add(ins.imm1()?));
         let value = reg_to_u64(vm_state.read_rs1(ins)?).encode_fixed(8)?;
-
-        Ok(SingleStepResult {
-            exit_reason: ExitReason::Continue,
-            state_change: VMStateChange {
-                memory_write: Some(MemWrite::new(address, value)),
-                new_pc: Interpreter::next_pc(vm_state, program_state),
-                ..Default::default()
-            },
-        })
+        continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
     /// Load 8-bit unsigned value from memory indirectly
@@ -1721,17 +1505,9 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val == rs2_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if not equal
@@ -1746,17 +1522,9 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val != rs2_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than (unsigned)
@@ -1773,14 +1541,7 @@ impl InstructionSet {
         let condition = rs1_val < rs2_val;
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if less than (signed)
@@ -1794,19 +1555,10 @@ impl InstructionSet {
         let target = reg_to_mem_address(ins.imm1()?);
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
-
         let condition = rs1_val_s < rs2_val_s;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than or equal (unsigned)
@@ -1821,17 +1573,9 @@ impl InstructionSet {
         let rs1_val = vm_state.read_rs1(ins)?;
         let rs2_val = vm_state.read_rs2(ins)?;
         let condition = rs1_val >= rs2_val;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     /// Branch if greater than or equal (signed)
@@ -1846,17 +1590,9 @@ impl InstructionSet {
         let rs1_val_s = VMUtils::u64_to_i64(vm_state.read_rs1(ins)?);
         let rs2_val_s = VMUtils::u64_to_i64(vm_state.read_rs2(ins)?);
         let condition = rs1_val_s >= rs2_val_s;
-
         let (exit_reason, target) = Self::branch(vm_state, program_state, target, condition)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result!(exit_reason, target)
     }
 
     //
@@ -1875,15 +1611,7 @@ impl InstructionSet {
             reg_to_usize(vm_state.read_rs2(ins)?.wrapping_add(ins.imm2()?) & 0xFFFF_FFFF);
         let (exit_reason, target) = Self::djump(vm_state, program_state, jump_address)?;
         tracing::trace!("{:?} target: {target}\n", ins.op);
-
-        Ok(SingleStepResult {
-            exit_reason,
-            state_change: VMStateChange {
-                register_write: Some((ins.rs1()?, ins.imm1()?)),
-                new_pc: target,
-                ..Default::default()
-            },
-        })
+        jump_result_with_reg_write!(exit_reason, target, ins.rs1()?, ins.imm1()?)
     }
 
     //
