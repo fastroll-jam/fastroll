@@ -4,6 +4,7 @@ pub const STATE_CF_NAME: &str = "state_cf";
 pub const MERKLE_CF_NAME: &str = "merkle_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
 pub const XT_CF_NAME: &str = "xt_cf";
+pub const POST_STATE_ROOT_CF_NAME: &str = "post_state_root_cf";
 
 pub struct RocksDBOpts {
     pub opts: Options,

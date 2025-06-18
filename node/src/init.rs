@@ -4,10 +4,13 @@ use crate::{
     jam_node::JamNode,
 };
 use clap::Parser;
-use fr_block::{header_db::BlockHeaderDB, types::extrinsics::Extrinsics, xt_db::XtDB};
+use fr_block::{
+    header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::extrinsics::Extrinsics,
+    xt_db::XtDB,
+};
 use fr_common::{utils::tracing::setup_tracing, ByteEncodable, Hash32};
 use fr_db::{
-    config::{RocksDBOpts, HEADER_CF_NAME, XT_CF_NAME},
+    config::{RocksDBOpts, HEADER_CF_NAME, POST_STATE_ROOT_CF_NAME, XT_CF_NAME},
     core::core_db::CoreDB,
 };
 use fr_extrinsics::pool::XtPool;
@@ -18,18 +21,23 @@ use fr_state::{
 use fr_storage::node_storage::NodeStorage;
 use std::{error::Error, path::PathBuf, sync::Arc};
 
-fn init_storage(
-    db_id: &str,
-) -> Result<(BlockHeaderDB, XtDB, StateManager, XtPool), Box<dyn Error>> {
+fn init_storage(db_id: &str) -> Result<Arc<NodeStorage>, Box<dyn Error>> {
     let core_db = Arc::new(CoreDB::open(
         PathBuf::from(format!("./.rocksdb/{db_id}")),
         RocksDBOpts::default(),
     )?);
     let header_db = BlockHeaderDB::new(core_db.clone(), HEADER_CF_NAME, 1024, None);
     let xt_db = XtDB::new(core_db.clone(), XT_CF_NAME, 1024);
+    let post_state_root_db = PostStateRootDB::new(core_db.clone(), POST_STATE_ROOT_CF_NAME, 1024);
     let state_manager = StateManager::from_core_db(core_db, StateManagerConfig::default());
-    let xt_pool = XtPool::new(1024);
-    Ok((header_db, xt_db, state_manager, xt_pool))
+    let _xt_pool = XtPool::new(1024);
+
+    Ok(Arc::new(NodeStorage::new(
+        Arc::new(state_manager),
+        Arc::new(header_db),
+        Arc::new(xt_db),
+        Arc::new(post_state_root_db),
+    )))
 }
 
 async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
@@ -68,18 +76,11 @@ pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
             };
 
             let socket_addr = node_info.socket_addr;
-            let (header_db, xt_db, state_manager, _xt_pool) =
+            let node_storage =
                 init_storage(format!("[{}]:{}", socket_addr.ip(), socket_addr.port()).as_str())?;
             tracing::info!("Storage initialized");
             let network_manager =
                 NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
-
-            // Construct node
-            let node_storage = Arc::new(NodeStorage::new(
-                Arc::new(state_manager),
-                Arc::new(header_db),
-                Arc::new(xt_db),
-            ));
             let mut node = JamNode::new(node_info.clone(), node_storage, Arc::new(network_manager));
             tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager().local_node_info.validator_key.ed25519_key.to_hex());
 

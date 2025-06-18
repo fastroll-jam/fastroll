@@ -19,7 +19,8 @@ use std::{
 async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode, Box<dyn Error>> {
     // Genesis header is the best header
     let genesis_header = load_genesis_block_from_file().header;
-    let (header_db, xt_db, state_manager) = init_db_and_manager(Some(genesis_header));
+    let (header_db, xt_db, state_manager, post_state_root_db) =
+        init_db_and_manager(Some(genesis_header));
 
     // Init genesis simple state with initial validators: active set and pending set
     add_all_simple_state_entries(&state_manager, Some(genesis_simple_state())).await?;
@@ -38,6 +39,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         Arc::new(state_manager),
         Arc::new(header_db),
         Arc::new(xt_db),
+        Arc::new(post_state_root_db),
     ));
 
     let node = JamNode::new(node_info, node_storage, network_manager);

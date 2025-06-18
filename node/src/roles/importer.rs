@@ -51,6 +51,8 @@ pub enum BlockImportError {
     TimeslotInFuture,
     #[error("Block header contains timeslot earlier than the parent header")]
     InvalidTimeslot,
+    #[error("Block header contains invalid prior state root")]
+    InvalidPriorStateRoot,
     #[error("XtError: {0}")]
     XtError(#[from] XtError),
     #[error("ExtrinsicsError: {0}")]
@@ -197,7 +199,7 @@ impl BlockImporter {
         let best_header = storage.header_db().get_best_header();
         // Self::validate_parent_hash(&best_header, block)?; // FIXME: check finality & best header
         Self::validate_timeslot_index(&best_header, block)?;
-        // self.validate_prior_state_root()?; // TODO: impl
+        Self::validate_prior_state_root(&block.header)?;
         Self::validate_xt_hash(block)?;
         Ok(())
     }
@@ -277,9 +279,9 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn validate_prior_state_root() -> Result<(), BlockImportError> {
-        unimplemented!()
+    fn validate_prior_state_root(_block_header: &BlockHeader) -> Result<(), BlockImportError> {
+        // TODO: Check if `header.data.prior_state_root` matches post state root found from the NodeStorage.
+        Ok(())
     }
 
     fn validate_xt_hash(block: &Block) -> Result<(), BlockImportError> {
