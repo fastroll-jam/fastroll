@@ -27,6 +27,7 @@ impl RocksDBOpts {
             ColumnFamilyDescriptor::new(MERKLE_CF_NAME, Options::default()),
             ColumnFamilyDescriptor::new(HEADER_CF_NAME, Options::default()),
             ColumnFamilyDescriptor::new(XT_CF_NAME, Options::default()),
+            ColumnFamilyDescriptor::new(POST_STATE_ROOT_CF_NAME, Options::default()),
         ]
     }
 
