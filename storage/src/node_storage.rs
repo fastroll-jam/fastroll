@@ -2,6 +2,7 @@ use crate::server_trait::NodeServerTrait;
 use async_trait::async_trait;
 use fr_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
+    post_state_root_db::PostStateRootDB,
     types::block::Block,
     xt_db::{XtDB, XtDBError},
 };
@@ -29,6 +30,7 @@ pub struct NodeStorage {
     state_manager: Arc<StateManager>,
     header_db: Arc<BlockHeaderDB>,
     xt_db: Arc<XtDB>,
+    post_state_root_db: Arc<PostStateRootDB>,
 }
 
 #[async_trait]
@@ -53,11 +55,13 @@ impl NodeStorage {
         state_manager: Arc<StateManager>,
         header_db: Arc<BlockHeaderDB>,
         xt_db: Arc<XtDB>,
+        post_state_root_db: Arc<PostStateRootDB>,
     ) -> Self {
         Self {
             state_manager,
             header_db,
             xt_db,
+            post_state_root_db,
         }
     }
 
@@ -71,6 +75,10 @@ impl NodeStorage {
 
     pub fn xt_db(&self) -> Arc<XtDB> {
         self.xt_db.clone()
+    }
+
+    pub fn post_state_root_db(&self) -> Arc<PostStateRootDB> {
+        self.post_state_root_db.clone()
     }
 
     /// Gets effective validators of the previous, current and the next epoch.
