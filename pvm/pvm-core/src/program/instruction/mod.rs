@@ -1,5 +1,6 @@
 pub mod opcode;
 pub mod set;
+pub(crate) mod utils;
 
 use crate::{
     error::VMCoreError,
