@@ -70,11 +70,6 @@ pub async fn extend_chain(
             .commit_header(new_header.clone())
             .await?;
 
-        storage
-            .xt_db()
-            .set_xt(new_header.extrinsic_hash(), new_block.extrinsics)
-            .await?;
-
         // Note: For simplicity, announce the block to all peers in the network.
         // TODO: Announce to neighbors in the grid structure as per JAMNP
         jam_node

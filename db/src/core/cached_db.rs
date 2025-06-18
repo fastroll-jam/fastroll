@@ -1,5 +1,6 @@
 use crate::core::core_db::{CoreDB, CoreDBError};
 use dashmap::DashMap;
+use fr_common::{ByteEncodable, Hash32};
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::{hash::Hash, sync::Arc};
 use thiserror::Error;
@@ -26,6 +27,19 @@ impl CacheItem for Vec<u8> {
 
     fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self {
         val
+    }
+}
+
+impl CacheItem for Hash32 {
+    fn into_db_value(self) -> Vec<u8> {
+        self.to_vec()
+    }
+
+    fn from_db_kv(_key: &[u8], val: Vec<u8>) -> Self
+    where
+        Self: Sized,
+    {
+        Self::from_slice(&val).expect("Val should be 32-octet bytes")
     }
 }
 

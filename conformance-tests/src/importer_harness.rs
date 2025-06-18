@@ -110,11 +110,12 @@ impl BlockImportHarness {
     }
 
     fn init_node_storage() -> NodeStorage {
-        let (header_db, xt_db, state_manager) = init_db_and_manager(None);
+        let (header_db, xt_db, state_manager, post_state_root_db) = init_db_and_manager(None);
         NodeStorage::new(
             Arc::new(state_manager),
             Arc::new(header_db),
             Arc::new(xt_db),
+            Arc::new(post_state_root_db),
         )
     }
 

@@ -5,9 +5,12 @@ use crate::{
     },
     utils::spawn_timed,
 };
-use fr_block::types::{
-    block::{Block, BlockHeader, BlockHeaderError},
-    extrinsics::ExtrinsicsError,
+use fr_block::{
+    post_state_root_db::{PostStateRootDB, PostStateRootDbError},
+    types::{
+        block::{Block, BlockHeader, BlockHeaderError},
+        extrinsics::ExtrinsicsError,
+    },
 };
 use fr_codec::prelude::*;
 use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_E, X_F, X_T};
@@ -51,6 +54,12 @@ pub enum BlockImportError {
     TimeslotInFuture,
     #[error("Block header contains timeslot earlier than the parent header")]
     InvalidTimeslot,
+    #[error("Block header contains invalid prior state root")]
+    InvalidPriorStateRoot,
+    #[error(
+        "Post state root of the parent block is not found from the PostStateRootDB (header={0})"
+    )]
+    PriorStateRootNotFound(String),
     #[error("XtError: {0}")]
     XtError(#[from] XtError),
     #[error("ExtrinsicsError: {0}")]
@@ -61,6 +70,8 @@ pub enum BlockImportError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("PostStateRootDB: {0}")]
+    PostStateRootDBError(#[from] PostStateRootDbError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("BlockExecutionError: {0}")]
@@ -85,8 +96,15 @@ impl BlockImporter {
             };
             let timeslot_index = block.header.timeslot_index();
             match Self::import_block(storage.clone(), block).await {
-                Ok(_post_state_root) => {
+                Ok(post_state_root) => {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
+                    if let Err(e) = storage
+                        .post_state_root_db()
+                        .set_post_state_root(&header_hash, post_state_root.clone())
+                        .await
+                    {
+                        tracing::error!("Failed to set post state root of the block: {e:?}");
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Block Import Error: {e}")
@@ -112,18 +130,20 @@ impl BlockImporter {
         block: Block,
     ) -> Result<Hash32, BlockImportError> {
         if block.is_genesis() {
-            // Skip genesis block validation
+            // Skip validation for the genesis block
             return Self::run_state_transition(&storage, &block).await;
         }
 
         // Validate Xts
         Self::validate_xts(&storage, &block).await?;
         // Validate header fields (prior to STF)
-        Self::validate_block_header_prior_stf(&storage, &block)?;
+        Self::validate_block_header_prior_stf(&storage, &block).await?;
         // Re-execute STF
         let post_state_root = Self::run_state_transition(&storage, &block).await?;
         // Validate header fields (post STF)
         Self::validate_block_header_post_stf(&storage, &block).await?;
+        // Set best header
+        storage.header_db().set_best_header(block.header);
         Ok(post_state_root)
     }
 
@@ -190,14 +210,14 @@ impl BlockImporter {
         Ok(())
     }
 
-    fn validate_block_header_prior_stf(
+    async fn validate_block_header_prior_stf(
         storage: &NodeStorage,
         block: &Block,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
-        // Self::validate_parent_hash(&best_header, block)?; // FIXME: check finality & best header
+        Self::validate_parent_hash(&best_header, block)?;
         Self::validate_timeslot_index(&best_header, block)?;
-        // self.validate_prior_state_root()?; // TODO: impl
+        Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
         Self::validate_xt_hash(block)?;
         Ok(())
     }
@@ -247,7 +267,6 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn validate_parent_hash(
         best_header: &BlockHeader,
         block: &Block,
@@ -277,9 +296,24 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn validate_prior_state_root() -> Result<(), BlockImportError> {
-        unimplemented!()
+    async fn validate_prior_state_root(
+        post_state_root_db: Arc<PostStateRootDB>,
+        block_header: &BlockHeader,
+    ) -> Result<(), BlockImportError> {
+        // Get post state root of the parent block (prior state root)
+        let Some(prior_state_root) = post_state_root_db
+            .get_post_state_root(block_header.parent_hash())
+            .await?
+        else {
+            return Err(BlockImportError::PriorStateRootNotFound(
+                block_header.parent_hash().encode_hex(),
+            ));
+        };
+
+        if prior_state_root != block_header.data.prior_state_root {
+            return Err(BlockImportError::InvalidPriorStateRoot);
+        }
+        Ok(())
     }
 
     fn validate_xt_hash(block: &Block) -> Result<(), BlockImportError> {
