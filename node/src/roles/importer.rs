@@ -215,7 +215,7 @@ impl BlockImporter {
         block: &Block,
     ) -> Result<(), BlockImportError> {
         let best_header = storage.header_db().get_best_header();
-        // Self::validate_parent_hash(&best_header, block)?; // FIXME: check finality & best header
+        Self::validate_parent_hash(&best_header, block)?;
         Self::validate_timeslot_index(&best_header, block)?;
         Self::validate_prior_state_root(storage.post_state_root_db(), &block.header).await?;
         Self::validate_xt_hash(block)?;
@@ -267,7 +267,6 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn validate_parent_hash(
         best_header: &BlockHeader,
         block: &Block,
