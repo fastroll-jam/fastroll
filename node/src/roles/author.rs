@@ -1,13 +1,15 @@
 //! Block author role
 use crate::{
     keystore::load_author_secret_key,
-    roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
+    roles::executor::{
+        BlockExecutionError, BlockExecutionHeaderMarkers, BlockExecutionOutput, BlockExecutor,
+    },
 };
 use fr_block::{
     header_db::BlockHeaderDBError,
     post_state_root_db::PostStateRootDbError,
     types::{
-        block::{Block, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
+        block::{Block, BlockHeader, BlockHeaderData, BlockHeaderError, BlockSeal, VrfSig},
         extrinsics::{Extrinsics, ExtrinsicsError},
     },
     xt_db::XtDBError,
@@ -105,29 +107,58 @@ impl BlockAuthor {
         })
     }
 
-    pub async fn author_block(
+    /// The first phase of block authoring: prepares all header fields and commits a new block header.
+    ///
+    /// New blocks can be announced after executing this phase.
+    pub async fn author_block_commit_header(
         &mut self,
         storage: Arc<NodeStorage>,
-    ) -> Result<(Block, Hash32), BlockAuthorError> {
+    ) -> Result<BlockHeader, BlockAuthorError> {
         let xt = Self::collect_extrinsics();
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
         self.prelude(&storage)?;
 
         // STF phase #1
-        let stf_output = self.run_initial_state_transition(&storage).await?;
-        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
-        self.seal_block_header(&storage).await?;
-
-        // Commit block header and finalize block
-        let new_header_hash = self.commit_header(&storage).await?;
-
-        // STF phase #2
-        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
+        let header_markers = self
+            .run_state_transition_pre_header_commitment(&storage)
             .await?;
 
+        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+
+        self.epilogue(&curr_slot_sealer, curr_entropy_3, header_markers)
+            .await?;
+        self.seal_block_header(&curr_slot_sealer, curr_entropy_3)
+            .await?;
+
+        // Commit block header and finalize block
+        let (new_header, _new_header_hash) = self.commit_header(&storage).await?;
+        Ok(new_header)
+    }
+
+    /// The second phase of block authoring: runs all STFs and yields the posterior state root.
+    pub async fn author_block_commit_state(
+        &mut self,
+        storage: Arc<NodeStorage>,
+        new_header_hash: Hash32,
+    ) -> Result<(Block, Hash32), BlockAuthorError> {
+        // STF phase #2
+        let execution_output = self
+            .run_state_transition_post_header_commitment(&storage)
+            .await?;
+
+        // STF phase #3
+        self.run_final_state_transition(
+            &storage,
+            new_header_hash,
+            &self.new_block.header.data.vrf_signature,
+            execution_output,
+        )
+        .await?;
+
         // Commit the state transitions
-        // TODO: Defer more STF runs to post-header-commit.
         // Note: Also some STFs can be run asynchronously after committing the header.
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
@@ -141,7 +172,13 @@ impl BlockAuthor {
             .await?;
 
         // Store extrinsics
-        storage.xt_db().set_xt(&xt_hash, xt).await?;
+        storage
+            .xt_db()
+            .set_xt(
+                self.new_block.header.extrinsic_hash(),
+                self.new_block.extrinsics.clone(),
+            )
+            .await?;
 
         Ok((self.new_block.clone(), post_state_root))
     }
@@ -155,12 +192,28 @@ impl BlockAuthor {
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
         self.prelude_for_test(&storage)?;
-        let stf_output = self.run_initial_state_transition(&storage).await?;
-        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
-        self.seal_block_header(&storage).await?;
-        let new_header_hash = self.commit_header(&storage).await?;
-        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
+        let header_markers = self
+            .run_state_transition_pre_header_commitment(&storage)
             .await?;
+        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+
+        self.epilogue(&curr_slot_sealer, curr_entropy_3, header_markers)
+            .await?;
+        self.seal_block_header(&curr_slot_sealer, curr_entropy_3)
+            .await?;
+        let (new_header, new_header_hash) = self.commit_header(&storage).await?;
+        let execution_output = self
+            .run_state_transition_post_header_commitment(&storage)
+            .await?;
+        self.run_final_state_transition(
+            &storage,
+            new_header_hash,
+            &new_header.data.vrf_signature,
+            execution_output,
+        )
+        .await?;
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
@@ -225,31 +278,26 @@ impl BlockAuthor {
         Ok(())
     }
 
-    async fn run_initial_state_transition(
+    async fn run_state_transition_pre_header_commitment(
         &self,
         storage: &NodeStorage,
-    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
-        Ok(BlockExecutor::run_state_transition(storage, &self.new_block).await?)
+    ) -> Result<BlockExecutionHeaderMarkers, BlockAuthorError> {
+        Ok(
+            BlockExecutor::run_state_transition_pre_header_commitment(storage, &self.new_block)
+                .await?,
+        )
     }
 
     /// Sets missing header fields with contexts produced during the STF run.
     async fn epilogue(
         &mut self,
-        storage: &NodeStorage,
-        stf_output: BlockExecutionOutput,
-    ) -> Result<VrfSig, BlockAuthorError> {
+        curr_slot_sealer: &SlotSealer,
+        curr_entropy_3: &Hash32,
+        header_markers: BlockExecutionHeaderMarkers,
+    ) -> Result<(), BlockAuthorError> {
         // Sign VRF
-        let curr_timeslot = storage.state_manager().get_timeslot().await?;
-        let curr_slot_sealer = storage
-            .state_manager()
-            .get_safrole()
-            .await?
-            .slot_sealers
-            .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
-        let curr_entropy_3 = epoch_entropy.third_history();
         let vrf_sig = sign_entropy_source_vrf_signature(
-            &curr_slot_sealer,
+            curr_slot_sealer,
             curr_entropy_3,
             &self.author_info.author_sk,
         )?;
@@ -258,37 +306,31 @@ impl BlockAuthor {
         // Set header markers
         self.new_block
             .header
-            .set_offenders_marker(stf_output.offenders_marker);
-        if let Some(epoch_marker) = stf_output.safrole_markers.epoch_marker {
+            .set_offenders_marker(header_markers.offenders_marker);
+        if let Some(epoch_marker) = header_markers.safrole_markers.epoch_marker {
             self.new_block.header.set_epoch_marker(epoch_marker);
         }
-        if let Some(winning_tickets_marker) = stf_output.safrole_markers.winning_tickets_marker {
+        if let Some(winning_tickets_marker) = header_markers.safrole_markers.winning_tickets_marker
+        {
             self.new_block
                 .header
                 .set_winning_tickets_marker(winning_tickets_marker);
         }
-
-        Ok(vrf_sig)
+        Ok(())
     }
 
     /// Seal the block header
-    async fn seal_block_header(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+    async fn seal_block_header(
+        &mut self,
+        curr_slot_sealer: &SlotSealer,
+        curr_entropy_3: &Hash32,
+    ) -> Result<(), BlockAuthorError> {
         let new_header_data = self.new_block.header.data.clone();
-        // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
-        let curr_timeslot = storage.state_manager().get_timeslot().await?;
-        let curr_slot_sealer = storage
-            .state_manager()
-            .get_safrole()
-            .await?
-            .slot_sealers
-            .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
-        let curr_entropy_3 = epoch_entropy.third_history();
 
         let seal = match curr_slot_sealer {
             SlotSealer::Ticket(ticket) => sign_block_seal(
                 new_header_data,
-                &ticket,
+                ticket,
                 curr_entropy_3,
                 &self.author_info.author_sk,
             )?,
@@ -303,13 +345,26 @@ impl BlockAuthor {
         Ok(())
     }
 
-    async fn commit_header(&mut self, storage: &NodeStorage) -> Result<Hash32, BlockAuthorError> {
+    async fn commit_header(
+        &mut self,
+        storage: &NodeStorage,
+    ) -> Result<(BlockHeader, Hash32), BlockAuthorError> {
         let new_header_hash = storage
             .header_db()
             .commit_header(self.new_block.header.clone())
             .await?;
         tracing::debug!("New block header committed. Header hash: {new_header_hash}");
-        Ok(new_header_hash)
+        Ok((self.new_block.header.clone(), new_header_hash))
+    }
+
+    async fn run_state_transition_post_header_commitment(
+        &self,
+        storage: &NodeStorage,
+    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
+        Ok(
+            BlockExecutor::run_state_transition_post_header_commitment(storage, &self.new_block)
+                .await?,
+        )
     }
 
     /// Runs the final two STFs.
