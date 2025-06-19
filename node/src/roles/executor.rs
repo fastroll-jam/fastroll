@@ -119,34 +119,15 @@ impl BlockExecutor {
         // BlockHistory STF (the first half only)
         let manager = storage.state_manager();
         spawn_timed("history_stf", async move {
-            transition_block_history_parent_root(manager.clone(), parent_state_root).await
+            transition_block_history_parent_root(manager, parent_state_root).await
         })
         .await??;
 
-        // Reports STF
-        let manager = storage.state_manager();
-        let disputes_xt_cloned = disputes_xt.clone();
-        let guarantees_xt_cloned = guarantees_xt.clone();
-        let reports_jh = spawn_timed("reports_stf", async move {
-            transition_reports_eliminate_invalid(
-                manager.clone(),
-                &disputes_xt_cloned,
-                prev_timeslot,
-            )
-            .await?;
-            let available_reports =
-                transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
-                    .await?;
-            let (reported, _reporters) =
-                transition_reports_update_entries(manager, &guarantees_xt_cloned, curr_timeslot)
-                    .await?;
-            Ok::<_, TransitionError>((available_reports, reported))
-        });
-
         // Authorizer STF
         let manager = storage.state_manager();
+        let guarantees_xt_cloned = guarantees_xt.clone();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-            transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
+            transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot).await
         });
 
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
@@ -165,6 +146,29 @@ impl BlockExecutor {
             )
             .await
         });
+
+        // Reports STF
+        let manager = storage.state_manager();
+        let disputes_xt_cloned = disputes_xt.clone();
+        let reports_jh = spawn_timed("reports_stf", async move {
+            transition_reports_eliminate_invalid(
+                manager.clone(),
+                &disputes_xt_cloned,
+                prev_timeslot,
+            )
+            .await?;
+            let available_reports =
+                transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
+                    .await?;
+            let (reported, _reporters) =
+                transition_reports_update_entries(manager, &guarantees_xt, curr_timeslot).await?;
+            Ok::<_, TransitionError>((available_reports, reported))
+        });
+
+        // Collect header markers
+        let safrole_markers =
+            mark_safrole_header_markers(storage.state_manager(), epoch_progressed).await?;
+        let offenders_marker = disputes_xt.collect_offender_keys();
 
         // Accumulate STF
         let (available_reports, reported_packages) = reports_jh.await??;
@@ -208,7 +212,7 @@ impl BlockExecutor {
 
         // OnChainStatistics STF
         let manager = storage.state_manager();
-        spawn_timed("stats_stf", async move {
+        let stats_jh = spawn_timed("stats_stf", async move {
             transition_onchain_statistics(
                 manager,
                 epoch_progressed,
@@ -219,20 +223,17 @@ impl BlockExecutor {
                 transfer_stats,
             )
             .await
-        })
-        .await??;
+        });
 
         // Preimage integration STF
         let manager = storage.state_manager();
-        spawn_timed("preimage_stf", async move {
+        let preimage_jh = spawn_timed("preimage_stf", async move {
             transition_services_integrate_preimages(manager, &preimages_xt).await
-        })
-        .await??;
+        });
 
-        // Collect header markers
-        let manager = storage.state_manager();
-        let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
-        let offenders_marker = disputes_xt.collect_offender_keys();
+        // --- Join: OnChainStatistics, Preimage integration STFs
+        #[allow(unused_must_use)]
+        try_join!(stats_jh, preimage_jh)?;
 
         Ok(BlockExecutionOutput {
             offenders_marker,
