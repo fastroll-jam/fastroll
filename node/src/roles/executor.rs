@@ -53,30 +53,29 @@ pub enum BlockExecutionError {
 
 #[derive(Clone)]
 pub struct BlockExecutionOutput {
-    pub offenders_marker: OffendersHeaderMarker,
-    pub safrole_markers: SafroleHeaderMarkers,
     pub accumulate_root: Hash32,
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 
+#[derive(Clone)]
+pub struct BlockExecutionHeaderMarkers {
+    pub offenders_marker: OffendersHeaderMarker,
+    pub safrole_markers: SafroleHeaderMarkers,
+}
+
 pub struct BlockExecutor;
 impl BlockExecutor {
-    // TODO: Split this more so that header could be finalized earlier with necessary STFs run first.
-    pub async fn run_state_transition(
+    /// Runs state transition functions required to commit the block header.
+    pub async fn run_state_transition_pre_header_commitment(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<BlockExecutionOutput, BlockExecutionError> {
-        let xt_cloned = block.extrinsics.clone();
+    ) -> Result<BlockExecutionHeaderMarkers, BlockExecutionError> {
         let disputes_xt = block.extrinsics.disputes.clone();
-        let assurances_xt = block.extrinsics.assurances.clone();
         let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
-        let preimages_xt = block.extrinsics.preimages.clone();
         let prev_timeslot = storage.state_manager().get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
-        let parent_hash = block.header.data.parent_hash.clone();
         let parent_state_root = block.header.data.prior_state_root.clone();
-        let author_index = block.header.data.author_index;
 
         // Timeslot STF
         let manager = storage.state_manager();
@@ -119,38 +118,15 @@ impl BlockExecutor {
         // BlockHistory STF (the first half only)
         let manager = storage.state_manager();
         spawn_timed("history_stf", async move {
-            transition_block_history_parent_root(manager.clone(), parent_state_root).await
+            transition_block_history_parent_root(manager, parent_state_root).await
         })
         .await??;
 
-        // Reports STF
-        // TODO: remove `unwrap`s
-        let manager = storage.state_manager();
-        let disputes_xt_cloned = disputes_xt.clone();
-        let guarantees_xt_cloned = guarantees_xt.clone();
-        let reports_jh = spawn_timed("reports_stf", async move {
-            transition_reports_eliminate_invalid(
-                manager.clone(),
-                &disputes_xt_cloned,
-                prev_timeslot,
-            )
-            .await
-            .unwrap();
-            let available_reports =
-                transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
-                    .await
-                    .unwrap();
-            let (reported, _reporters) =
-                transition_reports_update_entries(manager, &guarantees_xt_cloned, curr_timeslot)
-                    .await
-                    .unwrap();
-            (available_reports, reported)
-        });
-
         // Authorizer STF
         let manager = storage.state_manager();
+        let guarantees_xt_cloned = guarantees_xt.clone();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-            transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
+            transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot).await
         });
 
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
@@ -170,8 +146,52 @@ impl BlockExecutor {
             .await
         });
 
+        // --- Join: Safrole, AuthPool
+        #[allow(unused_must_use)]
+        try_join!(safrole_jh, auth_pool_jh)?;
+
+        // Collect header markers
+        let safrole_markers =
+            mark_safrole_header_markers(storage.state_manager(), epoch_progressed).await?;
+        let offenders_marker = disputes_xt.collect_offender_keys();
+
+        Ok(BlockExecutionHeaderMarkers {
+            offenders_marker,
+            safrole_markers,
+        })
+    }
+
+    pub async fn run_state_transition_post_header_commitment(
+        storage: &NodeStorage,
+        block: &Block,
+    ) -> Result<BlockExecutionOutput, BlockExecutionError> {
+        let xt_cloned = block.extrinsics.clone();
+        let disputes_xt = block.extrinsics.disputes.clone();
+        let assurances_xt = block.extrinsics.assurances.clone();
+        let guarantees_xt = block.extrinsics.guarantees.clone();
+        let preimages_xt = block.extrinsics.preimages.clone();
+        let prev_timeslot = storage.state_manager().get_timeslot_clean().await?;
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
+        let parent_hash = block.header.data.parent_hash.clone();
+        let author_index = block.header.data.author_index;
+
+        let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
+
+        // Reports STF
+        let manager = storage.state_manager();
+        let reports_jh = spawn_timed("reports_stf", async move {
+            transition_reports_eliminate_invalid(manager.clone(), &disputes_xt, prev_timeslot)
+                .await?;
+            let available_reports =
+                transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
+                    .await?;
+            let (reported, _reporters) =
+                transition_reports_update_entries(manager, &guarantees_xt, curr_timeslot).await?;
+            Ok::<_, TransitionError>((available_reports, reported))
+        });
+
         // Accumulate STF
-        let (available_reports, reported_packages) = reports_jh.await?;
+        let (available_reports, reported_packages) = reports_jh.await??;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
         let acc_history = storage.state_manager().get_accumulate_history().await?;
         let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
@@ -182,29 +202,23 @@ impl BlockExecutor {
         );
         let manager = storage.state_manager();
         let acc_jh = spawn_timed("acc_stf", async move {
-            let acc_summary = transition_on_accumulate(manager.clone(), &accumulatable_reports)
-                .await
-                .unwrap();
+            let acc_summary =
+                transition_on_accumulate(manager.clone(), &accumulatable_reports).await?;
             transition_accumulate_history(
                 manager.clone(),
                 &accumulatable_reports,
                 acc_summary.accumulated_reports_count,
             )
-            .await
-            .unwrap();
+            .await?;
             transition_accumulate_queue(manager, &queued_reports, prev_timeslot, curr_timeslot)
-                .await
-                .unwrap();
-            (
+                .await?;
+            Ok::<_, TransitionError>((
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
                 accumulate_result_commitment(acc_summary.output_pairs),
-            )
+            ))
         });
-
-        // Join remaining STF tasks
-        let ((transfers, acc_stats, accumulate_root), _, _) =
-            try_join!(acc_jh, auth_pool_jh, safrole_jh)?;
+        let (transfers, acc_stats, accumulate_root) = acc_jh.await??;
 
         // On-transfer STF
         let manager = storage.state_manager();
@@ -215,7 +229,7 @@ impl BlockExecutor {
 
         // OnChainStatistics STF
         let manager = storage.state_manager();
-        spawn_timed("stats_stf", async move {
+        let stats_jh = spawn_timed("stats_stf", async move {
             transition_onchain_statistics(
                 manager,
                 epoch_progressed,
@@ -226,24 +240,19 @@ impl BlockExecutor {
                 transfer_stats,
             )
             .await
-        })
-        .await??;
+        });
 
         // Preimage integration STF
         let manager = storage.state_manager();
-        spawn_timed("preimage_stf", async move {
+        let preimage_jh = spawn_timed("preimage_stf", async move {
             transition_services_integrate_preimages(manager, &preimages_xt).await
-        })
-        .await??;
+        });
 
-        // Collect header markers
-        let manager = storage.state_manager();
-        let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
-        let offenders_marker = disputes_xt.collect_offender_keys();
+        // --- Join: OnChainStatistics, Preimage integration STFs
+        #[allow(unused_must_use)]
+        try_join!(stats_jh, preimage_jh)?;
 
         Ok(BlockExecutionOutput {
-            offenders_marker,
-            safrole_markers,
             accumulate_root,
             reported_packages,
         })
@@ -318,11 +327,9 @@ impl BlockExecutor {
 
         // Collect header markers
         let manager = storage.state_manager();
-        let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
+        let _safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
 
         Ok(BlockExecutionOutput {
-            offenders_marker: OffendersHeaderMarker::default(),
-            safrole_markers,
             accumulate_root: Hash32::default(),
             reported_packages: Vec::new(),
         })
