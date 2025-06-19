@@ -1,5 +1,5 @@
 use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
-use fr_block::types::block::Block;
+use fr_block::types::block::{Block, BlockHeader};
 use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, Hash32, StateKey};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
@@ -7,6 +7,7 @@ use fr_state::{
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
 };
 use fr_storage::node_storage::NodeStorage;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
@@ -97,6 +98,7 @@ impl From<AsnRawState> for RawState {
 struct BlockImportHarness;
 impl BlockImportHarness {
     fn load_test_case(file_path: &Path) -> AsnTestCase {
+        tracing::info!("file_path: {:?}", file_path);
         let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
@@ -180,6 +182,22 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
 
     BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
 
+    if !test_case.block.is_genesis() {
+        // Workaround: Import parent block from the previous test case and then set it as best header.
+        let parent_header = get_parent_block_header(file_path);
+        let parent_header_hash = parent_header.hash()?;
+        storage.header_db().set_best_header(parent_header);
+
+        // Set post state root of the parent block (prior state root)
+        storage
+            .post_state_root_db()
+            .set_post_state_root(
+                &parent_header_hash,
+                test_case.block.header.parent_state_root().clone(),
+            )
+            .await?;
+    }
+
     // import block
     let post_state_root =
         BlockImportHarness::import_block(storage.clone(), test_case.block).await?;
@@ -193,4 +211,23 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     .await;
 
     Ok(())
+}
+
+fn get_parent_block_header(file_path: &str) -> BlockHeader {
+    let parent_block_test_file_path = {
+        let file_str = file_path.to_string();
+        let reg = Regex::new(r"(\d{8})\.json$").unwrap();
+        // Get parent block test case file path
+        reg.replace(&file_str, |caps: &regex::Captures| {
+            let num_str = &caps[1];
+            let num: u64 = num_str.parse().unwrap_or(0);
+            let decremented = num.saturating_sub(1);
+            format!("{:0width$}.json", decremented, width = num_str.len())
+        })
+        .to_string()
+    };
+    let parent_block_test_case = BlockImportHarness::convert_test_case(
+        BlockImportHarness::load_test_case(&PathBuf::from(parent_block_test_file_path)),
+    );
+    parent_block_test_case.block.header
 }
