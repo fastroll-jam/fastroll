@@ -12,7 +12,7 @@ use crate::{
         AccountCode, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
         AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
         BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
-        PrivilegedServices, SafroleState, StagingSet, Timeslot,
+        PrivilegedServices, SafroleState, SlotSealer, StagingSet, Timeslot,
     },
 };
 use fr_codec::prelude::*;
@@ -315,6 +315,15 @@ impl StateManager {
         } else {
             Ok(None)
         }
+    }
+
+    pub async fn get_slot_sealer(&self) -> Result<SlotSealer, StateManagerError> {
+        let timeslot = self.get_timeslot().await?;
+        Ok(self
+            .get_safrole()
+            .await?
+            .slot_sealers
+            .get_slot_sealer(&timeslot))
     }
 
     // TODO: mark as private

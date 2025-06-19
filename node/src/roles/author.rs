@@ -123,8 +123,15 @@ impl BlockAuthor {
         let header_markers = self
             .run_state_transition_pre_header_commitment(&storage)
             .await?;
-        self.epilogue(&storage, header_markers.clone()).await?;
-        self.seal_block_header(&storage).await?;
+
+        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+
+        self.epilogue(&curr_slot_sealer, curr_entropy_3, header_markers)
+            .await?;
+        self.seal_block_header(&curr_slot_sealer, curr_entropy_3)
+            .await?;
 
         // Commit block header and finalize block
         let (new_header, _new_header_hash) = self.commit_header(&storage).await?;
@@ -188,8 +195,14 @@ impl BlockAuthor {
         let header_markers = self
             .run_state_transition_pre_header_commitment(&storage)
             .await?;
-        self.epilogue(&storage, header_markers.clone()).await?;
-        self.seal_block_header(&storage).await?;
+        let curr_slot_sealer = storage.state_manager().get_slot_sealer().await?;
+        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
+        let curr_entropy_3 = epoch_entropy.third_history();
+
+        self.epilogue(&curr_slot_sealer, curr_entropy_3, header_markers)
+            .await?;
+        self.seal_block_header(&curr_slot_sealer, curr_entropy_3)
+            .await?;
         let (new_header, new_header_hash) = self.commit_header(&storage).await?;
         let execution_output = self
             .run_state_transition_post_header_commitment(&storage)
@@ -278,21 +291,13 @@ impl BlockAuthor {
     /// Sets missing header fields with contexts produced during the STF run.
     async fn epilogue(
         &mut self,
-        storage: &NodeStorage,
+        curr_slot_sealer: &SlotSealer,
+        curr_entropy_3: &Hash32,
         header_markers: BlockExecutionHeaderMarkers,
     ) -> Result<(), BlockAuthorError> {
         // Sign VRF
-        let curr_timeslot = storage.state_manager().get_timeslot().await?;
-        let curr_slot_sealer = storage
-            .state_manager()
-            .get_safrole()
-            .await?
-            .slot_sealers
-            .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
-        let curr_entropy_3 = epoch_entropy.third_history();
         let vrf_sig = sign_entropy_source_vrf_signature(
-            &curr_slot_sealer,
+            curr_slot_sealer,
             curr_entropy_3,
             &self.author_info.author_sk,
         )?;
@@ -315,23 +320,17 @@ impl BlockAuthor {
     }
 
     /// Seal the block header
-    async fn seal_block_header(&mut self, storage: &NodeStorage) -> Result<(), BlockAuthorError> {
+    async fn seal_block_header(
+        &mut self,
+        curr_slot_sealer: &SlotSealer,
+        curr_entropy_3: &Hash32,
+    ) -> Result<(), BlockAuthorError> {
         let new_header_data = self.new_block.header.data.clone();
-        // FIXME (duplicate code): `SlotSealer` and `EpochEntropy` are already loaded in `epilogue`
-        let curr_timeslot = storage.state_manager().get_timeslot().await?;
-        let curr_slot_sealer = storage
-            .state_manager()
-            .get_safrole()
-            .await?
-            .slot_sealers
-            .get_slot_sealer(&curr_timeslot);
-        let epoch_entropy = storage.state_manager().get_epoch_entropy().await?;
-        let curr_entropy_3 = epoch_entropy.third_history();
 
         let seal = match curr_slot_sealer {
             SlotSealer::Ticket(ticket) => sign_block_seal(
                 new_header_data,
-                &ticket,
+                ticket,
                 curr_entropy_3,
                 &self.author_info.author_sk,
             )?,
