@@ -124,7 +124,6 @@ impl BlockExecutor {
         .await??;
 
         // Reports STF
-        // TODO: remove `unwrap`s
         let manager = storage.state_manager();
         let disputes_xt_cloned = disputes_xt.clone();
         let guarantees_xt_cloned = guarantees_xt.clone();
@@ -134,17 +133,14 @@ impl BlockExecutor {
                 &disputes_xt_cloned,
                 prev_timeslot,
             )
-            .await
-            .unwrap();
+            .await?;
             let available_reports =
                 transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
-                    .await
-                    .unwrap();
+                    .await?;
             let (reported, _reporters) =
                 transition_reports_update_entries(manager, &guarantees_xt_cloned, curr_timeslot)
-                    .await
-                    .unwrap();
-            (available_reports, reported)
+                    .await?;
+            Ok::<_, TransitionError>((available_reports, reported))
         });
 
         // Authorizer STF
@@ -171,7 +167,7 @@ impl BlockExecutor {
         });
 
         // Accumulate STF
-        let (available_reports, reported_packages) = reports_jh.await?;
+        let (available_reports, reported_packages) = reports_jh.await??;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
         let acc_history = storage.state_manager().get_accumulate_history().await?;
         let (accumulatable_reports, queued_reports) = collect_accumulatable_reports(
@@ -182,29 +178,26 @@ impl BlockExecutor {
         );
         let manager = storage.state_manager();
         let acc_jh = spawn_timed("acc_stf", async move {
-            let acc_summary = transition_on_accumulate(manager.clone(), &accumulatable_reports)
-                .await
-                .unwrap();
+            let acc_summary =
+                transition_on_accumulate(manager.clone(), &accumulatable_reports).await?;
             transition_accumulate_history(
                 manager.clone(),
                 &accumulatable_reports,
                 acc_summary.accumulated_reports_count,
             )
-            .await
-            .unwrap();
+            .await?;
             transition_accumulate_queue(manager, &queued_reports, prev_timeslot, curr_timeslot)
-                .await
-                .unwrap();
-            (
+                .await?;
+            Ok::<_, TransitionError>((
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
                 accumulate_result_commitment(acc_summary.output_pairs),
-            )
+            ))
         });
 
         // Join remaining STF tasks
-        let ((transfers, acc_stats, accumulate_root), _, _) =
-            try_join!(acc_jh, auth_pool_jh, safrole_jh)?;
+        let (acc_result, _, _) = try_join!(acc_jh, auth_pool_jh, safrole_jh)?;
+        let (transfers, acc_stats, accumulate_root) = acc_result?;
 
         // On-transfer STF
         let manager = storage.state_manager();
