@@ -53,30 +53,29 @@ pub enum BlockExecutionError {
 
 #[derive(Clone)]
 pub struct BlockExecutionOutput {
-    pub offenders_marker: OffendersHeaderMarker,
-    pub safrole_markers: SafroleHeaderMarkers,
     pub accumulate_root: Hash32,
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 
+#[derive(Clone)]
+pub struct BlockExecutionHeaderMarkers {
+    pub offenders_marker: OffendersHeaderMarker,
+    pub safrole_markers: SafroleHeaderMarkers,
+}
+
 pub struct BlockExecutor;
 impl BlockExecutor {
-    // TODO: Split this more so that header could be finalized earlier with necessary STFs run first.
-    pub async fn run_state_transition(
+    /// Runs state transition functions required to commit the block header.
+    pub async fn run_state_transition_pre_header_commitment(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<BlockExecutionOutput, BlockExecutionError> {
-        let xt_cloned = block.extrinsics.clone();
+    ) -> Result<BlockExecutionHeaderMarkers, BlockExecutionError> {
         let disputes_xt = block.extrinsics.disputes.clone();
-        let assurances_xt = block.extrinsics.assurances.clone();
         let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
-        let preimages_xt = block.extrinsics.preimages.clone();
         let prev_timeslot = storage.state_manager().get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
-        let parent_hash = block.header.data.parent_hash.clone();
         let parent_state_root = block.header.data.prior_state_root.clone();
-        let author_index = block.header.data.author_index;
 
         // Timeslot STF
         let manager = storage.state_manager();
@@ -147,16 +146,42 @@ impl BlockExecutor {
             .await
         });
 
+        // --- Join: Safrole, AuthPool
+        #[allow(unused_must_use)]
+        try_join!(safrole_jh, auth_pool_jh)?;
+
+        // Collect header markers
+        let safrole_markers =
+            mark_safrole_header_markers(storage.state_manager(), epoch_progressed).await?;
+        let offenders_marker = disputes_xt.collect_offender_keys();
+
+        Ok(BlockExecutionHeaderMarkers {
+            offenders_marker,
+            safrole_markers,
+        })
+    }
+
+    pub async fn run_state_transition_post_header_commitment(
+        storage: &NodeStorage,
+        block: &Block,
+    ) -> Result<BlockExecutionOutput, BlockExecutionError> {
+        let xt_cloned = block.extrinsics.clone();
+        let disputes_xt = block.extrinsics.disputes.clone();
+        let assurances_xt = block.extrinsics.assurances.clone();
+        let guarantees_xt = block.extrinsics.guarantees.clone();
+        let preimages_xt = block.extrinsics.preimages.clone();
+        let prev_timeslot = storage.state_manager().get_timeslot_clean().await?;
+        let curr_timeslot = storage.state_manager().get_timeslot().await?;
+        let parent_hash = block.header.data.parent_hash.clone();
+        let author_index = block.header.data.author_index;
+
+        let epoch_progressed = prev_timeslot.epoch() < curr_timeslot.epoch();
+
         // Reports STF
         let manager = storage.state_manager();
-        let disputes_xt_cloned = disputes_xt.clone();
         let reports_jh = spawn_timed("reports_stf", async move {
-            transition_reports_eliminate_invalid(
-                manager.clone(),
-                &disputes_xt_cloned,
-                prev_timeslot,
-            )
-            .await?;
+            transition_reports_eliminate_invalid(manager.clone(), &disputes_xt, prev_timeslot)
+                .await?;
             let available_reports =
                 transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
                     .await?;
@@ -164,11 +189,6 @@ impl BlockExecutor {
                 transition_reports_update_entries(manager, &guarantees_xt, curr_timeslot).await?;
             Ok::<_, TransitionError>((available_reports, reported))
         });
-
-        // Collect header markers
-        let safrole_markers =
-            mark_safrole_header_markers(storage.state_manager(), epoch_progressed).await?;
-        let offenders_marker = disputes_xt.collect_offender_keys();
 
         // Accumulate STF
         let (available_reports, reported_packages) = reports_jh.await??;
@@ -198,10 +218,7 @@ impl BlockExecutor {
                 accumulate_result_commitment(acc_summary.output_pairs),
             ))
         });
-
-        // Join remaining STF tasks
-        let (acc_result, _, _) = try_join!(acc_jh, auth_pool_jh, safrole_jh)?;
-        let (transfers, acc_stats, accumulate_root) = acc_result?;
+        let (transfers, acc_stats, accumulate_root) = acc_jh.await??;
 
         // On-transfer STF
         let manager = storage.state_manager();
@@ -236,8 +253,6 @@ impl BlockExecutor {
         try_join!(stats_jh, preimage_jh)?;
 
         Ok(BlockExecutionOutput {
-            offenders_marker,
-            safrole_markers,
             accumulate_root,
             reported_packages,
         })
@@ -312,11 +327,9 @@ impl BlockExecutor {
 
         // Collect header markers
         let manager = storage.state_manager();
-        let safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
+        let _safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
 
         Ok(BlockExecutionOutput {
-            offenders_marker: OffendersHeaderMarker::default(),
-            safrole_markers,
             accumulate_root: Hash32::default(),
             reported_packages: Vec::new(),
         })

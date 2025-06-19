@@ -403,7 +403,15 @@ impl BlockImporter {
             )
             .await?;
         } else {
-            let output = BlockExecutor::run_state_transition(storage, block).await?;
+            // STF phase #1
+            let _markers =
+                BlockExecutor::run_state_transition_pre_header_commitment(storage, block).await?;
+
+            // STF phase #2
+            let output =
+                BlockExecutor::run_state_transition_post_header_commitment(storage, block).await?;
+
+            // STF phase #3
             BlockExecutor::accumulate_entropy(storage, &block.header.vrf_signature()).await?;
             BlockExecutor::append_block_history(
                 storage,

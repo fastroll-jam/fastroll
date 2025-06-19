@@ -1,7 +1,9 @@
 //! Block author role
 use crate::{
     keystore::load_author_secret_key,
-    roles::executor::{BlockExecutionError, BlockExecutionOutput, BlockExecutor},
+    roles::executor::{
+        BlockExecutionError, BlockExecutionHeaderMarkers, BlockExecutionOutput, BlockExecutor,
+    },
 };
 use fr_block::{
     header_db::BlockHeaderDBError,
@@ -115,19 +117,27 @@ impl BlockAuthor {
         self.prelude(&storage)?;
 
         // STF phase #1
-        let stf_output = self.run_initial_state_transition(&storage).await?;
-        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
+        let header_markers = self
+            .run_state_transition_pre_header_commitment(&storage)
+            .await?;
+        let vrf_sig = self.epilogue(&storage, header_markers.clone()).await?;
         self.seal_block_header(&storage).await?;
 
         // Commit block header and finalize block
         let new_header_hash = self.commit_header(&storage).await?;
 
+        // TODO: We can announce the new block at this point
+
         // STF phase #2
-        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
+        let execution_output = self
+            .run_state_transition_post_header_commitment(&storage)
+            .await?;
+
+        // STF phase #3
+        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, execution_output)
             .await?;
 
         // Commit the state transitions
-        // TODO: Defer more STF runs to post-header-commit.
         // Note: Also some STFs can be run asynchronously after committing the header.
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
@@ -155,11 +165,16 @@ impl BlockAuthor {
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
         self.prelude_for_test(&storage)?;
-        let stf_output = self.run_initial_state_transition(&storage).await?;
-        let vrf_sig = self.epilogue(&storage, stf_output.clone()).await?;
+        let header_markers = self
+            .run_state_transition_pre_header_commitment(&storage)
+            .await?;
+        let vrf_sig = self.epilogue(&storage, header_markers.clone()).await?;
         self.seal_block_header(&storage).await?;
         let new_header_hash = self.commit_header(&storage).await?;
-        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, stf_output)
+        let execution_output = self
+            .run_state_transition_post_header_commitment(&storage)
+            .await?;
+        self.run_final_state_transition(&storage, new_header_hash, &vrf_sig, execution_output)
             .await?;
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
@@ -225,18 +240,21 @@ impl BlockAuthor {
         Ok(())
     }
 
-    async fn run_initial_state_transition(
+    async fn run_state_transition_pre_header_commitment(
         &self,
         storage: &NodeStorage,
-    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
-        Ok(BlockExecutor::run_state_transition(storage, &self.new_block).await?)
+    ) -> Result<BlockExecutionHeaderMarkers, BlockAuthorError> {
+        Ok(
+            BlockExecutor::run_state_transition_pre_header_commitment(storage, &self.new_block)
+                .await?,
+        )
     }
 
     /// Sets missing header fields with contexts produced during the STF run.
     async fn epilogue(
         &mut self,
         storage: &NodeStorage,
-        stf_output: BlockExecutionOutput,
+        header_markers: BlockExecutionHeaderMarkers,
     ) -> Result<VrfSig, BlockAuthorError> {
         // Sign VRF
         let curr_timeslot = storage.state_manager().get_timeslot().await?;
@@ -258,11 +276,12 @@ impl BlockAuthor {
         // Set header markers
         self.new_block
             .header
-            .set_offenders_marker(stf_output.offenders_marker);
-        if let Some(epoch_marker) = stf_output.safrole_markers.epoch_marker {
+            .set_offenders_marker(header_markers.offenders_marker);
+        if let Some(epoch_marker) = header_markers.safrole_markers.epoch_marker {
             self.new_block.header.set_epoch_marker(epoch_marker);
         }
-        if let Some(winning_tickets_marker) = stf_output.safrole_markers.winning_tickets_marker {
+        if let Some(winning_tickets_marker) = header_markers.safrole_markers.winning_tickets_marker
+        {
             self.new_block
                 .header
                 .set_winning_tickets_marker(winning_tickets_marker);
@@ -310,6 +329,16 @@ impl BlockAuthor {
             .await?;
         tracing::debug!("New block header committed. Header hash: {new_header_hash}");
         Ok(new_header_hash)
+    }
+
+    async fn run_state_transition_post_header_commitment(
+        &self,
+        storage: &NodeStorage,
+    ) -> Result<BlockExecutionOutput, BlockAuthorError> {
+        Ok(
+            BlockExecutor::run_state_transition_post_header_commitment(storage, &self.new_block)
+                .await?,
+        )
     }
 
     /// Runs the final two STFs.
