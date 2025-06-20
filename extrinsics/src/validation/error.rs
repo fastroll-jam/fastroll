@@ -1,6 +1,6 @@
 use crate::utils::guarantor_rotation::GuarantorAssignmentError;
 use fr_codec::JamCodecError;
-use fr_common::{workloads::WorkReportError, CoreIndex, ServiceId, ValidatorIndex};
+use fr_common::{CoreIndex, ServiceId, ValidatorIndex};
 use fr_crypto::error::CryptoError;
 use fr_state::error::StateManagerError;
 use thiserror::Error;
@@ -172,8 +172,6 @@ pub enum XtError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
-    #[error("WorkReportError: {0}")]
-    WorkReportError(#[from] WorkReportError),
     #[error("GuarantorAssignmentError: {0}")]
     GuarantorAssignmentError(#[from] GuarantorAssignmentError),
 }

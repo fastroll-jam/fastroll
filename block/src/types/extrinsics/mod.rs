@@ -3,7 +3,7 @@ use crate::types::extrinsics::{
     preimages::PreimagesXt, tickets::TicketsXt,
 };
 use fr_codec::prelude::*;
-use fr_common::{workloads::work_report::WorkReportError, Hash32, HASH_SIZE};
+use fr_common::{Hash32, HASH_SIZE};
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
@@ -23,8 +23,6 @@ pub enum ExtrinsicsError {
     DuplicateValidatorIndex,
     #[error("Invalid number of credentials. Must have either 2 or 3 credentials")]
     InvalidCredentialCount,
-    #[error("WorkReportError: {0}")]
-    WorkReportError(#[from] WorkReportError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

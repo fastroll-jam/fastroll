@@ -1,10 +1,7 @@
 use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
-    types::{
-        work_report::{WorkReport, WorkReportError},
-        Timeslot,
-    },
+    types::{work_report::WorkReport, Timeslot},
 };
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
@@ -15,8 +12,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum PendingReportsError {
-    #[error("WorkReport error: {0}")]
-    WorkReportError(#[from] WorkReportError),
     #[error("Invalid Core Index: {0}")]
     InvalidCoreIndex(CoreIndex),
 }
