@@ -514,8 +514,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        // TODO: check the GP if `mod 2^32` not needed here
-        let value = reg_to_u32(ins.imm2()?).encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).encode_fixed(4)?;
         continue_with_mem_write!(vm_state, program_state, address, value)
     }
 
