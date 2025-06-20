@@ -52,7 +52,7 @@ pub async fn extend_chain(
             .await?;
         let storage = jam_node.storage();
         storage.header_db().set_best_header(new_header.clone());
-        // TODO: Block finalization handling
+        // TODO: GRANDPA: Block finalization handling
         storage
             .header_db()
             .commit_header(new_header.clone())
@@ -65,7 +65,7 @@ pub async fn extend_chain(
         );
 
         // Note: For simplicity, announce the block to all peers in the network.
-        // TODO: Announce to neighbors in the grid structure as per JAMNP
+        // TODO: Network: Announce to neighbors in the grid structure as per JAMNP
         jam_node
             .network_manager()
             .announce_block_to_all_peers(&new_header)

@@ -113,7 +113,7 @@ impl Interpreter {
                 Ok(post_gas) => post_gas,
                 Err(VMCoreError::InvalidMemZone) => return Ok(ExitReason::Panic),
                 Err(VMCoreError::PageFault(page_start_address)) => {
-                    vm_state.pc = 0; // TODO: Revisit (test vectors assume page-fault resets pc value but not in GP)
+                    vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume page-fault resets pc value but not in GP)
                     return Ok(ExitReason::PageFault(page_start_address));
                 }
                 Err(e) => return Err(e),
@@ -135,7 +135,7 @@ impl Interpreter {
                 ExitReason::Continue => continue,
                 termination @ (ExitReason::Panic | ExitReason::RegularHalt) => {
                     // Reset the program counter
-                    // vm_state.pc = 0; // TODO: Revisit (test vectors assume panic/halt doesn't reset pc value but not in GP)
+                    // vm_state.pc = 0; // TODO: PVM Revisit: (test vectors assume panic/halt doesn't reset pc value but not in GP)
                     return Ok(termination);
                 }
                 other => return Ok(other),

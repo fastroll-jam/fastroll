@@ -132,7 +132,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
-                // TODO: Revisit (Test vectors assume `TRAP` doesn't alter pc values)
+                // TODO: PVM Revisit: (Test vectors assume `TRAP` doesn't alter pc values)
                 // new_pc: Interpreter::next_pc(vm_state, program_state),
                 new_pc: vm_state.pc,
                 ..Default::default()

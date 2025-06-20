@@ -48,7 +48,7 @@ impl NetworkManager {
         storage: Arc<NodeStorage>,
         local_node_socket_addr: SocketAddrV6,
     ) -> Result<(), NetworkError> {
-        // TODO: Predict validator set update on epoch progress
+        // TODO: Network: Predict validator set update on epoch progress
         let effective_validators = storage.effective_validators().await?;
 
         let mut all_validator_peers = DashMap::new();
@@ -60,7 +60,7 @@ impl NetworkManager {
         all_validator_peers.extend(next_epoch_peers);
 
         for (socket_addr, peer) in all_validator_peers.into_iter() {
-            // TODO: remove the comparison between default_socket_addr after updating validator set types to have empty vec as a default value
+            // TODO: Network: remove the comparison between default_socket_addr after updating validator set types to have empty vec as a default value
             let default_socket_addr =
                 SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), 0, 0, 0);
             if socket_addr != local_node_socket_addr && socket_addr != default_socket_addr {
@@ -91,7 +91,7 @@ impl NetworkManager {
             PeerConnection::new(conn.clone(), LocalNodeRole::Acceptor, DashMap::default()),
         )?;
 
-        // TODO: Monitor connection closure
+        // TODO: Network: Monitor connection closure
         while let Ok((send_stream, recv_stream)) = conn.accept_bi().await {
             let all_peers_cloned = all_peers.clone();
             let storage_cloned = storage.clone();

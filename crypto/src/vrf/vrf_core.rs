@@ -62,7 +62,7 @@ fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
 }
 
 /// IETF VRF prover actor.
-/// TODO: Zeroize
+/// TODO: Crypto: Zeroize
 pub(crate) struct IetfVrfProverCore {
     secret: Secret,
 }
@@ -99,7 +99,7 @@ impl IetfVrfProverCore {
 }
 
 /// Ring VRF prover actor.
-/// TODO: Zeroize
+/// TODO: Crypto: Zeroize
 pub(crate) struct RingVrfProverCore {
     prover_idx: usize,
     secret: Secret,

@@ -75,7 +75,7 @@ impl JamEncode for GuaranteesCredential {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.validator_index.encode_to_fixed(dest, 2)?; // TODO: check - Not fixed encoding in GP
+        self.validator_index.encode_to_fixed(dest, 2)?; // FIXME: Codec: - Not fixed encoding in GP
         self.signature.encode_to(dest)?;
         Ok(())
     }
