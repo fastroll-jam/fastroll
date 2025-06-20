@@ -52,7 +52,6 @@ impl StateTransitionTest for AccumulateTest {
     ) -> Result<(), StateManagerError> {
         // Convert ASN pre-state into FastRoll types.
         let pre_timeslot = Timeslot::new(test_pre_state.slot);
-        // TODO: why do we need entropy here?
         let pre_entropy = EpochEntropy([
             Hash32::from(test_pre_state.entropy),
             Hash32::default(),
