@@ -265,7 +265,6 @@ impl DisputesXtValidator {
             ));
         }
 
-        // FIXME: check the message (X_G?)
         // Validate the signature
         let hash = &entry.report_hash;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());

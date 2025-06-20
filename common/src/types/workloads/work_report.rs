@@ -10,14 +10,6 @@ use std::{
     fmt::{Display, Formatter},
     ops::Deref,
 };
-use thiserror::Error;
-
-// FIXME: remove
-#[derive(Debug, Error)]
-pub enum WorkReportError {
-    #[error("JamCodec error: {0}")]
-    JamCodecError(#[from] JamCodecError),
-}
 
 pub type WorkDigests = LimitedVec<WorkDigest, MAX_WORK_ITEMS_PER_PACKAGE>;
 

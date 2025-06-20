@@ -19,7 +19,7 @@ impl_byte_encodable!(BandersnatchSecretKey);
 impl SecretKey for BandersnatchSecretKey {
     type PublicKey = BandersnatchPubKey;
 
-    // TODO: generic rng
+    // TODO: Crypto: generic rng
     fn generate() -> Self {
         let mut rng = OsRng;
         let mut buf = [0u8; 32];
@@ -56,7 +56,7 @@ impl_byte_encodable!(Ed25519SecretKey);
 impl SecretKey for Ed25519SecretKey {
     type PublicKey = Ed25519PubKey;
 
-    // TODO: generic rng
+    // TODO: Crypto: generic rng
     fn generate() -> Self {
         let mut rng = OsRng;
         let mut buf = [0u8; 32];

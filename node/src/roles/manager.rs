@@ -23,7 +23,7 @@ impl RoleManager {
     ) -> Result<bool, RoleManagerError> {
         let slot_sealer = predict_post_slot_sealer(state_manager, new_timeslot.slot()).await?;
 
-        // TODO: impl for ticket mode
+        // TODO: Node: impl for ticket mode
         match slot_sealer {
             SlotSealer::Ticket(_ticket) => {
                 unimplemented!()

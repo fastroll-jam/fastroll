@@ -7,7 +7,7 @@ pub enum ExitReason {
     Continue,
     RegularHalt,
     Panic,
-    OutOfGas,              // Note: Not used in the single-step invocation.
-    PageFault(MemAddress), // FIXME: return the lowest address of the page (GP v0.6.0)
+    OutOfGas, // Note: Not used in the single-step invocation.
+    PageFault(MemAddress),
     HostCall(HostCallType),
 }

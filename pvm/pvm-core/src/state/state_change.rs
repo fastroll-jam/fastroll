@@ -2,6 +2,7 @@ use crate::{
     error::VMCoreError,
     gas::GasCharger,
     state::{memory::MemoryError, register::Register, vm_state::VMState},
+    utils::VMUtils,
 };
 use fr_common::{SignedGas, UnsignedGas};
 use fr_pvm_types::{
@@ -102,7 +103,7 @@ impl VMStateMutator {
             match vm_state.memory.write_bytes(*buf_offset, write_data) {
                 Ok(_) => {}
                 Err(MemoryError::AccessViolation(address)) => {
-                    return Err(VMCoreError::PageFault(address))
+                    return Err(VMCoreError::PageFault(VMUtils::page_start_address(address)))
                 }
                 Err(e) => return Err(e.into()),
             }

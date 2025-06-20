@@ -258,7 +258,7 @@ impl BlockExecutor {
         })
     }
 
-    // FIXME: WIP
+    // FIXME: Genesis: WIP
     pub async fn run_genesis_state_transition(
         storage: &NodeStorage,
         block: &Block,
