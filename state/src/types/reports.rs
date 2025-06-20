@@ -5,7 +5,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{CoreIndex, Hash32, CORE_COUNT, PENDING_REPORT_TIMEOUT};
-use fr_crypto::{hash, Blake2b256};
+use fr_crypto::{error::CryptoError, hash, Blake2b256};
 use fr_limited_vec::FixedVec;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -14,6 +14,10 @@ use thiserror::Error;
 pub enum PendingReportsError {
     #[error("Invalid Core Index: {0}")]
     InvalidCoreIndex(CoreIndex),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
 }
 
 pub type CorePendingReportsEntries = FixedVec<Option<PendingReport>, CORE_COUNT>;
@@ -78,10 +82,7 @@ impl PendingReports {
     pub fn remove_by_hash(&mut self, target_hash: &Hash32) -> Result<bool, PendingReportsError> {
         for report_entry in self.0.iter_mut() {
             if let Some(report) = report_entry {
-                // FIXME: error handling
-                if hash::<Blake2b256>(&report.work_report.encode().unwrap()).unwrap()
-                    == *target_hash
-                {
+                if hash::<Blake2b256>(&report.work_report.encode()?)? == *target_hash {
                     *report_entry = None;
                     return Ok(true); // Hash found and entry turned into None
                 }
