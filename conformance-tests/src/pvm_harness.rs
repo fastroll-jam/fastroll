@@ -247,7 +247,9 @@ pub fn run_test_case(filename: &str) {
     let (actual_status, actual_page_fault_address) = match exit_reason {
         ExitReason::Panic => (ExpectedStatus::panic, None),
         ExitReason::RegularHalt => (ExpectedStatus::halt, None),
-        ExitReason::PageFault(addr) => (ExpectedStatus::page_fault, Some(addr)),
+        ExitReason::PageFault(page_start_addr) => {
+            (ExpectedStatus::page_fault, Some(page_start_addr))
+        }
         _ => panic!("Unexpected exit reason"),
     };
 
