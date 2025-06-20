@@ -65,8 +65,10 @@ impl GuaranteesXt {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
-    pub validator_index: ValidatorIndex, // v
-    pub signature: Ed25519Sig,           // s
+    /// `v`: Guarantor's validator index
+    pub validator_index: ValidatorIndex,
+    /// `s`: Guarantor's Ed25519 signature
+    pub signature: Ed25519Sig,
 }
 
 impl JamEncode for GuaranteesCredential {
