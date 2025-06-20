@@ -254,7 +254,7 @@ pub fn run_test_case(filename: &str) {
     };
 
     // assert_eq!(pvm.state, expected_vm);
-    // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter); // FIXME: Skipped due to issues in page-fault test cases
+    // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter); // FIXME: PageFault: Skipped due to issues in page-fault test cases
     assert_eq!(pvm.state.pc, expected_vm.pc);
     assert_eq!(pvm.state.regs, expected_vm.regs);
     assert_eq!(pvm.state.memory, expected_vm.memory);

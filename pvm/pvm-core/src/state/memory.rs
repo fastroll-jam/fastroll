@@ -391,7 +391,7 @@ impl Memory {
     pub fn get_break(&self, expand_size: usize) -> MemAddress {
         let mut break_address = self.heap_end;
         loop {
-            // FIXME: Current implementation is a workaround since address-level access control is limited
+            // FIXME: SBRK: Current implementation is a workaround since address-level access control is limited
             if self.is_address_range_readable(break_address, expand_size)
                 && !self.is_address_range_writable(break_address, expand_size)
             {
@@ -413,7 +413,7 @@ impl Memory {
                 self.stack_start,
             ));
         }
-        self.set_address_range_access(start..end, AccessType::ReadWrite)?; // FIXME: address-level access control
+        self.set_address_range_access(start..end, AccessType::ReadWrite)?; // FIXME: SBRK: address-level access control
         self.heap_end = end;
         Ok(())
     }
