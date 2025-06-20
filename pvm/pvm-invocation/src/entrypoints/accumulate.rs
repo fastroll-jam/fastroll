@@ -58,7 +58,7 @@ impl AccumulateInvocation {
     /// Represents `Ψ_A` of the GP
     pub(crate) async fn accumulate(
         state_manager: Arc<StateManager>,
-        partial_state: &AccumulatePartialState,
+        partial_state: AccumulatePartialState,
         args: &AccumulateInvokeArgs,
     ) -> Result<AccumulateResult, PVMError> {
         tracing::info!("Ψ_A (accumulate) invoked.");
@@ -67,7 +67,7 @@ impl AccumulateInvocation {
             tracing::warn!("Accumulate service code not found.");
             return Ok(AccumulateResult {
                 accumulate_host: args.accumulate_host,
-                partial_state: partial_state.clone(), // FIXME: not necessary when invocation cancelled
+                partial_state,
                 ..Default::default()
             });
         };
@@ -77,7 +77,7 @@ impl AccumulateInvocation {
             tracing::warn!("Accumulate service code exceeds maximum allowed.");
             return Ok(AccumulateResult {
                 accumulate_host: args.accumulate_host,
-                partial_state: partial_state.clone(),
+                partial_state,
                 ..Default::default()
             });
         }
@@ -94,7 +94,7 @@ impl AccumulateInvocation {
 
         let ctx = AccumulateHostContext::new(
             state_manager.clone(),
-            partial_state.clone(),
+            partial_state,
             args.accumulate_host,
             curr_entropy.clone(),
             args.curr_timeslot_index,
