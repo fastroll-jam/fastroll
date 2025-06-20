@@ -65,8 +65,10 @@ impl GuaranteesXt {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuaranteesCredential {
-    pub validator_index: ValidatorIndex, // v
-    pub signature: Ed25519Sig,           // s
+    /// `v`: Guarantor's validator index
+    pub validator_index: ValidatorIndex,
+    /// `s`: Guarantor's Ed25519 signature
+    pub signature: Ed25519Sig,
 }
 
 impl JamEncode for GuaranteesCredential {
@@ -75,7 +77,7 @@ impl JamEncode for GuaranteesCredential {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.validator_index.encode_to_fixed(dest, 2)?; // TODO: check - Not fixed encoding in GP
+        self.validator_index.encode_to_fixed(dest, 2)?; // FIXME: Codec: - Not fixed encoding in GP
         self.signature.encode_to(dest)?;
         Ok(())
     }

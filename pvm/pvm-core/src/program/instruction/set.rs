@@ -132,7 +132,7 @@ impl InstructionSet {
         Ok(SingleStepResult {
             exit_reason: ExitReason::Panic,
             state_change: VMStateChange {
-                // TODO: Revisit (Test vectors assume `TRAP` doesn't alter pc values)
+                // TODO: PVM Revisit: (Test vectors assume `TRAP` doesn't alter pc values)
                 // new_pc: Interpreter::next_pc(vm_state, program_state),
                 new_pc: vm_state.pc,
                 ..Default::default()
@@ -514,8 +514,7 @@ impl InstructionSet {
         ins: &Instruction,
     ) -> Result<SingleStepResult, VMCoreError> {
         let address = reg_to_mem_address(vm_state.read_rs1(ins)?.wrapping_add(ins.imm1()?));
-        // TODO: check the GP if `mod 2^32` not needed here
-        let value = reg_to_u32(ins.imm2()?).encode_fixed(4)?;
+        let value = reg_to_u32(ins.imm2()? & 0xFFFF_FFFF).encode_fixed(4)?;
         continue_with_mem_write!(vm_state, program_state, address, value)
     }
 

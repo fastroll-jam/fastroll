@@ -1,7 +1,7 @@
 use crate::program::instruction::ImmSize;
 use bit_vec::BitVec;
 use fr_pvm_types::{
-    common::RegValue,
+    common::{MemAddress, RegValue},
     constants::{INIT_ZONE_SIZE, PAGE_SIZE},
 };
 
@@ -56,6 +56,12 @@ impl VMUtils {
     pub fn zone_align(x: usize) -> usize {
         // Z(x) = Z_Z * ceil(x / Z_Z)
         INIT_ZONE_SIZE * x.div_ceil(INIT_ZONE_SIZE)
+    }
+
+    /// Returns the starting address of the memory page containing the given address.
+    pub fn page_start_address(address: MemAddress) -> MemAddress {
+        // Z_P * floor(address mod 2^32 / Z_P)
+        PAGE_SIZE as MemAddress * (address / (PAGE_SIZE as MemAddress))
     }
 
     //

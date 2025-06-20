@@ -230,7 +230,6 @@ impl SlotSealers {
         }
     }
 
-    // FIXME: use `slice::get` instead
     pub fn get_slot_sealer(&self, timeslot: &Timeslot) -> SlotSealer {
         let slot_phase = timeslot.slot_phase() as usize;
         match self {

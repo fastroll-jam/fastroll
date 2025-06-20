@@ -336,7 +336,7 @@ async fn accumulate_single_service(
 
     AccumulateInvocation::accumulate(
         state_manager,
-        &partial_state,
+        partial_state,
         &AccumulateInvokeArgs {
             curr_timeslot_index,
             accumulate_host: service_id,

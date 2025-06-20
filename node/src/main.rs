@@ -47,6 +47,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     importer_jh.await?;
     slots_jh.await?;
     acceptor_jh.await??;
-    // TODO: Timeslot scheduling, tickets submission
+    // TODO: Node: Safrole Ticket submission
     Ok(())
 }

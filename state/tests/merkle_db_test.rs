@@ -117,7 +117,6 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     state_manager
         .commit_single_dirty_cache(&auth_pool_state_key)
         .await?;
-    // FIXME: When there is the only state entry in the merkle trie, the leaf must be promoted to the root.
     tracing::info!(
         "--- DB Commit Done. Merkle Root: {}",
         state_manager.merkle_root()

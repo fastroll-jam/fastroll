@@ -55,7 +55,7 @@ impl GuarantorAssignment {
         let current_timeslot = state_manager.get_timeslot().await?;
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();
-        let mut active_set = state_manager.get_active_set().await?; // TODO: check whether to get via `get_active_set_clean`
+        let mut active_set = state_manager.get_active_set().await?;
         let punish_set = state_manager.get_disputes().await?.punish_set;
         active_set.nullify_punished_validators(&punish_set);
 

@@ -144,7 +144,7 @@ impl WorkItem {
     }
 }
 
-// FIXME: according to GP, WPH should be converted to SR and then serialized.
+// FIXME: Codec: according to GP, WPH should be converted to SR and then serialized.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
     /// `h`: Export segments root
