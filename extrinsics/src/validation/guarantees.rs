@@ -324,6 +324,12 @@ impl GuaranteesXtValidator {
 
         // Validate contents of the anchor block if it exists in the recent block history
         if let Some(entry) = anchor_in_block_history {
+            if &entry.header_hash != anchor_hash {
+                return Err(XtError::InvalidAnchorHeaderHash(
+                    core_index,
+                    anchor_hash.encode_hex(),
+                ));
+            }
             if &entry.state_root != anchor_state_root {
                 return Err(XtError::InvalidAnchorStateRoot(
                     core_index,

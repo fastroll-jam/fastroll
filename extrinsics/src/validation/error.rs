@@ -110,11 +110,13 @@ pub enum XtError {
     AccountOfWorkDigestNotFound(CoreIndex, ServiceId),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
-    #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
+    #[error("Invalid anchor block header hash. Coree index: {0}, Anchor block header hash: {1}")]
+    InvalidAnchorHeaderHash(CoreIndex, String),
+    #[error("Invalid anchor block state root. Core index: {0}, Anchor block header hash: {1}")]
     InvalidAnchorStateRoot(CoreIndex, String),
     #[error("Failed to calculate the MMR root.")]
     MMRCalculationFailed,
-    #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block hash: {1}")]
+    #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block header hash: {1}")]
     InvalidAnchorBeefyRoot(CoreIndex, String),
     #[error("Lookup anchor block timed out. Core index: {0}, Provided lookup anchor hash: {1}")]
     LookupAnchorBlockTimeout(CoreIndex, String),
