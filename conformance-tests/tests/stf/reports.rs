@@ -1,7 +1,7 @@
 //! Reports state transition conformance tests
 use async_trait::async_trait;
 use fr_asn_types::types::{common::*, reports::*};
-use fr_block::types::block::BlockHeader;
+use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_conformance_tests::{
     err_map::reports::map_error_to_custom_code,
     generate_typed_tests,
@@ -100,6 +100,7 @@ impl StateTransitionTest for ReportsTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
         _new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError> {
@@ -108,6 +109,7 @@ impl StateTransitionTest for ReportsTest {
 
         let (mut reported, mut reporters) = transition_reports_update_entries(
             state_manager,
+            header_db,
             &jam_input.extrinsic,
             jam_input.timeslot,
         )

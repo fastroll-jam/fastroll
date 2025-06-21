@@ -1,7 +1,7 @@
 //! Block history state transition conformance tests
 use async_trait::async_trait;
 use fr_asn_types::types::history::*;
-use fr_block::types::block::BlockHeader;
+use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::{workloads::ReportedWorkPackage, Hash32};
 use fr_conformance_tests::{
     generate_typed_tests,
@@ -63,6 +63,7 @@ impl StateTransitionTest for HistoryTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        _header_db: Arc<BlockHeaderDB>,
         _new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError> {

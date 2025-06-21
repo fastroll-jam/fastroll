@@ -1,9 +1,12 @@
 //! Safrole state transition conformance tests
 use async_trait::async_trait;
 use fr_asn_types::types::{common::*, safrole::*};
-use fr_block::types::{
-    block::BlockHeader,
-    extrinsics::tickets::{TicketsXt, TicketsXtEntry},
+use fr_block::{
+    header_db::BlockHeaderDB,
+    types::{
+        block::BlockHeader,
+        extrinsics::tickets::{TicketsXt, TicketsXtEntry},
+    },
 };
 use fr_common::Hash32;
 use fr_conformance_tests::{
@@ -102,6 +105,7 @@ impl StateTransitionTest for SafroleTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        _header_db: Arc<BlockHeaderDB>,
         new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError> {

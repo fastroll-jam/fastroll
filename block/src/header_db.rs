@@ -51,6 +51,7 @@ impl CacheItem for BlockHeader {
     }
 }
 
+// TODO: If `BlockHeaderDB` should be pruned, ensure to retain at least `L` timeslots' worth of ancestor headers set. (GuaranteesXt lookup anchor block validation requirement)
 /// The main storage to store block headers.
 ///
 /// `db` is a cached key-value database to store block headers.

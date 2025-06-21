@@ -9,7 +9,7 @@ fr-block = { workspace = true }
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
-fr-extrinsics = { workspace = true }
+fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
 fr-merkle = { workspace = true }
 fr-node = { workspace = true }
 fr-pvm-core = { workspace = true }
