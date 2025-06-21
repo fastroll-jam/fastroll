@@ -450,7 +450,7 @@ impl From<AsnRefineContext> for RefinementContext {
         Self {
             anchor_header_hash: Hash32::from(value.anchor),
             anchor_state_root: Hash32::from(value.state_root),
-            beefy_root: Hash32::from(value.beefy_root),
+            anchor_beefy_root: Hash32::from(value.beefy_root),
             lookup_anchor_header_hash: Hash32::from(value.lookup_anchor),
             lookup_anchor_timeslot: value.lookup_anchor_slot,
             prerequisite_work_packages: value.prerequisites.into_iter().map(Hash32::from).collect(),
@@ -463,7 +463,7 @@ impl From<RefinementContext> for AsnRefineContext {
         Self {
             anchor: AsnOpaqueHash::from(value.anchor_header_hash),
             state_root: AsnOpaqueHash::from(value.anchor_state_root),
-            beefy_root: AsnOpaqueHash::from(value.beefy_root),
+            beefy_root: AsnOpaqueHash::from(value.anchor_beefy_root),
             lookup_anchor: AsnOpaqueHash::from(value.lookup_anchor_header_hash),
             lookup_anchor_slot: value.lookup_anchor_timeslot,
             prerequisites: value

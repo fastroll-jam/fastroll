@@ -12,3 +12,6 @@ fr-limited-vec = { workspace = true }
 fr-state = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
+
+[features]
+skip-ancestor-set-validation = []

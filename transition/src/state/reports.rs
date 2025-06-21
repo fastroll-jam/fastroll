@@ -1,6 +1,7 @@
 use crate::error::TransitionError;
-use fr_block::types::extrinsics::{
-    assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt,
+use fr_block::{
+    header_db::BlockHeaderDB,
+    types::extrinsics::{assurances::AssurancesXt, disputes::DisputesXt, guarantees::GuaranteesXt},
 };
 use fr_common::{
     workloads::work_report::{ReportedWorkPackage, WorkReport},
@@ -118,11 +119,12 @@ pub async fn transition_reports_clear_availables(
 /// entry is replaced only if more than `U` timeslots have passed since the report was submitted.
 pub async fn transition_reports_update_entries(
     state_manager: Arc<StateManager>,
+    header_db: Arc<BlockHeaderDB>,
     guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
 ) -> Result<(Vec<ReportedWorkPackage>, Vec<Ed25519PubKey>), TransitionError> {
     // Validate guarantees extrinsic data.
-    let guarantees_validator = GuaranteesXtValidator::new(state_manager.clone());
+    let guarantees_validator = GuaranteesXtValidator::new(state_manager.clone(), header_db);
     let all_guarantor_keys = guarantees_validator
         .validate(guarantees_xt, current_timeslot.slot())
         .await?;

@@ -64,9 +64,14 @@ impl BlockHistory {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockHistoryEntry {
+    /// `h`: Header hash of the block.
     pub header_hash: Hash32,
+    /// `b`: Accumulation result MMR root.
     pub accumulation_result_mmr: MerkleMountainRange<Keccak256>,
+    /// `s`: Posterior state root of the block.
     pub state_root: Hash32,
+    /// **`p`**: The set of all work reports introduced by the guarantees extrinsic of the block,
+    /// providing a mapping of work package hashes and their corresponding segment roots.
     pub reported_packages: Vec<ReportedWorkPackage>, // Length up to CORE_COUNT.
 }
 

@@ -106,7 +106,9 @@ impl PendingReports {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PendingReport {
+    /// `w`: Work Report
     pub work_report: WorkReport,
+    /// `t`: Timeslot when the work report was introduced on-chain (reported).
     pub reported_timeslot: Timeslot,
 }
 

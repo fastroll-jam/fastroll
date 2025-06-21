@@ -179,14 +179,20 @@ impl BlockExecutor {
 
         // Reports STF
         let manager = storage.state_manager();
+        let header_db = storage.header_db();
         let reports_jh = spawn_timed("reports_stf", async move {
             transition_reports_eliminate_invalid(manager.clone(), &disputes_xt, prev_timeslot)
                 .await?;
             let available_reports =
                 transition_reports_clear_availables(manager.clone(), &assurances_xt, parent_hash)
                     .await?;
-            let (reported, _reporters) =
-                transition_reports_update_entries(manager, &guarantees_xt, curr_timeslot).await?;
+            let (reported, _reporters) = transition_reports_update_entries(
+                manager,
+                header_db,
+                &guarantees_xt,
+                curr_timeslot,
+            )
+            .await?;
             Ok::<_, TransitionError>((available_reports, reported))
         });
 

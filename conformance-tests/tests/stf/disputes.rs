@@ -1,7 +1,10 @@
 //! Disputes state transition conformance tests
 use async_trait::async_trait;
 use fr_asn_types::types::{common::*, disputes::*};
-use fr_block::types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker};
+use fr_block::{
+    header_db::BlockHeaderDB,
+    types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker},
+};
 use fr_conformance_tests::{
     err_map::disputes::map_error_to_custom_code,
     generate_typed_tests,
@@ -63,6 +66,7 @@ impl StateTransitionTest for DisputesTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        _header_db: Arc<BlockHeaderDB>,
         new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError> {

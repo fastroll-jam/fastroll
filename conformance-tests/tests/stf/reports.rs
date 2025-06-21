@@ -1,7 +1,7 @@
 //! Reports state transition conformance tests
 use async_trait::async_trait;
 use fr_asn_types::types::{common::*, reports::*};
-use fr_block::types::block::BlockHeader;
+use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_conformance_tests::{
     err_map::reports::map_error_to_custom_code,
     generate_typed_tests,
@@ -12,8 +12,8 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports,
-        Timeslot,
+        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, BlockHistory, DisputesState,
+        EpochEntropy, PastSet, PendingReports, Timeslot,
     },
 };
 use fr_transition::{
@@ -60,6 +60,8 @@ impl StateTransitionTest for ReportsTest {
         };
         let pre_block_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
         let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
+        let pre_accumulate_queue = AccumulateQueue::default(); // Not included in the test vector but required for GuaranteesXt validation
+        let pre_accumulate_history = AccumulateHistory::default(); // Not included in the test vector but required for GuaranteesXt validation
         let pre_accounts: Vec<AccountsMapEntry> = test_pre_state
             .accounts
             .clone()
@@ -77,6 +79,12 @@ impl StateTransitionTest for ReportsTest {
         state_manager.add_disputes(pre_disputes).await?;
         state_manager.add_block_history(pre_block_history).await?;
         state_manager.add_auth_pool(pre_auth_pool).await?;
+        state_manager
+            .add_accumulate_queue(pre_accumulate_queue)
+            .await?;
+        state_manager
+            .add_accumulate_history(pre_accumulate_history)
+            .await?;
 
         for pre_account in pre_accounts {
             state_manager
@@ -100,6 +108,7 @@ impl StateTransitionTest for ReportsTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
         _new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError> {
@@ -108,6 +117,7 @@ impl StateTransitionTest for ReportsTest {
 
         let (mut reported, mut reporters) = transition_reports_update_entries(
             state_manager,
+            header_db,
             &jam_input.extrinsic,
             jam_input.timeslot,
         )
