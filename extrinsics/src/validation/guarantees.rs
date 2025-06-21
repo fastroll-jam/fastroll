@@ -43,14 +43,14 @@ use std::{collections::HashSet, sync::Arc};
 ///     of the core on which the work is reported.
 ///   - No duplicate work-package hashes are allowed across different work reports within the extrinsic.
 ///   - The anchor block of each work-report must be within the last `H = 8` blocks, and its details
-///     (header hash, state root, and Beefy root) must match those stored in the recent block history (`β`).
+///     (header hash, state root, and Beefy root) must match those stored in the recent block history (`β_H†`).
 ///   - The lookup-anchor block for each work-report must be within the last `L = 14,400` timeslots.
 ///     Additionally, the lookup-anchor's details (timeslot and header hash) must match those stored
 ///     in the ancestor header state.
 ///   - The work-package hash of each work-report must not match any work-package hashes from reports
-///     already made in the past and thus should not be present in `β`.
+///     already made in the past and thus should not be present anywhere in `ρ`, `θ`, `ξ` or `β_H`.
 ///   - If the work-report depends on a prerequisite work-package, the prerequisite must either be
-///     present in the current extrinsic or in the recent block history (`β`).
+///     present in the current extrinsic or in the recent block history (`β_H`).
 ///   - All work digests within each work-report must predict the correct code hash for the
 ///     corresponding service at the time of report submission.
 /// - `credentials`
