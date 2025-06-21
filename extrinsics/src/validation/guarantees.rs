@@ -317,7 +317,7 @@ impl GuaranteesXtValidator {
     ) -> Result<(), XtError> {
         let anchor_hash = &work_report_context.anchor_header_hash;
         let anchor_state_root = &work_report_context.anchor_state_root;
-        let anchor_beefy_root = &work_report_context.beefy_root;
+        let anchor_beefy_root = &work_report_context.anchor_beefy_root;
 
         // Check that the anchor block is within the last H blocks
         let anchor_in_block_history = block_history.get_by_header_hash(anchor_hash);
