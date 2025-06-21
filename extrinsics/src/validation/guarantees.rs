@@ -123,7 +123,6 @@ impl GuaranteesXtValidator {
             .collect();
 
         // Validate each entry
-        // FIXME: `pending_reports` should be `ρ‡`, not `ρ` (post state prediction)
         let pending_reports = self.state_manager.get_pending_reports().await?;
         let auth_pool = self.state_manager.get_auth_pool().await?;
         let block_history = self.state_manager.get_block_history().await?;
