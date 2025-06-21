@@ -9,7 +9,7 @@ use fr_common::{
         work_report::{ReportedWorkPackage, WorkReport},
     },
     CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
-    MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -22,7 +22,6 @@ use fr_state::{
     types::{AuthPool, BlockHistory, PendingReports},
 };
 use std::{collections::HashSet, sync::Arc};
-// TODO: Add validation over gas allocation.
 
 /// Validates contents of `GuaranteesXt` type.
 ///
@@ -118,6 +117,7 @@ impl GuaranteesXtValidator {
             .collect();
 
         // Validate each entry
+        // FIXME: `pending_reports` should be `ρ‡`, not `ρ` (post state prediction)
         let pending_reports = self.state_manager.get_pending_reports().await?;
         let auth_pool = self.state_manager.get_auth_pool().await?;
         let block_history = self.state_manager.get_block_history().await?;
@@ -189,19 +189,22 @@ impl GuaranteesXtValidator {
         if work_report.total_accumulation_gas_allotted() > ACCUMULATION_GAS_PER_CORE {
             return Err(XtError::WorkReportTotalGasTooHigh);
         }
+
         for digest in &work_report.digests {
-            // TODO: error handling for target account being not found?
-            let target_service_account_metadata = self
+            let Some(target_service_account_metadata) = self
                 .state_manager
                 .get_account_metadata(digest.service_id)
-                .await?;
-
-            let target_service_account_min_item_gas = match target_service_account_metadata {
-                Some(account) => account.gas_limit_accumulate,
-                None => continue,
+                .await?
+            else {
+                // No service account is found from the global state with the service id specified in the work digest.
+                // This implies incorrect work digest, since refine code must have been executed with the service code already.
+                return Err(XtError::AccountOfWorkDigestNotFound(
+                    work_report.core_index,
+                    digest.service_id,
+                ));
             };
 
-            if digest.accumulate_gas_limit < target_service_account_min_item_gas {
+            if digest.accumulate_gas_limit < target_service_account_metadata.gas_limit_accumulate {
                 return Err(XtError::ServiceAccountGasLimitTooLow);
             }
         }
@@ -211,13 +214,8 @@ impl GuaranteesXtValidator {
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?;
 
-        // Check if there is any work reported in this extrinsic while there is pending report
-        // assigned to the core which is not timed-out.
-        if let Some(core_report) = core_pending_report {
-            let expiration = core_report.reported_timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
-            if header_timeslot_index < expiration {
-                return Err(XtError::PendingReportExists(core_index));
-            }
+        if core_pending_report.is_some() {
+            return Err(XtError::PendingReportExists(core_index));
         }
 
         // Check the authorizer hash
@@ -246,6 +244,7 @@ impl GuaranteesXtValidator {
                 work_report.work_package_hash().encode_hex(),
             ));
         }
+        // TODO: check pending reports, accumulate queue, accumulate history
 
         // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
         // and the number of prerequisites must not exceed `MAX_REPORT_DEPENDENCIES`
