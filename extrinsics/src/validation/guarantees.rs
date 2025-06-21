@@ -264,8 +264,8 @@ impl GuaranteesXtValidator {
             return Err(XtError::TooManyDependencies(core_index));
         }
 
-        // Check the segment root lookup dictionary entries can be found either in the same extrinsic
-        // or in the block history
+        // Check the segment root lookup dictionary entries can be found either in the guarantees
+        // extrinsic in the same block or in the recent block history
         let mut exports_manifests_merged = block_history.get_reported_packages_flattened();
         exports_manifests_merged.extend_from_slice(exports_manifests);
 
@@ -282,8 +282,8 @@ impl GuaranteesXtValidator {
             }
         }
 
-        // Check prerequisite work-packages exist either in the current extrinsic or in the recent
-        // block history
+        // Check prerequisite work-packages exist either in the guarantees extrinsic in the same block
+        // or in the recent block history
         for prerequisite_hash in work_report.prerequisites().iter() {
             if !work_package_hashes.contains(prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(prerequisite_hash)
