@@ -20,7 +20,7 @@ use fr_crypto::{
 };
 use fr_state::{
     manager::StateManager,
-    types::{AuthPool, BlockHistory, PendingReports},
+    types::{AccumulateHistory, AccumulateQueue, AuthPool, BlockHistory, PendingReports},
 };
 use std::{collections::HashSet, sync::Arc};
 
@@ -127,6 +127,8 @@ impl GuaranteesXtValidator {
         let pending_reports = self.state_manager.get_pending_reports().await?;
         let auth_pool = self.state_manager.get_auth_pool().await?;
         let block_history = self.state_manager.get_block_history().await?;
+        let accumulate_queue = self.state_manager.get_accumulate_queue().await?;
+        let accumulate_history = self.state_manager.get_accumulate_history().await?;
 
         let mut all_guarantor_keys = vec![];
         for entry in extrinsic.iter() {
@@ -137,6 +139,8 @@ impl GuaranteesXtValidator {
                     &pending_reports,
                     &auth_pool,
                     &block_history,
+                    &accumulate_queue,
+                    &accumulate_history,
                     &work_package_hashes,
                     header_timeslot_index,
                 )
@@ -158,6 +162,8 @@ impl GuaranteesXtValidator {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
+        accumulate_queue: &AccumulateQueue,
+        accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
@@ -167,6 +173,8 @@ impl GuaranteesXtValidator {
             pending_reports,
             auth_pool,
             block_history,
+            accumulate_queue,
+            accumulate_history,
             work_package_hashes,
             header_timeslot_index,
         )
@@ -183,6 +191,8 @@ impl GuaranteesXtValidator {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
+        accumulate_queue: &AccumulateQueue,
+        accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<(), XtError> {
@@ -244,6 +254,11 @@ impl GuaranteesXtValidator {
         )
         .await?;
 
+        // Check that the work-package hash is not associated with any work reports made in the past
+        // by checking recent block histories, accumulate history and prerequisite work package
+        // hashes of already "available" reports - from pending reports and accumulate queue.
+        // TODO: split out a method
+
         // Check that the work-package hash is not in the block history
         if block_history.check_work_package_hash_exists(work_report.work_package_hash()) {
             return Err(XtError::WorkPackageAlreadyInHistory(
@@ -251,7 +266,50 @@ impl GuaranteesXtValidator {
                 work_report.work_package_hash().encode_hex(),
             ));
         }
-        // TODO: check pending reports, accumulate queue, accumulate history
+        // Check that the work-package hash is not found anywhere in accumulate history or
+        // prerequisites set of accumulate queue and pending reports, which are already "available".
+        let mut package_hashes_from_already_available_set = HashSet::new();
+
+        // Check from the accumulate queue
+        let mut package_hashes_from_acc_queue = HashSet::new();
+        for wr_deps_maps in &accumulate_queue.items {
+            for deps_map in wr_deps_maps {
+                for wph in &deps_map.0.refinement_context.prerequisite_work_packages {
+                    package_hashes_from_acc_queue.insert(wph.clone());
+                }
+            }
+        }
+
+        // Check from the pending reports
+        let mut package_hashes_from_pending_reports = HashSet::new();
+        for pending_report in pending_reports.0.iter().filter_map(|x| x.as_ref()) {
+            for wph in &pending_report
+                .work_report
+                .refinement_context
+                .prerequisite_work_packages
+            {
+                package_hashes_from_pending_reports.insert(wph.clone());
+            }
+        }
+
+        // Check from the accumulate history
+        let mut package_hashes_from_acc_history = HashSet::new();
+        for history_entry in accumulate_history.items.iter() {
+            for wph in history_entry {
+                package_hashes_from_acc_history.insert(wph.clone());
+            }
+        }
+
+        package_hashes_from_already_available_set.extend(package_hashes_from_acc_queue);
+        package_hashes_from_already_available_set.extend(package_hashes_from_pending_reports);
+        package_hashes_from_already_available_set.extend(package_hashes_from_acc_history);
+
+        if package_hashes_from_already_available_set.contains(work_report.work_package_hash()) {
+            return Err(XtError::WorkPackageAlreadyInPipeline(
+                core_index,
+                work_report.work_package_hash().encode_hex(),
+            ));
+        }
 
         // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
         // and the number of prerequisites must not exceed `MAX_REPORT_DEPENDENCIES`

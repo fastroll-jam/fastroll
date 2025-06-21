@@ -101,6 +101,8 @@ pub enum XtError {
     InvalidAuthorizerHash(CoreIndex),
     #[error("Work package hash already exists in block history. Core index: {0}, Work package hash: {1}")]
     WorkPackageAlreadyInHistory(CoreIndex, String),
+    #[error("Work package hash already exists in the work reports pipeline: Accumulate history or prerequisite set of accumulate queue and pending reports.. Core index: {0}, Work package hash: {1}")]
+    WorkPackageAlreadyInPipeline(CoreIndex, String),
     #[error("Prerequisite work package not found. Core index: {0}, Work package hash: {1}")]
     PrerequisiteNotFound(CoreIndex, String),
     #[error("Work report has too many dependencies (prerequisites and segment-root lookup dictionary items). Core index: {0}")]

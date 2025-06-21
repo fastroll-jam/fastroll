@@ -12,8 +12,8 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        ActiveSet, AuthPool, BlockHistory, DisputesState, EpochEntropy, PastSet, PendingReports,
-        Timeslot,
+        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, BlockHistory, DisputesState,
+        EpochEntropy, PastSet, PendingReports, Timeslot,
     },
 };
 use fr_transition::{
@@ -60,6 +60,8 @@ impl StateTransitionTest for ReportsTest {
         };
         let pre_block_history = BlockHistory::from(test_pre_state.recent_blocks.clone());
         let pre_auth_pool = AuthPool::from(test_pre_state.auth_pools.clone());
+        let pre_accumulate_queue = AccumulateQueue::default(); // Not included in the test vector but required for GuaranteesXt validation
+        let pre_accumulate_history = AccumulateHistory::default(); // Not included in the test vector but required for GuaranteesXt validation
         let pre_accounts: Vec<AccountsMapEntry> = test_pre_state
             .accounts
             .clone()
@@ -77,6 +79,12 @@ impl StateTransitionTest for ReportsTest {
         state_manager.add_disputes(pre_disputes).await?;
         state_manager.add_block_history(pre_block_history).await?;
         state_manager.add_auth_pool(pre_auth_pool).await?;
+        state_manager
+            .add_accumulate_queue(pre_accumulate_queue)
+            .await?;
+        state_manager
+            .add_accumulate_history(pre_accumulate_history)
+            .await?;
 
         for pre_account in pre_accounts {
             state_manager
