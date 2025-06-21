@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use fr_block::types::block::BlockHeader;
+use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::utils::tracing::setup_timed_tracing;
 use fr_state::{error::StateManagerError, manager::StateManager};
 use fr_transition::error::TransitionError;
@@ -38,9 +38,9 @@ pub trait StateTransitionTest {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn init_header_and_manager() -> (BlockHeader, StateManager) {
-        let (_, _, manager, _) = fr_state::test_utils::init_db_and_manager(None);
-        (BlockHeader::default(), manager)
+    fn init_header_and_manager() -> (BlockHeaderDB, BlockHeader, StateManager) {
+        let (header_db, _, manager, _) = fr_state::test_utils::init_db_and_manager(None);
+        (header_db, BlockHeader::default(), manager)
     }
 
     async fn load_pre_state(
@@ -52,6 +52,7 @@ pub trait StateTransitionTest {
 
     async fn run_state_transition(
         state_manager: Arc<StateManager>,
+        header_db: Arc<BlockHeaderDB>,
         new_header: &mut BlockHeader,
         jam_input: Self::JamInput,
     ) -> Result<Self::JamTransitionOutput, TransitionError>;
@@ -84,8 +85,9 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
     let test_case = T::load_test_case(&filename);
 
     // init state manager and header db
-    let (mut new_header, state_manager) = T::init_header_and_manager();
+    let (header_db, mut new_header, state_manager) = T::init_header_and_manager();
     let state_manager = Arc::new(state_manager);
+    let header_db = Arc::new(header_db);
 
     // load pre-state to the cache and the DB
     T::load_pre_state(&test_case.pre_state, state_manager.clone()).await?;
@@ -101,7 +103,7 @@ pub async fn run_test_case<T: StateTransitionTest>(filename: &str) -> Result<(),
 
     // run state transitions
     let transition_result =
-        T::run_state_transition(state_manager.clone(), &mut new_header, jam_input).await;
+        T::run_state_transition(state_manager.clone(), header_db, &mut new_header, jam_input).await;
 
     let (maybe_transition_output, maybe_error_code) = match transition_result {
         Ok(transition_output) => (Some(transition_output), None),

@@ -1,4 +1,5 @@
 use crate::utils::guarantor_rotation::GuarantorAssignmentError;
+use fr_block::{header_db::BlockHeaderDBError, types::block::BlockHeaderError};
 use fr_codec::JamCodecError;
 use fr_common::{CoreIndex, ServiceId, ValidatorIndex};
 use fr_crypto::error::CryptoError;
@@ -100,6 +101,8 @@ pub enum XtError {
     InvalidAuthorizerHash(CoreIndex),
     #[error("Work package hash already exists in block history. Core index: {0}, Work package hash: {1}")]
     WorkPackageAlreadyInHistory(CoreIndex, String),
+    #[error("Work package hash already exists in the work reports pipeline: Accumulate history or prerequisite set of accumulate queue and pending reports.. Core index: {0}, Work package hash: {1}")]
+    WorkPackageAlreadyInPipeline(CoreIndex, String),
     #[error("Prerequisite work package not found. Core index: {0}, Work package hash: {1}")]
     PrerequisiteNotFound(CoreIndex, String),
     #[error("Work report has too many dependencies (prerequisites and segment-root lookup dictionary items). Core index: {0}")]
@@ -110,14 +113,24 @@ pub enum XtError {
     AccountOfWorkDigestNotFound(CoreIndex, ServiceId),
     #[error("Anchor block not found in recent history. Core index: {0}, Provided block hash: {1}")]
     AnchorBlockNotFound(CoreIndex, String),
-    #[error("Invalid anchor block state root. Core index: {0}, Anchor block hash: {1}")]
+    #[error("Invalid anchor block header hash. Coree index: {0}, Anchor block header hash: {1}")]
+    InvalidAnchorHeaderHash(CoreIndex, String),
+    #[error("Invalid anchor block state root. Core index: {0}, Anchor block header hash: {1}")]
     InvalidAnchorStateRoot(CoreIndex, String),
     #[error("Failed to calculate the MMR root.")]
     MMRCalculationFailed,
-    #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block hash: {1}")]
+    #[error("Invalid anchor block BEEFY MMR root. Core index: {0}, Anchor block header hash: {1}")]
     InvalidAnchorBeefyRoot(CoreIndex, String),
-    #[error("Lookup anchor block timed out. Core index: {0}, Provided lookup anchor hash: {1}")]
+    #[error(
+        "Lookup anchor block timed out. Core index: {0}, Lookup anchor block header hash: {1}"
+    )]
     LookupAnchorBlockTimeout(CoreIndex, String),
+    #[error("Lookup anchor block is not found from the ancestor header set. Core index: {0}, Lookup anchor block header hash: {1}")]
+    LookupAnchorBlockNotFoundFromAncestorSet(CoreIndex, String),
+    #[error("Timeslot index of the lookup anchor block from the refinement context doesn't match the value from the actual header. Core index: {0}, Lookup anchor block header hash: {1}")]
+    LookupAnchorBlockTimeslotMismatch(CoreIndex, String),
+    #[error("Header hash of the lookup anchor block from the refinement context doesn't match the value from the actual header. Core index: {0}, Lookup anchor block header hash: {1}")]
+    LookupAnchorBlockHeaderHashMismatch(CoreIndex, String),
     #[error("Invalid number of guarantors ({0}), must be 2 or 3. Core index: {1}")]
     InvalidGuarantorCount(usize, CoreIndex),
     #[error("Credentials in guarantee must be sorted by the validator index. Core index: {0}")]
@@ -168,6 +181,10 @@ pub enum XtError {
     // External errors
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("BlockHeaderDBError: {0}")]
+    BlockHeaderDBError(#[from] BlockHeaderDBError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

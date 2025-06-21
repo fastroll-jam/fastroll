@@ -1,6 +1,7 @@
 use crate::{utils::guarantor_rotation::GuarantorAssignment, validation::error::XtError};
-use fr_block::types::extrinsics::guarantees::{
-    GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry,
+use fr_block::{
+    header_db::BlockHeaderDB,
+    types::extrinsics::guarantees::{GuaranteesCredential, GuaranteesXt, GuaranteesXtEntry},
 };
 use fr_codec::prelude::*;
 use fr_common::{
@@ -9,7 +10,7 @@ use fr_common::{
         work_report::{ReportedWorkPackage, WorkReport},
     },
     CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
-    MAX_REPORT_DEPENDENCIES, PENDING_REPORT_TIMEOUT, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -19,10 +20,9 @@ use fr_crypto::{
 };
 use fr_state::{
     manager::StateManager,
-    types::{AuthPool, BlockHistory, PendingReports},
+    types::{AccumulateHistory, AccumulateQueue, AuthPool, BlockHistory, PendingReports},
 };
 use std::{collections::HashSet, sync::Arc};
-// TODO: Add validation over gas allocation.
 
 /// Validates contents of `GuaranteesXt` type.
 ///
@@ -44,14 +44,14 @@ use std::{collections::HashSet, sync::Arc};
 ///     of the core on which the work is reported.
 ///   - No duplicate work-package hashes are allowed across different work reports within the extrinsic.
 ///   - The anchor block of each work-report must be within the last `H = 8` blocks, and its details
-///     (header hash, state root, and Beefy root) must match those stored in the recent block history (`β`).
+///     (header hash, state root, and Beefy root) must match those stored in the recent block history (`β_H†`).
 ///   - The lookup-anchor block for each work-report must be within the last `L = 14,400` timeslots.
 ///     Additionally, the lookup-anchor's details (timeslot and header hash) must match those stored
 ///     in the ancestor header state.
 ///   - The work-package hash of each work-report must not match any work-package hashes from reports
-///     already made in the past and thus should not be present in `β`.
+///     already made in the past and thus should not be present anywhere in `ρ`, `θ`, `ξ` or `β_H`.
 ///   - If the work-report depends on a prerequisite work-package, the prerequisite must either be
-///     present in the current extrinsic or in the recent block history (`β`).
+///     present in the current extrinsic or in the recent block history (`β_H`).
 ///   - All work digests within each work-report must predict the correct code hash for the
 ///     corresponding service at the time of report submission.
 /// - `credentials`
@@ -64,11 +64,16 @@ use std::{collections::HashSet, sync::Arc};
 ///     the current guarantor assignment rotation or in the previous rotation.
 pub struct GuaranteesXtValidator {
     state_manager: Arc<StateManager>,
+    #[allow(dead_code)]
+    header_db: Arc<BlockHeaderDB>,
 }
 
 impl GuaranteesXtValidator {
-    pub fn new(state_manager: Arc<StateManager>) -> Self {
-        Self { state_manager }
+    pub fn new(state_manager: Arc<StateManager>, header_db: Arc<BlockHeaderDB>) -> Self {
+        Self {
+            state_manager,
+            header_db,
+        }
     }
 
     /// Validates the entire `GuaranteesXt`.
@@ -121,6 +126,8 @@ impl GuaranteesXtValidator {
         let pending_reports = self.state_manager.get_pending_reports().await?;
         let auth_pool = self.state_manager.get_auth_pool().await?;
         let block_history = self.state_manager.get_block_history().await?;
+        let accumulate_queue = self.state_manager.get_accumulate_queue().await?;
+        let accumulate_history = self.state_manager.get_accumulate_history().await?;
 
         let mut all_guarantor_keys = vec![];
         for entry in extrinsic.iter() {
@@ -131,6 +138,8 @@ impl GuaranteesXtValidator {
                     &pending_reports,
                     &auth_pool,
                     &block_history,
+                    &accumulate_queue,
+                    &accumulate_history,
                     &work_package_hashes,
                     header_timeslot_index,
                 )
@@ -152,6 +161,8 @@ impl GuaranteesXtValidator {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
+        accumulate_queue: &AccumulateQueue,
+        accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
@@ -161,6 +172,8 @@ impl GuaranteesXtValidator {
             pending_reports,
             auth_pool,
             block_history,
+            accumulate_queue,
+            accumulate_history,
             work_package_hashes,
             header_timeslot_index,
         )
@@ -177,6 +190,8 @@ impl GuaranteesXtValidator {
         pending_reports: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
+        accumulate_queue: &AccumulateQueue,
+        accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
         header_timeslot_index: u32,
     ) -> Result<(), XtError> {
@@ -189,19 +204,22 @@ impl GuaranteesXtValidator {
         if work_report.total_accumulation_gas_allotted() > ACCUMULATION_GAS_PER_CORE {
             return Err(XtError::WorkReportTotalGasTooHigh);
         }
+
         for digest in &work_report.digests {
-            // TODO: error handling for target account being not found?
-            let target_service_account_metadata = self
+            let Some(target_service_account_metadata) = self
                 .state_manager
                 .get_account_metadata(digest.service_id)
-                .await?;
-
-            let target_service_account_min_item_gas = match target_service_account_metadata {
-                Some(account) => account.gas_limit_accumulate,
-                None => continue,
+                .await?
+            else {
+                // No service account is found from the global state with the service id specified in the work digest.
+                // This implies incorrect work digest, since refine code must have been executed with the service code already.
+                return Err(XtError::AccountOfWorkDigestNotFound(
+                    work_report.core_index,
+                    digest.service_id,
+                ));
             };
 
-            if digest.accumulate_gas_limit < target_service_account_min_item_gas {
+            if digest.accumulate_gas_limit < target_service_account_metadata.gas_limit_accumulate {
                 return Err(XtError::ServiceAccountGasLimitTooLow);
             }
         }
@@ -211,13 +229,8 @@ impl GuaranteesXtValidator {
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?;
 
-        // Check if there is any work reported in this extrinsic while there is pending report
-        // assigned to the core which is not timed-out.
-        if let Some(core_report) = core_pending_report {
-            let expiration = core_report.reported_timeslot.slot() + PENDING_REPORT_TIMEOUT as u32;
-            if header_timeslot_index < expiration {
-                return Err(XtError::PendingReportExists(core_index));
-            }
+        if core_pending_report.is_some() {
+            return Err(XtError::PendingReportExists(core_index));
         }
 
         // Check the authorizer hash
@@ -237,15 +250,18 @@ impl GuaranteesXtValidator {
             core_index,
             work_report.refinement_context(),
             header_timeslot_index,
-        )?;
+        )
+        .await?;
 
-        // Check that the work-package hash is not in the block history
-        if block_history.check_work_package_hash_exists(work_report.work_package_hash()) {
-            return Err(XtError::WorkPackageAlreadyInHistory(
-                core_index,
-                work_report.work_package_hash().encode_hex(),
-            ));
-        }
+        // Check work package hash duplication in the whole work reports pipeline.
+        Self::check_work_package_hash_duplication(
+            core_index,
+            work_report.work_package_hash(),
+            block_history,
+            accumulate_history,
+            accumulate_queue,
+            pending_reports,
+        )?;
 
         // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
         // and the number of prerequisites must not exceed `MAX_REPORT_DEPENDENCIES`
@@ -258,8 +274,8 @@ impl GuaranteesXtValidator {
             return Err(XtError::TooManyDependencies(core_index));
         }
 
-        // Check the segment root lookup dictionary entries can be found either in the same extrinsic
-        // or in the block history
+        // Check the segment root lookup dictionary entries can be found either in the guarantees
+        // extrinsic in the same block or in the recent block history
         let mut exports_manifests_merged = block_history.get_reported_packages_flattened();
         exports_manifests_merged.extend_from_slice(exports_manifests);
 
@@ -276,8 +292,8 @@ impl GuaranteesXtValidator {
             }
         }
 
-        // Check prerequisite work-packages exist either in the current extrinsic or in the recent
-        // block history
+        // Check prerequisite work-packages exist either in the guarantees extrinsic in the same block
+        // or in the recent block history
         for prerequisite_hash in work_report.prerequisites().iter() {
             if !work_package_hashes.contains(prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(prerequisite_hash)
@@ -292,6 +308,72 @@ impl GuaranteesXtValidator {
         // Validate work digests' code hashes
         self.validate_work_digests(work_report).await?;
 
+        Ok(())
+    }
+
+    // Checks that the work-package hash is not associated with any work reports made in the past
+    // by checking recent block histories, accumulate history and prerequisite work package
+    // hashes of already "available" reports - from pending reports and accumulate queue.
+    fn check_work_package_hash_duplication(
+        core_index: CoreIndex,
+        work_package_hash: &Hash32,
+        block_history: &BlockHistory,
+        accumulate_history: &AccumulateHistory,
+        accumulate_queue: &AccumulateQueue,
+        pending_reports: &PendingReports,
+    ) -> Result<(), XtError> {
+        // Check that the work-package hash is not in the block history
+        if block_history.check_work_package_hash_exists(work_package_hash) {
+            return Err(XtError::WorkPackageAlreadyInHistory(
+                core_index,
+                work_package_hash.encode_hex(),
+            ));
+        }
+
+        // Check that the work-package hash is not found anywhere in accumulate history or
+        // prerequisites set of accumulate queue and pending reports, which are already "available".
+        let mut package_hashes_from_already_available_set = HashSet::new();
+
+        // Check from the accumulate history
+        let mut package_hashes_from_acc_history = HashSet::new();
+        for history_entry in accumulate_history.items.iter() {
+            for wph in history_entry {
+                package_hashes_from_acc_history.insert(wph.clone());
+            }
+        }
+
+        // Check from the accumulate queue prerequisites set
+        let mut package_hashes_from_acc_queue = HashSet::new();
+        for wr_deps_maps in &accumulate_queue.items {
+            for deps_map in wr_deps_maps {
+                for wph in &deps_map.0.refinement_context.prerequisite_work_packages {
+                    package_hashes_from_acc_queue.insert(wph.clone());
+                }
+            }
+        }
+
+        // Check from the pending reports prerequisites set
+        let mut package_hashes_from_pending_reports = HashSet::new();
+        for pending_report in pending_reports.0.iter().filter_map(|x| x.as_ref()) {
+            for wph in &pending_report
+                .work_report
+                .refinement_context
+                .prerequisite_work_packages
+            {
+                package_hashes_from_pending_reports.insert(wph.clone());
+            }
+        }
+
+        package_hashes_from_already_available_set.extend(package_hashes_from_acc_history);
+        package_hashes_from_already_available_set.extend(package_hashes_from_acc_queue);
+        package_hashes_from_already_available_set.extend(package_hashes_from_pending_reports);
+
+        if package_hashes_from_already_available_set.contains(work_package_hash) {
+            return Err(XtError::WorkPackageAlreadyInPipeline(
+                core_index,
+                work_package_hash.encode_hex(),
+            ));
+        }
         Ok(())
     }
 
@@ -318,13 +400,19 @@ impl GuaranteesXtValidator {
     ) -> Result<(), XtError> {
         let anchor_hash = &work_report_context.anchor_header_hash;
         let anchor_state_root = &work_report_context.anchor_state_root;
-        let anchor_beefy_root = &work_report_context.beefy_root;
+        let anchor_beefy_root = &work_report_context.anchor_beefy_root;
 
         // Check that the anchor block is within the last H blocks
         let anchor_in_block_history = block_history.get_by_header_hash(anchor_hash);
 
         // Validate contents of the anchor block if it exists in the recent block history
         if let Some(entry) = anchor_in_block_history {
+            if &entry.header_hash != anchor_hash {
+                return Err(XtError::InvalidAnchorHeaderHash(
+                    core_index,
+                    anchor_hash.encode_hex(),
+                ));
+            }
             if &entry.state_root != anchor_state_root {
                 return Err(XtError::InvalidAnchorStateRoot(
                     core_index,
@@ -352,13 +440,12 @@ impl GuaranteesXtValidator {
         Ok(())
     }
 
-    fn validate_lookup_anchor_block(
+    async fn validate_lookup_anchor_block(
         &self,
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
         header_timeslot_index: u32,
     ) -> Result<(), XtError> {
-        // TODO: Lookup recent `L` ancestor headers (eq.149 of v0.4.3) and check we have a record of the lookup anchor block.
         let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
 
@@ -372,6 +459,45 @@ impl GuaranteesXtValidator {
             ));
         }
 
+        // Check the lookup-anchor block is found from the BlockHeaderDB ancestor set.
+        #[cfg(not(feature = "skip-ancestor-set-validation"))]
+        self.validate_lookup_anchor_block_against_ancestor_set(
+            core_index,
+            work_report_context,
+            lookup_anchor_hash,
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Checks the lookup-anchor block can be referenced through the ancestor set (from BlockHeaderDB).
+    #[allow(dead_code)]
+    async fn validate_lookup_anchor_block_against_ancestor_set(
+        &self,
+        core_index: CoreIndex,
+        work_report_context: &RefinementContext,
+        lookup_anchor_hash: &Hash32,
+    ) -> Result<(), XtError> {
+        let Some(lookup_anchor_header) = self.header_db.get_header(lookup_anchor_hash).await?
+        else {
+            return Err(XtError::LookupAnchorBlockNotFoundFromAncestorSet(
+                core_index,
+                lookup_anchor_hash.encode_hex(),
+            ));
+        };
+        // Compare the lookup-anchor block fields with the refinement context fields.
+        if lookup_anchor_header.data.timeslot_index != work_report_context.lookup_anchor_timeslot {
+            return Err(XtError::LookupAnchorBlockTimeslotMismatch(
+                core_index,
+                lookup_anchor_hash.encode_hex(),
+            ));
+        }
+        if lookup_anchor_header.hash()? != work_report_context.lookup_anchor_header_hash {
+            return Err(XtError::LookupAnchorBlockHeaderHashMismatch(
+                core_index,
+                lookup_anchor_hash.encode_hex(),
+            ));
+        }
         Ok(())
     }
 

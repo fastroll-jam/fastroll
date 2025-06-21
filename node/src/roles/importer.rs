@@ -173,7 +173,8 @@ impl BlockImporter {
 
         let tickets_validator = TicketsXtValidator::new(storage.state_manager());
         let preimages_validator = PreimagesXtValidator::new(storage.state_manager());
-        let guarantees_validator = GuaranteesXtValidator::new(storage.state_manager());
+        let guarantees_validator =
+            GuaranteesXtValidator::new(storage.state_manager(), storage.header_db());
         let assurances_validator = AssurancesXtValidator::new(storage.state_manager());
         let disputes_validator = DisputesXtValidator::new(storage.state_manager());
 

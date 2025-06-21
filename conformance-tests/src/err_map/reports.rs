@@ -40,7 +40,8 @@ pub fn map_error_to_custom_code(e: TransitionError) -> ReportsErrorCode {
             ReportsErrorCode::dependency_missing
         }
         TransitionError::XtError(XtError::DuplicateWorkPackageHash)
-        | TransitionError::XtError(XtError::WorkPackageAlreadyInHistory(_, _)) => {
+        | TransitionError::XtError(XtError::WorkPackageAlreadyInHistory(_, _))
+        | TransitionError::XtError(XtError::WorkPackageAlreadyInPipeline(_, _)) => {
             ReportsErrorCode::duplicate_package
         }
         TransitionError::XtError(XtError::InvalidAnchorStateRoot(_, _)) => {
