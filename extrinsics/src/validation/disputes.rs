@@ -81,6 +81,9 @@ impl DisputesXtValidator {
             .await?
             .get_all_report_hashes();
 
+        let active_set = self.state_manager.get_active_set().await?;
+        let past_set = self.state_manager.get_past_set().await?;
+
         // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
             // Check for duplicate entry (report_hash)
@@ -88,8 +91,10 @@ impl DisputesXtValidator {
                 return Err(XtError::DuplicateVerdict);
             }
 
-            self.validate_verdicts_entry(
+            Self::validate_verdicts_entry(
                 verdict,
+                &active_set,
+                &past_set,
                 prior_timeslot,
                 &all_past_report_hashes,
                 extrinsic,
@@ -102,8 +107,6 @@ impl DisputesXtValidator {
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
-        let active_set = self.state_manager.get_active_set().await?;
-        let past_set = self.state_manager.get_past_set().await?;
         let punish_set = self.state_manager.get_disputes().await?.punish_set;
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
@@ -124,10 +127,8 @@ impl DisputesXtValidator {
             if !faults_hashes.insert(fault.validator_key.clone()) {
                 return Err(XtError::DuplicateFault);
             }
-
             Self::validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
         }
-
         Ok(())
     }
 
@@ -149,8 +150,9 @@ impl DisputesXtValidator {
     }
 
     async fn validate_verdicts_entry(
-        &self,
         entry: &Verdict,
+        active_set: &ActiveSet,
+        past_set: &PastSet,
         prior_timeslot: &Timeslot,
         all_past_report_hashes: &[Hash32],
         extrinsic: &DisputesXt,
@@ -206,11 +208,10 @@ impl DisputesXtValidator {
             }
         }
 
-        // TODO: Move this outside of this method, remove `&self` param
         let validator_set = if entry.epoch_index == prior_timeslot.epoch() {
-            self.state_manager.get_active_set().await?.0
+            &active_set.0
         } else {
-            self.state_manager.get_past_set().await?.0
+            &past_set.0
         };
 
         let mut positive_message = Vec::with_capacity(X_1.len() + HASH_SIZE);
@@ -220,13 +221,13 @@ impl DisputesXtValidator {
         negative_message.extend_from_slice(X_0);
         negative_message.extend_from_slice(entry.report_hash.as_slice());
 
+        // Verify the judgment signatures
         for judgment in entry.judgments.iter() {
             let message = if judgment.is_report_valid {
                 &positive_message
             } else {
                 &negative_message
             };
-
             let voter_public_key = validator_set
                 .get_validator_ed25519_key(judgment.voter)
                 .ok_or(XtError::InvalidValidatorIndex)?;
@@ -235,7 +236,6 @@ impl DisputesXtValidator {
                 return Err(XtError::InvalidJudgmentSignature(judgment.voter));
             }
         }
-
         Ok(())
     }
 
@@ -265,7 +265,7 @@ impl DisputesXtValidator {
             ));
         }
 
-        // Validate the signature
+        // Verify the signature
         let hash = &entry.report_hash;
         let mut message = Vec::with_capacity(X_G.len() + hash.len());
         message.extend_from_slice(X_G);
@@ -277,7 +277,6 @@ impl DisputesXtValidator {
                 entry.validator_key.to_hex(),
             ));
         }
-
         Ok(())
     }
 
@@ -315,7 +314,7 @@ impl DisputesXtValidator {
             ));
         }
 
-        // Validate the signature
+        // Verify the signature
         let message = if entry.is_report_valid {
             let mut message = Vec::with_capacity(X_1.len() + HASH_SIZE);
             message.extend_from_slice(X_1);
@@ -332,7 +331,6 @@ impl DisputesXtValidator {
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
             return Err(XtError::InvalidFaultSignature(entry.validator_key.to_hex()));
         }
-
         Ok(())
     }
 }
