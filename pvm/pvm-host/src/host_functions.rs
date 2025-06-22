@@ -1445,8 +1445,12 @@ impl HostFunction {
             continue_who!()
         }
 
-        // TODO: safe type casting
-        let preimage_size = 81.max(eject_account_metadata.octets_footprint as u32) - 81;
+        // Note: This error handling assumes that preimage size (`l` component of lookups key)
+        // exceeding `u32::MAX` implies incorrect lookups key, therefore returning `HUH`.
+        let preimage_size_u64 = 81.max(eject_account_metadata.octets_footprint) - 81;
+        let Some(preimage_size) = preimage_size_u64.try_into().ok() else {
+            continue_huh!()
+        };
         if eject_account_metadata.items_footprint != 2 {
             continue_huh!()
         }
@@ -1546,7 +1550,7 @@ impl HostFunction {
         };
         // TODO: Determine whether lookups size larger than `u32::MAX` should be allowed.
         // TODO: For now, continues with `FULL` code with no further threshold balance check.
-        // TODO: Also check `host_query`, `host_forget` which assume those lookups entry doesn't exist.
+        // TODO: Also check `host_query`, `host_forget`, `host_eject` which assume those lookups entry doesn't exist.
         let Ok(lookups_size) = vm.regs[8].as_u32() else {
             continue_full!()
         };
