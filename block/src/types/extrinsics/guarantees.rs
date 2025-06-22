@@ -30,6 +30,8 @@ impl GuaranteesXt {
     /// in the guarantees extrinsic credentials.
     ///
     /// This set is utilized for tracking validator activity statistics.
+    ///
+    /// Note: this extraction should be performed after passing Xt validation.
     pub fn extract_reporters(&self, validator_set: &ValidatorKeySet) -> Vec<Ed25519PubKey> {
         self.iter()
             .flat_map(|entry| {
@@ -37,7 +39,7 @@ impl GuaranteesXt {
                     validator_set
                         .get_validator_ed25519_key(c.validator_index)
                         .cloned()
-                }) // assuming already passed validations - TODO: revisit
+                })
             })
             .collect()
     }
