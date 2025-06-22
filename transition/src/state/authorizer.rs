@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use fr_block::types::extrinsics::guarantees::GuaranteesXt;
 use fr_common::{CoreIndex, AUTH_QUEUE_SIZE, MAX_AUTH_POOL_SIZE};
-use fr_state::{cache::StateMut, manager::StateManager, types::Timeslot};
+use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `AuthPool`.
@@ -22,7 +22,7 @@ pub async fn transition_auth_pool(
     let auth_queue = state_manager.get_auth_queue().await?;
 
     state_manager
-        .with_mut_auth_pool(StateMut::Update, |pool| {
+        .with_mut_auth_pool(StateMut::Update, |pool| -> Result<(), StateManagerError> {
             for (core, core_pool) in pool.0.iter_mut().enumerate() {
                 // Find a guarantees extrinsics entry that utilized the current core, if there is any.
                 let report_used_core = guarantees_xt
@@ -48,6 +48,7 @@ pub async fn transition_auth_pool(
                 }
                 core_pool.shift_push(queue_entry);
             }
+            Ok(())
         })
         .await?;
 

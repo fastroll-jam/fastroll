@@ -3,6 +3,7 @@ use fr_common::{workloads::work_report::WorkReport, EPOCH_LENGTH};
 use fr_pvm_invocation::pipeline::utils::{edit_queue, reports_to_package_hashes};
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     manager::StateManager,
     types::{Timeslot, WorkReportDepsMap},
 };
@@ -26,7 +27,7 @@ pub async fn transition_accumulate_queue(
     let slot_phase = (curr_timeslot.slot() as usize % EPOCH_LENGTH) as isize;
 
     state_manager
-        .with_mut_accumulate_queue(StateMut::Update, |queue| {
+        .with_mut_accumulate_queue(StateMut::Update, |queue| -> Result<(), StateManagerError> {
             // Update accumulate queue for the current timeslot (i = 0).
             let curr_slot_entry = queue.get_circular_mut(slot_phase);
             let curr_slot_entry_updated = edit_queue(queued_reports, &last_accumulate_set_vec);
@@ -47,6 +48,7 @@ pub async fn transition_accumulate_queue(
                 old_entry.drain(..);
                 old_entry.extend(old_entry_updated);
             }
+            Ok(())
         })
         .await?;
 
@@ -64,10 +66,14 @@ pub async fn transition_accumulate_history(
     let accumulated = reports_to_package_hashes(&accumulatable_reports[..accumulate_count]);
 
     state_manager
-        .with_mut_accumulate_history(StateMut::Update, |history| {
-            // Add the latest history entry, shifting by one entry if the list is full.
-            history.add(BTreeSet::from_iter(accumulated.into_iter()));
-        })
+        .with_mut_accumulate_history(
+            StateMut::Update,
+            |history| -> Result<(), StateManagerError> {
+                // Add the latest history entry, shifting by one entry if the list is full.
+                history.add(BTreeSet::from_iter(accumulated.into_iter()));
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())

@@ -6,6 +6,7 @@ use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
 use fr_pvm_types::stats::{AccumulateStats, OnTransferStats};
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     manager::StateManager,
     types::{CoreStats, ServiceStats},
 };
@@ -49,11 +50,12 @@ async fn handle_new_epoch_transition(
     let prior_current_epoch_stats = stats.validator_stats.current_epoch_stats();
 
     state_manager
-        .with_mut_onchain_statistics(StateMut::Update, |stats| {
+        .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
             stats
                 .validator_stats
                 .replace_previous_epoch_stats(prior_current_epoch_stats.clone());
             stats.validator_stats.clear_current_epoch_stats();
+            Ok(())
         })
         .await?;
 
@@ -68,7 +70,7 @@ async fn handle_validator_stats_accumulation(
     let current_active_set = state_manager.get_active_set().await?;
 
     state_manager
-        .with_mut_onchain_statistics(StateMut::Update, |stats| {
+        .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
             let current_epoch_author_stats = stats
                 .validator_stats
                 .current_epoch_validator_stats_mut(header_block_author_index);
@@ -108,6 +110,7 @@ async fn handle_validator_stats_accumulation(
                     validator_stats.assurances_count += 1;
                 }
             }
+            Ok(())
         })
         .await?;
 
@@ -168,9 +171,10 @@ async fn handle_per_block_transition(
     }
 
     state_manager
-        .with_mut_onchain_statistics(StateMut::Update, |stats| {
+        .with_mut_onchain_statistics(StateMut::Update, |stats| -> Result<(), StateManagerError> {
             stats.core_stats = core_stats;
             stats.service_stats = service_stats;
+            Ok(())
         })
         .await?;
 

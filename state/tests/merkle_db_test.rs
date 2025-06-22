@@ -3,6 +3,7 @@ use fr_codec::prelude::*;
 use fr_common::utils::tracing::setup_timed_tracing;
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     state_utils::{get_simple_state_key, StateKeyConstant},
     test_utils::{
         add_all_simple_state_entries, compare_all_simple_state_cache_and_db, init_db_and_manager,
@@ -88,8 +89,9 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // --- 3. Update state entry
     tracing::info!("3. Update state entry.");
     state_manager
-        .with_mut_auth_pool(StateMut::Update, |pool| {
+        .with_mut_auth_pool(StateMut::Update, |pool| -> Result<(), StateManagerError> {
             pool.0[1].try_push(simple_hash("02")).unwrap();
+            Ok(())
         })
         .await?;
     let auth_pool_expected = state_manager.get_auth_pool().await?;
@@ -112,7 +114,9 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // --- 4. Remove state entry
     tracing::info!("4. Remove state entry.");
     state_manager
-        .with_mut_auth_pool(StateMut::Remove, |_| {})
+        .with_mut_auth_pool(StateMut::Remove, |_| -> Result<(), StateManagerError> {
+            Ok(())
+        })
         .await?;
     state_manager
         .commit_single_dirty_cache(&auth_pool_state_key)
