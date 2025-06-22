@@ -326,7 +326,6 @@ impl StateManager {
             .get_slot_sealer(&timeslot))
     }
 
-    // TODO: mark as private
     pub async fn retrieve_state_encoded(
         &self,
         state_key: &StateKey,
@@ -641,7 +640,11 @@ impl StateManager {
             .get_state_entry_internal::<T>(state_key)
             .await?
             .is_some();
-        // TODO: determine either to throw an error or silently run `Update` operation
+        // Note: Simple state entries should be only `Add`ed in the genesis setup.
+        // Also, mutation on account-related state entries (e.g., account storage entries) are
+        // gated via sandboxed partial state. Since `Add` and `Update` cases are explicitly handled
+        // in service STFs after accumulation, attempting to `Add` state entries that
+        // already exist returns error here.
         if state_exists {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
