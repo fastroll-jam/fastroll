@@ -75,9 +75,13 @@ impl StateTransitionTest for SafroleTest {
         state_manager.add_timeslot(pre_timeslot).await?;
         state_manager.add_disputes(DisputesState::default()).await?;
         state_manager
-            .with_mut_disputes(StateMut::Update, |disputes| {
-                disputes.punish_set = pre_post_offenders;
-            })
+            .with_mut_disputes(
+                StateMut::Update,
+                |disputes| -> Result<(), StateManagerError> {
+                    disputes.punish_set = pre_post_offenders;
+                    Ok(())
+                },
+            )
             .await?;
 
         Ok(())

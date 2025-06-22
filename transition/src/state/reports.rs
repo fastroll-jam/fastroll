@@ -14,6 +14,7 @@ use fr_extrinsics::validation::{
 };
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     manager::StateManager,
     types::{PendingReport, Timeslot},
 };
@@ -42,11 +43,15 @@ pub async fn transition_reports_eliminate_invalid(
     let (_good_set, bad_set, wonky_set) = disputes_xt.split_report_set();
 
     state_manager
-        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
-            for report_hash in bad_set.iter().chain(wonky_set.iter()) {
-                pending_reports.remove_by_hash(report_hash).unwrap(); // TODO: proper error handling
-            }
-        })
+        .with_mut_pending_reports(
+            StateMut::Update,
+            |pending_reports| -> Result<(), StateManagerError> {
+                for report_hash in bad_set.iter().chain(wonky_set.iter()) {
+                    pending_reports.remove_by_hash(report_hash)?;
+                }
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())
@@ -94,15 +99,19 @@ pub async fn transition_reports_clear_availables(
         prior_pending_reports.get_timed_out_core_indices(&current_timeslot)?;
 
     state_manager
-        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
-            // Remove now-available reports and timed-out reports
-            for core_index in available_reports_core_indices
-                .iter()
-                .chain(timed_out_core_indices.iter())
-            {
-                pending_reports.remove_by_core_index(*core_index).unwrap()
-            }
-        })
+        .with_mut_pending_reports(
+            StateMut::Update,
+            |pending_reports| -> Result<(), StateManagerError> {
+                // Remove now-available reports and timed-out reports
+                for core_index in available_reports_core_indices
+                    .iter()
+                    .chain(timed_out_core_indices.iter())
+                {
+                    pending_reports.remove_by_core_index(*core_index)?;
+                }
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(available_reports)
@@ -131,14 +140,18 @@ pub async fn transition_reports_update_entries(
 
     let new_valid_reports = guarantees_xt.extract_work_reports();
     state_manager
-        .with_mut_pending_reports(StateMut::Update, |pending_reports| {
-            for report in &new_valid_reports {
-                pending_reports.0[report.core_index() as usize] = Some(PendingReport {
-                    work_report: report.clone(),
-                    reported_timeslot: current_timeslot,
-                })
-            }
-        })
+        .with_mut_pending_reports(
+            StateMut::Update,
+            |pending_reports| -> Result<(), StateManagerError> {
+                for report in &new_valid_reports {
+                    pending_reports.0[report.core_index() as usize] = Some(PendingReport {
+                        work_report: report.clone(),
+                        reported_timeslot: current_timeslot,
+                    })
+                }
+                Ok(())
+            },
+        )
         .await?;
 
     let reported_packages: Vec<ReportedWorkPackage> = new_valid_reports

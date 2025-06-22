@@ -45,13 +45,14 @@ macro_rules! impl_simple_state_accessors {
                 self.get_clean_simple_state_entry().await
             }
 
-            pub async fn [<with_mut_ $fn_type>]<F>(
+            pub async fn [<with_mut_ $fn_type>]<F, E>(
                 &self,
                 state_mut: StateMut,
                 f: F,
             ) -> Result<(), StateManagerError>
             where
-                F: FnOnce(&mut $state_type),
+                F: FnOnce(&mut $state_type) -> Result<(), E>,
+                StateManagerError: From<E>
             {
                 self.with_mut_simple_state_entry(state_mut, f).await
             }
@@ -326,7 +327,6 @@ impl StateManager {
             .get_slot_sealer(&timeslot))
     }
 
-    // TODO: mark as private
     pub async fn retrieve_state_encoded(
         &self,
         state_key: &StateKey,
@@ -601,7 +601,7 @@ impl StateManager {
         Ok(Some(state_entry))
     }
 
-    async fn with_mut_state_entry_internal<T, F>(
+    async fn with_mut_state_entry_internal<T, F, E>(
         &self,
         state_key: &StateKey,
         state_mut: StateMut,
@@ -609,7 +609,8 @@ impl StateManager {
     ) -> Result<(), StateManagerError>
     where
         T: StateComponent,
-        F: FnOnce(&mut T),
+        F: FnOnce(&mut T) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         // Only `StateMut::Update` and `StateMut::Remove` are allowed.
         if let StateMut::Add = state_mut {
@@ -641,7 +642,11 @@ impl StateManager {
             .get_state_entry_internal::<T>(state_key)
             .await?
             .is_some();
-        // TODO: determine either to throw an error or silently run `Update` operation
+        // Note: Simple state entries should be only `Add`ed in the genesis setup.
+        // Also, mutation on account-related state entries (e.g., account storage entries) are
+        // gated via sandboxed partial state. Since `Add` and `Update` cases are explicitly handled
+        // in service STFs after accumulation, attempting to `Add` state entries that
+        // already exist returns error here.
         if state_exists {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
@@ -677,14 +682,15 @@ impl StateManager {
             .ok_or(StateManagerError::StateKeyNotInitialized) // simple state key must be initialized
     }
 
-    async fn with_mut_simple_state_entry<T, F>(
+    async fn with_mut_simple_state_entry<T, F, E>(
         &self,
         state_mut: StateMut,
         f: F,
     ) -> Result<(), StateManagerError>
     where
         T: SimpleStateComponent,
-        F: FnOnce(&mut T),
+        F: FnOnce(&mut T) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         self.with_mut_state_entry_internal(
             &get_simple_state_key(T::STATE_KEY_CONSTANT),
@@ -712,7 +718,7 @@ impl StateManager {
         self.get_state_entry_internal(state_key).await // account state key could not be initialized yet
     }
 
-    async fn with_mut_account_state_entry<T, F>(
+    async fn with_mut_account_state_entry<T, F, E>(
         &self,
         state_key: &StateKey,
         state_mut: StateMut,
@@ -720,7 +726,8 @@ impl StateManager {
     ) -> Result<(), StateManagerError>
     where
         T: AccountStateComponent,
-        F: FnOnce(&mut T),
+        F: FnOnce(&mut T) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         self.with_mut_state_entry_internal(state_key, state_mut, f)
             .await
@@ -761,14 +768,15 @@ impl StateManager {
         self.get_account_state_entry(&state_key).await
     }
 
-    pub async fn with_mut_account_metadata<F>(
+    pub async fn with_mut_account_metadata<F, E>(
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut AccountMetadata),
+        F: FnOnce(&mut AccountMetadata) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         let state_key = get_account_metadata_state_key(service_id);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
@@ -793,7 +801,7 @@ impl StateManager {
         self.get_account_state_entry(&state_key).await
     }
 
-    pub async fn with_mut_account_storage_entry<F>(
+    pub async fn with_mut_account_storage_entry<F, E>(
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
@@ -801,7 +809,8 @@ impl StateManager {
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut AccountStorageEntry),
+        F: FnOnce(&mut AccountStorageEntry) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         let state_key = get_account_storage_state_key(service_id, storage_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
@@ -828,7 +837,7 @@ impl StateManager {
         self.get_account_state_entry(&state_key).await
     }
 
-    pub async fn with_mut_account_preimages_entry<F>(
+    pub async fn with_mut_account_preimages_entry<F, E>(
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
@@ -836,7 +845,8 @@ impl StateManager {
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut AccountPreimagesEntry),
+        F: FnOnce(&mut AccountPreimagesEntry) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
@@ -863,7 +873,7 @@ impl StateManager {
         self.get_account_state_entry(&state_key).await
     }
 
-    pub async fn with_mut_account_lookups_entry<F>(
+    pub async fn with_mut_account_lookups_entry<F, E>(
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
@@ -871,7 +881,8 @@ impl StateManager {
         f: F,
     ) -> Result<(), StateManagerError>
     where
-        F: FnOnce(&mut AccountLookupsEntry),
+        F: FnOnce(&mut AccountLookupsEntry) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
         self.with_mut_account_state_entry(&state_key, state_mut, f)

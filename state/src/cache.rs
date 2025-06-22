@@ -111,7 +111,7 @@ impl StateCache {
         self.inner.clear();
     }
 
-    pub(crate) fn with_mut_entry<T, F>(
+    pub(crate) fn with_mut_entry<T, F, E>(
         &self,
         state_key: &StateKey,
         state_mut: StateMut,
@@ -119,7 +119,8 @@ impl StateCache {
     ) -> Result<(), StateManagerError>
     where
         T: StateComponent,
-        F: FnOnce(&mut T),
+        F: FnOnce(&mut T) -> Result<(), E>,
+        StateManagerError: From<E>,
     {
         let mut cache_entry = self
             .inner
@@ -128,7 +129,7 @@ impl StateCache {
 
         let entry_mut = T::from_entry_type_mut(&mut cache_entry.value)
             .ok_or(StateManagerError::UnexpectedEntryType)?;
-        f(entry_mut); // Call the closure to apply the state mutation
+        f(entry_mut)?; // Call the closure to apply the state mutation
 
         // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,
         // keep the entry marked with `StateMut::Add`. This allows mutating new entries before

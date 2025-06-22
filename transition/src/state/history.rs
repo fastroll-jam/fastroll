@@ -1,7 +1,9 @@
 use crate::error::TransitionError;
 use fr_common::{workloads::work_report::ReportedWorkPackage, Hash32};
 use fr_merkle::mmr::MerkleMountainRange;
-use fr_state::{cache::StateMut, manager::StateManager, types::BlockHistoryEntry};
+use fr_state::{
+    cache::StateMut, error::StateManagerError, manager::StateManager, types::BlockHistoryEntry,
+};
 use std::sync::Arc;
 
 /// State transition function of `BlockHistory`, updating the parent block's state root.
@@ -22,10 +24,14 @@ pub async fn transition_block_history_parent_root(
     }
 
     state_manager
-        .with_mut_block_history(StateMut::Update, |history| {
-            let last_index = history.0.len() - 1;
-            history.0[last_index].set_state_root(root);
-        })
+        .with_mut_block_history(
+            StateMut::Update,
+            |history| -> Result<(), StateManagerError> {
+                let last_index = history.0.len() - 1;
+                history.0[last_index].set_state_root(root);
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())
@@ -57,14 +63,18 @@ pub async fn transition_block_history_append(
     reported_packages.sort_unstable();
 
     state_manager
-        .with_mut_block_history(StateMut::Update, |history| {
-            history.append(BlockHistoryEntry {
-                header_hash,
-                accumulation_result_mmr: mmr,
-                state_root: Hash32::default(),
-                reported_packages,
-            });
-        })
+        .with_mut_block_history(
+            StateMut::Update,
+            |history| -> Result<(), StateManagerError> {
+                history.append(BlockHistoryEntry {
+                    header_hash,
+                    accumulation_result_mmr: mmr,
+                    state_root: Hash32::default(),
+                    reported_packages,
+                });
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())

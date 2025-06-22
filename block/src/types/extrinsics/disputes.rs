@@ -27,12 +27,12 @@ pub struct OffendersHeaderMarker {
 /// of validators.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesXt {
-    /// **`v`**: Verdicts; the collection of all judgments coming from
+    /// **`E_V`**: Verdicts; the collection of all judgments coming from
     /// exactly *two-thirds plus one* of either the `ActiveSet` or the `PastSet`.
     pub verdicts: Vec<Verdict>,
-    /// **`c`**: Culprits; the information of **Culprits**, who guaranteed incorrect work report(s).
+    /// **`E_C`**: Culprits; the information of **Culprits**, who guaranteed incorrect work report(s).
     pub culprits: Vec<Culprit>,
-    /// **`f`**: Faults; the information of **Faults**, who signed incorrect judgments for disputes.
+    /// **`E_F`**: Faults; the information of **Faults**, who signed incorrect judgments for disputes.
     pub faults: Vec<Fault>,
 }
 

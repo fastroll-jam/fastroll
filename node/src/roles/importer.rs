@@ -1,7 +1,7 @@
 use crate::{
     roles::{
         author::author_block_seal_is_valid,
-        executor::{BlockExecutionError, BlockExecutor},
+        executor::{BlockExecutionError, BlockExecutionHeaderMarkers, BlockExecutor},
     },
     utils::spawn_timed,
 };
@@ -60,6 +60,12 @@ pub enum BlockImportError {
         "Post state root of the parent block is not found from the PostStateRootDB (header={0})"
     )]
     PriorStateRootNotFound(String),
+    #[error("Block header contains invalid epoch marker")]
+    InvalidEpochMarker,
+    #[error("Block header contains invalid winning tickets marker")]
+    InvalidWinningTicketsMarker,
+    #[error("Block header contains invalid offenders marker")]
+    InvalidOffendersMarker,
     #[error("XtError: {0}")]
     XtError(#[from] XtError),
     #[error("ExtrinsicsError: {0}")]
@@ -131,23 +137,27 @@ impl BlockImporter {
     ) -> Result<Hash32, BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
-            return Self::run_state_transition(&storage, &block).await;
+            let (post_state_root, _markers) = Self::run_state_transition(&storage, &block).await?;
+            return Ok(post_state_root);
         }
 
         // Validate Xts
-        Self::validate_xts(&storage, &block).await?;
+        Self::validate_xts(&storage, &block).await?; // TODO: consider removing upfront validation
+
         // Validate header fields (prior to STF)
         Self::validate_block_header_prior_stf(&storage, &block).await?;
         // Re-execute STF
-        let post_state_root = Self::run_state_transition(&storage, &block).await?;
+        let (post_state_root, header_markers) =
+            Self::run_state_transition(&storage, &block).await?;
         // Validate header fields (post STF)
-        Self::validate_block_header_post_stf(&storage, &block).await?;
+        Self::validate_block_header_post_stf(&storage, &block, header_markers).await?;
         // Set best header
         storage.header_db().set_best_header(block.header);
         Ok(post_state_root)
     }
 
-    /// Note: Currently, each STF validates Xt types as well.
+    /// Note: Currently, each STF validates Xt types as well. Up-front Xt validations might work
+    /// incorrectly, since some validation rules need to refer to partially transitioned state.
     async fn validate_xts(storage: &NodeStorage, block: &Block) -> Result<(), BlockImportError> {
         let prior_timeslot = storage.state_manager().get_timeslot_clean().await?;
         let curr_timeslot_index = block.header.timeslot_index();
@@ -253,6 +263,7 @@ impl BlockImporter {
     async fn validate_block_header_post_stf(
         storage: &NodeStorage,
         block: &Block,
+        markers: BlockExecutionHeaderMarkers,
     ) -> Result<(), BlockImportError> {
         let (curr_slot_sealer, curr_author_bandersnatch_key, curr_entropy_3) =
             Self::get_post_states(storage, block).await?;
@@ -264,7 +275,7 @@ impl BlockImporter {
             &curr_entropy_3,
         )?;
         Self::verify_vrf_output(block, &curr_author_bandersnatch_key)?;
-        // TODO: Check header markers
+        Self::validate_header_markers(block, markers)?;
         Ok(())
     }
 
@@ -390,11 +401,35 @@ impl BlockImporter {
         Ok(())
     }
 
+    fn validate_header_markers(
+        block: &Block,
+        expected_markers: BlockExecutionHeaderMarkers,
+    ) -> Result<(), BlockImportError> {
+        // Validate epoch marker
+        if block.header.epoch_marker() != expected_markers.safrole_markers.epoch_marker.as_ref() {
+            return Err(BlockImportError::InvalidEpochMarker);
+        }
+        // Validate winning-tickets marker
+        if block.header.winning_tickets_marker()
+            != expected_markers
+                .safrole_markers
+                .winning_tickets_marker
+                .as_ref()
+        {
+            return Err(BlockImportError::InvalidWinningTicketsMarker);
+        }
+        // Validate offenders marker
+        if block.header.offenders_marker() != expected_markers.offenders_marker.items.as_slice() {
+            return Err(BlockImportError::InvalidOffendersMarker);
+        }
+        Ok(())
+    }
+
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<Hash32, BlockImportError> {
-        if block.is_genesis() {
+    ) -> Result<(Hash32, BlockExecutionHeaderMarkers), BlockImportError> {
+        let markers = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
             BlockExecutor::append_block_history(
                 storage,
@@ -403,9 +438,10 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
+            BlockExecutionHeaderMarkers::default()
         } else {
             // STF phase #1
-            let _markers =
+            let markers =
                 BlockExecutor::run_state_transition_pre_header_commitment(storage, block).await?;
 
             // STF phase #2
@@ -421,9 +457,9 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
+            markers
         };
-        // TODO: additional validation on output
         storage.state_manager().commit_dirty_cache().await?;
-        Ok(storage.state_manager().merkle_root())
+        Ok((storage.state_manager().merkle_root(), markers))
     }
 }

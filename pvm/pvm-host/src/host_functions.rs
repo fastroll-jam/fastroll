@@ -999,7 +999,6 @@ impl HostFunction {
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
 
-        // TODO: revisit `Ψ` return types
         let inner_vm_exit_reason = Interpreter::invoke_general(
             &mut inner_vm_state_copy,
             &mut inner_vm_program_state,
@@ -1237,6 +1236,7 @@ impl HostFunction {
         continue_with_vm_change!(r7: post_gas)
     }
 
+    // TODO: align with GP v0.6.7 (service metadata fields updated)
     /// Creates a new service account with an address derived from the hash of
     /// the accumulate host address, the current epochal entropy, and the block timeslot index.
     ///
@@ -1445,8 +1445,12 @@ impl HostFunction {
             continue_who!()
         }
 
-        // TODO: safe type casting
-        let preimage_size = 81.max(eject_account_metadata.octets_footprint as u32) - 81;
+        // Note: This error handling assumes that preimage size (`l` component of lookups key)
+        // exceeding `u32::MAX` implies incorrect lookups key, therefore returning `HUH`.
+        let preimage_size_u64 = 81.max(eject_account_metadata.octets_footprint) - 81;
+        let Some(preimage_size) = preimage_size_u64.try_into().ok() else {
+            continue_huh!()
+        };
         if eject_account_metadata.items_footprint != 2 {
             continue_huh!()
         }
@@ -1461,7 +1465,6 @@ impl HostFunction {
             continue_huh!()
         };
 
-        // TODO: Note: this should be header timeslot value (transitioned)
         let curr_timeslot = state_manager.get_timeslot().await?.slot();
         if entry.value.len() != 2
             || entry.value[1].slot() >= curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
@@ -1547,7 +1550,7 @@ impl HostFunction {
         };
         // TODO: Determine whether lookups size larger than `u32::MAX` should be allowed.
         // TODO: For now, continues with `FULL` code with no further threshold balance check.
-        // TODO: Also check `host_query`, `host_forget` which assume those lookups entry doesn't exist.
+        // TODO: Also check `host_query`, `host_forget`, `host_eject` which assume those lookups entry doesn't exist.
         let Ok(lookups_size) = vm.regs[8].as_u32() else {
             continue_full!()
         };

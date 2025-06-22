@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use fr_state::{cache::StateMut, manager::StateManager};
+use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
 
 /// State transition function of `ActiveSet`.
@@ -15,9 +15,13 @@ pub async fn transition_active_set(
     if epoch_progressed {
         let prior_pending_set = state_manager.get_safrole_clean().await?.pending_set;
         state_manager
-            .with_mut_active_set(StateMut::Update, |active_set| {
-                active_set.0 = prior_pending_set;
-            })
+            .with_mut_active_set(
+                StateMut::Update,
+                |active_set| -> Result<(), StateManagerError> {
+                    active_set.0 = prior_pending_set;
+                    Ok(())
+                },
+            )
             .await?;
     }
     Ok(())
@@ -36,9 +40,13 @@ pub async fn transition_past_set(
     if epoch_progressed {
         let prior_active_set = state_manager.get_active_set_clean().await?;
         state_manager
-            .with_mut_past_set(StateMut::Update, |past_set| {
-                past_set.0 = prior_active_set.0;
-            })
+            .with_mut_past_set(
+                StateMut::Update,
+                |past_set| -> Result<(), StateManagerError> {
+                    past_set.0 = prior_active_set.0;
+                    Ok(())
+                },
+            )
             .await?;
     }
     Ok(())
