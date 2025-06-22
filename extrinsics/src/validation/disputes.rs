@@ -155,7 +155,7 @@ impl DisputesXtValidator {
         all_past_report_hashes: &[Hash32],
         extrinsic: &DisputesXt,
     ) -> Result<(), XtError> {
-        // Check if verdicts contain entries with epoch index older the previous epoch
+        // Check if verdicts contain entries with epoch index older than the previous epoch
         if entry.epoch_index + 1 < prior_timeslot.epoch() {
             return Err(XtError::InvalidJudgmentsAge(
                 entry.epoch_index,
@@ -317,15 +317,15 @@ impl DisputesXtValidator {
 
         // Validate the signature
         let message = if entry.is_report_valid {
-            let mut _message = Vec::with_capacity(X_1.len() + HASH_SIZE);
-            _message.extend_from_slice(X_1);
-            _message.extend_from_slice(entry.report_hash.as_slice());
-            _message
+            let mut message = Vec::with_capacity(X_1.len() + HASH_SIZE);
+            message.extend_from_slice(X_1);
+            message.extend_from_slice(entry.report_hash.as_slice());
+            message
         } else {
-            let mut _message = Vec::with_capacity(X_0.len() + HASH_SIZE);
-            _message.extend_from_slice(X_0);
-            _message.extend_from_slice(entry.report_hash.as_slice());
-            _message
+            let mut message = Vec::with_capacity(X_0.len() + HASH_SIZE);
+            message.extend_from_slice(X_0);
+            message.extend_from_slice(entry.report_hash.as_slice());
+            message
         };
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
