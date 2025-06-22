@@ -999,7 +999,6 @@ impl HostFunction {
         let inner_vm_program_code = &inner_vm_mut.program_code;
         let mut inner_vm_program_state = ProgramState::default();
 
-        // TODO: revisit `Ψ` return types
         let inner_vm_exit_reason = Interpreter::invoke_general(
             &mut inner_vm_state_copy,
             &mut inner_vm_program_state,
@@ -1237,6 +1236,7 @@ impl HostFunction {
         continue_with_vm_change!(r7: post_gas)
     }
 
+    // TODO: align with GP v0.6.7 (service metadata fields updated)
     /// Creates a new service account with an address derived from the hash of
     /// the accumulate host address, the current epochal entropy, and the block timeslot index.
     ///
@@ -1461,7 +1461,6 @@ impl HostFunction {
             continue_huh!()
         };
 
-        // TODO: Note: this should be header timeslot value (transitioned)
         let curr_timeslot = state_manager.get_timeslot().await?.slot();
         if entry.value.len() != 2
             || entry.value[1].slot() >= curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
