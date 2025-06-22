@@ -1,7 +1,7 @@
 use crate::error::TransitionError;
 use fr_common::Hash32;
 use fr_crypto::{hash, Blake2b256};
-use fr_state::{cache::StateMut, manager::StateManager};
+use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
 
 /// State transition function of `EpochEntropy`.
@@ -15,15 +15,19 @@ pub async fn transition_epoch_entropy_on_epoch_change(
     epoch_progressed: bool,
 ) -> Result<(), TransitionError> {
     state_manager
-        .with_mut_epoch_entropy(StateMut::Update, |entropy| {
-            if epoch_progressed {
-                // Rotate entropy history.
-                // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
-                entropy.0[3] = entropy.0[2].clone();
-                entropy.0[2] = entropy.0[1].clone();
-                entropy.0[1] = entropy.0[0].clone();
-            }
-        })
+        .with_mut_epoch_entropy(
+            StateMut::Update,
+            |entropy| -> Result<(), StateManagerError> {
+                if epoch_progressed {
+                    // Rotate entropy history.
+                    // [e0, e1, e2, e3] => [e0, e0, e1, e2]; the first e0 will be calculated and inserted below
+                    entropy.0[3] = entropy.0[2].clone();
+                    entropy.0[2] = entropy.0[1].clone();
+                    entropy.0[1] = entropy.0[0].clone();
+                }
+                Ok(())
+            },
+        )
         .await?;
     Ok(())
 }
@@ -39,13 +43,17 @@ pub async fn transition_epoch_entropy_per_block(
     source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {
     state_manager
-        .with_mut_epoch_entropy(StateMut::Update, |entropy| {
-            let current_accumulator_hash = entropy.current();
-            let mut hash_combined = [0u8; 64];
-            hash_combined[..32].copy_from_slice(current_accumulator_hash.as_slice());
-            hash_combined[32..].copy_from_slice(source_hash.as_slice());
-            entropy.0[0] = hash::<Blake2b256>(hash_combined.as_slice()).unwrap();
-        })
+        .with_mut_epoch_entropy(
+            StateMut::Update,
+            |entropy| -> Result<(), StateManagerError> {
+                let current_accumulator_hash = entropy.current();
+                let mut hash_combined = [0u8; 64];
+                hash_combined[..32].copy_from_slice(current_accumulator_hash.as_slice());
+                hash_combined[32..].copy_from_slice(source_hash.as_slice());
+                entropy.0[0] = hash::<Blake2b256>(hash_combined.as_slice())?;
+                Ok(())
+            },
+        )
         .await?;
     Ok(())
 }

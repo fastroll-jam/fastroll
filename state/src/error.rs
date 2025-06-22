@@ -1,4 +1,4 @@
-use crate::state_db::StateDBError;
+use crate::{state_db::StateDBError, types::PendingReportsError};
 use fr_codec::JamCodecError;
 use fr_crypto::error::CryptoError;
 use fr_db::core::cached_db::CachedDBError;
@@ -31,4 +31,6 @@ pub enum StateManagerError {
     CachedDBError(#[from] CachedDBError),
     #[error("JamCodec error: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("PendingReports Error")]
+    PendingReportsError(#[from] PendingReportsError),
 }

@@ -2,7 +2,7 @@ use crate::error::TransitionError;
 use fr_block::types::extrinsics::disputes::DisputesXt;
 use fr_crypto::types::Ed25519PubKey;
 use fr_extrinsics::validation::disputes::DisputesXtValidator;
-use fr_state::{cache::StateMut, manager::StateManager, types::Timeslot};
+use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `Disputes`.
@@ -28,12 +28,16 @@ pub async fn transition_disputes(
     let offenders_keys: Vec<Ed25519PubKey> = culprits_keys.into_iter().chain(faults_keys).collect();
 
     state_manager
-        .with_mut_disputes(StateMut::Update, |disputes| {
-            disputes.sort_extend_good_set(good_set);
-            disputes.sort_extend_bad_set(bad_set);
-            disputes.sort_extend_wonky_set(wonky_set);
-            disputes.sort_extend_punish_set(offenders_keys);
-        })
+        .with_mut_disputes(
+            StateMut::Update,
+            |disputes| -> Result<(), StateManagerError> {
+                disputes.sort_extend_good_set(good_set);
+                disputes.sort_extend_bad_set(bad_set);
+                disputes.sort_extend_wonky_set(wonky_set);
+                disputes.sort_extend_punish_set(offenders_keys);
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())

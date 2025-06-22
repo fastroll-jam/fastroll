@@ -5,6 +5,7 @@ use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     manager::StateManager,
     types::{
         generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleState, SlotSealers,
@@ -64,25 +65,29 @@ async fn handle_new_epoch_transition(
     let curr_entropy = state_manager.get_epoch_entropy().await?;
 
     state_manager
-        .with_mut_safrole(StateMut::Update, |safrole| {
-            // pending set transition (γ_k)
-            safrole.pending_set = prior_staging_set.0;
+        .with_mut_safrole(
+            StateMut::Update,
+            |safrole| -> Result<(), StateManagerError> {
+                // pending set transition (γ_k)
+                safrole.pending_set = prior_staging_set.0;
 
-            // ring root transition (γ_z)
-            safrole.ring_root = curr_ring_root;
+                // ring root transition (γ_z)
+                safrole.ring_root = curr_ring_root;
 
-            // slot-sealer series transition (γ_s)
-            update_slot_sealers(
-                safrole,
-                prior_timeslot,
-                curr_timeslot,
-                &curr_active_set,
-                curr_entropy.second_history(),
-            );
+                // slot-sealer series transition (γ_s)
+                update_slot_sealers(
+                    safrole,
+                    prior_timeslot,
+                    curr_timeslot,
+                    &curr_active_set,
+                    curr_entropy.second_history(),
+                );
 
-            // reset ticket accumulator (γ_a)
-            safrole.ticket_accumulator = TicketAccumulator::new();
-        })
+                // reset ticket accumulator (γ_a)
+                safrole.ticket_accumulator = TicketAccumulator::new();
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())
@@ -151,9 +156,13 @@ async fn handle_ticket_accumulation(
     }
 
     state_manager
-        .with_mut_safrole(StateMut::Update, |safrole| {
-            safrole.ticket_accumulator = curr_ticket_accumulator;
-        })
+        .with_mut_safrole(
+            StateMut::Update,
+            |safrole| -> Result<(), StateManagerError> {
+                safrole.ticket_accumulator = curr_ticket_accumulator;
+                Ok(())
+            },
+        )
         .await?;
 
     Ok(())

@@ -27,7 +27,7 @@ pub enum SlotSealerError {
     CodecError(#[from] JamCodecError),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SafroleHeaderMarkers {
     pub epoch_marker: Option<EpochMarker>,
     pub winning_tickets_marker: Option<WinningTicketsMarker>,

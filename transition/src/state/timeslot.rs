@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use fr_state::{cache::StateMut, manager::StateManager, types::Timeslot};
+use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// State transition function of `Timeslot`.
@@ -16,9 +16,13 @@ pub async fn transition_timeslot(
     validate_timeslot(&prior_timeslot, header_timeslot)?;
 
     state_manager
-        .with_mut_timeslot(StateMut::Update, |timeslot| {
-            *timeslot = *header_timeslot;
-        })
+        .with_mut_timeslot(
+            StateMut::Update,
+            |timeslot| -> Result<(), StateManagerError> {
+                *timeslot = *header_timeslot;
+                Ok(())
+            },
+        )
         .await?;
     Ok(())
 }

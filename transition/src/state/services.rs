@@ -18,6 +18,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     cache::StateMut,
+    error::StateManagerError,
     manager::StateManager,
     types::{AccountFootprintDelta, AccountPreimagesEntry},
 };
@@ -134,14 +135,23 @@ async fn transition_service_account(
         }
         SandboxEntryStatus::Updated => {
             state_manager
-                .with_mut_account_metadata(StateMut::Update, service_id, |metadata| {
-                    *metadata = sandbox.metadata.get_cloned().expect("Should exist")
-                })
+                .with_mut_account_metadata(
+                    StateMut::Update,
+                    service_id,
+                    |metadata| -> Result<(), StateManagerError> {
+                        *metadata = sandbox.metadata.get_cloned().expect("Should exist");
+                        Ok(())
+                    },
+                )
                 .await?;
         }
         SandboxEntryStatus::Removed => {
             state_manager
-                .with_mut_account_metadata(StateMut::Remove, service_id, |_| {})
+                .with_mut_account_metadata(
+                    StateMut::Remove,
+                    service_id,
+                    |_| -> Result<(), StateManagerError> { Ok(()) },
+                )
                 .await?;
         }
         _ => (),
@@ -156,14 +166,25 @@ async fn transition_service_account(
             }
             SandboxEntryStatus::Updated => {
                 state_manager
-                    .with_mut_account_storage_entry(StateMut::Update, service_id, k, |entry| {
-                        *entry = v.get_cloned().expect("Should exist")
-                    })
+                    .with_mut_account_storage_entry(
+                        StateMut::Update,
+                        service_id,
+                        k,
+                        |entry| -> Result<(), StateManagerError> {
+                            *entry = v.get_cloned().expect("Should exist");
+                            Ok(())
+                        },
+                    )
                     .await?;
             }
             SandboxEntryStatus::Removed => {
                 state_manager
-                    .with_mut_account_storage_entry(StateMut::Remove, service_id, k, |_| {})
+                    .with_mut_account_storage_entry(
+                        StateMut::Remove,
+                        service_id,
+                        k,
+                        |_| -> Result<(), StateManagerError> { Ok(()) },
+                    )
                     .await?
             }
             _ => (),
@@ -183,14 +204,25 @@ async fn transition_service_account(
             }
             SandboxEntryStatus::Updated => {
                 state_manager
-                    .with_mut_account_preimages_entry(StateMut::Update, service_id, k, |entry| {
-                        *entry = v.get_cloned().expect("Should exist")
-                    })
+                    .with_mut_account_preimages_entry(
+                        StateMut::Update,
+                        service_id,
+                        k,
+                        |entry| -> Result<(), StateManagerError> {
+                            *entry = v.get_cloned().expect("Should exist");
+                            Ok(())
+                        },
+                    )
                     .await?;
             }
             SandboxEntryStatus::Removed => {
                 state_manager
-                    .with_mut_account_preimages_entry(StateMut::Remove, service_id, k, |_| {})
+                    .with_mut_account_preimages_entry(
+                        StateMut::Remove,
+                        service_id,
+                        k,
+                        |_| -> Result<(), StateManagerError> { Ok(()) },
+                    )
                     .await?
             }
             _ => (),
@@ -214,13 +246,21 @@ async fn transition_service_account(
                         StateMut::Update,
                         service_id,
                         k.clone(),
-                        |entry| *entry = v.get_cloned().expect("Should exist").into_entry(),
+                        |entry| -> Result<(), StateManagerError> {
+                            *entry = v.get_cloned().expect("Should exist").into_entry();
+                            Ok(())
+                        },
                     )
                     .await?;
             }
             SandboxEntryStatus::Removed => {
                 state_manager
-                    .with_mut_account_lookups_entry(StateMut::Remove, service_id, k.clone(), |_| {})
+                    .with_mut_account_lookups_entry(
+                        StateMut::Remove,
+                        service_id,
+                        k.clone(),
+                        |_| -> Result<(), StateManagerError> { Ok(()) },
+                    )
                     .await?
             }
             _ => (),
@@ -237,27 +277,39 @@ async fn run_privileged_transitions(
     // Transition staging set
     if let Some(new_staging_set) = partial_state_union.new_staging_set {
         state_manager
-            .with_mut_staging_set(StateMut::Update, |staging_set| {
-                *staging_set = new_staging_set;
-            })
+            .with_mut_staging_set(
+                StateMut::Update,
+                |staging_set| -> Result<(), StateManagerError> {
+                    *staging_set = new_staging_set;
+                    Ok(())
+                },
+            )
             .await?;
     }
 
     // Transition auth queue
     if let Some(new_auth_queue) = partial_state_union.new_auth_queue {
         state_manager
-            .with_mut_auth_queue(StateMut::Update, |auth_queue| {
-                *auth_queue = new_auth_queue;
-            })
+            .with_mut_auth_queue(
+                StateMut::Update,
+                |auth_queue| -> Result<(), StateManagerError> {
+                    *auth_queue = new_auth_queue;
+                    Ok(())
+                },
+            )
             .await?;
     }
 
     // Transition privileged services
     if let Some(new_privileges) = partial_state_union.new_privileges {
         state_manager
-            .with_mut_privileged_services(StateMut::Update, |privileges| {
-                *privileges = new_privileges;
-            })
+            .with_mut_privileged_services(
+                StateMut::Update,
+                |privileges| -> Result<(), StateManagerError> {
+                    *privileges = new_privileges;
+                    Ok(())
+                },
+            )
             .await?;
     }
 
@@ -301,8 +353,9 @@ pub async fn transition_services_on_transfer(
                 .with_mut_account_metadata(
                     StateMut::Update,
                     balance_change_set.recipient,
-                    |metadata| {
+                    |metadata| -> Result<(), StateManagerError> {
                         metadata.add_balance(balance_change_set.added_amount);
+                        Ok(())
                     },
                 )
                 .await?;
@@ -363,10 +416,11 @@ pub async fn transition_services_integrate_preimages(
         let preimage_data_len = xt.preimage_data_len();
         let lookups_key = (preimage_data_hash, preimage_data_len as u32);
         state_manager
-            .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| {
+            .with_mut_account_lookups_entry(StateMut::Update, xt.service_id, lookups_key, |entry| -> Result<(), StateManagerError> {
                 entry.value.try_push(curr_timeslot).expect(
                     "Lookups metadata storage should have an empty timeslot sequence entry to integrate preimages.",
                 );
+                Ok(())
             })
             .await?
     }

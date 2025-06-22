@@ -190,8 +190,9 @@ pub struct AccumulateHostContext {
     pub accumulate_host: ServiceId,
     /// **`u`**: Global state partially copied as an accumulation context
     pub partial_state: AccumulatePartialState,
-    /// TODO: Check how to manage this context in the parallelized accumulation.
-    /// `i`: Next new service account index, carefully chosen to avoid collision
+    /// `i`: Next new service account index, carefully chosen to avoid collision.
+    /// In the parallelized accumulation context, each single-service accumulation has different
+    /// initial values for this since accumulate host service id is used as input of the `check` function.
     pub next_new_service_id: ServiceId,
     /// **`t`**: Deferred token transfers
     pub deferred_transfers: Vec<DeferredTransfer>,

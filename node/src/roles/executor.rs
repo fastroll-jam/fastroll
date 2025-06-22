@@ -57,7 +57,7 @@ pub struct BlockExecutionOutput {
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BlockExecutionHeaderMarkers {
     pub offenders_marker: OffendersHeaderMarker,
     pub safrole_markers: SafroleHeaderMarkers,
