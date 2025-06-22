@@ -10,6 +10,13 @@ use thiserror::Error;
 pub mod ticket;
 pub mod workloads;
 
+/// Hash type aliases.
+pub type BlockHeaderHash = Hash32;
+
+pub type XtHash = Hash32;
+
+pub type StateRoot = Hash32;
+
 /// 32-byte Hash type.
 pub type Hash32 = ByteArray<HASH_SIZE>;
 
