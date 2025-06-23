@@ -1,7 +1,11 @@
 use crate::{
     error::VMCoreError,
     gas::GasCharger,
-    state::{memory::MemoryError, register::Register, vm_state::VMState},
+    state::{
+        memory::MemoryError,
+        register::Register,
+        vm_state::{RegIndex, VMState},
+    },
     utils::VMUtils,
 };
 use fr_common::{SignedGas, UnsignedGas};
@@ -28,7 +32,7 @@ impl MemWrite {
 /// VM state change set resulting from a single instruction execution.
 #[derive(Debug)]
 pub struct VMStateChange {
-    pub register_write: Option<(usize, RegValue)>,
+    pub register_write: Option<(RegIndex, RegValue)>,
     pub memory_write: Option<MemWrite>,
     pub new_pc: RegValue,
     pub gas_charge: UnsignedGas,

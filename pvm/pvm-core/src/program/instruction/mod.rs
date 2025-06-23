@@ -5,6 +5,7 @@ pub(crate) mod utils;
 use crate::{
     error::VMCoreError,
     program::instruction::opcode::Opcode,
+    state::vm_state::RegIndex,
     utils::{SextInputSize, VMUtils},
 };
 use fr_codec::prelude::*;
@@ -52,11 +53,11 @@ pub struct Instruction {
     /// Opcode
     pub op: Opcode,
     /// First source register index
-    pub rs1: Option<usize>,
+    pub rs1: Option<RegIndex>,
     /// Second source register index
-    pub rs2: Option<usize>,
+    pub rs2: Option<RegIndex>,
     /// Destination register index
-    pub rd: Option<usize>,
+    pub rd: Option<RegIndex>,
     /// First immediate value argument (value or offset)
     pub imm1: Option<RegValue>,
     /// Second immediate value argument (value or offset)
@@ -66,9 +67,9 @@ pub struct Instruction {
 impl Instruction {
     fn new(
         op: Opcode,
-        rs1: Option<usize>,
-        rs2: Option<usize>,
-        rd: Option<usize>,
+        rs1: Option<RegIndex>,
+        rs2: Option<RegIndex>,
+        rd: Option<RegIndex>,
         imm1: Option<RegValue>,
         imm2: Option<RegValue>,
     ) -> Result<Self, VMCoreError> {
@@ -131,7 +132,7 @@ impl Instruction {
 
             // Group 3: one register and one extended width immediate
             LOAD_IMM_64 => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
                 let imm_x = Self::extract_imm_extended_width(single_inst_blob, 2)?;
                 Ok(Self::new(op, Some(r_a), None, None, Some(imm_x), None)?)
             }
@@ -158,7 +159,7 @@ impl Instruction {
             // Group 6: one register & one immediate
             JUMP_IND | LOAD_IMM | LOAD_U8 | LOAD_I8 | LOAD_U16 | LOAD_I16 | LOAD_U32 | LOAD_I32
             | LOAD_U64 | STORE_U8 | STORE_U16 | STORE_U32 | STORE_U64 => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
                 let l_x = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(1))));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
 
@@ -167,7 +168,7 @@ impl Instruction {
 
             // Group 7: one register & two immediates
             STORE_IMM_IND_U8 | STORE_IMM_IND_U16 | STORE_IMM_IND_U32 | STORE_IMM_IND_U64 => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
                 let l_x_val = 4.min((single_inst_blob[1] / 16) % 8) as usize;
                 let l_x = ImmSize::from(l_x_val);
                 let l_y = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(l_x_val + 1))));
@@ -188,7 +189,7 @@ impl Instruction {
             LOAD_IMM_JUMP | BRANCH_EQ_IMM | BRANCH_NE_IMM | BRANCH_LT_U_IMM | BRANCH_LE_U_IMM
             | BRANCH_GE_U_IMM | BRANCH_GT_U_IMM | BRANCH_LT_S_IMM | BRANCH_LE_S_IMM
             | BRANCH_GE_S_IMM | BRANCH_GT_S_IMM => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
                 let l_x_val = 4.min((single_inst_blob[1] / 16) % 8) as usize;
                 let l_x = ImmSize::from(l_x_val);
                 let l_y = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(l_x_val + 1))));
@@ -223,8 +224,8 @@ impl Instruction {
             | SIGN_EXTEND_16
             | ZERO_EXTEND_16
             | REVERSE_BYTES => {
-                let r_d = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_a = 12.min(single_inst_blob[1] / 16) as usize;
+                let r_d = 12.min(single_inst_blob[1] % 16) as RegIndex;
+                let r_a = 12.min(single_inst_blob[1] / 16) as RegIndex;
 
                 Ok(Self::new(op, Some(r_a), None, Some(r_d), None, None)?)
             }
@@ -239,8 +240,8 @@ impl Instruction {
             | MUL_IMM_64 | SHLO_L_IMM_64 | SHLO_R_IMM_64 | SHAR_R_IMM_64 | NEG_ADD_IMM_64
             | SHLO_L_IMM_ALT_64 | SHLO_R_IMM_ALT_64 | SHAR_R_IMM_ALT_64 | ROT_R_64_IMM
             | ROT_R_64_IMM_ALT | ROT_R_32_IMM | ROT_R_32_IMM_ALT => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
+                let r_b = 12.min(single_inst_blob[1] / 16) as RegIndex;
                 let l_x = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(1))));
                 let imm_x = Self::extract_imm_value(single_inst_blob, l_x, 2)?;
 
@@ -256,8 +257,8 @@ impl Instruction {
 
             // Group 11: two registers & one offset
             BRANCH_EQ | BRANCH_NE | BRANCH_LT_U | BRANCH_LT_S | BRANCH_GE_U | BRANCH_GE_S => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
+                let r_b = 12.min(single_inst_blob[1] / 16) as RegIndex;
                 let l_x = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(1))));
                 let imm_x = Self::extract_imm_target_address(current_pc, single_inst_blob, l_x, 2)?;
 
@@ -273,8 +274,8 @@ impl Instruction {
 
             // Group 12: two registers & two immediates
             LOAD_IMM_JUMP_IND => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
+                let r_b = 12.min(single_inst_blob[1] / 16) as RegIndex;
                 let l_x_val = 4.min(single_inst_blob[2] % 8) as usize;
                 let l_x = ImmSize::from(l_x_val);
                 let l_y = ImmSize::from(4.min(0.max(skip_distance.saturating_sub(l_x_val + 2))));
@@ -298,9 +299,9 @@ impl Instruction {
             | MUL_UPPER_U_U | MUL_UPPER_S_U | SET_LT_U | SET_LT_S | CMOV_IZ | CMOV_NZ
             | ROT_L_64 | ROT_L_32 | ROT_R_64 | ROT_R_32 | AND_INV | OR_INV | XNOR | MAX | MAX_U
             | MIN | MIN_U => {
-                let r_a = 12.min(single_inst_blob[1] % 16) as usize;
-                let r_b = 12.min(single_inst_blob[1] / 16) as usize;
-                let r_d = 12.min(single_inst_blob[2]) as usize;
+                let r_a = 12.min(single_inst_blob[1] % 16) as RegIndex;
+                let r_b = 12.min(single_inst_blob[1] / 16) as RegIndex;
+                let r_d = 12.min(single_inst_blob[2]) as RegIndex;
 
                 Ok(Self::new(op, Some(r_a), Some(r_b), Some(r_d), None, None)?)
             }
@@ -315,15 +316,15 @@ impl Instruction {
         self.imm2.ok_or(VMCoreError::ImmValNotFound(self.op))
     }
 
-    pub fn rs1(&self) -> Result<usize, VMCoreError> {
+    pub fn rs1(&self) -> Result<RegIndex, VMCoreError> {
         self.rs1.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
-    pub fn rs2(&self) -> Result<usize, VMCoreError> {
+    pub fn rs2(&self) -> Result<RegIndex, VMCoreError> {
         self.rs2.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
-    pub fn rd(&self) -> Result<usize, VMCoreError> {
+    pub fn rd(&self) -> Result<RegIndex, VMCoreError> {
         self.rd
             .ok_or(VMCoreError::DestinationRegIdxNotFound(self.op))
     }
