@@ -3,9 +3,10 @@ use std::collections::BTreeSet;
 
 pub type AccumulationOutputHash = Hash32;
 
-pub type AccumulationOutputPairs = BTreeSet<AccumulationOutputPair>;
-
 pub type AccumulationGasPairs = Vec<AccumulationGasPair>;
+
+#[derive(Default)]
+pub struct AccumulationOutputPairs(pub BTreeSet<AccumulationOutputPair>);
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct AccumulationOutputPair {

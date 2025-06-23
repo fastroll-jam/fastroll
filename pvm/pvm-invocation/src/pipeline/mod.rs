@@ -52,6 +52,7 @@ struct ParallelAccumulationResult {
 pub fn accumulate_result_commitment(output_pairs: AccumulationOutputPairs) -> Hash32 {
     // Note: `AccumulationOutputPairs` is already ordered by service id.
     let ordered_encoded_results = output_pairs
+        .0
         .into_iter()
         .map(|pair| {
             let mut buf = Vec::with_capacity(36);
@@ -112,14 +113,16 @@ pub async fn accumulate_outer(
             remaining_gas_limit.saturating_sub(service_gas_pairs.iter().map(|pair| pair.gas).sum());
         deferred_transfers_flattened.extend(deferred_transfers);
         service_gas_pairs_flattened.extend(service_gas_pairs);
-        service_output_pairs_flattened.extend(output_pairs);
+        service_output_pairs_flattened.extend(output_pairs.0);
     }
+
+    let service_output_pairs = AccumulationOutputPairs(service_output_pairs_flattened);
 
     Ok(OuterAccumulationResult {
         accumulated_reports_count: report_idx,
         deferred_transfers: deferred_transfers_flattened,
         service_gas_pairs: service_gas_pairs_flattened,
-        service_output_pairs: service_output_pairs_flattened,
+        service_output_pairs,
         partial_state_union,
     })
 }
@@ -221,6 +224,8 @@ async fn accumulate_parallel(
         )
         .await;
     }
+
+    let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
 
     Ok(ParallelAccumulationResult {
         service_gas_pairs,
