@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
 use fr_codec::prelude::*;
 use fr_common::{
-    ticket::Ticket, BlockHeaderHash, ByteEncodable, Hash32, StateRoot, ValidatorIndex, XtHash,
+    ticket::Ticket, BlockHeaderHash, ByteEncodable, EntropyHash, StateRoot, ValidatorIndex, XtHash,
     EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{
@@ -58,8 +58,8 @@ impl Display for EpochMarkerValidatorKey {
 
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarker {
-    pub entropy: Hash32,
-    pub tickets_entropy: Hash32,
+    pub entropy: EntropyHash,
+    pub tickets_entropy: EntropyHash,
     pub validators: EpochValidators,
 }
 

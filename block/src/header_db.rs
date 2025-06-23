@@ -3,7 +3,7 @@ use crate::types::{
     extrinsics::ExtrinsicsError,
 };
 use fr_codec::prelude::*;
-use fr_common::Hash32;
+use fr_common::BlockHeaderHash;
 
 use fr_crypto::error::CryptoError;
 use fr_db::{
@@ -58,7 +58,7 @@ impl CacheItem for BlockHeader {
 /// Entries of the `db` are keyed by block header hash.
 pub struct BlockHeaderDB {
     /// A handle to the `CachedDB`.
-    db: CachedDB<Hash32, BlockHeader>,
+    db: CachedDB<BlockHeaderHash, BlockHeader>,
     /// A known best block header determined by GRANDPA.
     best_header: Mutex<BlockHeader>,
 }
@@ -83,12 +83,15 @@ impl BlockHeaderDB {
     /// Get a block header by its hash from the cache or the DB.
     pub async fn get_header(
         &self,
-        header_hash: &Hash32,
+        header_hash: &BlockHeaderHash,
     ) -> Result<Option<BlockHeader>, BlockHeaderDBError> {
         Ok(self.db.get_entry(header_hash).await?)
     }
 
-    pub async fn commit_header(&self, header: BlockHeader) -> Result<Hash32, BlockHeaderDBError> {
+    pub async fn commit_header(
+        &self,
+        header: BlockHeader,
+    ) -> Result<BlockHeaderHash, BlockHeaderDBError> {
         let hash = header.hash()?;
         self.db.put_entry(&hash, header).await?;
         Ok(hash)
