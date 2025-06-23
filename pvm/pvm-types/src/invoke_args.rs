@@ -2,8 +2,8 @@ use crate::common::ExportDataSegment;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
-    AuthHash, Balance, CoreIndex, Hash32, SegmentRoot, ServiceId, TimeslotIndex, UnsignedGas,
-    WorkPackageHash, TRANSFER_MEMO_SIZE,
+    AuthHash, Balance, ByteArray, CoreIndex, Hash32, SegmentRoot, ServiceId, TimeslotIndex,
+    UnsignedGas, WorkPackageHash, TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
 
@@ -89,7 +89,7 @@ pub struct DeferredTransfer {
     /// `a`: Token transfer amount
     pub amount: Balance,
     /// `m`: A simple memo transferred alongside the balance
-    pub memo: [u8; TRANSFER_MEMO_SIZE],
+    pub memo: ByteArray<TRANSFER_MEMO_SIZE>,
     /// `g`: Gas limit for the transfer
     pub gas_limit: UnsignedGas,
 }

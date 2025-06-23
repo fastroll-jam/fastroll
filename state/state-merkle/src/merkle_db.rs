@@ -3,7 +3,7 @@ use crate::{
     codec::NodeCodec,
     error::StateMerkleError,
     types::{
-        nodes::{BranchType, ChildType, LeafType, MerkleNode, NodeHash, NodeType},
+        nodes::{BranchType, ChildType, LeafType, MerkleNode, NodeHash, NodeType, StateHash},
         write_context::{
             FullBranchHistory, LeafAddContext, LeafRemoveContext, LeafSplitContext,
             LeafUpdateContext, LeafWriteOpContext,
@@ -269,15 +269,14 @@ impl MerkleDB {
         Ok(None)
     }
 
-    /// FIXME: state key should be of type `StateKey`
     /// Commits a single `MerkleWriteOp` into the `MerkleDB` when the merkle trie is empty.
     /// Used only for the merkle trie initialization.
     ///
-    /// Returns (new_root, Option<(state_key, state_val)>)
+    /// Returns (new_root, Option<(state_hash, state_val)>)
     pub async fn commit_to_empty_trie(
         &self,
         write_op: &MerkleWriteOp,
-    ) -> Result<(MerkleRoot, Option<(Hash32, Vec<u8>)>), StateMerkleError> {
+    ) -> Result<(MerkleRoot, Option<(StateHash, Vec<u8>)>), StateMerkleError> {
         if self.root() != MerkleRoot::default() {
             return Err(StateMerkleError::NotEmptyTrie);
         }

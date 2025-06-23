@@ -450,7 +450,7 @@ mod ticket_accumulator_tests {
                 hash[0] = (i >> 8) as u8;
                 hash[1] = (i & 0xFF) as u8;
                 Ticket {
-                    id: hash, // hash is already [u8; 32], which is Hash32
+                    id: hash,
                     attempt: (i % 2) as u8,
                 }
             })

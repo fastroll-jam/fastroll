@@ -8,9 +8,9 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
-    AuthHash, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT,
-    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
-    TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
+    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
+    SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::{
@@ -1361,7 +1361,7 @@ impl HostFunction {
             host_call_panic!(gas_charge)
         }
 
-        let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
+        let memo = ByteArray::<TRANSFER_MEMO_SIZE>::decode(
             &mut vm.memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
         )?;
 
