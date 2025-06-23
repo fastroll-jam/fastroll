@@ -2,7 +2,7 @@ use fr_block::types::extrinsics::{
     disputes::{Culprit, Fault, Verdict},
     ExtrinsicsError, XtEntry, XtType,
 };
-use fr_common::Hash32;
+use fr_common::{Hash32, TimeslotIndex};
 use fr_limited_vec::LimitedVecError;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -11,7 +11,7 @@ use std::{
 use thiserror::Error;
 
 type XtMap = Arc<RwLock<HashMap<Hash32, OpaqueXtEntry>>>;
-type TypeTimeslotIndex = Arc<RwLock<BTreeMap<(XtType, u32), Vec<Hash32>>>>; // u32 for timeslot index
+type TypeTimeslotIndex = Arc<RwLock<BTreeMap<(XtType, TimeslotIndex), Vec<Hash32>>>>;
 
 #[derive(Debug, Error)]
 pub enum XtPoolError {
@@ -71,7 +71,7 @@ impl XtPool {
     pub fn add_extrinsic(
         &self,
         entry: OpaqueXtEntry,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<(), XtPoolError> {
         let mut extrinsics = self.extrinsics.write().unwrap();
         let mut type_timeslot_index = self.type_timeslot_index.write().unwrap();
@@ -96,7 +96,7 @@ impl XtPool {
     pub fn get_extrinsics_by_type_and_timeslot(
         &self,
         extrinsic_type: XtType,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<Vec<OpaqueXtEntry>, XtPoolError> {
         let type_timeslot_index = self.type_timeslot_index.read().unwrap();
         let extrinsics = self.extrinsics.read().unwrap();

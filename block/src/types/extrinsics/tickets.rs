@@ -1,6 +1,6 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use fr_codec::prelude::*;
-use fr_common::{Hash32, X_T};
+use fr_common::{EntropyHash, X_T};
 use fr_crypto::{traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
@@ -68,7 +68,7 @@ impl Ord for TicketsXtEntry {
 }
 
 impl TicketsXtEntry {
-    pub fn new(prover: &RingVrfProver, entry_index: u8, entropy_2: &Hash32) -> Self {
+    pub fn new(prover: &RingVrfProver, entry_index: u8, entropy_2: &EntropyHash) -> Self {
         let mut context = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
         context.extend_from_slice(X_T);
         context.extend_from_slice(entropy_2.as_slice());

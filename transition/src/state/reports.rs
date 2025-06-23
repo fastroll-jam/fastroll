@@ -5,7 +5,7 @@ use fr_block::{
 };
 use fr_common::{
     workloads::work_report::{ReportedWorkPackage, WorkReport},
-    Hash32,
+    BlockHeaderHash,
 };
 use fr_crypto::types::Ed25519PubKey;
 use fr_extrinsics::validation::{
@@ -69,7 +69,7 @@ pub async fn transition_reports_eliminate_invalid(
 pub async fn transition_reports_clear_availables(
     state_manager: Arc<StateManager>,
     assurances_xt: &AssurancesXt,
-    header_parent_hash: Hash32,
+    header_parent_hash: BlockHeaderHash,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(state_manager.clone());
@@ -144,7 +144,7 @@ pub async fn transition_reports_update_entries(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
                 for report in &new_valid_reports {
-                    pending_reports.0[report.core_index() as usize] = Some(PendingReport {
+                    pending_reports.0[report.core_index as usize] = Some(PendingReport {
                         work_report: report.clone(),
                         reported_timeslot: current_timeslot,
                     })

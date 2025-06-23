@@ -1,4 +1,4 @@
-use fr_common::Hash32;
+use fr_common::{BlockHeaderHash, StateRoot};
 use fr_db::{
     core::{
         cached_db::{CachedDB, CachedDBError},
@@ -20,7 +20,7 @@ pub enum PostStateRootDbError {
 /// Used for prior state root validation in block headers.
 pub struct PostStateRootDB {
     /// A handle to the `CachedDB`.
-    db: CachedDB<Hash32, Hash32>,
+    db: CachedDB<BlockHeaderHash, StateRoot>,
 }
 
 impl PostStateRootDB {
@@ -36,15 +36,15 @@ impl PostStateRootDB {
 
     pub async fn get_post_state_root(
         &self,
-        header_hash: &Hash32,
-    ) -> Result<Option<Hash32>, PostStateRootDbError> {
+        header_hash: &BlockHeaderHash,
+    ) -> Result<Option<StateRoot>, PostStateRootDbError> {
         Ok(self.db.get_entry(header_hash).await?)
     }
 
     pub async fn set_post_state_root(
         &self,
-        header_hash: &Hash32,
-        post_state_root: Hash32,
+        header_hash: &BlockHeaderHash,
+        post_state_root: StateRoot,
     ) -> Result<(), PostStateRootDbError> {
         Ok(self.db.put_entry(header_hash, post_state_root).await?)
     }

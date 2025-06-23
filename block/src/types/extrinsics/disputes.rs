@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use fr_codec::prelude::*;
 use fr_common::{
-    ByteEncodable, Hash32, ValidatorIndex, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    ByteEncodable, EpochIndex, ValidatorIndex, WorkReportHash, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
 use fr_crypto::types::*;
@@ -57,27 +57,33 @@ impl Display for DisputesXt {
     }
 }
 impl DisputesXt {
-    pub fn count_culprits_with_report_hash(&self, report_hash: &Hash32) -> usize {
+    pub fn count_culprits_with_report_hash(&self, report_hash: &WorkReportHash) -> usize {
         self.culprits
             .iter()
             .filter(|&culprit| &culprit.report_hash == report_hash)
             .count()
     }
 
-    pub fn count_faults_with_report_hash(&self, report_hash: &Hash32) -> usize {
+    pub fn count_faults_with_report_hash(&self, report_hash: &WorkReportHash) -> usize {
         self.faults
             .iter()
             .filter(|&fault| &fault.report_hash == report_hash)
             .count()
     }
 
-    pub fn get_verdict_by_report_hash(&self, report_hash: &Hash32) -> Option<&Verdict> {
+    pub fn get_verdict_by_report_hash(&self, report_hash: &WorkReportHash) -> Option<&Verdict> {
         self.verdicts
             .iter()
             .find(|&verdict| &verdict.report_hash == report_hash)
     }
 
-    pub fn split_report_set(&self) -> (Vec<Hash32>, Vec<Hash32>, Vec<Hash32>) {
+    pub fn split_report_set(
+        &self,
+    ) -> (
+        Vec<WorkReportHash>,
+        Vec<WorkReportHash>,
+        Vec<WorkReportHash>,
+    ) {
         let mut good_set = Vec::new();
         let mut bad_set = Vec::new();
         let mut wonky_set = Vec::new();
@@ -133,9 +139,9 @@ pub type Judgments = FixedVec<Judgment, VALIDATORS_SUPER_MAJORITY>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
     /// `r`: The work report hash.
-    pub report_hash: Hash32,
+    pub report_hash: WorkReportHash,
     /// `a`: The epoch index.
-    pub epoch_index: u32,
+    pub epoch_index: EpochIndex,
     /// **`j`**: The judgments.
     pub judgments: Judgments,
 }
@@ -184,8 +190,8 @@ impl JamEncode for Verdict {
 impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            report_hash: Hash32::decode(input)?,
-            epoch_index: u32::decode_fixed(input, 4)?,
+            report_hash: WorkReportHash::decode(input)?,
+            epoch_index: EpochIndex::decode_fixed(input, 4)?,
             judgments: Judgments::decode(input)?,
         })
     }
@@ -270,7 +276,7 @@ impl Ord for Judgment {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode, Hash)]
 pub struct Culprit {
     /// `r`: The work report hash.
-    pub report_hash: Hash32,
+    pub report_hash: WorkReportHash,
     /// `k`: Ed25519 public key of the **Culprit**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The guaranteeing signature that the **Culprit** submitted.
@@ -305,7 +311,7 @@ impl Ord for Culprit {
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Fault {
     /// `r`: The work report hash.
-    pub report_hash: Hash32,
+    pub report_hash: WorkReportHash,
     /// `v`: The vote.
     pub is_report_valid: bool,
     /// `k`: Ed25519 public key of the **Fault**.

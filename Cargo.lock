@@ -981,7 +981,6 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "fr-merkle",
  "fr-pvm-core",
  "fr-pvm-host",
  "fr-pvm-interface",
@@ -997,7 +996,9 @@ version = "0.1.0"
 dependencies = [
  "fr-codec",
  "fr-common",
+ "fr-crypto",
  "fr-limited-vec",
+ "fr-merkle",
  "thiserror 2.0.12",
 ]
 

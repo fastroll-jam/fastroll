@@ -6,7 +6,7 @@ use crate::{
 use fr_block::types::block::{EpochMarker, WinningTicketsMarker};
 use fr_codec::prelude::*;
 use fr_common::{
-    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, ByteEncodable, EntropyHash, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{error::CryptoError, hash_prefix_4, types::*, Blake2b256};
 use fr_limited_vec::FixedVec;
@@ -243,7 +243,7 @@ impl SlotSealers {
 
 pub fn generate_fallback_keys(
     validator_set: &ValidatorKeySet,
-    entropy: &Hash32,
+    entropy: &EntropyHash,
 ) -> Result<FixedVec<BandersnatchPubKey, EPOCH_LENGTH>, SlotSealerError> {
     let mut fallback_keys = EpochFallbackKeys::default();
     let entropy_vec = entropy.to_vec();
@@ -402,9 +402,10 @@ impl JamDecode for TicketAccumulator {
 #[cfg(test)]
 mod ticket_accumulator_tests {
     use super::*;
+    use fr_common::TicketId;
 
     fn create_ticket(i: u16) -> Ticket {
-        let mut hash = Hash32::default();
+        let mut hash = TicketId::default();
         hash[0] = (i >> 8) as u8;
         hash[1] = i as u8;
         Ticket {
@@ -431,7 +432,7 @@ mod ticket_accumulator_tests {
     fn test_add_over_capacity() {
         let mut tickets = TicketAccumulator::new();
         for i in 0..EPOCH_LENGTH as u16 + 1 {
-            let mut hash = Hash32::default();
+            let mut hash = TicketId::default();
             // Constructing tickets with unique hash values, with first two bytes
             hash[0] = (i >> 8) as u8;
             hash[1] = (i & 0xFF) as u8;
@@ -445,11 +446,11 @@ mod ticket_accumulator_tests {
 
         let expected: Vec<Ticket> = (0..EPOCH_LENGTH as u16)
             .map(|i| {
-                let mut hash = Hash32::default();
+                let mut hash = TicketId::default();
                 hash[0] = (i >> 8) as u8;
                 hash[1] = (i & 0xFF) as u8;
                 Ticket {
-                    id: hash, // hash is already [u8; 32], which is Hash32
+                    id: hash,
                     attempt: (i % 2) as u8,
                 }
             })
@@ -459,7 +460,7 @@ mod ticket_accumulator_tests {
 
         // Large ticket should not be included in the MaxHeap
         let large_ticket = {
-            let mut hash = Hash32::default();
+            let mut hash = TicketId::default();
             hash[0] = (EPOCH_LENGTH as u16 >> 8) as u8;
             hash[1] = (EPOCH_LENGTH as u16 & 0xFF) as u8;
             Ticket {

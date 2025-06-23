@@ -1,11 +1,11 @@
 use crate::types::{
     common::{
-        AccumulateRoot, AsnAccumulateHistory, AsnAccumulateQueue, AsnByteSequence, AsnEntropy,
+        AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnByteSequence, AsnEntropy,
         AsnPrivilegedServices, AsnServiceId, AsnServiceInfo, AsnTimeSlot, AsnWorkReport,
     },
     preimages::AsnPreimagesMapEntry,
 };
-use fr_common::{workloads::work_report::WorkReport, Hash32, Octets};
+use fr_common::{workloads::work_report::WorkReport, AccumulateRoot, Octets};
 use fr_state::types::{AccountStorageEntry, Timeslot};
 use serde::{Deserialize, Serialize};
 
@@ -84,12 +84,12 @@ pub struct JamInput {
 
 #[derive(Clone)]
 pub struct JamTransitionOutput {
-    pub accumulate_root: Hash32,
+    pub accumulate_root: AccumulateRoot,
 }
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Output {
-    ok(AccumulateRoot),
+    ok(AsnAccumulateRoot),
     err,
 }

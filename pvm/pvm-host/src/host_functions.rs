@@ -7,10 +7,10 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage, Hash32,
-    Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
-    TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
+    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
+    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
+    SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::{
@@ -26,6 +26,7 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     exit_reason::ExitReason,
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
+    invoke_results::AccumulationOutputHash,
 };
 use fr_state::{
     manager::StateManager,
@@ -1171,7 +1172,7 @@ impl HostFunction {
             else {
                 host_call_panic!()
             };
-            queue_assignment.0[core_index][i] = Hash32::decode(&mut authorizer.as_slice())?;
+            queue_assignment.0[core_index][i] = AuthHash::decode(&mut authorizer.as_slice())?;
         }
 
         x.assign_new_auth_queue(queue_assignment);
@@ -1360,7 +1361,7 @@ impl HostFunction {
             host_call_panic!(gas_charge)
         }
 
-        let memo = <[u8; TRANSFER_MEMO_SIZE]>::decode(
+        let memo = ByteArray::<TRANSFER_MEMO_SIZE>::decode(
             &mut vm.memory.read_bytes(offset, TRANSFER_MEMO_SIZE)?.as_slice(),
         )?;
 
@@ -1774,7 +1775,8 @@ impl HostFunction {
         let Ok(commitment_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
             host_call_panic!()
         };
-        let commitment_hash = Hash32::decode(&mut commitment_hash_octets.as_slice())?;
+        let commitment_hash =
+            AccumulationOutputHash::decode(&mut commitment_hash_octets.as_slice())?;
 
         x.yielded_accumulate_hash = Some(commitment_hash);
         continue_ok!()

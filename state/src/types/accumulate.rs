@@ -4,12 +4,10 @@ use crate::{
     types::work_report::WorkReport,
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, EPOCH_LENGTH};
+use fr_common::{TimeslotIndex, WorkPackageHash, EPOCH_LENGTH};
 use fr_limited_vec::FixedVec;
 use std::collections::BTreeSet;
 
-pub type SegmentRoot = Hash32;
-pub type WorkPackageHash = Hash32;
 /// Pair of a work report and its unaccumulated dependencies.
 pub type WorkReportDepsMap = (WorkReport, BTreeSet<WorkPackageHash>);
 pub type AccumulateQueueEntries = FixedVec<Vec<WorkReportDepsMap>, EPOCH_LENGTH>;
@@ -64,7 +62,7 @@ impl AccumulateQueue {
     /// the most recent `m` entries at the beginning of the queue (from index `0` to `m-1`).
     pub fn partition_by_slot_phase_and_flatten(
         &self,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Vec<WorkReportDepsMap> {
         let slot_phase = timeslot_index as usize % EPOCH_LENGTH; // m
         let mut queue_ordered = self.items.clone();

@@ -1,6 +1,6 @@
 use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
-use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, Hash32, StateKey};
+use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, StateKey, StateRoot};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
     manager::StateManager,
@@ -41,7 +41,7 @@ pub struct AsnTestCase {
 
 // --- FastRoll Types
 pub struct RawState {
-    pub state_root: Hash32,
+    pub state_root: StateRoot,
     pub keyvals: Vec<KeyValue>,
 }
 
@@ -138,7 +138,7 @@ impl BlockImportHarness {
     async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<Hash32, Box<dyn Error>> {
+    ) -> Result<StateRoot, Box<dyn Error>> {
         let post_state_root = BlockImporter::import_block(storage, block).await?;
         Ok(post_state_root)
     }
@@ -150,7 +150,7 @@ impl BlockImportHarness {
 
     async fn assert_post_state(
         state_manager: &StateManager,
-        actual_post_state_root: Hash32,
+        actual_post_state_root: StateRoot,
         expected_post_state: RawState,
     ) {
         assert_eq!(actual_post_state_root, expected_post_state.state_root);

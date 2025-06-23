@@ -1,6 +1,6 @@
 use crate::types::extrinsics::{ExtrinsicsError, XtEntry, XtType};
 use fr_codec::prelude::*;
-use fr_common::{workloads::work_report::WorkReport, ValidatorIndex, CORE_COUNT};
+use fr_common::{workloads::work_report::WorkReport, TimeslotIndex, ValidatorIndex, CORE_COUNT};
 use fr_crypto::{
     hash::{hash, Blake2b256},
     types::*,
@@ -107,7 +107,7 @@ pub struct GuaranteesXtEntry {
     /// `w`: The work report that is subject to the guarantee.
     pub work_report: WorkReport,
     /// `t`: The timeslot index used for determining timeout of the work report.
-    pub timeslot_index: u32,
+    pub timeslot_index: TimeslotIndex,
     /// `a`: The signatures of two or three of the **Guarantors**.
     pub credentials: Vec<GuaranteesCredential>,
 }
@@ -148,14 +148,14 @@ impl JamDecode for GuaranteesXtEntry {
     {
         Ok(Self {
             work_report: WorkReport::decode(input)?,
-            timeslot_index: u32::decode_fixed(input, 4)?,
+            timeslot_index: TimeslotIndex::decode_fixed(input, 4)?,
             credentials: Vec::<GuaranteesCredential>::decode(input)?,
         })
     }
 }
 
 impl GuaranteesXtEntry {
-    pub fn new(work_report: WorkReport, timeslot_index: u32) -> Self {
+    pub fn new(work_report: WorkReport, timeslot_index: TimeslotIndex) -> Self {
         Self {
             work_report,
             timeslot_index,

@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use fr_asn_types::types::{assurances::*, common::*};
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::Hash32;
+use fr_common::BlockHeaderHash;
 use fr_conformance_tests::{
     err_map::assurances::map_error_to_custom_code,
     generate_typed_tests,
@@ -58,7 +58,7 @@ impl StateTransitionTest for AssurancesTest {
         Ok(JamInput {
             extrinsic: test_input.assurances.clone().into(),
             timeslot: Timeslot::new(test_input.slot),
-            parent_hash: Hash32::from(test_input.parent),
+            parent_hash: BlockHeaderHash::from(test_input.parent),
         })
     }
 

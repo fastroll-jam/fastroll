@@ -10,12 +10,12 @@ use crate::{
 use async_trait::async_trait;
 use fr_block::types::block::Block;
 use fr_codec::prelude::*;
-use fr_common::Hash32;
+use fr_common::BlockHeaderHash;
 use fr_storage::{node_storage::NodeStorage, server_trait::NodeServerTrait};
 
 #[derive(Debug, Clone, JamEncode, JamDecode)]
 pub struct BlockRequestInitArgs {
-    pub header_hash: Hash32,
+    pub header_hash: BlockHeaderHash,
     pub ascending_excl: bool,
     pub max_blocks: u32,
 }

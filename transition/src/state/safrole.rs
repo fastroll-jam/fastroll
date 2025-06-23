@@ -1,6 +1,6 @@
 use crate::error::TransitionError;
 use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, Hash32, TICKET_CONTEST_DURATION};
+use fr_common::{ticket::Ticket, EntropyHash, TICKET_CONTEST_DURATION};
 use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_state::{
@@ -97,7 +97,7 @@ pub(crate) fn update_slot_sealers(
     prior_timeslot: &Timeslot,
     curr_timeslot: &Timeslot,
     curr_active_set: &ActiveSet,
-    curr_entropy_2: &Hash32,
+    curr_entropy_2: &EntropyHash,
 ) {
     // Fallback mode triggers under following conditions:
     // 1. One or more epochs are skipped (e′ > e + 1).

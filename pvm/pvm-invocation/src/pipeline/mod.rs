@@ -1,10 +1,8 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
-use fr_codec::prelude::*;
 use fr_common::{
-    workloads::work_report::WorkReport, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas,
+    workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
 };
-use fr_crypto::{hash, Blake2b256, Keccak256};
-use fr_merkle::well_balanced_tree::WellBalancedMerkleTree;
+use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::context::partial_state::AccumulatePartialState;
 use fr_pvm_interface::error::PVMError;
 use fr_pvm_types::{
@@ -45,26 +43,6 @@ struct ParallelAccumulationResult {
     deferred_transfers: Vec<DeferredTransfer>,
     /// **`b*`**: All accumulation outputs created while executing `Δ*`.
     service_output_pairs: AccumulationOutputPairs,
-}
-
-/// Generates a commitment to `AccumulationOutputPairs` using a simple binary merkle tree.
-/// Used for producing the BEEFY commitment after accumulation.
-pub fn accumulate_result_commitment(output_pairs: AccumulationOutputPairs) -> Hash32 {
-    // Note: `AccumulationOutputPairs` is already ordered by service id.
-    let ordered_encoded_results = output_pairs
-        .into_iter()
-        .map(|pair| {
-            let mut buf = Vec::with_capacity(36);
-            pair.service
-                .encode_to_fixed(&mut buf, 4)
-                .expect("Should not fail");
-            pair.output_hash
-                .encode_to(&mut buf)
-                .expect("Should not fail");
-            buf
-        })
-        .collect::<Vec<_>>();
-    WellBalancedMerkleTree::<Keccak256>::compute_root(&ordered_encoded_results).unwrap()
 }
 
 /// Represents `Δ+` of the GP.
@@ -112,14 +90,16 @@ pub async fn accumulate_outer(
             remaining_gas_limit.saturating_sub(service_gas_pairs.iter().map(|pair| pair.gas).sum());
         deferred_transfers_flattened.extend(deferred_transfers);
         service_gas_pairs_flattened.extend(service_gas_pairs);
-        service_output_pairs_flattened.extend(output_pairs);
+        service_output_pairs_flattened.extend(output_pairs.0);
     }
+
+    let service_output_pairs = AccumulationOutputPairs(service_output_pairs_flattened);
 
     Ok(OuterAccumulationResult {
         accumulated_reports_count: report_idx,
         deferred_transfers: deferred_transfers_flattened,
         service_gas_pairs: service_gas_pairs_flattened,
-        service_output_pairs: service_output_pairs_flattened,
+        service_output_pairs,
         partial_state_union,
     })
 }
@@ -130,7 +110,7 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
 
     for report in reports {
         let report_gas_usage: UnsignedGas = report
-            .digests()
+            .digests
             .iter()
             .map(|wd| wd.accumulate_gas_limit)
             .sum();
@@ -157,7 +137,7 @@ async fn accumulate_parallel(
 
     let mut service_ids: BTreeSet<ServiceId> = reports
         .iter()
-        .flat_map(|wr| wr.digests().iter())
+        .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
     service_ids.extend(always_accumulate_services.keys().cloned());
@@ -222,6 +202,8 @@ async fn accumulate_parallel(
         .await;
     }
 
+    let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
+
     Ok(ParallelAccumulationResult {
         service_gas_pairs,
         deferred_transfers,
@@ -274,7 +256,7 @@ async fn add_provided_preimages(
     state_manager: Arc<StateManager>,
     partial_state_union: &mut AccumulatePartialState,
     provided_images: HashSet<(ServiceId, Octets)>,
-    curr_timeslot_index: u32,
+    curr_timeslot_index: TimeslotIndex,
 ) {
     for (service_id, octets) in provided_images {
         // Construct storage keys
@@ -317,7 +299,7 @@ async fn accumulate_single_service(
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
-    curr_timeslot_index: u32,
+    curr_timeslot_index: TimeslotIndex,
 ) -> Result<AccumulateResult, PVMError> {
     let operands = build_operands(&reports, service_id);
     let mut gas_limit = always_accumulate_services
@@ -327,7 +309,7 @@ async fn accumulate_single_service(
 
     let reports_gas_aggregated: UnsignedGas = reports
         .iter()
-        .flat_map(|wr| wr.digests().iter())
+        .flat_map(|wr| wr.digests.iter())
         .filter(|wd| wd.service_id == service_id)
         .map(|wd| wd.accumulate_gas_limit)
         .sum();
@@ -351,17 +333,17 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
     reports
         .iter()
         .flat_map(|wr| {
-            wr.digests()
+            wr.digests
                 .iter()
                 .filter(|wd| wd.service_id == service_id)
                 .map(move |wd| AccumulateOperand {
                     work_package_hash: wr.work_package_hash().clone(),
                     segment_root: wr.segment_root().clone(),
-                    authorizer_hash: wr.authorizer_hash().clone(),
+                    authorizer_hash: wr.authorizer_hash.clone(),
                     work_item_payload_hash: wd.payload_hash.clone(),
                     accumulate_gas_limit: wd.accumulate_gas_limit,
                     refine_result: wd.refine_result.clone(),
-                    auth_trace: wr.auth_trace().to_vec(),
+                    auth_trace: wr.auth_trace.to_vec(),
                 })
         })
         .collect()

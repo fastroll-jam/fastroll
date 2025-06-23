@@ -12,9 +12,7 @@ use fr_conformance_tests::{
     generate_typed_tests,
     harness::{run_test_case, StateTransitionTest},
 };
-use fr_pvm_invocation::pipeline::{
-    accumulate_result_commitment, utils::collect_accumulatable_reports,
-};
+use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -158,7 +156,7 @@ impl StateTransitionTest for AccumulateTest {
             .await?;
 
         Ok(JamTransitionOutput {
-            accumulate_root: accumulate_result_commitment(acc_summary.output_pairs),
+            accumulate_root: acc_summary.output_pairs.accumulate_root(),
         })
     }
 

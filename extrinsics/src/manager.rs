@@ -9,6 +9,7 @@ use fr_block::types::extrinsics::{
     XtType,
 };
 use fr_codec::prelude::*;
+use fr_common::TimeslotIndex;
 
 struct XtManager;
 
@@ -16,7 +17,7 @@ impl XtManager {
     fn submit_extrinsic(
         pool: &XtPool,
         extrinsic: OpaqueXtEntry,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<(), XtPoolError> {
         pool.add_extrinsic(extrinsic, timeslot_index)
     }
@@ -24,7 +25,7 @@ impl XtManager {
     fn get_extrinsics(
         pool: &XtPool,
         extrinsic_type: XtType,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<Vec<OpaqueXtEntry>, XtPoolError> {
         pool.get_extrinsics_by_type_and_timeslot(extrinsic_type, timeslot_index)
     }
@@ -32,7 +33,7 @@ impl XtManager {
     // Getters for Extrinsic entries in a deserialized form
     pub fn get_ticket_extrinsics(
         pool: &XtPool,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<TicketsXt, XtPoolError> {
         let items: Vec<TicketsXtEntry> =
             Self::get_extrinsics(pool, XtType::Ticket, timeslot_index)?
@@ -44,7 +45,7 @@ impl XtManager {
 
     pub fn get_guarantee_extrinsics(
         pool: &XtPool,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<GuaranteesXt, XtPoolError> {
         let items_vec: Vec<GuaranteesXtEntry> =
             Self::get_extrinsics(pool, XtType::Guarantee, timeslot_index)?
@@ -57,7 +58,7 @@ impl XtManager {
 
     pub fn get_assurance_extrinsics(
         pool: &XtPool,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<AssurancesXt, XtPoolError> {
         let items_vec: Vec<AssurancesXtEntry> =
             Self::get_extrinsics(pool, XtType::Assurance, timeslot_index)?
@@ -70,7 +71,7 @@ impl XtManager {
 
     pub fn get_lookup_extrinsics(
         pool: &XtPool,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<PreimagesXt, XtPoolError> {
         let items: Vec<PreimagesXtEntry> =
             Self::get_extrinsics(pool, XtType::PreimageLookup, timeslot_index)?
@@ -82,7 +83,7 @@ impl XtManager {
 
     pub fn get_dispute_extrinsics(
         pool: &XtPool,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<DisputesXt, XtPoolError> {
         let verdicts: Vec<Verdict> = Self::get_extrinsics(pool, XtType::Verdict, timeslot_index)?
             .into_iter()

@@ -9,6 +9,8 @@ use fr_pvm_types::{
     constants::REGISTERS_COUNT,
 };
 
+pub type RegIndex = usize;
+
 /// Mutable VM state
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VMState {
@@ -31,15 +33,15 @@ impl VMState {
         MemAddress::try_from(self.pc).map_err(|_| VMCoreError::InvalidRegVal)
     }
 
-    pub fn read_reg(&self, index: usize) -> RegValue {
+    pub fn read_reg(&self, index: RegIndex) -> RegValue {
         self.regs[index].value()
     }
 
-    pub fn read_reg_as_mem_address(&self, index: usize) -> Result<MemAddress, VMCoreError> {
+    pub fn read_reg_as_mem_address(&self, index: RegIndex) -> Result<MemAddress, VMCoreError> {
         self.regs[index].as_mem_address()
     }
 
-    pub fn read_reg_as_reg_index(&self, index: usize) -> Result<usize, VMCoreError> {
+    pub fn read_reg_as_reg_index(&self, index: RegIndex) -> Result<usize, VMCoreError> {
         self.regs[index].as_reg_index()
     }
 

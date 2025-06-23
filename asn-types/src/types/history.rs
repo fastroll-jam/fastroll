@@ -1,5 +1,5 @@
 use crate::types::common::*;
-use fr_common::{workloads::ReportedWorkPackage, Hash32};
+use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -19,9 +19,9 @@ pub struct Input {
 }
 
 pub struct JamInput {
-    pub header_hash: Hash32,
-    pub parent_state_root: Hash32,
-    pub accumulate_root: Hash32,
+    pub header_hash: BlockHeaderHash,
+    pub parent_state_root: StateRoot,
+    pub accumulate_root: AccumulateRoot,
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 

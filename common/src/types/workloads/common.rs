@@ -1,4 +1,4 @@
-use crate::Hash32;
+use crate::{BeefyRoot, BlockHeaderHash, StateRoot, WorkPackageHash};
 use fr_codec::prelude::*;
 use std::{
     collections::BTreeSet,
@@ -9,17 +9,17 @@ use std::{
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RefinementContext {
     /// `a`: Anchor block header hash
-    pub anchor_header_hash: Hash32,
+    pub anchor_header_hash: BlockHeaderHash,
     /// `s`: Anchor block posterior state root
-    pub anchor_state_root: Hash32,
+    pub anchor_state_root: StateRoot,
     /// `b`: Anchor block posterior BEEFY root
-    pub anchor_beefy_root: Hash32,
+    pub anchor_beefy_root: BeefyRoot,
     /// `l`: Lookup anchor block header hash
-    pub lookup_anchor_header_hash: Hash32,
+    pub lookup_anchor_header_hash: BlockHeaderHash,
     /// `t`: Lookup anchor block timeslot index
     pub lookup_anchor_timeslot: u32,
     /// **`p`**: Set of prerequisite work package hash
-    pub prerequisite_work_packages: BTreeSet<Hash32>,
+    pub prerequisite_work_packages: BTreeSet<WorkPackageHash>,
 }
 
 impl Display for RefinementContext {
@@ -67,12 +67,12 @@ impl JamDecode for RefinementContext {
         Self: Sized,
     {
         Ok(Self {
-            anchor_header_hash: Hash32::decode(input)?,
-            anchor_state_root: Hash32::decode(input)?,
-            anchor_beefy_root: Hash32::decode(input)?,
-            lookup_anchor_header_hash: Hash32::decode(input)?,
+            anchor_header_hash: BlockHeaderHash::decode(input)?,
+            anchor_state_root: StateRoot::decode(input)?,
+            anchor_beefy_root: BeefyRoot::decode(input)?,
+            lookup_anchor_header_hash: BlockHeaderHash::decode(input)?,
             lookup_anchor_timeslot: u32::decode_fixed(input, 4)?,
-            prerequisite_work_packages: BTreeSet::<Hash32>::decode(input)?,
+            prerequisite_work_packages: BTreeSet::<WorkPackageHash>::decode(input)?,
         })
     }
 }

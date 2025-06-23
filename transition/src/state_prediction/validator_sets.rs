@@ -1,4 +1,5 @@
 use crate::state_prediction::epoch_progressed;
+use fr_common::TimeslotIndex;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -8,7 +9,7 @@ use std::sync::Arc;
 
 pub async fn predict_active_set(
     state_manager: Arc<StateManager>,
-    header_timeslot_index: u32,
+    header_timeslot_index: TimeslotIndex,
 ) -> Result<ActiveSet, StateManagerError> {
     let prior_timeslot = state_manager.get_timeslot_clean().await?;
     let new_timeslot = Timeslot::new(header_timeslot_index);
@@ -23,7 +24,7 @@ pub async fn predict_active_set(
 
 pub async fn predict_past_set(
     state_manager: Arc<StateManager>,
-    header_timeslot_index: u32,
+    header_timeslot_index: TimeslotIndex,
 ) -> Result<PastSet, StateManagerError> {
     let prior_timeslot = state_manager.get_timeslot_clean().await?;
     let new_timeslot = Timeslot::new(header_timeslot_index);

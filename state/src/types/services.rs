@@ -8,7 +8,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
+    Balance, CodeHash, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
     MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
 use fr_limited_vec::LimitedVec;
@@ -119,7 +119,7 @@ impl AccountCode {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountMetadata {
     /// `c`: Service code hash
-    pub code_hash: Hash32,
+    pub code_hash: CodeHash,
     /// `b`: Service account token balance
     pub balance: Balance,
     /// `g`: Service-specific gas limit for `accumulate`
@@ -155,7 +155,7 @@ impl JamDecode for AccountMetadata {
         Self: Sized,
     {
         Ok(Self {
-            code_hash: Hash32::decode(input)?,
+            code_hash: CodeHash::decode(input)?,
             balance: Balance::decode_fixed(input, 8)?,
             gas_limit_accumulate: UnsignedGas::decode_fixed(input, 8)?,
             gas_limit_on_transfer: UnsignedGas::decode_fixed(input, 8)?,

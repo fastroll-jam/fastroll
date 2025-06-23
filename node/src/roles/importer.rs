@@ -13,7 +13,7 @@ use fr_block::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, EntropyHash, MerkleRoot, StateRoot, HASH_SIZE, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -122,7 +122,7 @@ impl BlockImporter {
     pub async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<Hash32, BlockImportError> {
+    ) -> Result<StateRoot, BlockImportError> {
         tracing::info!(
             "📥 Block imported  ({}) (slot: {})",
             &block.header.hash()?,
@@ -134,7 +134,7 @@ impl BlockImporter {
     async fn validate_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<Hash32, BlockImportError> {
+    ) -> Result<StateRoot, BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
             let (post_state_root, _markers) = Self::run_state_transition(&storage, &block).await?;
@@ -239,7 +239,7 @@ impl BlockImporter {
     async fn get_post_states(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<(SlotSealer, BandersnatchPubKey, Hash32), BlockImportError> {
+    ) -> Result<(SlotSealer, BandersnatchPubKey, EntropyHash), BlockImportError> {
         let curr_safrole = storage.state_manager().get_safrole().await?;
         let curr_timeslot = Timeslot::new(block.header.timeslot_index());
         let curr_slot_sealer = curr_safrole.slot_sealers.get_slot_sealer(&curr_timeslot);
@@ -342,7 +342,7 @@ impl BlockImporter {
         block: &Block,
         curr_slot_sealer: &SlotSealer,
         curr_author_bandersnatch_key: &BandersnatchPubKey,
-        curr_entropy_3: &Hash32,
+        curr_entropy_3: &EntropyHash,
     ) -> Result<(), BlockImportError> {
         let block_seal = &block.header.block_seal;
 
@@ -428,7 +428,7 @@ impl BlockImporter {
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<(Hash32, BlockExecutionHeaderMarkers), BlockImportError> {
+    ) -> Result<(MerkleRoot, BlockExecutionHeaderMarkers), BlockImportError> {
         let markers = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
             BlockExecutor::append_block_history(
