@@ -9,13 +9,17 @@ use std::fmt::{Display, Formatter};
 /// Merkle node data size in bits.
 pub const NODE_SIZE_BITS: usize = 512;
 
+pub type StateHash = Hash32;
+
+pub type NodeHash = Hash32;
+
 /// Merkle trie node representation.
 #[derive(Clone, Debug)]
 pub struct MerkleNode {
     /// Identity of the node, which is Blake2b-256 hash of the `data` field.
     ///
     /// Used as key to node entry of the `MerkleDB`.
-    pub hash: Hash32,
+    pub hash: NodeHash,
     /// 512-bit encoded node data.
     ///
     /// Represents a value stored in the `MerkleDB`.
@@ -48,14 +52,14 @@ impl CacheItem for MerkleNode {
         Self: Sized,
     {
         Self {
-            hash: Hash32::try_from(key).expect("Hash length mismatch"),
+            hash: NodeHash::try_from(key).expect("Hash length mismatch"),
             data: val,
         }
     }
 }
 
 impl MerkleNode {
-    pub fn new(hash: Hash32, data: Vec<u8>) -> Self {
+    pub fn new(hash: NodeHash, data: Vec<u8>) -> Self {
         Self { hash, data }
     }
 
@@ -189,11 +193,11 @@ impl Display for NodeDataParsed {
 #[derive(Debug)]
 pub struct BranchParsed {
     /// Node hash identifier.
-    pub node_hash: Hash32,
+    pub node_hash: NodeHash,
     /// Left child hash.
-    pub left: Hash32,
+    pub left: NodeHash,
     /// Right child hash.
-    pub right: Hash32,
+    pub right: NodeHash,
 }
 
 impl Display for BranchParsed {
@@ -235,7 +239,7 @@ impl LeafParsed {
 #[derive(Debug)]
 pub struct EmbeddedLeafParsed {
     /// Node hash identifier.
-    pub node_hash: Hash32,
+    pub node_hash: NodeHash,
     /// Embedded raw state value.
     pub value: Vec<u8>,
     /// 248-bit state key of the entry that the leaf node represents.
@@ -260,7 +264,7 @@ impl Display for EmbeddedLeafParsed {
 #[derive(Debug)]
 pub struct RegularLeafParsed {
     /// Node hash identifier.
-    pub node_hash: Hash32,
+    pub node_hash: NodeHash,
     /// Hash of the state value. Used  as a key for the `StateDB` to retrieve the full encoded state value.
     pub val_hash: Hash32,
     /// 248-bit state key of the entry that the leaf node represents.

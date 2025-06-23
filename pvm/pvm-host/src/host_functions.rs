@@ -7,9 +7,9 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage, Hash32,
-    Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
+    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
+    AuthHash, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT,
+    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE,
     TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
@@ -1172,7 +1172,7 @@ impl HostFunction {
             else {
                 host_call_panic!()
             };
-            queue_assignment.0[core_index][i] = Hash32::decode(&mut authorizer.as_slice())?;
+            queue_assignment.0[core_index][i] = AuthHash::decode(&mut authorizer.as_slice())?;
         }
 
         x.assign_new_auth_queue(queue_assignment);

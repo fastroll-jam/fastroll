@@ -3,7 +3,7 @@ use fr_asn_types::{
     utils::AsnTypeLoader,
 };
 use fr_block::types::block::Block;
-use fr_common::{ByteEncodable, Hash32};
+use fr_common::{ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;
 use fr_state::{
     test_utils::SimpleStates,
@@ -27,7 +27,7 @@ fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
 
 pub fn genesis_simple_state() -> SimpleStates {
     let genesis_validator_set = load_genesis_validator_set_from_file();
-    let genesis_entropy_2 = Hash32::default();
+    let genesis_entropy_2 = EntropyHash::default();
     let genesis_fallback_keys =
         generate_fallback_keys(&genesis_validator_set, &genesis_entropy_2).unwrap();
     tracing::debug!("🔑 genesis fallback keys");

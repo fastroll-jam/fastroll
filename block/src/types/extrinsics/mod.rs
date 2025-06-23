@@ -3,7 +3,7 @@ use crate::types::extrinsics::{
     preimages::PreimagesXt, tickets::TicketsXt,
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, HASH_SIZE};
+use fr_common::{Hash32, XtHash, HASH_SIZE};
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Blake2b256},
@@ -72,7 +72,7 @@ impl CacheItem for Extrinsics {
 }
 
 impl Extrinsics {
-    pub fn hash(&self) -> Result<Hash32, ExtrinsicsError> {
+    pub fn hash(&self) -> Result<XtHash, ExtrinsicsError> {
         let mut buf = Vec::with_capacity(HASH_SIZE * 5);
         hash::<Blake2b256>(&self.tickets.encode()?)?.encode_to(&mut buf)?;
         hash::<Blake2b256>(&self.preimages.encode()?)?.encode_to(&mut buf)?;

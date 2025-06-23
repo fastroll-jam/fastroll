@@ -1,5 +1,8 @@
-use crate::error::StateMerkleError;
-use fr_common::Hash32;
+use crate::{
+    error::StateMerkleError,
+    types::nodes::{NodeHash, StateHash},
+};
+use fr_common::MerkleRoot;
 use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::HashMap,
@@ -12,7 +15,7 @@ use std::{
 pub struct MerkleNodeWrite {
     /// Blake2b-256 hash of the `node_data` field.
     /// Used as a key to a new entry to be added in the `MerkleDB`.
-    pub hash: Hash32,
+    pub hash: NodeHash,
     /// Encoded node data after state transition.
     /// Data of the new entry to be added in the `MerkleDB`.
     pub node_data: Vec<u8>,
@@ -33,7 +36,7 @@ impl Display for MerkleNodeWrite {
 }
 
 impl MerkleNodeWrite {
-    pub fn new(hash: Hash32, node_data: Vec<u8>) -> Self {
+    pub fn new(hash: NodeHash, node_data: Vec<u8>) -> Self {
         Self { hash, node_data }
     }
 }
@@ -46,12 +49,12 @@ impl MerkleNodeWrite {
 /// the map to get the "affected" value of their descendants.
 #[derive(Debug, Default)]
 pub struct MerkleDBWriteSet {
-    new_root: Hash32,
-    pub node_updates: HashMap<Hash32, MerkleNodeWrite>,
+    new_root: MerkleRoot,
+    pub node_updates: HashMap<NodeHash, MerkleNodeWrite>,
 }
 
 impl Deref for MerkleDBWriteSet {
-    type Target = HashMap<Hash32, MerkleNodeWrite>;
+    type Target = HashMap<NodeHash, MerkleNodeWrite>;
 
     fn deref(&self) -> &Self::Target {
         &self.node_updates
@@ -79,22 +82,22 @@ impl Display for MerkleDBWriteSet {
 }
 
 impl MerkleDBWriteSet {
-    pub fn new(inner: HashMap<Hash32, MerkleNodeWrite>) -> Self {
+    pub fn new(inner: HashMap<NodeHash, MerkleNodeWrite>) -> Self {
         Self {
-            new_root: Hash32::default(),
+            new_root: MerkleRoot::default(),
             node_updates: inner,
         }
     }
 
-    pub fn get_new_root(&self) -> &Hash32 {
+    pub fn get_new_root(&self) -> &MerkleRoot {
         &self.new_root
     }
 
-    pub(crate) fn set_new_root(&mut self, new_root: Hash32) {
+    pub(crate) fn set_new_root(&mut self, new_root: MerkleRoot) {
         self.new_root = new_root;
     }
 
-    pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
+    pub fn entries(&self) -> impl Iterator<Item = (&NodeHash, &Vec<u8>)> {
         self.node_updates
             .values()
             .map(|node_write| (&node_write.hash, &node_write.node_data))
@@ -102,15 +105,15 @@ impl MerkleDBWriteSet {
 }
 
 /// A collection of raw state data entries for regular leaf nodes in `StateDB`.
-/// Each entry is identified by a `Hash32` and contains the associated octets generated from
+/// Each entry is identified by a `StateHash` and contains the associated octets generated from
 /// `Add` or `Update` operations.
 #[derive(Debug, Default)]
 pub struct StateDBWriteSet {
-    inner: HashMap<Hash32, Vec<u8>>,
+    inner: HashMap<StateHash, Vec<u8>>,
 }
 
 impl Deref for StateDBWriteSet {
-    type Target = HashMap<Hash32, Vec<u8>>;
+    type Target = HashMap<StateHash, Vec<u8>>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -138,11 +141,11 @@ impl Display for StateDBWriteSet {
 }
 
 impl StateDBWriteSet {
-    pub fn new(inner: HashMap<Hash32, Vec<u8>>) -> Self {
+    pub fn new(inner: HashMap<StateHash, Vec<u8>>) -> Self {
         Self { inner }
     }
 
-    pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &Vec<u8>)> {
+    pub fn entries(&self) -> impl Iterator<Item = (&StateHash, &Vec<u8>)> {
         self.inner.iter()
     }
 

@@ -2,14 +2,14 @@ use crate::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::nodes::{
-        BranchType, EmbeddedLeafParsed, LeafParsed, LeafType, MerkleNode, NodeType,
+        BranchType, EmbeddedLeafParsed, LeafParsed, LeafType, MerkleNode, NodeHash, NodeType,
         RegularLeafParsed, NODE_SIZE_BITS,
     },
     utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash32, slice_bitvec},
 };
 use bit_vec::BitVec;
 use fr_codec::prelude::*;
-use fr_common::{Hash32, StateKey};
+use fr_common::StateKey;
 use fr_crypto::{hash, Blake2b256};
 
 pub struct NodeCodec;
@@ -26,8 +26,8 @@ impl NodeCodec {
     /// The dropped bit is cached into the `node_hash_cache` of `MerkleDB`
     /// if the `merkle_db` handle is provided.
     pub(crate) fn encode_branch(
-        left: &Hash32,
-        right: &Hash32,
+        left: &NodeHash,
+        right: &NodeHash,
         merkle_db: Option<&MerkleDB>,
     ) -> Result<Vec<u8>, StateMerkleError> {
         let mut node = BitVec::from_elem(1, false); // indicator for the branch node
@@ -96,7 +96,7 @@ impl NodeCodec {
     pub async fn decode_branch(
         node: &MerkleNode,
         merkle_db: &MerkleDB,
-    ) -> Result<(Hash32, Hash32), StateMerkleError> {
+    ) -> Result<(NodeHash, NodeHash), StateMerkleError> {
         // check node data length
         let len = node.data.len();
         if len != 64 {

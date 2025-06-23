@@ -9,8 +9,8 @@ use fr_common::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
-    MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, SegmentRoot, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD,
+    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -384,7 +384,7 @@ impl GuaranteesXtValidator {
     fn find_segments_root_from_work_package_hash(
         reported_packages: &[ReportedWorkPackage],
         work_package_hash: &Hash32,
-    ) -> Option<Hash32> {
+    ) -> Option<SegmentRoot> {
         let reported_package = reported_packages
             .iter()
             .find(|r| r.work_package_hash == *work_package_hash);

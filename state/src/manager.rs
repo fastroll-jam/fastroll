@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId, StateKey};
+use fr_common::{CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey};
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
@@ -206,7 +206,7 @@ impl StateManager {
         self.cache.clear();
     }
 
-    pub fn merkle_root(&self) -> Hash32 {
+    pub fn merkle_root(&self) -> MerkleRoot {
         self.merkle_db.root()
     }
 
@@ -229,7 +229,7 @@ impl StateManager {
     pub async fn get_account_code_hash(
         &self,
         service_id: ServiceId,
-    ) -> Result<Option<Hash32>, StateManagerError> {
+    ) -> Result<Option<CodeHash>, StateManagerError> {
         Ok(self
             .get_account_metadata(service_id)
             .await?
@@ -267,7 +267,7 @@ impl StateManager {
         &self,
         service_id: ServiceId,
         reference_timeslot_index: u32,
-        code_hash: &Hash32,
+        code_hash: &CodeHash,
     ) -> Result<Option<AccountCode>, StateManagerError> {
         let code_preimage = self
             .lookup_historical_preimage(service_id, &Timeslot(reference_timeslot_index), code_hash)
@@ -400,7 +400,7 @@ impl StateManager {
         let write_op = self.cache.get_entry_as_merkle_write_op(state_key)?;
 
         // Case 1: Trie is empty
-        if self.merkle_db.root() == Hash32::default() {
+        if self.merkle_db.root() == MerkleRoot::default() {
             // Initialize the empty merkle trie by committing the first entry.
             // This adds the first entry to the `MerkleDB`.
             // Additionally, it also adds the first entry to the `StateDB`
@@ -477,7 +477,7 @@ impl StateManager {
 
         // If the trie is empty, process one dirty cache entry by calling `commit_single_dirty_cache`
         // to initialize the trie.
-        if self.merkle_db.root() == Hash32::default() {
+        if self.merkle_db.root() == MerkleRoot::default() {
             let (state_key, _entry) = dirty_entries.pop().expect("should not be empty");
             self.commit_single_dirty_cache(&state_key).await?;
             if dirty_entries.is_empty() {

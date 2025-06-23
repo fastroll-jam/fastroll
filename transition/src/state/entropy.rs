@@ -1,5 +1,5 @@
 use crate::error::TransitionError;
-use fr_common::Hash32;
+use fr_common::BandersnatchOutputHash;
 use fr_crypto::{hash, Blake2b256};
 use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
 use std::sync::Arc;
@@ -40,7 +40,7 @@ pub async fn transition_epoch_entropy_on_epoch_change(
 /// Accumulates the VRF output hash of the current block header to the current entropy accumulator.
 pub async fn transition_epoch_entropy_per_block(
     state_manager: Arc<StateManager>,
-    source_hash: Hash32, // `Y` hash of `H_v`; new incoming entropy hash from the header.
+    source_hash: BandersnatchOutputHash, // `Y` hash of `H_v`; new incoming entropy hash from the header.
 ) -> Result<(), TransitionError> {
     state_manager
         .with_mut_epoch_entropy(

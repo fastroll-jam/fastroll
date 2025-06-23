@@ -3,14 +3,14 @@ use crate::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::{
-        nodes::ChildType,
+        nodes::{ChildType, NodeHash},
         write_context::{LeafAddContext, LeafRemoveContext, LeafUpdateContext, LeafWriteOpContext},
     },
     utils::bits_encode_msb,
     write_set::{DBWriteSet, MerkleDBWriteSet, MerkleNodeWrite, StateDBWriteSet},
 };
 use bit_vec::BitVec;
-use fr_common::{Hash32, StateKey};
+use fr_common::{MerkleRoot, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::BTreeMap,
@@ -37,13 +37,13 @@ impl Display for AffectedNode {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct AffectedPathNode {
     /// Hash identifier of the current node.
-    pub hash: Hash32,
+    pub hash: NodeHash,
     /// Depth of the current node in the trie.
     pub depth: usize,
     /// Hash of the left child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
-    pub left: Hash32,
+    pub left: NodeHash,
     /// Hash of the right child. Used as a lookup key in `MerkleDBWriteSet` (the collection of `MerkleNodeWrite`s).
-    pub right: Hash32,
+    pub right: NodeHash,
 }
 
 impl Display for AffectedPathNode {
@@ -65,7 +65,7 @@ impl Display for AffectedPathNode {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct AffectedEndpoint {
     /// Hash identifier of the current node.
-    pub hash: Hash32,
+    pub hash: NodeHash,
     /// Depth of the current node in the trie.
     pub depth: usize,
     /// Context of the write operation.
@@ -162,7 +162,7 @@ impl AffectedNodesByDepth {
         merkle_db_write_set: &mut MerkleDBWriteSet,
         state_db_write_set: &mut StateDBWriteSet,
         is_root_node: bool,
-    ) -> Result<Option<Hash32>, StateMerkleError> {
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         let maybe_root = match affected_node {
             AffectedNode::PathNode(path_node) => Self::process_affected_path_node(
                 merkle_db,
@@ -204,7 +204,7 @@ impl AffectedNodesByDepth {
         path_node: &AffectedPathNode,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
-    ) -> Result<Option<Hash32>, StateMerkleError> {
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         let prior_hash = path_node.hash.clone();
 
         // Lookup `merkle_db_write_set` to check which side of its child hash
@@ -267,7 +267,7 @@ impl AffectedNodesByDepth {
         state_db_write_set: &mut StateDBWriteSet,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
-    ) -> Result<Option<Hash32>, StateMerkleError> {
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         // Create a new leaf node as a merkle write.
         let state_val_slice = ctx.leaf_state_val.as_slice();
         let added_leaf_node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_val_slice)?;
@@ -353,7 +353,7 @@ impl AffectedNodesByDepth {
         state_db_write_set: &mut StateDBWriteSet,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
-    ) -> Result<Option<Hash32>, StateMerkleError> {
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         // the leaf node data after the state transition
         let state_val_slice = ctx.leaf_state_val.as_slice();
         let node_data = NodeCodec::encode_leaf(&ctx.leaf_state_key, state_val_slice)?;
@@ -386,7 +386,7 @@ impl AffectedNodesByDepth {
         ctx: &LeafRemoveContext,
         merkle_db_write_set: &mut MerkleDBWriteSet,
         is_root_node: bool,
-    ) -> Result<Option<Hash32>, StateMerkleError> {
+    ) -> Result<Option<MerkleRoot>, StateMerkleError> {
         // This case compresses path bits to the leaf node.
         let mut left = ctx.prior_left.clone();
         let mut right = ctx.prior_right.clone();
@@ -403,8 +403,8 @@ impl AffectedNodesByDepth {
         } else {
             // Sibling of the leaf being removed is branch node
             match ctx.removal_side {
-                ChildType::Left => left = Hash32::default(),
-                ChildType::Right => right = Hash32::default(),
+                ChildType::Left => left = NodeHash::default(),
+                ChildType::Right => right = NodeHash::default(),
             }
         }
 
@@ -464,15 +464,15 @@ impl AffectedNodesByDepth {
     /// decompressing the merkle path and placing the added leaf node and its sibling leaf node
     /// properly.
     ///
-    /// Returns `Vec<(Hash32, MerkleNodeWrite)>`, where the `Hash32` is used as a key in `MerkleDBWriteSet` map.
+    /// Returns `Vec<(NodeHash, MerkleNodeWrite)>`, where the `NodeHash` is used as a key in `MerkleDBWriteSet` map.
     /// The vector must be ordered bottom-up, so the last entry will represent the node at the top level.
     fn generate_decompression_set(
         merkle_db: &MerkleDB,
         common_path_to_decompress: BitVec,
-        sibling_hash: &Hash32,
+        sibling_hash: &NodeHash,
         new_leaf_write: MerkleNodeWrite,
         new_branch_write: MerkleNodeWrite,
-    ) -> Result<Vec<(Hash32, MerkleNodeWrite)>, StateMerkleError> {
+    ) -> Result<Vec<(NodeHash, MerkleNodeWrite)>, StateMerkleError> {
         // If there is no further common path, produces two `MerkleNodeWrite`s:
         // one for the new leaf and another for the new branch.
         if common_path_to_decompress.is_empty() {
@@ -498,9 +498,9 @@ impl AffectedNodesByDepth {
         while let Some(b) = path_iter_rev.next() {
             let is_top_branch = path_iter_rev.peek().is_none();
             let (left_child, right_child) = if b {
-                (Hash32::default(), child_hash)
+                (NodeHash::default(), child_hash)
             } else {
-                (child_hash, Hash32::default())
+                (child_hash, NodeHash::default())
             };
             let single_child_branch_data =
                 NodeCodec::encode_branch(&left_child, &right_child, Some(merkle_db))?;
