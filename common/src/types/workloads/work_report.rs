@@ -116,16 +116,8 @@ impl Ord for WorkReport {
 }
 
 impl WorkReport {
-    pub fn refinement_context(&self) -> &RefinementContext {
-        &self.refinement_context
-    }
-
     pub fn prerequisites(&self) -> &BTreeSet<WorkPackageHash> {
         &self.refinement_context.prerequisite_work_packages
-    }
-
-    pub fn segment_roots_lookup(&self) -> &BTreeMap<WorkPackageHash, SegmentRoot> {
-        &self.segment_roots_lookup
     }
 
     pub fn work_package_hash(&self) -> &WorkPackageHash {
@@ -138,18 +130,6 @@ impl WorkReport {
 
     pub fn digests(&self) -> &[WorkDigest] {
         self.digests.as_ref()
-    }
-
-    pub fn auth_trace(&self) -> &[u8] {
-        &self.auth_trace
-    }
-
-    pub fn core_index(&self) -> CoreIndex {
-        self.core_index
-    }
-
-    pub fn authorizer_hash(&self) -> &AuthHash {
-        &self.authorizer_hash
     }
 
     pub fn total_output_size(&self) -> usize {

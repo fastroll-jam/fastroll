@@ -18,7 +18,7 @@ pub type QueuedReports = Vec<WorkReportDepsMap>;
 /// Represents function *`D`* of the GP.
 fn work_report_deps(report: &WorkReport) -> WorkReportDepsMap {
     let mut deps = report.prerequisites().clone();
-    deps.extend(report.segment_roots_lookup().keys().cloned());
+    deps.extend(report.segment_roots_lookup.keys().cloned());
 
     (report.clone(), deps)
 }
@@ -92,7 +92,7 @@ pub fn partition_reports_by_deps(
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
     let (no_deps, with_deps) = available_reports
         .into_iter()
-        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup().is_empty());
+        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup.is_empty());
 
     (no_deps, with_deps)
 }

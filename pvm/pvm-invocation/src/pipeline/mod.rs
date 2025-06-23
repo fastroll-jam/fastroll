@@ -110,7 +110,7 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
 
     for report in reports {
         let report_gas_usage: UnsignedGas = report
-            .digests()
+            .digests
             .iter()
             .map(|wd| wd.accumulate_gas_limit)
             .sum();
@@ -137,7 +137,7 @@ async fn accumulate_parallel(
 
     let mut service_ids: BTreeSet<ServiceId> = reports
         .iter()
-        .flat_map(|wr| wr.digests().iter())
+        .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
     service_ids.extend(always_accumulate_services.keys().cloned());
@@ -309,7 +309,7 @@ async fn accumulate_single_service(
 
     let reports_gas_aggregated: UnsignedGas = reports
         .iter()
-        .flat_map(|wr| wr.digests().iter())
+        .flat_map(|wr| wr.digests.iter())
         .filter(|wd| wd.service_id == service_id)
         .map(|wd| wd.accumulate_gas_limit)
         .sum();
@@ -333,17 +333,17 @@ fn build_operands(reports: &[WorkReport], service_id: ServiceId) -> Vec<Accumula
     reports
         .iter()
         .flat_map(|wr| {
-            wr.digests()
+            wr.digests
                 .iter()
                 .filter(|wd| wd.service_id == service_id)
                 .map(move |wd| AccumulateOperand {
                     work_package_hash: wr.work_package_hash().clone(),
                     segment_root: wr.segment_root().clone(),
-                    authorizer_hash: wr.authorizer_hash().clone(),
+                    authorizer_hash: wr.authorizer_hash.clone(),
                     work_item_payload_hash: wd.payload_hash.clone(),
                     accumulate_gas_limit: wd.accumulate_gas_limit,
                     refine_result: wd.refine_result.clone(),
-                    auth_trace: wr.auth_trace().to_vec(),
+                    auth_trace: wr.auth_trace.to_vec(),
                 })
         })
         .collect()

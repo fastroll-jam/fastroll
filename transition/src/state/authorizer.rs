@@ -27,8 +27,8 @@ pub async fn transition_auth_pool(
                 // Find a guarantees extrinsics entry that utilized the current core, if there is any.
                 let report_used_core = guarantees_xt
                     .iter()
-                    .find(|guarantee| guarantee.work_report.core_index() == core as CoreIndex)
-                    .map(|guarantee| guarantee.work_report.authorizer_hash());
+                    .find(|guarantee| guarantee.work_report.core_index == core as CoreIndex)
+                    .map(|guarantee| &guarantee.work_report.authorizer_hash);
 
                 // Remove the oldest authorizer hash from the pool that matches the used one for the
                 // current core in this block.

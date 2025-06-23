@@ -144,7 +144,7 @@ pub async fn transition_reports_update_entries(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
                 for report in &new_valid_reports {
-                    pending_reports.0[report.core_index() as usize] = Some(PendingReport {
+                    pending_reports.0[report.core_index as usize] = Some(PendingReport {
                         work_report: report.clone(),
                         reported_timeslot: current_timeslot,
                     })
