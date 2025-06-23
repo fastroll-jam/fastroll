@@ -312,9 +312,9 @@ impl GuaranteesXtValidator {
         Ok(())
     }
 
-    // Checks that the work-package hash is not associated with any work reports made in the past
-    // by checking recent block histories, accumulate history and prerequisite work package
-    // hashes of already "available" reports - from pending reports and accumulate queue.
+    /// Checks that the given work-package hash is not associated with any work reports
+    /// made in the past by checking all work-package hashes that appear in the recent block histories,
+    /// accumulate history, accumulate queue and pending reports state.
     fn check_work_package_hash_duplication(
         core_index: CoreIndex,
         work_package_hash: &Hash32,
@@ -331,8 +331,8 @@ impl GuaranteesXtValidator {
             ));
         }
 
-        // Check that the work-package hash is not found anywhere in accumulate history or
-        // prerequisites set of accumulate queue and pending reports, which are already "available".
+        // Check that the work-package hash is not found anywhere in accumulate history,
+        // accumulate queue or pending reports.
         let mut package_hashes_from_already_available_set = HashSet::new();
 
         // Check from the accumulate history
@@ -343,26 +343,19 @@ impl GuaranteesXtValidator {
             }
         }
 
-        // Check from the accumulate queue prerequisites set
+        // Check from the accumulate queue
         let mut package_hashes_from_acc_queue = HashSet::new();
         for wr_deps_maps in &accumulate_queue.items {
             for deps_map in wr_deps_maps {
-                for wph in &deps_map.0.refinement_context.prerequisite_work_packages {
-                    package_hashes_from_acc_queue.insert(wph.clone());
-                }
+                package_hashes_from_acc_queue.insert(deps_map.0.work_package_hash().clone());
             }
         }
 
-        // Check from the pending reports prerequisites set
+        // Check from the pending reports
         let mut package_hashes_from_pending_reports = HashSet::new();
         for pending_report in pending_reports.0.iter().filter_map(|x| x.as_ref()) {
-            for wph in &pending_report
-                .work_report
-                .refinement_context
-                .prerequisite_work_packages
-            {
-                package_hashes_from_pending_reports.insert(wph.clone());
-            }
+            package_hashes_from_pending_reports
+                .insert(pending_report.work_report.work_package_hash().clone());
         }
 
         package_hashes_from_already_available_set.extend(package_hashes_from_acc_history);
