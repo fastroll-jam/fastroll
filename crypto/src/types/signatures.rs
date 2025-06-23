@@ -6,7 +6,7 @@ use crate::{
 };
 use ark_vrf::reexports::ark_serialize::CanonicalDeserialize;
 use fr_codec::prelude::*;
-use fr_common::{ByteArray, ByteEncodable, CommonTypeError, Hash32};
+use fr_common::{BandersnatchOutputHash, ByteArray, ByteEncodable, CommonTypeError};
 
 /// 96-byte Bandersnatch signature type.
 /// Represents `F` signature type of the GP.
@@ -16,11 +16,11 @@ impl_byte_encodable!(BandersnatchSig);
 
 impl VrfSignature for BandersnatchSig {
     type PublicKey = BandersnatchPubKey;
-    type VrfOutput = Hash32;
+    type VrfOutput = BandersnatchOutputHash;
 
     /// `Y` hash output function for a VRF signature.
     fn output_hash(&self) -> Self::VrfOutput {
-        Hash32::new(
+        BandersnatchOutputHash::new(
             IetfVrfSignature::deserialize_compressed(self.as_slice())
                 .unwrap()
                 .output_hash(),
@@ -53,11 +53,11 @@ impl ByteEncodable for BandersnatchRingVrfSig {
 
 impl VrfSignature for BandersnatchRingVrfSig {
     type PublicKey = BandersnatchPubKey;
-    type VrfOutput = Hash32;
+    type VrfOutput = BandersnatchOutputHash;
 
     /// `Y` hash output function for an anonymous RingVRF signature.
     fn output_hash(&self) -> Self::VrfOutput {
-        Hash32::new(
+        BandersnatchOutputHash::new(
             RingVrfSignature::deserialize_compressed(self.as_slice())
                 .unwrap()
                 .output_hash(),

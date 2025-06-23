@@ -2,7 +2,10 @@
 use async_trait::async_trait;
 use fr_asn_types::types::history::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::ReportedWorkPackage, Hash32};
+use fr_common::{
+    workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, SegmentRoot, StateRoot,
+    WorkPackageHash,
+};
 use fr_conformance_tests::{
     generate_typed_tests,
     harness::{run_test_case, StateTransitionTest},
@@ -41,15 +44,15 @@ impl StateTransitionTest for HistoryTest {
     }
 
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
-        let header_hash = Hash32::from(test_input.header_hash);
-        let parent_state_root = Hash32::from(test_input.parent_state_root);
-        let accumulate_root = Hash32::from(test_input.accumulate_root);
+        let header_hash = BlockHeaderHash::from(test_input.header_hash);
+        let parent_state_root = StateRoot::from(test_input.parent_state_root);
+        let accumulate_root = AccumulateRoot::from(test_input.accumulate_root);
         let reported_packages: Vec<ReportedWorkPackage> = test_input
             .work_packages
             .iter()
             .map(|reported| ReportedWorkPackage {
-                work_package_hash: Hash32::from(reported.hash),
-                segment_root: Hash32::from(reported.exports_root),
+                work_package_hash: WorkPackageHash::from(reported.hash),
+                segment_root: SegmentRoot::from(reported.exports_root),
             })
             .collect();
 

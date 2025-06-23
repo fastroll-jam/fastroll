@@ -1,7 +1,8 @@
 use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
 use fr_codec::prelude::*;
 use fr_common::{
-    ticket::Ticket, ByteEncodable, Hash32, ValidatorIndex, EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, BlockHeaderHash, ByteEncodable, EntropyHash, StateRoot, TimeslotIndex,
+    ValidatorIndex, XtHash, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{
     error::CryptoError,
@@ -33,7 +34,7 @@ pub struct Block {
 
 impl Block {
     pub fn is_genesis(&self) -> bool {
-        self.header.data.parent_hash == Hash32::default()
+        self.header.data.parent_hash == BlockHeaderHash::default()
     }
 }
 
@@ -57,8 +58,8 @@ impl Display for EpochMarkerValidatorKey {
 
 #[derive(Clone, Debug, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct EpochMarker {
-    pub entropy: Hash32,
-    pub tickets_entropy: Hash32,
+    pub entropy: EntropyHash,
+    pub tickets_entropy: EntropyHash,
     pub validators: EpochValidators,
 }
 
@@ -78,13 +79,13 @@ impl Display for EpochMarker {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHeaderData {
     /// `p`: The parent block hash.
-    pub parent_hash: Hash32,
+    pub parent_hash: BlockHeaderHash,
     /// `r`: The parent block posterior state root.
-    pub prior_state_root: Hash32,
+    pub prior_state_root: StateRoot,
     /// `x`: Hash of the extrinsics introduced in the block.
-    pub extrinsic_hash: Hash32,
+    pub extrinsic_hash: XtHash,
     /// `t`: The timeslot index of the block.
-    pub timeslot_index: u32,
+    pub timeslot_index: TimeslotIndex,
     /// `e`: The epoch marker.
     pub epoch_marker: Option<EpochMarker>,
     /// `w`: The winning tickets marker.
@@ -130,10 +131,10 @@ impl JamDecode for BlockHeaderData {
         Self: Sized,
     {
         Ok(Self {
-            parent_hash: Hash32::decode(input)?,
-            prior_state_root: Hash32::decode(input)?,
-            extrinsic_hash: Hash32::decode(input)?,
-            timeslot_index: u32::decode_fixed(input, 4)?,
+            parent_hash: BlockHeaderHash::decode(input)?,
+            prior_state_root: StateRoot::decode(input)?,
+            extrinsic_hash: XtHash::decode(input)?,
+            timeslot_index: TimeslotIndex::decode_fixed(input, 4)?,
             epoch_marker: Option::<EpochMarker>::decode(input)?,
             winning_tickets_marker: Option::<WinningTicketsMarker>::decode(input)?,
             offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
@@ -223,7 +224,7 @@ impl Display for BlockHeader {
 }
 
 impl BlockHeader {
-    pub fn from_parent_hash(parent_hash: Hash32) -> Self {
+    pub fn from_parent_hash(parent_hash: BlockHeaderHash) -> Self {
         Self {
             data: BlockHeaderData {
                 parent_hash,
@@ -233,7 +234,7 @@ impl BlockHeader {
         }
     }
 
-    pub fn hash(&self) -> Result<Hash32, BlockHeaderError> {
+    pub fn hash(&self) -> Result<BlockHeaderHash, BlockHeaderError> {
         Ok(hash::<Blake2b256>(&self.encode()?)?)
     }
 
@@ -248,15 +249,15 @@ impl BlockHeader {
 
     // --- Getters
 
-    pub fn parent_hash(&self) -> &Hash32 {
+    pub fn parent_hash(&self) -> &BlockHeaderHash {
         &self.data.parent_hash
     }
 
-    pub fn parent_state_root(&self) -> &Hash32 {
+    pub fn parent_state_root(&self) -> &StateRoot {
         &self.data.prior_state_root
     }
 
-    pub fn extrinsic_hash(&self) -> &Hash32 {
+    pub fn extrinsic_hash(&self) -> &XtHash {
         &self.data.extrinsic_hash
     }
 
@@ -286,19 +287,19 @@ impl BlockHeader {
 
     // --- Setters
 
-    pub fn set_parent_hash(&mut self, hash: Hash32) {
+    pub fn set_parent_hash(&mut self, hash: BlockHeaderHash) {
         self.data.parent_hash = hash;
     }
 
-    pub fn set_prior_state_root(&mut self, root: Hash32) {
+    pub fn set_prior_state_root(&mut self, root: StateRoot) {
         self.data.prior_state_root = root;
     }
 
-    pub fn set_timeslot(&mut self, timeslot_index: u32) {
+    pub fn set_timeslot(&mut self, timeslot_index: TimeslotIndex) {
         self.data.timeslot_index = timeslot_index;
     }
 
-    pub fn set_extrinsic_hash(&mut self, xt_hash: Hash32) {
+    pub fn set_extrinsic_hash(&mut self, xt_hash: XtHash) {
         self.data.extrinsic_hash = xt_hash;
     }
 

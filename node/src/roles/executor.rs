@@ -3,11 +3,9 @@ use fr_block::types::{
     block::{Block, BlockHeaderError, VrfSig},
     extrinsics::disputes::OffendersHeaderMarker,
 };
-use fr_common::{workloads::ReportedWorkPackage, Hash32};
+use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash};
 use fr_crypto::traits::VrfSignature;
-use fr_pvm_invocation::pipeline::{
-    accumulate_result_commitment, utils::collect_accumulatable_reports,
-};
+use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     types::{SafroleHeaderMarkers, Timeslot},
@@ -53,7 +51,7 @@ pub enum BlockExecutionError {
 
 #[derive(Clone)]
 pub struct BlockExecutionOutput {
-    pub accumulate_root: Hash32,
+    pub accumulate_root: AccumulateRoot,
     pub reported_packages: Vec<ReportedWorkPackage>,
 }
 
@@ -221,7 +219,7 @@ impl BlockExecutor {
             Ok::<_, TransitionError>((
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
-                accumulate_result_commitment(acc_summary.output_pairs),
+                acc_summary.output_pairs.accumulate_root(),
             ))
         });
         let (transfers, acc_stats, accumulate_root) = acc_jh.await??;
@@ -336,7 +334,7 @@ impl BlockExecutor {
         let _safrole_markers = mark_safrole_header_markers(manager, epoch_progressed).await?;
 
         Ok(BlockExecutionOutput {
-            accumulate_root: Hash32::default(),
+            accumulate_root: AccumulateRoot::default(),
             reported_packages: Vec::new(),
         })
     }
@@ -353,8 +351,8 @@ impl BlockExecutor {
     /// The second BlockHistory STF
     pub async fn append_block_history(
         storage: &NodeStorage,
-        header_hash: Hash32,
-        accumulate_root: Hash32,
+        header_hash: BlockHeaderHash,
+        accumulate_root: AccumulateRoot,
         reported_packages: Vec<ReportedWorkPackage>,
     ) -> Result<(), BlockExecutionError> {
         transition_block_history_append(

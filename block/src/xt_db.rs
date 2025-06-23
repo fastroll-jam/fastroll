@@ -1,5 +1,5 @@
 use crate::types::extrinsics::Extrinsics;
-use fr_common::Hash32;
+use fr_common::XtHash;
 use fr_db::{
     core::{
         cached_db::{CachedDB, CachedDBError},
@@ -22,7 +22,7 @@ pub enum XtDBError {
 /// Entries of the `db` are keyed by extrinsics hash.
 pub struct XtDB {
     /// A handle to the `CachedDB`.
-    db: CachedDB<Hash32, Extrinsics>,
+    db: CachedDB<XtHash, Extrinsics>,
 }
 
 impl XtDB {
@@ -37,12 +37,12 @@ impl XtDB {
     }
 
     /// Get an extrinsics entry by its hash from the cache or the DB.
-    pub async fn get_xt(&self, xt_hash: &Hash32) -> Result<Option<Extrinsics>, XtDBError> {
+    pub async fn get_xt(&self, xt_hash: &XtHash) -> Result<Option<Extrinsics>, XtDBError> {
         Ok(self.db.get_entry(xt_hash).await?)
     }
 
     /// Set an extrinsics entry.
-    pub async fn set_xt(&self, xt_hash: &Hash32, xts: Extrinsics) -> Result<(), XtDBError> {
+    pub async fn set_xt(&self, xt_hash: &XtHash, xts: Extrinsics) -> Result<(), XtDBError> {
         self.db.put_entry(xt_hash, xts).await?;
         Ok(())
     }

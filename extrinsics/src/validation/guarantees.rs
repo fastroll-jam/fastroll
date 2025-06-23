@@ -9,8 +9,9 @@ use fr_common::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE,
-    MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, SegmentRoot, TimeslotIndex, ACCUMULATION_GAS_PER_CORE,
+    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
+    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -82,7 +83,7 @@ impl GuaranteesXtValidator {
     pub async fn validate(
         &self,
         extrinsic: &GuaranteesXt,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
         if extrinsic.is_empty() {
             return Ok(Vec::new());
@@ -97,7 +98,7 @@ impl GuaranteesXtValidator {
         let mut work_report_cores = HashSet::new();
         let no_duplicate_cores = extrinsic
             .iter()
-            .all(|entry| work_report_cores.insert(entry.work_report.core_index()));
+            .all(|entry| work_report_cores.insert(entry.work_report.core_index));
         if !no_duplicate_cores {
             return Err(XtError::DuplicateCoreIndex);
         }
@@ -164,7 +165,7 @@ impl GuaranteesXtValidator {
         accumulate_queue: &AccumulateQueue,
         accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
         self.validate_work_report(
             &entry.work_report,
@@ -193,7 +194,7 @@ impl GuaranteesXtValidator {
         accumulate_queue: &AccumulateQueue,
         accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<(), XtError> {
         // Check work report output size limit
         if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
@@ -224,7 +225,7 @@ impl GuaranteesXtValidator {
             }
         }
 
-        let core_index = work_report.core_index();
+        let core_index = work_report.core_index;
         let core_pending_report = pending_reports
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?;
@@ -237,18 +238,18 @@ impl GuaranteesXtValidator {
         if !auth_pool
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?
-            .contains(work_report.authorizer_hash())
+            .contains(&work_report.authorizer_hash)
         {
             return Err(XtError::InvalidAuthorizerHash(core_index));
         }
 
         // Validate anchor block
-        self.validate_anchor_block(core_index, work_report.refinement_context(), block_history)?;
+        self.validate_anchor_block(core_index, &work_report.refinement_context, block_history)?;
 
         // Validate lookup-anchor block
         self.validate_lookup_anchor_block(
             core_index,
-            work_report.refinement_context(),
+            &work_report.refinement_context,
             header_timeslot_index,
         )
         .await?;
@@ -266,10 +267,10 @@ impl GuaranteesXtValidator {
         // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
         // and the number of prerequisites must not exceed `MAX_REPORT_DEPENDENCIES`
         let prerequisites_count = work_report
-            .refinement_context()
+            .refinement_context
             .prerequisite_work_packages
             .len();
-        let segment_root_lookup_entries_count = work_report.segment_roots_lookup().len();
+        let segment_root_lookup_entries_count = work_report.segment_roots_lookup.len();
         if prerequisites_count + segment_root_lookup_entries_count > MAX_REPORT_DEPENDENCIES {
             return Err(XtError::TooManyDependencies(core_index));
         }
@@ -279,7 +280,7 @@ impl GuaranteesXtValidator {
         let mut exports_manifests_merged = block_history.get_reported_packages_flattened();
         exports_manifests_merged.extend_from_slice(exports_manifests);
 
-        for (package_hash, segments_root) in work_report.segment_roots_lookup() {
+        for (package_hash, segments_root) in work_report.segment_roots_lookup.iter() {
             if let Some(observed_segment_root) = Self::find_segments_root_from_work_package_hash(
                 &exports_manifests_merged,
                 package_hash,
@@ -384,7 +385,7 @@ impl GuaranteesXtValidator {
     fn find_segments_root_from_work_package_hash(
         reported_packages: &[ReportedWorkPackage],
         work_package_hash: &Hash32,
-    ) -> Option<Hash32> {
+    ) -> Option<SegmentRoot> {
         let reported_package = reported_packages
             .iter()
             .find(|r| r.work_package_hash == *work_package_hash);
@@ -444,7 +445,7 @@ impl GuaranteesXtValidator {
         &self,
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<(), XtError> {
         let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
@@ -502,7 +503,7 @@ impl GuaranteesXtValidator {
     }
 
     async fn validate_work_digests(&self, work_report: &WorkReport) -> Result<(), XtError> {
-        for digest in work_report.digests() {
+        for digest in &work_report.digests {
             if let Some(expected_code_hash) = self
                 .state_manager
                 .get_account_code_hash(digest.service_id)
@@ -511,7 +512,7 @@ impl GuaranteesXtValidator {
                 // code hash doesn't match
                 if expected_code_hash != digest.service_code_hash {
                     return Err(XtError::InvalidCodeHash(
-                        work_report.core_index(),
+                        work_report.core_index,
                         digest.service_id,
                         digest.service_code_hash.encode_hex(),
                     ));
@@ -519,7 +520,7 @@ impl GuaranteesXtValidator {
             } else {
                 // service account not found
                 return Err(XtError::AccountOfWorkDigestNotFound(
-                    work_report.core_index(),
+                    work_report.core_index,
                     digest.service_id,
                 ));
             }
@@ -537,15 +538,13 @@ impl GuaranteesXtValidator {
         if !(credentials.len() == 2 || credentials.len() == 3) {
             return Err(XtError::InvalidGuarantorCount(
                 credentials.len(),
-                entry.work_report.core_index(),
+                entry.work_report.core_index,
             ));
         }
 
         // Check if the entries are sorted
         if !credentials.is_sorted() {
-            return Err(XtError::CredentialsNotSorted(
-                entry.work_report.core_index(),
-            ));
+            return Err(XtError::CredentialsNotSorted(entry.work_report.core_index));
         }
 
         // Duplicate validation of validator indices
@@ -572,7 +571,7 @@ impl GuaranteesXtValidator {
     async fn validate_credential(
         &self,
         work_report: &WorkReport,
-        entry_timeslot_index: u32,
+        entry_timeslot_index: TimeslotIndex,
         credential: &GuaranteesCredential,
     ) -> Result<Ed25519PubKey, XtError> {
         // Verify the signature
@@ -627,8 +626,8 @@ impl GuaranteesXtValidator {
 
     pub async fn get_guarantor_assignment(
         &self,
-        entry_timeslot_index: u32,
-        current_timeslot_index: u32,
+        entry_timeslot_index: TimeslotIndex,
+        current_timeslot_index: TimeslotIndex,
     ) -> Result<GuarantorAssignment, XtError> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;

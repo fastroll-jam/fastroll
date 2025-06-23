@@ -1,5 +1,7 @@
 use crate::error::TransitionError;
-use fr_common::{workloads::work_report::ReportedWorkPackage, Hash32};
+use fr_common::{
+    workloads::work_report::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot,
+};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::{
     cache::StateMut, error::StateManagerError, manager::StateManager, types::BlockHistoryEntry,
@@ -16,7 +18,7 @@ use std::sync::Arc;
 /// This function updates the parent state root once it gets available.
 pub async fn transition_block_history_parent_root(
     state_manager: Arc<StateManager>,
-    root: Hash32,
+    root: StateRoot,
 ) -> Result<(), TransitionError> {
     let history = state_manager.get_block_history_clean().await?;
     if history.0.is_empty() {
@@ -48,8 +50,8 @@ pub async fn transition_block_history_parent_root(
 /// If the `BlockHistory` becomes full, the oldest entry is removed.
 pub async fn transition_block_history_append(
     state_manager: Arc<StateManager>,
-    header_hash: Hash32,
-    accumulate_root: Hash32,
+    header_hash: BlockHeaderHash,
+    accumulate_root: AccumulateRoot,
     mut reported_packages: Vec<ReportedWorkPackage>,
 ) -> Result<(), TransitionError> {
     let block_history = state_manager.get_block_history().await?;
@@ -69,7 +71,7 @@ pub async fn transition_block_history_append(
                 history.append(BlockHistoryEntry {
                     header_hash,
                     accumulation_result_mmr: mmr,
-                    state_root: Hash32::default(),
+                    state_root: StateRoot::default(),
                     reported_packages,
                 });
                 Ok(())

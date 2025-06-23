@@ -1,6 +1,6 @@
 use crate::types::common::*;
 use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, Hash32};
+use fr_common::{ticket::Ticket, EntropyHash, TicketId};
 use fr_crypto::types::BandersnatchRingRoot;
 use fr_state::types::{
     SafroleHeaderMarkers, SafroleState, SlotSealers, TicketAccumulator, Timeslot,
@@ -90,7 +90,7 @@ impl From<&State> for SafroleState {
                     .gamma_a
                     .iter()
                     .map(|ticket_body| Ticket {
-                        id: Hash32::from(ticket_body.id),
+                        id: TicketId::from(ticket_body.id),
                         attempt: ticket_body.attempt,
                     })
                     .collect(),
@@ -139,7 +139,7 @@ pub struct Input {
 
 pub struct JamInput {
     pub slot: Timeslot,
-    pub entropy: Hash32,
+    pub entropy: EntropyHash,
     pub extrinsic: TicketsXt,
 }
 

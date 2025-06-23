@@ -1,7 +1,7 @@
-use fr_common::{workloads::work_report::WorkReport, ServiceId};
+use fr_common::{workloads::work_report::WorkReport, ServiceId, TimeslotIndex, WorkPackageHash};
 use fr_pvm_types::invoke_args::DeferredTransfer;
 use fr_state::types::{
-    accumulate::{AccumulateQueue, WorkPackageHash, WorkReportDepsMap},
+    accumulate::{AccumulateQueue, WorkReportDepsMap},
     AccumulateHistory,
 };
 
@@ -18,7 +18,7 @@ pub type QueuedReports = Vec<WorkReportDepsMap>;
 /// Represents function *`D`* of the GP.
 fn work_report_deps(report: &WorkReport) -> WorkReportDepsMap {
     let mut deps = report.prerequisites().clone();
-    deps.extend(report.segment_roots_lookup().keys().cloned());
+    deps.extend(report.segment_roots_lookup.keys().cloned());
 
     (report.clone(), deps)
 }
@@ -92,7 +92,7 @@ pub fn partition_reports_by_deps(
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
     let (no_deps, with_deps) = available_reports
         .into_iter()
-        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup().is_empty());
+        .partition(|wr| wr.prerequisites().is_empty() && wr.segment_roots_lookup.is_empty());
 
     (no_deps, with_deps)
 }
@@ -123,7 +123,7 @@ pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,
     accumulate_history: &AccumulateHistory,
-    timeslot_index: u32,
+    timeslot_index: TimeslotIndex,
 ) -> (AccumulatableReports, QueuedReports) {
     let (mut accumulatables, reports_with_deps) = partition_reports_by_deps(available_reports);
     let mut queue = accumulate_queue.partition_by_slot_phase_and_flatten(timeslot_index);

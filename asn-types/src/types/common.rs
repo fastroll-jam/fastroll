@@ -26,8 +26,10 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    ByteArray, ByteSequence, Hash32, Octets, ServiceId, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
-    MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    AuthHash, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
+    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, WorkPackageHash,
+    WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH, MAX_AUTH_POOL_SIZE,
+    VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -261,7 +263,7 @@ impl From<EpochEntropy> for AsnEntropyBuffer {
 
 impl From<AsnEntropyBuffer> for EpochEntropy {
     fn from(value: AsnEntropyBuffer) -> Self {
-        Self(value.0.map(Hash32::from))
+        Self(value.0.map(EntropyHash::from))
     }
 }
 
@@ -331,7 +333,7 @@ pub struct AsnServiceInfo {
 impl From<AsnServiceInfo> for AccountMetadata {
     fn from(value: AsnServiceInfo) -> Self {
         Self {
-            code_hash: Hash32::from(value.code_hash),
+            code_hash: CodeHash::from(value.code_hash),
             balance: value.balance,
             gas_limit_accumulate: value.min_item_gas,
             gas_limit_on_transfer: value.min_memo_gas,
@@ -448,12 +450,16 @@ pub struct AsnRefineContext {
 impl From<AsnRefineContext> for RefinementContext {
     fn from(value: AsnRefineContext) -> Self {
         Self {
-            anchor_header_hash: Hash32::from(value.anchor),
-            anchor_state_root: Hash32::from(value.state_root),
-            anchor_beefy_root: Hash32::from(value.beefy_root),
-            lookup_anchor_header_hash: Hash32::from(value.lookup_anchor),
+            anchor_header_hash: BlockHeaderHash::from(value.anchor),
+            anchor_state_root: StateRoot::from(value.state_root),
+            anchor_beefy_root: BeefyRoot::from(value.beefy_root),
+            lookup_anchor_header_hash: BlockHeaderHash::from(value.lookup_anchor),
             lookup_anchor_timeslot: value.lookup_anchor_slot,
-            prerequisite_work_packages: value.prerequisites.into_iter().map(Hash32::from).collect(),
+            prerequisite_work_packages: value
+                .prerequisites
+                .into_iter()
+                .map(WorkPackageHash::from)
+                .collect(),
         }
     }
 }
@@ -490,7 +496,7 @@ pub struct AsnAuthorizer {
 impl From<AsnAuthorizer> for Authorizer {
     fn from(value: AsnAuthorizer) -> Self {
         Self {
-            auth_code_hash: Hash32::from(value.code_hash),
+            auth_code_hash: CodeHash::from(value.code_hash),
             config_blob: Octets::from(value.params),
         }
     }
@@ -517,7 +523,7 @@ impl From<AsnAuthPools> for AuthPool {
         for asn_core_authorizers in value.0 {
             let mut core_authorizers = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
             for asn_authorizer in asn_core_authorizers.0.into_iter() {
-                core_authorizers.push(Hash32::from(asn_authorizer));
+                core_authorizers.push(AuthHash::from(asn_authorizer));
             }
             auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
         }
@@ -551,7 +557,7 @@ impl From<AsnAuthQueues> for AuthQueue {
         for asn_auth_queue in value.0 {
             let mut core_queue = Vec::with_capacity(AUTH_QUEUE_SIZE);
             for asn_authorizer in asn_auth_queue.0.into_iter() {
-                core_queue.push(Hash32::from(asn_authorizer));
+                core_queue.push(AuthHash::from(asn_authorizer));
             }
             auth_queue_vec.push(CoreAuthQueue::try_from_vec(core_queue).unwrap());
         }
@@ -653,7 +659,7 @@ impl From<AsnWorkItem> for WorkItem {
     fn from(value: AsnWorkItem) -> Self {
         Self {
             service_id: value.service,
-            service_code_hash: Hash32::from(value.code_hash),
+            service_code_hash: CodeHash::from(value.code_hash),
             payload_blob: Octets::from(value.payload),
             refine_gas_limit: value.refine_gas_limit,
             accumulate_gas_limit: value.accumulate_gas_limit,
@@ -826,7 +832,7 @@ impl From<AsnWorkDigest> for WorkDigest {
     fn from(value: AsnWorkDigest) -> Self {
         Self {
             service_id: value.service_id,
-            service_code_hash: Hash32::from(value.code_hash),
+            service_code_hash: CodeHash::from(value.code_hash),
             payload_hash: Hash32::from(value.payload_hash),
             accumulate_gas_limit: value.accumulate_gas,
             refine_result: value.result.into(),
@@ -860,10 +866,10 @@ pub struct AsnWorkPackageSpec {
 impl From<AsnWorkPackageSpec> for AvailSpecs {
     fn from(value: AsnWorkPackageSpec) -> Self {
         Self {
-            work_package_hash: Hash32::from(value.hash),
+            work_package_hash: WorkPackageHash::from(value.hash),
             work_bundle_length: value.length,
-            erasure_root: Hash32::from(value.erasure_root),
-            segment_root: Hash32::from(value.exports_root),
+            erasure_root: ErasureRoot::from(value.erasure_root),
+            segment_root: SegmentRoot::from(value.exports_root),
             segment_count: value.exports_count,
         }
     }
@@ -903,11 +909,11 @@ impl Deref for AsnSegmentRootLookupTable {
 
 impl From<AsnSegmentRootLookupTable> for SegmentRootLookupTable {
     fn from(value: AsnSegmentRootLookupTable) -> Self {
-        let mut map: BTreeMap<Hash32, Hash32> = BTreeMap::new();
+        let mut map: BTreeMap<WorkPackageHash, SegmentRoot> = BTreeMap::new();
 
         for item in value.iter() {
-            let map_key = Hash32::from(item.work_package_hash);
-            let map_value = Hash32::from(item.segment_tree_root);
+            let map_key = WorkPackageHash::from(item.work_package_hash);
+            let map_value = SegmentRoot::from(item.segment_tree_root);
             map.insert(map_key, map_value);
         }
 
@@ -947,7 +953,7 @@ impl From<AsnWorkReport> for WorkReport {
             specs: value.package_spec.into(),
             refinement_context: value.context.into(),
             core_index: value.core_index,
-            authorizer_hash: Hash32::from(value.authorizer_hash),
+            authorizer_hash: AuthHash::from(value.authorizer_hash),
             auth_trace: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
             digests: WorkDigests::try_from_vec(
@@ -1029,15 +1035,15 @@ pub struct AsnBlockInfo {
 impl From<AsnBlockInfo> for BlockHistoryEntry {
     fn from(value: AsnBlockInfo) -> Self {
         Self {
-            header_hash: Hash32::from(value.header_hash),
+            header_hash: BlockHeaderHash::from(value.header_hash),
             accumulation_result_mmr: value.mmr.into(),
-            state_root: Hash32::from(value.state_root),
+            state_root: StateRoot::from(value.state_root),
             reported_packages: value
                 .reported
                 .into_iter()
                 .map(|reported| ReportedWorkPackage {
-                    work_package_hash: Hash32::from(reported.hash),
-                    segment_root: Hash32::from(reported.exports_root),
+                    work_package_hash: WorkPackageHash::from(reported.hash),
+                    segment_root: SegmentRoot::from(reported.exports_root),
                 })
                 .collect(),
         }
@@ -1339,7 +1345,7 @@ impl From<AsnTicketBody> for Ticket {
     fn from(value: AsnTicketBody) -> Self {
         Self {
             attempt: value.attempt,
-            id: Hash32::from(value.id),
+            id: TicketId::from(value.id),
         }
     }
 }
@@ -1371,7 +1377,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
                 let mut tickets = Vec::with_capacity(ASN_EPOCH_LENGTH);
                 for ticket_body in ticket_bodies.into_iter() {
                     tickets.push(Ticket {
-                        id: Hash32::from(ticket_body.id),
+                        id: TicketId::from(ticket_body.id),
                         attempt: ticket_body.attempt,
                     });
                 }
@@ -1512,7 +1518,7 @@ impl From<AsnDisputeVerdict> for Verdict {
         }
 
         Self {
-            report_hash: Hash32::from(value.target),
+            report_hash: WorkReportHash::from(value.target),
             epoch_index: value.age,
             judgments: Judgments::try_from_vec(judgments).unwrap(),
         }
@@ -1548,7 +1554,7 @@ pub struct AsnDisputeCulpritProof {
 impl From<AsnDisputeCulpritProof> for Culprit {
     fn from(value: AsnDisputeCulpritProof) -> Self {
         Self {
-            report_hash: Hash32::from(value.target),
+            report_hash: WorkReportHash::from(value.target),
             validator_key: Ed25519PubKey::from(value.key),
             signature: Ed25519Sig::from(value.signature),
         }
@@ -1576,7 +1582,7 @@ pub struct AsnDisputeFaultProof {
 impl From<AsnDisputeFaultProof> for Fault {
     fn from(value: AsnDisputeFaultProof) -> Self {
         Self {
-            report_hash: Hash32::from(value.target),
+            report_hash: WorkReportHash::from(value.target),
             is_report_valid: value.vote,
             validator_key: Ed25519PubKey::from(value.key),
             signature: Ed25519Sig::from(value.signature),
@@ -1618,9 +1624,9 @@ pub struct AsnDisputesRecords {
 impl From<AsnDisputesRecords> for DisputesState {
     fn from(value: AsnDisputesRecords) -> Self {
         Self {
-            good_set: value.good.into_iter().map(Hash32::from).collect(),
-            bad_set: value.bad.into_iter().map(Hash32::from).collect(),
-            wonky_set: value.wonky.into_iter().map(Hash32::from).collect(),
+            good_set: value.good.into_iter().map(WorkReportHash::from).collect(),
+            bad_set: value.bad.into_iter().map(WorkReportHash::from).collect(),
+            wonky_set: value.wonky.into_iter().map(WorkReportHash::from).collect(),
             punish_set: value
                 .offenders
                 .into_iter()
@@ -1764,7 +1770,7 @@ fn bytes_to_bitvec(bytes: &[u8], num_bits: usize) -> BitVec {
 impl From<AsnAvailAssurance> for AssurancesXtEntry {
     fn from(value: AsnAvailAssurance) -> Self {
         Self {
-            anchor_parent_hash: Hash32::from(value.anchor),
+            anchor_parent_hash: BlockHeaderHash::from(value.anchor),
             assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, ASN_CORE_COUNT),
             validator_index: value.validator_index,
             signature: Ed25519Sig::from(value.signature),
@@ -1928,8 +1934,9 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
                 .into_iter()
                 .map(|record| {
                     let wr = WorkReport::from(record.report);
-                    let deps =
-                        BTreeSet::from_iter(record.dependencies.into_iter().map(Hash32::from));
+                    let deps = BTreeSet::from_iter(
+                        record.dependencies.into_iter().map(WorkPackageHash::from),
+                    );
                     (wr, deps)
                 })
                 .collect();
@@ -1968,7 +1975,7 @@ impl From<AsnAccumulateHistory> for AccumulateHistory {
     fn from(value: AsnAccumulateHistory) -> Self {
         let mut items_vec = Vec::with_capacity(EPOCH_LENGTH);
         value.0.into_iter().for_each(|wps| {
-            let hash_set = BTreeSet::from_iter(wps.into_iter().map(Hash32::from));
+            let hash_set = BTreeSet::from_iter(wps.into_iter().map(WorkPackageHash::from));
             items_vec.push(hash_set);
         });
         Self {
@@ -2033,7 +2040,7 @@ impl From<PrivilegedServices> for AsnPrivilegedServices {
     }
 }
 
-pub type AccumulateRoot = AsnOpaqueHash;
+pub type AsnAccumulateRoot = AsnOpaqueHash;
 
 // ----------------------------------------------------
 // -- Header
@@ -2077,8 +2084,8 @@ impl From<AsnEpochMark> for EpochMarker {
             validator_keys.push(EpochMarkerValidatorKey::from(key));
         }
         Self {
-            entropy: Hash32::from(value.entropy),
-            tickets_entropy: Hash32::from(value.tickets_entropy),
+            entropy: EntropyHash::from(value.entropy),
+            tickets_entropy: EntropyHash::from(value.tickets_entropy),
             validators: EpochValidators::try_from_vec(validator_keys).unwrap(),
         }
     }
@@ -2125,9 +2132,9 @@ impl From<AsnHeader> for BlockHeader {
         });
         Self {
             data: BlockHeaderData {
-                parent_hash: Hash32::from(value.parent),
-                prior_state_root: Hash32::from(value.parent_state_root),
-                extrinsic_hash: Hash32::from(value.extrinsic_hash),
+                parent_hash: BlockHeaderHash::from(value.parent),
+                prior_state_root: StateRoot::from(value.parent_state_root),
+                extrinsic_hash: XtHash::from(value.extrinsic_hash),
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
                 winning_tickets_marker: winning_tickets,

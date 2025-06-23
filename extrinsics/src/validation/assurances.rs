@@ -1,7 +1,7 @@
 use crate::validation::error::XtError;
 use fr_block::types::extrinsics::assurances::{AssurancesXt, AssurancesXtEntry};
 use fr_codec::prelude::*;
-use fr_common::{CoreIndex, Hash32, CORE_COUNT, X_A};
+use fr_common::{BlockHeaderHash, CoreIndex, CORE_COUNT, X_A};
 use fr_crypto::{
     hash,
     signers::{ed25519::Ed25519Verifier, Verifier},
@@ -42,7 +42,7 @@ impl AssurancesXtValidator {
     pub async fn validate(
         &self,
         extrinsic: &AssurancesXt,
-        header_parent_hash: &Hash32,
+        header_parent_hash: &BlockHeaderHash,
     ) -> Result<(), XtError> {
         if extrinsic.is_empty() {
             return Ok(());
@@ -74,7 +74,7 @@ impl AssurancesXtValidator {
     async fn validate_entry(
         &self,
         entry: &AssurancesXtEntry,
-        header_parent_hash: &Hash32,
+        header_parent_hash: &BlockHeaderHash,
     ) -> Result<(), XtError> {
         // Check the anchored parent hash
         if &entry.anchor_parent_hash != header_parent_hash {

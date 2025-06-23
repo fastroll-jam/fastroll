@@ -1,6 +1,6 @@
 use crate::types::common::*;
 use fr_block::types::extrinsics::assurances::AssurancesXt;
-use fr_common::{workloads::work_report::WorkReport, Hash32};
+use fr_common::{workloads::work_report::WorkReport, BlockHeaderHash};
 use fr_state::types::Timeslot;
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ pub struct Input {
 pub struct JamInput {
     pub extrinsic: AssurancesXt,
     pub timeslot: Timeslot,
-    pub parent_hash: Hash32,
+    pub parent_hash: BlockHeaderHash,
 }
 
 #[derive(Clone)]

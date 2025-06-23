@@ -3,7 +3,7 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use fr_codec::prelude::*;
-use fr_common::{CoreIndex, Hash32, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
+use fr_common::{AuthHash, CoreIndex, AUTH_QUEUE_SIZE, CORE_COUNT, MAX_AUTH_POOL_SIZE};
 use fr_limited_vec::{FixedVec, LimitedVec};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -14,7 +14,7 @@ pub enum AuthPoolError {
     InvalidCoreIndex(CoreIndex),
 }
 
-pub type CoreAuthPool = LimitedVec<Hash32, MAX_AUTH_POOL_SIZE>;
+pub type CoreAuthPool = LimitedVec<AuthHash, MAX_AUTH_POOL_SIZE>;
 pub type CoreAuthPoolEntries = FixedVec<CoreAuthPool, CORE_COUNT>;
 
 /// The authorizer pool.
@@ -39,7 +39,7 @@ impl Display for AuthPool {
 }
 
 impl AuthPool {
-    pub fn get_by_core_index(&self, core_index: CoreIndex) -> Result<&[Hash32], AuthPoolError> {
+    pub fn get_by_core_index(&self, core_index: CoreIndex) -> Result<&[AuthHash], AuthPoolError> {
         if core_index as usize >= CORE_COUNT {
             return Err(AuthPoolError::InvalidCoreIndex(core_index));
         }
@@ -47,7 +47,7 @@ impl AuthPool {
     }
 }
 
-pub type CoreAuthQueue = FixedVec<Hash32, AUTH_QUEUE_SIZE>;
+pub type CoreAuthQueue = FixedVec<AuthHash, AUTH_QUEUE_SIZE>;
 pub type CoreAuthQueueEntries = FixedVec<CoreAuthQueue, CORE_COUNT>;
 
 /// The authorizer queue.

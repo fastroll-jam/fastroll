@@ -2,7 +2,8 @@ use crate::types::extrinsics::{XtEntry, XtType};
 use bit_vec::BitVec;
 use fr_codec::prelude::*;
 use fr_common::{
-    CoreIndex, Hash32, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    BlockHeaderHash, CoreIndex, ValidatorIndex, CORE_COUNT, VALIDATORS_SUPER_MAJORITY,
+    VALIDATOR_COUNT,
 };
 use fr_crypto::types::*;
 use fr_limited_vec::LimitedVec;
@@ -58,7 +59,7 @@ impl AssurancesXt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssurancesXtEntry {
     /// `a`: The parent block hash.
-    pub anchor_parent_hash: Hash32,
+    pub anchor_parent_hash: BlockHeaderHash,
     /// `f`: A bit sequence of length `CORE_COUNT` representing indices of cores this entry assures.
     pub assuring_cores_bitvec: BitVec,
     /// `v`: The validator index.
@@ -104,7 +105,7 @@ impl JamEncode for AssurancesXtEntry {
 impl JamDecode for AssurancesXtEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            anchor_parent_hash: Hash32::decode(input)?,
+            anchor_parent_hash: BlockHeaderHash::decode(input)?,
             assuring_cores_bitvec: BitVec::decode_fixed(input, CORE_COUNT)?,
             validator_index: ValidatorIndex::decode_fixed(input, 2)?,
             signature: Ed25519Sig::decode(input)?,

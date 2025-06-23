@@ -1,7 +1,7 @@
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{RefinementContext, WorkExecutionResult},
-    Hash32, Octets, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE,
+    CodeHash, Octets, ServiceId, UnsignedGas, WorkPackageHash, MAX_SERVICE_CODE_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::{
@@ -26,11 +26,11 @@ struct RefineVMArgs {
     /// Work item payload blob (**`y`** of `WorkItem`)
     work_payload: Vec<u8>,
     /// Work package hash (Hash of `WorkPackage`)
-    work_package_hash: Hash32,
+    work_package_hash: WorkPackageHash,
     /// Refinement context (**`x`** of `WorkPackage`)
     refinement_context: RefinementContext,
     /// Authorizer code hash (`u` of `WorkPackage`)
-    auth_code_hash: Hash32,
+    auth_code_hash: CodeHash,
 }
 
 pub struct RefineResult {

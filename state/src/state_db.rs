@@ -1,8 +1,8 @@
-use fr_common::Hash32;
 use fr_db::core::{
     cached_db::CachedDB,
     core_db::{CoreDB, CoreDBError},
 };
+use fr_state_merkle::types::nodes::StateHash;
 use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
 
@@ -18,11 +18,11 @@ pub enum StateDBError {
 /// Entries of the `db` are keyed by hash of state value.
 pub struct StateDB {
     /// A handle to the `CachedDB`.
-    db: CachedDB<Hash32, Vec<u8>>,
+    db: CachedDB<StateHash, Vec<u8>>,
 }
 
 impl Deref for StateDB {
-    type Target = CachedDB<Hash32, Vec<u8>>;
+    type Target = CachedDB<StateHash, Vec<u8>>;
 
     fn deref(&self) -> &Self::Target {
         &self.db

@@ -1,6 +1,6 @@
-use crate::types::nodes::ChildType;
+use crate::types::nodes::{ChildType, NodeHash};
 use bit_vec::BitVec;
-use fr_common::{Hash32, StateKey};
+use fr_common::{MerkleRoot, StateKey};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -27,7 +27,7 @@ pub struct LeafUpdateContext {
     /// State value of the leaf node to be updated.
     pub leaf_state_val: Vec<u8>,
     /// Leaf hash prior to the update.
-    pub leaf_prior_hash: Hash32,
+    pub leaf_prior_hash: NodeHash,
 }
 
 impl Display for LeafUpdateContext {
@@ -64,7 +64,7 @@ pub struct LeafAddContext {
     /// State value of the leaf node to be added.
     pub leaf_state_val: Vec<u8>,
     /// Hash of the leaf node to be the sibling node after adding a new leaf node.
-    pub sibling_candidate_hash: Hash32,
+    pub sibling_candidate_hash: NodeHash,
     /// Child type (Left/Right) of the new leaf node.
     pub added_leaf_child_side: ChildType,
     /// Context required for the leaf-splitting case.
@@ -100,13 +100,13 @@ impl LeafAddContext {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LeafRemoveContext {
     /// Hash of the node that will be the "deepest" affected node for the removal.
-    pub post_parent_hash: Hash32,
+    pub post_parent_hash: NodeHash,
     /// Left child hash of `post_parent_hash` branch node prior to the removal.
-    pub prior_left: Hash32,
+    pub prior_left: NodeHash,
     /// Right child hash of `post_parent_hash` branch node prior to the removal.
-    pub prior_right: Hash32,
+    pub prior_right: NodeHash,
     /// Only needed when the sibling of the remove target node is leaf type.
-    pub sibling_leaf_hash: Option<Hash32>,
+    pub sibling_leaf_hash: Option<NodeHash>,
     /// Whether left or right subtrie of the `post_parent_hash` is getting compressed or deleted after the removal.
     pub removal_side: ChildType,
 }
@@ -142,10 +142,10 @@ impl LeafRemoveContext {
 }
 
 pub(crate) struct FullBranchSnapshot {
-    pub(crate) hash: Hash32,
+    pub(crate) hash: NodeHash,
     pub(crate) navigate_to: ChildType,
-    pub(crate) left_child: Hash32,
-    pub(crate) right_child: Hash32,
+    pub(crate) left_child: NodeHash,
+    pub(crate) right_child: NodeHash,
 }
 
 pub(crate) struct FullBranchHistory {
@@ -155,10 +155,10 @@ pub(crate) struct FullBranchHistory {
 
 impl FullBranchHistory {
     pub(crate) fn new(
-        root: Hash32,
+        root: MerkleRoot,
         first_bit: bool,
-        left_child: Hash32,
-        right_child: Hash32,
+        left_child: NodeHash,
+        right_child: NodeHash,
     ) -> Self {
         Self {
             curr: FullBranchSnapshot {
@@ -177,7 +177,13 @@ impl FullBranchHistory {
     }
 
     /// Update the `prev` snapshot to be what the `curr` was, and then set `curr` to a new snapshot.
-    pub(crate) fn update(&mut self, node_hash: Hash32, bit: bool, left: Hash32, right: Hash32) {
+    pub(crate) fn update(
+        &mut self,
+        node_hash: NodeHash,
+        bit: bool,
+        left: NodeHash,
+        right: NodeHash,
+    ) {
         // shift `curr` into `prev`
         self.prev.hash = self.curr.hash.clone();
         self.prev.navigate_to = self.curr.navigate_to;
