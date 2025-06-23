@@ -1,6 +1,6 @@
 use crate::types::common::*;
 use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, Hash32};
+use fr_common::{ticket::Ticket, EntropyHash, Hash32};
 use fr_crypto::types::BandersnatchRingRoot;
 use fr_state::types::{
     SafroleHeaderMarkers, SafroleState, SlotSealers, TicketAccumulator, Timeslot,
@@ -139,7 +139,7 @@ pub struct Input {
 
 pub struct JamInput {
     pub slot: Timeslot,
-    pub entropy: Hash32,
+    pub entropy: EntropyHash,
     pub extrinsic: TicketsXt,
 }
 

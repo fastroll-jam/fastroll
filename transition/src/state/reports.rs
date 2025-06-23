@@ -5,7 +5,7 @@ use fr_block::{
 };
 use fr_common::{
     workloads::work_report::{ReportedWorkPackage, WorkReport},
-    Hash32,
+    BlockHeaderHash,
 };
 use fr_crypto::types::Ed25519PubKey;
 use fr_extrinsics::validation::{
@@ -69,7 +69,7 @@ pub async fn transition_reports_eliminate_invalid(
 pub async fn transition_reports_clear_availables(
     state_manager: Arc<StateManager>,
     assurances_xt: &AssurancesXt,
-    header_parent_hash: Hash32,
+    header_parent_hash: BlockHeaderHash,
 ) -> Result<Vec<WorkReport>, TransitionError> {
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(state_manager.clone());

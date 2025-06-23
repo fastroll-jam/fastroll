@@ -1,5 +1,5 @@
 use fr_codec::prelude::*;
-use fr_common::{Hash32, Octets, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
+use fr_common::{Octets, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
 use fr_pvm_host::{
     context::{
@@ -15,6 +15,7 @@ use fr_pvm_interface::{
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
+    invoke_results::AccumulationOutputHash,
 };
 use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
@@ -37,7 +38,7 @@ pub struct AccumulateResult {
     /// **`t`**: All transfers deferred by a single-service accumulation
     pub deferred_transfers: Vec<DeferredTransfer>,
     /// `b`: Accumulation result hash
-    pub yielded_accumulate_hash: Option<Hash32>,
+    pub yielded_accumulate_hash: Option<AccumulationOutputHash>,
     /// `u`: Amount of gas used by a single-service accumulation
     pub gas_used: UnsignedGas,
     /// **`p`**: Provided preimage entries during accumulation

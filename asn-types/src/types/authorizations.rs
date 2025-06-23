@@ -1,5 +1,5 @@
 use crate::types::common::*;
-use fr_common::Hash32;
+use fr_common::AuthHash;
 
 use fr_block::types::extrinsics::guarantees::{
     GuaranteesXt, GuaranteesXtEntries, GuaranteesXtEntry,
@@ -34,7 +34,7 @@ impl From<Input> for GuaranteesXt {
         for auth in value.auths {
             let report = WorkReport {
                 core_index: auth.core,
-                authorizer_hash: Hash32::from(auth.auth_hash),
+                authorizer_hash: AuthHash::from(auth.auth_hash),
                 ..Default::default()
             };
 

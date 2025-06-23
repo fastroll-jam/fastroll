@@ -26,6 +26,7 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     exit_reason::ExitReason,
     invoke_args::{DeferredTransfer, RefineInvokeArgs},
+    invoke_results::AccumulationOutputHash,
 };
 use fr_state::{
     manager::StateManager,
@@ -1774,7 +1775,8 @@ impl HostFunction {
         let Ok(commitment_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
             host_call_panic!()
         };
-        let commitment_hash = Hash32::decode(&mut commitment_hash_octets.as_slice())?;
+        let commitment_hash =
+            AccumulationOutputHash::decode(&mut commitment_hash_octets.as_slice())?;
 
         x.yielded_accumulate_hash = Some(commitment_hash);
         continue_ok!()

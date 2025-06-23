@@ -3,7 +3,10 @@ use crate::{
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
 use fr_codec::prelude::*;
-use fr_common::{workloads::work_report::ReportedWorkPackage, Hash32, BLOCK_HISTORY_LENGTH};
+use fr_common::{
+    workloads::work_report::ReportedWorkPackage, BlockHeaderHash, StateRoot, WorkPackageHash,
+    BLOCK_HISTORY_LENGTH,
+};
 use fr_crypto::Keccak256;
 use fr_limited_vec::LimitedVec;
 use fr_merkle::mmr::MerkleMountainRange;
@@ -37,13 +40,13 @@ impl BlockHistory {
         Some(&self.0[last_index])
     }
 
-    pub fn get_by_header_hash(&self, header_hash: &Hash32) -> Option<&BlockHistoryEntry> {
+    pub fn get_by_header_hash(&self, header_hash: &BlockHeaderHash) -> Option<&BlockHistoryEntry> {
         self.0
             .iter()
             .find(|entry| entry.header_hash == *header_hash)
     }
 
-    pub fn check_work_package_hash_exists(&self, work_package_hash: &Hash32) -> bool {
+    pub fn check_work_package_hash_exists(&self, work_package_hash: &WorkPackageHash) -> bool {
         self.0.iter().any(|entry| {
             entry
                 .reported_packages
@@ -65,11 +68,11 @@ impl BlockHistory {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockHistoryEntry {
     /// `h`: Header hash of the block.
-    pub header_hash: Hash32,
+    pub header_hash: BlockHeaderHash,
     /// `b`: Accumulation result MMR root.
     pub accumulation_result_mmr: MerkleMountainRange<Keccak256>,
     /// `s`: Posterior state root of the block.
-    pub state_root: Hash32,
+    pub state_root: StateRoot,
     /// **`p`**: The set of all work reports introduced by the guarantees extrinsic of the block,
     /// providing a mapping of work package hashes and their corresponding segment roots.
     pub reported_packages: Vec<ReportedWorkPackage>, // Length up to CORE_COUNT.
@@ -95,16 +98,16 @@ impl JamEncode for BlockHistoryEntry {
 impl JamDecode for BlockHistoryEntry {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            header_hash: Hash32::decode(input)?,
+            header_hash: BlockHeaderHash::decode(input)?,
             accumulation_result_mmr: MerkleMountainRange::decode(input)?,
-            state_root: Hash32::decode(input)?,
+            state_root: StateRoot::decode(input)?,
             reported_packages: Vec::decode(input)?,
         })
     }
 }
 
 impl BlockHistoryEntry {
-    pub fn set_state_root(&mut self, root: Hash32) {
+    pub fn set_state_root(&mut self, root: StateRoot) {
         self.state_root = root
     }
 }

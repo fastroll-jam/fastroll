@@ -2,7 +2,8 @@ use crate::common::ExportDataSegment;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
-    Balance, CoreIndex, Hash32, ServiceId, UnsignedGas, TRANSFER_MEMO_SIZE,
+    AuthHash, Balance, CoreIndex, Hash32, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash,
+    TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
 
@@ -26,11 +27,11 @@ pub struct AccumulateInvokeArgs {
 #[derive(Clone, JamEncode)]
 pub struct AccumulateOperand {
     /// `h`: Work package hash (`work_package_hash` of `AvailSpecs`)
-    pub work_package_hash: Hash32,
+    pub work_package_hash: WorkPackageHash,
     /// `e`: Work report segment root (`segment_root` of `AvailSpecs`)
-    pub segment_root: Hash32,
+    pub segment_root: SegmentRoot,
     /// `a`: Work report authorizer hash (`authorizer_hash` of `WorkReport`)
-    pub authorizer_hash: Hash32,
+    pub authorizer_hash: AuthHash,
     /// `y`: Work item payload hash (`payload_hash` of `WorkDigest`)
     pub work_item_payload_hash: Hash32,
     /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)

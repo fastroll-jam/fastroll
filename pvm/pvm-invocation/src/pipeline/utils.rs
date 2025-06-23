@@ -1,7 +1,7 @@
-use fr_common::{workloads::work_report::WorkReport, ServiceId};
+use fr_common::{workloads::work_report::WorkReport, ServiceId, WorkPackageHash};
 use fr_pvm_types::invoke_args::DeferredTransfer;
 use fr_state::types::{
-    accumulate::{AccumulateQueue, WorkPackageHash, WorkReportDepsMap},
+    accumulate::{AccumulateQueue, WorkReportDepsMap},
     AccumulateHistory,
 };
 

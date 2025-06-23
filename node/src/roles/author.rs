@@ -17,8 +17,8 @@ use fr_block::{
 use fr_clock::JamClock;
 use fr_codec::prelude::*;
 use fr_common::{
-    ticket::Ticket, ByteEncodable, CommonTypeError, Hash32, ValidatorIndex, HASH_SIZE, X_E, X_F,
-    X_T,
+    ticket::Ticket, BlockHeaderHash, ByteEncodable, CommonTypeError, EntropyHash, StateRoot,
+    ValidatorIndex, XtHash, HASH_SIZE, X_E, X_F, X_T,
 };
 use fr_crypto::{
     traits::VrfSignature,
@@ -142,8 +142,8 @@ impl BlockAuthor {
     pub async fn author_block_commit_state(
         &mut self,
         storage: Arc<NodeStorage>,
-        new_header_hash: Hash32,
-    ) -> Result<(Block, Hash32), BlockAuthorError> {
+        new_header_hash: BlockHeaderHash,
+    ) -> Result<(Block, StateRoot), BlockAuthorError> {
         // STF phase #2
         let execution_output = self
             .run_state_transition_post_header_commitment(&storage)
@@ -187,7 +187,7 @@ impl BlockAuthor {
     pub async fn author_block_for_test(
         &mut self,
         storage: Arc<NodeStorage>,
-    ) -> Result<(Block, Hash32), BlockAuthorError> {
+    ) -> Result<(Block, StateRoot), BlockAuthorError> {
         let xt = Self::collect_extrinsics();
         let xt_hash = xt.hash()?;
         self.set_extrinsics(xt.clone(), xt_hash.clone())?;
@@ -236,7 +236,7 @@ impl BlockAuthor {
     fn set_extrinsics(
         &mut self,
         xts: Extrinsics,
-        xts_hash: Hash32,
+        xts_hash: XtHash,
     ) -> Result<(), BlockAuthorError> {
         self.new_block.extrinsics = xts;
         self.new_block.header.set_extrinsic_hash(xts_hash);
@@ -292,7 +292,7 @@ impl BlockAuthor {
     async fn epilogue(
         &mut self,
         curr_slot_sealer: &SlotSealer,
-        curr_entropy_3: &Hash32,
+        curr_entropy_3: &EntropyHash,
         header_markers: BlockExecutionHeaderMarkers,
     ) -> Result<(), BlockAuthorError> {
         // Sign VRF
@@ -323,7 +323,7 @@ impl BlockAuthor {
     async fn seal_block_header(
         &mut self,
         curr_slot_sealer: &SlotSealer,
-        curr_entropy_3: &Hash32,
+        curr_entropy_3: &EntropyHash,
     ) -> Result<(), BlockAuthorError> {
         let new_header_data = self.new_block.header.data.clone();
 
@@ -348,7 +348,7 @@ impl BlockAuthor {
     async fn commit_header(
         &mut self,
         storage: &NodeStorage,
-    ) -> Result<(BlockHeader, Hash32), BlockAuthorError> {
+    ) -> Result<(BlockHeader, BlockHeaderHash), BlockAuthorError> {
         let new_header_hash = storage
             .header_db()
             .commit_header(self.new_block.header.clone())
@@ -373,7 +373,7 @@ impl BlockAuthor {
     async fn run_final_state_transition(
         &self,
         storage: &NodeStorage,
-        new_header_hash: Hash32,
+        new_header_hash: BlockHeaderHash,
         vrf_sig: &VrfSig,
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
@@ -402,7 +402,7 @@ pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
 pub fn sign_block_seal(
     header_data: BlockHeaderData,
     used_ticket: &Ticket,
-    curr_entropy_3: &Hash32,
+    curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
@@ -424,7 +424,7 @@ pub fn sign_block_seal(
 /// Note: This signing should be done ***after*** signing the VRF signature of the header.
 pub fn sign_fallback_block_seal(
     header_data: BlockHeaderData,
-    curr_entropy_3: &Hash32,
+    curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);
@@ -449,7 +449,7 @@ pub fn sign_fallback_block_seal(
 /// Note: The aux data (message) doesn't affect the VRF output hash value.
 pub fn sign_entropy_source_vrf_signature(
     slot_sealer: &SlotSealer,
-    curr_entropy_3: &Hash32,
+    curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockAuthorError> {
     let prover = VrfProver::from_secret_key(secret_key);

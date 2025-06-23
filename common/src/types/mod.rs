@@ -14,8 +14,13 @@ pub mod workloads;
 pub type BlockHeaderHash = Hash32;
 pub type XtHash = Hash32;
 pub type StateRoot = Hash32;
+pub type BeefyRoot = Hash32;
 pub type EntropyHash = Hash32;
+pub type AuthHash = Hash32;
 pub type WorkReportHash = Hash32;
+pub type SegmentRoot = Hash32;
+pub type WorkPackageHash = Hash32;
+pub type AccumulateRoot = Hash32;
 
 /// 32-byte Hash type.
 pub type Hash32 = ByteArray<HASH_SIZE>;

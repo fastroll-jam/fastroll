@@ -1,6 +1,6 @@
 use fr_block::types::block::BlockHeader;
 use fr_codec::prelude::*;
-use fr_common::Hash32;
+use fr_common::BlockHeaderHash;
 use std::fmt::{Display, Formatter};
 
 pub const CHUNK_SIZE: usize = 1024;
@@ -8,7 +8,7 @@ pub const CHUNK_SIZE: usize = 1024;
 #[derive(Clone, Debug, JamDecode)]
 pub struct BlockAnnouncement {
     pub header: BlockHeader,
-    pub header_hash: Hash32,
+    pub header_hash: BlockHeaderHash,
     pub timeslot: u32,
 }
 

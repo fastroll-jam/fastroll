@@ -6,7 +6,7 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use fr_codec::prelude::*;
-use fr_common::{Balance, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
+use fr_common::{Balance, EntropyHash, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
@@ -15,6 +15,7 @@ use fr_pvm_types::{
         AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, OnTransferInvokeArgs,
         RefineInvokeArgs,
     },
+    invoke_results::AccumulationOutputHash,
 };
 use fr_state::{
     manager::StateManager,
@@ -117,7 +118,7 @@ pub struct OnTransferHostContext {
     /// OnTransfer entry-point function invocation args (read-only)
     pub invoke_args: OnTransferInvokeArgs,
     /// Current entropy value (`η0′`)
-    pub curr_entropy: Hash32,
+    pub curr_entropy: EntropyHash,
 }
 
 impl AccountsSandboxHolder for OnTransferHostContext {
@@ -130,7 +131,7 @@ impl OnTransferHostContext {
     pub async fn new(
         state_manager: Arc<StateManager>,
         recipient: ServiceId,
-        curr_entropy: Hash32,
+        curr_entropy: EntropyHash,
         invoke_args: OnTransferInvokeArgs,
     ) -> Result<Self, HostCallError> {
         let mut accounts_sandbox = AccountsSandboxMap::default();
@@ -197,13 +198,13 @@ pub struct AccumulateHostContext {
     /// **`t`**: Deferred token transfers
     pub deferred_transfers: Vec<DeferredTransfer>,
     /// `y`: Accumulation result hash
-    pub yielded_accumulate_hash: Option<Hash32>,
+    pub yielded_accumulate_hash: Option<AccumulationOutputHash>,
     /// **`p`**: Provided preimage data
     pub provided_preimages: HashSet<(ServiceId, Octets)>,
     /// Accumulate entry-point function invocation args (read-only)
     pub invoke_args: AccumulateInvokeArgs,
     /// Current entropy value (`η0′`)
-    pub curr_entropy: Hash32,
+    pub curr_entropy: EntropyHash,
 }
 
 impl AccumulateHostContext {
@@ -211,7 +212,7 @@ impl AccumulateHostContext {
         state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
-        curr_entropy: Hash32,
+        curr_entropy: EntropyHash,
         timeslot_index: u32,
         invoke_args: AccumulateInvokeArgs,
     ) -> Result<Self, HostCallError> {
@@ -234,7 +235,7 @@ impl AccumulateHostContext {
     async fn initialize_new_service_id(
         state_manager: Arc<StateManager>,
         accumulate_host: ServiceId,
-        entropy: Hash32,
+        entropy: EntropyHash,
         timeslot_index: u32,
     ) -> Result<ServiceId, HostCallError> {
         let mut buf = vec![];
@@ -434,7 +435,7 @@ pub struct RefineHostContext {
     pub export_segments: Vec<ExportDataSegment>,
     /// Entropy value that can be used in off-chain refine stage
     /// TODO: inject proper refine entropy (placeholder for now)
-    pub refine_entropy: Hash32,
+    pub refine_entropy: EntropyHash,
     /// Refine entry-point function invocation args (read-only)
     pub invoke_args: RefineInvokeArgs,
 }

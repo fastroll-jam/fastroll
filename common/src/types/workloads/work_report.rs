@@ -1,6 +1,6 @@
 use crate::{
-    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CoreIndex, Hash32,
-    Octets, ServiceId, UnsignedGas,
+    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, AuthHash,
+    CoreIndex, Hash32, Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -26,7 +26,7 @@ pub struct WorkReport {
     /// `c`: Core index on which the work is done
     pub core_index: CoreIndex,
     /// `a`: Authorizer hash
-    pub authorizer_hash: Hash32,
+    pub authorizer_hash: AuthHash,
     /// **`o`**: Authorization trace
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
@@ -93,7 +93,7 @@ impl JamDecode for WorkReport {
             specs: AvailSpecs::decode(input)?,
             refinement_context: RefinementContext::decode(input)?,
             core_index: CoreIndex::decode(input)?,
-            authorizer_hash: Hash32::decode(input)?,
+            authorizer_hash: AuthHash::decode(input)?,
             auth_trace: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
             digests: WorkDigests::decode(input)?,
@@ -119,19 +119,19 @@ impl WorkReport {
         &self.refinement_context
     }
 
-    pub fn prerequisites(&self) -> &BTreeSet<Hash32> {
+    pub fn prerequisites(&self) -> &BTreeSet<WorkPackageHash> {
         &self.refinement_context.prerequisite_work_packages
     }
 
-    pub fn segment_roots_lookup(&self) -> &BTreeMap<Hash32, Hash32> {
+    pub fn segment_roots_lookup(&self) -> &BTreeMap<WorkPackageHash, SegmentRoot> {
         &self.segment_roots_lookup
     }
 
-    pub fn work_package_hash(&self) -> &Hash32 {
+    pub fn work_package_hash(&self) -> &WorkPackageHash {
         &self.specs.work_package_hash
     }
 
-    pub fn segment_root(&self) -> &Hash32 {
+    pub fn segment_root(&self) -> &SegmentRoot {
         &self.specs.segment_root
     }
 
@@ -147,7 +147,7 @@ impl WorkReport {
         self.core_index
     }
 
-    pub fn authorizer_hash(&self) -> &Hash32 {
+    pub fn authorizer_hash(&self) -> &AuthHash {
         &self.authorizer_hash
     }
 
@@ -174,7 +174,7 @@ impl WorkReport {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct SegmentRootLookupTable {
-    items: BTreeMap<Hash32, Hash32>,
+    items: BTreeMap<WorkPackageHash, SegmentRoot>,
 }
 
 impl Display for SegmentRootLookupTable {
@@ -193,7 +193,7 @@ impl Display for SegmentRootLookupTable {
 }
 
 impl Deref for SegmentRootLookupTable {
-    type Target = BTreeMap<Hash32, Hash32>;
+    type Target = BTreeMap<WorkPackageHash, SegmentRoot>;
 
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -201,7 +201,7 @@ impl Deref for SegmentRootLookupTable {
 }
 
 impl SegmentRootLookupTable {
-    pub fn new(items: BTreeMap<Hash32, Hash32>) -> Self {
+    pub fn new(items: BTreeMap<WorkPackageHash, SegmentRoot>) -> Self {
         Self { items }
     }
 }
@@ -209,13 +209,13 @@ impl SegmentRootLookupTable {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AvailSpecs {
     /// `h`: Work package hash
-    pub work_package_hash: Hash32,
+    pub work_package_hash: WorkPackageHash,
     /// `l`: Auditable work bundle length
     pub work_bundle_length: u32,
     /// `u`: Erasure root of the work package
     pub erasure_root: Hash32,
     /// `e`: Export segment root of the work package
-    pub segment_root: Hash32,
+    pub segment_root: SegmentRoot,
     /// `n`: Number of export segments
     pub segment_count: u16,
 }
@@ -257,10 +257,10 @@ impl JamEncode for AvailSpecs {
 impl JamDecode for AvailSpecs {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
-            work_package_hash: Hash32::decode(input)?,
+            work_package_hash: WorkPackageHash::decode(input)?,
             work_bundle_length: u32::decode_fixed(input, 4)?,
             erasure_root: Hash32::decode(input)?,
-            segment_root: Hash32::decode(input)?,
+            segment_root: SegmentRoot::decode(input)?,
             segment_count: u16::decode_fixed(input, 2)?,
         })
     }
@@ -269,9 +269,9 @@ impl JamDecode for AvailSpecs {
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
     /// `h` of `AvailSpec` from work report in `GuaranteesXt`
-    pub work_package_hash: Hash32,
+    pub work_package_hash: WorkPackageHash,
     /// `e` of `AvailSpec` from work report in `GuaranteesXt`
-    pub segment_root: Hash32,
+    pub segment_root: SegmentRoot,
 }
 
 impl Display for ReportedWorkPackage {
