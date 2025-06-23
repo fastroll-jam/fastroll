@@ -36,6 +36,12 @@ pub type StateKey = ByteArray<STATE_KEY_SIZE>;
 /// Octets type; wrapper of `Vec<u8>`.
 pub type Octets = ByteSequence;
 
+/// The timeslot index.
+pub type TimeslotIndex = u32;
+
+/// The epoch index.
+pub type EpochIndex = u32;
+
 /// The service id.
 pub type ServiceId = u32;
 

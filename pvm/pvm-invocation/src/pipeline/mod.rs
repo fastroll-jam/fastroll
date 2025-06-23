@@ -1,5 +1,7 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
-use fr_common::{workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, UnsignedGas};
+use fr_common::{
+    workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
+};
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::context::partial_state::AccumulatePartialState;
 use fr_pvm_interface::error::PVMError;
@@ -254,7 +256,7 @@ async fn add_provided_preimages(
     state_manager: Arc<StateManager>,
     partial_state_union: &mut AccumulatePartialState,
     provided_images: HashSet<(ServiceId, Octets)>,
-    curr_timeslot_index: u32,
+    curr_timeslot_index: TimeslotIndex,
 ) {
     for (service_id, octets) in provided_images {
         // Construct storage keys
@@ -297,7 +299,7 @@ async fn accumulate_single_service(
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
-    curr_timeslot_index: u32,
+    curr_timeslot_index: TimeslotIndex,
 ) -> Result<AccumulateResult, PVMError> {
     let operands = build_operands(&reports, service_id);
     let mut gas_limit = always_accumulate_services

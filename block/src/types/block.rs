@@ -1,8 +1,8 @@
 use crate::types::extrinsics::{disputes::OffendersHeaderMarker, Extrinsics};
 use fr_codec::prelude::*;
 use fr_common::{
-    ticket::Ticket, BlockHeaderHash, ByteEncodable, EntropyHash, StateRoot, ValidatorIndex, XtHash,
-    EPOCH_LENGTH, VALIDATOR_COUNT,
+    ticket::Ticket, BlockHeaderHash, ByteEncodable, EntropyHash, StateRoot, TimeslotIndex,
+    ValidatorIndex, XtHash, EPOCH_LENGTH, VALIDATOR_COUNT,
 };
 use fr_crypto::{
     error::CryptoError,
@@ -85,7 +85,7 @@ pub struct BlockHeaderData {
     /// `x`: Hash of the extrinsics introduced in the block.
     pub extrinsic_hash: XtHash,
     /// `t`: The timeslot index of the block.
-    pub timeslot_index: u32,
+    pub timeslot_index: TimeslotIndex,
     /// `e`: The epoch marker.
     pub epoch_marker: Option<EpochMarker>,
     /// `w`: The winning tickets marker.
@@ -134,7 +134,7 @@ impl JamDecode for BlockHeaderData {
             parent_hash: BlockHeaderHash::decode(input)?,
             prior_state_root: StateRoot::decode(input)?,
             extrinsic_hash: XtHash::decode(input)?,
-            timeslot_index: u32::decode_fixed(input, 4)?,
+            timeslot_index: TimeslotIndex::decode_fixed(input, 4)?,
             epoch_marker: Option::<EpochMarker>::decode(input)?,
             winning_tickets_marker: Option::<WinningTicketsMarker>::decode(input)?,
             offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
@@ -295,7 +295,7 @@ impl BlockHeader {
         self.data.prior_state_root = root;
     }
 
-    pub fn set_timeslot(&mut self, timeslot_index: u32) {
+    pub fn set_timeslot(&mut self, timeslot_index: TimeslotIndex) {
         self.data.timeslot_index = timeslot_index;
     }
 

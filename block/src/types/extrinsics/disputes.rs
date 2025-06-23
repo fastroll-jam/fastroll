@@ -1,7 +1,7 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use fr_codec::prelude::*;
 use fr_common::{
-    ByteEncodable, ValidatorIndex, WorkReportHash, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
+    ByteEncodable, EpochIndex, ValidatorIndex, WorkReportHash, FLOOR_ONE_THIRDS_VALIDATOR_COUNT,
     VALIDATORS_SUPER_MAJORITY,
 };
 use fr_crypto::types::*;
@@ -141,7 +141,7 @@ pub struct Verdict {
     /// `r`: The work report hash.
     pub report_hash: WorkReportHash,
     /// `a`: The epoch index.
-    pub epoch_index: u32,
+    pub epoch_index: EpochIndex,
     /// **`j`**: The judgments.
     pub judgments: Judgments,
 }
@@ -191,7 +191,7 @@ impl JamDecode for Verdict {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
         Ok(Self {
             report_hash: WorkReportHash::decode(input)?,
-            epoch_index: u32::decode_fixed(input, 4)?,
+            epoch_index: EpochIndex::decode_fixed(input, 4)?,
             judgments: Judgments::decode(input)?,
         })
     }

@@ -1,4 +1,5 @@
 use crate::{state::safrole::update_slot_sealers, state_prediction::epoch_progressed};
+use fr_common::TimeslotIndex;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -9,7 +10,7 @@ use std::sync::Arc;
 /// Predicts post slot sealers state (γ_s′) before actually running STFs.
 pub async fn predict_post_slot_sealer(
     state_manager: Arc<StateManager>,
-    header_timeslot_index: u32,
+    header_timeslot_index: TimeslotIndex,
 ) -> Result<SlotSealer, StateManagerError> {
     let prior_timeslot = state_manager.get_timeslot_clean().await?;
     let new_timeslot = Timeslot::new(header_timeslot_index);

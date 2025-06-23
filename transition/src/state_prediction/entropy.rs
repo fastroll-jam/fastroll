@@ -1,12 +1,12 @@
 use crate::state_prediction::epoch_progressed;
-use fr_common::EntropyHash;
+use fr_common::{EntropyHash, TimeslotIndex};
 use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
 use std::sync::Arc;
 
 /// Predicts the third entropy history state (η_3′) before actually running STFs.
 pub async fn predict_post_entropy_3(
     state_manager: Arc<StateManager>,
-    header_timeslot_index: u32,
+    header_timeslot_index: TimeslotIndex,
 ) -> Result<EntropyHash, StateManagerError> {
     let prior_timeslot = state_manager.get_timeslot_clean().await?;
     let new_timeslot = Timeslot::new(header_timeslot_index);

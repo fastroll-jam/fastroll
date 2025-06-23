@@ -1,5 +1,5 @@
 use fr_codec::prelude::*;
-use fr_common::{Octets, ServiceId, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
+use fr_common::{Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
 use fr_pvm_host::{
     context::{
@@ -24,7 +24,7 @@ use std::{collections::HashSet, sync::Arc};
 #[derive(JamEncode)]
 struct AccumulateVMArgs {
     /// Current timeslot index
-    timeslot_index: u32,
+    timeslot_index: TimeslotIndex,
     /// `s` of `AccumulateInvokeArgs`
     accumulate_host: ServiceId,
     /// Length of **`o`** of `AccumulateInvokeArgs`

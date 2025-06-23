@@ -1,5 +1,5 @@
 use fr_codec::prelude::*;
-use fr_common::{Balance, ServiceId, UnsignedGas, MAX_SERVICE_CODE_SIZE};
+use fr_common::{Balance, ServiceId, TimeslotIndex, UnsignedGas, MAX_SERVICE_CODE_SIZE};
 use fr_pvm_host::{
     context::{partial_state::AccountSandbox, InvocationContext, OnTransferHostContext},
     error::HostCallError::InvalidContext,
@@ -18,7 +18,7 @@ pub struct BalanceChangeSet {
 #[derive(JamEncode)]
 struct OnTransferVMArgs {
     /// Current timeslot index
-    timeslot_index: u32,
+    timeslot_index: TimeslotIndex,
     /// `s` of `OnTransferInvokeArgs`
     destination: ServiceId,
     /// Length of **`t`** of `OnTransferInvokeArgs`

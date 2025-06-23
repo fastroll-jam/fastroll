@@ -1,4 +1,4 @@
-use fr_common::{workloads::work_report::WorkReport, ServiceId, WorkPackageHash};
+use fr_common::{workloads::work_report::WorkReport, ServiceId, TimeslotIndex, WorkPackageHash};
 use fr_pvm_types::invoke_args::DeferredTransfer;
 use fr_state::types::{
     accumulate::{AccumulateQueue, WorkReportDepsMap},
@@ -123,7 +123,7 @@ pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,
     accumulate_history: &AccumulateHistory,
-    timeslot_index: u32,
+    timeslot_index: TimeslotIndex,
 ) -> (AccumulatableReports, QueuedReports) {
     let (mut accumulatables, reports_with_deps) = partition_reports_by_deps(available_reports);
     let mut queue = accumulate_queue.partition_by_slot_phase_and_flatten(timeslot_index);

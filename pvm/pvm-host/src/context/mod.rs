@@ -6,7 +6,9 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use fr_codec::prelude::*;
-use fr_common::{Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, UnsignedGas};
+use fr_common::{
+    Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
+};
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
@@ -213,7 +215,7 @@ impl AccumulateHostContext {
         partial_state: AccumulatePartialState,
         accumulate_host: ServiceId,
         curr_entropy: EntropyHash,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
         invoke_args: AccumulateInvokeArgs,
     ) -> Result<Self, HostCallError> {
         Ok(Self {
@@ -236,7 +238,7 @@ impl AccumulateHostContext {
         state_manager: Arc<StateManager>,
         accumulate_host: ServiceId,
         entropy: EntropyHash,
-        timeslot_index: u32,
+        timeslot_index: TimeslotIndex,
     ) -> Result<ServiceId, HostCallError> {
         let mut buf = vec![];
         accumulate_host.encode_to(&mut buf)?;

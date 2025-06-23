@@ -9,8 +9,9 @@ use fr_common::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, SegmentRoot, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD,
-    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, SegmentRoot, TimeslotIndex, ACCUMULATION_GAS_PER_CORE,
+    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
+    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -82,7 +83,7 @@ impl GuaranteesXtValidator {
     pub async fn validate(
         &self,
         extrinsic: &GuaranteesXt,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
         if extrinsic.is_empty() {
             return Ok(Vec::new());
@@ -164,7 +165,7 @@ impl GuaranteesXtValidator {
         accumulate_queue: &AccumulateQueue,
         accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<Vec<Ed25519PubKey>, XtError> {
         self.validate_work_report(
             &entry.work_report,
@@ -193,7 +194,7 @@ impl GuaranteesXtValidator {
         accumulate_queue: &AccumulateQueue,
         accumulate_history: &AccumulateHistory,
         work_package_hashes: &HashSet<&Hash32>,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<(), XtError> {
         // Check work report output size limit
         if work_report.total_output_size() > WORK_REPORT_OUTPUT_SIZE_LIMIT {
@@ -444,7 +445,7 @@ impl GuaranteesXtValidator {
         &self,
         core_index: CoreIndex,
         work_report_context: &RefinementContext,
-        header_timeslot_index: u32,
+        header_timeslot_index: TimeslotIndex,
     ) -> Result<(), XtError> {
         let lookup_anchor_hash = &work_report_context.lookup_anchor_header_hash;
         let lookup_anchor_timeslot = work_report_context.lookup_anchor_timeslot;
@@ -572,7 +573,7 @@ impl GuaranteesXtValidator {
     async fn validate_credential(
         &self,
         work_report: &WorkReport,
-        entry_timeslot_index: u32,
+        entry_timeslot_index: TimeslotIndex,
         credential: &GuaranteesCredential,
     ) -> Result<Ed25519PubKey, XtError> {
         // Verify the signature
@@ -627,8 +628,8 @@ impl GuaranteesXtValidator {
 
     pub async fn get_guarantor_assignment(
         &self,
-        entry_timeslot_index: u32,
-        current_timeslot_index: u32,
+        entry_timeslot_index: TimeslotIndex,
+        current_timeslot_index: TimeslotIndex,
     ) -> Result<GuarantorAssignment, XtError> {
         let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;

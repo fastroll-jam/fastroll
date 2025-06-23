@@ -16,7 +16,9 @@ use crate::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey};
+use fr_common::{
+    CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey, TimeslotIndex,
+};
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
@@ -266,7 +268,7 @@ impl StateManager {
     pub async fn get_account_code_by_lookup(
         &self,
         service_id: ServiceId,
-        reference_timeslot_index: u32,
+        reference_timeslot_index: TimeslotIndex,
         code_hash: &CodeHash,
     ) -> Result<Option<AccountCode>, StateManagerError> {
         let code_preimage = self

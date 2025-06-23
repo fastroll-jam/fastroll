@@ -2,8 +2,8 @@ use crate::common::ExportDataSegment;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
-    AuthHash, Balance, CoreIndex, Hash32, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash,
-    TRANSFER_MEMO_SIZE,
+    AuthHash, Balance, CoreIndex, Hash32, SegmentRoot, ServiceId, TimeslotIndex, UnsignedGas,
+    WorkPackageHash, TRANSFER_MEMO_SIZE,
 };
 use std::collections::HashMap;
 
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 #[derive(Clone, Default)]
 pub struct AccumulateInvokeArgs {
     /// `t`: Current timeslot index
-    pub curr_timeslot_index: u32,
+    pub curr_timeslot_index: TimeslotIndex,
     /// `s`: The id of the service account to run the accumulation process
     pub accumulate_host: ServiceId,
     /// `g`: The maximum amount of gas allowed for the accumulation process

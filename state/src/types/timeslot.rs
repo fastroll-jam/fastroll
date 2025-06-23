@@ -4,13 +4,13 @@ use crate::{
 };
 use fr_clock::{TimeProvider, UnixTimeProvider};
 use fr_codec::prelude::*;
-use fr_common::{COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
+use fr_common::{TimeslotIndex, COMMON_ERA_TIMESTAMP, EPOCH_LENGTH, SLOT_DURATION};
 
 /// Time timeslot index.
 ///
 /// Represents `τ` of the GP.
 #[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, PartialEq, Eq)]
-pub struct Timeslot(pub u32);
+pub struct Timeslot(pub TimeslotIndex);
 impl_simple_state_component!(Timeslot, Timeslot);
 
 impl JamEncode for Timeslot {
@@ -51,16 +51,16 @@ impl JamDecodeFixed for Timeslot {
     where
         Self: Sized,
     {
-        Ok(Self(u32::decode_fixed(input, size)?))
+        Ok(Self(TimeslotIndex::decode_fixed(input, size)?))
     }
 }
 
 impl Timeslot {
-    pub fn new(slot: u32) -> Self {
+    pub fn new(slot: TimeslotIndex) -> Self {
         Self(slot)
     }
 
-    pub fn slot(&self) -> u32 {
+    pub fn slot(&self) -> TimeslotIndex {
         self.0
     }
 
