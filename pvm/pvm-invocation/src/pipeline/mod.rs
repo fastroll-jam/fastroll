@@ -1,10 +1,6 @@
 use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
-use fr_codec::prelude::*;
-use fr_common::{
-    workloads::work_report::WorkReport, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas,
-};
-use fr_crypto::{hash, Blake2b256, Keccak256};
-use fr_merkle::well_balanced_tree::WellBalancedMerkleTree;
+use fr_common::{workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, UnsignedGas};
+use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::context::partial_state::AccumulatePartialState;
 use fr_pvm_interface::error::PVMError;
 use fr_pvm_types::{
@@ -45,27 +41,6 @@ struct ParallelAccumulationResult {
     deferred_transfers: Vec<DeferredTransfer>,
     /// **`b*`**: All accumulation outputs created while executing `Δ*`.
     service_output_pairs: AccumulationOutputPairs,
-}
-
-/// Generates a commitment to `AccumulationOutputPairs` using a simple binary merkle tree.
-/// Used for producing the BEEFY commitment after accumulation.
-pub fn accumulate_result_commitment(output_pairs: AccumulationOutputPairs) -> Hash32 {
-    // Note: `AccumulationOutputPairs` is already ordered by service id.
-    let ordered_encoded_results = output_pairs
-        .0
-        .into_iter()
-        .map(|pair| {
-            let mut buf = Vec::with_capacity(36);
-            pair.service
-                .encode_to_fixed(&mut buf, 4)
-                .expect("Should not fail");
-            pair.output_hash
-                .encode_to(&mut buf)
-                .expect("Should not fail");
-            buf
-        })
-        .collect::<Vec<_>>();
-    WellBalancedMerkleTree::<Keccak256>::compute_root(&ordered_encoded_results).unwrap()
 }
 
 /// Represents `Δ+` of the GP.

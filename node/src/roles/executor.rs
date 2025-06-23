@@ -5,9 +5,7 @@ use fr_block::types::{
 };
 use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash};
 use fr_crypto::traits::VrfSignature;
-use fr_pvm_invocation::pipeline::{
-    accumulate_result_commitment, utils::collect_accumulatable_reports,
-};
+use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     types::{SafroleHeaderMarkers, Timeslot},
@@ -221,7 +219,7 @@ impl BlockExecutor {
             Ok::<_, TransitionError>((
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
-                accumulate_result_commitment(acc_summary.output_pairs),
+                acc_summary.output_pairs.accumulate_root(),
             ))
         });
         let (transfers, acc_stats, accumulate_root) = acc_jh.await??;
