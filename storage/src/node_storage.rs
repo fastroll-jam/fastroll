@@ -6,7 +6,7 @@ use fr_block::{
     types::block::Block,
     xt_db::{XtDB, XtDBError},
 };
-use fr_common::{ByteEncodable, Hash32};
+use fr_common::{BlockHeaderHash, ByteEncodable};
 use fr_state::{error::StateManagerError, manager::StateManager, types::EffectiveValidators};
 use std::sync::Arc;
 use thiserror::Error;
@@ -37,7 +37,7 @@ pub struct NodeStorage {
 impl NodeServerTrait for NodeStorage {
     async fn get_blocks(
         &self,
-        header_hash: Hash32,
+        header_hash: BlockHeaderHash,
         ascending_excl: bool,
         max_blocks: u32,
     ) -> Result<Vec<Block>, NodeStorageError> {
@@ -93,7 +93,7 @@ impl NodeStorage {
         })
     }
 
-    async fn get_block(&self, header_hash: &Hash32) -> Result<Block, NodeStorageError> {
+    async fn get_block(&self, header_hash: &BlockHeaderHash) -> Result<Block, NodeStorageError> {
         let header = self
             .header_db
             .get_header(header_hash)

@@ -1,6 +1,7 @@
 use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, AuthHash,
-    CoreIndex, Hash32, Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash,
+    CodeHash, CoreIndex, ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, UnsignedGas,
+    WorkPackageHash,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -213,7 +214,7 @@ pub struct AvailSpecs {
     /// `l`: Auditable work bundle length
     pub work_bundle_length: u32,
     /// `u`: Erasure root of the work package
-    pub erasure_root: Hash32,
+    pub erasure_root: ErasureRoot,
     /// `e`: Export segment root of the work package
     pub segment_root: SegmentRoot,
     /// `n`: Number of export segments
@@ -259,7 +260,7 @@ impl JamDecode for AvailSpecs {
         Ok(Self {
             work_package_hash: WorkPackageHash::decode(input)?,
             work_bundle_length: u32::decode_fixed(input, 4)?,
-            erasure_root: Hash32::decode(input)?,
+            erasure_root: ErasureRoot::decode(input)?,
             segment_root: SegmentRoot::decode(input)?,
             segment_count: u16::decode_fixed(input, 2)?,
         })
@@ -310,7 +311,7 @@ pub struct WorkDigest {
     /// `s`: Associated service id.
     pub service_id: ServiceId,
     /// `c`: Code hash of the service, at the time of reporting.
-    pub service_code_hash: Hash32,
+    pub service_code_hash: CodeHash,
     /// `y`: Hash of the associated work item payload.
     pub payload_hash: Hash32,
     /// `g`: A gas limit allocated to the work item's accumulation.
@@ -361,7 +362,7 @@ impl JamDecode for WorkDigest {
     {
         Ok(Self {
             service_id: ServiceId::decode_fixed(input, 4)?,
-            service_code_hash: Hash32::decode(input)?,
+            service_code_hash: CodeHash::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
             refine_result: WorkExecutionResult::decode(input)?,

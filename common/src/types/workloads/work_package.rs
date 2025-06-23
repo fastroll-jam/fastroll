@@ -1,6 +1,6 @@
 use crate::{
-    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, Hash32, Octets,
-    ServiceId, UnsignedGas, HASH_SIZE,
+    constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
+    Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, HASH_SIZE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -58,7 +58,7 @@ impl JamDecode for WorkPackage {
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct Authorizer {
     /// `u`: Authorization code hash
-    pub auth_code_hash: Hash32,
+    pub auth_code_hash: CodeHash,
     /// **`p`**: Authorization config blob
     pub config_blob: Octets,
 }
@@ -68,7 +68,7 @@ pub struct WorkItem {
     /// `s`: Associated service id
     pub service_id: ServiceId,
     /// `h`: Code hash of the service, at the time of reporting
-    pub service_code_hash: Hash32,
+    pub service_code_hash: CodeHash,
     /// **`y`**: Work item payload blob
     pub payload_blob: Octets,
     /// `g`: Service-specific gas limit for Refinement
@@ -116,7 +116,7 @@ impl JamDecode for WorkItem {
     {
         Ok(Self {
             service_id: ServiceId::decode_fixed(input, 4)?,
-            service_code_hash: Hash32::decode(input)?,
+            service_code_hash: CodeHash::decode(input)?,
             payload_blob: Octets::decode(input)?,
             refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
@@ -148,9 +148,9 @@ impl WorkItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
     /// `h`: Export segments root
-    SegmentRoot(Hash32),
+    SegmentRoot(SegmentRoot),
     /// `h+` (boxplus): Exporting work-package hash
-    WorkPackageHash(Hash32),
+    WorkPackageHash(WorkPackageHash),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -8,7 +8,7 @@ use fr_block::{
         extrinsics::tickets::{TicketsXt, TicketsXtEntry},
     },
 };
-use fr_common::Hash32;
+use fr_common::EntropyHash;
 use fr_conformance_tests::{
     err_map::safrole::map_error_to_custom_code,
     generate_typed_tests,
@@ -100,7 +100,7 @@ impl StateTransitionTest for SafroleTest {
 
         Ok(JamInput {
             slot: input_timeslot,
-            entropy: Hash32::from(input_header_entropy_hash),
+            entropy: EntropyHash::from(input_header_entropy_hash),
             extrinsic: TicketsXt {
                 items: input_ticket_entries,
             },

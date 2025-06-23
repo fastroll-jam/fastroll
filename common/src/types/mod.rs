@@ -10,6 +10,9 @@ use thiserror::Error;
 pub mod ticket;
 pub mod workloads;
 
+/// 32-byte Hash type.
+pub type Hash32 = ByteArray<HASH_SIZE>;
+
 /// Hash type aliases.
 pub type BlockHeaderHash = Hash32;
 pub type XtHash = Hash32;
@@ -18,12 +21,12 @@ pub type BeefyRoot = Hash32;
 pub type EntropyHash = Hash32;
 pub type AuthHash = Hash32;
 pub type WorkReportHash = Hash32;
+pub type ErasureRoot = Hash32;
 pub type SegmentRoot = Hash32;
 pub type WorkPackageHash = Hash32;
 pub type AccumulateRoot = Hash32;
-
-/// 32-byte Hash type.
-pub type Hash32 = ByteArray<HASH_SIZE>;
+pub type CodeHash = Hash32;
+pub type TicketId = Hash32;
 
 /// 31-byte State key type.
 pub type StateKey = ByteArray<STATE_KEY_SIZE>;

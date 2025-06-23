@@ -26,9 +26,10 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    AuthHash, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, EntropyHash, Hash32, Octets,
-    SegmentRoot, ServiceId, StateRoot, WorkPackageHash, WorkReportHash, XtHash, AUTH_QUEUE_SIZE,
-    CORE_COUNT, EPOCH_LENGTH, MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    AuthHash, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
+    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, WorkPackageHash,
+    WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH, MAX_AUTH_POOL_SIZE,
+    VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -332,7 +333,7 @@ pub struct AsnServiceInfo {
 impl From<AsnServiceInfo> for AccountMetadata {
     fn from(value: AsnServiceInfo) -> Self {
         Self {
-            code_hash: Hash32::from(value.code_hash),
+            code_hash: CodeHash::from(value.code_hash),
             balance: value.balance,
             gas_limit_accumulate: value.min_item_gas,
             gas_limit_on_transfer: value.min_memo_gas,
@@ -495,7 +496,7 @@ pub struct AsnAuthorizer {
 impl From<AsnAuthorizer> for Authorizer {
     fn from(value: AsnAuthorizer) -> Self {
         Self {
-            auth_code_hash: Hash32::from(value.code_hash),
+            auth_code_hash: CodeHash::from(value.code_hash),
             config_blob: Octets::from(value.params),
         }
     }
@@ -522,7 +523,7 @@ impl From<AsnAuthPools> for AuthPool {
         for asn_core_authorizers in value.0 {
             let mut core_authorizers = Vec::with_capacity(MAX_AUTH_POOL_SIZE);
             for asn_authorizer in asn_core_authorizers.0.into_iter() {
-                core_authorizers.push(Hash32::from(asn_authorizer));
+                core_authorizers.push(AuthHash::from(asn_authorizer));
             }
             auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
         }
@@ -658,7 +659,7 @@ impl From<AsnWorkItem> for WorkItem {
     fn from(value: AsnWorkItem) -> Self {
         Self {
             service_id: value.service,
-            service_code_hash: Hash32::from(value.code_hash),
+            service_code_hash: CodeHash::from(value.code_hash),
             payload_blob: Octets::from(value.payload),
             refine_gas_limit: value.refine_gas_limit,
             accumulate_gas_limit: value.accumulate_gas_limit,
@@ -831,7 +832,7 @@ impl From<AsnWorkDigest> for WorkDigest {
     fn from(value: AsnWorkDigest) -> Self {
         Self {
             service_id: value.service_id,
-            service_code_hash: Hash32::from(value.code_hash),
+            service_code_hash: CodeHash::from(value.code_hash),
             payload_hash: Hash32::from(value.payload_hash),
             accumulate_gas_limit: value.accumulate_gas,
             refine_result: value.result.into(),
@@ -867,7 +868,7 @@ impl From<AsnWorkPackageSpec> for AvailSpecs {
         Self {
             work_package_hash: WorkPackageHash::from(value.hash),
             work_bundle_length: value.length,
-            erasure_root: Hash32::from(value.erasure_root),
+            erasure_root: ErasureRoot::from(value.erasure_root),
             segment_root: SegmentRoot::from(value.exports_root),
             segment_count: value.exports_count,
         }
@@ -1344,7 +1345,7 @@ impl From<AsnTicketBody> for Ticket {
     fn from(value: AsnTicketBody) -> Self {
         Self {
             attempt: value.attempt,
-            id: Hash32::from(value.id),
+            id: TicketId::from(value.id),
         }
     }
 }
@@ -1376,7 +1377,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
                 let mut tickets = Vec::with_capacity(ASN_EPOCH_LENGTH);
                 for ticket_body in ticket_bodies.into_iter() {
                     tickets.push(Ticket {
-                        id: Hash32::from(ticket_body.id),
+                        id: TicketId::from(ticket_body.id),
                         attempt: ticket_body.attempt,
                     });
                 }

@@ -6,7 +6,7 @@ use crate::{
     inner_vm::InnerPVM,
 };
 use fr_codec::prelude::*;
-use fr_common::{Balance, EntropyHash, Hash32, LookupsKey, Octets, ServiceId, UnsignedGas};
+use fr_common::{Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, UnsignedGas};
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
@@ -354,7 +354,7 @@ impl AccumulateHostContext {
     pub async fn add_new_account(
         &mut self,
         state_manager: Arc<StateManager>,
-        code_hash: Hash32,
+        code_hash: CodeHash,
         balance: Balance,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
@@ -402,7 +402,7 @@ impl AccumulateHostContext {
     pub async fn update_accumulator_metadata(
         &mut self,
         state_manager: Arc<StateManager>,
-        code_hash: Hash32,
+        code_hash: CodeHash,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
     ) -> Result<(), HostCallError> {
