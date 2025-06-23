@@ -124,7 +124,9 @@ impl PartialOrd for GuaranteesXtEntry {
 
 impl Ord for GuaranteesXtEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.work_report.cmp(&other.work_report)
+        self.work_report
+            .core_index
+            .cmp(&other.work_report.core_index)
     }
 }
 

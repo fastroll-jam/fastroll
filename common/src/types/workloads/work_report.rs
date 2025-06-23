@@ -6,7 +6,6 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
 use std::{
-    cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter},
     ops::Deref,
@@ -100,18 +99,6 @@ impl JamDecode for WorkReport {
             digests: WorkDigests::decode(input)?,
             auth_gas_used: UnsignedGas::decode(input)?,
         })
-    }
-}
-
-impl PartialOrd for WorkReport {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.core_index.cmp(&other.core_index))
-    }
-}
-
-impl Ord for WorkReport {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.core_index.cmp(&other.core_index)
     }
 }
 
