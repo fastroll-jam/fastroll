@@ -1207,7 +1207,6 @@ impl HostFunction {
         continue_ok!()
     }
 
-    // TODO: align with GP v0.6.7 (privilege check)
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
@@ -1236,6 +1235,11 @@ impl HostFunction {
                 host_call_panic!()
             };
             new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
+        }
+
+        // Only the privileged designate service of the core is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.designate_service {
+            continue_huh!()
         }
 
         x.assign_new_staging_set(new_staging_set);
