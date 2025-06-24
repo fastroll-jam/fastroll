@@ -427,7 +427,7 @@ impl JamDecode for AccountLookupsEntry {
         }
 
         Ok(Self {
-            value: LimitedVec::<Timeslot, 3>::try_from_vec(timeslots).map_err(|_| {
+            value: LimitedVec::<Timeslot, 3>::try_from(timeslots).map_err(|_| {
                 JamCodecError::InvalidSize(
                     "Invalid timeslots sequence length in AccountLookupsEntry".to_string(),
                 )

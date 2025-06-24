@@ -60,7 +60,7 @@ impl GuarantorAssignment {
         active_set.nullify_punished_validators(&punish_set);
 
         Ok(Self {
-            core_indices: CoreIndices::try_from_vec(Self::permute_validator_indices(
+            core_indices: CoreIndices::try_from(Self::permute_validator_indices(
                 entropy_2,
                 current_timeslot,
             ))
@@ -96,7 +96,7 @@ impl GuarantorAssignment {
         validator_set.nullify_punished_validators(&punish_set);
 
         Ok(Self {
-            core_indices: CoreIndices::try_from_vec(Self::permute_validator_indices(
+            core_indices: CoreIndices::try_from(Self::permute_validator_indices(
                 entropy,
                 Timeslot::new(previous_timeslot_value),
             ))

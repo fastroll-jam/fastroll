@@ -40,7 +40,7 @@ impl From<Input> for GuaranteesXt {
 
             guarantees_vec.push(GuaranteesXtEntry::new(report, value.slot));
         }
-        let guarantees = GuaranteesXtEntries::try_from_vec(guarantees_vec).unwrap();
+        let guarantees = GuaranteesXtEntries::try_from(guarantees_vec).unwrap();
         Self { items: guarantees }
     }
 }

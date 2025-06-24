@@ -368,7 +368,7 @@ impl<T: JamDecode, const MAX_SIZE: usize> JamDecode for LimitedVec<T, MAX_SIZE> 
         for _ in 0..len {
             vec.push(T::decode(input)?);
         }
-        Ok(Self::try_from_vec(vec).expect("size checked"))
+        Ok(Self::try_from(vec).expect("size checked"))
     }
 }
 
@@ -399,7 +399,7 @@ where
             vec.push(T::decode(input)?)
         }
 
-        let fixed_vec = Self::try_from_vec(vec).expect("size checked");
+        let fixed_vec = Self::try_from(vec).expect("size checked");
         Ok(fixed_vec)
     }
 }

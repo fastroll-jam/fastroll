@@ -175,7 +175,7 @@ impl JamDecode for SlotSealers {
                 for _ in 0..EPOCH_LENGTH {
                     tickets.push(Ticket::decode(input)?);
                 }
-                let epoch_tickets = FixedVec::try_from_vec(tickets).map_err(|_| {
+                let epoch_tickets = FixedVec::try_from(tickets).map_err(|_| {
                     JamCodecError::ConversionError(
                         "EpochTickets has more than EPOCH_LENGTH entries".to_string(),
                     )
@@ -187,7 +187,7 @@ impl JamDecode for SlotSealers {
                 for _ in 0..EPOCH_LENGTH {
                     keys.push(BandersnatchPubKey::decode(input)?);
                 }
-                let epoch_keys = FixedVec::try_from_vec(keys).map_err(|_| {
+                let epoch_keys = FixedVec::try_from(keys).map_err(|_| {
                     JamCodecError::ConversionError(
                         "EpochFallbackKeys has more than EPOCH_LENGTH entries".to_string(),
                     )

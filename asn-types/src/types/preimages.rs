@@ -94,7 +94,7 @@ impl From<AsnLookupMetaMapEntry> for LookupMetaMapEntry {
         Self {
             key: value.key.into(),
             data: AccountLookupsEntry::new(
-                AccountLookupsEntryTimeslots::try_from_vec(timeslots_vec).unwrap(),
+                AccountLookupsEntryTimeslots::try_from(timeslots_vec).unwrap(),
             ),
         }
     }
