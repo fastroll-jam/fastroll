@@ -303,7 +303,7 @@ pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKe
         keys_vec.push(ValidatorKey::from(validator_data.clone()));
     }
 
-    ValidatorKeySet(ValidatorKeys::try_from_vec(keys_vec).unwrap())
+    ValidatorKeySet(ValidatorKeys::try_from(keys_vec).unwrap())
 }
 
 pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
@@ -406,7 +406,7 @@ impl From<AsnAvailAssignments> for PendingReports {
             reports.push(maybe_report);
         }
 
-        PendingReports(CorePendingReportsEntries::try_from_vec(reports).unwrap())
+        PendingReports(CorePendingReportsEntries::try_from(reports).unwrap())
     }
 }
 
@@ -525,9 +525,9 @@ impl From<AsnAuthPools> for AuthPool {
             for asn_authorizer in asn_core_authorizers.0.into_iter() {
                 core_authorizers.push(AuthHash::from(asn_authorizer));
             }
-            auth_pool_vec.push(CoreAuthPool::try_from_vec(core_authorizers).unwrap());
+            auth_pool_vec.push(CoreAuthPool::try_from(core_authorizers).unwrap());
         }
-        Self(CoreAuthPoolEntries::try_from_vec(auth_pool_vec).unwrap())
+        Self(CoreAuthPoolEntries::try_from(auth_pool_vec).unwrap())
     }
 }
 
@@ -559,9 +559,9 @@ impl From<AsnAuthQueues> for AuthQueue {
             for asn_authorizer in asn_auth_queue.0.into_iter() {
                 core_queue.push(AuthHash::from(asn_authorizer));
             }
-            auth_queue_vec.push(CoreAuthQueue::try_from_vec(core_queue).unwrap());
+            auth_queue_vec.push(CoreAuthQueue::try_from(core_queue).unwrap());
         }
-        Self(CoreAuthQueueEntries::try_from_vec(auth_queue_vec).unwrap())
+        Self(CoreAuthQueueEntries::try_from(auth_queue_vec).unwrap())
     }
 }
 
@@ -717,8 +717,12 @@ impl From<AsnWorkPackage> for WorkPackage {
             authorizer_service_id: value.auth_code_host,
             authorizer: value.authorizer.into(),
             context: value.context.into(),
-            work_items: WorkItems::try_from_vec(
-                value.items.into_iter().map(WorkItem::from).collect(),
+            work_items: WorkItems::try_from(
+                value
+                    .items
+                    .into_iter()
+                    .map(WorkItem::from)
+                    .collect::<Vec<_>>(),
             )
             .unwrap(),
         }
@@ -956,8 +960,12 @@ impl From<AsnWorkReport> for WorkReport {
             authorizer_hash: AuthHash::from(value.authorizer_hash),
             auth_trace: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
-            digests: WorkDigests::try_from_vec(
-                value.results.into_iter().map(WorkDigest::from).collect(),
+            digests: WorkDigests::try_from(
+                value
+                    .results
+                    .into_iter()
+                    .map(WorkDigest::from)
+                    .collect::<Vec<_>>(),
             )
             .unwrap(),
             auth_gas_used: value.auth_gas_used,
@@ -1075,7 +1083,7 @@ impl From<AsnBlocksHistory> for BlockHistory {
     fn from(value: AsnBlocksHistory) -> Self {
         let history_vec: Vec<BlockHistoryEntry> =
             value.0.into_iter().map(BlockHistoryEntry::from).collect();
-        Self(BlockHistoryEntries::try_from_vec(history_vec).unwrap())
+        Self(BlockHistoryEntries::try_from(history_vec).unwrap())
     }
 }
 
@@ -1144,7 +1152,7 @@ impl From<AsnActivityRecords> for EpochValidatorStats {
         for record in value.0.into_iter() {
             stats.push(ValidatorStatsEntry::from(record));
         }
-        Self::new(ValidatorStatsEntries::try_from_vec(stats).unwrap())
+        Self::new(ValidatorStatsEntries::try_from(stats).unwrap())
     }
 }
 
@@ -1199,7 +1207,7 @@ impl From<AsnCoreActivityRecords> for CoreStats {
         for record in value.0.into_iter() {
             stats.push(CoreStatsEntry::from(record));
         }
-        Self(CoreStatsEntries::try_from_vec(stats).unwrap())
+        Self(CoreStatsEntries::try_from(stats).unwrap())
     }
 }
 
@@ -1381,7 +1389,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
                         attempt: ticket_body.attempt,
                     });
                 }
-                let epoch_tickets = EpochTickets::try_from_vec(tickets).unwrap();
+                let epoch_tickets = EpochTickets::try_from(tickets).unwrap();
                 SlotSealers::Tickets(epoch_tickets)
             }
             AsnTicketsOrKeys::keys(epoch_keys) => {
@@ -1389,7 +1397,7 @@ impl From<AsnTicketsOrKeys> for SlotSealers {
                 for key in epoch_keys.into_iter() {
                     keys.push(BandersnatchPubKey(Hash32::from(key)));
                 }
-                let epoch_keys = EpochFallbackKeys::try_from_vec(keys).unwrap();
+                let epoch_keys = EpochFallbackKeys::try_from(keys).unwrap();
                 SlotSealers::BandersnatchPubKeys(epoch_keys)
             }
         }
@@ -1520,7 +1528,7 @@ impl From<AsnDisputeVerdict> for Verdict {
         Self {
             report_hash: WorkReportHash::from(value.target),
             epoch_index: value.age,
-            judgments: Judgments::try_from_vec(judgments).unwrap(),
+            judgments: Judgments::try_from(judgments).unwrap(),
         }
     }
 }
@@ -1804,8 +1812,12 @@ pub struct AsnAssurancesXt(pub Vec<AsnAvailAssurance>);
 impl From<AsnAssurancesXt> for AssurancesXt {
     fn from(value: AsnAssurancesXt) -> Self {
         Self {
-            items: AssurancesXtEntries::try_from_vec(
-                value.0.into_iter().map(AssurancesXtEntry::from).collect(),
+            items: AssurancesXtEntries::try_from(
+                value
+                    .0
+                    .into_iter()
+                    .map(AssurancesXtEntry::from)
+                    .collect::<Vec<_>>(),
             )
             .unwrap(),
         }
@@ -1893,8 +1905,12 @@ pub struct AsnGuaranteesXt(pub Vec<AsnReportGuarantee>);
 impl From<AsnGuaranteesXt> for GuaranteesXt {
     fn from(value: AsnGuaranteesXt) -> Self {
         Self {
-            items: GuaranteesXtEntries::try_from_vec(
-                value.0.into_iter().map(GuaranteesXtEntry::from).collect(),
+            items: GuaranteesXtEntries::try_from(
+                value
+                    .0
+                    .into_iter()
+                    .map(GuaranteesXtEntry::from)
+                    .collect::<Vec<_>>(),
             )
             .unwrap(),
         }
@@ -1943,7 +1959,7 @@ impl From<AsnAccumulateQueue> for AccumulateQueue {
             items_vec.push(records_converted);
         });
         Self {
-            items: AccumulateQueueEntries::try_from_vec(items_vec).unwrap(),
+            items: AccumulateQueueEntries::try_from(items_vec).unwrap(),
         }
     }
 }
@@ -1979,7 +1995,7 @@ impl From<AsnAccumulateHistory> for AccumulateHistory {
             items_vec.push(hash_set);
         });
         Self {
-            items: AccumulateHistoryEntries::try_from_vec(items_vec).unwrap(),
+            items: AccumulateHistoryEntries::try_from(items_vec).unwrap(),
         }
     }
 }
@@ -2086,7 +2102,7 @@ impl From<AsnEpochMark> for EpochMarker {
         Self {
             entropy: EntropyHash::from(value.entropy),
             tickets_entropy: EntropyHash::from(value.tickets_entropy),
-            validators: EpochValidators::try_from_vec(validator_keys).unwrap(),
+            validators: EpochValidators::try_from(validator_keys).unwrap(),
         }
     }
 }
@@ -2128,7 +2144,7 @@ impl From<AsnHeader> for BlockHeader {
             for asn_ticket in e {
                 tickets.push(Ticket::from(asn_ticket));
             }
-            WinningTicketsMarker::try_from_vec(tickets).unwrap()
+            WinningTicketsMarker::try_from(tickets).unwrap()
         });
         Self {
             data: BlockHeaderData {

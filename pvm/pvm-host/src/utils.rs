@@ -11,7 +11,7 @@ pub(crate) fn zero_pad_as_array<const BLOCK_SIZE: usize>(
     }
     let padding_len = BLOCK_SIZE - input.len();
     input.extend(vec![0; padding_len]);
-    FixedVec::<u8, BLOCK_SIZE>::try_from_vec(input).ok()
+    FixedVec::<u8, BLOCK_SIZE>::try_from(input).ok()
 }
 
 #[macro_export]
