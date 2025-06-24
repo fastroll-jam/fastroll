@@ -61,8 +61,8 @@ async-trait = "0.1.88"
 base32 = "0.5.1"
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
-cfg-if = "1.0.0"
-clap = { version = "4.5.38", features = ["derive"] }
+cfg-if = "1.0.1"
+clap = { version = "4.5.40", features = ["derive"] }
 dashmap = "6.1.0"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 futures = "0.3.31"
@@ -75,10 +75,10 @@ rand = "0.8.5"
 regex = "1.11.1"
 rcgen = "0.13.2"
 rocksdb = { version = "0.23.0", default-features = false, features = ["snappy"] }
-rustls = { version = "0.23.27", default-features = false, features = ["std"] }
+rustls = { version = "0.23.28", default-features = false, features = ["std"] }
 serde = { version = "1.0.219", features = ["derive"] }
 sha3 = "0.10.8"
-syn = { version = "2.0.101", features = ["full", "extra-traits"] }
+syn = { version = "2.0.104", features = ["full", "extra-traits"] }
 tempfile = "3.20.0"
 thiserror = "2.0.12"
 time = { version = "0.3.41", features = ["macros", "local-offset"] }
