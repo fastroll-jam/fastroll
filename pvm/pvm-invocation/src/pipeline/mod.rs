@@ -37,7 +37,7 @@ pub struct OuterAccumulationResult {
 }
 
 struct ParallelAccumulationResult {
-    /// `u*`: Amount of gas used for each service while executing `Δ*`.
+    /// **`u*`**: Amount of gas used for each service while executing `Δ*`.
     service_gas_pairs: AccumulationGasPairs,
     /// **`t*`**: All deferred transfers created while executing `Δ*`.
     deferred_transfers: Vec<DeferredTransfer>,
