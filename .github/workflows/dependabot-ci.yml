@@ -27,10 +27,8 @@ jobs:
       - name: Install libclang-dev
         run: sudo apt-get install libclang-dev
 
-      - name: Install nextest release
-        uses: taiki-e/install-action@9903ab6feadaec33945de535fe9d181b91802a55 # pin@v2
-        with:
-          tool: nextest
+      - name: Install nextest pre-built binary
+        run: cargo binstall cargo-nextest --secure
 
       - name: Run tests
         run: cargo +stable nextest run --workspace --profile ci
