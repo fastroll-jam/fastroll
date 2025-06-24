@@ -52,7 +52,7 @@ impl XtManager {
                 .into_iter()
                 .filter_map(|entry| GuaranteesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
-        let items = GuaranteesXtEntries::try_from_vec(items_vec)?;
+        let items = GuaranteesXtEntries::try_from(items_vec)?;
         Ok(GuaranteesXt { items })
     }
 
@@ -65,7 +65,7 @@ impl XtManager {
                 .into_iter()
                 .filter_map(|entry| AssurancesXtEntry::decode(&mut entry.data.as_slice()).ok())
                 .collect();
-        let items = AssurancesXtEntries::try_from_vec(items_vec)?;
+        let items = AssurancesXtEntries::try_from(items_vec)?;
         Ok(AssurancesXt { items })
     }
 

@@ -51,13 +51,6 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
         self.inner.iter_mut()
     }
 
-    pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
-        if vec.len() > MAX_SIZE {
-            return Err(LimitedVecError::InvalidVecSize);
-        }
-        Ok(Self { inner: vec })
-    }
-
     pub fn try_push(&mut self, item: T) -> Result<(), LimitedVecError> {
         if self.inner.len() >= MAX_SIZE {
             return Err(LimitedVecError::LimitedVecFull);
@@ -92,6 +85,23 @@ impl<T, const MAX_SIZE: usize> LimitedVec<T, MAX_SIZE> {
 
     pub fn remove(&mut self, index: usize) -> T {
         self.inner.remove(index)
+    }
+}
+
+impl<T, const MAX_SIZE: usize> TryFrom<Vec<T>> for LimitedVec<T, MAX_SIZE> {
+    type Error = LimitedVecError;
+
+    fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
+        if vec.len() > MAX_SIZE {
+            return Err(LimitedVecError::InvalidVecSize);
+        }
+        Ok(Self { inner: vec })
+    }
+}
+
+impl<T, const MAX_SIZE: usize> From<LimitedVec<T, MAX_SIZE>> for Vec<T> {
+    fn from(value: LimitedVec<T, MAX_SIZE>) -> Self {
+        value.inner
     }
 }
 
@@ -158,7 +168,7 @@ where
     T: Default + Clone,
 {
     fn default() -> Self {
-        Self::try_from_vec(vec![T::default(); SIZE]).expect("size checked")
+        Self::try_from(vec![T::default(); SIZE]).expect("size checked")
     }
 }
 
@@ -192,12 +202,28 @@ where
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
         self.inner.iter_mut()
     }
+}
 
-    pub fn try_from_vec(vec: Vec<T>) -> Result<Self, LimitedVecError> {
+impl<T, const SIZE: usize> TryFrom<Vec<T>> for FixedVec<T, SIZE>
+where
+    T: Default + Clone,
+{
+    type Error = LimitedVecError;
+
+    fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
         if vec.len() != SIZE {
             return Err(LimitedVecError::InvalidVecSize);
         }
         Ok(Self { inner: vec })
+    }
+}
+
+impl<T, const SIZE: usize> From<FixedVec<T, SIZE>> for Vec<T>
+where
+    T: Default + Clone,
+{
+    fn from(value: FixedVec<T, SIZE>) -> Self {
+        value.inner
     }
 }
 

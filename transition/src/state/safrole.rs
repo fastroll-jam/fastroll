@@ -116,7 +116,7 @@ pub(crate) fn update_slot_sealers(
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
         let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());
-        let epoch_tickets = EpochTickets::try_from_vec(ticket_accumulator_outside_in)
+        let epoch_tickets = EpochTickets::try_from(ticket_accumulator_outside_in)
             .expect("ticket accumulator length exceeds EPOCH_LENGTH");
         safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
     }
