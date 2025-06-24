@@ -1155,7 +1155,6 @@ impl HostFunction {
         continue_ok!()
     }
 
-    // TODO: align with GP v0.6.7 (assign services array)
     /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
     /// in the accumulate context partial state.
     pub fn host_assign(
@@ -1168,13 +1167,17 @@ impl HostFunction {
         let Ok(core_index) = vm.regs[7].as_usize() else {
             continue_core!()
         };
-        let Ok(offset) = vm.regs[8].as_mem_address() else {
+        let Ok(queue_offset) = vm.regs[8].as_mem_address() else {
             host_call_panic!()
+        };
+        let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
+            // TODO: Invalid assign service id handling
+            unimplemented!()
         };
 
         if !vm
             .memory
-            .is_address_range_readable(offset, HASH_SIZE * AUTH_QUEUE_SIZE)
+            .is_address_range_readable(queue_offset, HASH_SIZE * AUTH_QUEUE_SIZE)
         {
             host_call_panic!()
         }
@@ -1183,11 +1186,16 @@ impl HostFunction {
             continue_core!()
         }
 
+        // Only the privileged assign service of the core is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.assign_services[core_index] {
+            continue_huh!()
+        }
+
         let mut queue_assignment = AuthQueue::default();
         for i in 0..AUTH_QUEUE_SIZE {
             let Ok(authorizer) = vm
                 .memory
-                .read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
+                .read_bytes(queue_offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
             else {
                 host_call_panic!()
             };
@@ -1195,6 +1203,7 @@ impl HostFunction {
         }
 
         x.assign_new_auth_queue(queue_assignment);
+        x.assign_new_core_assign_service(core_index, core_assign_service);
         continue_ok!()
     }
 

@@ -296,6 +296,10 @@ impl AccumulateHostContext {
         self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 
+    pub fn assign_new_core_assign_service(&mut self, core_index: usize, assign_service: ServiceId) {
+        self.partial_state.assign_services[core_index] = assign_service;
+    }
+
     pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) {
         self.partial_state.new_auth_queue = Some(auth_queue);
     }
