@@ -8,8 +8,10 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
+    CORE_COUNT,
 };
 use fr_crypto::{hash, Blake2b256};
+use fr_limited_vec::FixedVec;
 use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
@@ -21,10 +23,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     manager::StateManager,
-    types::{
-        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue,
-        PrivilegedServices, StagingSet,
-    },
+    types::{AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue, StagingSet},
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -287,16 +286,14 @@ impl AccumulateHostContext {
     pub fn assign_new_privileged_services(
         &mut self,
         manager_service: ServiceId,
-        assign_service: ServiceId,
+        assign_services: FixedVec<ServiceId, CORE_COUNT>,
         designate_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
-        self.partial_state.new_privileges = Some(PrivilegedServices {
-            manager_service,
-            assign_service,
-            designate_service,
-            always_accumulate_services,
-        });
+        self.partial_state.manager_service = manager_service;
+        self.partial_state.assign_services = assign_services;
+        self.partial_state.designate_service = designate_service;
+        self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 
     pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) {

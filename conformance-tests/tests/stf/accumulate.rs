@@ -71,7 +71,9 @@ impl StateTransitionTest for AccumulateTest {
         // Add service info for privileged services
         let mut privileged_service_ids = HashSet::new();
         privileged_service_ids.insert(pre_privileged_services.manager_service);
-        privileged_service_ids.insert(pre_privileged_services.assign_service);
+        for assign_service in &pre_privileged_services.assign_services {
+            privileged_service_ids.insert(*assign_service);
+        }
         privileged_service_ids.insert(pre_privileged_services.designate_service);
         for privileged_service_id in privileged_service_ids {
             state_manager

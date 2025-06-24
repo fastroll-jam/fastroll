@@ -32,7 +32,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
-        AuthQueue, StagingSet, Timeslot,
+        AssignServices, AuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -1094,18 +1094,31 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let (manager, assign, designate) = match (
-            vm.regs[7].as_service_id(),
-            vm.regs[8].as_service_id(),
-            vm.regs[9].as_service_id(),
-        ) {
-            (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
-            _ => {
-                continue_who!()
-            }
+        // Only the privileged manager service is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.manager_service {
+            continue_huh!()
+        }
+
+        let Ok(manager) = vm.regs[7].as_service_id() else {
+            continue_who!()
+        };
+        let Ok(assign_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(designate) = vm.regs[9].as_service_id() else {
+            continue_who!()
         };
 
-        let Ok(offset) = vm.regs[10].as_mem_address() else {
+        if !vm
+            .memory
+            .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
+        {
+            host_call_panic!()
+        }
+        let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
+        let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
+
+        let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
             host_call_panic!()
         };
         let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
@@ -1114,7 +1127,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, 12 * always_accumulates_count)
+            .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
         {
             host_call_panic!()
         }
@@ -1122,17 +1135,23 @@ impl HostFunction {
         let mut always_accumulate_services = BTreeMap::new();
 
         for i in 0..always_accumulates_count {
-            let Ok(always_accumulate_serialized) =
-                vm.memory.read_bytes(offset + 12 * i as MemAddress, 12)
+            let Ok(always_accumulate_encoded) = vm
+                .memory
+                .read_bytes(always_accumulate_offset + 12 * i as MemAddress, 12)
             else {
                 host_call_panic!()
             };
-            let address = u32::decode_fixed(&mut always_accumulate_serialized.as_slice(), 4)?;
-            let basic_gas = u64::decode_fixed(&mut always_accumulate_serialized.as_slice(), 8)?;
+            let address = u32::decode_fixed(&mut always_accumulate_encoded.as_slice(), 4)?;
+            let basic_gas = u64::decode_fixed(&mut always_accumulate_encoded.as_slice(), 8)?;
             always_accumulate_services.insert(address, basic_gas);
         }
 
-        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services);
+        x.assign_new_privileged_services(
+            manager,
+            assign_services,
+            designate,
+            always_accumulate_services,
+        );
         continue_ok!()
     }
 
