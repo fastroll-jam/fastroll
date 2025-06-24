@@ -8,10 +8,10 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CodeHash, LookupsKey, Octets, ServiceId, UnsignedGas, MIN_BALANCE_PER_ITEM,
-    MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
+    Balance, CodeHash, LookupsKey, Octets, ServiceId, UnsignedGas, CORE_COUNT,
+    MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
-use fr_limited_vec::LimitedVec;
+use fr_limited_vec::{FixedVec, LimitedVec};
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -489,19 +489,63 @@ impl AccountLookupsEntryExt {
     }
 }
 
+pub type AssignServices = FixedVec<ServiceId, CORE_COUNT>;
+pub type AlwaysAccumulateServices = BTreeMap<ServiceId, UnsignedGas>;
+
 /// Identifier of services that are allowed to conduct privileged state transitions,
 /// along with metadata of the always-accumulate services.
 ///
 /// Represents `χ` of the GP.
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PrivilegedServices {
     /// `m`: A privileged service that can alter privileged services state.
     pub manager_service: ServiceId,
-    /// `a`: A privileged service that can alter the auth queue.
-    pub assign_service: ServiceId,
-    /// `v`: A privileged service that can alter the staging validator set.
+    /// **`a`**: Privileged services that can alter the auth queue, one for each core.
+    pub assign_services: AssignServices,
+    /// `v`: A privileged service that can alter the staging validator set (`ι`).
     pub designate_service: ServiceId,
-    /// **`g`**: A mapping of always-accumulate services and their basic gas usages.
-    pub always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
+    /// **`z`**: A mapping of always-accumulate services and their basic gas usages.
+    pub always_accumulate_services: AlwaysAccumulateServices,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);
+
+impl JamEncode for PrivilegedServices {
+    fn size_hint(&self) -> usize {
+        4 + 4 * CORE_COUNT + 4 + self.always_accumulate_services.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.manager_service.encode_to_fixed(dest, 4)?;
+        for assign_service in &self.assign_services {
+            assign_service.encode_to_fixed(dest, 4)?;
+        }
+        self.designate_service.encode_to_fixed(dest, 4)?;
+        self.always_accumulate_services.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for PrivilegedServices {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        let manager_service = ServiceId::decode_fixed(input, 4)?;
+        let mut assign_services_vec = Vec::with_capacity(CORE_COUNT);
+        for _ in 0..CORE_COUNT {
+            let assign_service = ServiceId::decode_fixed(input, 4)?;
+            assign_services_vec.push(assign_service);
+        }
+        let assign_services = AssignServices::try_from(assign_services_vec)
+            .expect("assign_services_vec should have length of 2");
+        let designate_service = ServiceId::decode_fixed(input, 4)?;
+        let always_accumulate_services = AlwaysAccumulateServices::decode(input)?;
+
+        Ok(Self {
+            manager_service,
+            assign_services,
+            designate_service,
+            always_accumulate_services,
+        })
+    }
+}

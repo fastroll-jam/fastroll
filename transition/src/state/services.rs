@@ -301,17 +301,22 @@ async fn run_privileged_transitions(
     }
 
     // Transition privileged services
-    if let Some(new_privileges) = partial_state_union.new_privileges {
-        state_manager
-            .with_mut_privileged_services(
-                StateMut::Update,
-                |privileges| -> Result<(), StateManagerError> {
-                    *privileges = new_privileges;
-                    Ok(())
-                },
-            )
-            .await?;
-    }
+    let manager_service_sandboxed = partial_state_union.manager_service;
+    let assign_services_sandboxed = partial_state_union.assign_services;
+    let designate_service_sandboxed = partial_state_union.designate_service;
+    let always_accumulate_services_sandboxed = partial_state_union.always_accumulate_services;
+    state_manager
+        .with_mut_privileged_services(
+            StateMut::Update,
+            |privileges| -> Result<(), StateManagerError> {
+                privileges.manager_service = manager_service_sandboxed;
+                privileges.assign_services = assign_services_sandboxed;
+                privileges.designate_service = designate_service_sandboxed;
+                privileges.always_accumulate_services = always_accumulate_services_sandboxed;
+                Ok(())
+            },
+        )
+        .await?;
 
     Ok(())
 }

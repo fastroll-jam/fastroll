@@ -37,7 +37,7 @@ pub struct OuterAccumulationResult {
 }
 
 struct ParallelAccumulationResult {
-    /// `u*`: Amount of gas used for each service while executing `Δ*`.
+    /// **`u*`**: Amount of gas used for each service while executing `Δ*`.
     service_gas_pairs: AccumulationGasPairs,
     /// **`t*`**: All deferred transfers created while executing `Δ*`.
     deferred_transfers: Vec<DeferredTransfer>,
@@ -229,11 +229,21 @@ async fn add_partial_state_change(
     ) {
         partial_state_union.new_auth_queue = Some(new_auth_queue);
     }
-    if let (None, Some(new_privileges)) = (
-        &partial_state_union.new_privileges,
-        accumulate_result_partial_state.new_privileges,
-    ) {
-        partial_state_union.new_privileges = Some(new_privileges);
+
+    if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
+        partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
+    }
+    if partial_state_union.assign_services != accumulate_result_partial_state.assign_services {
+        partial_state_union.assign_services = accumulate_result_partial_state.assign_services
+    }
+    if partial_state_union.designate_service != accumulate_result_partial_state.designate_service {
+        partial_state_union.designate_service = accumulate_result_partial_state.designate_service;
+    }
+    if partial_state_union.always_accumulate_services
+        != accumulate_result_partial_state.always_accumulate_services
+    {
+        partial_state_union.always_accumulate_services =
+            accumulate_result_partial_state.always_accumulate_services;
     }
 
     let accumulate_host_sandbox = partial_state_union

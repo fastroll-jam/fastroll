@@ -35,7 +35,7 @@ use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     AccountMetadata, AccumulateHistory, AccumulateHistoryEntries, AccumulateQueue,
-    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
+    AccumulateQueueEntries, AssignServices, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
     BlockHistoryEntry, CoreAuthPool, CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries,
     CorePendingReportsEntries, CoreStats, CoreStatsEntries, CoreStatsEntry, DisputesState,
     EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats, OnChainStatistics,
@@ -2021,7 +2021,7 @@ pub struct AlwaysAccumulateMapItem {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnPrivilegedServices {
     pub bless: AsnServiceId,
-    pub assign: AsnServiceId,
+    pub assign: Vec<AsnServiceId>,
     pub designate: AsnServiceId,
     pub always_acc: Vec<AlwaysAccumulateMapItem>,
 }
@@ -2030,7 +2030,7 @@ impl From<AsnPrivilegedServices> for PrivilegedServices {
     fn from(value: AsnPrivilegedServices) -> Self {
         Self {
             manager_service: value.bless,
-            assign_service: value.assign,
+            assign_services: AssignServices::try_from(value.assign).unwrap(),
             designate_service: value.designate,
             always_accumulate_services: value
                 .always_acc
@@ -2045,7 +2045,7 @@ impl From<PrivilegedServices> for AsnPrivilegedServices {
     fn from(value: PrivilegedServices) -> Self {
         Self {
             bless: value.manager_service,
-            assign: value.assign_service,
+            assign: value.assign_services.into(),
             designate: value.designate_service,
             always_acc: value
                 .always_accumulate_services
@@ -2055,7 +2055,6 @@ impl From<PrivilegedServices> for AsnPrivilegedServices {
         }
     }
 }
-
 pub type AsnAccumulateRoot = AsnOpaqueHash;
 
 // ----------------------------------------------------

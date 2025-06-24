@@ -5,8 +5,9 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState,
-        AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta, AuthQueue,
-        PrivilegedServices, StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
+        AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta,
+        AlwaysAccumulateServices, AssignServices, AuthQueue, PrivilegedServices, StagingSet,
+        StorageFootprint, StorageUsageDelta, Timeslot,
     },
 };
 use std::{
@@ -836,8 +837,14 @@ pub struct AccumulatePartialState {
     pub new_staging_set: Option<StagingSet>,
     /// **`q`**: New allocation of `AuthQueue` after accumulation
     pub new_auth_queue: Option<AuthQueue>,
-    /// **`x`**: New allocation of `PrivilegedServices` after accumulation
-    pub new_privileges: Option<PrivilegedServices>,
+    /// `m`: Sandboxed copy of privileged manager service id
+    pub manager_service: ServiceId,
+    /// **`a`**: Sandboxed copy of privileged assign service ids
+    pub assign_services: AssignServices,
+    /// `v`: Sandboxed copy of privileged designate service id
+    pub designate_service: ServiceId,
+    /// **`z`**: Sandboxed copy of privileged always-accumulate services
+    pub always_accumulate_services: AlwaysAccumulateServices,
 }
 
 impl AccumulatePartialState {
@@ -847,13 +854,27 @@ impl AccumulatePartialState {
         service_id: ServiceId,
     ) -> Result<Self, PartialStateError> {
         let mut accounts_sandbox = HashMap::new();
-        let account_sandbox = AccountSandbox::from_service_id(state_manager, service_id).await?;
+        let account_sandbox =
+            AccountSandbox::from_service_id(state_manager.clone(), service_id).await?;
         accounts_sandbox.insert(service_id, account_sandbox);
+
+        let PrivilegedServices {
+            manager_service,
+            assign_services,
+            designate_service,
+            always_accumulate_services,
+        } = state_manager.get_privileged_services().await?;
+
         Ok(Self {
             accounts_sandbox: AccountsSandboxMap {
                 accounts: accounts_sandbox,
             },
-            ..Default::default()
+            new_staging_set: None,
+            new_auth_queue: None,
+            manager_service,
+            assign_services,
+            designate_service,
+            always_accumulate_services,
         })
     }
 }

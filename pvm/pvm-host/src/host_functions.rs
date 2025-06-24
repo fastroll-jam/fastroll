@@ -32,7 +32,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
-        AuthQueue, StagingSet, Timeslot,
+        AssignServices, AuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -1094,18 +1094,31 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let (manager, assign, designate) = match (
-            vm.regs[7].as_service_id(),
-            vm.regs[8].as_service_id(),
-            vm.regs[9].as_service_id(),
-        ) {
-            (Ok(manager), Ok(assign), Ok(designate)) => (manager, assign, designate),
-            _ => {
-                continue_who!()
-            }
+        // Only the privileged manager service is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.manager_service {
+            continue_huh!()
+        }
+
+        let Ok(manager) = vm.regs[7].as_service_id() else {
+            continue_who!()
+        };
+        let Ok(assign_offset) = vm.regs[8].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(designate) = vm.regs[9].as_service_id() else {
+            continue_who!()
         };
 
-        let Ok(offset) = vm.regs[10].as_mem_address() else {
+        if !vm
+            .memory
+            .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
+        {
+            host_call_panic!()
+        }
+        let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
+        let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
+
+        let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
             host_call_panic!()
         };
         let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
@@ -1114,7 +1127,7 @@ impl HostFunction {
 
         if !vm
             .memory
-            .is_address_range_readable(offset, 12 * always_accumulates_count)
+            .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
         {
             host_call_panic!()
         }
@@ -1122,21 +1135,26 @@ impl HostFunction {
         let mut always_accumulate_services = BTreeMap::new();
 
         for i in 0..always_accumulates_count {
-            let Ok(always_accumulate_serialized) =
-                vm.memory.read_bytes(offset + 12 * i as MemAddress, 12)
+            let Ok(always_accumulate_encoded) = vm
+                .memory
+                .read_bytes(always_accumulate_offset + 12 * i as MemAddress, 12)
             else {
                 host_call_panic!()
             };
-            let address = u32::decode_fixed(&mut always_accumulate_serialized.as_slice(), 4)?;
-            let basic_gas = u64::decode_fixed(&mut always_accumulate_serialized.as_slice(), 8)?;
+            let address = u32::decode_fixed(&mut always_accumulate_encoded.as_slice(), 4)?;
+            let basic_gas = u64::decode_fixed(&mut always_accumulate_encoded.as_slice(), 8)?;
             always_accumulate_services.insert(address, basic_gas);
         }
 
-        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services);
+        x.assign_new_privileged_services(
+            manager,
+            assign_services,
+            designate,
+            always_accumulate_services,
+        );
         continue_ok!()
     }
 
-    // TODO: align with GP v0.6.7 (assign services array)
     /// Assigns `MAX_AUTH_QUEUE_SIZE` new authorizers to the `AuthQueue` of the specified core
     /// in the accumulate context partial state.
     pub fn host_assign(
@@ -1149,13 +1167,17 @@ impl HostFunction {
         let Ok(core_index) = vm.regs[7].as_usize() else {
             continue_core!()
         };
-        let Ok(offset) = vm.regs[8].as_mem_address() else {
+        let Ok(queue_offset) = vm.regs[8].as_mem_address() else {
             host_call_panic!()
+        };
+        let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
+            // TODO: Invalid assign service id handling
+            unimplemented!()
         };
 
         if !vm
             .memory
-            .is_address_range_readable(offset, HASH_SIZE * AUTH_QUEUE_SIZE)
+            .is_address_range_readable(queue_offset, HASH_SIZE * AUTH_QUEUE_SIZE)
         {
             host_call_panic!()
         }
@@ -1164,11 +1186,16 @@ impl HostFunction {
             continue_core!()
         }
 
+        // Only the privileged assign service of the core is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.assign_services[core_index] {
+            continue_huh!()
+        }
+
         let mut queue_assignment = AuthQueue::default();
         for i in 0..AUTH_QUEUE_SIZE {
             let Ok(authorizer) = vm
                 .memory
-                .read_bytes(offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
+                .read_bytes(queue_offset + (HASH_SIZE * i) as MemAddress, HASH_SIZE)
             else {
                 host_call_panic!()
             };
@@ -1176,10 +1203,10 @@ impl HostFunction {
         }
 
         x.assign_new_auth_queue(queue_assignment);
+        x.assign_new_core_assign_service(core_index, core_assign_service);
         continue_ok!()
     }
 
-    // TODO: align with GP v0.6.7 (privilege check)
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
@@ -1208,6 +1235,11 @@ impl HostFunction {
                 host_call_panic!()
             };
             new_staging_set[i] = ValidatorKey::decode(&mut validator_key.as_slice())?;
+        }
+
+        // Only the privileged designate service of the core is allowed to invoke this host call
+        if x.accumulate_host != x.partial_state.designate_service {
+            continue_huh!()
         }
 
         x.assign_new_staging_set(new_staging_set);
