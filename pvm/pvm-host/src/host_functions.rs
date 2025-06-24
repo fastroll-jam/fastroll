@@ -619,14 +619,34 @@ impl HostFunction {
         // Encode account metadata with JAM Codec
         let info = metadata.encode_for_info_hostcall()?;
 
-        if !vm.memory.is_address_range_writable(buf_offset, info.len()) {
-            continue_oob!()
+        // f
+        let info_read_offset = match vm.regs[11].as_usize() {
+            Ok(info_read_offset_reg) => info_read_offset_reg.min(info.len()),
+            Err(_) => info.len(),
+        };
+        let info_blob_len_minus_offset = info
+            .len()
+            .checked_sub(info_read_offset)
+            .expect("info_read_offset is less than info blob length");
+
+        // l
+        let info_write_len = match vm.regs[12].as_usize() {
+            Ok(info_write_len_reg) => info_write_len_reg.min(info_blob_len_minus_offset),
+            Err(_) => info_blob_len_minus_offset,
+        };
+
+        if !vm
+            .memory
+            .is_address_range_writable(buf_offset, info_write_len)
+        {
+            host_call_panic!()
         }
 
+        let info_write = info[info_read_offset..info_read_offset + info_write_len].to_vec();
         continue_with_vm_change!(
-            r7: HostCallReturnCode::OK,
+            r7: info.len() as RegValue,
             mem_offset: buf_offset,
-            mem_data: info
+            mem_data: info_write
         )
     }
 
@@ -1269,11 +1289,11 @@ impl HostFunction {
         continue_with_vm_change!(r7: post_gas)
     }
 
-    // TODO: align with GP v0.6.7 (service metadata fields updated)
     /// Creates a new service account with an address derived from the hash of
     /// the accumulate host address, the current epochal entropy, and the block timeslot index.
     ///
-    /// The code hash is loaded into memory, and the two gas limits are provided as arguments in registers.
+    /// The code hash is loaded into memory, and the two gas limits and the gratis storage offset
+    /// are provided as arguments in registers.
     ///
     /// The account storage and lookup dictionary are initialized as empty.
     pub async fn host_new(
@@ -1292,9 +1312,19 @@ impl HostFunction {
         };
         let gas_limit_g = vm.regs[9].value();
         let gas_limit_m = vm.regs[10].value();
+        let Ok(gratis_storage_offset) = vm.regs[11].as_balance() else {
+            unreachable!(
+                "as_balance() conversion should not fail: both RegValue and Balance are u64"
+            )
+        };
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
+        }
+
+        // Only the privileged manager service can create new accounts with gratis storage
+        if gratis_storage_offset != 0 && x.accumulate_host != x.partial_state.manager_service {
+            continue_huh!()
         }
 
         let Ok(code_hash_octets) = vm.memory.read_bytes(offset, HASH_SIZE) else {
@@ -1302,7 +1332,7 @@ impl HostFunction {
         };
         let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
         let new_account_threshold_balance =
-            AccountMetadata::get_initial_threshold_balance(code_lookup_len);
+            AccountMetadata::get_initial_threshold_balance(code_lookup_len, gratis_storage_offset);
 
         // Check if the accumulate host service account's balance is sufficient
         // and subtract by the initial threshold balance to be transferred to the new account.
@@ -1320,6 +1350,7 @@ impl HostFunction {
             .await?;
 
         // Add a new account to the partial state
+        let curr_timeslot = state_manager.get_timeslot().await?.slot();
         let new_service_id = x
             .add_new_account(
                 state_manager.clone(),
@@ -1328,6 +1359,10 @@ impl HostFunction {
                 gas_limit_g,
                 gas_limit_m,
                 (code_hash, code_lookup_len),
+                gratis_storage_offset,
+                curr_timeslot,
+                0,
+                x.accumulate_host,
             )
             .await?;
 

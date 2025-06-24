@@ -8,7 +8,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CodeHash, LookupsKey, Octets, ServiceId, UnsignedGas, CORE_COUNT,
+    Balance, CodeHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas, CORE_COUNT,
     MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
 use fr_limited_vec::{FixedVec, LimitedVec};
@@ -126,10 +126,18 @@ pub struct AccountMetadata {
     pub gas_limit_accumulate: UnsignedGas,
     /// `m`: Service-specific gas limit for `on_transfer`
     pub gas_limit_on_transfer: UnsignedGas,
-    /// `i`: The number of entries stored in account storages
-    pub items_footprint: u32,
     /// `o`: The number of total octets used by account storages
     pub octets_footprint: u64,
+    /// `f`: Gratis storage offset
+    pub gratis_storage_offset: Balance,
+    /// `i`: The number of entries stored in account storages
+    pub items_footprint: u32,
+    /// `r`: The timeslot at the account creation
+    pub created_at: TimeslotIndex,
+    /// `a`: The timeslot at the most recent accumulation
+    pub last_accumulate_at: TimeslotIndex,
+    ///`p`: Parent service id
+    pub parent_service_id: ServiceId,
 }
 impl_account_state_component!(AccountMetadata, AccountMetadata);
 
@@ -144,7 +152,11 @@ impl JamEncode for AccountMetadata {
         self.gas_limit_accumulate.encode_to_fixed(dest, 8)?;
         self.gas_limit_on_transfer.encode_to_fixed(dest, 8)?;
         self.octets_footprint.encode_to_fixed(dest, 8)?;
+        self.gratis_storage_offset.encode_to_fixed(dest, 8)?;
         self.items_footprint.encode_to_fixed(dest, 4)?;
+        self.created_at.encode_to_fixed(dest, 4)?;
+        self.last_accumulate_at.encode_to_fixed(dest, 4)?;
+        self.parent_service_id.encode_to_fixed(dest, 4)?;
         Ok(())
     }
 }
@@ -160,7 +172,11 @@ impl JamDecode for AccountMetadata {
             gas_limit_accumulate: UnsignedGas::decode_fixed(input, 8)?,
             gas_limit_on_transfer: UnsignedGas::decode_fixed(input, 8)?,
             octets_footprint: u64::decode_fixed(input, 8)?,
+            gratis_storage_offset: Balance::decode_fixed(input, 8)?,
             items_footprint: u32::decode_fixed(input, 4)?,
+            created_at: TimeslotIndex::decode_fixed(input, 4)?,
+            last_accumulate_at: TimeslotIndex::decode_fixed(input, 4)?,
+            parent_service_id: ServiceId::decode_fixed(input, 4)?,
         })
     }
 }
@@ -182,9 +198,10 @@ impl AccountMetadata {
 
     /// Get the account threshold balance (t)
     pub fn threshold_balance(&self) -> Balance {
-        MIN_BASIC_BALANCE
+        (MIN_BASIC_BALANCE
             + MIN_BALANCE_PER_ITEM * self.items_footprint as Balance
-            + MIN_BALANCE_PER_OCTET * self.octets_footprint
+            + MIN_BALANCE_PER_OCTET * self.octets_footprint)
+            .saturating_sub(self.gratis_storage_offset)
     }
 
     /// Calculates the state delta of the storage footprints caused by replacing `prev_entry`
@@ -240,10 +257,14 @@ impl AccountMetadata {
         simulated.threshold_balance()
     }
 
-    pub const fn get_initial_threshold_balance(code_lookup_len: u32) -> Balance {
-        MIN_BASIC_BALANCE
+    pub const fn get_initial_threshold_balance(
+        code_lookup_len: u32,
+        gratis_storage_offset: Balance,
+    ) -> Balance {
+        (MIN_BASIC_BALANCE
             + MIN_BALANCE_PER_ITEM * 2
-            + MIN_BALANCE_PER_OCTET * (code_lookup_len as Balance + 81)
+            + MIN_BALANCE_PER_OCTET * (code_lookup_len as Balance + 81))
+            .saturating_sub(gratis_storage_offset)
     }
 
     fn apply_items_footprint_delta(footprint: &mut u32, delta: i32) {
@@ -292,13 +313,16 @@ impl AccountMetadata {
     pub fn encode_for_info_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
         let mut buf = vec![];
         self.code_hash.encode_to(&mut buf)?; // c
-        self.balance.encode_to(&mut buf)?; // b
-        self.threshold_balance().encode_to(&mut buf)?; // t
-        self.gas_limit_accumulate.encode_to(&mut buf)?; // g
-        self.gas_limit_on_transfer.encode_to(&mut buf)?; // m
-        self.octets_footprint.encode_to(&mut buf)?; // o
-        self.items_footprint.encode_to(&mut buf)?; // i
-
+        self.balance.encode_to_fixed(&mut buf, 8)?; // b
+        self.threshold_balance().encode_to_fixed(&mut buf, 8)?; // t
+        self.gas_limit_accumulate.encode_to_fixed(&mut buf, 8)?; // g
+        self.gas_limit_on_transfer.encode_to_fixed(&mut buf, 8)?; // m
+        self.octets_footprint.encode_to_fixed(&mut buf, 8)?; // o
+        self.items_footprint.encode_to_fixed(&mut buf, 4)?; // i
+        self.gratis_storage_offset.encode_to_fixed(&mut buf, 8)?; // f
+        self.created_at.encode_to_fixed(&mut buf, 4)?; // r
+        self.last_accumulate_at.encode_to_fixed(&mut buf, 4)?; // a
+        self.parent_service_id.encode_to_fixed(&mut buf, 4)?; // p
         Ok(buf)
     }
 }

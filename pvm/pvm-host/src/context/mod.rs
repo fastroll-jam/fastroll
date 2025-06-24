@@ -354,6 +354,7 @@ impl AccumulateHostContext {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn add_new_account(
         &mut self,
         state_manager: Arc<StateManager>,
@@ -362,6 +363,10 @@ impl AccumulateHostContext {
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
         code_lookups_key: LookupsKey,
+        gratis_storage_offset: Balance,
+        created_at: TimeslotIndex,
+        last_accumulate_at: TimeslotIndex,
+        parent_service_id: ServiceId,
     ) -> Result<ServiceId, HostCallError> {
         let new_service_id = self.next_new_service_id;
 
@@ -371,8 +376,12 @@ impl AccumulateHostContext {
                 balance,
                 gas_limit_accumulate,
                 gas_limit_on_transfer,
-                items_footprint: 0,
                 octets_footprint: 0,
+                gratis_storage_offset,
+                items_footprint: 0,
+                created_at,
+                last_accumulate_at,
+                parent_service_id,
             }),
             storage: HashMap::new(),
             preimages: HashMap::new(),
