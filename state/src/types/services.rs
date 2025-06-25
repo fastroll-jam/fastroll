@@ -65,8 +65,8 @@ impl From<AccountStorageUsageDelta> for AccountFootprintDelta {
         Self {
             storage_delta: FootprintDelta {
                 items_footprint_delta: delta.storage_delta.items_count_delta,
-                octets_footprint_delta: 32 * delta.storage_delta.items_count_delta as i64
-                    + delta.storage_delta.octets_delta,
+                octets_footprint_delta: 34 * delta.storage_delta.items_count_delta as i64
+                    + delta.storage_delta.octets_delta, // TODO: include key octets from the callsite, while constructing `StorageUsageDelta`
             },
             lookups_delta: FootprintDelta {
                 items_footprint_delta: 2 * delta.lookups_delta.items_count_delta,
@@ -143,7 +143,7 @@ impl_account_state_component!(AccountMetadata, AccountMetadata);
 
 impl JamEncode for AccountMetadata {
     fn size_hint(&self) -> usize {
-        self.code_hash.size_hint() + 8 * 4 + 4
+        self.code_hash.size_hint() + 8 * 5 + 4 * 4
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -470,7 +470,7 @@ impl AccountLookupsEntry {
     }
 }
 
-/// An extended type of `AccountLookupsEntry` that include additional metadata about the preimage
+/// An extended type of `AccountLookupsEntry` that includes additional metadata about the preimage
 /// entry size in octets. This is useful for tracking storage usage and calculating threshold balance
 /// of an account. This is NOT serialized as part of the global state.
 #[derive(Clone, Debug)]
