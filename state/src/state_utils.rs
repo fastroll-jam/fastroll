@@ -1,7 +1,7 @@
 use crate::types::{
-    AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry, AccountStorageEntry,
-    AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-    DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports, PrivilegedServices,
+    privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
+    AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
+    BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
     SafroleState, StagingSet, Timeslot,
 };
 use fr_codec::prelude::*;

@@ -1,4 +1,4 @@
-use crate::error::TransitionError;
+use crate::{error::TransitionError, state::privileges};
 use fr_block::types::extrinsics::preimages::PreimagesXt;
 use fr_common::{
     workloads::work_report::WorkReport, ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES,
@@ -9,7 +9,7 @@ use fr_extrinsics::validation::preimages::PreimagesXtValidator;
 use fr_pvm_invocation::{
     entrypoints::on_transfer::OnTransferInvocation,
     pipeline::{accumulate_outer, utils::select_deferred_transfers},
-    prelude::{AccountSandbox, AccumulatePartialState, SandboxEntryAccessor, SandboxEntryStatus},
+    prelude::{AccountSandbox, SandboxEntryAccessor, SandboxEntryStatus},
 };
 use fr_pvm_types::{
     invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
@@ -93,7 +93,11 @@ pub async fn transition_on_accumulate(
         transition_service_account(state_manager.clone(), service_id, sandbox).await?;
     }
 
-    run_privileged_transitions(state_manager, outer_accumulate_result.partial_state_union).await?;
+    privileges::run_privileged_transitions(
+        state_manager,
+        outer_accumulate_result.partial_state_union,
+    )
+    .await?;
 
     Ok(AccumulateSummary {
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
@@ -270,57 +274,6 @@ async fn transition_service_account(
             _ => (),
         }
     }
-
-    Ok(())
-}
-
-async fn run_privileged_transitions(
-    state_manager: Arc<StateManager>,
-    partial_state_union: AccumulatePartialState,
-) -> Result<(), TransitionError> {
-    // Transition staging set
-    if let Some(new_staging_set) = partial_state_union.new_staging_set {
-        state_manager
-            .with_mut_staging_set(
-                StateMut::Update,
-                |staging_set| -> Result<(), StateManagerError> {
-                    *staging_set = new_staging_set;
-                    Ok(())
-                },
-            )
-            .await?;
-    }
-
-    // Transition auth queue
-    if let Some(new_auth_queue) = partial_state_union.new_auth_queue {
-        state_manager
-            .with_mut_auth_queue(
-                StateMut::Update,
-                |auth_queue| -> Result<(), StateManagerError> {
-                    *auth_queue = new_auth_queue;
-                    Ok(())
-                },
-            )
-            .await?;
-    }
-
-    // Transition privileged services
-    let manager_service_sandboxed = partial_state_union.manager_service;
-    let assign_services_sandboxed = partial_state_union.assign_services;
-    let designate_service_sandboxed = partial_state_union.designate_service;
-    let always_accumulate_services_sandboxed = partial_state_union.always_accumulate_services;
-    state_manager
-        .with_mut_privileged_services(
-            StateMut::Update,
-            |privileges| -> Result<(), StateManagerError> {
-                privileges.manager_service = manager_service_sandboxed;
-                privileges.assign_services = assign_services_sandboxed;
-                privileges.designate_service = designate_service_sandboxed;
-                privileges.always_accumulate_services = always_accumulate_services_sandboxed;
-                Ok(())
-            },
-        )
-        .await?;
 
     Ok(())
 }

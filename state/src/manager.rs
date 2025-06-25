@@ -9,10 +9,10 @@ use crate::{
         AccountStateComponent, SimpleStateComponent, StateComponent, StateEntryType,
     },
     types::{
-        AccountCode, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
-        AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
-        BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
-        PrivilegedServices, SafroleState, SlotSealer, StagingSet, Timeslot,
+        privileges::PrivilegedServices, AccountCode, AccountLookupsEntry, AccountMetadata,
+        AccountPreimagesEntry, AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet,
+        AuthPool, AuthQueue, BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet,
+        PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
     },
 };
 use fr_codec::prelude::*;

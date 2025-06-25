@@ -34,14 +34,14 @@ use fr_common::{
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
+    privileges::{AssignServices, PrivilegedServices},
     AccountMetadata, AccumulateHistory, AccumulateHistoryEntries, AccumulateQueue,
-    AccumulateQueueEntries, AssignServices, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
+    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
     BlockHistoryEntry, CoreAuthPool, CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries,
     CorePendingReportsEntries, CoreStats, CoreStatsEntries, CoreStatsEntry, DisputesState,
     EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats, OnChainStatistics,
-    PendingReport, PendingReports, PrivilegedServices, ServiceStats, ServiceStatsEntry,
-    SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntries, ValidatorStatsEntry,
-    WorkReportDepsMap,
+    PendingReport, PendingReports, ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot,
+    ValidatorStats, ValidatorStatsEntries, ValidatorStatsEntry, WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{

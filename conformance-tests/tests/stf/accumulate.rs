@@ -8,17 +8,14 @@ use fr_asn_types::types::{
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::{workloads::WorkReport, Hash32, Octets};
-use fr_conformance_tests::{
-    generate_typed_tests,
-    harness::{run_test_case, StateTransitionTest},
-};
+use fr_conformance_tests::harness::StateTransitionTest;
 use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        AccountMetadata, AccumulateHistory, AccumulateQueue, EpochEntropy, PrivilegedServices,
-        Timeslot,
+        privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
+        EpochEntropy, Timeslot,
     },
 };
 use fr_transition::{
