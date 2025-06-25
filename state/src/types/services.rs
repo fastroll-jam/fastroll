@@ -66,7 +66,7 @@ impl From<AccountStorageUsageDelta> for AccountFootprintDelta {
             storage_delta: FootprintDelta {
                 items_footprint_delta: delta.storage_delta.items_count_delta,
                 octets_footprint_delta: 34 * delta.storage_delta.items_count_delta as i64
-                    + delta.storage_delta.octets_delta, // TODO: include key octets from the callsite, while constructing `StorageUsageDelta`
+                    + delta.storage_delta.octets_delta,
             },
             lookups_delta: FootprintDelta {
                 items_footprint_delta: 2 * delta.lookups_delta.items_count_delta,
