@@ -4,10 +4,10 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
+        privileges::{AlwaysAccumulateServices, AssignServices, PrivilegedServices},
         AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState,
-        AccountPreimagesEntry, AccountStorageEntryExt, AccountStorageUsageDelta,
-        AlwaysAccumulateServices, AssignServices, AuthQueue, PrivilegedServices, StagingSet,
-        StorageFootprint, StorageUsageDelta, Timeslot,
+        AccountPreimagesEntry, AccountStorageEntryExt, AccountStorageUsageDelta, AuthQueue,
+        StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
     },
 };
 use std::{

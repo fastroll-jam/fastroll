@@ -3,9 +3,9 @@ use crate::{
     state_db::StateDB,
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
-        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-        DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
-        PrivilegedServices, SafroleState, StagingSet, Timeslot,
+        privileges::PrivilegedServices, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool,
+        AuthQueue, BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet,
+        PendingReports, SafroleState, StagingSet, Timeslot,
     },
 };
 use fr_block::{

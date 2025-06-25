@@ -31,8 +31,8 @@ use fr_pvm_types::{
 use fr_state::{
     manager::StateManager,
     types::{
-        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
-        AccountStorageEntryExt, AssignServices, AuthQueue, StagingSet, Timeslot,
+        privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
+        AccountStorageEntry, AccountStorageEntryExt, AuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
