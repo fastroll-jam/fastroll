@@ -130,7 +130,6 @@ where
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SandboxEntryVersioned<T>
 where
@@ -168,7 +167,6 @@ where
     }
 }
 
-#[allow(dead_code)]
 impl<T> SandboxEntryVersioned<T>
 where
     T: AccountPartialState + StorageFootprint + Clone,
