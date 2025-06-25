@@ -32,7 +32,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AccountStorageEntry,
-        AssignServices, AuthQueue, StagingSet, Timeslot,
+        AccountStorageEntryExt, AssignServices, AuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -546,9 +546,13 @@ impl HostFunction {
             let Ok(write_val) = vm.memory.read_bytes(value_offset, value_size) else {
                 host_call_panic!()
             };
-            Some(AccountStorageEntry {
-                value: Octets::from_vec(write_val),
-            })
+
+            Some(AccountStorageEntryExt::from_entry(
+                &storage_key,
+                AccountStorageEntry {
+                    value: Octets::from_vec(write_val),
+                },
+            ))
         };
 
         let storage_usage_delta = AccountMetadata::calculate_storage_usage_delta(

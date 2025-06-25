@@ -161,7 +161,11 @@ async fn transition_service_account(
         match v.status() {
             SandboxEntryStatus::Added => {
                 state_manager
-                    .add_account_storage_entry(service_id, k, v.get_cloned().expect("Should exist"))
+                    .add_account_storage_entry(
+                        service_id,
+                        k,
+                        v.get_cloned().expect("Should exist").into_entry(),
+                    )
                     .await?;
             }
             SandboxEntryStatus::Updated => {
@@ -171,7 +175,7 @@ async fn transition_service_account(
                         service_id,
                         k,
                         |entry| -> Result<(), StateManagerError> {
-                            *entry = v.get_cloned().expect("Should exist");
+                            *entry = v.get_cloned().expect("Should exist").into_entry();
                             Ok(())
                         },
                     )

@@ -5,7 +5,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState,
-        AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta,
+        AccountPreimagesEntry, AccountStorageEntryExt, AccountStorageUsageDelta,
         AlwaysAccumulateServices, AssignServices, AuthQueue, PrivilegedServices, StagingSet,
         StorageFootprint, StorageUsageDelta, Timeslot,
     },
@@ -218,14 +218,14 @@ where
 /// Represents a sandboxed environment of a service account, including its metadata
 /// and associated storage entries.
 ///
-/// It is primarily used in the `accumulate` and `on_transfer` PVM invocation context for
+/// It is primarily used in the `accumulate` and `on_transfer` PVM invocation contexts for
 /// state mutations of service accounts. The global state serialization doesn't require
 /// the service metadata and storage entries to be placed together,
 /// which makes this type to be specific to the `accumulate` and `on_transfer` processes.
 #[derive(Clone)]
 pub struct AccountSandbox {
     pub metadata: SandboxEntry<AccountMetadata>,
-    pub storage: HashMap<Octets, SandboxEntryVersioned<AccountStorageEntry>>,
+    pub storage: HashMap<Octets, SandboxEntryVersioned<AccountStorageEntryExt>>,
     pub preimages: HashMap<Hash32, SandboxEntry<AccountPreimagesEntry>>,
     pub lookups: HashMap<LookupsKey, SandboxEntryVersioned<AccountLookupsEntryExt>>,
 }
@@ -437,7 +437,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         storage_key: &Octets,
-    ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
+    ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         Ok(self
             .get_account_storage_sandbox_entry(state_manager, service_id, storage_key)
             .await?
@@ -449,7 +449,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         storage_key: &Octets,
-    ) -> Result<Option<SandboxEntryVersioned<AccountStorageEntry>>, PartialStateError> {
+    ) -> Result<Option<SandboxEntryVersioned<AccountStorageEntryExt>>, PartialStateError> {
         let Some(sandbox) = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
             .await?
@@ -457,8 +457,11 @@ impl AccountsSandboxMap {
             return Ok(None);
         };
 
-        Self::get_or_load_sandbox_entry(&mut sandbox.storage, storage_key, || {
-            state_manager.get_account_storage_entry(service_id, storage_key)
+        Self::get_or_load_sandbox_entry(&mut sandbox.storage, storage_key, || async {
+            Ok(state_manager
+                .get_account_storage_entry(service_id, storage_key)
+                .await?
+                .map(|entry| AccountStorageEntryExt::from_entry(storage_key, entry)))
         })
         .await
     }
@@ -469,8 +472,8 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         storage_key: Octets,
-        new_entry: AccountStorageEntry,
-    ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
+        new_entry: AccountStorageEntryExt,
+    ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         // Check the storage entry from the partial state and/or the global state
         let sandbox_entry_versioned = match self
             .get_account_storage_sandbox_entry(state_manager.clone(), service_id, &storage_key)
@@ -515,7 +518,7 @@ impl AccountsSandboxMap {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         storage_key: Octets,
-    ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
+    ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         let Some(prev_entry) = self
             .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
             .await?

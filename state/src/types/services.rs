@@ -338,7 +338,7 @@ pub trait StorageFootprint {
 /// manipulation or evaluation in a sandboxed PVM host-call execution context.
 pub trait AccountPartialState {}
 impl AccountPartialState for AccountMetadata {}
-impl AccountPartialState for AccountStorageEntry {}
+impl AccountPartialState for AccountStorageEntryExt {}
 impl AccountPartialState for AccountPreimagesEntry {}
 impl AccountPartialState for AccountLookupsEntryExt {}
 
@@ -376,9 +376,45 @@ impl AccountStorageEntry {
     }
 }
 
-impl StorageFootprint for AccountStorageEntry {
+/// An extended type of `AccountStorageEntry` that includes additional metadata about the storage
+/// key size in octets. This is useful for tracking storage usage and calculating threshold balance
+/// of an account. This is NOT serialized as part of the global state.
+#[derive(Clone)]
+pub struct AccountStorageEntryExt {
+    pub key_length: usize,
+    pub entry: AccountStorageEntry,
+}
+
+impl Deref for AccountStorageEntryExt {
+    type Target = AccountStorageEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+impl DerefMut for AccountStorageEntryExt {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
+}
+
+impl StorageFootprint for AccountStorageEntryExt {
     fn storage_octets_usage(&self) -> usize {
-        self.value.len()
+        self.key_length + self.entry.value.len()
+    }
+}
+
+impl AccountStorageEntryExt {
+    pub fn from_entry(key: &Octets, entry: AccountStorageEntry) -> Self {
+        Self {
+            key_length: key.len(),
+            entry,
+        }
+    }
+
+    pub fn into_entry(self) -> AccountStorageEntry {
+        self.entry
     }
 }
 
