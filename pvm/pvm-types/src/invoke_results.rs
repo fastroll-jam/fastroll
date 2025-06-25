@@ -11,6 +11,7 @@ pub type AccumulationGasPairs = Vec<AccumulationGasPair>;
 #[derive(Default)]
 pub struct AccumulationOutputPairs(pub BTreeSet<AccumulationOutputPair>);
 
+// TODO: Remove this method after updating accumulate STF tests (duplicate: `LastAccumulateOutputs` impl)
 impl AccumulationOutputPairs {
     /// Generates a commitment to `AccumulationOutputPairs` using a simple binary merkle tree.
     /// Used for producing the BEEFY commitment after accumulation.
@@ -34,10 +35,34 @@ impl AccumulationOutputPairs {
     }
 }
 
-#[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct AccumulationOutputPair {
     pub service: ServiceId,
     pub output_hash: AccumulationOutputHash,
+}
+
+impl JamEncode for AccumulationOutputPair {
+    fn size_hint(&self) -> usize {
+        4 + 32
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service.encode_to_fixed(dest, 4)?;
+        self.output_hash.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for AccumulationOutputPair {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            service: ServiceId::decode_fixed(input, 4)?,
+            output_hash: AccumulationOutputHash::decode(input)?,
+        })
+    }
 }
 
 #[derive(Debug)]

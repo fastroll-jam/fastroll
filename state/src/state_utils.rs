@@ -1,8 +1,8 @@
 use crate::types::{
     privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
     AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
-    BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet, PendingReports,
-    SafroleState, StagingSet, Timeslot,
+    BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,
+    PendingReports, SafroleState, StagingSet, Timeslot,
 };
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, Hash32, LookupsKey, Octets, ServiceId, StateKey, STATE_KEY_SIZE};
@@ -118,6 +118,8 @@ pub enum StateEntryType {
     AccumulateQueue(AccumulateQueue),
     /// `ξ`: The accumulate history.
     AccumulateHistory(AccumulateHistory),
+    /// `θ`: The accumulation output pairs of the most recent block.
+    LastAccumulateOutputs(LastAccumulateOutputs),
     /// `δ` (partial): The service accounts.
     AccountMetadata(AccountMetadata),
     /// The account storage entries (values of `δ_s`).
@@ -148,6 +150,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::OnChainStatistics(inner) => inner.size_hint(),
             StateEntryType::AccumulateQueue(inner) => inner.size_hint(),
             StateEntryType::AccumulateHistory(inner) => inner.size_hint(),
+            StateEntryType::LastAccumulateOutputs(inner) => inner.size_hint(),
             StateEntryType::AccountMetadata(inner) => inner.size_hint(),
             StateEntryType::AccountStorageEntry(inner) => inner.size_hint(),
             StateEntryType::AccountLookupsEntry(inner) => inner.size_hint(),
@@ -173,6 +176,7 @@ impl JamEncode for StateEntryType {
             StateEntryType::OnChainStatistics(inner) => inner.encode_to(dest)?,
             StateEntryType::AccumulateQueue(inner) => inner.encode_to(dest)?,
             StateEntryType::AccumulateHistory(inner) => inner.encode_to(dest)?,
+            StateEntryType::LastAccumulateOutputs(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountMetadata(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountStorageEntry(inner) => inner.encode_to(dest)?,
             StateEntryType::AccountLookupsEntry(inner) => inner.encode_to(dest)?,
@@ -186,22 +190,23 @@ impl JamEncode for StateEntryType {
 /// Index of each state component used for state-key (Merkle path) construction
 #[repr(u8)]
 pub enum StateKeyConstant {
-    AuthPool = 1,            // α
-    AuthQueue = 2,           // φ
-    BlockHistory = 3,        // β
-    SafroleState = 4,        // γ
-    DisputesState = 5,       // ψ
-    EpochEntropy = 6,        // η
-    StagingSet = 7,          // ι
-    ActiveSet = 8,           // κ
-    PastSet = 9,             // λ
-    PendingReports = 10,     // ρ
-    Timeslot = 11,           // τ
-    PrivilegedServices = 12, // χ
-    OnChainStatistics = 13,  // π
-    AccumulateQueue = 14,    // θ
-    AccumulateHistory = 15,  // ξ
-    AccountMetadata = 255,   // δ (partial)
+    AuthPool = 1,               // α
+    AuthQueue = 2,              // φ
+    BlockHistory = 3,           // β
+    SafroleState = 4,           // γ
+    DisputesState = 5,          // ψ
+    EpochEntropy = 6,           // η
+    StagingSet = 7,             // ι
+    ActiveSet = 8,              // κ
+    PastSet = 9,                // λ
+    PendingReports = 10,        // ρ
+    Timeslot = 11,              // τ
+    PrivilegedServices = 12,    // χ
+    OnChainStatistics = 13,     // π
+    AccumulateQueue = 14,       // θ
+    AccumulateHistory = 15,     // ξ
+    LastAccumulateOutputs = 16, // θ
+    AccountMetadata = 255,      // δ (partial)
 }
 
 impl From<StateKeyConstant> for u8 {
@@ -230,6 +235,7 @@ impl TryFrom<u8> for StateKeyConstant {
             13 => StateKeyConstant::OnChainStatistics,
             14 => StateKeyConstant::AccumulateQueue,
             15 => StateKeyConstant::AccumulateHistory,
+            16 => StateKeyConstant::LastAccumulateOutputs,
             255 => StateKeyConstant::AccountMetadata,
             _ => return Err("Invalid state key constant"),
         };
@@ -243,7 +249,7 @@ const fn construct_state_key(i: u8) -> StateKey {
     ByteArray(key)
 }
 
-pub const STATE_KEYS: [StateKey; 15] = [
+pub const STATE_KEYS: [StateKey; 16] = [
     construct_state_key(StateKeyConstant::AuthPool as u8),
     construct_state_key(StateKeyConstant::AuthQueue as u8),
     construct_state_key(StateKeyConstant::BlockHistory as u8),
@@ -259,6 +265,7 @@ pub const STATE_KEYS: [StateKey; 15] = [
     construct_state_key(StateKeyConstant::OnChainStatistics as u8),
     construct_state_key(StateKeyConstant::AccumulateQueue as u8),
     construct_state_key(StateKeyConstant::AccumulateHistory as u8),
+    construct_state_key(StateKeyConstant::LastAccumulateOutputs as u8),
 ];
 
 pub fn get_simple_state_key(key: StateKeyConstant) -> StateKey {

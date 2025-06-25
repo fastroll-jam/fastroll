@@ -413,12 +413,7 @@ impl GuaranteesXtValidator {
                     anchor_hash.encode_hex(),
                 ));
             }
-            if &entry
-                .accumulation_result_mmr
-                .super_peak()
-                .map_err(|_| XtError::MMRCalculationFailed)?
-                != anchor_beefy_root
-            {
+            if &entry.accumulation_result_mmr_root != anchor_beefy_root {
                 return Err(XtError::InvalidAnchorBeefyRoot(
                     core_index,
                     anchor_hash.encode_hex(),

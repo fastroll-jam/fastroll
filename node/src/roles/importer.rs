@@ -431,10 +431,10 @@ impl BlockImporter {
     ) -> Result<(MerkleRoot, BlockExecutionHeaderMarkers), BlockImportError> {
         let markers = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
-            BlockExecutor::append_block_history(
+            BlockExecutor::append_beefy_belt_and_block_history(
                 storage,
-                block.header.hash()?,
                 output.accumulate_root,
+                block.header.hash()?,
                 output.reported_packages,
             )
             .await?;
@@ -450,10 +450,10 @@ impl BlockImporter {
 
             // STF phase #3
             BlockExecutor::accumulate_entropy(storage, &block.header.vrf_signature()).await?;
-            BlockExecutor::append_block_history(
+            BlockExecutor::append_beefy_belt_and_block_history(
                 storage,
-                block.header.hash()?,
                 output.accumulate_root,
+                block.header.hash()?,
                 output.reported_packages,
             )
             .await?;

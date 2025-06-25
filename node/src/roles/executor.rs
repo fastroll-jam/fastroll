@@ -19,7 +19,10 @@ use fr_transition::{
         authorizer::transition_auth_pool,
         disputes::transition_disputes,
         entropy::{transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block},
-        history::{transition_block_history_append, transition_block_history_parent_root},
+        history::{
+            transition_block_history_append, transition_block_history_beefy_belt,
+            transition_block_history_parent_root, transition_last_accumulate_outputs,
+        },
         reports::{
             transition_reports_clear_availables, transition_reports_eliminate_invalid,
             transition_reports_update_entries,
@@ -219,18 +222,29 @@ impl BlockExecutor {
             Ok::<_, TransitionError>((
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
-                acc_summary.output_pairs.accumulate_root(),
+                acc_summary.output_pairs,
             ))
         });
-        let (transfers, acc_stats, accumulate_root) = acc_jh.await??;
+        let (transfers, acc_stats, acc_output_pairs) = acc_jh.await??;
+
+        // LastAccumulateOutputs STF
+        let manager = storage.state_manager();
+        let last_acc_output_jh = spawn_timed("last_acc_output_stf", async move {
+            transition_last_accumulate_outputs(manager, acc_output_pairs).await
+        });
 
         // On-transfer STF
         let manager = storage.state_manager();
         let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
-        let transfer_stats = spawn_timed("on_transfer_stf", async move {
+        let on_transfer_jh = spawn_timed("on_transfer_stf", async move {
             transition_services_on_transfer(manager, &transfers, &accumulated_services).await
-        })
-        .await??;
+        });
+
+        // --- Join: LastAccumulateOutputs, On-transfer STFs
+        let (accumulate_root_result, transfer_stats_result) =
+            try_join!(last_acc_output_jh, on_transfer_jh)?;
+        let accumulate_root = accumulate_root_result?;
+        let transfer_stats = transfer_stats_result?;
 
         // OnChainStatistics STF
         let manager = storage.state_manager();
@@ -349,20 +363,16 @@ impl BlockExecutor {
         Ok(())
     }
 
-    /// The second BlockHistory STF
-    pub async fn append_block_history(
+    /// The remaining BlockHistory STFs
+    pub async fn append_beefy_belt_and_block_history(
         storage: &NodeStorage,
-        header_hash: BlockHeaderHash,
         accumulate_root: AccumulateRoot,
+        header_hash: BlockHeaderHash,
         reported_packages: Vec<ReportedWorkPackage>,
     ) -> Result<(), BlockExecutionError> {
-        transition_block_history_append(
-            storage.state_manager(),
-            header_hash,
-            accumulate_root,
-            reported_packages,
-        )
-        .await?;
+        transition_block_history_beefy_belt(storage.state_manager(), accumulate_root).await?;
+        transition_block_history_append(storage.state_manager(), header_hash, reported_packages)
+            .await?;
         Ok(())
     }
 }

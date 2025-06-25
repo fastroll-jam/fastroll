@@ -26,11 +26,11 @@ pub mod utils;
 pub struct OuterAccumulationResult {
     /// `n`: The total number of work reports accumulated.
     pub accumulated_reports_count: usize,
-    /// **`o`**: The union of posterior partial state of all service accounts.
+    /// **`o′`**: The union of posterior partial state of all service accounts.
     pub partial_state_union: AccumulatePartialState,
     /// **`t`**: The deferred transfers created by the accumulation.
     pub deferred_transfers: Vec<DeferredTransfer>,
-    /// **`C`**: Pairs of service ids and BEEFY commitments.
+    /// `θ′`: The posterior accumulation output log; pairs of service ids and accumulation output hashes.
     pub service_output_pairs: AccumulationOutputPairs,
     /// **`u`**: Pairs of service ids and gas usages.
     pub service_gas_pairs: AccumulationGasPairs,

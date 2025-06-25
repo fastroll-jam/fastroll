@@ -22,7 +22,7 @@ use fr_common::{
     ticket::Ticket,
     workloads::{
         Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
-        ReportedWorkPackage, SegmentRootLookupTable, WorkDigest, WorkDigests,
+        SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
@@ -36,12 +36,12 @@ use fr_merkle::mmr::MerkleMountainRange;
 use fr_state::types::{
     privileges::{AssignServices, PrivilegedServices},
     AccountMetadata, AccumulateHistory, AccumulateHistoryEntries, AccumulateQueue,
-    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntries,
-    BlockHistoryEntry, CoreAuthPool, CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries,
-    CorePendingReportsEntries, CoreStats, CoreStatsEntries, CoreStatsEntry, DisputesState,
-    EpochEntropy, EpochFallbackKeys, EpochTickets, EpochValidatorStats, OnChainStatistics,
-    PendingReport, PendingReports, ServiceStats, ServiceStatsEntry, SlotSealers, Timeslot,
-    ValidatorStats, ValidatorStatsEntries, ValidatorStatsEntry, WorkReportDepsMap,
+    AccumulateQueueEntries, AuthPool, AuthQueue, BlockHistory, BlockHistoryEntry, CoreAuthPool,
+    CoreAuthPoolEntries, CoreAuthQueue, CoreAuthQueueEntries, CorePendingReportsEntries, CoreStats,
+    CoreStatsEntries, CoreStatsEntry, DisputesState, EpochEntropy, EpochFallbackKeys, EpochTickets,
+    EpochValidatorStats, OnChainStatistics, PendingReport, PendingReports, ServiceStats,
+    ServiceStatsEntry, SlotSealers, Timeslot, ValidatorStats, ValidatorStatsEntries,
+    ValidatorStatsEntry, WorkReportDepsMap,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1036,6 +1036,8 @@ pub struct AsnReported {
 
 pub type Reports = Vec<AsnReported>;
 
+// FIXME: Align `AsnBlockInfo`, `AsnBlocksHistory` to GP v0.6.7
+
 // Recorded disputes sequences and offenders
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnBlockInfo {
@@ -1046,38 +1048,40 @@ pub struct AsnBlockInfo {
 }
 
 impl From<AsnBlockInfo> for BlockHistoryEntry {
-    fn from(value: AsnBlockInfo) -> Self {
-        Self {
-            header_hash: BlockHeaderHash::from(value.header_hash),
-            accumulation_result_mmr: value.mmr.into(),
-            state_root: StateRoot::from(value.state_root),
-            reported_packages: value
-                .reported
-                .into_iter()
-                .map(|reported| ReportedWorkPackage {
-                    work_package_hash: WorkPackageHash::from(reported.hash),
-                    segment_root: SegmentRoot::from(reported.exports_root),
-                })
-                .collect(),
-        }
+    fn from(_value: AsnBlockInfo) -> Self {
+        // Self {
+        //     header_hash: BlockHeaderHash::from(value.header_hash),
+        //     accumulation_result_mmr_root: value.mmr.into(),
+        //     state_root: StateRoot::from(value.state_root),
+        //     reported_packages: value
+        //         .reported
+        //         .into_iter()
+        //         .map(|reported| ReportedWorkPackage {
+        //             work_package_hash: WorkPackageHash::from(reported.hash),
+        //             segment_root: SegmentRoot::from(reported.exports_root),
+        //         })
+        //         .collect(),
+        // }
+        unimplemented!()
     }
 }
 
 impl From<BlockHistoryEntry> for AsnBlockInfo {
-    fn from(value: BlockHistoryEntry) -> Self {
-        Self {
-            header_hash: AsnOpaqueHash::from(value.header_hash),
-            mmr: value.accumulation_result_mmr.into(),
-            state_root: AsnOpaqueHash::from(value.state_root),
-            reported: value
-                .reported_packages
-                .into_iter()
-                .map(|package| AsnReported {
-                    hash: AsnOpaqueHash::from(package.work_package_hash),
-                    exports_root: AsnOpaqueHash::from(package.segment_root),
-                })
-                .collect(),
-        }
+    fn from(_value: BlockHistoryEntry) -> Self {
+        // Self {
+        //     header_hash: AsnOpaqueHash::from(value.header_hash),
+        //     mmr: value.accumulation_result_mmr_root.into(),
+        //     state_root: AsnOpaqueHash::from(value.state_root),
+        //     reported: value
+        //         .reported_packages
+        //         .into_iter()
+        //         .map(|package| AsnReported {
+        //             hash: AsnOpaqueHash::from(package.work_package_hash),
+        //             exports_root: AsnOpaqueHash::from(package.segment_root),
+        //         })
+        //         .collect(),
+        // }
+        unimplemented!()
     }
 }
 
@@ -1085,16 +1089,18 @@ impl From<BlockHistoryEntry> for AsnBlockInfo {
 pub struct AsnBlocksHistory(pub Vec<AsnBlockInfo>);
 
 impl From<AsnBlocksHistory> for BlockHistory {
-    fn from(value: AsnBlocksHistory) -> Self {
-        let history_vec: Vec<BlockHistoryEntry> =
-            value.0.into_iter().map(BlockHistoryEntry::from).collect();
-        Self(BlockHistoryEntries::try_from(history_vec).unwrap())
+    fn from(_value: AsnBlocksHistory) -> Self {
+        // let history_vec: Vec<BlockHistoryEntry> =
+        //     value.0.into_iter().map(BlockHistoryEntry::from).collect();
+        // Self(BlockHistoryEntries::try_from(history_vec).unwrap())
+        unimplemented!()
     }
 }
 
 impl From<BlockHistory> for AsnBlocksHistory {
-    fn from(value: BlockHistory) -> Self {
-        Self(value.0.into_iter().map(AsnBlockInfo::from).collect())
+    fn from(_value: BlockHistory) -> Self {
+        // Self(value.0.into_iter().map(AsnBlockInfo::from).collect())
+        unimplemented!()
     }
 }
 

@@ -11,8 +11,8 @@ use crate::{
     types::{
         privileges::PrivilegedServices, AccountCode, AccountLookupsEntry, AccountMetadata,
         AccountPreimagesEntry, AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet,
-        AuthPool, AuthQueue, BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet,
-        PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
+        AuthPool, AuthQueue, BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs,
+        OnChainStatistics, PastSet, PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
     },
 };
 use fr_codec::prelude::*;
@@ -761,6 +761,7 @@ impl StateManager {
     impl_simple_state_accessors!(OnChainStatistics, onchain_statistics);
     impl_simple_state_accessors!(AccumulateQueue, accumulate_queue);
     impl_simple_state_accessors!(AccumulateHistory, accumulate_history);
+    impl_simple_state_accessors!(LastAccumulateOutputs, last_accumulate_outputs);
 
     pub async fn get_account_metadata(
         &self,
