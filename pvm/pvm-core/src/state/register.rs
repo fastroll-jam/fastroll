@@ -1,5 +1,5 @@
 use crate::error::VMCoreError;
-use fr_common::ServiceId;
+use fr_common::{Balance, ServiceId};
 use fr_pvm_types::common::{MemAddress, RegValue};
 use std::fmt::{Debug, Formatter};
 
@@ -50,5 +50,9 @@ impl Register {
 
     pub fn as_service_id(&self) -> Result<ServiceId, VMCoreError> {
         self.as_u32()
+    }
+
+    pub fn as_balance(&self) -> Result<Balance, VMCoreError> {
+        self.as_u64()
     }
 }

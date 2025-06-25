@@ -26,10 +26,10 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    AuthHash, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
-    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, WorkPackageHash,
-    WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH, MAX_AUTH_POOL_SIZE,
-    VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    AuthHash, Balance, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
+    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, TimeslotIndex,
+    WorkPackageHash, WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
+    MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -339,6 +339,11 @@ impl From<AsnServiceInfo> for AccountMetadata {
             gas_limit_on_transfer: value.min_memo_gas,
             items_footprint: value.items,
             octets_footprint: value.bytes,
+            // FIXME: test vectors should be aligned with GP v0.6.7
+            gratis_storage_offset: Balance::default(),
+            created_at: TimeslotIndex::default(),
+            last_accumulate_at: TimeslotIndex::default(),
+            parent_service_id: ServiceId::default(),
         }
     }
 }

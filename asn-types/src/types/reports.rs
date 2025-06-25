@@ -1,5 +1,5 @@
 use crate::types::common::*;
-use fr_common::ServiceId;
+use fr_common::{Balance, ServiceId, TimeslotIndex};
 
 use fr_block::types::extrinsics::guarantees::GuaranteesXt;
 use fr_common::workloads::ReportedWorkPackage;
@@ -83,6 +83,11 @@ impl From<AsnAccountsMapEntry> for AccountsMapEntry {
                 gas_limit_on_transfer: value.data.service.min_memo_gas,
                 items_footprint: value.data.service.items,
                 octets_footprint: value.data.service.bytes,
+                // FIXME: test vectors should be aligned with GP v0.6.7
+                gratis_storage_offset: Balance::default(),
+                created_at: TimeslotIndex::default(),
+                last_accumulate_at: TimeslotIndex::default(),
+                parent_service_id: ServiceId::default(),
             },
         }
     }

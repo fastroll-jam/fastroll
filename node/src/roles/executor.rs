@@ -3,7 +3,7 @@ use fr_block::types::{
     block::{Block, BlockHeaderError, VrfSig},
     extrinsics::disputes::OffendersHeaderMarker,
 };
-use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash};
+use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId};
 use fr_crypto::traits::VrfSignature;
 use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
 use fr_state::{
@@ -226,8 +226,9 @@ impl BlockExecutor {
 
         // On-transfer STF
         let manager = storage.state_manager();
+        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
         let transfer_stats = spawn_timed("on_transfer_stf", async move {
-            transition_services_on_transfer(manager, &transfers).await
+            transition_services_on_transfer(manager, &transfers, &accumulated_services).await
         })
         .await??;
 
