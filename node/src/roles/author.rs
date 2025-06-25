@@ -369,7 +369,8 @@ impl BlockAuthor {
 
     /// Runs the final two STFs.
     /// 1. Accumulates epoch entropy (`η0` --> `η0′`)
-    /// 2. Appends a new block history entry (`β†` --> `β′`)
+    /// 2. Appends the last accumulate outputs to the beefy belt
+    ///    and appends new block history entry (`β_B` --> `β_B′`), (`β_H†` --> `β_H′`)
     async fn run_final_state_transition(
         &self,
         storage: &NodeStorage,
@@ -378,10 +379,10 @@ impl BlockAuthor {
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
         BlockExecutor::accumulate_entropy(storage, vrf_sig).await?;
-        BlockExecutor::append_block_history(
+        BlockExecutor::append_beefy_belt_and_block_history(
             storage,
-            new_header_hash,
             stf_output.accumulate_root,
+            new_header_hash,
             stf_output.reported_packages,
         )
         .await?;

@@ -4,8 +4,8 @@ use crate::{
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
         privileges::PrivilegedServices, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool,
-        AuthQueue, BlockHistory, DisputesState, EpochEntropy, OnChainStatistics, PastSet,
-        PendingReports, SafroleState, StagingSet, Timeslot,
+        AuthQueue, BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs,
+        OnChainStatistics, PastSet, PendingReports, SafroleState, StagingSet, Timeslot,
     },
 };
 use fr_block::{
@@ -104,6 +104,7 @@ pub struct SimpleStates {
     pub onchain_statistics: OnChainStatistics,
     pub accumulate_queue: AccumulateQueue,
     pub accumulate_history: AccumulateHistory,
+    pub last_accumulate_outputs: LastAccumulateOutputs,
 }
 
 pub async fn add_all_simple_state_entries(
@@ -131,6 +132,9 @@ pub async fn add_all_simple_state_entries(
         .await?;
     state_manager
         .add_accumulate_history(ss.accumulate_history)
+        .await?;
+    state_manager
+        .add_last_accumulate_outputs(ss.last_accumulate_outputs)
         .await?;
     Ok(())
 }
@@ -243,7 +247,13 @@ pub async fn compare_all_simple_state_cache_and_db(
         )
         .await?
     );
-
+    assert!(
+        compare_cache_and_db::<LastAccumulateOutputs>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::LastAccumulateOutputs)
+        )
+        .await?
+    );
     Ok(())
 }
 

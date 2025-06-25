@@ -1017,6 +1017,7 @@ dependencies = [
  "fr-db",
  "fr-limited-vec",
  "fr-merkle",
+ "fr-pvm-types",
  "fr-state-merkle",
  "hex",
  "paste",

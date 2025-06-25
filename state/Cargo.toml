@@ -12,6 +12,7 @@ fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
+fr-pvm-types = { workspace = true }
 fr-state-merkle = { workspace = true }
 bit-vec = { workspace = true }
 dashmap = { workspace = true }
