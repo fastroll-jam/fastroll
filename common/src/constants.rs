@@ -82,7 +82,8 @@ pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
 pub const MAX_IS_AUTHORIZED_CODE_SIZE: usize = 64_000;
 
 /// `W_B`: The maximum size of an encoded work-package together with its extrinsic data and import implications, in octets.
-pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 12 * (1 << 20);
+/// `W_B` = `W_M` * (`W_G` + 1 + (32 * ceil(log2(`W_T`)))) + 4096 + 1
+pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 13_794_305;
 
 /// `W_C`: The maximum size of service code in octets.
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
