@@ -27,36 +27,14 @@ pub struct WorkReport {
     pub core_index: CoreIndex,
     /// `a`: Authorizer hash
     pub authorizer_hash: AuthHash,
+    /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
+    pub auth_gas_used: UnsignedGas,
     /// **`o`**: Authorization trace
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
     /// **`r`**: Work digests
     pub digests: WorkDigests,
-    /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
-    pub auth_gas_used: UnsignedGas,
-}
-
-impl Display for WorkReport {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "WorkReport {{")?;
-        writeln!(f, "\tspec: {}", self.specs)?;
-        writeln!(f, "\trefine_ctx: {}", self.refinement_context)?;
-        writeln!(f, "\tcore_idx: {}", self.core_index)?;
-        writeln!(f, "\tauth_hash: {}", self.authorizer_hash)?;
-        writeln!(f, "\tauth_trace: {}", self.auth_trace)?;
-        writeln!(f, "\tsegment_roots_lookup: {}", self.segment_roots_lookup)?;
-        if self.digests.is_empty() {
-            writeln!(f, "\tdigests: []")?;
-        } else {
-            writeln!(f, "\tdigests: [")?;
-            for digest in self.digests.iter() {
-                writeln!(f, "\t  {digest}")?;
-            }
-            writeln!(f, "\t]")?;
-        }
-        write!(f, "  }}")
-    }
 }
 
 impl JamEncode for WorkReport {
@@ -65,10 +43,10 @@ impl JamEncode for WorkReport {
             + self.refinement_context.size_hint()
             + self.core_index.size_hint()
             + self.authorizer_hash.size_hint()
+            + self.auth_gas_used.size_hint()
             + self.auth_trace.size_hint()
             + self.segment_roots_lookup.size_hint()
             + self.digests.size_hint()
-            + self.auth_gas_used.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -76,10 +54,10 @@ impl JamEncode for WorkReport {
         self.refinement_context.encode_to(dest)?;
         self.core_index.encode_to(dest)?;
         self.authorizer_hash.encode_to(dest)?;
+        self.auth_gas_used.encode_to(dest)?;
         self.auth_trace.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;
         self.digests.encode_to(dest)?;
-        self.auth_gas_used.encode_to(dest)?;
         Ok(())
     }
 }
@@ -94,10 +72,10 @@ impl JamDecode for WorkReport {
             refinement_context: RefinementContext::decode(input)?,
             core_index: CoreIndex::decode(input)?,
             authorizer_hash: AuthHash::decode(input)?,
+            auth_gas_used: UnsignedGas::decode(input)?,
             auth_trace: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
             digests: WorkDigests::decode(input)?,
-            auth_gas_used: UnsignedGas::decode(input)?,
         })
     }
 }
@@ -283,10 +261,10 @@ pub struct WorkDigest {
     pub payload_hash: Hash32,
     /// `g`: A gas limit allocated to the work item's accumulation.
     pub accumulate_gas_limit: UnsignedGas,
-    /// **`d`**: Output or error of the execution of the work item.
-    pub refine_result: WorkExecutionResult,
     /// Statistics on gas usage and data referenced in the refinement process.
     pub refine_stats: RefineStats,
+    /// **`d`**: Output or error of the execution of the work item.
+    pub refine_result: WorkExecutionResult,
 }
 
 impl Display for WorkDigest {
@@ -296,19 +274,20 @@ impl Display for WorkDigest {
         writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
         writeln!(f, "payload_hash: {}", self.payload_hash)?;
         writeln!(f, "accumulate_gas_limit: {}", self.accumulate_gas_limit)?;
-        writeln!(f, "refine_result: {}", self.refine_result)?;
         writeln!(f, "refine_stats: {}", self.refine_stats)?;
+        writeln!(f, "refine_result: {}", self.refine_result)?;
         write!(f, "}}")
     }
 }
 
+// TODO: Double-check with GP (v0.7.0 reverted this change, which is likely an error)
 impl JamEncode for WorkDigest {
     fn size_hint(&self) -> usize {
         4 + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
             + 8
-            + self.refine_result.size_hint()
             + self.refine_stats.size_hint()
+            + self.refine_result.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -316,8 +295,8 @@ impl JamEncode for WorkDigest {
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
         self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
-        self.refine_result.encode_to(dest)?;
         self.refine_stats.encode_to(dest)?;
+        self.refine_result.encode_to(dest)?;
         Ok(())
     }
 }
@@ -332,8 +311,8 @@ impl JamDecode for WorkDigest {
             service_code_hash: CodeHash::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
-            refine_result: WorkExecutionResult::decode(input)?,
             refine_stats: RefineStats::decode(input)?,
+            refine_result: WorkExecutionResult::decode(input)?,
         })
     }
 }

@@ -79,7 +79,7 @@ impl IsAuthorizedInvocation {
             .get_account_code_by_lookup(
                 args.package.authorizer_service_id,
                 args.package.context.lookup_anchor_timeslot,
-                &args.package.authorizer.auth_code_hash,
+                &args.package.auth_code_hash,
             )
             .await?
         else {

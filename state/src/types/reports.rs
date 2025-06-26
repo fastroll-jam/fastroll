@@ -119,7 +119,7 @@ impl Display for PendingReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PendingReport: {{ wr: {}, slot: {:?} }}",
+            "PendingReport: {{ wr: {:?}, slot: {:?} }}",
             self.work_report, self.reported_timeslot
         )
     }
