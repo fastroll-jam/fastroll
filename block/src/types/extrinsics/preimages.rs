@@ -43,7 +43,7 @@ impl JamEncode for PreimagesXtEntry {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_id.encode_to_fixed(dest, 4)?; // FIXME: Codec: Not fixed encoding in GP
+        self.service_id.encode_to_fixed(dest, 4)?;
         self.preimage_data.encode_to(dest)?;
         Ok(())
     }
