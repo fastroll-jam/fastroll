@@ -21,7 +21,7 @@ use fr_block::types::{
 use fr_common::{
     ticket::Ticket,
     workloads::{
-        Authorizer, AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
+        AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
@@ -498,24 +498,6 @@ pub struct AsnAuthorizer {
     pub params: AsnByteSequence,
 }
 
-impl From<AsnAuthorizer> for Authorizer {
-    fn from(value: AsnAuthorizer) -> Self {
-        Self {
-            auth_code_hash: CodeHash::from(value.code_hash),
-            config_blob: Octets::from(value.params),
-        }
-    }
-}
-
-impl From<Authorizer> for AsnAuthorizer {
-    fn from(value: Authorizer) -> Self {
-        Self {
-            code_hash: value.auth_code_hash.into(),
-            params: value.config_blob.into(),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct AsnAuthPool(Vec<AsnAuthorizerHash>);
 
@@ -720,7 +702,8 @@ impl From<AsnWorkPackage> for WorkPackage {
         Self {
             auth_token: Octets::from(value.authorization),
             authorizer_service_id: value.auth_code_host,
-            authorizer: value.authorizer.into(),
+            auth_code_hash: value.authorizer.code_hash.into(),
+            config_blob: value.authorizer.params.into(),
             context: value.context.into(),
             work_items: WorkItems::try_from(
                 value
@@ -739,7 +722,10 @@ impl From<WorkPackage> for AsnWorkPackage {
         Self {
             authorization: value.auth_token.into(),
             auth_code_host: value.authorizer_service_id,
-            authorizer: value.authorizer.into(),
+            authorizer: AsnAuthorizer {
+                code_hash: value.auth_code_hash.into(),
+                params: value.config_blob.into(),
+            },
             context: value.context.into(),
             items: value
                 .work_items

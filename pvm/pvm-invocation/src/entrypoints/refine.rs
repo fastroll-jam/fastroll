@@ -145,7 +145,7 @@ impl RefineInvocation {
             work_payload: work_item.payload_blob.clone().into_vec(),
             work_package_hash: hash::<Blake2b256>(&args.package.encode()?)?,
             refinement_context: args.package.context.clone(),
-            auth_code_hash: args.package.authorizer.auth_code_hash.clone(),
+            auth_code_hash: args.package.auth_code_hash.clone(),
         };
 
         let mut refine_ctx =

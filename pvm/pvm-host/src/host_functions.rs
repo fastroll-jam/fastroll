@@ -271,7 +271,16 @@ impl HostFunction {
     ) -> Option<Vec<u8>> {
         match data_id {
             7 => package.encode().ok(),
-            8 => package.authorizer.encode().ok(),
+            8 => {
+                let mut buf = vec![];
+                if package.auth_code_hash.encode_to(&mut buf).is_err() {
+                    return None;
+                }
+                if package.config_blob.encode_to(&mut buf).is_err() {
+                    return None;
+                };
+                Some(buf)
+            }
             9 => Some(package.auth_token.clone().into_vec()),
             10 => package.context.encode().ok(),
             11 => {

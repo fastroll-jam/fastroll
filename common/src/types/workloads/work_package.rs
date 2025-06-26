@@ -9,32 +9,35 @@ pub type WorkItems = LimitedVec<WorkItem, MAX_WORK_ITEMS_PER_PACKAGE>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkPackage {
-    /// **`j`**: Authorizer token blob
-    pub auth_token: Octets,
     /// `h`: Authorization code host service id
     pub authorizer_service_id: ServiceId,
-    /// `u` & **`p`**: Authorization code hash and config blob
-    pub authorizer: Authorizer,
+    /// `u`: Authorization code hash
+    pub auth_code_hash: CodeHash,
     /// **`x`**: Refinement context
     pub context: RefinementContext,
+    /// **`j`**: Authorizer token blob
+    pub auth_token: Octets,
+    /// **`p`**: Authorization config blob
+    pub config_blob: Octets,
     /// **`w`**: Sequence of work items
     pub work_items: WorkItems,
 }
 
 impl JamEncode for WorkPackage {
     fn size_hint(&self) -> usize {
-        self.auth_token.size_hint()
-            + 4
-            + self.authorizer.size_hint()
+        4 + self.auth_code_hash.size_hint()
             + self.context.size_hint()
+            + self.auth_token.size_hint()
+            + self.config_blob.size_hint()
             + self.work_items.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.auth_token.encode_to(dest)?;
         self.authorizer_service_id.encode_to_fixed(dest, 4)?;
-        self.authorizer.encode_to(dest)?;
+        self.auth_code_hash.encode_to(dest)?;
         self.context.encode_to(dest)?;
+        self.auth_token.encode_to(dest)?;
+        self.config_blob.encode_to(dest)?;
         self.work_items.encode_to(dest)?;
         Ok(())
     }
@@ -46,21 +49,14 @@ impl JamDecode for WorkPackage {
         Self: Sized,
     {
         Ok(Self {
-            auth_token: Octets::decode(input)?,
             authorizer_service_id: ServiceId::decode_fixed(input, 4)?,
-            authorizer: Authorizer::decode(input)?,
+            auth_code_hash: CodeHash::decode(input)?,
             context: RefinementContext::decode(input)?,
+            auth_token: Octets::decode(input)?,
+            config_blob: Octets::decode(input)?,
             work_items: WorkItems::decode(input)?,
         })
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct Authorizer {
-    /// `u`: Authorization code hash
-    pub auth_code_hash: CodeHash,
-    /// **`p`**: Authorization config blob
-    pub config_blob: Octets,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
