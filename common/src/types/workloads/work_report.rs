@@ -261,10 +261,10 @@ pub struct WorkDigest {
     pub payload_hash: Hash32,
     /// `g`: A gas limit allocated to the work item's accumulation.
     pub accumulate_gas_limit: UnsignedGas,
-    /// **`d`**: Output or error of the execution of the work item.
-    pub refine_result: WorkExecutionResult,
     /// Statistics on gas usage and data referenced in the refinement process.
     pub refine_stats: RefineStats,
+    /// **`d`**: Output or error of the execution of the work item.
+    pub refine_result: WorkExecutionResult,
 }
 
 impl Display for WorkDigest {
@@ -274,19 +274,20 @@ impl Display for WorkDigest {
         writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
         writeln!(f, "payload_hash: {}", self.payload_hash)?;
         writeln!(f, "accumulate_gas_limit: {}", self.accumulate_gas_limit)?;
-        writeln!(f, "refine_result: {}", self.refine_result)?;
         writeln!(f, "refine_stats: {}", self.refine_stats)?;
+        writeln!(f, "refine_result: {}", self.refine_result)?;
         write!(f, "}}")
     }
 }
 
+// TODO: Double-check with GP (v0.7.0 reverted this change, which is likely an error)
 impl JamEncode for WorkDigest {
     fn size_hint(&self) -> usize {
         4 + self.service_code_hash.size_hint()
             + self.payload_hash.size_hint()
             + 8
-            + self.refine_result.size_hint()
             + self.refine_stats.size_hint()
+            + self.refine_result.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -294,8 +295,8 @@ impl JamEncode for WorkDigest {
         self.service_code_hash.encode_to(dest)?;
         self.payload_hash.encode_to(dest)?;
         self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
-        self.refine_result.encode_to(dest)?;
         self.refine_stats.encode_to(dest)?;
+        self.refine_result.encode_to(dest)?;
         Ok(())
     }
 }
@@ -310,8 +311,8 @@ impl JamDecode for WorkDigest {
             service_code_hash: CodeHash::decode(input)?,
             payload_hash: Hash32::decode(input)?,
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
-            refine_result: WorkExecutionResult::decode(input)?,
             refine_stats: RefineStats::decode(input)?,
+            refine_result: WorkExecutionResult::decode(input)?,
         })
     }
 }
