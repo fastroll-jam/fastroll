@@ -38,9 +38,6 @@ pub const MAX_REPORT_DEPENDENCIES: usize = 8;
 /// `U`: The period in timeslots after which reported but unavailable work may be replaced.
 pub const PENDING_REPORT_TIMEOUT: usize = 5;
 
-/// `S`: The maximum number of entries in the accumulation queue.
-pub const MAX_ACCUMULATE_QUEUE_ENTRIES: usize = 1_024;
-
 /// `T`: The maximum number of extrinsics in a work-package.
 pub const MAX_EXTRINSICS_PER_PACKAGE: usize = 128;
 
