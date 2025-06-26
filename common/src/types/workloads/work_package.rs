@@ -65,42 +65,42 @@ pub struct WorkItem {
     pub service_id: ServiceId,
     /// `h`: Code hash of the service, at the time of reporting
     pub service_code_hash: CodeHash,
-    /// **`y`**: Work item payload blob
-    pub payload_blob: Octets,
     /// `g`: Service-specific gas limit for Refinement
     pub refine_gas_limit: UnsignedGas,
     /// `a`: Service-specific gas limit for Accumulation
     pub accumulate_gas_limit: UnsignedGas,
+    /// `e`: Number of export data segments exported by the work item.
+    /// max value = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
+    pub export_segment_count: u16,
+    /// **`y`**: Work item payload blob
+    pub payload_blob: Octets,
     /// **`i`**: Import segments info (hash and index).
     /// max length = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
     pub import_segment_ids: Vec<ImportInfo>,
     /// **`x`**: Extrinsic data info (hash and length)
     pub extrinsic_data_info: Vec<ExtrinsicInfo>,
-    /// `e`: Number of export data segments exported by the work item.
-    /// max value = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
-    pub export_segment_count: u16,
 }
 
 impl JamEncode for WorkItem {
     fn size_hint(&self) -> usize {
         4 + self.service_code_hash.size_hint()
+            + 8
+            + 8
+            + 2
             + self.payload_blob.size_hint()
-            + 8
-            + 8
             + self.import_segment_ids.size_hint()
             + self.extrinsic_data_info.size_hint()
-            + 2
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
         self.service_id.encode_to_fixed(dest, 4)?;
         self.service_code_hash.encode_to(dest)?;
-        self.payload_blob.encode_to(dest)?;
         self.refine_gas_limit.encode_to_fixed(dest, 8)?;
         self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
+        self.export_segment_count.encode_to_fixed(dest, 2)?;
+        self.payload_blob.encode_to(dest)?;
         self.import_segment_ids.encode_to(dest)?;
         self.extrinsic_data_info.encode_to(dest)?;
-        self.export_segment_count.encode_to_fixed(dest, 2)?;
         Ok(())
     }
 }
@@ -113,12 +113,12 @@ impl JamDecode for WorkItem {
         Ok(Self {
             service_id: ServiceId::decode_fixed(input, 4)?,
             service_code_hash: CodeHash::decode(input)?,
-            payload_blob: Octets::decode(input)?,
             refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
             accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            export_segment_count: u16::decode_fixed(input, 2)?,
+            payload_blob: Octets::decode(input)?,
             import_segment_ids: Vec::<ImportInfo>::decode(input)?,
             extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
-            export_segment_count: u16::decode_fixed(input, 2)?,
         })
     }
 }
