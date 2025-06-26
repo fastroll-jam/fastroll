@@ -27,36 +27,14 @@ pub struct WorkReport {
     pub core_index: CoreIndex,
     /// `a`: Authorizer hash
     pub authorizer_hash: AuthHash,
+    /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
+    pub auth_gas_used: UnsignedGas,
     /// **`o`**: Authorization trace
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
     /// **`r`**: Work digests
     pub digests: WorkDigests,
-    /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
-    pub auth_gas_used: UnsignedGas,
-}
-
-impl Display for WorkReport {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "WorkReport {{")?;
-        writeln!(f, "\tspec: {}", self.specs)?;
-        writeln!(f, "\trefine_ctx: {}", self.refinement_context)?;
-        writeln!(f, "\tcore_idx: {}", self.core_index)?;
-        writeln!(f, "\tauth_hash: {}", self.authorizer_hash)?;
-        writeln!(f, "\tauth_trace: {}", self.auth_trace)?;
-        writeln!(f, "\tsegment_roots_lookup: {}", self.segment_roots_lookup)?;
-        if self.digests.is_empty() {
-            writeln!(f, "\tdigests: []")?;
-        } else {
-            writeln!(f, "\tdigests: [")?;
-            for digest in self.digests.iter() {
-                writeln!(f, "\t  {digest}")?;
-            }
-            writeln!(f, "\t]")?;
-        }
-        write!(f, "  }}")
-    }
 }
 
 impl JamEncode for WorkReport {
@@ -65,10 +43,10 @@ impl JamEncode for WorkReport {
             + self.refinement_context.size_hint()
             + self.core_index.size_hint()
             + self.authorizer_hash.size_hint()
+            + self.auth_gas_used.size_hint()
             + self.auth_trace.size_hint()
             + self.segment_roots_lookup.size_hint()
             + self.digests.size_hint()
-            + self.auth_gas_used.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -76,10 +54,10 @@ impl JamEncode for WorkReport {
         self.refinement_context.encode_to(dest)?;
         self.core_index.encode_to(dest)?;
         self.authorizer_hash.encode_to(dest)?;
+        self.auth_gas_used.encode_to(dest)?;
         self.auth_trace.encode_to(dest)?;
         self.segment_roots_lookup.encode_to(dest)?;
         self.digests.encode_to(dest)?;
-        self.auth_gas_used.encode_to(dest)?;
         Ok(())
     }
 }
@@ -94,10 +72,10 @@ impl JamDecode for WorkReport {
             refinement_context: RefinementContext::decode(input)?,
             core_index: CoreIndex::decode(input)?,
             authorizer_hash: AuthHash::decode(input)?,
+            auth_gas_used: UnsignedGas::decode(input)?,
             auth_trace: Octets::decode(input)?,
             segment_roots_lookup: SegmentRootLookupTable::decode(input)?,
             digests: WorkDigests::decode(input)?,
-            auth_gas_used: UnsignedGas::decode(input)?,
         })
     }
 }

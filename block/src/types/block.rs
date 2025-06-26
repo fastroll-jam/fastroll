@@ -78,24 +78,24 @@ impl Display for EpochMarker {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockHeaderData {
-    /// `p`: The parent block hash.
+    /// `P`: The parent block hash.
     pub parent_hash: BlockHeaderHash,
-    /// `r`: The parent block posterior state root.
+    /// `R`: The prior state root (parent block posterior state root).
     pub prior_state_root: StateRoot,
-    /// `x`: Hash of the extrinsics introduced in the block.
+    /// `X`: Hash of the extrinsics introduced in the block.
     pub extrinsic_hash: XtHash,
-    /// `t`: The timeslot index of the block.
+    /// `T`: The timeslot index of the block.
     pub timeslot_index: TimeslotIndex,
-    /// `e`: The epoch marker.
+    /// `E`: The epoch marker.
     pub epoch_marker: Option<EpochMarker>,
-    /// `w`: The winning tickets marker.
+    /// `W`: The winning tickets marker.
     pub winning_tickets_marker: Option<WinningTicketsMarker>,
-    /// `o`: The offenders marker.
-    pub offenders_marker: Vec<Ed25519PubKey>,
-    /// `i`: The block author index.
+    /// `I`: The block author index.
     pub author_index: ValidatorIndex,
-    /// `v`: The block VRF signature, which is used as the epoch-entropy source.
+    /// `V`: The block VRF signature, which is used as the epoch-entropy source.
     pub vrf_signature: VrfSig,
+    /// `O`: The offenders marker.
+    pub offenders_marker: Vec<Ed25519PubKey>,
 }
 
 impl JamEncode for BlockHeaderData {
@@ -106,9 +106,9 @@ impl JamEncode for BlockHeaderData {
             + 4
             + self.epoch_marker.size_hint()
             + self.winning_tickets_marker.size_hint()
-            + self.offenders_marker.size_hint()
             + 2
             + self.vrf_signature.size_hint()
+            + self.offenders_marker.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -118,9 +118,9 @@ impl JamEncode for BlockHeaderData {
         self.timeslot_index.encode_to_fixed(dest, 4)?;
         self.epoch_marker.encode_to(dest)?;
         self.winning_tickets_marker.encode_to(dest)?;
-        self.offenders_marker.encode_to(dest)?;
         self.author_index.encode_to_fixed(dest, 2)?;
         self.vrf_signature.encode_to(dest)?;
+        self.offenders_marker.encode_to(dest)?;
         Ok(())
     }
 }
@@ -137,9 +137,9 @@ impl JamDecode for BlockHeaderData {
             timeslot_index: TimeslotIndex::decode_fixed(input, 4)?,
             epoch_marker: Option::<EpochMarker>::decode(input)?,
             winning_tickets_marker: Option::<WinningTicketsMarker>::decode(input)?,
-            offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
             author_index: ValidatorIndex::decode_fixed(input, 2)?,
             vrf_signature: VrfSig::decode(input)?,
+            offenders_marker: Vec::<Ed25519PubKey>::decode(input)?,
         })
     }
 }
@@ -148,7 +148,7 @@ impl JamDecode for BlockHeaderData {
 pub struct BlockHeader {
     /// The block header data fields.
     pub data: BlockHeaderData,
-    /// `s`: The block seal signed by the author.
+    /// `S`: The block seal signed by the author.
     pub block_seal: BlockSeal,
 }
 
