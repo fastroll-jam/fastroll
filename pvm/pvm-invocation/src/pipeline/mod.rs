@@ -30,7 +30,7 @@ pub struct OuterAccumulationResult {
     pub partial_state_union: AccumulatePartialState,
     /// **`t`**: The deferred transfers created by the accumulation.
     pub deferred_transfers: Vec<DeferredTransfer>,
-    /// `θ′`: The posterior accumulation output log; pairs of service ids and accumulation output hashes.
+    /// **`b`**: The posterior accumulation output log; pairs of service ids and accumulation output hashes.
     pub service_output_pairs: AccumulationOutputPairs,
     /// **`u`**: Pairs of service ids and gas usages.
     pub service_gas_pairs: AccumulationGasPairs,

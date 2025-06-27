@@ -13,11 +13,11 @@ pub struct WorkPackage {
     pub authorizer_service_id: ServiceId,
     /// `u`: Authorization code hash
     pub auth_code_hash: CodeHash,
-    /// **`x`**: Refinement context
+    /// **`c`**: Refinement context
     pub context: RefinementContext,
     /// **`j`**: Authorizer token blob
     pub auth_token: Octets,
-    /// **`p`**: Authorization config blob
+    /// **`f`**: Authorization config blob
     pub config_blob: Octets,
     /// **`w`**: Sequence of work items
     pub work_items: WorkItems,
@@ -63,7 +63,7 @@ impl JamDecode for WorkPackage {
 pub struct WorkItem {
     /// `s`: Associated service id
     pub service_id: ServiceId,
-    /// `h`: Code hash of the service, at the time of reporting
+    /// `c`: Code hash of the service, at the time of reporting
     pub service_code_hash: CodeHash,
     /// `g`: Service-specific gas limit for Refinement
     pub refine_gas_limit: UnsignedGas,

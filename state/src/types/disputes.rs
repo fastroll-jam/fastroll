@@ -11,13 +11,13 @@ use fr_crypto::types::*;
 /// Represents `ψ` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct DisputesState {
-    /// `ψ_g`: Hash of correct work-reports.
+    /// `ψ_G`: Hash of correct work-reports.
     pub good_set: Vec<WorkReportHash>,
-    /// `ψ_b`: Hash of incorrect work-reports.
+    /// `ψ_B`: Hash of incorrect work-reports.
     pub bad_set: Vec<WorkReportHash>,
-    /// `ψ_w`: Hash of work-reports that cannot be judged.
+    /// `ψ_W`: Hash of work-reports that cannot be judged.
     pub wonky_set: Vec<WorkReportHash>,
-    /// `ψ_o`: Ed25519 public keys of validators who are offenders (culprits or faults).
+    /// `ψ_O`: Ed25519 public keys of validators who are offenders (culprits or faults).
     pub punish_set: Vec<Ed25519PubKey>,
 }
 impl_simple_state_component!(DisputesState, DisputesState);

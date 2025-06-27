@@ -30,7 +30,7 @@ impl Display for TicketsXt {
 
 #[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct TicketsXtEntry {
-    /// `r`: The ticket entry index, either 0 or 1.
+    /// `e`: The ticket entry index, either 0 or 1.
     pub entry_index: u8,
     /// `p`: The ticket identifier (note: different from `Ticket` which contains hash of the proof as a ticket id)
     pub ticket_proof: BandersnatchRingVrfSig,

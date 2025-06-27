@@ -175,7 +175,7 @@ pub struct CoreStatsEntry {
     pub extrinsics_octets: u32,
     /// `x`: The number of extrinsics items used in the core.
     pub extrinsics_count: u16,
-    /// `b`: Auditable work bundle length.
+    /// `l`: Auditable work bundle length.
     pub work_bundle_length: u32,
     /// `u`: The actual amount of gas used during refinement in the core.
     pub refine_gas_used: UnsignedGas,

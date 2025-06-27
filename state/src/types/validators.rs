@@ -96,7 +96,7 @@ pub struct EffectiveValidators {
 
 /// A validator set that will become active in a future epoch.
 ///
-/// At the beginning of each epoch, this set is loaded into the Safrole state `γ_k`
+/// At the beginning of each epoch, this set is loaded into the Safrole state `γ_P`
 /// as the pending validator set. It will become the active set in the subsequent epoch.
 ///
 /// Represents `ι` in the GP.

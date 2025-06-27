@@ -17,7 +17,7 @@ pub type AccumulateHistoryEntries = FixedVec<BTreeSet<WorkPackageHash>, EPOCH_LE
 ///
 /// The queue entries have fixed indices, by the slot phase `m` within an epoch of length `E`.
 ///
-/// Represents `θ` of the GP.
+/// Represents `ω` of the GP.
 #[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct AccumulateQueue {
     pub items: AccumulateQueueEntries,

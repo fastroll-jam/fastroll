@@ -6,10 +6,10 @@ use fr_state::types::{
 };
 
 /// Accumulatable work reports in this block.
-/// Represents **`W^!`** of the GP.
+/// Represents **`R^!`** of the GP.
 pub type AccumulatableReports = Vec<WorkReport>;
 /// Pairs of newly queued work reports and their dependencies.
-/// Represents **`W^Q`** of the GP.
+/// Represents **`R^Q`** of the GP.
 pub type QueuedReports = Vec<WorkReportDepsMap>;
 
 /// Returns a tuple of the given work report and its dependencies; prerequisite package hashes
@@ -85,8 +85,8 @@ pub fn reports_to_package_hashes(reports: &[WorkReport]) -> Vec<WorkPackageHash>
 
 /// Partitions available work reports into two groups based on the presence of dependencies.
 ///
-/// This function is used for partitioning available reports **`W`** into
-/// **`W^!`** and **`W^Q`** of the GP.
+/// This function is used for partitioning available reports **`R`** into
+/// **`R^!`** and **`R^Q`** of the GP.
 pub fn partition_reports_by_deps(
     available_reports: Vec<WorkReport>,
 ) -> (Vec<WorkReport>, Vec<WorkReport>) {
@@ -99,7 +99,7 @@ pub fn partition_reports_by_deps(
 
 /// Extracts queued work reports from the available reports set.
 ///
-/// The output represents **`W^Q`** of the GP.
+/// The output represents **`R^Q`** of the GP.
 fn extract_queued_reports(
     reports_with_deps: &[WorkReport],
     accumulate_history_union: &[WorkPackageHash],
@@ -118,7 +118,7 @@ fn extract_queued_reports(
 /// Returns accumulatable work reports in this block, including reports with no dependency and
 /// queue reports that became accumulatable after their dependencies getting resolved.
 ///
-/// The output represents a pair of (**`W^*`**, **`W^Q`**).
+/// The output represents a pair of (**`R^*`**, **`R^Q`**).
 pub fn collect_accumulatable_reports(
     available_reports: Vec<WorkReport>,
     accumulate_queue: &AccumulateQueue,

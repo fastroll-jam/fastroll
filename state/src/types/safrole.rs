@@ -38,15 +38,15 @@ pub struct SafroleHeaderMarkers {
 /// Represents `γ` of the GP.
 #[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode)]
 pub struct SafroleState {
-    /// `γ_k`: Pending validator key set, which will be active in the next epoch.
+    /// `γ_P`: Pending validator key set, which will be active in the next epoch.
     /// This set is used to determine the Bandersnatch ring root for the next epoch.
     pub pending_set: ValidatorKeySet,
-    /// `γ_z`: Bandersnatch ring root of the current epoch.
+    /// `γ_Z`: Bandersnatch ring root of the current epoch.
     pub ring_root: BandersnatchRingRoot,
-    /// `γ_s`: Slot-sealers of the current epoch.
+    /// `γ_S`: Slot-sealers of the current epoch.
     /// Composed of `E` tickets (or `E` Bandersnatch keys in the fallback mode).
     pub slot_sealers: SlotSealers,
-    /// `γ_a`: Ticket accumulator.
+    /// `γ_A`: Ticket accumulator.
     pub ticket_accumulator: TicketAccumulator,
 }
 impl_simple_state_component!(SafroleState, SafroleState);

@@ -26,7 +26,7 @@ pub struct AccumulateInvokeArgs {
 
 #[derive(Clone, JamEncode)]
 pub struct AccumulateOperand {
-    /// `h`: Work package hash (`work_package_hash` of `AvailSpecs`)
+    /// `p`: Work package hash (`work_package_hash` of `AvailSpecs`)
     pub work_package_hash: WorkPackageHash,
     /// `e`: Work report segment root (`segment_root` of `AvailSpecs`)
     pub segment_root: SegmentRoot,
@@ -36,9 +36,9 @@ pub struct AccumulateOperand {
     pub work_item_payload_hash: Hash32,
     /// `g`: Gas limit for accumulate (`accumulate_gas_limit` of `WorkDigest`)
     pub accumulate_gas_limit: UnsignedGas,
-    /// **`d`**: Work item refine result (`refine_result` of `WorkDigest`)
+    /// **`l`**: Work item refine result (`refine_result` of `WorkDigest`)
     pub refine_result: WorkExecutionResult,
-    /// **`o`**: Authorization trace (`auth_trace` of `WorkReport`)
+    /// **`t`**: Authorization trace (`auth_trace` of `WorkReport`)
     pub auth_trace: Vec<u8>,
 }
 

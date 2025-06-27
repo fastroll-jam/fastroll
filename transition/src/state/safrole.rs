@@ -19,18 +19,18 @@ use std::sync::Arc;
 /// # Transitions
 ///
 /// ## On-epoch-change transitions
-/// * `γ_k`: Sets the pending set to the prior staging set.
-/// * `γ_z`: Sets the ring root to the one generated from the current pending set.
-/// * `γ_s`: Updates the slot-sealer series:
+/// * `γ_P`: Sets the pending set to the prior staging set.
+/// * `γ_Z`: Sets the ring root to the one generated from the current pending set.
+/// * `γ_S`: Updates the slot-sealer series:
 ///     - In regular (ticket) mode: Applies the outside-in sequencer function to the prior ticket accumulator.
 ///     - In fallback mode: Generates a new fallback key sequence influenced by the current `η_2`.
-/// * `γ_a`: Resets the ticket accumulator.
+/// * `γ_A`: Resets the ticket accumulator.
 ///
 /// ## Per-block transitions
-/// * `γ_k`: None.
-/// * `γ_z`: None.
-/// * `γ_s`: None.
-/// * `γ_a`: Accumulates new tickets.
+/// * `γ_P`: None.
+/// * `γ_Z`: None.
+/// * `γ_S`: None.
+/// * `γ_A`: Accumulates new tickets.
 pub async fn transition_safrole(
     state_manager: Arc<StateManager>,
     prior_timeslot: &Timeslot,
@@ -68,13 +68,13 @@ async fn handle_new_epoch_transition(
         .with_mut_safrole(
             StateMut::Update,
             |safrole| -> Result<(), StateManagerError> {
-                // pending set transition (γ_k)
+                // pending set transition (γ_P)
                 safrole.pending_set = prior_staging_set.0;
 
-                // ring root transition (γ_z)
+                // ring root transition (γ_Z)
                 safrole.ring_root = curr_ring_root;
 
-                // slot-sealer series transition (γ_s)
+                // slot-sealer series transition (γ_S)
                 update_slot_sealers(
                     safrole,
                     prior_timeslot,
@@ -83,7 +83,7 @@ async fn handle_new_epoch_transition(
                     curr_entropy.second_history(),
                 );
 
-                // reset ticket accumulator (γ_a)
+                // reset ticket accumulator (γ_A)
                 safrole.ticket_accumulator = TicketAccumulator::new();
                 Ok(())
             },

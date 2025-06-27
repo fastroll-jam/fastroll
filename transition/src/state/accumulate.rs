@@ -12,7 +12,7 @@ use std::{collections::BTreeSet, sync::Arc};
 /// State transition function of `AccumulateQueue`.
 pub async fn transition_accumulate_queue(
     state_manager: Arc<StateManager>,
-    queued_reports: &[WorkReportDepsMap], // W^Q
+    queued_reports: &[WorkReportDepsMap], // R^Q
     prior_timeslot: Timeslot,             // τ
     curr_timeslot: Timeslot,              // τ'
 ) -> Result<(), TransitionError> {
@@ -58,11 +58,11 @@ pub async fn transition_accumulate_queue(
 /// State transition function of `AccumulateHistory`.
 pub async fn transition_accumulate_history(
     state_manager: Arc<StateManager>,
-    accumulatable_reports: &[WorkReport], // W^*
+    accumulatable_reports: &[WorkReport], // R^*
     accumulate_count: usize,              // n
 ) -> Result<(), TransitionError> {
     assert!(accumulate_count <= accumulatable_reports.len());
-    // Represents `P(W^*_{...n})`.
+    // Represents `P(R^*_{...n})`.
     let accumulated = reports_to_package_hashes(&accumulatable_reports[..accumulate_count]);
 
     state_manager

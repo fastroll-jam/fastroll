@@ -19,9 +19,9 @@ pub type WorkDigests = LimitedVec<WorkDigest, MAX_WORK_ITEMS_PER_PACKAGE>;
 /// In Report (Guarantees) extrinsics, work reports must be ordered by core index in ascending order.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorkReport {
-    /// `s`: Work package availability specification
+    /// **`s`**: Work package availability specification
     pub specs: AvailSpecs,
-    /// `x`: Refinement context
+    /// **`c`**: Refinement context
     pub refinement_context: RefinementContext,
     /// `c`: Core index on which the work is done
     pub core_index: CoreIndex,
@@ -33,7 +33,7 @@ pub struct WorkReport {
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
-    /// **`r`**: Work digests
+    /// **`d`**: Work digests
     pub digests: WorkDigests,
 }
 
@@ -154,7 +154,7 @@ impl SegmentRootLookupTable {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AvailSpecs {
-    /// `h`: Work package hash
+    /// `p`: Work package hash
     pub work_package_hash: WorkPackageHash,
     /// `l`: Auditable work bundle length
     pub work_bundle_length: u32,
@@ -214,7 +214,7 @@ impl JamDecode for AvailSpecs {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, JamEncode, JamDecode)]
 pub struct ReportedWorkPackage {
-    /// `h` of `AvailSpec` from work report in `GuaranteesXt`
+    /// `p` of `AvailSpec` from work report in `GuaranteesXt`
     pub work_package_hash: WorkPackageHash,
     /// `e` of `AvailSpec` from work report in `GuaranteesXt`
     pub segment_root: SegmentRoot,
@@ -261,7 +261,7 @@ pub struct WorkDigest {
     pub payload_hash: Hash32,
     /// `g`: A gas limit allocated to the work item's accumulation.
     pub accumulate_gas_limit: UnsignedGas,
-    /// **`d`**: Output or error of the execution of the work item.
+    /// **`l`**: Output or error of the execution of the work item.
     pub refine_result: WorkExecutionResult,
     /// `u`, `i`, `x`, `z`, `e`: Statistics on gas usage and data referenced in the refinement process.
     pub refine_stats: RefineStats,

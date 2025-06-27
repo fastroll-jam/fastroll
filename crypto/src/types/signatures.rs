@@ -9,7 +9,6 @@ use fr_codec::prelude::*;
 use fr_common::{BandersnatchOutputHash, ByteArray, ByteEncodable, CommonTypeError};
 
 /// 96-byte Bandersnatch signature type.
-/// Represents `F` signature type of the GP.
 #[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct BandersnatchSig(pub ByteArray<96>);
 impl_byte_encodable!(BandersnatchSig);
@@ -29,7 +28,6 @@ impl VrfSignature for BandersnatchSig {
 }
 
 /// 784-byte Bandersnatch Ring VRF signature type.
-/// Represents `F bar` signature type of the GP.
 #[derive(Debug, Default, Clone, PartialEq, Eq, JamEncode, JamDecode)]
 pub struct BandersnatchRingVrfSig(pub Box<ByteArray<784>>);
 

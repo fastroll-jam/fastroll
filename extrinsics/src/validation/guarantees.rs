@@ -50,7 +50,7 @@ use std::{collections::HashSet, sync::Arc};
 ///     Additionally, the lookup-anchor's details (timeslot and header hash) must match those stored
 ///     in the ancestor header state.
 ///   - The work-package hash of each work-report must not match any work-package hashes from reports
-///     already made in the past and thus should not be present anywhere in `ρ`, `θ`, `ξ` or `β_H`.
+///     already made in the past and thus should not be present anywhere in `ρ`, `ω`, `ξ` or `β_H`.
 ///   - If the work-report depends on a prerequisite work-package, the prerequisite must either be
 ///     present in the current extrinsic or in the recent block history (`β_H`).
 ///   - All work digests within each work-report must predict the correct code hash for the

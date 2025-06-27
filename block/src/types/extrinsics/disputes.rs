@@ -277,7 +277,7 @@ impl Ord for Judgment {
 pub struct Culprit {
     /// `r`: The work report hash.
     pub report_hash: WorkReportHash,
-    /// `k`: Ed25519 public key of the **Culprit**.
+    /// `f`: Ed25519 public key of the **Culprit**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The guaranteeing signature that the **Culprit** submitted.
     pub signature: Ed25519Sig,
@@ -314,7 +314,7 @@ pub struct Fault {
     pub report_hash: WorkReportHash,
     /// `v`: The vote.
     pub is_report_valid: bool,
-    /// `k`: Ed25519 public key of the **Fault**.
+    /// `f`: Ed25519 public key of the **Fault**.
     pub validator_key: Ed25519PubKey,
     /// `s`: The judgment signature that the **Fault** submitted.
     pub signature: Ed25519Sig,

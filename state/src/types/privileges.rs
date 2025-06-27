@@ -18,13 +18,13 @@ pub type AlwaysAccumulateServices = BTreeMap<ServiceId, UnsignedGas>;
 /// Represents `χ` of the GP.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PrivilegedServices {
-    /// `m`: A privileged service that can alter privileged services state.
+    /// `M`: A privileged service that can alter privileged services state.
     pub manager_service: ServiceId,
-    /// **`a`**: Privileged services that can alter the auth queue, one for each core.
+    /// `A`: Privileged services that can alter the auth queue, one for each core.
     pub assign_services: AssignServices,
-    /// `v`: A privileged service that can alter the staging validator set (`ι`).
+    /// `V`: A privileged service that can alter the staging validator set (`ι`).
     pub designate_service: ServiceId,
-    /// **`z`**: A mapping of always-accumulate services and their basic gas usages.
+    /// `Z`: A mapping of always-accumulate services and their basic gas usages.
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
 impl_simple_state_component!(PrivilegedServices, PrivilegedServices);
