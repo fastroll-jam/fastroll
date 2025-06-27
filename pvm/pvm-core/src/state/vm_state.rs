@@ -14,7 +14,7 @@ pub type RegIndex = usize;
 /// Mutable VM state
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VMState {
-    /// `ω`: Registers
+    /// `φ`: Registers
     pub regs: [Register; REGISTERS_COUNT],
     /// `μ`: RAM
     pub memory: Memory,

@@ -114,7 +114,7 @@ pub enum StateEntryType {
     PrivilegedServices(PrivilegedServices),
     /// `π`: The on-chain statistics.
     OnChainStatistics(OnChainStatistics),
-    /// `θ`: The accumulate ready-queue.
+    /// `ω`: The accumulate ready-queue.
     AccumulateQueue(AccumulateQueue),
     /// `ξ`: The accumulate history.
     AccumulateHistory(AccumulateHistory),
@@ -203,7 +203,7 @@ pub enum StateKeyConstant {
     Timeslot = 11,              // τ
     PrivilegedServices = 12,    // χ
     OnChainStatistics = 13,     // π
-    AccumulateQueue = 14,       // θ
+    AccumulateQueue = 14,       // ω
     AccumulateHistory = 15,     // ξ
     LastAccumulateOutputs = 16, // θ
     AccountMetadata = 255,      // δ (partial)

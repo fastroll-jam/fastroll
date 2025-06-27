@@ -48,7 +48,7 @@ impl GuarantorAssignment {
         Self::rotate_validator_indices(shuffled_indices, rotation_shift as u16)
     }
 
-    /// Represents `G` of the GP.
+    /// The output represents **`M`** of the GP.
     pub async fn current_guarantor_assignments(
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {
@@ -69,7 +69,7 @@ impl GuarantorAssignment {
         })
     }
 
-    /// Represents `G*` of the GP.
+    /// The output represents **`M*`** of the GP.
     pub async fn previous_guarantor_assignments(
         state_manager: &StateManager,
     ) -> Result<Self, GuarantorAssignmentError> {

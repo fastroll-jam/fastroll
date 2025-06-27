@@ -7,7 +7,7 @@ use fr_state::{
 };
 use std::sync::Arc;
 
-/// Predicts post slot sealers state (γ_s′) before actually running STFs.
+/// Predicts post slot sealers state (γ_S′) before actually running STFs.
 pub async fn predict_post_slot_sealer(
     state_manager: Arc<StateManager>,
     header_timeslot_index: TimeslotIndex,

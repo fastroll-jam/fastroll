@@ -54,6 +54,7 @@ pub struct AccumulateSummary {
 ///
 /// ### Privileged Services
 /// - `host_bless`
+/// - `host_assign`
 ///
 /// ### Staging Set
 /// - `host_designate`
@@ -62,7 +63,7 @@ pub struct AccumulateSummary {
 /// - `host_assign`
 pub async fn transition_on_accumulate(
     state_manager: Arc<StateManager>,
-    reports: &[WorkReport], // W^*
+    reports: &[WorkReport], // R^*
 ) -> Result<AccumulateSummary, TransitionError> {
     tracing::info!("Accumulating {} reports", reports.len());
     let always_accumulate_services = &state_manager
