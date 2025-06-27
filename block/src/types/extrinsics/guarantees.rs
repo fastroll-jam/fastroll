@@ -104,7 +104,7 @@ impl JamDecode for GuaranteesCredential {
 /// signed by two or three of the **Guarantors**.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuaranteesXtEntry {
-    /// `w`: The work report that is subject to the guarantee.
+    /// **`r`**: The work report that is subject to the guarantee.
     pub work_report: WorkReport,
     /// `t`: The timeslot index used for determining timeout of the work report.
     pub timeslot_index: TimeslotIndex,

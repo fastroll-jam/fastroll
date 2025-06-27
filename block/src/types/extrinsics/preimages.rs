@@ -27,9 +27,9 @@ impl PreimagesXt {
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct PreimagesXtEntry {
-    /// The service that requested the preimage data to be available on-chain.
+    /// `s`: The service that requested the preimage data to be available on-chain.
     pub service_id: ServiceId,
-    /// The preimage data blob.
+    /// **`d`**: The preimage data blob.
     pub preimage_data: Octets,
 }
 

@@ -27,7 +27,7 @@ struct RefineVMArgs {
     work_payload: Vec<u8>,
     /// Work package hash (Hash of `WorkPackage`)
     work_package_hash: WorkPackageHash,
-    /// Refinement context (**`x`** of `WorkPackage`)
+    /// Refinement context (**`c`** of `WorkPackage`)
     refinement_context: RefinementContext,
     /// Authorizer code hash (`u` of `WorkPackage`)
     auth_code_hash: CodeHash,
