@@ -5,7 +5,7 @@ fn main() {
     // PVM test cases
     generate_pvm_tests();
     // Block import test cases
-    // generate_block_import_tests();
+    generate_block_import_tests();
 }
 
 fn generate_pvm_tests() {
@@ -52,8 +52,7 @@ fn generate_block_import_tests() {
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_block_import_tests.rs");
 
     let mut test_case_contents =
-        // String::from("use fr_conformance_tests::importer_harness::run_test_case;");
-        String::new();
+        String::from("use fr_conformance_tests::importer_harness::run_test_case;");
 
     // Fallback tests
     for test_file in fallback_test_files {
