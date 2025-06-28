@@ -32,7 +32,7 @@ where
     fn as_mut(&mut self) -> Option<&mut T>;
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SandboxEntryStatus {
     /// State entry is copied from the state manager, with no modification.
     Clean,
