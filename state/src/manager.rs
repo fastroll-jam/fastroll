@@ -795,7 +795,7 @@ impl StateManager {
     pub async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);
         self.get_account_state_entry(&state_key).await
@@ -805,7 +805,7 @@ impl StateManager {
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -820,7 +820,7 @@ impl StateManager {
     pub async fn add_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
         storage_entry: AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);

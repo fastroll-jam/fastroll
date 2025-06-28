@@ -1,5 +1,5 @@
 use crate::error::PartialStateError;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId};
+use fr_common::{Hash32, LookupsKey, ServiceId};
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -224,7 +224,7 @@ where
 #[derive(Clone)]
 pub struct AccountSandbox {
     pub metadata: SandboxEntry<AccountMetadata>,
-    pub storage: HashMap<Octets, SandboxEntryVersioned<AccountStorageEntry>>,
+    pub storage: HashMap<Hash32, SandboxEntryVersioned<AccountStorageEntry>>,
     pub preimages: HashMap<Hash32, SandboxEntry<AccountPreimagesEntry>>,
     pub lookups: HashMap<LookupsKey, SandboxEntryVersioned<AccountLookupsEntryExt>>,
 }
@@ -435,7 +435,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
         Ok(self
             .get_account_storage_sandbox_entry(state_manager, service_id, storage_key)
@@ -447,7 +447,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &Hash32,
     ) -> Result<Option<SandboxEntryVersioned<AccountStorageEntry>>, PartialStateError> {
         let Some(sandbox) = self
             .get_mut_account_sandbox(state_manager.clone(), service_id)
@@ -467,7 +467,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        storage_key: Octets,
+        storage_key: Hash32,
         new_entry: AccountStorageEntry,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
         // Check the storage entry from the partial state and/or the global state
@@ -513,7 +513,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
-        storage_key: Octets,
+        storage_key: Hash32,
     ) -> Result<Option<AccountStorageEntry>, PartialStateError> {
         let Some(prev_entry) = self
             .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)

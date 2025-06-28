@@ -7,7 +7,7 @@ use fr_asn_types::types::{
     preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::WorkReport, Hash32, Octets};
+use fr_common::{workloads::WorkReport, ByteEncodable, Hash32, Octets};
 use fr_conformance_tests::{
     generate_typed_tests,
     harness::{run_test_case, StateTransitionTest},
@@ -95,7 +95,7 @@ impl StateTransitionTest for AccumulateTest {
                 .await?;
             // Add storage entries
             for storage_entry in &account.data.storage {
-                let key = Octets::from_vec(storage_entry.key.0.clone());
+                let key = Hash32::from_slice(storage_entry.key.0.as_slice()).unwrap();
                 let val = StorageMapEntry::from(storage_entry.clone()).data;
                 state_manager
                     .add_account_storage_entry(account.id, &key, val)
@@ -209,9 +209,10 @@ impl StateTransitionTest for AccumulateTest {
             let curr_storage_entries = join_all(s.data.storage.iter().map(|e| async {
                 // Get the key from the pre-state
                 let key = Octets::from_vec(e.key.0.clone());
+                let key_arr = Hash32::from_slice(e.key.0.as_slice()).unwrap();
                 // Get the posterior storage value
                 let storage_entry = state_manager
-                    .get_account_storage_entry(s.id, &key)
+                    .get_account_storage_entry(s.id, &key_arr)
                     .await
                     .unwrap()
                     .unwrap();
