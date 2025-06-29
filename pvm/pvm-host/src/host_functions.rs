@@ -1784,8 +1784,8 @@ impl HostFunction {
                         continue_ok!()
                     }
                     len if len == 2 || len == 3 => {
-                        let is_expired = lookups_timeslots[1].slot()
-                            < timeslot.slot() - PREIMAGE_EXPIRATION_PERIOD;
+                        let is_expired = lookups_timeslots[1].slot() + PREIMAGE_EXPIRATION_PERIOD
+                            < timeslot.slot();
                         if is_expired {
                             if len == 2 {
                                 // Remove preimage and lookups storage entry

@@ -248,8 +248,46 @@ impl ServiceStatsEntry {
 }
 
 /// The service activities statistics recorded on-chain, on a per-block basis.
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ServiceStats(pub BTreeMap<ServiceId, ServiceStatsEntry>);
+
+// FIXME: Workaround fixed-codec for service ids. This isn't aligned with GP but needed to pass traces test vectors.
+impl JamEncode for ServiceStats {
+    fn size_hint(&self) -> usize {
+        if self.0.is_empty() {
+            return 1;
+        }
+        // Sampling an entry to get the size hint of keys and values.
+        let (_key, sample_value) = self.0.iter().next().expect("At least one entry exists.");
+        self.0.len().size_hint() + (4 + sample_value.size_hint()) * self.0.len()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.0.len().encode_to(dest)?;
+        let mut keys_sorted: Vec<_> = self.0.keys().collect();
+        keys_sorted.sort();
+
+        for key in keys_sorted {
+            key.encode_to_fixed(dest, 4)?;
+            self.0.get(key).expect("Entry must exist").encode_to(dest)?;
+        }
+        Ok(())
+    }
+}
+
+impl JamDecode for ServiceStats {
+    fn decode<T: JamInput>(input: &mut T) -> Result<Self, JamCodecError> {
+        let mut map = BTreeMap::new();
+        let len = usize::decode(input)?;
+
+        for _ in 0..len {
+            let key = ServiceId::decode_fixed(input, 4)?;
+            let value = ServiceStatsEntry::decode(input)?;
+            map.insert(key, value);
+        }
+        Ok(Self(map))
+    }
+}
 
 impl ServiceStats {
     pub fn service_stats_entry_mut(&mut self, service_id: ServiceId) -> &mut ServiceStatsEntry {
