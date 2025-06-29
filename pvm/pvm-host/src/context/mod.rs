@@ -1,6 +1,6 @@
 use crate::{
     context::partial_state::{
-        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntry,
+        AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntryVersioned,
     },
     error::HostCallError,
     inner_vm::InnerPVM,
@@ -362,7 +362,7 @@ impl AccumulateHostContext {
         let new_service_id = self.next_new_service_id;
 
         let new_account = AccountSandbox {
-            metadata: SandboxEntry::new_added(AccountMetadata {
+            metadata: SandboxEntryVersioned::new_added(AccountMetadata {
                 code_hash,
                 balance,
                 gas_limit_accumulate,
