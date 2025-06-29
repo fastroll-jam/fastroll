@@ -44,10 +44,6 @@ pub const MAX_EXTRINSICS_PER_PACKAGE: usize = 128;
 /// `L`: The maximum age in timeslots of the lookup anchor.
 pub const MAX_LOOKUP_ANCHOR_AGE: usize = 14_400;
 
-/// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
-/// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
-pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
-
 // --- Service Account Balance Requirements
 
 /// `B_I`: The additional minimum balance required per item of elective service state.

@@ -7,6 +7,10 @@ pub const CORE_COUNT: usize = 341;
 /// `P`: Length of a timeslot in seconds.
 pub const SLOT_DURATION: u64 = 6;
 
+/// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
+/// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
+pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 19_200;
+
 /// `E`: The length of an epoch in timeslots.
 pub const EPOCH_LENGTH: usize = 600;
 
