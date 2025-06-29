@@ -153,14 +153,23 @@ impl BlockImportHarness {
         actual_post_state_root: StateRoot,
         expected_post_state: RawState,
     ) {
-        assert_eq!(actual_post_state_root, expected_post_state.state_root);
         for kv in expected_post_state.keyvals {
             if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap() {
-                assert_eq!(hex::encode(&actual_val), hex::encode(&*kv.value));
+                let actual_encoded = hex::encode(&actual_val);
+                let expected_encoded = hex::encode(&*kv.value);
+                if actual_encoded != expected_encoded {
+                    tracing::error!(
+                        "State mismatch. Key: {}, actual: {}, expected: {}",
+                        kv.key,
+                        actual_encoded,
+                        expected_encoded
+                    );
+                }
             } else {
                 tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
             };
         }
+        assert_eq!(actual_post_state_root, expected_post_state.state_root);
     }
 }
 

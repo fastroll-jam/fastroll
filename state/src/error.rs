@@ -8,8 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StateManagerError {
-    #[error("State key not initialized")]
-    StateKeyNotInitialized,
+    #[error("State key not initialized ({0})")]
+    StateKeyNotInitialized(String),
     #[error("Cache entry not found")]
     CacheEntryNotFound,
     #[error("Cache entry is clean")]
