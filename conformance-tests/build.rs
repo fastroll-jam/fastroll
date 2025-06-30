@@ -63,8 +63,7 @@ fn generate_block_import_tests() {
         if test_file_name.ends_with(".bin") {
             continue;
         }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
+        if test_file_name.ends_with("genesis.json") {
             continue;
         }
         let test_name = test_file_name.trim_end_matches(".json");
@@ -86,8 +85,7 @@ fn generate_block_import_tests() {
         if test_file_name.ends_with(".bin") {
             continue;
         }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
+        if test_file_name.ends_with("genesis.json") {
             continue;
         }
         let test_name = test_file_name.trim_end_matches(".json");
@@ -109,8 +107,7 @@ fn generate_block_import_tests() {
         if test_file_name.ends_with(".bin") {
             continue;
         }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
+        if test_file_name.ends_with("genesis.json") {
             continue;
         }
         let test_name = test_file_name.trim_end_matches(".json");
@@ -132,8 +129,7 @@ fn generate_block_import_tests() {
         if test_file_name.ends_with(".bin") {
             continue;
         }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
+        if test_file_name.ends_with("genesis.json") {
             continue;
         }
         let test_name = test_file_name.trim_end_matches(".json");
