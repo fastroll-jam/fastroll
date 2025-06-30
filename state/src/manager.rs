@@ -135,10 +135,9 @@ impl StateManager {
         new_val: Vec<u8>,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be updated
-        let old_state = self
-            .get_raw_state_entry_from_db(state_key)
-            .await?
-            .ok_or(StateManagerError::StateKeyNotInitialized(state_key.encode_hex()))?;
+        let old_state = self.get_raw_state_entry_from_db(state_key).await?.ok_or(
+            StateManagerError::StateKeyNotInitialized(state_key.encode_hex()),
+        )?;
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
@@ -155,10 +154,9 @@ impl StateManager {
         state_key: &StateKey,
     ) -> Result<(), StateManagerError> {
         // State entry must exist to be removed
-        let old_state = self
-            .get_raw_state_entry_from_db(state_key)
-            .await?
-            .ok_or(StateManagerError::StateKeyNotInitialized(state_key.encode_hex()))?;
+        let old_state = self.get_raw_state_entry_from_db(state_key).await?.ok_or(
+            StateManagerError::StateKeyNotInitialized(state_key.encode_hex()),
+        )?;
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
@@ -625,7 +623,9 @@ impl StateManager {
             .is_some();
 
         if !state_exists {
-            return Err(StateManagerError::StateKeyNotInitialized(state_key.encode_hex()));
+            return Err(StateManagerError::StateKeyNotInitialized(
+                state_key.encode_hex(),
+            ));
         }
 
         self.cache.with_mut_entry(state_key, state_mut, f)
@@ -673,7 +673,9 @@ impl StateManager {
         let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
         self.get_clean_state_entry_internal(&state_key)
             .await?
-            .ok_or(StateManagerError::StateKeyNotInitialized(state_key.encode_hex())) // simple state key must be initialized
+            .ok_or(StateManagerError::StateKeyNotInitialized(
+                state_key.encode_hex(),
+            )) // simple state key must be initialized
     }
 
     async fn get_simple_state_entry<T>(&self) -> Result<T, StateManagerError>
@@ -681,9 +683,9 @@ impl StateManager {
         T: SimpleStateComponent,
     {
         let state_key = get_simple_state_key(T::STATE_KEY_CONSTANT);
-        self.get_state_entry_internal(&state_key)
-            .await?
-            .ok_or(StateManagerError::StateKeyNotInitialized(state_key.encode_hex())) // simple state key must be initialized
+        self.get_state_entry_internal(&state_key).await?.ok_or(
+            StateManagerError::StateKeyNotInitialized(state_key.encode_hex()),
+        ) // simple state key must be initialized
     }
 
     async fn with_mut_simple_state_entry<T, F, E>(
