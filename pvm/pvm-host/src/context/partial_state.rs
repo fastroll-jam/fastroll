@@ -935,7 +935,6 @@ impl AccountsSandboxMap {
         let sandbox_preimages_keys: Vec<Hash32> = sandbox.preimages.keys().cloned().collect();
         let sandbox_lookups_keys: Vec<LookupsKey> = sandbox.lookups.keys().cloned().collect();
 
-        // FIXME: update AccountStorageEntry to `AccountStorageEntryExt` and get storage key (Align with 0.7.0)
         // TODO: check - how to delete storage items that exist in the global state but were never loaded to the sandbox?
         // Mark all storage entries associated with the service_id as removed.
         for storage_key in sandbox_storage_keys {
