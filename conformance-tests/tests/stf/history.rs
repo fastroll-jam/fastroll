@@ -21,7 +21,7 @@
 //
 // #[async_trait]
 // impl StateTransitionTest for HistoryTest {
-//     const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/history/data";
+//     const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/history/tiny";
 //
 //     type Input = Input;
 //     type JamInput = JamInput;

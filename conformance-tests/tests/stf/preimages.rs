@@ -20,7 +20,7 @@ struct PreimagesTest;
 
 #[async_trait]
 impl StateTransitionTest for PreimagesTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/preimages/data";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/preimages/tiny";
 
     type Input = Input;
     type JamInput = JamInput;
