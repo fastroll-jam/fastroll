@@ -245,10 +245,11 @@ impl HostFunction {
             host_call_panic!()
         };
         let data_read_offset = vm.regs[8].as_usize().unwrap_or(data.len()).min(data.len());
+        let min_data_read_size = data.len().saturating_sub(data_read_offset);
         let data_read_size = vm.regs[9]
             .as_usize()
-            .unwrap_or(data.len() - data_read_offset)
-            .min(data.len() - data_read_offset);
+            .unwrap_or(min_data_read_size)
+            .min(min_data_read_size);
 
         if !vm
             .memory
@@ -405,10 +406,11 @@ impl HostFunction {
             .as_usize()
             .unwrap_or(preimage_size)
             .min(preimage_size);
+        let min_lookup_size = preimage_size.saturating_sub(preimage_offset);
         let lookup_size = vm.regs[11]
             .as_usize()
-            .unwrap_or(preimage_size - preimage_offset)
-            .min(preimage_size - preimage_offset);
+            .unwrap_or(min_lookup_size)
+            .min(min_lookup_size);
 
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
@@ -470,10 +472,11 @@ impl HostFunction {
             .as_usize()
             .unwrap_or(storage_val_size)
             .min(storage_val_size);
+        let min_read_len = storage_val_size.saturating_sub(storage_val_offset);
         let read_len = vm.regs[12]
             .as_usize()
-            .unwrap_or(storage_val_size - storage_val_offset)
-            .min(storage_val_size - storage_val_offset);
+            .unwrap_or(min_read_len)
+            .min(min_read_len);
 
         if !vm.memory.is_address_range_writable(buf_offset, read_len) {
             host_call_panic!()
@@ -717,10 +720,11 @@ impl HostFunction {
             .as_usize()
             .unwrap_or(preimage.len())
             .min(preimage.len());
+        let min_preimage_len = preimage.len().saturating_sub(preimage_offset);
         let lookup_size = vm.regs[11]
             .as_usize()
-            .unwrap_or(preimage.len() - preimage_offset)
-            .min(preimage.len() - preimage_offset);
+            .unwrap_or(min_preimage_len)
+            .min(min_preimage_len);
 
         if !vm.memory.is_address_range_writable(buf_offset, lookup_size) {
             host_call_panic!()
@@ -1539,7 +1543,7 @@ impl HostFunction {
 
         let curr_timeslot = state_manager.get_timeslot().await?.slot();
         if entry.value.len() != 2
-            || entry.value[1].slot() >= curr_timeslot - PREIMAGE_EXPIRATION_PERIOD
+            || entry.value[1].slot() + PREIMAGE_EXPIRATION_PERIOD >= curr_timeslot
         {
             continue_huh!()
         }
