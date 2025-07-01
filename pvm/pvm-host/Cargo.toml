@@ -12,3 +12,4 @@ fr-state = { workspace = true }
 fr-pvm-core = { workspace = true }
 fr-pvm-types = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
