@@ -1553,7 +1553,7 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(eject_address) = vm.regs[7].as_service_id() else {
+        let Ok(eject_service_id) = vm.regs[7].as_service_id() else {
             continue_who!()
         };
         let Ok(offset) = vm.regs[8].as_mem_address() else {
@@ -1568,14 +1568,14 @@ impl HostFunction {
         };
         let preimage_hash = Hash32::decode(&mut preimage_hash_octets.as_slice())?;
 
-        if eject_address == x.accumulate_host {
+        if eject_service_id == x.accumulate_host {
             continue_who!()
         }
 
         let Some(eject_account_metadata) = x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager.clone(), eject_address)
+            .get_account_metadata(state_manager.clone(), eject_service_id)
             .await?
             .cloned()
         else {
@@ -1602,7 +1602,7 @@ impl HostFunction {
         let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager.clone(), eject_address, &lookups_key)
+            .get_account_lookups_entry(state_manager.clone(), eject_service_id, &lookups_key)
             .await?
         else {
             continue_huh!()
@@ -1619,9 +1619,9 @@ impl HostFunction {
             .await?;
         x.partial_state
             .accounts_sandbox
-            .eject_account(state_manager, eject_address)
+            .eject_account(state_manager, eject_service_id, lookups_key)
             .await?;
-        tracing::debug!("EJECT service_id={eject_address}");
+        tracing::debug!("EJECT service_id={eject_service_id}");
         continue_ok!()
     }
 
