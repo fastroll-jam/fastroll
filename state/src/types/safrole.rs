@@ -133,7 +133,7 @@ impl Display for SlotSealers {
         match self {
             Self::Tickets(tickets) => {
                 for ticket in tickets.iter() {
-                    writeln!(f, "{},", ticket)?;
+                    writeln!(f, "{ticket},")?;
                 }
             }
             Self::BandersnatchPubKeys(keys) => {
