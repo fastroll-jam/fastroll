@@ -904,6 +904,7 @@ impl AccountsSandboxMap {
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
+        one_last_lookups_key: LookupsKey,
     ) -> Result<(), PartialStateError> {
         // Lookup the account metadata entry from both the sandbox and the global state.
         //
@@ -914,8 +915,8 @@ impl AccountsSandboxMap {
             .await?
             .is_none()
         {
-            // Attempted to remove an entry not found in either the sandbox or the global state (this case should be handled by the host function)
-            return Err(PartialStateError::AccountNotFoundFromGlobalState);
+            // Attempted to remove an entry not found in either the sandbox or the global state
+            unreachable!("Account being ejected not found from the global state; this case should be handled by the host function");
         }
 
         // Lookup the state entry from the global state (or clean snapshot) to determine the final entry status.
@@ -934,40 +935,22 @@ impl AccountsSandboxMap {
             return Ok(());
         };
 
-        let sandbox = self
-            .get_account_sandbox(state_manager.clone(), service_id)
-            .await?
-            .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
-        let sandbox_storage_keys: Vec<Hash32> = sandbox.storage.keys().cloned().collect();
-        let sandbox_preimages_keys: Vec<Hash32> = sandbox.preimages.keys().cloned().collect();
-        let sandbox_lookups_keys: Vec<LookupsKey> = sandbox.lookups.keys().cloned().collect();
-
-        // FIXME: update AccountStorageEntry to `AccountStorageEntryExt` and get storage key (Align with 0.7.0)
-        // TODO: check - how to delete storage items that exist in the global state but were never loaded to the sandbox?
-        // Mark all storage entries associated with the service_id as removed.
-        for storage_key in sandbox_storage_keys {
-            self.remove_account_storage_entry(state_manager.clone(), service_id, storage_key)
-                .await?;
-        }
-        for preimages_key in sandbox_preimages_keys {
-            self.remove_account_preimages_entry(state_manager.clone(), service_id, preimages_key)
-                .await?;
-        }
-        for lookups_key in sandbox_lookups_keys {
-            self.remove_account_lookups_entry(state_manager.clone(), service_id, lookups_key)
-                .await?;
-        }
+        // Remove the last lookups entry for the account.
+        // Since the `EJECT` host function requires that all storage entries associated with the
+        // ejecting account must be removed except for the last lookup entry, removing
+        // that single entry is sufficient.
+        // There's no need to iterate through all storage items (actually impossible to do so).
+        self.remove_account_lookups_entry(state_manager.clone(), service_id, one_last_lookups_key)
+            .await?;
 
         // Entry with the key already exists in the global state
         let entry = SandboxEntryVersioned::new_removed(clean);
-
         let sandbox = self
             .get_mut_account_sandbox(state_manager, service_id)
             .await?
             .ok_or(PartialStateError::AccountNotFoundFromGlobalState)?;
 
         sandbox.metadata = entry;
-
         Ok(())
     }
 }
