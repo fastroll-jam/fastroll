@@ -66,7 +66,8 @@ macro_rules! gas_or_default {
 
 #[macro_export]
 macro_rules! continue_with_vm_change {
-    ($(gas: $gas:expr,)? r7: $r7:expr) => {
+    ($(gas: $gas:expr,)? r7: $r7:expr) => {{
+        tracing::debug!("Hostcall result: VMChange(r7={})", $r7 as RegValue);
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
@@ -75,8 +76,9 @@ macro_rules! continue_with_vm_change {
                 memory_write: None,
             },
         ))
-    };
-    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr) => {
+    }};
+    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr) => {{
+        tracing::debug!("Hostcall result: VMChange(r7={} r8={})", $r7 as RegValue, $r8 as RegValue);
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
@@ -85,8 +87,9 @@ macro_rules! continue_with_vm_change {
                 memory_write: None,
             },
         ))
-    };
-    ($(gas: $gas:expr,)? r7: $r7:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {
+    }};
+    ($(gas: $gas:expr,)? r7: $r7:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
+        tracing::debug!("Hostcall result: VMChange(r7={} moffset={})", $r7 as RegValue, $mem_offset);
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
@@ -95,8 +98,9 @@ macro_rules! continue_with_vm_change {
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
             },
         ))
-    };
-    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {
+    }};
+    ($(gas: $gas:expr,)? r7: $r7:expr, r8: $r8:expr, mem_offset: $mem_offset:expr, mem_data: $mem_data:expr) => {{
+        tracing::debug!("Hostcall result: VMChange(r7={} r8={} moffset={})", $r7 as RegValue, $r8 as RegValue, $mem_offset);
         Ok(HostCallResult::continue_with_vm_change(
             HostCallVMStateChange {
                 gas_charge: $crate::gas_or_default!($($gas)?),
@@ -105,22 +109,24 @@ macro_rules! continue_with_vm_change {
                 memory_write: Some($crate::MemWrite::new($mem_offset, $mem_data)),
             },
         ))
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! continue_with_code {
-    ($code:ident) => {
+    ($code:ident) => {{
+        tracing::debug!("Hostcall result: {:?}", HostCallReturnCode::$code);
         return Ok(HostCallResult::continue_with_return_code(
             HostCallReturnCode::$code,
-        ))
-    };
-    ($code:ident, $gas:expr) => {
+        ));
+    }};
+    ($code:ident, $gas:expr) => {{
+        tracing::debug!("Hostcall result: {:?}", HostCallReturnCode::$code);
         return Ok(HostCallResult::continue_with_return_code_and_gas(
             HostCallReturnCode::$code,
             $gas,
-        ))
-    };
+        ));
+    }};
 }
 
 #[macro_export]

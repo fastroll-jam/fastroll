@@ -37,6 +37,7 @@ use fr_state::{
 use std::{collections::BTreeMap, sync::Arc};
 
 #[repr(u64)]
+#[derive(Debug)]
 pub enum HostCallReturnCode {
     /// An item does not exist.
     NONE = u64::MAX,
@@ -155,9 +156,11 @@ impl HostFunction {
     /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
     /// for executing this instruction.
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: GAS");
         check_out_of_gas!(vm.gas_counter);
         let gas_remaining =
             (vm.gas_counter as UnsignedGas).saturating_sub(HOSTCALL_BASE_GAS_CHARGE);
+        tracing::debug!("GAS gas={gas_remaining}");
         continue_with_vm_change!(r7: gas_remaining)
     }
 
@@ -166,6 +169,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: FETCH");
         let Ok(data_id) = vm.regs[10].as_usize() else {
             continue_none!()
         };
@@ -256,6 +260,7 @@ impl HostFunction {
             host_call_panic!()
         }
 
+        tracing::debug!("FETCH id={data_id} len={data_read_size}");
         continue_with_vm_change!(
             r7: data.len(),
             mem_offset: buf_offset,
@@ -364,6 +369,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: LOOKUP");
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
@@ -413,6 +419,7 @@ impl HostFunction {
             host_call_panic!()
         }
 
+        tracing::debug!("LOOKUP key={hash} len={lookup_size}");
         continue_with_vm_change!(
             r7: preimage_size,
             mem_offset: buf_offset,
@@ -428,6 +435,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: READ");
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
@@ -480,6 +488,7 @@ impl HostFunction {
             host_call_panic!()
         }
 
+        tracing::debug!("READ key={storage_key} len={read_len}");
         continue_with_vm_change!(
             r7: storage_val_size,
             mem_offset: buf_offset,
@@ -497,6 +506,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: WRITE");
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
@@ -577,17 +587,23 @@ impl HostFunction {
         // Apply the state change
         if let Some(new_entry) = new_storage_entry {
             accounts_sandbox
-                .insert_account_storage_entry(state_manager, service_id, storage_key, new_entry)
+                .insert_account_storage_entry(
+                    state_manager,
+                    service_id,
+                    storage_key.clone(),
+                    new_entry,
+                )
                 .await
                 .map_err(|_| HostCallError::AccountStorageInsertionFailed)?; // unreachable (accumulate host / transfer subject account not found)
         } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
-                .remove_account_storage_entry(state_manager, service_id, storage_key)
+                .remove_account_storage_entry(state_manager, service_id, storage_key.clone())
                 .await
                 .map_err(|_| HostCallError::AccountStorageRemovalFailed)?; // unreachable (accumulate host / transfer subject account not found)
         }
 
+        tracing::debug!("WRITE key={storage_key} len={value_size}");
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
     }
 
@@ -598,6 +614,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: INFO");
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
@@ -626,6 +643,7 @@ impl HostFunction {
             continue_oob!()
         }
 
+        tracing::debug!("INFO service_id={service_id} len={}", info.len());
         continue_with_vm_change!(
             r7: HostCallReturnCode::OK,
             mem_offset: buf_offset,
@@ -646,6 +664,7 @@ impl HostFunction {
         context: &mut InvocationContext,
         state_manager: Arc<StateManager>,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: HISTORICAL_LOOKUP");
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
@@ -705,6 +724,7 @@ impl HostFunction {
             host_call_panic!()
         }
 
+        tracing::debug!("HISTORICAL_LOOKUP key={lookup_hash} len={lookup_size}");
         continue_with_vm_change!(
             r7: preimage.len(),
             mem_offset: buf_offset,
@@ -719,6 +739,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: EXPORT");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -749,6 +770,7 @@ impl HostFunction {
 
         x.export_segments.push(data_segment);
 
+        tracing::debug!("EXPORT next_exports_offset={next_export_segments_offset}");
         continue_with_vm_change!(r7: next_export_segments_offset)
     }
 
@@ -759,6 +781,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: MACHINE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -788,6 +811,7 @@ impl HostFunction {
         let inner_vm = InnerPVM::new(program, initial_pc);
         let inner_vm_id = x.add_pvm_instance(inner_vm); // n
 
+        tracing::debug!("MACHINE instance_id={inner_vm_id}");
         continue_with_vm_change!(r7: inner_vm_id)
     }
 
@@ -798,6 +822,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: PEEK");
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
@@ -842,6 +867,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: POKE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -889,6 +915,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: PAGES");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -944,6 +971,7 @@ impl HostFunction {
             continue_huh!()
         };
 
+        tracing::debug!("PAGES instance_id={inner_vm_id} mode={mode} pages={page_start}..{page_end} access={access_type:?}");
         continue_ok!()
     }
 
@@ -957,6 +985,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: INVOKE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -1020,12 +1049,13 @@ impl HostFunction {
             reg.value.encode_to_fixed(&mut host_buf, 8)?;
         }
 
+        tracing::debug!("INVOKE instance_id={inner_vm_id} exit_reason={inner_vm_exit_reason:?}");
         match inner_vm_exit_reason {
             ExitReason::HostCall(host_call_type) => {
                 inner_vm_mut.pc += 1;
                 continue_with_vm_change!(
                     r7: HOST,
-                    r8: host_call_type,
+                    r8: host_call_type.clone(),
                     mem_offset: memory_offset,
                     mem_data: host_buf
                 )
@@ -1069,6 +1099,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: EXPUNGE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
@@ -1083,6 +1114,7 @@ impl HostFunction {
 
         x.remove_pvm_instance(inner_vm_id);
 
+        tracing::debug!("EXPUNGE instance_id={inner_vm_id}");
         continue_with_vm_change!(r7: final_pc)
     }
 
@@ -1094,6 +1126,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: BLESS");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1135,7 +1168,16 @@ impl HostFunction {
             always_accumulate_services.insert(address, basic_gas);
         }
 
-        x.assign_new_privileged_services(manager, assign, designate, always_accumulate_services);
+        x.assign_new_privileged_services(
+            manager,
+            assign,
+            designate,
+            always_accumulate_services.clone(),
+        );
+        tracing::debug!(
+            "BLESS manager={manager} assign={assign} designate={designate} always_accumulates={:?}",
+            always_accumulate_services.keys()
+        );
         continue_ok!()
     }
 
@@ -1146,6 +1188,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: ASSIGN");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1188,6 +1231,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: DESIGNATE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1223,6 +1267,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: CHECKPOINT");
         check_out_of_gas!(vm.gas_counter);
         let (x_cloned, y_mut) = match (
             context.get_accumulate_x().cloned(),
@@ -1252,6 +1297,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: NEW");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1304,6 +1350,10 @@ impl HostFunction {
 
         // Update the next new service account index in the partial state
         x.rotate_new_account_index(state_manager).await?;
+        tracing::debug!(
+            "NEW service_id={new_service_id} parent={}",
+            x.accumulate_host
+        );
         continue_with_vm_change!(r7: new_service_id)
     }
 
@@ -1314,6 +1364,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: UPGRADE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1332,8 +1383,12 @@ impl HostFunction {
         };
         let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
 
-        x.update_accumulator_metadata(state_manager, code_hash, gas_limit_g, gas_limit_m)
+        x.update_accumulator_metadata(state_manager, code_hash.clone(), gas_limit_g, gas_limit_m)
             .await?;
+        tracing::debug!(
+            "UPGRADE service_id={} code_hash={code_hash} g={gas_limit_g} m={gas_limit_m}",
+            x.accumulate_host
+        );
         continue_ok!()
     }
 
@@ -1343,6 +1398,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
         let Ok(dest) = vm.regs[7].as_service_id() else {
@@ -1402,6 +1458,10 @@ impl HostFunction {
         x.subtract_accumulator_balance(state_manager, amount)
             .await?;
         x.add_to_deferred_transfers(transfer);
+        tracing::debug!(
+            "TRANSFER from={} to={dest} amount={amount}",
+            x.accumulate_host
+        );
         continue_ok!(gas_charge)
     }
 
@@ -1411,6 +1471,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: EJECT");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1482,6 +1543,7 @@ impl HostFunction {
             .accounts_sandbox
             .eject_account(state_manager, eject_address)
             .await?;
+        tracing::debug!("EJECT service_id={eject_address}");
         continue_ok!()
     }
 
@@ -1491,6 +1553,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: QUERY");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1519,19 +1582,41 @@ impl HostFunction {
             continue_none!()
         };
 
+        // for debugging
+        let mut slots = Vec::with_capacity(3);
         let (r7, r8) = match entry.value.len() {
             0 => (0, 0),
-            1 => (1 + entry.value[0].slot() as u64 * (1 << 32), 0),
-            2 => (
-                2 + entry.value[0].slot() as u64 * (1 << 32),
-                entry.value[1].slot() as u64,
-            ),
-            3 => (
-                3 + entry.value[0].slot() as u64 * (1 << 32),
-                entry.value[1].slot() as u64 + entry.value[2].slot() as u64 * (1 << 32),
-            ),
+            1 => {
+                let slot_0 = entry.value[0].slot();
+                slots.push(slot_0);
+                (1 + slot_0 as u64 * (1 << 32), 0)
+            }
+            2 => {
+                let slot_0 = entry.value[0].slot();
+                let slot_1 = entry.value[1].slot();
+                slots.push(slot_0);
+                slots.push(slot_1);
+                (2 + slot_0 as u64 * (1 << 32), slot_1 as u64)
+            }
+            3 => {
+                let slot_0 = entry.value[0].slot();
+                let slot_1 = entry.value[1].slot();
+                let slot_2 = entry.value[2].slot();
+                slots.push(slot_0);
+                slots.push(slot_1);
+                slots.push(slot_2);
+                (
+                    3 + slot_0 as u64 * (1 << 32),
+                    slot_1 as u64 + slot_2 as u64 * (1 << 32),
+                )
+            }
             _ => panic!("Should not have more than 3 timeslot values"),
         };
+        tracing::debug!(
+            "QUERY key=({}, {}) slots={slots:?}",
+            lookups_key.0,
+            lookups_key.1
+        );
         continue_with_vm_change!(r7: r7, r8: r8)
     }
 
@@ -1546,6 +1631,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: SOLICIT");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1624,10 +1710,16 @@ impl HostFunction {
             .insert_account_lookups_entry(
                 state_manager,
                 x.accumulate_host,
-                lookups_key,
-                new_lookups_entry,
+                lookups_key.clone(),
+                new_lookups_entry.clone(),
             )
             .await?;
+        tracing::debug!(
+            "SOLICIT key=({}, {}) post_slots={:?}",
+            lookups_key.0,
+            lookups_key.1,
+            new_lookups_entry.entry.value.as_slice()
+        );
         continue_ok!()
     }
 
@@ -1642,6 +1734,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: FORGET");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1688,22 +1781,45 @@ impl HostFunction {
                             .remove_account_lookups_entry(
                                 state_manager,
                                 x.accumulate_host,
-                                lookups_key,
+                                lookups_key.clone(),
                             )
                             .await?;
+                        tracing::debug!(
+                            "FORGET key=({}, {}) prev=[], curr=None",
+                            lookups_key.0,
+                            lookups_key.1
+                        );
                         continue_ok!()
                     }
                     1 => {
                         // Add current timeslot to the lookups entry timeslot vector
-                        x.partial_state
+                        let updated_lookups_entry = x
+                            .partial_state
                             .accounts_sandbox
                             .push_timeslot_to_account_lookups_entry(
                                 state_manager,
                                 x.accumulate_host,
-                                lookups_key,
+                                lookups_key.clone(),
                                 timeslot,
                             )
-                            .await?;
+                            .await?
+                            .expect("Lookups entry for key already exists in global state")
+                            .value
+                            .as_slice()
+                            .iter()
+                            .map(Timeslot::slot)
+                            .collect::<Vec<_>>();
+                        tracing::debug!(
+                            "FORGET key=({}, {}) prev={:?}, curr={:?}",
+                            lookups_key.0,
+                            lookups_key.1,
+                            lookups_timeslots
+                                .as_slice()
+                                .iter()
+                                .map(Timeslot::slot)
+                                .collect::<Vec<_>>(),
+                            updated_lookups_entry
+                        );
                         continue_ok!()
                     }
                     len if len == 2 || len == 3 => {
@@ -1725,9 +1841,19 @@ impl HostFunction {
                                     .remove_account_lookups_entry(
                                         state_manager,
                                         x.accumulate_host,
-                                        lookups_key,
+                                        lookups_key.clone(),
                                     )
                                     .await?;
+                                tracing::debug!(
+                                    "FORGET key=({}, {}) prev={:?}, curr=None",
+                                    lookups_key.0,
+                                    lookups_key.1,
+                                    lookups_timeslots
+                                        .as_slice()
+                                        .iter()
+                                        .map(Timeslot::slot)
+                                        .collect::<Vec<_>>(),
+                                );
                             } else {
                                 let prev_last_timeslot = lookups_timeslots
                                     .last()
@@ -1741,16 +1867,38 @@ impl HostFunction {
                                         lookups_key.clone(),
                                     )
                                     .await?;
-                                x.partial_state
+                                let updated_lookups_entry = x
+                                    .partial_state
                                     .accounts_sandbox
                                     .extend_timeslots_to_account_lookups_entry(
                                         state_manager,
                                         x.accumulate_host,
-                                        lookups_key,
+                                        lookups_key.clone(),
                                         vec![prev_last_timeslot, timeslot],
                                     )
-                                    .await?;
+                                    .await?
+                                    .expect("Lookups entry for key already exists in global state")
+                                    .value
+                                    .as_slice()
+                                    .iter()
+                                    .map(Timeslot::slot)
+                                    .collect::<Vec<_>>();
+
+                                tracing::debug!(
+                                    "FORGET key=({}, {}) prev={:?}, curr={:?}",
+                                    lookups_key.0,
+                                    lookups_key.1,
+                                    lookups_timeslots
+                                        .as_slice()
+                                        .iter()
+                                        .map(Timeslot::slot)
+                                        .collect::<Vec<_>>(),
+                                    updated_lookups_entry
+                                );
                             }
+                        } else {
+                            // Not expired
+                            continue_huh!()
                         }
                         continue_ok!()
                     }
@@ -1765,6 +1913,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: YIELD");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1780,7 +1929,8 @@ impl HostFunction {
         };
         let commitment_hash = Hash32::decode(&mut commitment_hash_octets.as_slice())?;
 
-        x.yielded_accumulate_hash = Some(commitment_hash);
+        x.yielded_accumulate_hash = Some(commitment_hash.clone());
+        tracing::debug!("YIELD commitment={commitment_hash}");
         continue_ok!()
     }
 
@@ -1791,6 +1941,7 @@ impl HostFunction {
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::debug!("Hostcall invoked: PROVIDE");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
@@ -1843,6 +1994,7 @@ impl HostFunction {
         }
 
         // Check the partial state provided preimages set
+        let data_len = preimage_data.len();
         let provided_preimage_entry = (service_id, Octets::from_vec(preimage_data));
         if x.provided_preimages.contains(&provided_preimage_entry) {
             // Preimage already included in the partial state
@@ -1851,6 +2003,11 @@ impl HostFunction {
 
         // Insert the preimage entry
         x.provided_preimages.insert(provided_preimage_entry);
+        tracing::debug!(
+            "PROVIDE service_id={service_id} key=({}, {}), len={data_len}",
+            lookups_key.0,
+            lookups_key.1
+        );
         continue_ok!()
     }
 }

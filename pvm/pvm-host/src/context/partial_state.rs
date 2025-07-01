@@ -4,9 +4,9 @@ use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{
-        AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState,
-        AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta, AuthQueue,
-        PrivilegedServices, StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata,
+        AccountPartialState, AccountPreimagesEntry, AccountStorageEntry, AccountStorageUsageDelta,
+        AuthQueue, PrivilegedServices, StagingSet, StorageFootprint, StorageUsageDelta, Timeslot,
     },
 };
 use std::{
@@ -829,7 +829,7 @@ impl AccountsSandboxMap {
     }
 
     /// Pushes a new timeslot to the lookups entry value sequence and returns
-    /// the length of the timeslot vector after appending a new entry.
+    /// the updated lookups entry.
     /// Returns `None` if such lookups entry is not found.
     pub async fn push_timeslot_to_account_lookups_entry(
         &mut self,
@@ -837,7 +837,7 @@ impl AccountsSandboxMap {
         service_id: ServiceId,
         lookups_key: LookupsKey,
         timeslot: Timeslot,
-    ) -> Result<Option<usize>, PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
         let Some(mut lookups_entry) = self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
             .await?
@@ -846,19 +846,25 @@ impl AccountsSandboxMap {
         };
         lookups_entry.value.try_push(timeslot)?;
 
-        let new_timeslot_vec_len = lookups_entry.value.len();
-        self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
-            .await?;
-        Ok(Some(new_timeslot_vec_len))
+        self.insert_account_lookups_entry(
+            state_manager,
+            service_id,
+            lookups_key,
+            lookups_entry.clone(),
+        )
+        .await?;
+        Ok(Some(lookups_entry.entry))
     }
 
+    /// Extends timeslots vector to the lookups entry and returns the updated lookups entry.
+    /// Returns `None` if such lookups entry is not found.
     pub async fn extend_timeslots_to_account_lookups_entry(
         &mut self,
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         lookups_key: LookupsKey,
         timeslots: Vec<Timeslot>,
-    ) -> Result<Option<usize>, PartialStateError> {
+    ) -> Result<Option<AccountLookupsEntry>, PartialStateError> {
         let Some(mut lookups_entry) = self
             .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
             .await?
@@ -866,10 +872,14 @@ impl AccountsSandboxMap {
             return Ok(None);
         };
         lookups_entry.value.try_extend(timeslots)?;
-        let new_timeslot_vec_len = lookups_entry.value.len();
-        self.insert_account_lookups_entry(state_manager, service_id, lookups_key, lookups_entry)
-            .await?;
-        Ok(Some(new_timeslot_vec_len))
+        self.insert_account_lookups_entry(
+            state_manager,
+            service_id,
+            lookups_key,
+            lookups_entry.clone(),
+        )
+        .await?;
+        Ok(Some(lookups_entry.entry))
     }
 
     pub async fn drain_account_lookups_entry_timeslots(
