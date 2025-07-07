@@ -1,6 +1,7 @@
 //! Erasure codec conformance tests
 mod erasure {
     use fr_asn_types::{types::common::AsnByteSequence, utils::AsnTypeLoader};
+    use fr_common::utils::tracing::setup_timed_tracing;
     use fr_erasure_coding::ReedSolomon;
     use rand::{seq::SliceRandom, thread_rng};
     use serde::{Deserialize, Serialize};
@@ -28,9 +29,10 @@ mod erasure {
         test_encode_internal(&full_path, ReedSolomon::new_tiny());
     }
 
-    fn test_encode_internal(path: &Path, rs_rate: ReedSolomon) {
+    fn test_encode_internal(path: &Path, rs: ReedSolomon) {
+        setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
-        let shards = rs_rate.erasure_encode(&test_case.data.0).unwrap();
+        let shards = rs.erasure_encode(&test_case.data.0).unwrap();
         let shards_expected = test_case
             .shards
             .into_iter()
@@ -51,21 +53,23 @@ mod erasure {
         test_recover_internal(&full_path, ReedSolomon::new_tiny());
     }
 
-    fn test_recover_internal(path: &Path, rs_rate: ReedSolomon) {
+    fn test_recover_internal(path: &Path, rs: ReedSolomon) {
+        setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
 
         // Generate random shard indices
-        let mut indices: Vec<usize> = (0..rs_rate.total_words()).collect();
+        let mut indices: Vec<usize> = (0..rs.total_words()).collect();
         indices.shuffle(&mut thread_rng());
-        let rand_shard_indices = indices[..rs_rate.msg_words()].to_vec();
+        let rand_shard_indices = indices[..rs.msg_words()].to_vec();
 
-        let mut shards: Vec<Option<Vec<u8>>> = vec![None; rs_rate.total_words()];
+        let mut shards: Vec<Option<Vec<u8>>> = vec![None; rs.total_words()];
         for i in rand_shard_indices {
             shards[i] = Some(test_case.shards[i].0.clone());
         }
-        let recovered = rs_rate.erasure_recover(shards).unwrap();
+        let recovered = rs.erasure_recover(shards).unwrap();
         let data_expected = test_case.data.0;
-        let data_expected_padded = ReedSolomon::zero_pad_data(&data_expected, rs_rate.msg_words());
+        // The erasure encoder input must be padded
+        let data_expected_padded = ReedSolomon::zero_pad_data(&data_expected, rs.msg_words());
         if recovered != data_expected_padded {
             println!(
                 "actual(len={}): {}\nexpected(len={}): {}",
