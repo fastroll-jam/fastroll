@@ -1,0 +1,10 @@
+[package]
+name = "fr-erasure-coding"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+rayon = { workspace = true }
+reed-solomon-simd = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
