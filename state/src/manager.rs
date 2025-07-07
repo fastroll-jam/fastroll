@@ -171,6 +171,11 @@ impl StateManager {
         T: StateComponent,
     {
         if let Some(entry) = self.cache.get_entry(state_key) {
+            // Convert raw entry into typed entry
+            if let StateEntryType::Raw(octets) = &entry.clean_snapshot {
+                return T::decode(&mut octets.as_slice()).ok();
+            }
+
             if let Some(state_entry) = T::from_entry_type(&entry.clean_snapshot) {
                 return Some(state_entry.clone());
             }
@@ -183,6 +188,11 @@ impl StateManager {
         T: StateComponent,
     {
         if let Some(entry) = self.cache.get_entry(state_key) {
+            // Convert raw entry into typed entry
+            if let StateEntryType::Raw(octets) = &entry.value {
+                return T::decode(&mut octets.as_slice()).ok();
+            }
+
             if let Some(state_entry) = T::from_entry_type(&entry.value) {
                 return Some(state_entry.clone());
             }

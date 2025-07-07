@@ -4,7 +4,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use fr_codec::prelude::*;
-use fr_common::StateKey;
+use fr_common::{Octets, StateKey};
 use fr_state_merkle::merkle_db::MerkleWriteOp;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,6 +126,17 @@ impl StateCache {
             .inner
             .get_mut(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
+
+        if let StateEntryType::Raw(octets) = &cache_entry.value {
+            let decoded = T::decode(&mut octets.as_slice()).ok();
+            if let Some(mut entry_type) = decoded {
+                f(&mut entry_type)?;
+                let post_state_encoded = entry_type.encode()?;
+                // Convert back to raw state entry type
+                cache_entry.value = StateEntryType::Raw(Octets::from_vec(post_state_encoded));
+                return Ok(());
+            }
+        }
 
         let entry_mut = T::from_entry_type_mut(&mut cache_entry.value)
             .ok_or(StateManagerError::UnexpectedEntryType)?;
