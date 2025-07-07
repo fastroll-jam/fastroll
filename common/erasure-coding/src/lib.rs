@@ -49,7 +49,7 @@ impl ReedSolomon {
         self.msg_words
     }
 
-    pub fn zero_pad_data(data: &[u8], msg_words: usize) -> Vec<u8> {
+    fn zero_pad_data(data: &[u8], msg_words: usize) -> Vec<u8> {
         if data.len() % (msg_words * 2) == 0 {
             data.to_vec()
         } else {
