@@ -32,13 +32,13 @@ mod erasure {
     fn test_encode_internal(path: &Path, rs: ReedSolomon) {
         setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
-        let shards = rs.erasure_encode(&test_case.data.0).unwrap();
-        let shards_expected = test_case
+        let chunks = rs.erasure_encode(&test_case.data.0).unwrap();
+        let chunks_expected = test_case
             .shards
             .into_iter()
             .map(|s| s.0)
             .collect::<Vec<_>>();
-        assert_eq!(shards, shards_expected);
+        assert_eq!(chunks, chunks_expected);
     }
 
     pub fn test_recover_full(filename: &str) {
@@ -57,16 +57,16 @@ mod erasure {
         setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
 
-        // Generate random shard indices
+        // Generate random chunk indices
         let mut indices: Vec<usize> = (0..rs.total_words()).collect();
         indices.shuffle(&mut thread_rng());
-        let rand_shard_indices = indices[..rs.msg_words()].to_vec();
+        let rand_chunk_indices = indices[..rs.msg_words()].to_vec();
 
-        let mut shards: Vec<Option<Vec<u8>>> = vec![None; rs.total_words()];
-        for i in rand_shard_indices {
-            shards[i] = Some(test_case.shards[i].0.clone());
+        let mut chunks: Vec<Option<Vec<u8>>> = vec![None; rs.total_words()];
+        for i in rand_chunk_indices {
+            chunks[i] = Some(test_case.shards[i].0.clone());
         }
-        let recovered = rs.erasure_recover(shards).unwrap();
+        let recovered = rs.erasure_recover(chunks).unwrap();
         let data_expected = test_case.data.0;
         // The erasure encoder input must be padded
         let data_expected_padded = ReedSolomon::zero_pad_data(&data_expected, rs.msg_words());
