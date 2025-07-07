@@ -91,9 +91,9 @@ impl ReedSolomon {
 
         let mut encoder = ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
 
-        for word_idx in 0..chunk_octet_pairs {
-            for (original_chunk_idx, chunk) in chunks.iter_mut().enumerate().take(self.msg_words) {
-                let word_offset_octets = 2 * (word_idx + original_chunk_idx * chunk_octet_pairs);
+        for word_pos in 0..chunk_octet_pairs {
+            for (chunk_idx, chunk) in chunks.iter_mut().enumerate().take(self.msg_words) {
+                let word_offset_octets = 2 * (word_pos + chunk_idx * chunk_octet_pairs);
                 let original_word = &data_padded[word_offset_octets..word_offset_octets + 2]; // A single word
 
                 chunk.extend_from_slice(original_word); // Transpose back to original format
@@ -143,7 +143,7 @@ impl ReedSolomon {
         tracing::trace!("Parallel recovery start");
         let word_recoveries: Result<Vec<_>, _> = (0..chunk_octet_pairs)
             .into_par_iter()
-            .map(|word_idx| {
+            .map(|word_pos| {
                 let mut decoder =
                     ReedSolomonDecoder::new(self.msg_words, self.recovery_words(), 2)?;
 
@@ -152,14 +152,14 @@ impl ReedSolomon {
 
                 // Add chunks to the decoder for this word position
                 for (chunk, chunk_idx) in &chunks_indexed {
-                    let word_offset_octets = 2 * word_idx;
+                    let word_offset_octets = 2 * word_pos;
                     let word = &chunk[word_offset_octets..word_offset_octets + 2];
 
                     match self.shard_index_typed(*chunk_idx) {
                         ChunkIndex::Original(idx) => {
                             decoder.add_original_shard(idx, word)?;
                             // Collect original message chunks
-                            word_recovery.push((word_idx, idx, word.to_vec()));
+                            word_recovery.push((word_pos, idx, word.to_vec()));
                         }
                         ChunkIndex::Recovery(idx) => {
                             decoder.add_recovery_shard(idx, word)?;
@@ -169,7 +169,7 @@ impl ReedSolomon {
 
                 // Decode and collect results for this word position
                 for (chunk_idx, word) in decoder.decode()?.restored_original_iter() {
-                    word_recovery.push((word_idx, chunk_idx, word.to_vec()));
+                    word_recovery.push((word_pos, chunk_idx, word.to_vec()));
                 }
 
                 Ok::<Vec<_>, ReedSolomonError>(word_recovery)
@@ -180,8 +180,8 @@ impl ReedSolomon {
         // Merge the results
         tracing::trace!("Merging start");
         for word_recovery in word_recoveries? {
-            for (word_idx, chunk_idx, word) in word_recovery {
-                let word_offset_octets = 2 * word_idx;
+            for (word_pos, chunk_idx, word) in word_recovery {
+                let word_offset_octets = 2 * word_pos;
                 result[chunk_idx][word_offset_octets..word_offset_octets + 2]
                     .copy_from_slice(&word);
             }
