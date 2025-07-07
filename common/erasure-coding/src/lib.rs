@@ -85,9 +85,10 @@ impl ReedSolomon {
     pub fn erasure_encode(&self, data: &[u8]) -> Result<Vec<Chunk>, ErasureCodingError> {
         let data_padded = Self::zero_pad_data(data, self.msg_words); // length: (self.msg_words * k) words
         let chunk_octets = data_padded.len() / self.msg_words;
-        let chunk_octet_pairs = chunk_octets / 2; // k
+        let chunk_octet_pairs = chunk_octets / 2; // The number of octet pairs per chunk (k)
 
-        let mut chunks = vec![Chunk::with_capacity(chunk_octets); self.total_words];
+        // Initialize with proper size
+        let mut chunks = vec![vec![0u8; chunk_octets]; self.total_words];
 
         for word_pos in 0..chunk_octet_pairs {
             let mut encoder = ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
