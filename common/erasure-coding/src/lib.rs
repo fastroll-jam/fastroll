@@ -25,7 +25,7 @@ enum ChunkIndex {
 /// * Irreducible polynomial coefficients: 0x1002D
 /// * Cantor basis: [ 0x0001, 0xACCA, 0x3C0E, 0x163E, 0xC582, 0xED2E, 0x914C, 0x4012, 0x6C98,
 ///   0x10D8, 0x6A72, 0xB900, 0xFDB8, 0xFB34, 0xFF38, 0x991E ]
-pub struct ReedSolomon {
+pub struct ErasureCodec {
     /// The total number of symbols in a codeword (message + recovery symbols).
     /// For `k:n` reed-solomon rate, this is `n`.
     total_words: usize,
@@ -34,7 +34,7 @@ pub struct ReedSolomon {
     msg_words: usize,
 }
 
-impl ReedSolomon {
+impl ErasureCodec {
     pub fn new_tiny() -> Self {
         Self {
             total_words: 6,

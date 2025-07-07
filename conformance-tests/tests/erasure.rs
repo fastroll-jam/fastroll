@@ -2,7 +2,7 @@
 mod erasure {
     use fr_asn_types::{types::common::AsnByteSequence, utils::AsnTypeLoader};
     use fr_common::utils::tracing::setup_timed_tracing;
-    use fr_erasure_coding::ReedSolomon;
+    use fr_erasure_coding::ErasureCodec;
     use rand::{seq::SliceRandom, thread_rng};
     use serde::{Deserialize, Serialize};
     use std::path::{Path, PathBuf};
@@ -20,16 +20,16 @@ mod erasure {
     pub fn test_encode_full(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_FULL).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_encode_internal(&full_path, ReedSolomon::new_full());
+        test_encode_internal(&full_path, ErasureCodec::new_full());
     }
 
     pub fn test_encode_tiny(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_TINY).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_encode_internal(&full_path, ReedSolomon::new_tiny());
+        test_encode_internal(&full_path, ErasureCodec::new_tiny());
     }
 
-    fn test_encode_internal(path: &Path, rs: ReedSolomon) {
+    fn test_encode_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
         let chunks = rs.erasure_encode(&test_case.data.0).unwrap();
@@ -44,16 +44,16 @@ mod erasure {
     pub fn test_recover_full(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_FULL).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_recover_internal(&full_path, ReedSolomon::new_full());
+        test_recover_internal(&full_path, ErasureCodec::new_full());
     }
 
     pub fn test_recover_tiny(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_TINY).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        test_recover_internal(&full_path, ReedSolomon::new_tiny());
+        test_recover_internal(&full_path, ErasureCodec::new_tiny());
     }
 
-    fn test_recover_internal(path: &Path, rs: ReedSolomon) {
+    fn test_recover_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
 
@@ -69,7 +69,7 @@ mod erasure {
         let recovered = rs.erasure_recover(chunks).unwrap();
         let data_expected = test_case.data.0;
         // The erasure encoder input must be padded
-        let data_expected_padded = ReedSolomon::zero_pad_data(&data_expected, rs.msg_words());
+        let data_expected_padded = ErasureCodec::zero_pad_data(&data_expected, rs.msg_words());
         if recovered != data_expected_padded {
             println!(
                 "actual(len={}): {}\nexpected(len={}): {}",
