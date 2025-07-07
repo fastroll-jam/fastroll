@@ -39,19 +39,19 @@ mod erasure {
         assert_eq!(shards, shards_expected);
     }
 
-    pub fn _test_recover_full(filename: &str) {
+    pub fn test_recover_full(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_FULL).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        _test_recover_internal(&full_path, ReedSolomon::new_full());
+        test_recover_internal(&full_path, ReedSolomon::new_full());
     }
 
-    pub fn _test_recover_tiny(filename: &str) {
+    pub fn test_recover_tiny(filename: &str) {
         let json_path = PathBuf::from(PATH_PREFIX_TINY).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        _test_recover_internal(&full_path, ReedSolomon::new_tiny());
+        test_recover_internal(&full_path, ReedSolomon::new_tiny());
     }
 
-    fn _test_recover_internal(path: &Path, rs_rate: ReedSolomon) {
+    fn test_recover_internal(path: &Path, rs_rate: ReedSolomon) {
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
 
         // Generate random shard indices
@@ -65,7 +65,17 @@ mod erasure {
         }
         let recovered = rs_rate.erasure_recover(shards).unwrap();
         let data_expected = test_case.data.0;
-        assert_eq!(recovered, data_expected);
+        let data_expected_padded = ReedSolomon::zero_pad_data(&data_expected, rs_rate.msg_words());
+        if recovered != data_expected_padded {
+            println!(
+                "actual(len={}): {}\nexpected(len={}): {}",
+                recovered.len(),
+                hex::encode(&recovered),
+                data_expected_padded.len(),
+                hex::encode(&data_expected_padded)
+            );
+        }
+        assert_eq!(recovered, data_expected_padded);
     }
 
     macro_rules! generate_erasure_tests {
@@ -80,14 +90,14 @@ mod erasure {
                     fn [<$name _encode_tiny>]() {
                         test_encode_tiny($path);
                     }
-                    // #[test]
-                    // fn [<$name _recover_full>]() {
-                    //     test_recover_full($path);
-                    // }
-                    // #[test]
-                    // fn [<$name _recover_tiny>]() {
-                    //     test_recover_tiny($path);
-                    // }
+                    #[test]
+                    fn [<$name _recover_full>]() {
+                        test_recover_full($path);
+                    }
+                    #[test]
+                    fn [<$name _recover_tiny>]() {
+                        test_recover_tiny($path);
+                    }
                 )*
             }
         };

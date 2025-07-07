@@ -1,14 +1,21 @@
-// common/erasure-coding/lib.rs
-
-use reed_solomon_simd::{Error as ReedSolomonError, ReedSolomonEncoder};
+use reed_solomon_simd::{Error as ReedSolomonError, ReedSolomonDecoder, ReedSolomonEncoder};
 use thiserror::Error;
 
 type Chunk = Vec<u8>; // length: k words (2k octets)
 
 #[derive(Debug, Error)]
 pub enum ErasureCodingError {
+    #[error(
+        "Provided chunks ({provided}) are not enough to recover the data. Required: {required}"
+    )]
+    InsufficientChunks { provided: usize, required: usize },
     #[error("ReedSolomonError: {0}")]
     ReedSolomonError(#[from] ReedSolomonError),
+}
+
+enum ChunkIndex {
+    Original(usize),
+    Recovery(usize),
 }
 
 /// Reed-solomon erasure codec on Galois field GF(2^16).
@@ -49,7 +56,19 @@ impl ReedSolomon {
         self.msg_words
     }
 
-    fn zero_pad_data(data: &[u8], msg_words: usize) -> Vec<u8> {
+    pub fn recovery_words(&self) -> usize {
+        self.total_words - self.msg_words
+    }
+
+    fn shard_index_typed(&self, index: usize) -> ChunkIndex {
+        if index < self.msg_words {
+            ChunkIndex::Original(index)
+        } else {
+            ChunkIndex::Recovery(index - self.msg_words)
+        }
+    }
+
+    pub fn zero_pad_data(data: &[u8], msg_words: usize) -> Vec<u8> {
         if data.len() % (msg_words * 2) == 0 {
             data.to_vec()
         } else {
@@ -62,38 +81,32 @@ impl ReedSolomon {
         }
     }
 
-    // TODO: alternative could be to transpose the entire data in advance
     pub fn erasure_encode(&self, data: &[u8]) -> Result<Vec<Chunk>, ErasureCodingError> {
-        // TODO: input validation
-        let data_padded = Self::zero_pad_data(data, self.msg_words); // length: (`self.msg_words` * k) words
+        let data_padded = Self::zero_pad_data(data, self.msg_words); // length: (self.msg_words * k) words
         let chunk_octets = data_padded.len() / self.msg_words;
         let chunk_octet_pairs = chunk_octets / 2; // k
 
         let mut chunks = vec![Chunk::with_capacity(chunk_octets); self.total_words];
 
-        let mut encoder =
-            ReedSolomonEncoder::new(self.msg_words, self.total_words - self.msg_words, 2)?;
+        let mut encoder = ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
 
         for word_idx in 0..chunk_octet_pairs {
-            for (chunk_idx, chunk) in chunks.iter_mut().enumerate().take(self.msg_words) {
-                // Transpose
-                let pair_offset_octets = 2 * (word_idx + chunk_idx * chunk_octet_pairs);
-                let original_word = &data_padded[pair_offset_octets..pair_offset_octets + 2]; // A single word
+            for (original_chunk_idx, chunk) in chunks.iter_mut().enumerate().take(self.msg_words) {
+                let word_offset_octets = 2 * (word_idx + original_chunk_idx * chunk_octet_pairs);
+                let original_word = &data_padded[word_offset_octets..word_offset_octets + 2]; // A single word
 
-                chunk.extend_from_slice(original_word); // Transposed back to original format
+                chunk.extend_from_slice(original_word); // Transpose back to original format
                 encoder.add_original_shard(original_word)? // Transposed data is added to the encoder
             }
             {
-                // Transpose back
-                encoder
-                    .encode()?
-                    .recovery_iter()
-                    .enumerate()
-                    .for_each(|(chunk_idx, word)| {
-                        chunks[self.msg_words + chunk_idx].extend_from_slice(word)
-                    });
+                // Transpose back to original format
+                encoder.encode()?.recovery_iter().enumerate().for_each(
+                    |(recovery_chunk_idx, word)| {
+                        chunks[self.msg_words + recovery_chunk_idx].extend_from_slice(word)
+                    },
+                );
             }
-            encoder.reset(self.msg_words, self.total_words - self.msg_words, 2)?
+            encoder.reset(self.msg_words, self.recovery_words(), 2)?
         }
 
         Ok(chunks)
@@ -101,8 +114,52 @@ impl ReedSolomon {
 
     pub fn erasure_recover(
         &self,
-        _chunks: Vec<Option<Chunk>>,
+        chunks: Vec<Option<Chunk>>,
     ) -> Result<Vec<u8>, ErasureCodingError> {
-        unimplemented!()
+        let chunks_indexed: Vec<(Chunk, usize)> = chunks
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, maybe_chunk)| maybe_chunk.map(|chunk| (chunk, i)))
+            .collect();
+
+        if chunks_indexed.len() < self.msg_words {
+            return Err(ErasureCodingError::InsufficientChunks {
+                provided: chunks_indexed.len(),
+                required: self.msg_words,
+            });
+        }
+
+        let chunk_octets = chunks_indexed[0].0.len();
+        let chunk_octet_pairs = chunk_octets / 2; // The number of octet pairs per chunk (k)
+
+        let mut result = vec![Vec::with_capacity(chunk_octets); self.msg_words];
+
+        let mut decoder = ReedSolomonDecoder::new(self.msg_words, self.recovery_words(), 2)?;
+
+        for word_idx in 0..chunk_octet_pairs {
+            for (chunk, chunk_idx) in &chunks_indexed {
+                let word_offset_octets = 2 * word_idx;
+                let word = &chunk[word_offset_octets..word_offset_octets + 2];
+                match self.shard_index_typed(*chunk_idx) {
+                    ChunkIndex::Original(idx) => {
+                        decoder.add_original_shard(idx, word)?;
+                        result[idx].extend_from_slice(word);
+                    }
+                    ChunkIndex::Recovery(idx) => {
+                        decoder.add_recovery_shard(idx, word)?;
+                    }
+                }
+            }
+
+            decoder
+                .decode()?
+                .restored_original_iter()
+                .for_each(|(idx, pair)| {
+                    result[idx].extend_from_slice(pair);
+                });
+            decoder.reset(self.msg_words, self.recovery_words(), 2)?
+        }
+
+        Ok(result.into_iter().flatten().collect::<Vec<_>>())
     }
 }
