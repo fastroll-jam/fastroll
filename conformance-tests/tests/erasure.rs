@@ -58,18 +58,18 @@ mod erasure {
         let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
 
         // Generate random chunk indices
-        let mut indices: Vec<usize> = (0..rs.total_words()).collect();
+        let mut indices: Vec<usize> = (0..rs.total_chunks()).collect();
         indices.shuffle(&mut thread_rng());
-        let rand_chunk_indices = indices[..rs.msg_words()].to_vec();
+        let rand_chunk_indices = indices[..rs.msg_chunks()].to_vec();
 
-        let mut chunks: Vec<Option<Vec<u8>>> = vec![None; rs.total_words()];
+        let mut chunks: Vec<Option<Vec<u8>>> = vec![None; rs.total_chunks()];
         for i in rand_chunk_indices {
             chunks[i] = Some(test_case.shards[i].0.clone());
         }
         let recovered = rs.erasure_recover(chunks).unwrap();
         let data_expected = test_case.data.0;
         // The erasure encoder input must be padded
-        let data_expected_padded = ErasureCodec::zero_pad_data(&data_expected, rs.msg_words());
+        let data_expected_padded = ErasureCodec::zero_pad_data(&data_expected, rs.msg_chunks());
         if recovered != data_expected_padded {
             println!(
                 "actual(len={}): {}\nexpected(len={}): {}",

@@ -28,54 +28,54 @@ enum ChunkIndex {
 pub struct ErasureCodec {
     /// The total number of symbols in a codeword (message + recovery symbols).
     /// For `k:n` reed-solomon rate, this is `n`.
-    total_words: usize,
+    total_chunks: usize,
     /// The number of original message symbols.
     /// For `k:n` reed-solomon rate, this is `k`.
-    msg_words: usize,
+    msg_chunks: usize,
 }
 
 impl ErasureCodec {
     pub fn new_tiny() -> Self {
         Self {
-            total_words: 6,
-            msg_words: 2,
+            total_chunks: 6,
+            msg_chunks: 2,
         }
     }
 
     pub fn new_full() -> Self {
         Self {
-            total_words: 1023,
-            msg_words: 342,
+            total_chunks: 1023,
+            msg_chunks: 342,
         }
     }
 
-    pub fn total_words(&self) -> usize {
-        self.total_words
+    pub fn total_chunks(&self) -> usize {
+        self.total_chunks
     }
 
-    pub fn msg_words(&self) -> usize {
-        self.msg_words
+    pub fn msg_chunks(&self) -> usize {
+        self.msg_chunks
     }
 
-    pub fn recovery_words(&self) -> usize {
-        self.total_words - self.msg_words
+    pub fn recovery_chunks(&self) -> usize {
+        self.total_chunks - self.msg_chunks
     }
 
     fn shard_index_typed(&self, index: usize) -> ChunkIndex {
-        if index < self.msg_words {
+        if index < self.msg_chunks {
             ChunkIndex::Original(index)
         } else {
-            ChunkIndex::Recovery(index - self.msg_words)
+            ChunkIndex::Recovery(index - self.msg_chunks)
         }
     }
 
-    pub fn zero_pad_data(data: &[u8], msg_words: usize) -> Vec<u8> {
-        if data.len() % (msg_words * 2) == 0 {
+    pub fn zero_pad_data(data: &[u8], msg_chunks: usize) -> Vec<u8> {
+        if data.len() % (msg_chunks * 2) == 0 {
             data.to_vec()
         } else {
             let mut padded_data = data.to_vec();
-            let qt = data.len() / (msg_words * 2);
-            let target_len = (qt + 1) * (msg_words * 2);
+            let qt = data.len() / (msg_chunks * 2);
+            let target_len = (qt + 1) * (msg_chunks * 2);
             let pad_len = target_len - data.len();
             padded_data.extend(std::iter::repeat_n(0, pad_len));
             padded_data
@@ -83,23 +83,23 @@ impl ErasureCodec {
     }
 
     pub fn erasure_encode(&self, data: &[u8]) -> Result<Vec<Chunk>, ErasureCodingError> {
-        let data_padded = Self::zero_pad_data(data, self.msg_words); // length: (self.msg_words * k) words
-        let chunk_octets = data_padded.len() / self.msg_words;
+        let data_padded = Self::zero_pad_data(data, self.msg_chunks); // length: (self.msg_chunks * k) words
+        let chunk_octets = data_padded.len() / self.msg_chunks;
         let chunk_octet_pairs = chunk_octets / 2; // The number of octet pairs per chunk (k)
 
         // Initialize with proper size
-        let mut chunks = vec![vec![0u8; chunk_octets]; self.total_words];
+        let mut chunks = vec![vec![0u8; chunk_octets]; self.total_chunks];
 
         tracing::trace!("Parallel encoding start");
         let words_encodings: Result<Vec<_>, ReedSolomonError> = (0..chunk_octet_pairs)
             .into_par_iter()
             .map(|word_pos| {
                 let mut encoder =
-                    ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
+                    ReedSolomonEncoder::new(self.msg_chunks, self.recovery_chunks(), 2)?;
 
-                let mut words_encoding = Vec::with_capacity(self.total_words);
+                let mut words_encoding = Vec::with_capacity(self.total_chunks);
 
-                for original_chunk_idx in 0..self.msg_words {
+                for original_chunk_idx in 0..self.msg_chunks {
                     let word_offset_octets =
                         2 * (word_pos + original_chunk_idx * chunk_octet_pairs);
                     let original_word = &data_padded[word_offset_octets..word_offset_octets + 2]; // A single word
@@ -113,7 +113,7 @@ impl ErasureCodec {
                     |(recovery_chunk_idx, recovery_word)| {
                         words_encoding.push((
                             word_pos,
-                            self.msg_words + recovery_chunk_idx,
+                            self.msg_chunks + recovery_chunk_idx,
                             recovery_word.to_vec(),
                         ));
                     },
@@ -147,10 +147,10 @@ impl ErasureCodec {
             .filter_map(|(i, maybe_chunk)| maybe_chunk.map(|chunk| (chunk, i)))
             .collect();
 
-        if chunks_indexed.len() < self.msg_words {
+        if chunks_indexed.len() < self.msg_chunks {
             return Err(ErasureCodingError::InsufficientChunks {
                 provided: chunks_indexed.len(),
-                required: self.msg_words,
+                required: self.msg_chunks,
             });
         }
 
@@ -158,7 +158,7 @@ impl ErasureCodec {
         let chunk_octet_pairs = chunk_octets / 2; // The number of octet pairs per chunk (k)
 
         // Initialize with proper size
-        let mut result = vec![vec![0u8; chunk_octets]; self.msg_words];
+        let mut result = vec![vec![0u8; chunk_octets]; self.msg_chunks];
 
         // Parallel recovery of octet pair groups at each word index (transposed).
         // For example, iteration `#i` collects `ith` word of all chunks and then decode them together.
@@ -169,10 +169,10 @@ impl ErasureCodec {
             .into_par_iter()
             .map(|word_pos| {
                 let mut decoder =
-                    ReedSolomonDecoder::new(self.msg_words, self.recovery_words(), 2)?;
+                    ReedSolomonDecoder::new(self.msg_chunks, self.recovery_chunks(), 2)?;
 
                 // Recovered word by word position
-                let mut words_recovery = Vec::with_capacity(self.msg_words);
+                let mut words_recovery = Vec::with_capacity(self.msg_chunks);
 
                 // Add chunks to the decoder for this word position
                 for (chunk, chunk_idx) in &chunks_indexed {
