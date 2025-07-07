@@ -89,25 +89,24 @@ impl ReedSolomon {
 
         let mut chunks = vec![Chunk::with_capacity(chunk_octets); self.total_words];
 
-        let mut encoder = ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
-
         for word_pos in 0..chunk_octet_pairs {
-            for (chunk_idx, chunk) in chunks.iter_mut().enumerate().take(self.msg_words) {
+            let mut encoder = ReedSolomonEncoder::new(self.msg_words, self.recovery_words(), 2)?;
+
+            for chunk_idx in 0..self.msg_words {
                 let word_offset_octets = 2 * (word_pos + chunk_idx * chunk_octet_pairs);
                 let original_word = &data_padded[word_offset_octets..word_offset_octets + 2]; // A single word
+                chunks[chunk_idx].extend_from_slice(original_word); // Transpose back to original format
+                encoder.add_original_shard(original_word)?; // Transposed data is added to the encoder
+            }
 
-                chunk.extend_from_slice(original_word); // Transpose back to original format
-                encoder.add_original_shard(original_word)? // Transposed data is added to the encoder
-            }
-            {
-                // Transpose back to original format
-                encoder.encode()?.recovery_iter().enumerate().for_each(
-                    |(recovery_chunk_idx, word)| {
-                        chunks[self.msg_words + recovery_chunk_idx].extend_from_slice(word)
-                    },
-                );
-            }
-            encoder.reset(self.msg_words, self.recovery_words(), 2)?
+            // Transpose back to original format
+            encoder
+                .encode()?
+                .recovery_iter()
+                .enumerate()
+                .for_each(|(recovery_chunk_idx, word)| {
+                    chunks[self.msg_words + recovery_chunk_idx].extend_from_slice(word)
+                });
         }
 
         Ok(chunks)
