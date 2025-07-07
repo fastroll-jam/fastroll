@@ -108,11 +108,11 @@ mod erasure {
     }
 
     generate_erasure_tests! {
-        erasure_coding_3: "ec-3",
-        erasure_coding_32: "ec-32",
-        erasure_coding_100: "ec-100",
-        erasure_coding_4096: "ec-4096",
-        erasure_coding_4104: "ec-4104",
-        erasure_coding_10000: "ec-10000",
+        erasure_3: "ec-3",
+        erasure_32: "ec-32",
+        erasure_100: "ec-100",
+        erasure_4096: "ec-4096",
+        erasure_4104: "ec-4104",
+        erasure_10000: "ec-10000",
     }
 }
