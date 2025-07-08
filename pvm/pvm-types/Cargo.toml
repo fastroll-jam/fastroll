@@ -9,4 +9,3 @@ fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
-thiserror = { workspace = true }
