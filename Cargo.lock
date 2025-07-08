@@ -908,6 +908,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fr-fuzz-target"
+version = "0.1.0"
+dependencies = [
+ "fr-block",
+ "fr-codec",
+ "fr-common",
+]
+
+[[package]]
 name = "fr-limited-vec"
 version = "0.1.0"
 dependencies = [

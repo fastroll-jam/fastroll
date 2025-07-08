@@ -17,6 +17,7 @@ members = [
     "merkle",
     "network",
     "node",
+    "node/fuzz-target",
     "pvm/pvm-core",
     "pvm/pvm-host",
     "pvm/pvm-interface",
