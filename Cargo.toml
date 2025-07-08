@@ -39,7 +39,6 @@ fr-clock = { path = "clock" }
 fr-codec = { path = "codec/fr-codec" }
 fr-codec-derive = { path = "codec/fr-codec-derive" }
 fr-common = { path = "common" }
-fr-conformance-tests = { path = "conformance-tests" }
 fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
@@ -70,7 +69,6 @@ ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 futures = "0.3.31"
 hex = "0.4.3"
 paste = "1.0.15"
-proc-macro2 = "1.0.95"
 quinn = "0.11.8"
 quote = "1.0.40"
 rand = "0.8.5"
