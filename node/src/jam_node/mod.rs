@@ -8,6 +8,11 @@ use fr_storage::node_storage::NodeStorage;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+pub mod config;
+pub mod init;
+pub mod runner;
+pub mod ticket_store;
+
 pub struct JamNode {
     pub curr_epoch_validator_index: Option<ValidatorIndex>,
     local_node_info: LocalNodeInfo,
