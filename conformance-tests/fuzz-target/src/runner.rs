@@ -1,9 +1,9 @@
-use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo, StateRoot};
+use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo, StateRoot, TrieKey};
 use fr_codec::prelude::*;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
-use std::{error::Error, path::Path, sync::Arc};
+use std::{collections::HashSet, error::Error, path::Path, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
@@ -64,6 +64,7 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
 
 pub struct FuzzTargetRunner {
     node_storage: Arc<NodeStorage>,
+    latest_state_keys: HashSet<TrieKey>,
     target_peer_info: PeerInfo,
 }
 
@@ -78,6 +79,7 @@ impl FuzzTargetRunner {
         ));
         Self {
             node_storage,
+            latest_state_keys: HashSet::new(),
             target_peer_info,
         }
     }
@@ -200,7 +202,7 @@ impl FuzzTargetRunner {
                 let state_root = state_manager.merkle_root();
                 Self::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root))).await
             }
-            FuzzMessageKind::GetState(_get_state) => {
+            FuzzMessageKind::GetState(get_state) => {
                 // TODO: iterate on all available post- global state entries
                 Err("Session terminated by GetState request".into())
             }
