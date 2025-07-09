@@ -1,0 +1,16 @@
+[package]
+name = "fastroll"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+fr-asn-types = { workspace = true }
+fr-codec = { workspace = true }
+fr-common = { workspace = true }
+fr-crypto = { workspace = true }
+fr-fuzz-target = { workspace = true }
+fr-network = { workspace = true }
+fr-node = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
