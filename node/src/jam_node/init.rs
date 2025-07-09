@@ -1,14 +1,13 @@
 use crate::{
-    cli::{Cli, CliCommand},
+    cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
 };
-use clap::Parser;
 use fr_block::{
     header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::extrinsics::Extrinsics,
     xt_db::XtDB,
 };
-use fr_common::{utils::tracing::setup_tracing, ByteEncodable, Hash32};
+use fr_common::{ByteEncodable, Hash32};
 use fr_db::{
     config::{RocksDBOpts, HEADER_CF_NAME, POST_STATE_ROOT_CF_NAME, XT_CF_NAME},
     core::core_db::CoreDB,
@@ -69,48 +68,40 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn init_node() -> Result<JamNode, Box<dyn Error>> {
-    // Config tracing subscriber
-    setup_tracing();
-
-    // CLI args
-    match Cli::parse().command {
-        CliCommand::Run { dev_account } => {
-            let node_info = match &dev_account {
-                Some(account) => account.load_validator_key_info(),
-                None => {
-                    panic!("Dev account is not set.");
-                }
-            };
-
-            let socket_addr = node_info.socket_addr;
-            let node_storage =
-                init_storage(format!("[{}]:{}", socket_addr.ip(), socket_addr.port()).as_str())?;
-            tracing::info!("Storage initialized");
-            let network_manager =
-                NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
-            let mut node = JamNode::new(node_info.clone(), node_storage, Arc::new(network_manager));
-            tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager().local_node_info.validator_key.ed25519_key.to_hex());
-
-            // Set genesis state
-            set_genesis_state(&node).await?;
-            tracing::info!("Genesis state set");
-
-            // Set the local node's validator index based on the genesis active set
-            let curr_epoch_validator_index = node
-                .storage()
-                .state_manager()
-                .get_active_set_clean()
-                .await?
-                .get_validator_index(node_info.bandersnatch_key());
-            node.set_curr_epoch_validator_index(curr_epoch_validator_index);
-
-            // Load initial validator peers from the genesis validator set state
-            node.network_manager()
-                .load_validator_peers(node.storage(), socket_addr)
-                .await?;
-            tracing::info!("Validator peers info loaded");
-            Ok(node)
+pub async fn init_node(node_account: Option<DevAccountName>) -> Result<JamNode, Box<dyn Error>> {
+    let node_info = match &node_account {
+        Some(account) => account.load_validator_key_info(),
+        None => {
+            panic!("Dev account is not set.");
         }
-    }
+    };
+
+    let socket_addr = node_info.socket_addr;
+    let node_storage =
+        init_storage(format!("[{}]:{}", socket_addr.ip(), socket_addr.port()).as_str())?;
+    tracing::info!("Storage initialized");
+    let network_manager =
+        NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
+    let mut node = JamNode::new(node_info.clone(), node_storage, Arc::new(network_manager));
+    tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager().local_node_info.validator_key.ed25519_key.to_hex());
+
+    // Set genesis state
+    set_genesis_state(&node).await?;
+    tracing::info!("Genesis state set");
+
+    // Set the local node's validator index based on the genesis active set
+    let curr_epoch_validator_index = node
+        .storage()
+        .state_manager()
+        .get_active_set_clean()
+        .await?
+        .get_validator_index(node_info.bandersnatch_key());
+    node.set_curr_epoch_validator_index(curr_epoch_validator_index);
+
+    // Load initial validator peers from the genesis validator set state
+    node.network_manager()
+        .load_validator_peers(node.storage(), socket_addr)
+        .await?;
+    tracing::info!("Validator peers info loaded");
+    Ok(node)
 }
