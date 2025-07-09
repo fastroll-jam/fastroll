@@ -11,9 +11,15 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum CliCommand {
+    /// Run JAM node
     Run {
         #[arg(long)]
         dev_account: Option<DevAccountName>,
+    },
+    /// Run JAM block importer as fuzz target
+    Fuzz {
+        #[arg(long)]
+        socket: Option<String>,
     },
 }
 

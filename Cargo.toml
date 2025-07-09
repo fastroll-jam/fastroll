@@ -44,6 +44,7 @@ fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
 fr-extrinsics = { path = "extrinsics" }
+fr-fuzz-target = { path = "node/fuzz-target" }
 fr-limited-vec = { path = "common/limited-vec" }
 fr-merkle = { path = "merkle" }
 fr-network = { path = "network" }

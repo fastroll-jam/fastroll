@@ -12,6 +12,7 @@ fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-extrinsics = { workspace = true }
+fr-fuzz-target = { workspace = true }
 fr-network = { workspace = true }
 fr-pvm-invocation = { workspace = true }
 fr-state = { workspace = true }
