@@ -1,6 +1,9 @@
 use clap::Parser;
 use fr_common::utils::tracing::setup_tracing;
-use fr_fuzz_target::runner::FuzzRunner;
+use fr_fuzz_target::{
+    runner::FuzzTargetRunner,
+    types::{PeerInfo, Version},
+};
 use fr_node::{
     cli::{Cli, CliCommand},
     jam_node::{init::init_node, runner::run_node},
@@ -15,6 +18,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // CLI args
     match Cli::parse().command {
         CliCommand::Run { dev_account } => run_node(init_node(dev_account).await?).await,
-        CliCommand::Fuzz { socket } => FuzzRunner::run_as_fuzz_target(socket).await,
+        CliCommand::Fuzz { socket } => {
+            let target_runner = FuzzTargetRunner::new(PeerInfo::new(
+                "FastRoll".to_string(),
+                // TODO: keep up to date
+                Version::new(0, 1, 0),
+                Version::new(0, 7, 0),
+            ));
+            target_runner.run_as_fuzz_target(socket).await
+        }
     }
 }

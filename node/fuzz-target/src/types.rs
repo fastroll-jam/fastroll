@@ -3,6 +3,7 @@
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, ByteSequence, Hash32, STATE_KEY_SIZE};
+use std::fmt::{Display, Formatter};
 
 pub type TrieKey = ByteArray<STATE_KEY_SIZE>;
 pub type HeaderHash = Hash32;
@@ -15,11 +16,37 @@ pub struct Version {
     pub patch: u8,
 }
 
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl Version {
+    pub fn new(major: u8, minor: u8, patch: u8) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+}
+
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct PeerInfo {
     pub name: Vec<u8>,
     pub app_version: Version,
     pub jam_version: Version,
+}
+
+impl PeerInfo {
+    pub fn new(name: String, app_version: Version, jam_version: Version) -> Self {
+        Self {
+            name: name.into_bytes(),
+            app_version,
+            jam_version,
+        }
+    }
 }
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
@@ -47,16 +74,17 @@ pub struct GetState(pub HeaderHash);
 pub struct StateRoot(pub StateRootHash);
 
 /// The fuzzing protocol message
-pub enum FuzzProtocolMessageKind {
-    PeerInfo(PeerInfo),
-    ImportBlock(ImportBlock),
-    SetState(SetState),
-    GetState(GetState),
-    State(State),
-    StateRoot(StateRoot),
+#[derive(Debug)]
+pub enum FuzzMessageKind {
+    PeerInfo(PeerInfo),       // Sender: Fuzzer & Target
+    ImportBlock(ImportBlock), // Sender: Fuzzer
+    SetState(SetState),       // Sender: Fuzzer
+    GetState(GetState),       // Sender: Fuzzer
+    State(State),             // Sender: Target
+    StateRoot(StateRoot),     // Sender: Target
 }
 
-impl JamEncode for FuzzProtocolMessageKind {
+impl JamEncode for FuzzMessageKind {
     fn size_hint(&self) -> usize {
         let variant_size = match self {
             Self::PeerInfo(msg) => msg.size_hint(),
@@ -85,7 +113,7 @@ impl JamEncode for FuzzProtocolMessageKind {
     }
 }
 
-impl JamDecode for FuzzProtocolMessageKind {
+impl JamDecode for FuzzMessageKind {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
         Self: Sized,
@@ -105,7 +133,7 @@ impl JamDecode for FuzzProtocolMessageKind {
 
 pub struct FuzzProtocolMessage {
     pub msg_length: u32,
-    pub kind: FuzzProtocolMessageKind,
+    pub kind: FuzzMessageKind,
 }
 
 impl JamEncode for FuzzProtocolMessage {
@@ -120,6 +148,7 @@ impl JamEncode for FuzzProtocolMessage {
     }
 }
 
+// FIXME: probably redundant?
 impl JamDecode for FuzzProtocolMessage {
     fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
     where
@@ -127,13 +156,13 @@ impl JamDecode for FuzzProtocolMessage {
     {
         Ok(Self {
             msg_length: u32::decode_fixed(input, 4)?,
-            kind: FuzzProtocolMessageKind::decode(input)?,
+            kind: FuzzMessageKind::decode(input)?,
         })
     }
 }
 
 impl FuzzProtocolMessage {
-    pub fn from_kind(kind: FuzzProtocolMessageKind) -> Result<Self, JamCodecError> {
+    pub fn from_kind(kind: FuzzMessageKind) -> Result<Self, JamCodecError> {
         let encoded = kind.encode()?;
         let msg_length = encoded.len() as u32;
         Ok(Self { msg_length, kind })

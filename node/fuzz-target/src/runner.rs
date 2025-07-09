@@ -1,5 +1,10 @@
+use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo};
+use fr_codec::prelude::*;
 use std::{error::Error, path::Path};
-use tokio::net::{UnixListener, UnixStream};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{UnixListener, UnixStream},
+};
 
 const DEFAULT_SOCKET_PATH: &str = "/tmp/jam_target.sock";
 
@@ -37,7 +42,7 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
             return Err(format!("Parent directory does not exist: {}", parent.display()).into());
         }
 
-        let metadata = std::fs::metadata(path)?;
+        let metadata = std::fs::metadata(parent)?;
         if metadata.permissions().readonly() {
             return Err(format!("Parent directory is read-only: {}", parent.display()).into());
         }
@@ -54,9 +59,19 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub struct FuzzRunner;
-impl FuzzRunner {
-    pub async fn run_as_fuzz_target(socket_path: Option<String>) -> Result<(), Box<dyn Error>> {
+pub struct FuzzTargetRunner {
+    target_peer_info: PeerInfo,
+}
+
+impl FuzzTargetRunner {
+    pub fn new(target_peer_info: PeerInfo) -> Self {
+        Self { target_peer_info }
+    }
+
+    pub async fn run_as_fuzz_target(
+        &self,
+        socket_path: Option<String>,
+    ) -> Result<(), Box<dyn Error>> {
         let socket_path = socket_path.unwrap_or(DEFAULT_SOCKET_PATH.to_string());
 
         // Validate socket path input
@@ -72,12 +87,73 @@ impl FuzzRunner {
         let (stream, _addr) = listener.accept().await?;
         tracing::info!("Accepted a connection from the fuzzer");
 
-        Self::handle_fuzzer_session(stream).await?;
+        self.handle_fuzzer_session(stream).await?;
         tracing::info!("Fuzzer session ended");
         Ok(())
     }
 
-    async fn handle_fuzzer_session(_stream: UnixStream) -> Result<(), Box<dyn Error>> {
-        unimplemented!()
+    async fn handle_fuzzer_session(&self, mut stream: UnixStream) -> Result<(), Box<dyn Error>> {
+        // First message must be the PeerInfo handshake
+        self.handle_handshake(&mut stream).await?;
+
+        // Handle incoming messages
+        loop {
+            let message_kind = Self::read_message(&mut stream).await?;
+            Self::process_message(&mut stream, message_kind).await?;
+        }
+    }
+
+    async fn read_message(stream: &mut UnixStream) -> Result<FuzzMessageKind, Box<dyn Error>> {
+        let mut length_buf = [0u8; 4];
+        stream.read_exact(&mut length_buf).await?;
+        let message_len = u32::decode_fixed(&mut length_buf.as_slice(), 4)?;
+
+        let mut message_buf = vec![0u8; message_len as usize];
+        stream.read_exact(&mut message_buf).await?;
+        let message_kind = FuzzMessageKind::decode(&mut message_buf.as_slice())?;
+        Ok(message_kind)
+    }
+
+    async fn send_message(
+        stream: &mut UnixStream,
+        message_kind: FuzzMessageKind,
+    ) -> Result<(), Box<dyn Error>> {
+        let message = FuzzProtocolMessage::from_kind(message_kind)?;
+        stream.write_all(&message.encode()?).await?;
+        stream.flush().await?;
+        Ok(())
+    }
+
+    async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), Box<dyn Error>> {
+        let message_kind = Self::read_message(stream).await?;
+
+        if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
+            tracing::info!(
+                "Fuzzer peer info: name={} app_version={} jam_version={}",
+                String::from_utf8(peer_info.name)?,
+                peer_info.app_version,
+                peer_info.jam_version
+            );
+            Self::send_message(
+                stream,
+                FuzzMessageKind::PeerInfo(self.target_peer_info.clone()),
+            )
+            .await?;
+            Ok(())
+        } else {
+            Err("First request message is not a peer info".into())
+        }
+    }
+
+    async fn process_message(
+        _stream: &mut UnixStream,
+        message_kind: FuzzMessageKind,
+    ) -> Result<(), Box<dyn Error>> {
+        match message_kind {
+            FuzzMessageKind::ImportBlock(_import_block) => Ok(()),
+            FuzzMessageKind::SetState(_set_state) => Ok(()),
+            FuzzMessageKind::GetState(_get_state) => Ok(()),
+            e => Err(format!("Invalid message kind: {e:?}").into()),
+        }
     }
 }

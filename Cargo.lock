@@ -2370,6 +2370,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
 dependencies = [
  "backtrace",
+ "bytes",
  "io-uring",
  "libc",
  "mio",
