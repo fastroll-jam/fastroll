@@ -985,7 +985,6 @@ dependencies = [
  "fr-crypto",
  "fr-db",
  "fr-extrinsics",
- "fr-fuzz-target",
  "fr-network",
  "fr-pvm-invocation",
  "fr-state",
