@@ -171,16 +171,38 @@ impl FuzzTargetRunner {
         match message_kind {
             FuzzMessageKind::ImportBlock(import_block) => {
                 let storage = self.node_storage();
-                let post_state_root = BlockImporter::import_block(storage, import_block.0).await?;
+                let pre_state_root = storage.state_manager().merkle_root();
+                let post_state_root =
+                    match BlockImporter::import_block(storage, import_block.0).await {
+                        Ok(post_state_root) => post_state_root,
+                        Err(e) => {
+                            tracing::debug!("Invalid block - import failed: {e:?}");
+                            // Return pre-state root for invalid blocks
+                            pre_state_root
+                        }
+                    };
+                // TODO: keep the latest { header hash -> post state key-vals } entry
                 Self::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
                 )
                 .await
             }
-            FuzzMessageKind::SetState(_set_state) => Ok(()),
+            FuzzMessageKind::SetState(set_state) => {
+                // TODO: keep the latest { header hash -> post state key-vals } entry
+                let state_manager = self.node_storage().state_manager();
+                for kv in set_state.state.0 {
+                    state_manager
+                        .add_raw_state_entry(&kv.key, kv.value.into_vec())
+                        .await?;
+                }
+                state_manager.commit_dirty_cache().await?;
+                let state_root = state_manager.merkle_root();
+                Self::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root))).await
+            }
             FuzzMessageKind::GetState(_get_state) => {
-                unimplemented!()
+                // TODO: iterate on all available post- global state entries
+                Err("Session terminated by GetState request".into())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
         }
