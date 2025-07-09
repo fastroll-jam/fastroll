@@ -7,5 +7,7 @@ edition.workspace = true
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-block = { workspace = true }
+fr-state = { workspace = true }
+fr-storage = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

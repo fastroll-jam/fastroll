@@ -1,6 +1,8 @@
 use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo};
 use fr_codec::prelude::*;
-use std::{error::Error, path::Path};
+use fr_state::test_utils::init_db_and_manager;
+use fr_storage::node_storage::NodeStorage;
+use std::{error::Error, path::Path, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
@@ -60,12 +62,27 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
 }
 
 pub struct FuzzTargetRunner {
+    node_storage: Arc<NodeStorage>,
     target_peer_info: PeerInfo,
 }
 
 impl FuzzTargetRunner {
     pub fn new(target_peer_info: PeerInfo) -> Self {
-        Self { target_peer_info }
+        let (header_db, xt_db, state_manager, post_state_root_db) = init_db_and_manager(None);
+        let node_storage = Arc::new(NodeStorage::new(
+            Arc::new(state_manager),
+            Arc::new(header_db),
+            Arc::new(xt_db),
+            Arc::new(post_state_root_db),
+        ));
+        Self {
+            node_storage,
+            target_peer_info,
+        }
+    }
+
+    fn node_storage(&self) -> Arc<NodeStorage> {
+        self.node_storage.clone()
     }
 
     pub async fn run_as_fuzz_target(
@@ -99,7 +116,7 @@ impl FuzzTargetRunner {
         // Handle incoming messages
         loop {
             let message_kind = Self::read_message(&mut stream).await?;
-            Self::process_message(&mut stream, message_kind).await?;
+            self.process_message(&mut stream, message_kind).await?;
         }
     }
 
@@ -146,13 +163,20 @@ impl FuzzTargetRunner {
     }
 
     async fn process_message(
+        &self,
         _stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
     ) -> Result<(), Box<dyn Error>> {
         match message_kind {
-            FuzzMessageKind::ImportBlock(_import_block) => Ok(()),
+            FuzzMessageKind::ImportBlock(import_block) => {
+                let _block = import_block.0;
+                let _storage = self.node_storage();
+                unimplemented!()
+            }
             FuzzMessageKind::SetState(_set_state) => Ok(()),
-            FuzzMessageKind::GetState(_get_state) => Ok(()),
+            FuzzMessageKind::GetState(_get_state) => {
+                unimplemented!()
+            }
             e => Err(format!("Invalid message kind: {e:?}").into()),
         }
     }

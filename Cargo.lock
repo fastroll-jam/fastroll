@@ -914,6 +914,8 @@ dependencies = [
  "fr-block",
  "fr-codec",
  "fr-common",
+ "fr-state",
+ "fr-storage",
  "tokio",
  "tracing",
 ]
