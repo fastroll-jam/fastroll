@@ -930,6 +930,7 @@ dependencies = [
  "fr-block",
  "fr-codec",
  "fr-common",
+ "fr-node",
  "fr-state",
  "fr-storage",
  "tokio",

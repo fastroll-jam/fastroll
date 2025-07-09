@@ -1,5 +1,6 @@
-use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo};
+use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo, StateRoot};
 use fr_codec::prelude::*;
+use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
 use std::{error::Error, path::Path, sync::Arc};
@@ -164,14 +165,18 @@ impl FuzzTargetRunner {
 
     async fn process_message(
         &self,
-        _stream: &mut UnixStream,
+        stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
     ) -> Result<(), Box<dyn Error>> {
         match message_kind {
             FuzzMessageKind::ImportBlock(import_block) => {
-                let _block = import_block.0;
-                let _storage = self.node_storage();
-                unimplemented!()
+                let storage = self.node_storage();
+                let post_state_root = BlockImporter::import_block(storage, import_block.0).await?;
+                Self::send_message(
+                    stream,
+                    FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
+                )
+                .await
             }
             FuzzMessageKind::SetState(_set_state) => Ok(()),
             FuzzMessageKind::GetState(_get_state) => {
