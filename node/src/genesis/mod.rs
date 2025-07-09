@@ -12,14 +12,14 @@ use fr_state::{
 use std::path::PathBuf;
 
 pub fn load_genesis_block_from_file() -> Block {
-    let json_path = PathBuf::from("src/genesis-data/genesis_block.json");
+    let json_path = PathBuf::from("src/genesis/data/genesis_block.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
     let asn_block: AsnBlock = AsnTypeLoader::load_from_json_file(&full_path);
     asn_block.into()
 }
 
 fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
-    let json_path = PathBuf::from("src/genesis-data/genesis_validator_set.json");
+    let json_path = PathBuf::from("src/genesis/data/genesis_validator_set.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
     let asn_validators_data: AsnValidatorsData = AsnTypeLoader::load_from_json_file(&full_path);
     validators_data_to_validator_set(&asn_validators_data)
