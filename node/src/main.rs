@@ -2,8 +2,7 @@ use clap::Parser;
 use fr_common::utils::tracing::setup_tracing;
 use fr_node::{
     cli::{Cli, CliCommand},
-    init::init_node,
-    runner::run_node,
+    jam_node::{init::init_node, runner::run_node},
 };
 use std::error::Error;
 
