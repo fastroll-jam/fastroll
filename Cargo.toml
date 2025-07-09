@@ -12,13 +12,13 @@ members = [
     "common/erasure-coding",
     "common/limited-vec",
     "conformance-tests",
+    "conformance-tests/fuzz-target",
     "crypto",
     "db",
     "extrinsics",
     "merkle",
     "network",
     "node",
-    "node/fuzz-target",
     "pvm/pvm-core",
     "pvm/pvm-host",
     "pvm/pvm-interface",
@@ -45,7 +45,7 @@ fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
 fr-extrinsics = { path = "extrinsics" }
-fr-fuzz-target = { path = "node/fuzz-target" }
+fr-fuzz-target = { path = "conformance-tests/fuzz-target" }
 fr-limited-vec = { path = "common/limited-vec" }
 fr-merkle = { path = "merkle" }
 fr-network = { path = "network" }

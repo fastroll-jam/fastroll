@@ -68,7 +68,9 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn init_node(node_account: Option<DevNodeAccountProfile>) -> Result<JamNode, Box<dyn Error>> {
+pub async fn init_node(
+    node_account: Option<DevNodeAccountProfile>,
+) -> Result<JamNode, Box<dyn Error>> {
     let node_info = match &node_account {
         Some(account) => account.load_validator_key_info(),
         None => {
