@@ -1,13 +1,11 @@
 use clap::Parser;
+use fastroll::cli::{Cli, CliCommand};
 use fr_common::utils::tracing::setup_tracing;
 use fr_fuzz_target::{
     runner::FuzzTargetRunner,
     types::{PeerInfo, Version},
 };
-use fr_node::{
-    cli::{Cli, CliCommand},
-    jam_node::{init::init_node, runner::run_node},
-};
+use fr_node::jam_node::{init::init_node, runner::run_node};
 use std::error::Error;
 
 #[tokio::main]

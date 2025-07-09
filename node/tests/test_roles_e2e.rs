@@ -2,9 +2,9 @@
 use fr_common::utils::tracing::setup_timed_tracing;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
-    cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
+    keystore::dev_account_profile::DevNodeAccountProfile,
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
 use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
@@ -35,7 +35,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         .await?;
 
     // Init network manager with dev account
-    let dev_account_name = DevAccountName::Fergie;
+    let dev_account_name = DevNodeAccountProfile::Fergie;
     let node_info = dev_account_name.load_validator_key_info();
     let socket_addr = node_info.socket_addr;
     let network_manager =

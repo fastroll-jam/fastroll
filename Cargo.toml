@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "asn-types",
     "block",
+    "cli",
     "clock",
     "codec/fr-codec",
     "codec/fr-codec-derive",

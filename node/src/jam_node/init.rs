@@ -1,7 +1,7 @@
 use crate::{
-    cli::DevAccountName,
     genesis::{genesis_simple_state, load_genesis_block_from_file},
     jam_node::JamNode,
+    keystore::dev_account_profile::DevNodeAccountProfile,
 };
 use fr_block::{
     header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::extrinsics::Extrinsics,
@@ -68,7 +68,7 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn init_node(node_account: Option<DevAccountName>) -> Result<JamNode, Box<dyn Error>> {
+pub async fn init_node(node_account: Option<DevNodeAccountProfile>) -> Result<JamNode, Box<dyn Error>> {
     let node_info = match &node_account {
         Some(account) => account.load_validator_key_info(),
         None => {

@@ -1,4 +1,3 @@
-pub mod cli;
 pub mod genesis;
 pub mod jam_node;
 pub mod keystore;
