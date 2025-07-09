@@ -1,4 +1,4 @@
-use crate::{jam_node::JamNode, roles::scheduled_tasks::extend_chain};
+use crate::{jam_node::JamNode, scheduler::chain_extension::extend_chain};
 use fr_clock::JamClock;
 use fr_common::SLOT_DURATION;
 use fr_state::types::Timeslot;

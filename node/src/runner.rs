@@ -1,5 +1,6 @@
 use crate::{
-    jam_node::JamNode, roles::importer::BlockImporter, timeslot_scheduler::TimeslotScheduler,
+    jam_node::JamNode, roles::importer::BlockImporter,
+    scheduler::timeslot_scheduler::TimeslotScheduler,
 };
 use fr_block::types::block::Block;
 use std::{error::Error, sync::Arc};
