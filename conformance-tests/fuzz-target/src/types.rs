@@ -148,19 +148,6 @@ impl JamEncode for FuzzProtocolMessage {
     }
 }
 
-// FIXME: probably redundant?
-impl JamDecode for FuzzProtocolMessage {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            msg_length: u32::decode_fixed(input, 4)?,
-            kind: FuzzMessageKind::decode(input)?,
-        })
-    }
-}
-
 impl FuzzProtocolMessage {
     pub fn from_kind(kind: FuzzMessageKind) -> Result<Self, JamCodecError> {
         let encoded = kind.encode()?;

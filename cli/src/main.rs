@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match Cli::parse().command {
         CliCommand::Run { dev_account } => run_node(init_node(dev_account).await?).await,
         CliCommand::Fuzz { socket } => {
-            let target_runner = FuzzTargetRunner::new(PeerInfo::new(
+            let mut target_runner = FuzzTargetRunner::new(PeerInfo::new(
                 "FastRoll".to_string(),
                 // TODO: keep up to date
                 Version::new(0, 1, 0),

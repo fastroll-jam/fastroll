@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use fr_node::keystore::dev_account_profile::DevNodeAccountProfile;
 
 #[derive(Parser)]
-#[command()]
+#[command(version, about)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: CliCommand,
@@ -17,7 +17,7 @@ pub enum CliCommand {
     },
     /// Run JAM block importer as fuzz target
     Fuzz {
-        #[arg(long)]
-        socket: Option<String>,
+        #[arg(long, default_value = "/tmp/jam_target.sock")]
+        socket: String,
     },
 }

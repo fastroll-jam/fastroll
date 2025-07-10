@@ -9,6 +9,7 @@ use fr_state::{
     test_utils::{add_all_simple_state_entries, init_db_and_manager},
 };
 use fr_storage::node_storage::NodeStorage;
+use fr_transition::state::services::AccountStateChanges;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -162,9 +163,9 @@ impl BlockImportHarness {
     async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<StateRoot, Box<dyn Error>> {
-        let post_state_root = BlockImporter::import_block(storage, block).await?;
-        Ok(post_state_root)
+    ) -> Result<(StateRoot, AccountStateChanges), Box<dyn Error>> {
+        let import_result = BlockImporter::import_block(storage, block).await?;
+        Ok(import_result)
     }
 
     async fn _extract_post_state() -> Result<RawState, Box<dyn Error>> {
@@ -232,7 +233,7 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     }
 
     // import block
-    let post_state_root =
+    let (post_state_root, _account_state_changes) =
         BlockImportHarness::import_block(storage.clone(), test_case.block).await?;
 
     // assertions

@@ -876,7 +876,7 @@ impl StateManager {
         service_id: ServiceId,
         lookups_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
-        let state_key = get_account_lookups_state_key(service_id, lookups_key)?;
+        let state_key = get_account_lookups_state_key(service_id, lookups_key);
         self.get_account_state_entry(&state_key).await
     }
 
@@ -891,7 +891,7 @@ impl StateManager {
         F: FnOnce(&mut AccountLookupsEntry) -> Result<(), E>,
         StateManagerError: From<E>,
     {
-        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key);
         self.with_mut_account_state_entry(&state_key, state_mut, f)
             .await
     }
@@ -902,7 +902,7 @@ impl StateManager {
         lookups_key: LookupsKey,
         lookups_entry: AccountLookupsEntry,
     ) -> Result<(), StateManagerError> {
-        let state_key = get_account_lookups_state_key(service_id, &lookups_key)?;
+        let state_key = get_account_lookups_state_key(service_id, &lookups_key);
         self.add_account_state_entry(&state_key, lookups_entry)
             .await
     }
