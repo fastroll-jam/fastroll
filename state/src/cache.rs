@@ -173,10 +173,8 @@ impl StateCache {
             // Remove cache entries that are removed from the global state
             if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
                 self.inner.remove(key);
-            } else {
-                if let Some(mut entry_mut) = self.inner.get_mut(key) {
-                    entry_mut.value_mut().mark_clean_and_snapshot();
-                }
+            } else if let Some(mut entry_mut) = self.inner.get_mut(key) {
+                entry_mut.value_mut().mark_clean_and_snapshot();
             }
         }
     }
