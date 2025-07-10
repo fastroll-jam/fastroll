@@ -103,11 +103,11 @@ impl BlockImporter {
             };
             let timeslot_index = block.header.timeslot_index();
             match Self::import_block(storage.clone(), block).await {
-                Ok(post_state_root) => {
+                Ok((post_state_root, _)) => {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
                     if let Err(e) = storage
                         .post_state_root_db()
-                        .set_post_state_root(&header_hash, post_state_root.0.clone())
+                        .set_post_state_root(&header_hash, post_state_root.clone())
                         .await
                     {
                         tracing::error!("Failed to set post state root of the block: {e:?}");

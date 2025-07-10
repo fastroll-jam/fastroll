@@ -195,17 +195,17 @@ impl FuzzTargetRunner {
                 }
 
                 let state_manager = self.node_storage().state_manager();
-                let mut post_state = State(Vec::new());
+                let mut post_state = Vec::new();
                 // State keys are ordered (BTreeSet)
                 for state_key in self.latest_state_keys.state_keys.iter() {
                     if let Some(val) = state_manager.get_raw_state_entry(state_key).await? {
-                        post_state.0.push(KeyValue {
+                        post_state.push(KeyValue {
                             key: state_key.clone(),
                             value: ByteSequence::from_vec(val),
                         });
                     }
                 }
-                Self::send_message(stream, FuzzMessageKind::State(post_state)).await?;
+                Self::send_message(stream, FuzzMessageKind::State(State(post_state))).await?;
                 Err("Session terminated by GetState request".into())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
