@@ -17,7 +17,7 @@ pub enum CliCommand {
     },
     /// Run JAM block importer as fuzz target
     Fuzz {
-        #[arg(long)]
-        socket: Option<String>,
+        #[arg(long, default_value = "/tmp/jam_target.sock")]
+        socket: String,
     },
 }

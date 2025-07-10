@@ -16,8 +16,6 @@ use tokio::{
     net::{UnixListener, UnixStream},
 };
 
-const DEFAULT_SOCKET_PATH: &str = "/tmp/jam_target.sock";
-
 #[derive(Default)]
 struct LatestStateKeys {
     header_hash: HeaderHash,
@@ -64,12 +62,7 @@ impl FuzzTargetRunner {
         self.node_storage.clone()
     }
 
-    pub async fn run_as_fuzz_target(
-        &self,
-        socket_path: Option<String>,
-    ) -> Result<(), Box<dyn Error>> {
-        let socket_path = socket_path.unwrap_or(DEFAULT_SOCKET_PATH.to_string());
-
+    pub async fn run_as_fuzz_target(&self, socket_path: String) -> Result<(), Box<dyn Error>> {
         // Validate socket path input
         validate_socket_path(&socket_path)?;
 
