@@ -1,4 +1,6 @@
-use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo, StateRoot, TrieKey};
+use crate::types::{
+    FuzzMessageKind, FuzzProtocolMessage, HeaderHash, PeerInfo, StateRoot, TrieKey,
+};
 use fr_codec::prelude::*;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
@@ -62,9 +64,15 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Default)]
+struct LatestStateKeys {
+    header_hash: HeaderHash,
+    state_keys: HashSet<TrieKey>,
+}
+
 pub struct FuzzTargetRunner {
     node_storage: Arc<NodeStorage>,
-    latest_state_keys: HashSet<TrieKey>,
+    latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
 }
 
@@ -79,7 +87,7 @@ impl FuzzTargetRunner {
         ));
         Self {
             node_storage,
-            latest_state_keys: HashSet::new(),
+            latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
         }
     }

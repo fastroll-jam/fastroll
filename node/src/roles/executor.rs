@@ -244,7 +244,7 @@ impl BlockExecutor {
         let (accumulate_root_result, transfer_stats_result) =
             try_join!(last_acc_output_jh, on_transfer_jh)?;
         let accumulate_root = accumulate_root_result?;
-        let transfer_stats = transfer_stats_result?;
+        let transfer_summary = transfer_stats_result?;
 
         // OnChainStatistics STF
         let manager = storage.state_manager();
@@ -256,7 +256,7 @@ impl BlockExecutor {
                 &xt_cloned,
                 &available_reports,
                 acc_stats,
-                transfer_stats,
+                transfer_summary.stats,
             )
             .await
         });
