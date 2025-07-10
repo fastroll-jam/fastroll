@@ -1,8 +1,8 @@
 use crate::{error::TransitionError, state::privileges};
 use fr_block::types::extrinsics::preimages::PreimagesXt;
 use fr_common::{
-    workloads::work_report::WorkReport, ServiceId, UnsignedGas, ACCUMULATION_GAS_ALL_CORES,
-    ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
+    workloads::work_report::WorkReport, ServiceId, StateKey, UnsignedGas,
+    ACCUMULATION_GAS_ALL_CORES, ACCUMULATION_GAS_PER_CORE, CORE_COUNT,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_extrinsics::validation::preimages::PreimagesXtValidator;
@@ -20,15 +20,58 @@ use fr_state::{
     cache::StateMut,
     error::StateManagerError,
     manager::StateManager,
+    state_utils::{
+        get_account_lookups_state_key, get_account_metadata_state_key,
+        get_account_preimage_state_key, get_account_storage_state_key,
+    },
     types::{AccountFootprintDelta, AccountPreimagesEntry},
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+
+/// Collection of all added or removed account-specific state keys of all service accounts.
+///
+/// Note: This is utility struct for fuzz testing to track all post-importing state entries,
+/// NOT part of the Graypaper spec.
+#[derive(Clone, Default)]
+pub struct AccountStateChanges {
+    pub inner: HashMap<ServiceId, AccountStateChange>,
+}
+
+impl AccountStateChanges {
+    pub fn extend(&mut self, changes: AccountStateChanges) {
+        for (service_id, change) in changes.inner.into_iter() {
+            self.inner
+                .entry(service_id)
+                .and_modify(|e| e.extend(change.clone()))
+                .or_insert(change);
+        }
+    }
+}
+
+/// Collection of all added or removed account-specific state keys of a specific service account.
+#[derive(Clone, Default)]
+pub struct AccountStateChange {
+    pub added_state_keys: HashSet<StateKey>,
+    pub removed_state_keys: HashSet<StateKey>,
+}
+
+impl AccountStateChange {
+    pub fn extend(&mut self, change: AccountStateChange) {
+        self.added_state_keys.extend(change.added_state_keys);
+        self.removed_state_keys.extend(change.removed_state_keys);
+    }
+}
 
 pub struct AccumulateSummary {
     pub accumulated_reports_count: usize,
     pub deferred_transfers: Vec<DeferredTransfer>,
     pub output_pairs: AccumulationOutputPairs,
     pub accumulate_stats: AccumulateStats,
+    /// A utility field to keep track of changeset of state keys after state transitions (for fuzzing).
+    pub account_state_changes: AccountStateChanges,
 }
 
 /// Processes state transitions of service accounts, `PrivilegedServices`, `StagingSet`
@@ -84,13 +127,20 @@ pub async fn transition_on_accumulate(
     .await
     .map_err(TransitionError::PVMError)?;
 
+    // Collect account state change set of all services
+    let mut account_state_changes = AccountStateChanges::default();
+
     // Transition service accounts
     for (&service_id, sandbox) in outer_accumulate_result
         .partial_state_union
         .accounts_sandbox
         .iter_mut()
     {
-        transition_service_account(state_manager.clone(), service_id, sandbox).await?;
+        let account_state_change =
+            transition_service_account(state_manager.clone(), service_id, sandbox).await?;
+        account_state_changes
+            .inner
+            .insert(service_id, account_state_change);
     }
 
     privileges::run_privileged_transitions(
@@ -107,6 +157,7 @@ pub async fn transition_on_accumulate(
             &reports[..outer_accumulate_result.accumulated_reports_count],
             &outer_accumulate_result.service_gas_pairs,
         ),
+        account_state_changes,
     })
 }
 
@@ -114,7 +165,7 @@ async fn transition_service_account(
     state_manager: Arc<StateManager>,
     service_id: ServiceId,
     sandbox: &mut AccountSandbox,
-) -> Result<(), TransitionError> {
+) -> Result<AccountStateChange, TransitionError> {
     // TODO: Optimize writes
 
     // Iterate all storage entries of the account sandbox and update storage footprint fields
@@ -128,6 +179,9 @@ async fn transition_service_account(
         }
     }
 
+    // Collect account state change set of the given service
+    let mut account_state_change = AccountStateChange::default();
+
     match &sandbox.metadata.status() {
         SandboxEntryStatus::Added => {
             state_manager
@@ -136,6 +190,9 @@ async fn transition_service_account(
                     sandbox.metadata.get_cloned().expect("Should exist"),
                 )
                 .await?;
+            account_state_change
+                .added_state_keys
+                .insert(get_account_metadata_state_key(service_id));
         }
         SandboxEntryStatus::Updated => {
             state_manager
@@ -157,6 +214,9 @@ async fn transition_service_account(
                     |_| -> Result<(), StateManagerError> { Ok(()) },
                 )
                 .await?;
+            account_state_change
+                .removed_state_keys
+                .insert(get_account_metadata_state_key(service_id));
         }
         _ => (),
     }
@@ -171,6 +231,9 @@ async fn transition_service_account(
                         v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
+                account_state_change
+                    .added_state_keys
+                    .insert(get_account_storage_state_key(service_id, k));
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -193,7 +256,10 @@ async fn transition_service_account(
                         k,
                         |_| -> Result<(), StateManagerError> { Ok(()) },
                     )
-                    .await?
+                    .await?;
+                account_state_change
+                    .removed_state_keys
+                    .insert(get_account_storage_state_key(service_id, k));
             }
             _ => (),
         }
@@ -209,6 +275,9 @@ async fn transition_service_account(
                         v.get_cloned().expect("Should exist"),
                     )
                     .await?;
+                account_state_change
+                    .added_state_keys
+                    .insert(get_account_preimage_state_key(service_id, k));
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -231,7 +300,10 @@ async fn transition_service_account(
                         k,
                         |_| -> Result<(), StateManagerError> { Ok(()) },
                     )
-                    .await?
+                    .await?;
+                account_state_change
+                    .removed_state_keys
+                    .insert(get_account_preimage_state_key(service_id, k));
             }
             _ => (),
         }
@@ -247,6 +319,9 @@ async fn transition_service_account(
                         v.get_cloned().expect("Should exist").into_entry(),
                     )
                     .await?;
+                account_state_change
+                    .added_state_keys
+                    .insert(get_account_lookups_state_key(service_id, k));
             }
             SandboxEntryStatus::Updated => {
                 state_manager
@@ -269,13 +344,22 @@ async fn transition_service_account(
                         k.clone(),
                         |_| -> Result<(), StateManagerError> { Ok(()) },
                     )
-                    .await?
+                    .await?;
+                account_state_change
+                    .removed_state_keys
+                    .insert(get_account_lookups_state_key(service_id, k));
             }
             _ => (),
         }
     }
 
-    Ok(())
+    Ok(account_state_change)
+}
+
+pub struct OnTransferSummary {
+    pub stats: OnTransferStats,
+    /// A utility field to keep track of changeset of state keys after state transitions (for fuzzing).
+    pub account_state_changes: AccountStateChanges,
 }
 
 /// State transition function of service accounts, processing deferred transfers.
@@ -294,10 +378,13 @@ pub async fn transition_services_on_transfer(
     state_manager: Arc<StateManager>,
     transfers: &[DeferredTransfer],
     accumulated_services: &[ServiceId],
-) -> Result<OnTransferStats, TransitionError> {
+) -> Result<OnTransferSummary, TransitionError> {
     // Gather all unique destination addresses.
     let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
     let mut stats = OnTransferStats::default();
+
+    // Collect account state change set of all services
+    let mut account_state_changes = AccountStateChanges::default();
 
     // Invoke PVM `on-transfer` entrypoint for each destination.
     for destination in destinations {
@@ -326,8 +413,12 @@ pub async fn transition_services_on_transfer(
         }
 
         if let Some(ref mut recipient_sandbox) = on_transfer_result.recipient_sandbox {
-            transition_service_account(state_manager.clone(), destination, recipient_sandbox)
-                .await?
+            let account_state_change =
+                transition_service_account(state_manager.clone(), destination, recipient_sandbox)
+                    .await?;
+            account_state_changes
+                .inner
+                .insert(destination, account_state_change);
         }
 
         if transfers_count != 0 {
@@ -359,7 +450,10 @@ pub async fn transition_services_on_transfer(
             .await?
     }
 
-    Ok(stats)
+    Ok(OnTransferSummary {
+        stats,
+        account_state_changes,
+    })
 }
 
 /// State transition function of service accounts, integrating provided `PreimagesXt` data into

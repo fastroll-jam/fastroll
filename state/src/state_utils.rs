@@ -6,7 +6,7 @@ use crate::types::{
 };
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, Hash32, LookupsKey, Octets, ServiceId, StateKey, STATE_KEY_SIZE};
-use fr_crypto::{error::CryptoError, hash, Blake2b256};
+use fr_crypto::{hash, Blake2b256};
 use std::fmt::Debug;
 
 /// Represents global state types with simple fixed state keys
@@ -321,10 +321,7 @@ pub fn get_account_preimage_state_key(s: ServiceId, preimage_key: &Hash32) -> St
     construct_storage_state_key(s, key_with_prefix.as_slice())
 }
 
-pub fn get_account_lookups_state_key(
-    s: ServiceId,
-    lookups_key: &LookupsKey,
-) -> Result<StateKey, CryptoError> {
+pub fn get_account_lookups_state_key(s: ServiceId, lookups_key: &LookupsKey) -> StateKey {
     let (h, l) = lookups_key;
     let mut key_with_prefix = ByteArray::<36>::default();
     key_with_prefix[0..4].copy_from_slice(
@@ -333,5 +330,5 @@ pub fn get_account_lookups_state_key(
     );
     key_with_prefix[4..].copy_from_slice(h.as_slice());
 
-    Ok(construct_storage_state_key(s, key_with_prefix.as_slice()))
+    construct_storage_state_key(s, key_with_prefix.as_slice())
 }

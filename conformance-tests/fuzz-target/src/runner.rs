@@ -1,69 +1,44 @@
-use crate::types::{FuzzMessageKind, FuzzProtocolMessage, PeerInfo, StateRoot};
+use crate::{
+    types::{
+        FuzzMessageKind, FuzzProtocolMessage, HeaderHash, KeyValue, PeerInfo, State, StateRoot,
+        TrieKey,
+    },
+    utils::validate_socket_path,
+};
 use fr_codec::prelude::*;
+use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
-use std::{error::Error, path::Path, sync::Arc};
+use std::{collections::BTreeSet, error::Error, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
 };
 
-const DEFAULT_SOCKET_PATH: &str = "/tmp/jam_target.sock";
-
-#[cfg(unix)]
-fn is_socket_file(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::FileTypeExt;
-    metadata.file_type().is_socket()
+#[derive(Default)]
+struct LatestStateKeys {
+    header_hash: HeaderHash,
+    state_keys: BTreeSet<TrieKey>,
 }
 
-#[cfg(not(unix))]
-fn is_socket_file(_metadata: &std::fs::Metadata) -> bool {
-    false
-}
-
-pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
-    if socket_path.is_empty() {
-        return Err("Socket path cannot be empty".into());
+impl LatestStateKeys {
+    fn update_header_hash(&mut self, header_hash: HeaderHash) {
+        self.header_hash = header_hash;
     }
 
-    // Check input length
-    if socket_path.len() > 200 {
-        return Err("Socket path is too long".into());
+    fn insert_state_key(&mut self, state_key: TrieKey) {
+        self.state_keys.insert(state_key);
     }
 
-    let path = Path::new(socket_path);
-
-    // Enforce absolute path
-    if !path.is_absolute() {
-        return Err("Socket path should be absolute (start with `/`)".into());
+    fn remove_state_key(&mut self, state_key: TrieKey) {
+        self.state_keys.remove(&state_key);
     }
-
-    // Check whether parent directory exists and is writable
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            return Err(format!("Parent directory does not exist: {}", parent.display()).into());
-        }
-
-        let metadata = std::fs::metadata(parent)?;
-        if metadata.permissions().readonly() {
-            return Err(format!("Parent directory is read-only: {}", parent.display()).into());
-        }
-    }
-
-    // Check if a file already exists at the path
-    if path.exists() {
-        let metadata = std::fs::metadata(path)?;
-        if !is_socket_file(&metadata) {
-            return Err(format!("Regular file exists at the path: {}", path.display()).into());
-        }
-    }
-
-    Ok(())
 }
 
 pub struct FuzzTargetRunner {
     node_storage: Arc<NodeStorage>,
+    latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
 }
 
@@ -78,6 +53,7 @@ impl FuzzTargetRunner {
         ));
         Self {
             node_storage,
+            latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
         }
     }
@@ -86,12 +62,7 @@ impl FuzzTargetRunner {
         self.node_storage.clone()
     }
 
-    pub async fn run_as_fuzz_target(
-        &self,
-        socket_path: Option<String>,
-    ) -> Result<(), Box<dyn Error>> {
-        let socket_path = socket_path.unwrap_or(DEFAULT_SOCKET_PATH.to_string());
-
+    pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), Box<dyn Error>> {
         // Validate socket path input
         validate_socket_path(&socket_path)?;
 
@@ -110,7 +81,10 @@ impl FuzzTargetRunner {
         Ok(())
     }
 
-    async fn handle_fuzzer_session(&self, mut stream: UnixStream) -> Result<(), Box<dyn Error>> {
+    async fn handle_fuzzer_session(
+        &mut self,
+        mut stream: UnixStream,
+    ) -> Result<(), Box<dyn Error>> {
         // First message must be the PeerInfo handshake
         self.handle_handshake(&mut stream).await?;
 
@@ -164,24 +138,35 @@ impl FuzzTargetRunner {
     }
 
     async fn process_message(
-        &self,
+        &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
     ) -> Result<(), Box<dyn Error>> {
         match message_kind {
             FuzzMessageKind::ImportBlock(import_block) => {
                 let storage = self.node_storage();
+                let block = import_block.0;
+                self.latest_state_keys
+                    .update_header_hash(block.header.hash()?);
                 let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root =
-                    match BlockImporter::import_block(storage, import_block.0).await {
-                        Ok(post_state_root) => post_state_root,
-                        Err(e) => {
-                            tracing::debug!("Invalid block - import failed: {e:?}");
-                            // Return pre-state root for invalid blocks
-                            pre_state_root
-                        }
-                    };
-                // TODO: keep the latest { header hash -> post state key-vals } entry
+                let post_state_root = match BlockImporter::import_block(storage, block).await {
+                    Ok((post_state_root, account_state_changes)) => {
+                        account_state_changes.inner.values().for_each(|change| {
+                            for added_key in &change.added_state_keys {
+                                self.latest_state_keys.insert_state_key(added_key.clone());
+                            }
+                            for removed_key in &change.removed_state_keys {
+                                self.latest_state_keys.remove_state_key(removed_key.clone());
+                            }
+                        });
+                        post_state_root
+                    }
+                    Err(e) => {
+                        tracing::debug!("Invalid block - import failed: {e:?}");
+                        // Return pre-state root for invalid blocks
+                        pre_state_root
+                    }
+                };
                 Self::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
@@ -189,19 +174,38 @@ impl FuzzTargetRunner {
                 .await
             }
             FuzzMessageKind::SetState(set_state) => {
-                // TODO: keep the latest { header hash -> post state key-vals } entry
                 let state_manager = self.node_storage().state_manager();
+                let mut latest_state_keys = LatestStateKeys::default();
+                latest_state_keys.update_header_hash(set_state.header.hash()?);
                 for kv in set_state.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
                         .await?;
+                    latest_state_keys.insert_state_key(kv.key);
                 }
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
                 Self::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root))).await
             }
-            FuzzMessageKind::GetState(_get_state) => {
-                // TODO: iterate on all available post- global state entries
+            FuzzMessageKind::GetState(get_state) => {
+                let requested_header_hash = get_state.0;
+                if self.latest_state_keys.header_hash != requested_header_hash {
+                    tracing::error!("Latest header hash mismatch: requested ({requested_header_hash}) observed ({})", self.latest_state_keys.header_hash);
+                    // Send `State` message anyway
+                }
+
+                let state_manager = self.node_storage().state_manager();
+                let mut post_state = Vec::new();
+                // State keys are ordered (BTreeSet)
+                for state_key in self.latest_state_keys.state_keys.iter() {
+                    if let Some(val) = state_manager.get_raw_state_entry(state_key).await? {
+                        post_state.push(KeyValue {
+                            key: state_key.clone(),
+                            value: ByteSequence::from_vec(val),
+                        });
+                    }
+                }
+                Self::send_message(stream, FuzzMessageKind::State(State(post_state))).await?;
                 Err("Session terminated by GetState request".into())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
