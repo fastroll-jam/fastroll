@@ -539,8 +539,8 @@ impl StateManager {
         // Clear the WorkingSet
         self.merkle_db.clear_working_set();
 
-        // Mark committed entries as clean
-        self.cache.mark_entries_clean(&dirty_entries);
+        // Sync up the state cache with the global state.
+        self.cache.sync_cache_status(&dirty_entries);
 
         Ok(())
     }

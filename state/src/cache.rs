@@ -166,10 +166,17 @@ impl StateCache {
             .collect()
     }
 
-    pub(crate) fn mark_entries_clean(&self, dirty_entries: &[(StateKey, CacheEntry)]) {
-        for (key, _) in dirty_entries.iter() {
-            if let Some(mut entry_mut) = self.inner.get_mut(key) {
-                entry_mut.value_mut().mark_clean_and_snapshot();
+    // Syncs up the state cache with the global state, by removing cache entries that are deleted
+    // from the global state and marking added or updated entries as clean.
+    pub(crate) fn sync_cache_status(&self, dirty_entries: &[(StateKey, CacheEntry)]) {
+        for (key, entry) in dirty_entries.iter() {
+            // Remove cache entries that are removed from the global state
+            if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
+                self.inner.remove(key);
+            } else {
+                if let Some(mut entry_mut) = self.inner.get_mut(key) {
+                    entry_mut.value_mut().mark_clean_and_snapshot();
+                }
             }
         }
     }
