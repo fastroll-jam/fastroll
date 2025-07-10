@@ -28,6 +28,7 @@ use fr_state::{
     types::{SlotSealer, Timeslot},
 };
 use fr_storage::node_storage::NodeStorage;
+use fr_transition::state::services::AccountStateChanges;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::{sync::mpsc, try_join};
@@ -106,7 +107,7 @@ impl BlockImporter {
                     tracing::info!("✅ Block validated ({header_hash}) (slot: {timeslot_index})");
                     if let Err(e) = storage
                         .post_state_root_db()
-                        .set_post_state_root(&header_hash, post_state_root.clone())
+                        .set_post_state_root(&header_hash, post_state_root.0.clone())
                         .await
                     {
                         tracing::error!("Failed to set post state root of the block: {e:?}");
@@ -122,7 +123,7 @@ impl BlockImporter {
     pub async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<StateRoot, BlockImportError> {
+    ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
         tracing::info!(
             "📥 Block imported  ({}) (slot: {})",
             &block.header.hash()?,
@@ -134,11 +135,12 @@ impl BlockImporter {
     async fn validate_block(
         storage: Arc<NodeStorage>,
         block: Block,
-    ) -> Result<StateRoot, BlockImportError> {
+    ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
-            let (post_state_root, _markers) = Self::run_state_transition(&storage, &block).await?;
-            return Ok(post_state_root);
+            let (post_state_root, _markers, account_state_changes) =
+                Self::run_state_transition(&storage, &block).await?;
+            return Ok((post_state_root, account_state_changes));
         }
 
         // Validate Xts
@@ -147,13 +149,13 @@ impl BlockImporter {
         // Validate header fields (prior to STF)
         Self::validate_block_header_prior_stf(&storage, &block).await?;
         // Re-execute STF
-        let (post_state_root, header_markers) =
+        let (post_state_root, header_markers, account_state_changes) =
             Self::run_state_transition(&storage, &block).await?;
         // Validate header fields (post STF)
         Self::validate_block_header_post_stf(&storage, &block, header_markers).await?;
         // Set best header
         storage.header_db().set_best_header(block.header);
-        Ok(post_state_root)
+        Ok((post_state_root, account_state_changes))
     }
 
     /// Note: Currently, each STF validates Xt types as well. Up-front Xt validations might work
@@ -428,8 +430,9 @@ impl BlockImporter {
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<(MerkleRoot, BlockExecutionHeaderMarkers), BlockImportError> {
-        let markers = if block.is_genesis() {
+    ) -> Result<(MerkleRoot, BlockExecutionHeaderMarkers, AccountStateChanges), BlockImportError>
+    {
+        let (markers, account_state_changes) = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
             BlockExecutor::append_beefy_belt_and_block_history(
                 storage,
@@ -438,7 +441,10 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
-            BlockExecutionHeaderMarkers::default()
+            (
+                BlockExecutionHeaderMarkers::default(),
+                output.account_state_changes,
+            )
         } else {
             // STF phase #1
             let markers =
@@ -457,9 +463,13 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
-            markers
+            (markers, output.account_state_changes)
         };
         storage.state_manager().commit_dirty_cache().await?;
-        Ok((storage.state_manager().merkle_root(), markers))
+        Ok((
+            storage.state_manager().merkle_root(),
+            markers,
+            account_state_changes,
+        ))
     }
 }

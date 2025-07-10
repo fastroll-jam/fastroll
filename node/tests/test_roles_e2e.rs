@@ -83,7 +83,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
         init_with_genesis_state(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 9998, 0, 0)).await?;
 
     // Block importer role
-    let importer_post_state_root =
+    let (importer_post_state_root, _) =
         BlockImporter::import_block(importer_node.storage(), new_block).await?;
     assert_eq!(author_post_state_root, importer_post_state_root);
 

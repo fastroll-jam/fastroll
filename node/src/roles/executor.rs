@@ -30,7 +30,7 @@ use fr_transition::{
         safrole::transition_safrole,
         services::{
             transition_on_accumulate, transition_services_integrate_preimages,
-            transition_services_on_transfer,
+            transition_services_on_transfer, AccountStateChanges,
         },
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
@@ -56,6 +56,8 @@ pub enum BlockExecutionError {
 pub struct BlockExecutionOutput {
     pub accumulate_root: AccumulateRoot,
     pub reported_packages: Vec<ReportedWorkPackage>,
+    /// A utility field to keep track of changeset of state keys after state transitions (for fuzzing).
+    pub account_state_changes: AccountStateChanges,
 }
 
 #[derive(Clone, Default)]
@@ -223,9 +225,10 @@ impl BlockExecutor {
                 acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
                 acc_summary.output_pairs,
+                acc_summary.account_state_changes,
             ))
         });
-        let (transfers, acc_stats, acc_output_pairs) = acc_jh.await??;
+        let (transfers, acc_stats, acc_output_pairs, mut account_state_changes) = acc_jh.await??;
 
         // LastAccumulateOutputs STF
         let manager = storage.state_manager();
@@ -241,10 +244,10 @@ impl BlockExecutor {
         });
 
         // --- Join: LastAccumulateOutputs, On-transfer STFs
-        let (accumulate_root_result, transfer_stats_result) =
+        let (accumulate_root_result, transfer_summary_result) =
             try_join!(last_acc_output_jh, on_transfer_jh)?;
         let accumulate_root = accumulate_root_result?;
-        let transfer_summary = transfer_stats_result?;
+        let transfer_summary = transfer_summary_result?;
 
         // OnChainStatistics STF
         let manager = storage.state_manager();
@@ -260,7 +263,6 @@ impl BlockExecutor {
             )
             .await
         });
-
         // Preimage integration STF
         let manager = storage.state_manager();
         let preimage_jh = spawn_timed("preimage_stf", async move {
@@ -271,9 +273,12 @@ impl BlockExecutor {
         #[allow(unused_must_use)]
         try_join!(stats_jh, preimage_jh)?;
 
+        account_state_changes.extend(transfer_summary.account_state_changes);
+
         Ok(BlockExecutionOutput {
             accumulate_root,
             reported_packages,
+            account_state_changes,
         })
     }
 
@@ -351,6 +356,7 @@ impl BlockExecutor {
         Ok(BlockExecutionOutput {
             accumulate_root: AccumulateRoot::default(),
             reported_packages: Vec::new(),
+            account_state_changes: AccountStateChanges::default(), // TODO: Check this value for genesis block
         })
     }
 

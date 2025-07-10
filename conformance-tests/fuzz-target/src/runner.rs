@@ -62,7 +62,7 @@ impl FuzzTargetRunner {
         self.node_storage.clone()
     }
 
-    pub async fn run_as_fuzz_target(&self, socket_path: String) -> Result<(), Box<dyn Error>> {
+    pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), Box<dyn Error>> {
         // Validate socket path input
         validate_socket_path(&socket_path)?;
 
@@ -81,7 +81,10 @@ impl FuzzTargetRunner {
         Ok(())
     }
 
-    async fn handle_fuzzer_session(&self, mut stream: UnixStream) -> Result<(), Box<dyn Error>> {
+    async fn handle_fuzzer_session(
+        &mut self,
+        mut stream: UnixStream,
+    ) -> Result<(), Box<dyn Error>> {
         // First message must be the PeerInfo handshake
         self.handle_handshake(&mut stream).await?;
 
@@ -135,24 +138,35 @@ impl FuzzTargetRunner {
     }
 
     async fn process_message(
-        &self,
+        &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
     ) -> Result<(), Box<dyn Error>> {
         match message_kind {
             FuzzMessageKind::ImportBlock(import_block) => {
                 let storage = self.node_storage();
+                let block = import_block.0;
+                self.latest_state_keys
+                    .update_header_hash(block.header.hash()?);
                 let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root =
-                    match BlockImporter::import_block(storage, import_block.0).await {
-                        Ok(post_state_root) => post_state_root,
-                        Err(e) => {
-                            tracing::debug!("Invalid block - import failed: {e:?}");
-                            // Return pre-state root for invalid blocks
-                            pre_state_root
-                        }
-                    };
-                // TODO: keep the latest { header hash -> post state key-vals } entry
+                let post_state_root = match BlockImporter::import_block(storage, block).await {
+                    Ok((post_state_root, account_state_changes)) => {
+                        account_state_changes.inner.values().for_each(|change| {
+                            for added_key in &change.added_state_keys {
+                                self.latest_state_keys.insert_state_key(added_key.clone());
+                            }
+                            for removed_key in &change.removed_state_keys {
+                                self.latest_state_keys.remove_state_key(removed_key.clone());
+                            }
+                        });
+                        post_state_root
+                    }
+                    Err(e) => {
+                        tracing::debug!("Invalid block - import failed: {e:?}");
+                        // Return pre-state root for invalid blocks
+                        pre_state_root
+                    }
+                };
                 Self::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root)),

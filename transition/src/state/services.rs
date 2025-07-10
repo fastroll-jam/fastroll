@@ -35,16 +35,34 @@ use std::{
 ///
 /// Note: This is utility struct for fuzz testing to track all post-importing state entries,
 /// NOT part of the Graypaper spec.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct AccountStateChanges {
     pub inner: HashMap<ServiceId, AccountStateChange>,
 }
 
+impl AccountStateChanges {
+    pub fn extend(&mut self, changes: AccountStateChanges) {
+        for (service_id, change) in changes.inner.into_iter() {
+            self.inner
+                .entry(service_id)
+                .and_modify(|e| e.extend(change.clone()))
+                .or_insert(change);
+        }
+    }
+}
+
 /// Collection of all added or removed account-specific state keys of a specific service account.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct AccountStateChange {
     pub added_state_keys: HashSet<StateKey>,
     pub removed_state_keys: HashSet<StateKey>,
+}
+
+impl AccountStateChange {
+    pub fn extend(&mut self, change: AccountStateChange) {
+        self.added_state_keys.extend(change.added_state_keys);
+        self.removed_state_keys.extend(change.removed_state_keys);
+    }
 }
 
 pub struct AccumulateSummary {
