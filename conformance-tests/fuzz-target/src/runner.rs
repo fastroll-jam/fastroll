@@ -1,11 +1,12 @@
 use crate::types::{
-    FuzzMessageKind, FuzzProtocolMessage, HeaderHash, PeerInfo, StateRoot, TrieKey,
+    FuzzMessageKind, FuzzProtocolMessage, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey,
 };
 use fr_codec::prelude::*;
+use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
-use std::{collections::HashSet, error::Error, path::Path, sync::Arc};
+use std::{collections::BTreeSet, error::Error, path::Path, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
@@ -67,7 +68,22 @@ pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
 #[derive(Default)]
 struct LatestStateKeys {
     header_hash: HeaderHash,
-    state_keys: HashSet<TrieKey>,
+    state_keys: BTreeSet<TrieKey>,
+}
+
+#[allow(dead_code)]
+impl LatestStateKeys {
+    fn update_header_hash(&mut self, header_hash: HeaderHash) {
+        self.header_hash = header_hash;
+    }
+
+    fn insert_state_key(&mut self, state_key: TrieKey) {
+        self.state_keys.insert(state_key);
+    }
+
+    fn remove_state_key(&mut self, state_key: TrieKey) {
+        self.state_keys.remove(&state_key);
+    }
 }
 
 pub struct FuzzTargetRunner {
@@ -211,7 +227,24 @@ impl FuzzTargetRunner {
                 Self::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root))).await
             }
             FuzzMessageKind::GetState(get_state) => {
-                // TODO: iterate on all available post- global state entries
+                let requested_header_hash = get_state.0;
+                if self.latest_state_keys.header_hash != requested_header_hash {
+                    tracing::error!("Latest header hash mismatch: requested ({requested_header_hash}) observed ({})", self.latest_state_keys.header_hash);
+                    // Send `State` message anyway
+                }
+
+                let state_manager = self.node_storage().state_manager();
+                let mut post_state = State(Vec::new());
+                // State keys are ordered (BTreeSet)
+                for state_key in self.latest_state_keys.state_keys.iter() {
+                    if let Some(val) = state_manager.get_raw_state_entry(state_key).await? {
+                        post_state.0.push(KeyValue {
+                            key: state_key.clone(),
+                            value: ByteSequence::from_vec(val),
+                        });
+                    }
+                }
+                Self::send_message(stream, FuzzMessageKind::State(post_state)).await?;
                 Err("Session terminated by GetState request".into())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
