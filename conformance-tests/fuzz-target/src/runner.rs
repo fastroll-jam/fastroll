@@ -160,12 +160,14 @@ impl FuzzTargetRunner {
                 .await
             }
             FuzzMessageKind::SetState(set_state) => {
-                // TODO: keep the latest { header hash -> post state key-vals } entry
                 let state_manager = self.node_storage().state_manager();
+                let mut latest_state_keys = LatestStateKeys::default();
+                latest_state_keys.update_header_hash(set_state.header.hash()?);
                 for kv in set_state.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
                         .await?;
+                    latest_state_keys.insert_state_key(kv.key);
                 }
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
