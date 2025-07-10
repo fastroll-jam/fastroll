@@ -1,12 +1,16 @@
-use crate::types::{
-    FuzzMessageKind, FuzzProtocolMessage, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey,
+use crate::{
+    types::{
+        FuzzMessageKind, FuzzProtocolMessage, HeaderHash, KeyValue, PeerInfo, State, StateRoot,
+        TrieKey,
+    },
+    utils::validate_socket_path,
 };
 use fr_codec::prelude::*;
 use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
-use std::{collections::BTreeSet, error::Error, path::Path, sync::Arc};
+use std::{collections::BTreeSet, error::Error, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
@@ -14,64 +18,12 @@ use tokio::{
 
 const DEFAULT_SOCKET_PATH: &str = "/tmp/jam_target.sock";
 
-#[cfg(unix)]
-fn is_socket_file(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::FileTypeExt;
-    metadata.file_type().is_socket()
-}
-
-#[cfg(not(unix))]
-fn is_socket_file(_metadata: &std::fs::Metadata) -> bool {
-    false
-}
-
-pub fn validate_socket_path(socket_path: &str) -> Result<(), Box<dyn Error>> {
-    if socket_path.is_empty() {
-        return Err("Socket path cannot be empty".into());
-    }
-
-    // Check input length
-    if socket_path.len() > 200 {
-        return Err("Socket path is too long".into());
-    }
-
-    let path = Path::new(socket_path);
-
-    // Enforce absolute path
-    if !path.is_absolute() {
-        return Err("Socket path should be absolute (start with `/`)".into());
-    }
-
-    // Check whether parent directory exists and is writable
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            return Err(format!("Parent directory does not exist: {}", parent.display()).into());
-        }
-
-        let metadata = std::fs::metadata(parent)?;
-        if metadata.permissions().readonly() {
-            return Err(format!("Parent directory is read-only: {}", parent.display()).into());
-        }
-    }
-
-    // Check if a file already exists at the path
-    if path.exists() {
-        let metadata = std::fs::metadata(path)?;
-        if !is_socket_file(&metadata) {
-            return Err(format!("Regular file exists at the path: {}", path.display()).into());
-        }
-    }
-
-    Ok(())
-}
-
 #[derive(Default)]
 struct LatestStateKeys {
     header_hash: HeaderHash,
     state_keys: BTreeSet<TrieKey>,
 }
 
-#[allow(dead_code)]
 impl LatestStateKeys {
     fn update_header_hash(&mut self, header_hash: HeaderHash) {
         self.header_hash = header_hash;
