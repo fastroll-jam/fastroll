@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use fr_node::keystore::dev_account_profile::DevNodeAccountProfile;
 
 #[derive(Parser)]
-#[command()]
+#[command(version, about)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: CliCommand,
