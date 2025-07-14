@@ -1,8 +1,8 @@
 use fr_db::config::{MERKLE_CF_NAME, STATE_CF_NAME};
 
-const STATE_DB_CACHE_SIZE: usize = 1024;
-const MERKLE_DB_CACHE_SIZE: usize = 1024;
-const STATE_CACHE_SIZE: usize = 4096;
+const STATE_DB_CACHE_SIZE: usize = 8192;
+const MERKLE_DB_CACHE_SIZE: usize = 8192;
+const STATE_CACHE_SIZE: usize = 8192;
 
 pub struct StateManagerConfig {
     pub state_cf_name: &'static str,

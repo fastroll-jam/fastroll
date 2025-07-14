@@ -22,8 +22,8 @@ use fr_db::{
 use mini_moka::sync::Cache;
 use std::sync::{Arc, Mutex};
 
-const WORKING_SET_SIZE: usize = 4096;
-const WORKING_SET_NODE_CACHE_SIZE: usize = 4096;
+const WORKING_SET_SIZE: usize = 8192;
+const WORKING_SET_NODE_CACHE_SIZE: usize = 16384;
 
 /// Leaf node write operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
