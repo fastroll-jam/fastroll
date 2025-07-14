@@ -962,6 +962,7 @@ version = "0.1.0"
 dependencies = [
  "dashmap 6.1.0",
  "fr-common",
+ "mini-moka",
  "rocksdb",
  "thiserror 2.0.12",
  "tokio",
