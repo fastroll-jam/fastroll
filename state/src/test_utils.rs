@@ -1,4 +1,5 @@
 use crate::{
+    cache::StateCache,
     manager::StateManager,
     state_db::StateDB,
     state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
@@ -40,6 +41,11 @@ fn init_state_db(core_db: Arc<CoreDB>) -> StateDB {
     StateDB::new(core_db, STATE_CF_NAME, STATE_DB_CACHE_SIZE)
 }
 
+fn init_state_cache() -> StateCache {
+    const STATE_CACHE_SIZE: usize = 4096;
+    StateCache::new(STATE_CACHE_SIZE)
+}
+
 fn init_header_db(core_db: Arc<CoreDB>, best_header: Option<BlockHeader>) -> BlockHeaderDB {
     const HEADER_DB_CACHE_SIZE: usize = 1024;
     BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, best_header)
@@ -53,7 +59,8 @@ fn init_xt_db(core_db: Arc<CoreDB>) -> XtDB {
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     let merkle_db = init_merkle_db(core_db.clone());
     let state_db = init_state_db(core_db);
-    StateManager::new(state_db, merkle_db)
+
+    StateManager::new(state_db, merkle_db, init_state_cache())
 }
 
 fn init_post_state_root_db(core_db: Arc<CoreDB>) -> PostStateRootDB {

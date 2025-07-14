@@ -2,10 +2,10 @@ use crate::{
     error::StateManagerError,
     state_utils::{StateComponent, StateEntryType},
 };
-use dashmap::DashMap;
 use fr_codec::prelude::*;
 use fr_common::StateKey;
 use fr_state_merkle::merkle_db::MerkleWriteOp;
+use mini_moka::sync::Cache;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -68,25 +68,19 @@ impl CacheEntry {
 }
 
 /// A thread-safe mapping from state keys to their corresponding cache entries.
-pub(crate) struct StateCache {
-    inner: DashMap<StateKey, CacheEntry>,
-}
-
-impl Default for StateCache {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct StateCache {
+    inner: Cache<StateKey, CacheEntry>,
 }
 
 impl StateCache {
-    pub fn new() -> Self {
+    pub fn new(max_capacity: usize) -> Self {
         Self {
-            inner: DashMap::new(),
+            inner: Cache::new(max_capacity as u64),
         }
     }
 
     pub(crate) fn get_entry(&self, key: &StateKey) -> Option<CacheEntry> {
-        self.inner.get(key).map(|entry| entry.clone())
+        self.inner.get(key)
     }
 
     pub(crate) fn get_entry_status(&self, key: &StateKey) -> Option<CacheEntryStatus> {
@@ -103,12 +97,12 @@ impl StateCache {
         entry.as_merkle_write_op(key)
     }
 
-    pub(crate) fn insert_entry(&self, key: StateKey, entry: CacheEntry) -> Option<CacheEntry> {
+    pub(crate) fn insert_entry(&self, key: StateKey, entry: CacheEntry) {
         self.inner.insert(key, entry)
     }
 
-    pub(crate) fn clear(&self) {
-        self.inner.clear();
+    pub(crate) fn invalidate_all(&self) {
+        self.inner.invalidate_all();
     }
 
     pub(crate) fn with_mut_entry<T, F, E>(
@@ -122,9 +116,10 @@ impl StateCache {
         F: FnOnce(&mut T) -> Result<(), E>,
         StateManagerError: From<E>,
     {
+        // Cloned data
         let mut cache_entry = self
             .inner
-            .get_mut(state_key)
+            .get(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
         let entry_mut = T::from_entry_type_mut(&mut cache_entry.value)
@@ -139,6 +134,8 @@ impl StateCache {
         {
             cache_entry.mark_dirty(state_mut)
         }
+
+        self.inner.insert(state_key.clone(), cache_entry);
         Ok(())
     }
 
@@ -148,9 +145,10 @@ impl StateCache {
     ) -> Result<(), StateManagerError> {
         let mut cache_entry = self
             .inner
-            .get_mut(key)
+            .get(key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
-        cache_entry.value_mut().mark_clean_and_snapshot();
+        cache_entry.mark_clean_and_snapshot();
+        self.inner.insert(key.clone(), cache_entry);
         Ok(())
     }
 
@@ -172,9 +170,10 @@ impl StateCache {
         for (key, entry) in dirty_entries.iter() {
             // Remove cache entries that are removed from the global state
             if let CacheEntryStatus::Dirty(StateMut::Remove) = entry.status {
-                self.inner.remove(key);
-            } else if let Some(mut entry_mut) = self.inner.get_mut(key) {
-                entry_mut.value_mut().mark_clean_and_snapshot();
+                self.inner.invalidate(key);
+            } else if let Some(mut entry_mut) = self.inner.get(key) {
+                entry_mut.mark_clean_and_snapshot();
+                self.inner.insert(key.clone(), entry_mut);
             }
         }
     }
