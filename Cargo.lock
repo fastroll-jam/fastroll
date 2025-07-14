@@ -960,7 +960,6 @@ dependencies = [
 name = "fr-db"
 version = "0.1.0"
 dependencies = [
- "dashmap 6.1.0",
  "fr-common",
  "mini-moka",
  "rocksdb",
@@ -1138,7 +1137,6 @@ dependencies = [
 name = "fr-state"
 version = "0.1.0"
 dependencies = [
- "dashmap 6.1.0",
  "fr-block",
  "fr-clock",
  "fr-codec",
@@ -1163,7 +1161,6 @@ name = "fr-state-merkle"
 version = "0.1.0"
 dependencies = [
  "bit-vec",
- "dashmap 6.1.0",
  "fr-codec",
  "fr-common",
  "fr-crypto",

@@ -9,7 +9,6 @@ fr-common = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 bit-vec = { workspace = true }
-dashmap = { workspace = true }
 hex = { workspace = true }
 mini-moka = { workspace = true }
 thiserror = { workspace = true }
