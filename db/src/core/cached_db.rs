@@ -1,6 +1,6 @@
 use crate::core::core_db::{CoreDB, CoreDBError};
-use dashmap::DashMap;
 use fr_common::{ByteEncodable, Hash32};
+use mini_moka::sync::Cache;
 use rocksdb::{ColumnFamily, WriteBatch};
 use std::{hash::Hash, sync::Arc};
 use thiserror::Error;
@@ -53,20 +53,20 @@ where
     pub core: Arc<CoreDB>,
     /// RocksDB column family name
     pub cf_name: &'static str,
-    /// A thread-safe in-memory cache
-    pub cache: DashMap<K, V>,
+    /// A thread-safe in-memory LRU cache
+    pub cache: Cache<K, V>,
 }
 
 impl<K, V> CachedDB<K, V>
 where
-    K: Hash + Eq + AsRef<[u8]> + Clone,
-    V: CacheItem,
+    K: Hash + Eq + AsRef<[u8]> + Clone + Send + Sync + 'static,
+    V: CacheItem + Send + Sync + 'static,
 {
     pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
             core,
             cf_name,
-            cache: DashMap::with_capacity(cache_size),
+            cache: Cache::new(cache_size as u64),
         }
     }
 
@@ -77,7 +77,7 @@ where
     pub async fn get_entry(&self, key: &K) -> Result<Option<V>, CachedDBError> {
         // lookup the cache
         if let Some(v) = self.cache.get(key) {
-            return Ok(Some(v.clone()));
+            return Ok(Some(v));
         }
 
         // fetch encoded state data octets from the db and put into the cache
@@ -107,7 +107,7 @@ where
 
     pub async fn delete_entry(&self, key: &K) -> Result<(), CachedDBError> {
         self.core.delete_entry(self.cf_name, key.as_ref()).await?;
-        self.cache.remove(key);
+        self.cache.invalidate(key);
         Ok(())
     }
 

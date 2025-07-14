@@ -73,14 +73,15 @@ impl StateManager {
                 config.state_db_cache_size,
             ),
             MerkleDB::new(core_db, config.merkle_cf_name, config.merkle_db_cache_size),
+            StateCache::new(config.state_cache_size),
         )
     }
 
-    pub fn new(state_db: StateDB, merkle_db: MerkleDB) -> Self {
+    pub fn new(state_db: StateDB, merkle_db: MerkleDB, cache: StateCache) -> Self {
         Self {
             state_db,
             merkle_db,
-            cache: StateCache::default(),
+            cache,
         }
     }
 
@@ -201,7 +202,7 @@ impl StateManager {
     }
 
     pub fn clear_state_cache(&self) {
-        self.cache.clear();
+        self.cache.invalidate_all();
     }
 
     pub fn merkle_root(&self) -> Hash32 {
@@ -536,7 +537,7 @@ impl StateManager {
         self.merkle_db.clear_working_set();
 
         // Mark committed entries as clean
-        self.cache.mark_entries_clean(&dirty_entries);
+        self.cache.sync_cache_status(&dirty_entries);
 
         Ok(())
     }

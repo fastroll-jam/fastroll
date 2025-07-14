@@ -13,9 +13,7 @@ fr-db = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
 fr-state-merkle = { workspace = true }
-bit-vec = { workspace = true }
-dashmap = { workspace = true }
-hex = { workspace = true }
+mini-moka = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true }
 tempfile = { workspace = true }
