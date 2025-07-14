@@ -178,3 +178,43 @@ impl StateCache {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fr_common::{Octets, STATE_KEY_SIZE};
+    use mini_moka::sync::ConcurrentCacheExt;
+
+    #[test]
+    fn test_state_cache_eviction() {
+        let capacity = 3;
+        let cache = StateCache::new(capacity);
+        assert_eq!(cache.inner.entry_count(), 0);
+        // Add keys: [0, 0, ...], [1, 0, ...], [2, 0, ...]
+        for i in 0..capacity {
+            let mut key_arr = [0u8; STATE_KEY_SIZE];
+            key_arr[0] = i as u8;
+            let data = Octets::from_vec(vec![i as u8; 3]);
+            cache.insert_entry(
+                StateKey::new(key_arr),
+                CacheEntry::new(StateEntryType::Raw(data)),
+            );
+        }
+        cache.inner.sync();
+        assert_eq!(cache.inner.entry_count() as usize, capacity);
+
+        // New key: [3, 0, ...]
+        let mut key_arr = [0u8; STATE_KEY_SIZE];
+        key_arr[0] = capacity as u8;
+        let data = Octets::from_vec(vec![capacity as u8; 3]);
+        cache.insert_entry(
+            StateKey::new(key_arr),
+            CacheEntry::new(StateEntryType::Raw(data)),
+        );
+        cache.inner.sync();
+        assert!(
+            cache.inner.entry_count() as usize <= capacity,
+            "Cache eviction must work and total entries should not exceed the max capacity"
+        );
+    }
+}
