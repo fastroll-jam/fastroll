@@ -68,7 +68,7 @@ bit-vec = "0.8.0"
 cfg-if = "1.0.1"
 clap = { version = "4.5.40", features = ["derive"] }
 dashmap = "6.1.0"
-ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
 futures = "0.3.31"
 hex = "0.4.3"
 mini-moka = "0.10.3"
