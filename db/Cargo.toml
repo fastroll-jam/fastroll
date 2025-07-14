@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 fr-common = { workspace = true }
-dashmap = { workspace = true }
+mini-moka = { workspace = true }
 rocksdb = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

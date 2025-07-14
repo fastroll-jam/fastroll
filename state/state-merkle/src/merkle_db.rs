@@ -13,14 +13,17 @@ use crate::{
     write_set::DBWriteSet,
 };
 use bit_vec::BitVec;
-use dashmap::DashMap;
 use fr_common::{Hash32, MerkleRoot, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
     ColumnFamily, WriteBatch,
 };
+use mini_moka::sync::{Cache, ConcurrentCacheExt};
 use std::sync::{Arc, Mutex};
+
+const WORKING_SET_SIZE: usize = 8192;
+const WORKING_SET_NODE_CACHE_SIZE: usize = 16384;
 
 /// Leaf node write operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -34,7 +37,7 @@ pub enum MerkleWriteOp {
 pub struct WorkingSet {
     /// Uncommitted Merkle root
     root: Mutex<MerkleRoot>,
-    nodes: DashMap<NodeHash, MerkleNode>,
+    nodes: Cache<NodeHash, MerkleNode>,
 }
 
 impl WorkingSet {
@@ -42,7 +45,7 @@ impl WorkingSet {
     pub fn new() -> Self {
         Self {
             root: Mutex::new(MerkleRoot::default()),
-            nodes: DashMap::new(),
+            nodes: Cache::new(WORKING_SET_SIZE as u64),
         }
     }
 
@@ -53,7 +56,7 @@ impl WorkingSet {
     /// Retrieves a node that might be uncommitted in the working set.
     /// If not found here, the caller can fallback to reading from RocksDB.
     pub fn get_node(&self, node_hash: &NodeHash) -> Option<MerkleNode> {
-        self.nodes.get(node_hash).map(|entry| entry.value().clone())
+        self.nodes.get(node_hash)
     }
 
     /// Inserts or updates a Merkle node in the working set, so subsequent lookups see it.
@@ -81,7 +84,7 @@ pub struct MerkleDB {
     /// When a branch node is encoded from two child nodes, the first bit of the left child's hash
     /// is dropped. This cache helps to reconstruct the full left child hash from branch node data,
     /// reducing DB hits.
-    pub node_hash_cache: DashMap<BitVec, bool>,
+    pub node_hash_cache: Cache<BitVec, bool>,
 }
 
 impl MerkleDB {
@@ -90,7 +93,7 @@ impl MerkleDB {
             db: CachedDB::new(core, cf_name, cache_size),
             root: Mutex::new(MerkleRoot::default()),
             working_set: WorkingSet::new(),
-            node_hash_cache: DashMap::new(),
+            node_hash_cache: Cache::new(WORKING_SET_NODE_CACHE_SIZE as u64),
         }
     }
 
@@ -133,7 +136,7 @@ impl MerkleDB {
 
         // Check the node hash cache
         if let Some(first_bit) = self.node_hash_cache.get(hash_bv) {
-            full_bits.insert(0, *first_bit);
+            full_bits.insert(0, first_bit);
             return bitvec_to_hash32(&full_bits);
         }
 
@@ -198,7 +201,8 @@ impl MerkleDB {
     }
 
     pub fn clear_working_set(&self) {
-        self.working_set.nodes.clear();
+        self.working_set.nodes.invalidate_all();
+        self.working_set.nodes.sync();
     }
 
     /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.
