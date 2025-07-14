@@ -20,7 +20,11 @@ use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
     ColumnFamily, WriteBatch,
 };
+use mini_moka::sync::Cache;
 use std::sync::{Arc, Mutex};
+
+const WORKING_SET_SIZE: usize = 4096;
+const WORKING_SET_NODE_CACHE_SIZE: usize = 4096;
 
 /// Leaf node write operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -34,7 +38,7 @@ pub enum MerkleWriteOp {
 pub struct WorkingSet {
     /// Uncommitted Merkle root
     root: Mutex<MerkleRoot>,
-    nodes: DashMap<NodeHash, MerkleNode>,
+    nodes: Cache<NodeHash, MerkleNode>,
 }
 
 impl WorkingSet {
@@ -42,7 +46,7 @@ impl WorkingSet {
     pub fn new() -> Self {
         Self {
             root: Mutex::new(MerkleRoot::default()),
-            nodes: DashMap::new(),
+            nodes: Cache::new(WORKING_SET_SIZE as u64),
         }
     }
 
@@ -53,7 +57,7 @@ impl WorkingSet {
     /// Retrieves a node that might be uncommitted in the working set.
     /// If not found here, the caller can fallback to reading from RocksDB.
     pub fn get_node(&self, node_hash: &NodeHash) -> Option<MerkleNode> {
-        self.nodes.get(node_hash).map(|entry| entry.value().clone())
+        self.nodes.get(node_hash)
     }
 
     /// Inserts or updates a Merkle node in the working set, so subsequent lookups see it.
@@ -198,7 +202,7 @@ impl MerkleDB {
     }
 
     pub fn clear_working_set(&self) {
-        self.working_set.nodes.clear();
+        self.working_set.nodes.invalidate_all();
     }
 
     /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.
