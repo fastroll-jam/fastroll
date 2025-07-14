@@ -19,7 +19,7 @@ use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},
     ColumnFamily, WriteBatch,
 };
-use mini_moka::sync::Cache;
+use mini_moka::sync::{Cache, ConcurrentCacheExt};
 use std::sync::{Arc, Mutex};
 
 const WORKING_SET_SIZE: usize = 8192;
@@ -202,6 +202,7 @@ impl MerkleDB {
 
     pub fn clear_working_set(&self) {
         self.working_set.nodes.invalidate_all();
+        self.working_set.nodes.sync();
     }
 
     /// Retrieves the data of a leaf node at a given Merkle path, representing the encoded state data.

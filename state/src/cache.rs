@@ -5,7 +5,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::StateKey;
 use fr_state_merkle::merkle_db::MerkleWriteOp;
-use mini_moka::sync::Cache;
+use mini_moka::sync::{Cache, ConcurrentCacheExt};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -176,6 +176,7 @@ impl StateCache {
                 self.inner.insert(key.clone(), entry_mut);
             }
         }
+        self.inner.sync();
     }
 }
 
