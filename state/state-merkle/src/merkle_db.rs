@@ -13,7 +13,6 @@ use crate::{
     write_set::DBWriteSet,
 };
 use bit_vec::BitVec;
-use dashmap::DashMap;
 use fr_common::{Hash32, MerkleRoot, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use fr_db::{
@@ -85,7 +84,7 @@ pub struct MerkleDB {
     /// When a branch node is encoded from two child nodes, the first bit of the left child's hash
     /// is dropped. This cache helps to reconstruct the full left child hash from branch node data,
     /// reducing DB hits.
-    pub node_hash_cache: DashMap<BitVec, bool>,
+    pub node_hash_cache: Cache<BitVec, bool>,
 }
 
 impl MerkleDB {
@@ -94,7 +93,7 @@ impl MerkleDB {
             db: CachedDB::new(core, cf_name, cache_size),
             root: Mutex::new(MerkleRoot::default()),
             working_set: WorkingSet::new(),
-            node_hash_cache: DashMap::new(),
+            node_hash_cache: Cache::new(WORKING_SET_NODE_CACHE_SIZE as u64),
         }
     }
 
@@ -137,7 +136,7 @@ impl MerkleDB {
 
         // Check the node hash cache
         if let Some(first_bit) = self.node_hash_cache.get(hash_bv) {
-            full_bits.insert(0, *first_bit);
+            full_bits.insert(0, first_bit);
             return bitvec_to_hash32(&full_bits);
         }
 
