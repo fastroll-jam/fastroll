@@ -110,17 +110,6 @@ pub struct AccumulateInvokeArgs {
     pub inputs: AccumulateInputs,
 }
 
-/// Accumulate entry-point function arguments
-///
-/// Note: The timeslot index (`t`) is directly fetched from the state manager.
-#[derive(Clone, Default)]
-pub struct OnTransferInvokeArgs {
-    /// `s`: Destination (recipient) service account index of the transfer
-    pub destination: ServiceId,
-    /// **`t`**: A vector of `DeferredTransfer`s
-    pub transfers: Vec<DeferredTransfer>,
-}
-
 /// Is-authorized entry-point function arguments
 #[derive(Clone)]
 pub struct IsAuthorizedInvokeArgs {

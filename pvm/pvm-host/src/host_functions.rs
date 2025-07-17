@@ -226,23 +226,6 @@ impl HostFunction {
                     _ => continue_none!(),
                 }
             }
-            InvocationContext::X_T(ctx) => match data_id {
-                0 => &encode_constants_for_fetch_hostcall()?,
-                1 => ctx.curr_entropy.as_slice(),
-                16 => &ctx.invoke_args.transfers.encode()?,
-                17 => {
-                    let transfers = &ctx.invoke_args.transfers;
-                    let Ok(transfer_idx) = vm.regs[11].as_usize() else {
-                        continue_none!()
-                    };
-                    if transfer_idx < transfers.len() {
-                        &transfers[transfer_idx].encode()?
-                    } else {
-                        continue_none!()
-                    }
-                }
-                _ => continue_none!(),
-            },
         };
 
         let Ok(buf_offset) = vm.regs[7].as_mem_address() else {
@@ -1436,7 +1419,7 @@ impl HostFunction {
     }
 
     /// Upgrades three metadata fields of the accumulating service account:
-    /// code hash ahs gas limits for accumulate & on-transfer.
+    /// code hash and gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         vm: &VMState,
         state_manager: Arc<StateManager>,
