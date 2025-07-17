@@ -7,15 +7,10 @@ use fr_common::{
 use fr_crypto::{hash, Blake2b256};
 use fr_extrinsics::validation::preimages::PreimagesXtValidator;
 use fr_pvm_invocation::{
-    entrypoints::on_transfer::OnTransferInvocation,
-    pipeline::{accumulate_outer, utils::select_deferred_transfers},
+    pipeline::accumulate_outer,
     prelude::{AccountSandbox, SandboxEntryAccessor, SandboxEntryStatus},
 };
-use fr_pvm_types::{
-    invoke_args::{DeferredTransfer, OnTransferInvokeArgs},
-    invoke_results::AccumulationOutputPairs,
-    stats::{AccumulateStats, OnTransferStats, OnTransferStatsEntry},
-};
+use fr_pvm_types::{invoke_results::AccumulationOutputPairs, stats::AccumulateStats};
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
@@ -67,7 +62,6 @@ impl AccountStateChange {
 
 pub struct AccumulateSummary {
     pub accumulated_reports_count: usize,
-    pub deferred_transfers: Vec<DeferredTransfer>,
     pub output_pairs: AccumulationOutputPairs,
     pub accumulate_stats: AccumulateStats,
     /// A utility field to keep track of changeset of state keys after state transitions (for fuzzing).
@@ -152,7 +146,6 @@ pub async fn transition_on_accumulate(
 
     Ok(AccumulateSummary {
         accumulated_reports_count: outer_accumulate_result.accumulated_reports_count,
-        deferred_transfers: outer_accumulate_result.deferred_transfers,
         output_pairs: outer_accumulate_result.service_output_pairs,
         accumulate_stats: AccumulateStats::from_accumulated_reports(
             &reports[..outer_accumulate_result.accumulated_reports_count],
@@ -357,82 +350,12 @@ async fn transition_service_account(
     Ok(account_state_change)
 }
 
-pub struct OnTransferSummary {
-    pub stats: OnTransferStats,
-    /// A utility field to keep track of changeset of state keys after state transitions (for fuzzing).
-    pub account_state_changes: AccountStateChanges,
-}
-
-/// State transition function of service accounts, processing deferred transfers.
-///
-/// # Transitions
-///
-/// This handles the second state transition for service accounts, invoking the `on_transfer`
-/// PVM entrypoint and yielding `δ‡`. Also, this step updates `last_accumulate_at` field of all
-/// service accounts that had been accumulated during `transition_on_accumulate`.
-///
-/// Steps:
-/// 1. Identifies unique destination addresses from the input transfers.
-/// 2. For each destination, selects relevant transfers and invokes the PVM `on_transfer` entrypoint.
-/// 3. Updates service account states based on the PVM invocation results.
-pub async fn transition_services_on_transfer(
+/// The second state transition function of service accounts, updating `last_accumulate_at` field of
+/// all service accounts that had been accumulated during `transition_on_accumulate`, yielding `δ‡`.
+pub async fn transition_services_last_accumulate_at(
     state_manager: Arc<StateManager>,
-    transfers: &[DeferredTransfer],
     accumulated_services: &[ServiceId],
-) -> Result<OnTransferSummary, TransitionError> {
-    // Gather all unique destination addresses.
-    let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
-    let mut stats = OnTransferStats::default();
-
-    // Collect account state change set of all services
-    let mut account_state_changes = AccountStateChanges::default();
-
-    // Invoke PVM `on-transfer` entrypoint for each destination.
-    for destination in destinations {
-        let transfers = select_deferred_transfers(transfers, destination);
-        let transfers_count = transfers.len();
-        let mut on_transfer_result = OnTransferInvocation::on_transfer(
-            state_manager.clone(),
-            &OnTransferInvokeArgs {
-                destination,
-                transfers,
-            },
-        )
-        .await?;
-
-        if let Some(balance_change_set) = on_transfer_result.balance_change_set {
-            state_manager
-                .with_mut_account_metadata(
-                    StateMut::Update,
-                    balance_change_set.recipient,
-                    |metadata| -> Result<(), StateManagerError> {
-                        metadata.add_balance(balance_change_set.added_amount);
-                        Ok(())
-                    },
-                )
-                .await?;
-        }
-
-        if let Some(ref mut recipient_sandbox) = on_transfer_result.recipient_sandbox {
-            let account_state_change =
-                transition_service_account(state_manager.clone(), destination, recipient_sandbox)
-                    .await?;
-            account_state_changes
-                .inner
-                .insert(destination, account_state_change);
-        }
-
-        if transfers_count != 0 {
-            stats.insert(
-                destination,
-                OnTransferStatsEntry {
-                    transfers_count: transfers_count as u32,
-                    gas_used: on_transfer_result.gas_used,
-                },
-            );
-        }
-    }
-
+) -> Result<(), TransitionError> {
     // Mark the last accumulate timeslots of all accumulated services in the blocks.
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
     for service_id in accumulated_services {
@@ -451,10 +374,7 @@ pub async fn transition_services_on_transfer(
             .await?
     }
 
-    Ok(OnTransferSummary {
-        stats,
-        account_state_changes,
-    })
+    Ok(())
 }
 
 /// State transition function of service accounts, integrating provided `PreimagesXt` data into

@@ -211,14 +211,14 @@ impl HostFunction {
                 match data_id {
                     0 => &encode_constants_for_fetch_hostcall()?,
                     1 => x.curr_entropy.as_slice(),
-                    14 => &x.invoke_args.operands.encode()?,
+                    14 => &x.invoke_args.inputs.0.encode()?,
                     15 => {
-                        let operands = &x.invoke_args.operands;
-                        let Ok(operand_idx) = vm.regs[11].as_usize() else {
+                        let acc_inputs = &x.invoke_args.inputs.0;
+                        let Ok(acc_input_idx) = vm.regs[11].as_usize() else {
                             continue_none!()
                         };
-                        if operand_idx < operands.len() {
-                            &operands[operand_idx].encode()?
+                        if acc_input_idx < acc_inputs.len() {
+                            &acc_inputs[acc_input_idx].encode()?
                         } else {
                             continue_none!()
                         }

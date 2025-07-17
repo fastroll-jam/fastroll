@@ -90,7 +90,7 @@ impl AccumulateInvocation {
         let vm_args = AccumulateVMArgs {
             timeslot_index: args.curr_timeslot_index,
             accumulate_host: args.accumulate_host,
-            operands_count: args.operands.len(),
+            operands_count: args.inputs.0.len(),
         };
 
         let ctx = AccumulateHostContext::new(

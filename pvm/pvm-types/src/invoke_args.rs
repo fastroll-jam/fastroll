@@ -40,6 +40,7 @@ pub struct DeferredTransfer {
 }
 
 /// Accumulation input item, which is either accumulate operand or deferred transfer.
+#[derive(Clone)]
 pub enum AccumulateInput {
     Operand(AccumulateOperand),
     Transfer(DeferredTransfer),
@@ -68,6 +69,30 @@ impl JamEncode for AccumulateInput {
     }
 }
 
+/// A heterogeneous sequence of wrangled work-digests (refine outputs) associated with a certain
+/// service and deferred transfers which have that service as a destination.
+#[derive(Clone, Default)]
+pub struct AccumulateInputs(pub Vec<AccumulateInput>);
+
+impl AccumulateInputs {
+    pub fn new(
+        operands: Vec<AccumulateOperand>,
+        deferred_transfers: Vec<DeferredTransfer>,
+    ) -> Self {
+        Self(
+            operands
+                .into_iter()
+                .map(AccumulateInput::Operand)
+                .chain(
+                    deferred_transfers
+                        .into_iter()
+                        .map(AccumulateInput::Transfer),
+                )
+                .collect::<Vec<_>>(),
+        )
+    }
+}
+
 /// Accumulate entry-point function arguments
 ///
 /// Note: The partial state (**`u`**) is implicitly loaded when accessing the global state
@@ -75,14 +100,14 @@ impl JamEncode for AccumulateInput {
 /// from the state manager.
 #[derive(Clone, Default)]
 pub struct AccumulateInvokeArgs {
-    /// `t`: Current timeslot index
+    /// `t`: Current timeslot index.
     pub curr_timeslot_index: TimeslotIndex,
-    /// `s`: The id of the service account to run the accumulation process
+    /// `s`: The id of the service account to run the accumulation process.
     pub accumulate_host: ServiceId,
-    /// `g`: The maximum amount of gas allowed for the accumulation process
+    /// `g`: The maximum amount of gas allowed for the accumulation process.
     pub gas_limit: UnsignedGas,
-    /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
-    pub operands: Vec<AccumulateOperand>,
+    /// **`o`**: Accumulation inputs sequence, comprised of operands or deferred transfers.
+    pub inputs: AccumulateInputs,
 }
 
 /// Accumulate entry-point function arguments

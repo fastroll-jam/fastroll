@@ -225,10 +225,6 @@ pub struct ServiceStatsEntry {
     pub accumulate_digests_count: u32,
     /// `a.1`: The total amount of gas used in the block by accumulation of the service.
     pub accumulate_gas_used: UnsignedGas,
-    /// `t.0`: The number of transfers to the service in the block.
-    pub on_transfer_transfers_count: u32,
-    /// `t.1`: The total amount of gas used in the block by transfers to the service.
-    pub on_transfer_gas_used: UnsignedGas,
 }
 
 impl ServiceStatsEntry {
