@@ -376,8 +376,8 @@ async fn accumulate_single_service(
             accumulate_host: service_id,
             gas_limit,
             inputs: AccumulateInputs::new(
-                build_operands(&reports, service_id),
                 extract_transfers(&prev_deferred_transfers, service_id),
+                build_operands(&reports, service_id),
             ),
         },
     )

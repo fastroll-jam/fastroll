@@ -76,18 +76,14 @@ pub struct AccumulateInputs(pub Vec<AccumulateInput>);
 
 impl AccumulateInputs {
     pub fn new(
-        operands: Vec<AccumulateOperand>,
         deferred_transfers: Vec<DeferredTransfer>,
+        operands: Vec<AccumulateOperand>,
     ) -> Self {
         Self(
-            operands
+            deferred_transfers
                 .into_iter()
-                .map(AccumulateInput::Operand)
-                .chain(
-                    deferred_transfers
-                        .into_iter()
-                        .map(AccumulateInput::Transfer),
-                )
+                .map(AccumulateInput::Transfer)
+                .chain(operands.into_iter().map(AccumulateInput::Operand))
                 .collect::<Vec<_>>(),
         )
     }
