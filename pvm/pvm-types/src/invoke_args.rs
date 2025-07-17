@@ -7,23 +7,6 @@ use fr_common::{
 };
 use std::collections::HashMap;
 
-/// Accumulate entry-point function arguments
-///
-/// Note: The partial state (**`u`**) is implicitly loaded when accessing the global state
-/// within host function execution contexts. The timeslot index (`t`) is directly fetched
-/// from the state manager.
-#[derive(Clone, Default)]
-pub struct AccumulateInvokeArgs {
-    /// `t`: Current timeslot index
-    pub curr_timeslot_index: TimeslotIndex,
-    /// `s`: The id of the service account to run the accumulation process
-    pub accumulate_host: ServiceId,
-    /// `g`: The maximum amount of gas allowed for the accumulation process
-    pub gas_limit: UnsignedGas,
-    /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
-    pub operands: Vec<AccumulateOperand>,
-}
-
 #[derive(Clone, JamEncode)]
 pub struct AccumulateOperand {
     /// `p`: Work package hash (`work_package_hash` of `AvailSpecs`)
@@ -40,6 +23,66 @@ pub struct AccumulateOperand {
     pub refine_result: WorkExecutionResult,
     /// **`t`**: Authorization trace (`auth_trace` of `WorkReport`)
     pub auth_trace: Vec<u8>,
+}
+
+#[derive(Clone, JamEncode)]
+pub struct DeferredTransfer {
+    /// `s`: Sender service id
+    pub from: ServiceId,
+    /// `d`: Receiver service id
+    pub to: ServiceId,
+    /// `a`: Token transfer amount
+    pub amount: Balance,
+    /// `m`: A simple memo transferred alongside the balance
+    pub memo: ByteArray<TRANSFER_MEMO_SIZE>,
+    /// `g`: Gas limit for the transfer
+    pub gas_limit: UnsignedGas,
+}
+
+/// Accumulation input item, which is either accumulate operand or deferred transfer.
+pub enum AccumulateInput {
+    Operand(AccumulateOperand),
+    Transfer(DeferredTransfer),
+}
+
+impl JamEncode for AccumulateInput {
+    fn size_hint(&self) -> usize {
+        let data_size = match self {
+            Self::Operand(operand) => operand.size_hint(),
+            Self::Transfer(transfer) => transfer.size_hint(),
+        };
+        1 + data_size
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        match self {
+            Self::Operand(operand) => {
+                0u8.encode_to(dest)?;
+                operand.encode_to(dest)
+            }
+            Self::Transfer(transfer) => {
+                1u8.encode_to(dest)?;
+                transfer.encode_to(dest)
+            }
+        }
+    }
+}
+
+/// Accumulate entry-point function arguments
+///
+/// Note: The partial state (**`u`**) is implicitly loaded when accessing the global state
+/// within host function execution contexts. The timeslot index (`t`) is directly fetched
+/// from the state manager.
+#[derive(Clone, Default)]
+pub struct AccumulateInvokeArgs {
+    /// `t`: Current timeslot index
+    pub curr_timeslot_index: TimeslotIndex,
+    /// `s`: The id of the service account to run the accumulation process
+    pub accumulate_host: ServiceId,
+    /// `g`: The maximum amount of gas allowed for the accumulation process
+    pub gas_limit: UnsignedGas,
+    /// **`o`**: A vector of `AccumulateOperand`s, which are the outputs from the refinement process to be accumulated
+    pub operands: Vec<AccumulateOperand>,
 }
 
 /// Accumulate entry-point function arguments
@@ -78,18 +121,4 @@ pub struct RefineInvokeArgs {
     /// A mapping form `ExtrinsicInfo` to its corresponding extrinsic data blob.
     /// This is expected to be known by guarantors.
     pub extrinsic_data_map: HashMap<ExtrinsicInfo, Vec<u8>>,
-}
-
-#[derive(Clone, JamEncode)]
-pub struct DeferredTransfer {
-    /// `s`: Sender service id
-    pub from: ServiceId,
-    /// `d`: Receiver service id
-    pub to: ServiceId,
-    /// `a`: Token transfer amount
-    pub amount: Balance,
-    /// `m`: A simple memo transferred alongside the balance
-    pub memo: ByteArray<TRANSFER_MEMO_SIZE>,
-    /// `g`: Gas limit for the transfer
-    pub gas_limit: UnsignedGas,
 }
