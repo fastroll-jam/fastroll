@@ -16,7 +16,7 @@ pub struct OnTransferStatsEntry {
 #[derive(Default)]
 pub struct AccumulateStatsEntry {
     pub gas_used: UnsignedGas,
-    pub reports_count: u32,
+    pub digests_count: u32,
 }
 
 #[derive(Default)]
@@ -38,12 +38,12 @@ impl AccumulateStats {
         gas_pairs: &AccumulationGasPairs,
     ) -> Self {
         let mut inner = HashMap::new();
-        let service_reports_counts: HashMap<ServiceId, usize> = reports
+        let service_digests_counts: HashMap<ServiceId, usize> = reports
             .iter()
             .flat_map(|wr| wr.digests.clone())
-            .fold(HashMap::new(), |mut map, result| {
-                let service_reports_count = map.entry(result.service_id).or_default();
-                *service_reports_count += 1;
+            .fold(HashMap::new(), |mut map, digest| {
+                let service_digests_count = map.entry(digest.service_id).or_default();
+                *service_digests_count += 1;
                 map
             });
         let service_gas_counts: HashMap<ServiceId, UnsignedGas> =
@@ -52,7 +52,7 @@ impl AccumulateStats {
                 *service_gas_count += pair.gas;
                 map
             });
-        let service_ids: HashSet<ServiceId> = service_reports_counts
+        let service_ids: HashSet<ServiceId> = service_digests_counts
             .keys()
             .cloned()
             .chain(service_gas_counts.keys().cloned())
@@ -66,7 +66,7 @@ impl AccumulateStats {
                         .get(&service_id)
                         .cloned()
                         .expect("Should exist"),
-                    reports_count: service_reports_counts
+                    digests_count: service_digests_counts
                         .get(&service_id)
                         .cloned()
                         .expect("Should exist") as u32,
