@@ -162,7 +162,7 @@ async fn handle_per_block_transition(
     for (service_id, stats_entry) in accumulate_stats.iter() {
         let entry = service_stats.service_stats_entry_mut(*service_id);
         entry.accumulate_gas_used += stats_entry.gas_used;
-        entry.accumulate_reports_count += stats_entry.reports_count;
+        entry.accumulate_digests_count += stats_entry.digests_count;
     }
     for (service_id, stats_entry) in on_transfer_stats.iter() {
         let entry = service_stats.service_stats_entry_mut(*service_id);

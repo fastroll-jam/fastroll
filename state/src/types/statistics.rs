@@ -221,8 +221,8 @@ pub struct ServiceStatsEntry {
     pub extrinsics_octets: u32,
     /// `x`: The number of extrinsics items used by the service.
     pub extrinsics_count: u32,
-    /// `a.0`: The number of accumulated reports in the block by the service.
-    pub accumulate_reports_count: u32,
+    /// `a.0`: The number of accumulated work-digests in the block by the service.
+    pub accumulate_digests_count: u32,
     /// `a.1`: The total amount of gas used in the block by accumulation of the service.
     pub accumulate_gas_used: UnsignedGas,
     /// `t.0`: The number of transfers to the service in the block.
