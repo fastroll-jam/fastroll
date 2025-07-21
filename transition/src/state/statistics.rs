@@ -3,7 +3,7 @@ use fr_block::types::extrinsics::{
     assurances::AssurancesXt, guarantees::GuaranteesXt, preimages::PreimagesXt, Extrinsics,
 };
 use fr_common::{workloads::WorkReport, CoreIndex, ValidatorIndex, SEGMENT_SIZE};
-use fr_pvm_types::stats::{AccumulateStats, OnTransferStats};
+use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
@@ -20,7 +20,6 @@ pub async fn transition_onchain_statistics(
     xts: &Extrinsics,
     available_reports: &[WorkReport],
     accumulate_stats: AccumulateStats,
-    on_transfer_stats: OnTransferStats,
 ) -> Result<(), TransitionError> {
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone()).await?;
@@ -36,7 +35,6 @@ pub async fn transition_onchain_statistics(
         &xts.preimages,
         available_reports,
         &accumulate_stats,
-        &on_transfer_stats,
     )
     .await?;
 
@@ -124,7 +122,6 @@ async fn handle_per_block_transition(
     preimages: &PreimagesXt,
     available_reports: &[WorkReport],
     accumulate_stats: &AccumulateStats,
-    on_transfer_stats: &OnTransferStats,
 ) -> Result<(), TransitionError> {
     // Update core stats
     let mut core_stats = CoreStats::default();
@@ -163,11 +160,6 @@ async fn handle_per_block_transition(
         let entry = service_stats.service_stats_entry_mut(*service_id);
         entry.accumulate_gas_used += stats_entry.gas_used;
         entry.accumulate_digests_count += stats_entry.digests_count;
-    }
-    for (service_id, stats_entry) in on_transfer_stats.iter() {
-        let entry = service_stats.service_stats_entry_mut(*service_id);
-        entry.on_transfer_transfers_count += stats_entry.transfers_count;
-        entry.on_transfer_gas_used += stats_entry.gas_used;
     }
 
     state_manager

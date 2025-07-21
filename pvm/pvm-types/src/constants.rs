@@ -43,6 +43,3 @@ pub const REFINE_INITIAL_PC: RegValue = 0;
 
 /// Initial program counter value for `accumulate` invocation.
 pub const ACCUMULATE_INITIAL_PC: RegValue = 5;
-
-/// Initial program counter value for `on_transfer` invocation.
-pub const ON_TRANSFER_INITIAL_PC: RegValue = 10;

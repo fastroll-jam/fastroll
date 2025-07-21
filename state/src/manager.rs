@@ -240,8 +240,7 @@ impl StateManager {
     /// Retrieves service account code (preimage of the code hash)
     /// directly from the account preimage storage.
     ///
-    /// Used by on-chain PVM invocations (`accumulate` and `on-transfer`) where direct access to
-    /// on-chain state is possible.
+    /// Used by `accumulate` PVM invocation where direct access to on-chain state is possible.
     pub async fn get_account_code(
         &self,
         service_id: ServiceId,

@@ -5,14 +5,6 @@ use std::{
     ops::Deref,
 };
 
-pub type OnTransferStats = HashMap<ServiceId, OnTransferStatsEntry>;
-
-#[derive(Default)]
-pub struct OnTransferStatsEntry {
-    pub transfers_count: u32,
-    pub gas_used: UnsignedGas,
-}
-
 #[derive(Default)]
 pub struct AccumulateStatsEntry {
     pub gas_used: UnsignedGas,

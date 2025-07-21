@@ -9,7 +9,7 @@ use fr_conformance_tests::{
     generate_typed_tests,
     harness::{run_test_case, StateTransitionTest},
 };
-use fr_pvm_types::stats::{AccumulateStats, OnTransferStats};
+use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -90,7 +90,6 @@ impl StateTransitionTest for StatisticsTest {
             &jam_input.extrinsics,
             &Vec::new(),
             AccumulateStats::default(),
-            OnTransferStats::default(),
         )
         .await
     }

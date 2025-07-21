@@ -16,8 +16,7 @@ use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
     invoke_args::{
-        AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, OnTransferInvokeArgs,
-        RefineInvokeArgs,
+        AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, RefineInvokeArgs,
     },
     invoke_results::AccumulationOutputHash,
 };
@@ -46,8 +45,6 @@ pub enum InvocationContext {
     X_R(RefineHostContext),
     /// `accumulate` host-call context pair
     X_A(AccumulateHostContextPair),
-    /// `on_transfer` host-call context
-    X_T(OnTransferHostContext),
 }
 
 impl InvocationContext {
@@ -94,7 +91,6 @@ impl InvocationContext {
     pub fn get_mut_accounts_sandbox(&mut self) -> Option<&mut AccountsSandboxMap> {
         match self {
             Self::X_A(ctx_pair) => Some(ctx_pair.get_mut_accounts_sandbox()),
-            Self::X_T(ctx) => Some(ctx.get_mut_accounts_sandbox()),
             _ => None,
         }
     }
@@ -109,41 +105,6 @@ pub struct IsAuthorizedHostContext {
 impl IsAuthorizedHostContext {
     pub fn new(invoke_args: IsAuthorizedInvokeArgs) -> Self {
         Self { invoke_args }
-    }
-}
-
-/// Represents the contextual state maintained throughout the `on_transfer` process.
-#[derive(Clone, Default)]
-pub struct OnTransferHostContext {
-    pub accounts_sandbox: AccountsSandboxMap,
-    /// OnTransfer entry-point function invocation args (read-only)
-    pub invoke_args: OnTransferInvokeArgs,
-    /// Current entropy value (`η0′`)
-    pub curr_entropy: EntropyHash,
-}
-
-impl AccountsSandboxHolder for OnTransferHostContext {
-    fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap {
-        &mut self.accounts_sandbox
-    }
-}
-
-impl OnTransferHostContext {
-    pub async fn new(
-        state_manager: Arc<StateManager>,
-        recipient: ServiceId,
-        curr_entropy: EntropyHash,
-        invoke_args: OnTransferInvokeArgs,
-    ) -> Result<Self, HostCallError> {
-        let mut accounts_sandbox = AccountsSandboxMap::default();
-        let recipient_account_sandbox =
-            AccountSandbox::from_service_id(state_manager, recipient).await?;
-        accounts_sandbox.insert(recipient, recipient_account_sandbox);
-        Ok(Self {
-            accounts_sandbox,
-            invoke_args,
-            curr_entropy,
-        })
     }
 }
 

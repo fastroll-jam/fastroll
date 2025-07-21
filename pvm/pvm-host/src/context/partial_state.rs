@@ -191,10 +191,10 @@ where
 /// Represents a sandboxed environment of a service account, including its metadata
 /// and associated storage entries.
 ///
-/// It is primarily used in the `accumulate` and `on_transfer` PVM invocation contexts for
+/// It is primarily used in the `accumulate` PVM invocation contexts for
 /// state mutations of service accounts. The global state serialization doesn't require
 /// the service metadata and storage entries to be placed together,
-/// which makes this type to be specific to the `accumulate` and `on_transfer` processes.
+/// which makes this type to be specific to the `accumulate` process.
 #[derive(Clone)]
 pub struct AccountSandbox {
     pub metadata: SandboxEntryVersioned<AccountMetadata>,
