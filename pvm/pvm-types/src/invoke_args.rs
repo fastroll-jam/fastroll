@@ -69,23 +69,37 @@ impl JamEncode for AccumulateInput {
     }
 }
 
-/// A heterogeneous sequence of wrangled work-digests (refine outputs) associated with a certain
-/// service and deferred transfers which have that service as a destination.
+/// Accumulate input type, which includes a heterogeneous sequence of wrangled work-digests
+/// associated with a certain service and deferred transfers targeted to that service.
+/// Also, total deferred transfers amount is retained for efficiency.
 #[derive(Clone, Default)]
-pub struct AccumulateInputs(pub Vec<AccumulateInput>);
+pub struct AccumulateInputs {
+    inputs: Vec<AccumulateInput>,
+    deferred_transfers_amount: Balance,
+}
 
 impl AccumulateInputs {
     pub fn new(
         deferred_transfers: Vec<DeferredTransfer>,
         operands: Vec<AccumulateOperand>,
     ) -> Self {
-        Self(
-            deferred_transfers
+        let deferred_transfers_amount = deferred_transfers.iter().map(|t| t.amount).sum();
+        Self {
+            inputs: deferred_transfers
                 .into_iter()
                 .map(AccumulateInput::Transfer)
                 .chain(operands.into_iter().map(AccumulateInput::Operand))
                 .collect::<Vec<_>>(),
-        )
+            deferred_transfers_amount,
+        }
+    }
+
+    pub fn inputs(&self) -> &Vec<AccumulateInput> {
+        &self.inputs
+    }
+
+    pub fn deferred_transfers_amount(&self) -> Balance {
+        self.deferred_transfers_amount
     }
 }
 
@@ -102,7 +116,7 @@ pub struct AccumulateInvokeArgs {
     pub accumulate_host: ServiceId,
     /// `g`: The maximum amount of gas allowed for the accumulation process.
     pub gas_limit: UnsignedGas,
-    /// **`o`**: Accumulation inputs sequence, comprised of operands or deferred transfers.
+    /// **`i`**: Accumulation inputs sequence, comprised of operands or deferred transfers.
     pub inputs: AccumulateInputs,
 }
 

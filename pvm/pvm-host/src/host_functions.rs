@@ -211,9 +211,9 @@ impl HostFunction {
                 match data_id {
                     0 => &encode_constants_for_fetch_hostcall()?,
                     1 => x.curr_entropy.as_slice(),
-                    14 => &x.invoke_args.inputs.0.encode()?,
+                    14 => &x.invoke_args.inputs.inputs().encode()?,
                     15 => {
-                        let acc_inputs = &x.invoke_args.inputs.0;
+                        let acc_inputs = x.invoke_args.inputs.inputs();
                         let Ok(acc_input_idx) = vm.regs[11].as_usize() else {
                             continue_none!()
                         };
