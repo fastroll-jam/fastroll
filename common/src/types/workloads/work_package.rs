@@ -1,8 +1,8 @@
 use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
-    Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, HASH_SIZE,
-    MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE,
-    MAX_PACKAGE_AND_DATA_SIZE, SEGMENT_SIZE,
+    Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, ACCUMULATION_GAS_PER_CORE,
+    HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE,
+    MAX_PACKAGE_AND_DATA_SIZE, REFINE_GAS_PER_WORK_PACKAGE, SEGMENT_SIZE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -272,5 +272,20 @@ impl WorkPackage {
             .sum::<usize>();
         self.auth_token.len() + self.config_blob.len() + total_data_references_octets
             <= MAX_PACKAGE_AND_DATA_SIZE
+    }
+
+    /// Validates gas limit fields for accumulate/refine invocations.
+    pub fn validate_gas_limits(&self) -> bool {
+        self.work_items
+            .iter()
+            .map(|wi| wi.accumulate_gas_limit)
+            .sum::<UnsignedGas>()
+            < ACCUMULATION_GAS_PER_CORE as UnsignedGas
+            && self
+                .work_items
+                .iter()
+                .map(|wi| wi.refine_gas_limit)
+                .sum::<UnsignedGas>()
+                < REFINE_GAS_PER_WORK_PACKAGE as UnsignedGas
     }
 }
