@@ -5,141 +5,6 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
 
-pub type WorkItems = LimitedVec<WorkItem, MAX_WORK_ITEMS_PER_PACKAGE>;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct WorkPackage {
-    /// `h`: Authorization code host service id
-    pub authorizer_service_id: ServiceId,
-    /// `u`: Authorization code hash
-    pub auth_code_hash: CodeHash,
-    /// **`c`**: Refinement context
-    pub context: RefinementContext,
-    /// **`j`**: Authorizer token blob
-    pub auth_token: Octets,
-    /// **`f`**: Authorization config blob
-    pub config_blob: Octets,
-    /// **`w`**: Sequence of work items
-    pub work_items: WorkItems,
-}
-
-impl JamEncode for WorkPackage {
-    fn size_hint(&self) -> usize {
-        4 + self.auth_code_hash.size_hint()
-            + self.context.size_hint()
-            + self.auth_token.size_hint()
-            + self.config_blob.size_hint()
-            + self.work_items.size_hint()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.authorizer_service_id.encode_to_fixed(dest, 4)?;
-        self.auth_code_hash.encode_to(dest)?;
-        self.context.encode_to(dest)?;
-        self.auth_token.encode_to(dest)?;
-        self.config_blob.encode_to(dest)?;
-        self.work_items.encode_to(dest)?;
-        Ok(())
-    }
-}
-
-impl JamDecode for WorkPackage {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            authorizer_service_id: ServiceId::decode_fixed(input, 4)?,
-            auth_code_hash: CodeHash::decode(input)?,
-            context: RefinementContext::decode(input)?,
-            auth_token: Octets::decode(input)?,
-            config_blob: Octets::decode(input)?,
-            work_items: WorkItems::decode(input)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkItem {
-    /// `s`: Associated service id
-    pub service_id: ServiceId,
-    /// `c`: Code hash of the service, at the time of reporting
-    pub service_code_hash: CodeHash,
-    /// `g`: Service-specific gas limit for Refinement
-    pub refine_gas_limit: UnsignedGas,
-    /// `a`: Service-specific gas limit for Accumulation
-    pub accumulate_gas_limit: UnsignedGas,
-    /// `e`: Number of export data segments exported by the work item.
-    /// max value = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
-    pub export_segment_count: u16,
-    /// **`y`**: Work item payload blob
-    pub payload_blob: Octets,
-    /// **`i`**: Import segments info (hash and index).
-    /// max length = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
-    pub import_segment_ids: Vec<ImportInfo>,
-    /// **`x`**: Extrinsic data info (hash and length)
-    pub extrinsic_data_info: Vec<ExtrinsicInfo>,
-}
-
-impl JamEncode for WorkItem {
-    fn size_hint(&self) -> usize {
-        4 + self.service_code_hash.size_hint()
-            + 8
-            + 8
-            + 2
-            + self.payload_blob.size_hint()
-            + self.import_segment_ids.size_hint()
-            + self.extrinsic_data_info.size_hint()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_id.encode_to_fixed(dest, 4)?;
-        self.service_code_hash.encode_to(dest)?;
-        self.refine_gas_limit.encode_to_fixed(dest, 8)?;
-        self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
-        self.export_segment_count.encode_to_fixed(dest, 2)?;
-        self.payload_blob.encode_to(dest)?;
-        self.import_segment_ids.encode_to(dest)?;
-        self.extrinsic_data_info.encode_to(dest)?;
-        Ok(())
-    }
-}
-
-impl JamDecode for WorkItem {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            service_id: ServiceId::decode_fixed(input, 4)?,
-            service_code_hash: CodeHash::decode(input)?,
-            refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
-            accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
-            export_segment_count: u16::decode_fixed(input, 2)?,
-            payload_blob: Octets::decode(input)?,
-            import_segment_ids: Vec::<ImportInfo>::decode(input)?,
-            extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
-        })
-    }
-}
-
-impl WorkItem {
-    pub fn encode_for_fetch_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
-        let mut buf = vec![];
-        self.service_id.encode_to_fixed(&mut buf, 4)?;
-        self.service_code_hash.encode_to(&mut buf)?;
-        self.refine_gas_limit.encode_to_fixed(&mut buf, 8)?;
-        self.accumulate_gas_limit.encode_to_fixed(&mut buf, 8)?;
-        self.export_segment_count.encode_to_fixed(&mut buf, 2)?;
-        self.import_segment_ids.len().encode_to_fixed(&mut buf, 2)?;
-        self.extrinsic_data_info
-            .len()
-            .encode_to_fixed(&mut buf, 2)?;
-        self.payload_blob.len().encode_to_fixed(&mut buf, 4)?;
-        Ok(buf)
-    }
-}
-
 // FIXME: Codec: according to GP, WPH should be converted to SR and then serialized.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkPackageId {
@@ -228,6 +93,141 @@ impl JamDecode for ExtrinsicInfo {
         Ok(Self {
             blob_hash: Hash32::decode(input)?,
             blob_length: u32::decode_fixed(input, 4)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkItem {
+    /// `s`: Associated service id
+    pub service_id: ServiceId,
+    /// `c`: Code hash of the service, at the time of reporting
+    pub service_code_hash: CodeHash,
+    /// `g`: Service-specific gas limit for Refinement
+    pub refine_gas_limit: UnsignedGas,
+    /// `a`: Service-specific gas limit for Accumulation
+    pub accumulate_gas_limit: UnsignedGas,
+    /// `e`: Number of export data segments exported by the work item.
+    /// max value = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
+    pub export_segment_count: u16,
+    /// **`y`**: Work item payload blob
+    pub payload_blob: Octets,
+    /// **`i`**: Import segments info (hash and index).
+    /// max length = `IMPORT_EXPORT_SEGMENTS_LENGTH_LIMIT`
+    pub import_segment_ids: Vec<ImportInfo>,
+    /// **`x`**: Extrinsic data info (hash and length)
+    pub extrinsic_data_info: Vec<ExtrinsicInfo>,
+}
+
+impl JamEncode for WorkItem {
+    fn size_hint(&self) -> usize {
+        4 + self.service_code_hash.size_hint()
+            + 8
+            + 8
+            + 2
+            + self.payload_blob.size_hint()
+            + self.import_segment_ids.size_hint()
+            + self.extrinsic_data_info.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_id.encode_to_fixed(dest, 4)?;
+        self.service_code_hash.encode_to(dest)?;
+        self.refine_gas_limit.encode_to_fixed(dest, 8)?;
+        self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
+        self.export_segment_count.encode_to_fixed(dest, 2)?;
+        self.payload_blob.encode_to(dest)?;
+        self.import_segment_ids.encode_to(dest)?;
+        self.extrinsic_data_info.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for WorkItem {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            service_id: ServiceId::decode_fixed(input, 4)?,
+            service_code_hash: CodeHash::decode(input)?,
+            refine_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            export_segment_count: u16::decode_fixed(input, 2)?,
+            payload_blob: Octets::decode(input)?,
+            import_segment_ids: Vec::<ImportInfo>::decode(input)?,
+            extrinsic_data_info: Vec::<ExtrinsicInfo>::decode(input)?,
+        })
+    }
+}
+
+impl WorkItem {
+    pub fn encode_for_fetch_hostcall(&self) -> Result<Vec<u8>, JamCodecError> {
+        let mut buf = vec![];
+        self.service_id.encode_to_fixed(&mut buf, 4)?;
+        self.service_code_hash.encode_to(&mut buf)?;
+        self.refine_gas_limit.encode_to_fixed(&mut buf, 8)?;
+        self.accumulate_gas_limit.encode_to_fixed(&mut buf, 8)?;
+        self.export_segment_count.encode_to_fixed(&mut buf, 2)?;
+        self.import_segment_ids.len().encode_to_fixed(&mut buf, 2)?;
+        self.extrinsic_data_info
+            .len()
+            .encode_to_fixed(&mut buf, 2)?;
+        self.payload_blob.len().encode_to_fixed(&mut buf, 4)?;
+        Ok(buf)
+    }
+}
+
+pub type WorkItems = LimitedVec<WorkItem, MAX_WORK_ITEMS_PER_PACKAGE>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorkPackage {
+    /// `h`: Authorization code host service id
+    pub authorizer_service_id: ServiceId,
+    /// `u`: Authorization code hash
+    pub auth_code_hash: CodeHash,
+    /// **`c`**: Refinement context
+    pub context: RefinementContext,
+    /// **`j`**: Authorizer token blob
+    pub auth_token: Octets,
+    /// **`f`**: Authorization config blob
+    pub config_blob: Octets,
+    /// **`w`**: Sequence of work items
+    pub work_items: WorkItems,
+}
+
+impl JamEncode for WorkPackage {
+    fn size_hint(&self) -> usize {
+        4 + self.auth_code_hash.size_hint()
+            + self.context.size_hint()
+            + self.auth_token.size_hint()
+            + self.config_blob.size_hint()
+            + self.work_items.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.authorizer_service_id.encode_to_fixed(dest, 4)?;
+        self.auth_code_hash.encode_to(dest)?;
+        self.context.encode_to(dest)?;
+        self.auth_token.encode_to(dest)?;
+        self.config_blob.encode_to(dest)?;
+        self.work_items.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for WorkPackage {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            authorizer_service_id: ServiceId::decode_fixed(input, 4)?,
+            auth_code_hash: CodeHash::decode(input)?,
+            context: RefinementContext::decode(input)?,
+            auth_token: Octets::decode(input)?,
+            config_blob: Octets::decode(input)?,
+            work_items: WorkItems::decode(input)?,
         })
     }
 }
