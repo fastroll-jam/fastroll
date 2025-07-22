@@ -1,6 +1,7 @@
 use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
     Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, HASH_SIZE,
+    MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -229,5 +230,28 @@ impl JamDecode for WorkPackage {
             config_blob: Octets::decode(input)?,
             work_items: WorkItems::decode(input)?,
         })
+    }
+}
+
+impl WorkPackage {
+    /// Validates total number of imported/exported segments and extrinsic data items are under limit.
+    pub fn validate_data_references_count(&self) -> bool {
+        self.work_items
+            .iter()
+            .map(|wi| wi.export_segment_count as usize)
+            .sum::<usize>()
+            <= MAX_EXPORTS_PER_PACKAGE
+            && self
+                .work_items
+                .iter()
+                .map(|wi| wi.import_segment_ids.len())
+                .sum::<usize>()
+                <= MAX_IMPORTS_PER_PACKAGE
+            && self
+                .work_items
+                .iter()
+                .map(|wi| wi.extrinsic_data_info.len())
+                .sum::<usize>()
+                <= MAX_EXTRINSICS_PER_PACKAGE
     }
 }
