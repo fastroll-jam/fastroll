@@ -2,6 +2,7 @@ use crate::{
     constants::MAX_WORK_ITEMS_PER_PACKAGE, workloads::common::RefinementContext, CodeHash, Hash32,
     Octets, SegmentRoot, ServiceId, UnsignedGas, WorkPackageHash, HASH_SIZE,
     MAX_EXPORTS_PER_PACKAGE, MAX_EXTRINSICS_PER_PACKAGE, MAX_IMPORTS_PER_PACKAGE,
+    MAX_PACKAGE_AND_DATA_SIZE, SEGMENT_SIZE,
 };
 use fr_codec::prelude::*;
 use fr_limited_vec::LimitedVec;
@@ -253,5 +254,23 @@ impl WorkPackage {
                 .map(|wi| wi.extrinsic_data_info.len())
                 .sum::<usize>()
                 <= MAX_EXTRINSICS_PER_PACKAGE
+    }
+
+    /// Validates total size of imported/exported segments and extrinsic data items are under limit.
+    pub fn validate_work_bundle_size(&self) -> bool {
+        let total_data_references_octets = self
+            .work_items
+            .iter()
+            .map(|wi| {
+                wi.payload_blob.len()
+                    + wi.import_segment_ids.len() * SEGMENT_SIZE
+                    + wi.extrinsic_data_info
+                        .iter()
+                        .map(|xt| xt.blob_length as usize)
+                        .sum::<usize>()
+            })
+            .sum::<usize>();
+        self.auth_token.len() + self.config_blob.len() + total_data_references_octets
+            <= MAX_PACKAGE_AND_DATA_SIZE
     }
 }
