@@ -3,7 +3,7 @@ use crate::{
     codec::NodeCodec,
     error::StateMerkleError,
     types::{
-        nodes::{BranchType, ChildType, LeafType, MerkleNode, NodeHash, NodeType, StateHash},
+        nodes::{BranchType, ChildType, LeafType, MerkleNode, NodeType},
         write_context::{
             FullBranchHistory, LeafAddContext, LeafRemoveContext, LeafSplitContext,
             LeafUpdateContext, LeafWriteOpContext,
@@ -13,7 +13,7 @@ use crate::{
     write_set::DBWriteSet,
 };
 use bit_vec::BitVec;
-use fr_common::{Hash32, MerkleRoot, StateKey};
+use fr_common::{Hash32, MerkleRoot, NodeHash, StateHash, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use fr_db::{
     core::{cached_db::CachedDB, core_db::CoreDB},

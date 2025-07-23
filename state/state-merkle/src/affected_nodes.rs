@@ -3,14 +3,14 @@ use crate::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::{
-        nodes::{ChildType, NodeHash},
+        nodes::ChildType,
         write_context::{LeafAddContext, LeafRemoveContext, LeafUpdateContext, LeafWriteOpContext},
     },
     utils::bits_encode_msb,
     write_set::{DBWriteSet, MerkleDBWriteSet, MerkleNodeWrite, StateDBWriteSet},
 };
 use bit_vec::BitVec;
-use fr_common::{MerkleRoot, StateKey};
+use fr_common::{MerkleRoot, NodeHash, StateKey};
 use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::BTreeMap,

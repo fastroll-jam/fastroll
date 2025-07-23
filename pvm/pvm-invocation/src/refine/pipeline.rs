@@ -1,7 +1,7 @@
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{RefineStats, WorkDigest, WorkExecutionResult, WorkItem, WorkPackage, WorkReport},
-    CoreIndex, Hash32, Octets, UnsignedGas, SEGMENT_SIZE,
+    CoreIndex, NodeHash, Octets, UnsignedGas, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_types::common::ExportDataSegment;
@@ -12,7 +12,7 @@ pub struct AuditableBundle {
     pub extrinsic_data: Vec<Vec<Octets>>,
     pub imports: Vec<Vec<ExportDataSegment>>,
     /// Collection of sibling (opposite) node hashes along the merkle path of each import segment
-    pub imports_justifications: Vec<Vec<Vec<Hash32>>>,
+    pub imports_justifications: Vec<Vec<Vec<NodeHash>>>,
 }
 
 impl JamEncode for AuditableBundle {
@@ -106,7 +106,7 @@ impl JamDecode for AuditableBundle {
             let mut work_item_justifications =
                 Vec::with_capacity(work_item.import_segment_ids.len());
             for _ in &work_item.import_segment_ids {
-                let justification = Vec::<Hash32>::decode(input)?;
+                let justification = Vec::<NodeHash>::decode(input)?;
                 work_item_justifications.push(justification);
             }
             imports_justifications.push(work_item_justifications);

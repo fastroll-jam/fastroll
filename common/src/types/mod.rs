@@ -29,6 +29,8 @@ pub type WorkReportHash = Hash32;
 pub type ErasureRoot = Hash32;
 pub type SegmentRoot = Hash32;
 pub type AccumulateRoot = Hash32;
+pub type StateHash = Hash32;
+pub type NodeHash = Hash32;
 
 /// 31-byte State key type.
 pub type StateKey = ByteArray<STATE_KEY_SIZE>;

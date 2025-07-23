@@ -1,8 +1,5 @@
-use crate::{
-    codec::NodeCodec,
-    types::nodes::{MerkleNode, NodeHash},
-};
-use fr_common::{Hash32, StateKey};
+use crate::{codec::NodeCodec, types::nodes::MerkleNode};
+use fr_common::{Hash32, NodeHash, StateKey};
 use fr_crypto::{hash, Blake2b256};
 
 pub fn simple_hash(seed: &str) -> Hash32 {

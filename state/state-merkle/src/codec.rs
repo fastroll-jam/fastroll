@@ -2,14 +2,14 @@ use crate::{
     error::StateMerkleError,
     merkle_db::MerkleDB,
     types::nodes::{
-        BranchType, EmbeddedLeafParsed, LeafParsed, LeafType, MerkleNode, NodeHash, NodeType,
+        BranchType, EmbeddedLeafParsed, LeafParsed, LeafType, MerkleNode, NodeType,
         RegularLeafParsed, NODE_SIZE_BITS,
     },
     utils::{bits_decode_msb, bits_encode_msb, bitvec_to_hash32, slice_bitvec},
 };
 use bit_vec::BitVec;
 use fr_codec::prelude::*;
-use fr_common::StateKey;
+use fr_common::{NodeHash, StateKey};
 use fr_crypto::{hash, Blake2b256};
 
 pub struct NodeCodec;

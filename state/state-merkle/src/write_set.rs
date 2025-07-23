@@ -1,8 +1,5 @@
-use crate::{
-    error::StateMerkleError,
-    types::nodes::{NodeHash, StateHash},
-};
-use fr_common::MerkleRoot;
+use crate::error::StateMerkleError;
+use fr_common::{MerkleRoot, NodeHash, StateHash};
 use fr_crypto::{hash, Blake2b256};
 use std::{
     collections::HashMap,

@@ -1,6 +1,6 @@
-use crate::types::nodes::{ChildType, NodeHash};
+use crate::types::nodes::ChildType;
 use bit_vec::BitVec;
-use fr_common::{MerkleRoot, StateKey};
+use fr_common::{MerkleRoot, NodeHash, StateKey};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Hash, PartialEq, Eq)]
