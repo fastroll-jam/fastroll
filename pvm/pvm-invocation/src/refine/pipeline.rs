@@ -7,6 +7,9 @@ use fr_crypto::{hash, Blake2b256};
 use fr_pvm_types::common::ExportDataSegment;
 
 /// A work bundle ready for auditing, with all reference data collected along with a work-package.
+///
+/// This should be collected by guarantors and then placed in Audit DA so that auditors can execute
+/// refinement of work-packages without interacting with D3L.
 pub struct AuditableBundle {
     pub package: WorkPackage,
     pub extrinsic_data: Vec<Vec<Octets>>,
