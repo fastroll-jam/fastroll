@@ -1,3 +1,5 @@
+pub mod pipeline;
+
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{RefinementContext, WorkExecutionResult},
