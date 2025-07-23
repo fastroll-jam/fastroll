@@ -2,9 +2,7 @@ use crate::{
     impl_simple_state_component,
     state_utils::{SimpleStateComponent, StateComponent, StateEntryType, StateKeyConstant},
 };
-use fr_codec::{
-    JamCodecError, JamDecode, JamDecodeFixed, JamEncode, JamEncodeFixed, JamInput, JamOutput,
-};
+use fr_codec::prelude::*;
 use fr_common::{ServiceId, UnsignedGas, CORE_COUNT};
 use fr_limited_vec::FixedVec;
 use std::collections::BTreeMap;
