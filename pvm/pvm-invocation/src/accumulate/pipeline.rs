@@ -1,4 +1,4 @@
-use crate::entrypoints::accumulate::{AccumulateInvocation, AccumulateResult};
+use crate::accumulate::{AccumulateInvocation, AccumulateResult};
 use fr_common::{
     workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
 };
@@ -19,8 +19,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
 };
-
-pub mod utils;
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {

@@ -7,7 +7,7 @@ use fr_common::{
 use fr_crypto::{hash, Blake2b256};
 use fr_extrinsics::validation::preimages::PreimagesXtValidator;
 use fr_pvm_invocation::{
-    pipeline::accumulate_outer,
+    accumulate::pipeline::accumulate_outer,
     prelude::{AccountSandbox, SandboxEntryAccessor, SandboxEntryStatus},
 };
 use fr_pvm_types::{invoke_results::AccumulationOutputPairs, stats::AccumulateStats};

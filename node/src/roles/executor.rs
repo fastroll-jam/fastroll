@@ -5,7 +5,7 @@ use fr_block::types::{
 };
 use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId};
 use fr_crypto::traits::VrfSignature;
-use fr_pvm_invocation::pipeline::utils::collect_accumulatable_reports;
+use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
     types::{SafroleHeaderMarkers, Timeslot},

@@ -1,3 +1,6 @@
+pub mod pipeline;
+pub mod utils;
+
 use fr_codec::prelude::*;
 use fr_common::{Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
