@@ -1,10 +1,17 @@
+use crate::is_authorized::{IsAuthorizedInvocation, IsAuthorizedResult};
 use fr_codec::prelude::*;
 use fr_common::{
-    workloads::{RefineStats, WorkDigest, WorkExecutionResult, WorkItem, WorkPackage, WorkReport},
-    CoreIndex, NodeHash, Octets, UnsignedGas, SEGMENT_SIZE,
+    workloads::{
+        AvailSpecs, RefineStats, SegmentRootLookupTable, WorkDigest, WorkExecutionResult, WorkItem,
+        WorkPackage, WorkReport,
+    },
+    AuthHash, CoreIndex, NodeHash, Octets, UnsignedGas, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_pvm_types::common::ExportDataSegment;
+use fr_pvm_interface::error::PVMError;
+use fr_pvm_types::{common::ExportDataSegment, invoke_args::IsAuthorizedInvokeArgs};
+use fr_state::manager::StateManager;
+use std::sync::Arc;
 
 /// A work bundle ready for auditing, with all reference data collected along with a work-package.
 ///
@@ -125,7 +132,7 @@ impl JamDecode for AuditableBundle {
 }
 
 /// Converts a work item and its associated execution result into a work digest.
-pub fn work_item_to_digest(
+fn work_item_to_digest(
     item: WorkItem,
     result: WorkExecutionResult,
     refine_gas_used: UnsignedGas,
@@ -151,9 +158,40 @@ pub fn work_item_to_digest(
     }
 }
 
+fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
+    let mut buf = Vec::with_capacity(32 + package.config_blob.len());
+    buf.extend_from_slice(package.auth_code_hash.as_slice());
+    buf.extend_from_slice(package.config_blob.as_slice());
+    hash::<Blake2b256>(buf.as_slice()).expect("Hashing a blob should be successful")
+}
+
+fn construct_segment_roots_lookup_dictionary(_package: &WorkPackage) -> SegmentRootLookupTable {
+    unimplemented!()
+}
+
+fn generate_paged_proofs(_export_segments: Vec<ExportDataSegment>) -> Vec<ExportDataSegment> {
+    unimplemented!();
+}
+
+fn build_avail_specs() -> AvailSpecs {
+    unimplemented!()
+}
+
 /// Computes a work-package into a corresponding work-report, invoking `refine` PVM entry-point (`Ψ_R`).
 ///
 /// Represents `Ξ` of the GP.
-pub fn compute_work_report(_package: WorkPackage, _core_index: CoreIndex) -> WorkReport {
+pub async fn compute_work_report(
+    state_manager: Arc<StateManager>,
+    package: WorkPackage,
+    core_index: CoreIndex,
+) -> Result<WorkReport, PVMError> {
+    let is_authorized_args = IsAuthorizedInvokeArgs {
+        package: package.clone(),
+        core_index,
+    };
+    IsAuthorizedResult {
+        gas_used,
+        work_execution_result,
+    } = IsAuthorizedInvocation::is_authorized(state_manager, &is_authorized_args).await?;
     unimplemented!()
 }
