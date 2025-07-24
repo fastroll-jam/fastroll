@@ -11,6 +11,363 @@ use std::{
     ops::Deref,
 };
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AvailSpecs {
+    /// `p`: Work package hash
+    pub work_package_hash: WorkPackageHash,
+    /// `l`: Auditable work bundle length
+    pub work_bundle_length: u32,
+    /// `u`: Erasure root of the work package
+    pub erasure_root: ErasureRoot,
+    /// `e`: Export segment root of the work package
+    pub segment_root: SegmentRoot,
+    /// `n`: Number of export segments
+    pub segment_count: u16,
+}
+
+impl Display for AvailSpecs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AvailSpecs {{ wp_hash: {}, wp_bundle_len: {}, erasure_root: {}, \
+             segment_root: {}, segment_count: {} }}",
+            self.work_package_hash,
+            self.work_bundle_length,
+            self.erasure_root,
+            self.segment_root,
+            self.segment_count,
+        )
+    }
+}
+
+impl JamEncode for AvailSpecs {
+    fn size_hint(&self) -> usize {
+        self.work_package_hash.size_hint()
+            + 4
+            + self.erasure_root.size_hint()
+            + self.segment_root.size_hint()
+            + 2
+    }
+
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        self.work_package_hash.encode_to(dest)?;
+        self.work_bundle_length.encode_to_fixed(dest, 4)?;
+        self.erasure_root.encode_to(dest)?;
+        self.segment_root.encode_to(dest)?;
+        self.segment_count.encode_to_fixed(dest, 2)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for AvailSpecs {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        Ok(Self {
+            work_package_hash: WorkPackageHash::decode(input)?,
+            work_bundle_length: u32::decode_fixed(input, 4)?,
+            erasure_root: ErasureRoot::decode(input)?,
+            segment_root: SegmentRoot::decode(input)?,
+            segment_count: u16::decode_fixed(input, 2)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct SegmentRootLookupTable {
+    items: BTreeMap<WorkPackageHash, SegmentRoot>,
+}
+
+impl Display for SegmentRootLookupTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            write!(f, "SegmentRootLookupTable: {{}}")?;
+        } else {
+            writeln!(f, "SegmentRootLookupTable: {{")?;
+            for (k, v) in self.items.iter() {
+                writeln!(f, "  {}: {}", &k, &v)?;
+            }
+            writeln!(f, "}}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Deref for SegmentRootLookupTable {
+    type Target = BTreeMap<WorkPackageHash, SegmentRoot>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl SegmentRootLookupTable {
+    pub fn new(items: BTreeMap<WorkPackageHash, SegmentRoot>) -> Self {
+        Self { items }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, JamEncode, JamDecode)]
+pub struct ReportedWorkPackage {
+    /// `p` of `AvailSpec` from work report in `GuaranteesXt`
+    pub work_package_hash: WorkPackageHash,
+    /// `e` of `AvailSpec` from work report in `GuaranteesXt`
+    pub segment_root: SegmentRoot,
+}
+
+impl Display for ReportedWorkPackage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "package_hash: {}", self.work_package_hash)?;
+        write!(f, "segment_root: {}", self.segment_root)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorkExecutionError {
+    /// `∞`: Out of gas
+    OutOfGas,
+    /// `☇`: Panic on execution
+    Panic,
+    /// `⊚`: The reported number of exports made is invalid
+    BadExports,
+    /// `⊝`: The sum of auth output and all work outputs sizes exceeds `WORK_REPORT_OUTPUT_SIZE_LIMIT`
+    Oversize,
+    /// `BAD`: Service code not available for lookup
+    Bad,
+    /// `BIG`: Code size exceeds `MAX_SERVICE_CODE_SIZE`
+    Big,
+}
+
+impl JamEncode for WorkExecutionError {
+    fn size_hint(&self) -> usize {
+        1 // 1-byte succinct encoding
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        match self {
+            WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
+            WorkExecutionError::Panic => 2u8.encode_to(dest),
+            WorkExecutionError::BadExports => 3u8.encode_to(dest),
+            WorkExecutionError::Oversize => 4u8.encode_to(dest),
+            WorkExecutionError::Bad => 5u8.encode_to(dest),
+            WorkExecutionError::Big => 6u8.encode_to(dest),
+        }
+    }
+}
+
+impl JamDecode for WorkExecutionError {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        match u8::decode(input)? {
+            1 => Ok(WorkExecutionError::OutOfGas),
+            2 => Ok(WorkExecutionError::Panic),
+            3 => Ok(WorkExecutionError::BadExports),
+            4 => Ok(WorkExecutionError::Oversize),
+            5 => Ok(WorkExecutionError::Bad),
+            6 => Ok(WorkExecutionError::Big),
+            _ => Err(JamCodecError::InputError(
+                "Invalid WorkExecutionError prefix".into(),
+            )),
+        }
+    }
+}
+
+impl Display for WorkExecutionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorkExecutionResult {
+    Output(Octets),
+    Error(WorkExecutionError),
+}
+
+impl Display for WorkExecutionResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Output(octets) => {
+                write!(f, "{octets}")
+            }
+            Self::Error(err) => {
+                write!(f, "{err:?}")
+            }
+        }
+    }
+}
+
+impl JamEncode for WorkExecutionResult {
+    fn size_hint(&self) -> usize {
+        match self {
+            WorkExecutionResult::Output(data) => {
+                1 + data.size_hint() // with 1 byte prefix
+            }
+            WorkExecutionResult::Error(err) => err.size_hint(),
+        }
+    }
+
+    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
+        match self {
+            WorkExecutionResult::Output(data) => {
+                0u8.encode_to(dest)?; // prefix (0) for Output
+                data.encode_to(dest)?;
+                Ok(())
+            }
+            WorkExecutionResult::Error(err) => err.encode_to(dest),
+        }
+    }
+}
+
+impl JamDecode for WorkExecutionResult {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
+        match u8::decode(input)? {
+            0 => {
+                let data = Octets::decode(input)?;
+                Ok(WorkExecutionResult::Output(data))
+            }
+            1 => Ok(WorkExecutionResult::Error(WorkExecutionError::OutOfGas)),
+            2 => Ok(WorkExecutionResult::Error(WorkExecutionError::Panic)),
+            3 => Ok(WorkExecutionResult::Error(WorkExecutionError::BadExports)),
+            4 => Ok(WorkExecutionResult::Error(WorkExecutionError::Oversize)),
+            5 => Ok(WorkExecutionResult::Error(WorkExecutionError::Bad)),
+            6 => Ok(WorkExecutionResult::Error(WorkExecutionError::Big)),
+            _ => Err(JamCodecError::InputError(
+                "Invalid WorkExecutionResult prefix".into(),
+            )),
+        }
+    }
+}
+
+impl WorkExecutionResult {
+    pub fn ok(output: Vec<u8>) -> Self {
+        Self::Output(Octets::from_vec(output))
+    }
+
+    pub fn ok_empty() -> Self {
+        Self::Output(Octets::default())
+    }
+
+    pub fn out_of_gas() -> Self {
+        Self::Error(WorkExecutionError::OutOfGas)
+    }
+
+    pub fn panic() -> Self {
+        Self::Error(WorkExecutionError::Panic)
+    }
+
+    pub fn wrong_exports_count() -> Self {
+        Self::Error(WorkExecutionError::BadExports)
+    }
+
+    pub fn oversize() -> Self {
+        Self::Error(WorkExecutionError::Oversize)
+    }
+
+    pub fn bad() -> Self {
+        Self::Error(WorkExecutionError::Bad)
+    }
+
+    pub fn big() -> Self {
+        Self::Error(WorkExecutionError::Big)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
+pub struct RefineStats {
+    /// `u`: The actual amount of gas used during refinement.
+    pub refine_gas_used: UnsignedGas,
+    /// `i`: The number of imported segments by the work item.
+    pub imports_count: u16,
+    /// `x`: The number of extrinsics items used by the work item.
+    pub extrinsics_count: u16,
+    /// `z`: The total size of extrinsics used by the work item, in octets.
+    pub extrinsics_octets: u32,
+    /// `e`: The number of exported segments by the work item.
+    pub exports_count: u16,
+}
+
+impl Display for RefineStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "refine_gas_used: {}", self.refine_gas_used)?;
+        writeln!(f, "imports_count: {}", self.imports_count)?;
+        writeln!(f, "extrinsics_count: {}", self.extrinsics_count)?;
+        writeln!(f, "extrinsics_octets: {}", self.extrinsics_octets)?;
+        write!(f, "exports_count: {}", self.exports_count)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkDigest {
+    /// `s`: Associated service id.
+    pub service_id: ServiceId,
+    /// `c`: Code hash of the service, at the time of reporting.
+    pub service_code_hash: CodeHash,
+    /// `y`: Hash of the associated work item payload.
+    pub payload_hash: Hash32,
+    /// `g`: A gas limit allocated to the work item's accumulation.
+    pub accumulate_gas_limit: UnsignedGas,
+    /// **`l`**: Output or error of the execution of the work item.
+    pub refine_result: WorkExecutionResult,
+    /// `u`, `i`, `x`, `z`, `e`: Statistics on gas usage and data referenced in the refinement process.
+    pub refine_stats: RefineStats,
+}
+
+impl Display for WorkDigest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "WorkDigest: {{")?;
+        writeln!(f, "service_idx: {}", self.service_id)?;
+        writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
+        writeln!(f, "payload_hash: {}", self.payload_hash)?;
+        writeln!(f, "accumulate_gas_limit: {}", self.accumulate_gas_limit)?;
+        writeln!(f, "refine_result: {}", self.refine_result)?;
+        writeln!(f, "refine_stats: {}", self.refine_stats)?;
+        write!(f, "}}")
+    }
+}
+
+impl JamEncode for WorkDigest {
+    fn size_hint(&self) -> usize {
+        4 + self.service_code_hash.size_hint()
+            + self.payload_hash.size_hint()
+            + 8
+            + self.refine_result.size_hint()
+            + self.refine_stats.size_hint()
+    }
+
+    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        self.service_id.encode_to_fixed(dest, 4)?;
+        self.service_code_hash.encode_to(dest)?;
+        self.payload_hash.encode_to(dest)?;
+        self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
+        self.refine_result.encode_to(dest)?;
+        self.refine_stats.encode_to(dest)?;
+        Ok(())
+    }
+}
+
+impl JamDecode for WorkDigest {
+    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            service_id: ServiceId::decode_fixed(input, 4)?,
+            service_code_hash: CodeHash::decode(input)?,
+            payload_hash: Hash32::decode(input)?,
+            accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
+            refine_result: WorkExecutionResult::decode(input)?,
+            refine_stats: RefineStats::decode(input)?,
+        })
+    }
+}
+
+impl WorkDigest {
+    fn output_bytes(&self) -> usize {
+        match &self.refine_result {
+            WorkExecutionResult::Output(bytes) => bytes.len(),
+            WorkExecutionResult::Error(_) => 0,
+        }
+    }
+}
+
 pub type WorkDigests = LimitedVec<WorkDigest, MAX_WORK_ITEMS_PER_PACKAGE>;
 
 /// Represents a work report generated from refinement of a work package,
@@ -114,353 +471,6 @@ impl WorkReport {
         ReportedWorkPackage {
             work_package_hash: self.specs.work_package_hash.clone(),
             segment_root: self.specs.segment_root.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct SegmentRootLookupTable {
-    items: BTreeMap<WorkPackageHash, SegmentRoot>,
-}
-
-impl Display for SegmentRootLookupTable {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() {
-            write!(f, "SegmentRootLookupTable: {{}}")?;
-        } else {
-            writeln!(f, "SegmentRootLookupTable: {{")?;
-            for (k, v) in self.items.iter() {
-                writeln!(f, "  {}: {}", &k, &v)?;
-            }
-            writeln!(f, "}}")?;
-        }
-        Ok(())
-    }
-}
-
-impl Deref for SegmentRootLookupTable {
-    type Target = BTreeMap<WorkPackageHash, SegmentRoot>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.items
-    }
-}
-
-impl SegmentRootLookupTable {
-    pub fn new(items: BTreeMap<WorkPackageHash, SegmentRoot>) -> Self {
-        Self { items }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AvailSpecs {
-    /// `p`: Work package hash
-    pub work_package_hash: WorkPackageHash,
-    /// `l`: Auditable work bundle length
-    pub work_bundle_length: u32,
-    /// `u`: Erasure root of the work package
-    pub erasure_root: ErasureRoot,
-    /// `e`: Export segment root of the work package
-    pub segment_root: SegmentRoot,
-    /// `n`: Number of export segments
-    pub segment_count: u16,
-}
-
-impl Display for AvailSpecs {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "AvailSpecs {{ wp_hash: {}, wp_bundle_len: {}, erasure_root: {}, \
-             segment_root: {}, segment_count: {} }}",
-            self.work_package_hash,
-            self.work_bundle_length,
-            self.erasure_root,
-            self.segment_root,
-            self.segment_count,
-        )
-    }
-}
-
-impl JamEncode for AvailSpecs {
-    fn size_hint(&self) -> usize {
-        self.work_package_hash.size_hint()
-            + 4
-            + self.erasure_root.size_hint()
-            + self.segment_root.size_hint()
-            + 2
-    }
-
-    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
-        self.work_package_hash.encode_to(dest)?;
-        self.work_bundle_length.encode_to_fixed(dest, 4)?;
-        self.erasure_root.encode_to(dest)?;
-        self.segment_root.encode_to(dest)?;
-        self.segment_count.encode_to_fixed(dest, 2)?;
-        Ok(())
-    }
-}
-
-impl JamDecode for AvailSpecs {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        Ok(Self {
-            work_package_hash: WorkPackageHash::decode(input)?,
-            work_bundle_length: u32::decode_fixed(input, 4)?,
-            erasure_root: ErasureRoot::decode(input)?,
-            segment_root: SegmentRoot::decode(input)?,
-            segment_count: u16::decode_fixed(input, 2)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, JamEncode, JamDecode)]
-pub struct ReportedWorkPackage {
-    /// `p` of `AvailSpec` from work report in `GuaranteesXt`
-    pub work_package_hash: WorkPackageHash,
-    /// `e` of `AvailSpec` from work report in `GuaranteesXt`
-    pub segment_root: SegmentRoot,
-}
-
-impl Display for ReportedWorkPackage {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "package_hash: {}", self.work_package_hash)?;
-        write!(f, "segment_root: {}", self.segment_root)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, JamEncode, JamDecode)]
-pub struct RefineStats {
-    /// `u`: The actual amount of gas used during refinement.
-    pub refine_gas_used: UnsignedGas,
-    /// `i`: The number of imported segments by the work item.
-    pub imports_count: u16,
-    /// `x`: The number of extrinsics items used by the work item.
-    pub extrinsics_count: u16,
-    /// `z`: The total size of extrinsics used by the work item, in octets.
-    pub extrinsics_octets: u32,
-    /// `e`: The number of exported segments by the work item.
-    pub exports_count: u16,
-}
-
-impl Display for RefineStats {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "refine_gas_used: {}", self.refine_gas_used)?;
-        writeln!(f, "imports_count: {}", self.imports_count)?;
-        writeln!(f, "extrinsics_count: {}", self.extrinsics_count)?;
-        writeln!(f, "extrinsics_octets: {}", self.extrinsics_octets)?;
-        write!(f, "exports_count: {}", self.exports_count)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkDigest {
-    /// `s`: Associated service id.
-    pub service_id: ServiceId,
-    /// `c`: Code hash of the service, at the time of reporting.
-    pub service_code_hash: CodeHash,
-    /// `y`: Hash of the associated work item payload.
-    pub payload_hash: Hash32,
-    /// `g`: A gas limit allocated to the work item's accumulation.
-    pub accumulate_gas_limit: UnsignedGas,
-    /// **`l`**: Output or error of the execution of the work item.
-    pub refine_result: WorkExecutionResult,
-    /// `u`, `i`, `x`, `z`, `e`: Statistics on gas usage and data referenced in the refinement process.
-    pub refine_stats: RefineStats,
-}
-
-impl Display for WorkDigest {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "WorkDigest: {{")?;
-        writeln!(f, "service_idx: {}", self.service_id)?;
-        writeln!(f, "service_code_hash: {}", self.service_code_hash)?;
-        writeln!(f, "payload_hash: {}", self.payload_hash)?;
-        writeln!(f, "accumulate_gas_limit: {}", self.accumulate_gas_limit)?;
-        writeln!(f, "refine_result: {}", self.refine_result)?;
-        writeln!(f, "refine_stats: {}", self.refine_stats)?;
-        write!(f, "}}")
-    }
-}
-
-impl JamEncode for WorkDigest {
-    fn size_hint(&self) -> usize {
-        4 + self.service_code_hash.size_hint()
-            + self.payload_hash.size_hint()
-            + 8
-            + self.refine_result.size_hint()
-            + self.refine_stats.size_hint()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.service_id.encode_to_fixed(dest, 4)?;
-        self.service_code_hash.encode_to(dest)?;
-        self.payload_hash.encode_to(dest)?;
-        self.accumulate_gas_limit.encode_to_fixed(dest, 8)?;
-        self.refine_result.encode_to(dest)?;
-        self.refine_stats.encode_to(dest)?;
-        Ok(())
-    }
-}
-
-impl JamDecode for WorkDigest {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        Ok(Self {
-            service_id: ServiceId::decode_fixed(input, 4)?,
-            service_code_hash: CodeHash::decode(input)?,
-            payload_hash: Hash32::decode(input)?,
-            accumulate_gas_limit: UnsignedGas::decode_fixed(input, 8)?,
-            refine_result: WorkExecutionResult::decode(input)?,
-            refine_stats: RefineStats::decode(input)?,
-        })
-    }
-}
-
-impl WorkDigest {
-    fn output_bytes(&self) -> usize {
-        match &self.refine_result {
-            WorkExecutionResult::Output(bytes) => bytes.len(),
-            WorkExecutionResult::Error(_) => 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkExecutionResult {
-    Output(Octets),
-    Error(WorkExecutionError),
-}
-
-impl Display for WorkExecutionResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Output(octets) => {
-                write!(f, "{octets}")
-            }
-            Self::Error(err) => {
-                write!(f, "{err:?}")
-            }
-        }
-    }
-}
-
-impl JamEncode for WorkExecutionResult {
-    fn size_hint(&self) -> usize {
-        match self {
-            WorkExecutionResult::Output(data) => {
-                1 + data.size_hint() // with 1 byte prefix
-            }
-            WorkExecutionResult::Error(err) => err.size_hint(),
-        }
-    }
-
-    fn encode_to<W: JamOutput>(&self, dest: &mut W) -> Result<(), JamCodecError> {
-        match self {
-            WorkExecutionResult::Output(data) => {
-                0u8.encode_to(dest)?; // prefix (0) for Output
-                data.encode_to(dest)?;
-                Ok(())
-            }
-            WorkExecutionResult::Error(err) => err.encode_to(dest),
-        }
-    }
-}
-
-impl JamDecode for WorkExecutionResult {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        match u8::decode(input)? {
-            0 => {
-                let data = Octets::decode(input)?;
-                Ok(WorkExecutionResult::Output(data))
-            }
-            1 => Ok(WorkExecutionResult::Error(WorkExecutionError::OutOfGas)),
-            2 => Ok(WorkExecutionResult::Error(WorkExecutionError::Panic)),
-            3 => Ok(WorkExecutionResult::Error(WorkExecutionError::BadExports)),
-            4 => Ok(WorkExecutionResult::Error(WorkExecutionError::Oversize)),
-            5 => Ok(WorkExecutionResult::Error(WorkExecutionError::Bad)),
-            6 => Ok(WorkExecutionResult::Error(WorkExecutionError::Big)),
-            _ => Err(JamCodecError::InputError(
-                "Invalid WorkExecutionResult prefix".into(),
-            )),
-        }
-    }
-}
-
-impl WorkExecutionResult {
-    pub fn ok(output: Vec<u8>) -> Self {
-        Self::Output(Octets::from_vec(output))
-    }
-
-    pub fn ok_empty() -> Self {
-        Self::Output(Octets::default())
-    }
-
-    pub fn out_of_gas() -> Self {
-        Self::Error(WorkExecutionError::OutOfGas)
-    }
-
-    pub fn panic() -> Self {
-        Self::Error(WorkExecutionError::Panic)
-    }
-
-    pub fn wrong_exports_count() -> Self {
-        Self::Error(WorkExecutionError::BadExports)
-    }
-
-    pub fn bad() -> Self {
-        Self::Error(WorkExecutionError::Bad)
-    }
-
-    pub fn big() -> Self {
-        Self::Error(WorkExecutionError::Big)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkExecutionError {
-    /// `∞`: Out of gas
-    OutOfGas,
-    /// `☇`: Panic on execution
-    Panic,
-    /// `⊚`: The reported number of exports made is invalid
-    BadExports,
-    /// `⊝`: The sum of auth output and all work outputs sizes exceeds `WORK_REPORT_OUTPUT_SIZE_LIMIT`
-    Oversize,
-    /// `BAD`: Service code not available for lookup
-    Bad,
-    /// `BIG`: Code size exceeds `MAX_SERVICE_CODE_SIZE`
-    Big,
-}
-
-impl JamEncode for WorkExecutionError {
-    fn size_hint(&self) -> usize {
-        1 // 1-byte succinct encoding
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        match self {
-            WorkExecutionError::OutOfGas => 1u8.encode_to(dest),
-            WorkExecutionError::Panic => 2u8.encode_to(dest),
-            WorkExecutionError::BadExports => 3u8.encode_to(dest),
-            WorkExecutionError::Oversize => 4u8.encode_to(dest),
-            WorkExecutionError::Bad => 5u8.encode_to(dest),
-            WorkExecutionError::Big => 6u8.encode_to(dest),
-        }
-    }
-}
-
-impl JamDecode for WorkExecutionError {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError> {
-        match u8::decode(input)? {
-            1 => Ok(WorkExecutionError::OutOfGas),
-            2 => Ok(WorkExecutionError::Panic),
-            3 => Ok(WorkExecutionError::BadExports),
-            4 => Ok(WorkExecutionError::Oversize),
-            5 => Ok(WorkExecutionError::Bad),
-            6 => Ok(WorkExecutionError::Big),
-            _ => Err(JamCodecError::InputError(
-                "Invalid WorkExecutionError prefix".into(),
-            )),
         }
     }
 }

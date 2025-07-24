@@ -2,16 +2,12 @@ use crate::{
     codec::NodeCodec, error::StateMerkleError, merkle_db::MerkleDB, write_set::MerkleNodeWrite,
 };
 use bit_vec::BitVec;
-use fr_common::Hash32;
+use fr_common::{Hash32, NodeHash};
 use fr_db::core::cached_db::CacheItem;
 use std::fmt::{Display, Formatter};
 
 /// Merkle node data size in bits.
 pub const NODE_SIZE_BITS: usize = 512;
-
-pub type StateHash = Hash32;
-
-pub type NodeHash = Hash32;
 
 /// Merkle trie node representation.
 #[derive(Clone, Debug)]

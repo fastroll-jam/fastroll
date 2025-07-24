@@ -3,7 +3,7 @@ use fr_crypto::error::CryptoError;
 use fr_extrinsics::validation::error::XtError;
 use fr_limited_vec::LimitedVecError;
 use fr_merkle::common::MerkleError;
-use fr_pvm_invocation::prelude::PVMError;
+use fr_pvm_invocation::error::PVMInvokeError;
 use fr_state::{
     error::StateManagerError,
     types::{PendingReportsError, SlotSealerError},
@@ -37,6 +37,6 @@ pub enum TransitionError {
     BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("MerkleError: {0}")]
     MerkleError(#[from] MerkleError),
-    #[error("PVMError: {0}")]
-    PVMError(#[from] PVMError),
+    #[error("PVMInvokeError: {0}")]
+    PVMInvokeError(#[from] PVMInvokeError),
 }

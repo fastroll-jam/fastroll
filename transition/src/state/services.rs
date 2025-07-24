@@ -7,7 +7,7 @@ use fr_common::{
 use fr_crypto::{hash, Blake2b256};
 use fr_extrinsics::validation::preimages::PreimagesXtValidator;
 use fr_pvm_invocation::{
-    pipeline::accumulate_outer,
+    accumulate::pipeline::accumulate_outer,
     prelude::{AccountSandbox, SandboxEntryAccessor, SandboxEntryStatus},
 };
 use fr_pvm_types::{invoke_results::AccumulationOutputPairs, stats::AccumulateStats};
@@ -120,7 +120,7 @@ pub async fn transition_on_accumulate(
         always_accumulate_services,
     )
     .await
-    .map_err(TransitionError::PVMError)?;
+    .map_err(TransitionError::PVMInvokeError)?;
 
     // Collect account state change set of all services
     let mut account_state_changes = AccountStateChanges::default();

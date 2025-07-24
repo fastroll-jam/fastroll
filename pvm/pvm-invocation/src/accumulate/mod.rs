@@ -1,3 +1,7 @@
+pub mod pipeline;
+pub mod utils;
+
+use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
 use fr_common::{Octets, ServiceId, TimeslotIndex, UnsignedGas, HASH_SIZE, MAX_SERVICE_CODE_SIZE};
 use fr_crypto::octets_to_hash32;
@@ -8,10 +12,7 @@ use fr_pvm_host::{
     },
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::{
-    error::PVMError,
-    invoke::{PVMInterface, PVMInvocationOutput},
-};
+use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationOutput};
 use fr_pvm_types::{
     constants::ACCUMULATE_INITIAL_PC,
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
@@ -61,7 +62,7 @@ impl AccumulateInvocation {
         state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState,
         args: &AccumulateInvokeArgs,
-    ) -> Result<AccumulateResult, PVMError> {
+    ) -> Result<AccumulateResult, PVMInvokeError> {
         tracing::info!("Ψ_A (accumulate) invoked.");
 
         // Update accumulate host account's balance to apply deferred transfers
@@ -133,7 +134,7 @@ impl AccumulateInvocation {
         .await?;
 
         let InvocationContext::X_A(pair) = accumulate_ctx else {
-            return Err(PVMError::HostCallError(InvalidContext));
+            return Err(PVMInvokeError::HostCallError(InvalidContext));
         };
         let AccumulateHostContextPair { x, y } = pair;
 

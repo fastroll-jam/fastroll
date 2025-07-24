@@ -12,8 +12,6 @@ pub enum PVMError {
     AccountCodeNotFound,
     #[error("Account not found")]
     AccountNotFound,
-    #[error("Spawned accumulate task panicked")]
-    AccumulateTaskPanicked,
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
     #[error("JamCodecError: {0}")]

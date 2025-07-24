@@ -1,3 +1,6 @@
+pub mod pipeline;
+
+use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{RefinementContext, WorkExecutionResult},
@@ -8,10 +11,7 @@ use fr_pvm_host::{
     context::{InvocationContext, RefineHostContext},
     error::HostCallError::InvalidContext,
 };
-use fr_pvm_interface::{
-    error::PVMError,
-    invoke::{PVMInterface, PVMInvocationOutput},
-};
+use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationOutput};
 use fr_pvm_types::{
     common::ExportDataSegment, constants::REFINE_INITIAL_PC, invoke_args::RefineInvokeArgs,
 };
@@ -34,8 +34,11 @@ struct RefineVMArgs {
 }
 
 pub struct RefineResult {
+    /// `u`: Gas used during `refine` execution.
     pub gas_used: UnsignedGas,
+    /// `r`: Refine result output.
     pub output: WorkExecutionResult,
+    /// **`e`**: Data segments exported by the `refine` execution.
     pub export_segments: Vec<ExportDataSegment>,
 }
 
@@ -106,7 +109,7 @@ impl RefineInvocation {
     pub async fn refine(
         state_manager: Arc<StateManager>,
         args: &RefineInvokeArgs,
-    ) -> Result<RefineResult, PVMError> {
+    ) -> Result<RefineResult, PVMInvokeError> {
         tracing::info!("Ψ_R (refine) invoked.");
 
         let Some(work_item) = args.package.work_items.as_slice().get(args.item_idx) else {
@@ -166,7 +169,7 @@ impl RefineInvocation {
         } = if let InvocationContext::X_R(x) = refine_ctx {
             x
         } else {
-            return Err(PVMError::HostCallError(InvalidContext));
+            return Err(PVMInvokeError::HostCallError(InvalidContext));
         };
 
         match result.output {

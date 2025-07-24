@@ -1,8 +1,8 @@
+use fr_common::StateHash;
 use fr_db::core::{
     cached_db::CachedDB,
     core_db::{CoreDB, CoreDBError},
 };
-use fr_state_merkle::types::nodes::StateHash;
 use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
 
