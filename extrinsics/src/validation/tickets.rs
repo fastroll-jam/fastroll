@@ -98,10 +98,7 @@ impl TicketsXtValidator {
         verifier: &RingVrfVerifier,
         entropy_2: &Hash32,
     ) -> Result<(), XtError> {
-        let mut expected_context = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
-        expected_context.extend_from_slice(X_T);
-        expected_context.extend_from_slice(entropy_2.as_slice());
-        expected_context.push(entry.entry_index);
+        let expected_context = [X_T, entropy_2.as_slice(), &[entry.entry_index]].concat();
 
         let message = vec![]; // no message for ticket vrf signature
         verifier

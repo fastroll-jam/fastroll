@@ -92,10 +92,7 @@ impl AssurancesXtValidator {
             .assuring_cores_bitvec
             .encode_to_fixed(&mut buf, CORE_COUNT)?;
         let hash = hash::<Blake2b256>(&buf[..])?;
-
-        let mut message = Vec::with_capacity(X_A.len() + hash.len());
-        message.extend_from_slice(X_A);
-        message.extend_from_slice(hash.as_slice());
+        let message = [X_A, hash.as_slice()].concat();
 
         let current_active_set = self.state_manager.get_active_set().await?;
         let assurer_public_key = current_active_set

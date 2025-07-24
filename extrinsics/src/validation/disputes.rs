@@ -2,7 +2,7 @@ use crate::validation::error::XtError;
 use fr_block::types::extrinsics::disputes::{
     Culprit, DisputesXt, Fault, Verdict, VerdictEvaluation,
 };
-use fr_common::{ByteEncodable, Hash32, HASH_SIZE, X_0, X_1, X_G};
+use fr_common::{ByteEncodable, Hash32, X_0, X_1, X_G};
 use fr_crypto::{
     signers::{ed25519::Ed25519Verifier, Verifier},
     types::Ed25519PubKey,
@@ -214,12 +214,8 @@ impl DisputesXtValidator {
             &past_set.0
         };
 
-        let mut positive_message = Vec::with_capacity(X_1.len() + HASH_SIZE);
-        positive_message.extend_from_slice(X_1);
-        positive_message.extend_from_slice(entry.report_hash.as_slice());
-        let mut negative_message = Vec::with_capacity(X_0.len() + HASH_SIZE);
-        negative_message.extend_from_slice(X_0);
-        negative_message.extend_from_slice(entry.report_hash.as_slice());
+        let positive_message = [X_1, entry.report_hash.as_slice()].concat();
+        let negative_message = [X_0, entry.report_hash.as_slice()].concat();
 
         // Verify the judgment signatures
         for judgment in entry.judgments.iter() {
@@ -267,9 +263,7 @@ impl DisputesXtValidator {
 
         // Verify the signature
         let hash = &entry.report_hash;
-        let mut message = Vec::with_capacity(X_G.len() + hash.len());
-        message.extend_from_slice(X_G);
-        message.extend_from_slice(hash.as_slice());
+        let message = [X_G, hash.as_slice()].concat();
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
         if !ed25519_verifier.verify_message(&message, &entry.signature) {
@@ -316,15 +310,9 @@ impl DisputesXtValidator {
 
         // Verify the signature
         let message = if entry.is_report_valid {
-            let mut message = Vec::with_capacity(X_1.len() + HASH_SIZE);
-            message.extend_from_slice(X_1);
-            message.extend_from_slice(entry.report_hash.as_slice());
-            message
+            [X_1, entry.report_hash.as_slice()].concat()
         } else {
-            let mut message = Vec::with_capacity(X_0.len() + HASH_SIZE);
-            message.extend_from_slice(X_0);
-            message.extend_from_slice(entry.report_hash.as_slice());
-            message
+            [X_0, entry.report_hash.as_slice()].concat()
         };
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());

@@ -39,13 +39,11 @@ fn hash_to_randoms_vec(hash: &Hash32, output_len: usize) -> Vec<u32> {
     let mut output = Vec::with_capacity(output_len);
 
     for i in 0..(output_len as u32) {
-        let mut buf = vec![];
-        buf.extend_from_slice(&hash.0);
-
         let hash_input_val: u32 = i / 8;
         let hash_input_bytes = hash_input_val.encode_fixed(4).unwrap();
-        buf.extend_from_slice(&hash_input_bytes);
-        let new_hash = fr_crypto::hash::<Blake2b256>(&buf).unwrap();
+        let new_hash =
+            fr_crypto::hash::<Blake2b256>(&[hash.as_slice(), hash_input_bytes.as_slice()].concat())
+                .unwrap();
 
         let hash_slice_start_idx: usize = (4 * i as usize) % 32;
         let hash_slice_end_idx: usize = hash_slice_start_idx + 4;

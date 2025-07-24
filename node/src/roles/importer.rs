@@ -13,7 +13,7 @@ use fr_block::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, EntropyHash, MerkleRoot, StateRoot, HASH_SIZE, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, EntropyHash, MerkleRoot, StateRoot, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -353,11 +353,7 @@ impl BlockImporter {
                 if !author_block_seal_is_valid(block_seal, ticket) {
                     return Err(BlockImportError::InvalidBlockSealOutput);
                 }
-                let mut vrf_input = Vec::with_capacity(X_T.len() + curr_entropy_3.len() + 1);
-                vrf_input.extend_from_slice(X_T);
-                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
-                vrf_input.push(ticket.attempt);
-                vrf_input
+                [X_T, curr_entropy_3.as_slice(), &[ticket.attempt]].concat()
             }
             SlotSealer::BandersnatchPubKeys(key) => {
                 if key != curr_author_bandersnatch_key {
@@ -366,10 +362,7 @@ impl BlockImporter {
                         author_key: curr_author_bandersnatch_key.to_hex(),
                     });
                 }
-                let mut vrf_input = Vec::with_capacity(X_F.len() + curr_entropy_3.len());
-                vrf_input.extend_from_slice(X_F);
-                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
-                vrf_input
+                [X_F, curr_entropy_3.as_slice()].concat()
             }
         };
         let aux_data = block.header.data.encode()?;
@@ -389,9 +382,7 @@ impl BlockImporter {
     ) -> Result<(), BlockImportError> {
         let block_seal_output_hash = block.header.block_seal.output_hash();
 
-        let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
-        vrf_input.extend_from_slice(X_E);
-        vrf_input.extend_from_slice(block_seal_output_hash.as_slice());
+        let vrf_input = [X_E, block_seal_output_hash.as_slice()].concat();
         let aux_data = vec![]; // no message signed
 
         VrfVerifier::verify_vrf(

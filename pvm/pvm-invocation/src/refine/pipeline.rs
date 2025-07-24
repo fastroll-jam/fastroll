@@ -166,10 +166,14 @@ fn work_item_to_digest(
 }
 
 fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
-    let mut buf = Vec::with_capacity(32 + package.config_blob.len());
-    buf.extend_from_slice(package.auth_code_hash.as_slice());
-    buf.extend_from_slice(package.config_blob.as_slice());
-    hash::<Blake2b256>(buf.as_slice()).expect("Hashing a blob should be successful")
+    hash::<Blake2b256>(
+        &[
+            package.auth_code_hash.as_slice(),
+            package.config_blob.as_slice(),
+        ]
+        .concat(),
+    )
+    .expect("Hashing a blob should be successful")
 }
 
 fn build_segment_roots_lookup_table(

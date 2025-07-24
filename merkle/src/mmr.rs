@@ -1,6 +1,6 @@
 use crate::common::MerkleError;
 use fr_codec::prelude::*;
-use fr_common::{Hash32, HASH_SIZE};
+use fr_common::Hash32;
 use fr_crypto::hash::{hash, Hasher, Keccak256};
 use std::marker::PhantomData;
 
@@ -131,11 +131,7 @@ impl<H: Hasher> MerkleMountainRange<H> {
 
         let prefix: &[u8] = b"peak";
         for peak in peaks {
-            let mut buf = Vec::with_capacity(prefix.len() + 2 * HASH_SIZE);
-            buf.extend_from_slice(prefix);
-            buf.extend_from_slice(result.as_slice());
-            buf.extend_from_slice(peak.as_slice());
-            result = hash::<Keccak256>(&buf)?;
+            result = hash::<Keccak256>(&[prefix, result.as_slice(), peak.as_slice()].concat())?;
         }
 
         Ok(result)

@@ -69,10 +69,7 @@ impl Ord for TicketsXtEntry {
 
 impl TicketsXtEntry {
     pub fn new(prover: &RingVrfProver, entry_index: u8, entropy_2: &EntropyHash) -> Self {
-        let mut context = Vec::with_capacity(X_T.len() + entropy_2.len() + 1);
-        context.extend_from_slice(X_T);
-        context.extend_from_slice(entropy_2.as_slice());
-        context.push(entry_index);
+        let context = [X_T, entropy_2.as_slice(), &[entry_index]].concat();
 
         let message = vec![]; // no message for ticket vrf signature
         let ticket_proof = prover.sign_ring_vrf(&context, &message);
