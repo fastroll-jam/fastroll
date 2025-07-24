@@ -11,6 +11,10 @@ use thiserror::Error;
 pub enum PVMInvokeError {
     #[error("Spawned accumulate task panicked")]
     AccumulateTaskPanicked,
+    #[error(
+        "Number of import items referenced by work-package hashes is larger than allowed limit"
+    )]
+    SegmentLookupTableTooLarge,
     #[error("Work package is not authorized and `is_authorized` returned error code: {0}")]
     WorkPackageNotAuthorized(WorkExecutionError),
     #[error("Refine results blobs and authorization trace exceed size limit of work reports")]

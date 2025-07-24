@@ -7,9 +7,9 @@ use fr_codec::prelude::*;
 use fr_common::{
     workloads::{
         AvailSpecs, ExtrinsicInfo, RefineStats, SegmentRootLookupTable, WorkDigest, WorkDigests,
-        WorkExecutionResult, WorkItem, WorkPackage, WorkReport,
+        WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    AuthHash, CoreIndex, NodeHash, Octets, UnsignedGas, SEGMENT_SIZE,
+    AuthHash, CoreIndex, NodeHash, Octets, UnsignedGas, MAX_REPORT_DEPENDENCIES, SEGMENT_SIZE,
     WORK_REPORT_OUTPUT_SIZE_LIMIT,
 };
 use fr_crypto::{hash, Blake2b256};
@@ -172,7 +172,24 @@ fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
     hash::<Blake2b256>(buf.as_slice()).expect("Hashing a blob should be successful")
 }
 
-fn build_segment_roots_lookup_table(_package: &WorkPackage) -> SegmentRootLookupTable {
+fn build_segment_roots_lookup_table(
+    package: &WorkPackage,
+) -> Result<SegmentRootLookupTable, PVMInvokeError> {
+    let lookup_entries_count = package.work_items.iter().fold(0, |acc, wi| {
+        acc + wi
+            .import_segment_ids
+            .iter()
+            .filter(|&import_info| {
+                matches!(
+                    import_info.work_package_id,
+                    WorkPackageId::WorkPackageHash(_)
+                )
+            })
+            .count()
+    });
+    if lookup_entries_count > MAX_REPORT_DEPENDENCIES {
+        return Err(PVMInvokeError::SegmentLookupTableTooLarge);
+    }
     unimplemented!()
 }
 
@@ -186,7 +203,7 @@ fn build_avail_specs() -> AvailSpecs {
 }
 
 /// Collects imports segments data from sufficient number of validators (D3L) and recovers the whole
-/// imports segments from the segment root and item indices. Returns imports segments used by an
+/// imports segments from the segment root and item indices. Returns import segments used by an
 /// entire work-package.
 #[allow(dead_code)]
 fn construct_import_segments() -> WorkPackageImportSegments {
@@ -295,7 +312,7 @@ pub async fn compute_work_report(
         authorizer_hash: work_package_authorizer(&package),
         auth_gas_used,
         auth_trace,
-        segment_roots_lookup: build_segment_roots_lookup_table(&package),
+        segment_roots_lookup: build_segment_roots_lookup_table(&package)?,
         digests,
     })
 }
