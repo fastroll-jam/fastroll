@@ -34,8 +34,11 @@ struct RefineVMArgs {
 }
 
 pub struct RefineResult {
+    /// `u`: Gas used during `refine` execution.
     pub gas_used: UnsignedGas,
+    /// `r`: Refine result output.
     pub output: WorkExecutionResult,
+    /// **`e`**: Data segments exported by the `refine` execution.
     pub export_segments: Vec<ExportDataSegment>,
 }
 

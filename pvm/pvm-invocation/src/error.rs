@@ -13,6 +13,8 @@ pub enum PVMInvokeError {
     AccumulateTaskPanicked,
     #[error("Work package is not authorized and `is_authorized` returned error code: {0}")]
     WorkPackageNotAuthorized(WorkExecutionError),
+    #[error("Refine results blobs and authorization trace exceed size limit of work reports")]
+    WorkReportBlobTooLarge,
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]

@@ -1,4 +1,4 @@
-use crate::common::ExportDataSegment;
+use crate::common::WorkPackageImportSegments;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{ExtrinsicInfo, WorkExecutionResult, WorkPackage},
@@ -139,7 +139,7 @@ pub struct RefineInvokeArgs {
     /// **`r`**: Authorization trace blob
     pub auth_trace: Vec<u8>,
     /// **`ī`**: Fixed-length data segments imported from the import DA
-    pub import_segments: Vec<Vec<ExportDataSegment>>,
+    pub import_segments: WorkPackageImportSegments,
     /// `ς`: Initial offset index of the export segments array
     pub export_segments_offset: usize,
     /// A mapping form `ExtrinsicInfo` to its corresponding extrinsic data blob.

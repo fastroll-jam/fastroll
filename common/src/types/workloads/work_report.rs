@@ -257,6 +257,10 @@ impl WorkExecutionResult {
         Self::Error(WorkExecutionError::BadExports)
     }
 
+    pub fn oversize() -> Self {
+        Self::Error(WorkExecutionError::Oversize)
+    }
+
     pub fn bad() -> Self {
         Self::Error(WorkExecutionError::Bad)
     }
