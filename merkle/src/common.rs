@@ -14,6 +14,8 @@ pub enum MerkleError {
     JamCodecError(#[from] JamCodecError),
 }
 
+/// A recursive _`node`_ function which accepts some sequence of blobs of some given length
+/// and provides either such a blob back or a hash.
 pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
 
