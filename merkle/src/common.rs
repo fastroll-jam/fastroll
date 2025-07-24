@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::Hash32;
+use fr_common::{workloads::WorkExecutionError::Panic, Hash32};
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Hasher},
@@ -32,6 +32,30 @@ pub(crate) fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> 
 
     let hash_input = [HASH_PREFIX, &left, &right].concat();
     Ok(hash::<H>(&hash_input)?.to_vec())
+}
+
+/// The `P^S` function which splits the given data sequence into half and returns either of the
+/// sub-sequences depending on the `select_idx_side` boolean flag.
+///
+/// If the flag is true, returns the sub-sequence where `idx` belongs to.
+fn split_and_select(data: &[Vec<u8>], idx: usize, select_idx_side: bool) -> &[Vec<u8>] {
+    let mid = (data.len() + 1) / 2;
+    if (idx < mid) == select_idx_side {
+        &data[..mid]
+    } else {
+        &data[mid..]
+    }
+}
+
+/// The `P_I` function which returns 0 for indices in the first half of the data sequence,
+/// or the midpoint for those in the second half.
+fn merkle_index_offset(data: &[Vec<u8>], idx: usize) -> usize {
+    let mid = (data.len() + 1) / 2;
+    if idx < mid {
+        0
+    } else {
+        mid
+    }
 }
 
 /// A recursive _`trace`_ function which takes a sequence of blobs (of a specific length)
