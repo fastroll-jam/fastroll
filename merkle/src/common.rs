@@ -14,9 +14,9 @@ pub enum MerkleError {
     JamCodecError(#[from] JamCodecError),
 }
 
-/// A recursive _`node`_ function which accepts some sequence of blobs of some given length
-/// and provides either such a blob back or a hash.
-pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
+/// A recursive _`node`_ function which takes a sequence of blobs (of a specific length)
+/// and returns either one of those blobs or a hash.
+pub(crate) fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
 
     if data.is_empty() {
@@ -32,6 +32,16 @@ pub fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
 
     let hash_input = [HASH_PREFIX, &left, &right].concat();
     Ok(hash::<H>(&hash_input)?.to_vec())
+}
+
+/// A recursive _`trace`_ function which takes a sequence of blobs (of a specific length)
+/// and an item index within that sequence. It then returns, from top to bottom, each sibling node
+/// encountered while navigating the tree to reach the leaf corresponding to that item.
+pub(crate) fn trace<H: Hasher>(
+    data: &[Vec<u8>],
+    item_idx: usize,
+) -> Result<Vec<Vec<u8>>, MerkleError> {
+    unimplemented!()
 }
 
 #[cfg(test)]
