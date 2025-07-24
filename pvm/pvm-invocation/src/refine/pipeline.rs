@@ -173,7 +173,7 @@ fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
         ]
         .concat(),
     )
-    .expect("Hashing a blob should be successful")
+    .expect("Hashing blobs should be successful")
 }
 
 fn build_segment_roots_lookup_table(
