@@ -564,9 +564,7 @@ impl GuaranteesXtValidator {
     ) -> Result<Ed25519PubKey, XtError> {
         // Verify the signature
         let hash = hash::<Blake2b256>(&work_report.encode()?)?;
-        let mut message = Vec::with_capacity(X_G.len() + hash.len());
-        message.extend_from_slice(X_G);
-        message.extend_from_slice(hash.as_slice());
+        let message = [X_G, hash.as_slice()].concat();
 
         // Get core indices and validator keys
         let current_timeslot_index = self.state_manager.get_timeslot().await?.slot();
