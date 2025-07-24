@@ -1,13 +1,11 @@
+use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::WorkExecutionResult, CoreIndex, UnsignedGas, IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
     MAX_IS_AUTHORIZED_CODE_SIZE,
 };
 use fr_pvm_host::context::{InvocationContext, IsAuthorizedHostContext};
-use fr_pvm_interface::{
-    error::PVMError,
-    invoke::{PVMInterface, PVMInvocationResult},
-};
+use fr_pvm_interface::invoke::{PVMInterface, PVMInvocationResult};
 use fr_pvm_types::{constants::IS_AUTHORIZED_INITIAL_PC, invoke_args::IsAuthorizedInvokeArgs};
 use fr_state::manager::StateManager;
 use std::sync::Arc;
@@ -71,7 +69,7 @@ impl IsAuthorizedInvocation {
     pub async fn is_authorized(
         state_manager: Arc<StateManager>,
         args: &IsAuthorizedInvokeArgs,
-    ) -> Result<IsAuthorizedResult, PVMError> {
+    ) -> Result<IsAuthorizedResult, PVMInvokeError> {
         tracing::info!("Ψ_I (is_authorized) invoked.");
 
         // retrieve the service account code via historical lookup

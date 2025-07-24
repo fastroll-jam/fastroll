@@ -169,6 +169,12 @@ impl JamDecode for WorkExecutionError {
     }
 }
 
+impl Display for WorkExecutionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkExecutionResult {
     Output(Octets),

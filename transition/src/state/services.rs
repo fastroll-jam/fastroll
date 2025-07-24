@@ -120,7 +120,7 @@ pub async fn transition_on_accumulate(
         always_accumulate_services,
     )
     .await
-    .map_err(TransitionError::PVMError)?;
+    .map_err(TransitionError::PVMInvokeError)?;
 
     // Collect account state change set of all services
     let mut account_state_changes = AccountStateChanges::default();

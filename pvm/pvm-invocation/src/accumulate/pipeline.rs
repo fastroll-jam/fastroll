@@ -1,10 +1,12 @@
-use crate::accumulate::{AccumulateInvocation, AccumulateResult};
+use crate::{
+    accumulate::{AccumulateInvocation, AccumulateResult},
+    error::PVMInvokeError,
+};
 use fr_common::{
     workloads::work_report::WorkReport, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::context::partial_state::AccumulatePartialState;
-use fr_pvm_interface::error::PVMError;
 use fr_pvm_types::{
     invoke_args::{AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer},
     invoke_results::{
@@ -61,7 +63,7 @@ pub async fn accumulate_outer(
     gas_limit: UnsignedGas,
     reports: &[WorkReport],
     always_accumulate_services: &BTreeMap<ServiceId, UnsignedGas>,
-) -> Result<OuterAccumulationResult, PVMError> {
+) -> Result<OuterAccumulationResult, PVMInvokeError> {
     let mut always_accumulate_services = Some(always_accumulate_services.clone());
     let mut report_idx = 0usize; // i
     let mut remaining_gas_limit = gas_limit;
@@ -226,7 +228,7 @@ async fn accumulate_parallel(
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     partial_state_union: &mut AccumulatePartialState,
-) -> Result<ParallelAccumulationResult, PVMError> {
+) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
     let mut service_ids: BTreeSet<ServiceId> = reports
@@ -270,7 +272,7 @@ async fn accumulate_parallel(
     for handle in handles {
         let accumulate_result = handle
             .await
-            .map_err(|_| PVMError::AccumulateTaskPanicked)??;
+            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??;
         service_gas_pairs.push(AccumulationGasPair {
             service: accumulate_result.accumulate_host,
             gas: accumulate_result.gas_used,
@@ -351,7 +353,7 @@ async fn accumulate_single_service(
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
     curr_timeslot_index: TimeslotIndex,
-) -> Result<AccumulateResult, PVMError> {
+) -> Result<AccumulateResult, PVMInvokeError> {
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()

@@ -1,4 +1,7 @@
-use crate::is_authorized::{IsAuthorizedInvocation, IsAuthorizedResult};
+use crate::{
+    error::PVMInvokeError,
+    is_authorized::{IsAuthorizedInvocation, IsAuthorizedResult},
+};
 use fr_codec::prelude::*;
 use fr_common::{
     workloads::{
@@ -8,7 +11,6 @@ use fr_common::{
     AuthHash, CoreIndex, NodeHash, Octets, UnsignedGas, SEGMENT_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
-use fr_pvm_interface::error::PVMError;
 use fr_pvm_types::{common::ExportDataSegment, invoke_args::IsAuthorizedInvokeArgs};
 use fr_state::manager::StateManager;
 use std::sync::Arc;
@@ -165,7 +167,7 @@ fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
     hash::<Blake2b256>(buf.as_slice()).expect("Hashing a blob should be successful")
 }
 
-fn construct_segment_roots_lookup_dictionary(_package: &WorkPackage) -> SegmentRootLookupTable {
+fn build_segment_roots_lookup_dictionary(_package: &WorkPackage) -> SegmentRootLookupTable {
     unimplemented!()
 }
 
@@ -184,14 +186,22 @@ pub async fn compute_work_report(
     state_manager: Arc<StateManager>,
     package: WorkPackage,
     core_index: CoreIndex,
-) -> Result<WorkReport, PVMError> {
+) -> Result<WorkReport, PVMInvokeError> {
     let is_authorized_args = IsAuthorizedInvokeArgs {
         package: package.clone(),
         core_index,
     };
-    IsAuthorizedResult {
+    let IsAuthorizedResult {
         gas_used,
         work_execution_result,
     } = IsAuthorizedInvocation::is_authorized(state_manager, &is_authorized_args).await?;
+
+    let trace = match work_execution_result {
+        WorkExecutionResult::Output(octets) => octets,
+        WorkExecutionResult::Error(e) => {
+            return Err(PVMInvokeError::WorkPackageNotAuthorized(e));
+        }
+    };
+
     unimplemented!()
 }
