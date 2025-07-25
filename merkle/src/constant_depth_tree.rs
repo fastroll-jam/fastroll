@@ -39,7 +39,7 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
             .into_iter()
             .map(|hash| hash.to_vec())
             .collect::<Vec<_>>();
-        octets_to_hash32(&node::<H>(&data_with_constancy)?)
+        octets_to_hash32(&node::<H, Vec<u8>>(&data_with_constancy)?)
             .ok_or(MerkleError::CryptoError(CryptoError::HashError))
     }
 

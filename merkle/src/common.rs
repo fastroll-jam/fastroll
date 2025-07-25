@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::Hash32;
+use fr_common::{ByteEncodable, Hash32};
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Hasher},
@@ -14,38 +14,48 @@ pub enum MerkleError {
     JamCodecError(#[from] JamCodecError),
 }
 
-/// A recursive _`node`_ function which takes a sequence of blobs (of a specific length)
-/// and returns either one of those blobs or a hash.
-pub(crate) fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
-    const HASH_PREFIX: &[u8] = b"node";
-    if data.is_empty() {
-        return Ok(Hash32::default().to_vec());
-    }
-    if data.len() == 1 {
-        return Ok(data[0].clone());
-    }
-
-    let left = node::<H>(&data[..data.len().div_ceil(2)])?;
-    let right = node::<H>(&data[data.len().div_ceil(2)..])?;
-
-    let hash_input = [HASH_PREFIX, &left, &right].concat();
-    Ok(hash::<H>(&hash_input)?.to_vec())
+/// A trait for types that can be used as data elements in merkle tree construction.
+pub(crate) trait MerkleData: ByteEncodable + Clone {
+    fn merkle_default() -> Self;
+    fn from_hash<H: Hasher>(hash: Hash32) -> Self;
 }
 
-fn hash_node<H: Hasher>(data: &[Hash32]) -> Result<Hash32, MerkleError> {
+impl MerkleData for Vec<u8> {
+    fn merkle_default() -> Self {
+        Hash32::default().to_vec()
+    }
+
+    fn from_hash<H: Hasher>(hash: Hash32) -> Self {
+        hash.to_vec()
+    }
+}
+
+impl MerkleData for Hash32 {
+    fn merkle_default() -> Self {
+        Hash32::default()
+    }
+
+    fn from_hash<H: Hasher>(hash: Hash32) -> Self {
+        hash
+    }
+}
+
+/// A recursive _`node`_ function which takes a sequence of blobs (of a specific length)
+/// and returns either one of those blobs or a hash.
+pub(crate) fn node<H: Hasher, T: MerkleData>(data: &[T]) -> Result<T, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
     if data.is_empty() {
-        return Ok(Hash32::default());
+        return Ok(T::merkle_default());
     }
     if data.len() == 1 {
         return Ok(data[0].clone());
     }
 
-    let left = hash_node::<H>(&data[..data.len().div_ceil(2)])?;
-    let right = hash_node::<H>(&data[data.len().div_ceil(2)..])?;
+    let left = node::<H, T>(&data[..data.len().div_ceil(2)])?;
+    let right = node::<H, T>(&data[data.len().div_ceil(2)..])?;
 
     let hash_input = [HASH_PREFIX, left.as_slice(), right.as_slice()].concat();
-    Ok(hash::<H>(&hash_input)?)
+    Ok(T::from_hash::<H>(hash::<H>(&hash_input)?))
 }
 
 /// The `P^S` function which splits the given data sequence into half and returns either of the
@@ -92,7 +102,7 @@ pub(crate) fn trace<H: Hasher>(
         return Ok(Vec::new());
     }
 
-    let sibling = hash_node::<H>(split_and_select(data, item_idx, false))?;
+    let sibling = node::<H, Hash32>(split_and_select(data, item_idx, false))?;
     let mut subtree_trace = trace::<H>(
         split_and_select(data, item_idx, true),
         item_idx - merkle_index_offset(data, item_idx),
@@ -111,7 +121,7 @@ mod tests {
     #[test]
     fn test_node_empty() -> Result<(), MerkleError> {
         let data: &[Vec<u8>] = &[];
-        let root = node::<Blake2b256>(data)?;
+        let root = node::<Blake2b256, Vec<u8>>(data)?;
 
         assert_eq!(root, Hash32::default().to_vec());
         Ok(())
@@ -120,7 +130,7 @@ mod tests {
     #[test]
     fn test_node_single_element() -> Result<(), MerkleError> {
         let data: &[Vec<u8>] = &[vec![0, 1]];
-        let root = node::<Blake2b256>(data)?;
+        let root = node::<Blake2b256, Vec<u8>>(data)?;
 
         assert_eq!(root, vec![0, 1]);
         Ok(())
@@ -129,7 +139,7 @@ mod tests {
     #[test]
     fn test_node_two_elements() -> Result<(), MerkleError> {
         let data: &[Vec<u8>] = &[vec![10, 11], vec![12, 13]];
-        let root = node::<Blake2b256>(data)?;
+        let root = node::<Blake2b256, Vec<u8>>(data)?;
 
         let expected =
             hash::<Blake2b256>(&[b"node".to_vec(), vec![10, 11], vec![12, 13]].concat())?.to_vec();
@@ -141,7 +151,7 @@ mod tests {
     #[test]
     fn test_node_three_elements() -> Result<(), MerkleError> {
         let data: &[Vec<u8>] = &[vec![10, 11], vec![12, 13], vec![14, 15]];
-        let root = node::<Blake2b256>(data)?;
+        let root = node::<Blake2b256, Vec<u8>>(data)?;
 
         let hash_10111213 =
             hash::<Blake2b256>(&[b"node".to_vec(), vec![10, 11], vec![12, 13]].concat())?.to_vec();
@@ -155,7 +165,7 @@ mod tests {
     #[test]
     fn test_node_five_elements() -> Result<(), MerkleError> {
         let data: &[Vec<u8>] = &[vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
-        let root = node::<Blake2b256>(data)?;
+        let root = node::<Blake2b256, Vec<u8>>(data)?;
 
         let hash_0123 =
             hash::<Blake2b256>(&[b"node".to_vec(), vec![0, 1], vec![2, 3]].concat())?.to_vec();
