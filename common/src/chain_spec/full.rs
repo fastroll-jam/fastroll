@@ -25,3 +25,10 @@ pub const MAX_TICKETS_PER_EXTRINSIC: usize = 16;
 
 /// `R`: The guarantor rotation period in timeslots.
 pub const GUARANTOR_ROTATION_PERIOD: usize = 10;
+
+/// The total number of symbols in a codeword (message + recovery symbols) in erasure codec.
+/// For `k:n` reed-solomon rate, this is `n`.
+pub const ERASURE_CODE_TOTAL_CHUNKS: usize = VALIDATOR_COUNT;
+
+/// The number of original message symbols. For `k:n` reed-solomon rate, this is `k`.
+pub const ERASURE_CODE_MESSAGE_CHUNKS: usize = 342;

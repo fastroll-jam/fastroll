@@ -971,6 +971,7 @@ dependencies = [
 name = "fr-erasure-coding"
 version = "0.1.0"
 dependencies = [
+ "fr-common",
  "rayon",
  "reed-solomon-simd",
  "thiserror 2.0.12",
@@ -1114,6 +1115,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
+ "fr-erasure-coding",
  "fr-merkle",
  "fr-pvm-host",
  "fr-pvm-interface",
