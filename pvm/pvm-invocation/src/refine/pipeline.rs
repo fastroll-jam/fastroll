@@ -5,6 +5,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
+    utils::zero_pad::zero_pad,
     workloads::{
         AvailSpecs, ExtrinsicInfo, RefineStats, SegmentRootLookupTable, WorkDigest, WorkDigests,
         WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
@@ -13,6 +14,7 @@ use fr_common::{
     WORK_REPORT_OUTPUT_SIZE_LIMIT,
 };
 use fr_crypto::{hash, Blake2b256};
+use fr_merkle::constant_depth_tree::ConstantDepthMerkleTree;
 use fr_pvm_types::{
     common::{ExportDataSegment, WorkPackageImportSegments},
     invoke_args::{IsAuthorizedInvokeArgs, RefineInvokeArgs},
@@ -200,8 +202,45 @@ fn build_segment_roots_lookup_table(
 /// Paged-proofs function (`P`) which accepts export segments and returns justification data
 /// which will be placed in D3L and are required for future verification.
 #[allow(dead_code)]
-fn generate_paged_proofs(_export_segments: Vec<ExportDataSegment>) -> Vec<ExportDataSegment> {
-    unimplemented!();
+fn generate_paged_proofs(
+    export_segments: Vec<ExportDataSegment>,
+) -> Result<Vec<ExportDataSegment>, PVMInvokeError> {
+    const PAGE_DEPTH: usize = 6;
+    const PAGE_SIZE: usize = 1 << PAGE_DEPTH; // 64
+
+    let exports_vec = export_segments
+        .into_iter()
+        .map(Vec::<u8>::from)
+        .collect::<Vec<_>>();
+
+    let pages_count = exports_vec.len().div_ceil(PAGE_SIZE);
+    let mut page_proofs = Vec::with_capacity(pages_count);
+    for page_idx in 0..pages_count {
+        let mut buf = Vec::new();
+        let justification = ConstantDepthMerkleTree::<Blake2b256>::single_page_justification(
+            &exports_vec,
+            page_idx,
+            PAGE_DEPTH,
+        )?;
+        let leaf_hashes = ConstantDepthMerkleTree::<Blake2b256>::subtree_page_leaf_hashes(
+            &exports_vec,
+            page_idx,
+            PAGE_DEPTH,
+        );
+        justification.encode_to(&mut buf)?;
+        leaf_hashes.encode_to(&mut buf)?;
+        // TODO: check if the buffer always fits in a single block of size `SEGMENT_SIZE`.
+        page_proofs.push(zero_pad::<SEGMENT_SIZE>(buf));
+    }
+
+    let page_proofs = page_proofs
+        .into_iter()
+        .map(|octets| {
+            ExportDataSegment::try_from(octets)
+                .expect("Zero padded justification data size exceeds SEGMENT_SIZE")
+        })
+        .collect::<Vec<_>>();
+    Ok(page_proofs)
 }
 
 fn build_avail_specs() -> AvailSpecs {

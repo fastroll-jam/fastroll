@@ -1,6 +1,6 @@
 use crate::common::{node, trace, MerkleError};
 use fr_common::{Hash32, MerkleRoot};
-use fr_crypto::{error::CryptoError, hash, octets_to_hash32, Blake2b256, Hasher};
+use fr_crypto::{error::CryptoError, hash, octets_to_hash32, Hasher};
 use std::marker::PhantomData;
 
 /// Constant-depth binary Merkle Tree.
@@ -50,7 +50,7 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
         page_idx: usize,
         page_depth: usize,
     ) -> Result<Vec<Hash32>, MerkleError> {
-        let mut trace = trace::<Blake2b256, Hash32>(
+        let mut trace = trace::<H, Hash32>(
             &Self::constancy_preprocess(data)?,
             2usize.pow(page_depth as u32) * page_idx,
         )?;
@@ -73,7 +73,7 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
         data[start_idx..end_idx]
             .iter()
             .map(|data_item| {
-                hash::<Blake2b256>(&[PREFIX, data_item].concat())
+                hash::<H>(&[PREFIX, data_item].concat())
                     .expect("Hashing blobs should be successful")
             })
             .collect::<Vec<_>>()

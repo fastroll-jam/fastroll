@@ -1114,6 +1114,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
+ "fr-merkle",
  "fr-pvm-host",
  "fr-pvm-interface",
  "fr-pvm-types",
