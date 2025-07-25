@@ -197,6 +197,8 @@ fn build_segment_roots_lookup_table(
     unimplemented!()
 }
 
+/// Paged-proofs function (`P`) which accepts export segments and returns justification data
+/// which will be placed in D3L and are required for future verification.
 #[allow(dead_code)]
 fn generate_paged_proofs(_export_segments: Vec<ExportDataSegment>) -> Vec<ExportDataSegment> {
     unimplemented!();
