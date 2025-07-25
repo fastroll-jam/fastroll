@@ -1,8 +1,9 @@
+use fr_common::{ERASURE_CODE_MESSAGE_CHUNKS, ERASURE_CODE_TOTAL_CHUNKS};
 use rayon::prelude::*;
 use reed_solomon_simd::{Error as ReedSolomonError, ReedSolomonDecoder, ReedSolomonEncoder};
 use thiserror::Error;
 
-type Chunk = Vec<u8>; // length: k words (2k octets)
+pub type Chunk = Vec<u8>; // length: k words (2k octets)
 
 #[derive(Debug, Error)]
 pub enum ErasureCodingError {
@@ -35,6 +36,13 @@ pub struct ErasureCodec {
 }
 
 impl ErasureCodec {
+    pub fn new_from_chain_spec() -> Self {
+        Self {
+            total_chunks: ERASURE_CODE_TOTAL_CHUNKS,
+            msg_chunks: ERASURE_CODE_MESSAGE_CHUNKS,
+        }
+    }
+
     pub fn new_tiny() -> Self {
         Self {
             total_chunks: 6,

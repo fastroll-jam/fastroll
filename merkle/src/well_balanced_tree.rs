@@ -6,7 +6,7 @@ use fr_crypto::{
 };
 use std::marker::PhantomData;
 
-/// Well-balanced binary Merkle Tree representation.
+/// Well-balanced binary Merkle Tree.
 pub struct WellBalancedMerkleTree<H: Hasher> {
     pub root: MerkleRoot,
     _hasher: PhantomData<H>,
@@ -21,6 +21,7 @@ impl<H: Hasher> WellBalancedMerkleTree<H> {
         if data.len() == 1 {
             return Ok(hash::<H>(&data[0])?);
         }
-        octets_to_hash32(&node::<H>(data)?).ok_or(MerkleError::CryptoError(CryptoError::HashError))
+        octets_to_hash32(&node::<H, Vec<u8>>(data)?)
+            .ok_or(MerkleError::CryptoError(CryptoError::HashError))
     }
 }

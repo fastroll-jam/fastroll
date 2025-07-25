@@ -1,142 +1,28 @@
 use crate::{
     error::PVMInvokeError,
     is_authorized::{IsAuthorizedInvocation, IsAuthorizedResult},
-    refine::{RefineInvocation, RefineResult},
+    refine::{
+        auditable_bundle::{
+            build_auditable_bundle, construct_extrinsic_data_info_map, construct_import_segments,
+        },
+        avail_spec::build_avail_specs,
+        RefineInvocation, RefineResult,
+    },
 };
-use fr_codec::prelude::*;
 use fr_common::{
     workloads::{
-        AvailSpecs, ExtrinsicInfo, RefineStats, SegmentRootLookupTable, WorkDigest, WorkDigests,
-        WorkExecutionResult, WorkItem, WorkPackage, WorkPackageId, WorkReport,
+        RefineStats, SegmentRootLookupTable, WorkDigest, WorkDigests, WorkExecutionResult,
+        WorkItem, WorkPackage, WorkPackageId, WorkReport,
     },
-    AuthHash, CoreIndex, NodeHash, Octets, UnsignedGas, MAX_REPORT_DEPENDENCIES, SEGMENT_SIZE,
-    WORK_REPORT_OUTPUT_SIZE_LIMIT,
+    AuthHash, CoreIndex, UnsignedGas, MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_types::{
-    common::{ExportDataSegment, WorkPackageImportSegments},
+    common::ExportDataSegment,
     invoke_args::{IsAuthorizedInvokeArgs, RefineInvokeArgs},
 };
 use fr_state::manager::StateManager;
-use std::{collections::HashMap, sync::Arc};
-
-/// A work bundle ready for auditing, with all reference data collected along with a work-package.
-///
-/// This should be collected by guarantors and then placed in Audit DA so that auditors can execute
-/// refinement of work-packages without interacting with D3L.
-pub struct AuditableBundle {
-    pub package: WorkPackage,
-    pub extrinsic_data: Vec<Vec<Octets>>,
-    pub imports: WorkPackageImportSegments,
-    /// Collection of sibling (opposite) node hashes along the merkle path of each import segment
-    pub imports_justifications: Vec<Vec<Vec<NodeHash>>>,
-}
-
-impl JamEncode for AuditableBundle {
-    fn size_hint(&self) -> usize {
-        self.package.size_hint()
-            + self
-                .package
-                .work_items
-                .iter()
-                .map(|wi| {
-                    wi.extrinsic_data_info
-                        .iter()
-                        .map(|xt| xt.blob_length as usize)
-                        .sum::<usize>()
-                        + wi.import_segment_ids.len() * SEGMENT_SIZE
-                })
-                .sum::<usize>()
-            + self
-                .imports_justifications
-                .iter()
-                .map(|wi_justifications| {
-                    wi_justifications
-                        .iter()
-                        .map(|justification| justification.size_hint())
-                        .sum::<usize>()
-                })
-                .sum::<usize>()
-    }
-
-    fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        self.package.encode_to(dest)?;
-        // No length prefixes except for the justifications' merkle paths
-
-        // Iterate on extrinsic data field of all work-items in a work-package.
-        for work_item_xts in &self.extrinsic_data {
-            for work_item_xt in work_item_xts {
-                dest.write(work_item_xt.as_slice());
-            }
-        }
-        // Iterate on import segments field of all work-items in a work-package.
-        for work_item_segments in &self.imports {
-            for segment in work_item_segments {
-                segment.encode_to(dest)?;
-            }
-        }
-        // Iterate on import justifications field of all work-items in a work-package.
-        for work_item_justifications in &self.imports_justifications {
-            for justification in work_item_justifications {
-                justification.encode_to(dest)?; // Vec<T> is length-prefixed by default
-            }
-        }
-        Ok(())
-    }
-}
-
-impl JamDecode for AuditableBundle {
-    fn decode<I: JamInput>(input: &mut I) -> Result<Self, JamCodecError>
-    where
-        Self: Sized,
-    {
-        let package = WorkPackage::decode(input)?;
-        let work_items_count = package.work_items.len();
-
-        // Decode extrinsic data
-        let mut extrinsic_data = Vec::with_capacity(work_items_count);
-        for work_item in &package.work_items {
-            let mut work_item_xts = Vec::with_capacity(work_item.extrinsic_data_info.len());
-            for xt_info in &work_item.extrinsic_data_info {
-                let blob_length = xt_info.blob_length as usize;
-                let mut blob = vec![0u8; blob_length];
-                input.read(&mut blob)?;
-                work_item_xts.push(Octets::from_vec(blob));
-            }
-            extrinsic_data.push(work_item_xts);
-        }
-
-        // Decode imports segments
-        let mut imports = Vec::with_capacity(work_items_count);
-        for work_item in &package.work_items {
-            let mut work_item_segments = Vec::with_capacity(work_item.import_segment_ids.len());
-            for _ in &work_item.import_segment_ids {
-                let segment = ExportDataSegment::decode(input)?;
-                work_item_segments.push(segment);
-            }
-            imports.push(work_item_segments);
-        }
-
-        // Decode justifications of imports segments
-        let mut imports_justifications = Vec::with_capacity(work_items_count);
-        for work_item in &package.work_items {
-            let mut work_item_justifications =
-                Vec::with_capacity(work_item.import_segment_ids.len());
-            for _ in &work_item.import_segment_ids {
-                let justification = Vec::<NodeHash>::decode(input)?;
-                work_item_justifications.push(justification);
-            }
-            imports_justifications.push(work_item_justifications);
-        }
-
-        Ok(Self {
-            package,
-            extrinsic_data,
-            imports,
-            imports_justifications,
-        })
-    }
-}
+use std::sync::Arc;
 
 /// Converts a work item and its associated execution result into a work digest.
 fn work_item_to_digest(
@@ -173,7 +59,7 @@ fn work_package_authorizer(package: &WorkPackage) -> AuthHash {
         ]
         .concat(),
     )
-    .expect("Hashing a blob should be successful")
+    .expect("Hashing blobs should be successful")
 }
 
 fn build_segment_roots_lookup_table(
@@ -194,29 +80,7 @@ fn build_segment_roots_lookup_table(
     if lookup_entries_count > MAX_REPORT_DEPENDENCIES {
         return Err(PVMInvokeError::SegmentLookupTableTooLarge);
     }
-    unimplemented!()
-}
-
-#[allow(dead_code)]
-fn generate_paged_proofs(_export_segments: Vec<ExportDataSegment>) -> Vec<ExportDataSegment> {
-    unimplemented!();
-}
-
-fn build_avail_specs() -> AvailSpecs {
-    unimplemented!()
-}
-
-/// Collects imports segments data from sufficient number of validators (D3L) and recovers the whole
-/// imports segments from the segment root and item indices. Returns import segments used by an
-/// entire work-package.
-#[allow(dead_code)]
-fn construct_import_segments() -> WorkPackageImportSegments {
-    unimplemented!()
-}
-
-#[allow(dead_code)]
-fn construct_extrinsic_data() -> HashMap<ExtrinsicInfo, Vec<u8>> {
-    unimplemented!()
+    unimplemented!("Recover work-packages being referenced and execute `compute_work_report` function to get erasure-roots corresponding to provided work-package hashes")
 }
 
 /// Replace export segments with zeros to nullify exported data
@@ -270,7 +134,7 @@ pub async fn compute_work_report(
             auth_trace: auth_trace.clone().into_vec(),
             import_segments: construct_import_segments(),
             export_segments_offset,
-            extrinsic_data_map: construct_extrinsic_data(),
+            extrinsic_data_map: construct_extrinsic_data_info_map(),
         };
 
         let RefineResult {
@@ -310,7 +174,11 @@ pub async fn compute_work_report(
     }
 
     Ok(WorkReport {
-        specs: build_avail_specs(),
+        specs: build_avail_specs(
+            &package,
+            build_auditable_bundle(package.clone()),
+            exports.into_iter().flatten().collect(),
+        )?,
         refinement_context: package.context.clone(),
         core_index,
         authorizer_hash: work_package_authorizer(&package),

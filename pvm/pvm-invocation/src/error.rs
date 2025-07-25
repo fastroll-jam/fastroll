@@ -1,6 +1,8 @@
 use fr_codec::JamCodecError;
 use fr_common::workloads::WorkExecutionError;
 use fr_crypto::error::CryptoError;
+use fr_erasure_coding::ErasureCodingError;
+use fr_merkle::common::MerkleError;
 use fr_pvm_host::error::HostCallError;
 use fr_pvm_interface::error::PVMError;
 use fr_state::error::StateManagerError;
@@ -23,6 +25,10 @@ pub enum PVMInvokeError {
     JamCodecError(#[from] JamCodecError),
     #[error("CryptoError: {0}")]
     CryptoError(#[from] CryptoError),
+    #[error("MerkleError: {0}")]
+    MerkleError(#[from] MerkleError),
+    #[error("ErasureCodingError: {0}")]
+    ErasureCodingError(#[from] ErasureCodingError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("PVMError: {0}")]

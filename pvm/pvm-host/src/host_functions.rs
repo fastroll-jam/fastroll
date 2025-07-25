@@ -3,7 +3,7 @@ use crate::{
     continue_huh, continue_low, continue_none, continue_ok, continue_oob, continue_what,
     continue_who, continue_with_vm_change, error::HostCallError, get_mut_accounts_sandbox,
     get_mut_accumulate_x, get_mut_refine_x, get_refine_x, host_call_panic,
-    host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::zero_pad_as_array,
+    host_functions::InnerPVMResultConstant::*, inner_vm::InnerPVM, utils::zero_pad_single_block,
 };
 use fr_codec::prelude::*;
 use fr_common::{
@@ -782,7 +782,7 @@ impl HostFunction {
             host_call_panic!()
         };
         let data_segment: ExportDataSegment =
-            zero_pad_as_array::<SEGMENT_SIZE>(data_segment_octets)
+            zero_pad_single_block::<SEGMENT_SIZE>(data_segment_octets)
                 .ok_or(HostCallError::DataSegmentTooLarge)?; // unreachable; export size bounded to `SEGMENT_SIZE`
 
         x.export_segments.push(data_segment);

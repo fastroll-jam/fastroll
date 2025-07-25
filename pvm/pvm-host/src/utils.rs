@@ -1,17 +1,22 @@
 //! PVM host call util functions and macros
 
+use fr_common::utils::zero_pad::zero_pad;
 use fr_limited_vec::FixedVec;
 
-// Zero-padding function for octet sequences
-pub(crate) fn zero_pad_as_array<const BLOCK_SIZE: usize>(
-    mut input: Vec<u8>,
+/// Zero-pads input octet sequence into a fixed length of `BLOCK_SIZE`. Returns `None` if the input
+/// length exceeds `BLOCK_SIZE`.
+pub(crate) fn zero_pad_single_block<const BLOCK_SIZE: usize>(
+    input: Vec<u8>,
 ) -> Option<FixedVec<u8, BLOCK_SIZE>> {
     if input.len() > BLOCK_SIZE {
         return None;
     }
-    let padding_len = BLOCK_SIZE - input.len();
-    input.extend(vec![0; padding_len]);
-    FixedVec::<u8, BLOCK_SIZE>::try_from(input).ok()
+    let padded = zero_pad::<BLOCK_SIZE>(input);
+    if padded.len() != BLOCK_SIZE {
+        // Double-check
+        return None;
+    }
+    FixedVec::<u8, BLOCK_SIZE>::try_from(padded).ok()
 }
 
 #[macro_export]

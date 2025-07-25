@@ -82,6 +82,25 @@ pub trait ByteEncodable: Sized {
     fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError>;
 }
 
+impl ByteEncodable for Vec<u8> {
+    fn as_slice(&self) -> &[u8] {
+        self
+    }
+
+    fn to_hex(&self) -> String {
+        hex::encode(self)
+    }
+
+    fn from_slice(slice: &[u8]) -> Result<Self, CommonTypeError> {
+        Ok(slice.to_vec())
+    }
+
+    fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
+        let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        Ok(hex::decode(hex_stripped).expect("Failed decoding hexstring into Vec<u8>"))
+    }
+}
+
 /// Bytes sequence type with no length limit.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteSequence(pub Vec<u8>);

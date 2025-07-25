@@ -1,3 +1,5 @@
+pub(crate) mod auditable_bundle;
+pub(crate) mod avail_spec;
 pub mod pipeline;
 
 use crate::error::PVMInvokeError;
