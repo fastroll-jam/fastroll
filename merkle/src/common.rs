@@ -1,5 +1,5 @@
 use fr_codec::JamCodecError;
-use fr_common::{workloads::WorkExecutionError::Panic, Hash32};
+use fr_common::Hash32;
 use fr_crypto::{
     error::CryptoError,
     hash::{hash, Hasher},
@@ -18,11 +18,9 @@ pub enum MerkleError {
 /// and returns either one of those blobs or a hash.
 pub(crate) fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> {
     const HASH_PREFIX: &[u8] = b"node";
-
     if data.is_empty() {
         return Ok(Hash32::default().to_vec());
     }
-
     if data.len() == 1 {
         return Ok(data[0].clone());
     }
@@ -34,12 +32,31 @@ pub(crate) fn node<H: Hasher>(data: &[Vec<u8>]) -> Result<Vec<u8>, MerkleError> 
     Ok(hash::<H>(&hash_input)?.to_vec())
 }
 
+fn hash_node<H: Hasher>(data: &[Hash32]) -> Result<Hash32, MerkleError> {
+    const HASH_PREFIX: &[u8] = b"node";
+    if data.is_empty() {
+        return Ok(Hash32::default());
+    }
+    if data.len() == 1 {
+        return Ok(data[0].clone());
+    }
+
+    let left = hash_node::<H>(&data[..data.len().div_ceil(2)])?;
+    let right = hash_node::<H>(&data[data.len().div_ceil(2)..])?;
+
+    let hash_input = [HASH_PREFIX, left.as_slice(), right.as_slice()].concat();
+    Ok(hash::<H>(&hash_input)?)
+}
+
 /// The `P^S` function which splits the given data sequence into half and returns either of the
 /// sub-sequences depending on the `select_idx_side` boolean flag.
 ///
 /// If the flag is true, returns the sub-sequence where `idx` belongs to.
-fn split_and_select(data: &[Vec<u8>], idx: usize, select_idx_side: bool) -> &[Vec<u8>] {
-    let mid = (data.len() + 1) / 2;
+///
+/// Note: Since this function is currently only used for constant-depth trees which have sequence of
+/// hashes as input data, we're using slice of `Hash32` as input type.
+fn split_and_select(data: &[Hash32], idx: usize, select_idx_side: bool) -> &[Hash32] {
+    let mid = data.len().div_ceil(2);
     if (idx < mid) == select_idx_side {
         &data[..mid]
     } else {
@@ -49,8 +66,11 @@ fn split_and_select(data: &[Vec<u8>], idx: usize, select_idx_side: bool) -> &[Ve
 
 /// The `P_I` function which returns 0 for indices in the first half of the data sequence,
 /// or the midpoint for those in the second half.
-fn merkle_index_offset(data: &[Vec<u8>], idx: usize) -> usize {
-    let mid = (data.len() + 1) / 2;
+///
+/// Note: Since this function is currently only used for constant-depth trees which have sequence of
+/// hashes as input data, we're using slice of `Hash32` as input type.
+fn merkle_index_offset(data: &[Hash32], idx: usize) -> usize {
+    let mid = data.len().div_ceil(2);
     if idx < mid {
         0
     } else {
@@ -61,11 +81,26 @@ fn merkle_index_offset(data: &[Vec<u8>], idx: usize) -> usize {
 /// A recursive _`trace`_ function which takes a sequence of blobs (of a specific length)
 /// and an item index within that sequence. It then returns, from top to bottom, each sibling node
 /// encountered while navigating the tree to reach the leaf corresponding to that item.
+///
+/// Note: Since this function is currently only used for constant-depth trees which have sequence of
+/// hashes as input data, we're using slice of `Hash32` as input type.
 pub(crate) fn trace<H: Hasher>(
-    data: &[Vec<u8>],
+    data: &[Hash32],
     item_idx: usize,
-) -> Result<Vec<Vec<u8>>, MerkleError> {
-    unimplemented!()
+) -> Result<Vec<Hash32>, MerkleError> {
+    if data.len() <= 1 {
+        return Ok(Vec::new());
+    }
+
+    let sibling = hash_node::<H>(split_and_select(data, item_idx, false))?;
+    let mut subtree_trace = trace::<H>(
+        split_and_select(data, item_idx, true),
+        item_idx - merkle_index_offset(data, item_idx),
+    )?;
+
+    let mut result = vec![sibling];
+    result.append(&mut subtree_trace);
+    Ok(result)
 }
 
 #[cfg(test)]
