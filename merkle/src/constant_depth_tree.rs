@@ -50,7 +50,7 @@ impl<H: Hasher> ConstantDepthMerkleTree<H> {
         page_idx: usize,
         page_depth: usize,
     ) -> Result<Vec<Hash32>, MerkleError> {
-        let mut trace = trace::<Blake2b256>(
+        let mut trace = trace::<Blake2b256, Hash32>(
             &Self::constancy_preprocess(data)?,
             2usize.pow(page_depth as u32) * page_idx,
         )?;

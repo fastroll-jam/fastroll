@@ -62,10 +62,7 @@ pub(crate) fn node<H: Hasher, T: MerkleData>(data: &[T]) -> Result<T, MerkleErro
 /// sub-sequences depending on the `select_idx_side` boolean flag.
 ///
 /// If the flag is true, returns the sub-sequence where `idx` belongs to.
-///
-/// Note: Since this function is currently only used for constant-depth trees which have sequence of
-/// hashes as input data, we're using slice of `Hash32` as input type.
-fn split_and_select(data: &[Hash32], idx: usize, select_idx_side: bool) -> &[Hash32] {
+fn split_and_select<T: MerkleData>(data: &[T], idx: usize, select_idx_side: bool) -> &[T] {
     let mid = data.len().div_ceil(2);
     if (idx < mid) == select_idx_side {
         &data[..mid]
@@ -76,10 +73,7 @@ fn split_and_select(data: &[Hash32], idx: usize, select_idx_side: bool) -> &[Has
 
 /// The `P_I` function which returns 0 for indices in the first half of the data sequence,
 /// or the midpoint for those in the second half.
-///
-/// Note: Since this function is currently only used for constant-depth trees which have sequence of
-/// hashes as input data, we're using slice of `Hash32` as input type.
-fn merkle_index_offset(data: &[Hash32], idx: usize) -> usize {
+fn merkle_index_offset<T: MerkleData>(data: &[T], idx: usize) -> usize {
     let mid = data.len().div_ceil(2);
     if idx < mid {
         0
@@ -91,19 +85,16 @@ fn merkle_index_offset(data: &[Hash32], idx: usize) -> usize {
 /// A recursive _`trace`_ function which takes a sequence of blobs (of a specific length)
 /// and an item index within that sequence. It then returns, from top to bottom, each sibling node
 /// encountered while navigating the tree to reach the leaf corresponding to that item.
-///
-/// Note: Since this function is currently only used for constant-depth trees which have sequence of
-/// hashes as input data, we're using slice of `Hash32` as input type.
-pub(crate) fn trace<H: Hasher>(
-    data: &[Hash32],
+pub(crate) fn trace<H: Hasher, T: MerkleData>(
+    data: &[T],
     item_idx: usize,
-) -> Result<Vec<Hash32>, MerkleError> {
+) -> Result<Vec<T>, MerkleError> {
     if data.len() <= 1 {
         return Ok(Vec::new());
     }
 
-    let sibling = node::<H, Hash32>(split_and_select(data, item_idx, false))?;
-    let mut subtree_trace = trace::<H>(
+    let sibling = node::<H, T>(split_and_select(data, item_idx, false))?;
+    let mut subtree_trace = trace::<H, T>(
         split_and_select(data, item_idx, true),
         item_idx - merkle_index_offset(data, item_idx),
     )?;
