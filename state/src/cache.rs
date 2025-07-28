@@ -6,6 +6,7 @@ use fr_codec::prelude::*;
 use fr_common::StateKey;
 use fr_state_merkle::merkle_db::MerkleWriteOp;
 use mini_moka::sync::{Cache, ConcurrentCacheExt};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -23,15 +24,16 @@ pub(crate) enum CacheEntryStatus {
 #[derive(Debug, Clone)]
 pub(crate) struct CacheEntry {
     /// Cached snapshot of clean state entry, synchronized with the DB.
-    pub(crate) clean_snapshot: StateEntryType,
+    pub(crate) clean_snapshot: Arc<StateEntryType>,
     /// Latest state cache entry value.
-    pub(crate) value: StateEntryType,
+    pub(crate) value: Arc<StateEntryType>,
     /// State cache status (Clean or Dirty).
     pub(crate) status: CacheEntryStatus,
 }
 
 impl CacheEntry {
     pub fn new(value: StateEntryType) -> Self {
+        let value = Arc::new(value);
         Self {
             clean_snapshot: value.clone(),
             value,
@@ -122,8 +124,9 @@ impl StateCache {
             .get(state_key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
 
-        let entry_mut = T::from_entry_type_mut(&mut cache_entry.value)
+        let entry_mut = T::from_entry_type_mut(Arc::make_mut(&mut cache_entry.value))
             .ok_or(StateManagerError::UnexpectedEntryType)?;
+
         f(entry_mut)?; // Call the closure to apply the state mutation
 
         // If cache entry is dirty with `StateMut::Add` and the new `state_mut` is `StateMut::Update`,

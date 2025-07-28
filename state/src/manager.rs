@@ -93,8 +93,8 @@ impl StateManager {
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         // Check the cache
         if let Some(entry) = self.cache.get_entry(state_key) {
-            if let StateEntryType::Raw(octets) = entry.value {
-                return Ok(Some(octets.into_vec()));
+            if let StateEntryType::Raw(octets) = entry.value.as_ref() {
+                return Ok(Some(octets.clone().into_vec()));
             }
         }
         self.retrieve_state_encoded(state_key).await
@@ -122,8 +122,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                clean_snapshot: StateEntryType::Raw(Octets::from_vec(state_val.clone())),
-                value: StateEntryType::Raw(Octets::from_vec(state_val)),
+                clean_snapshot: Arc::new(StateEntryType::Raw(Octets::from_vec(state_val.clone()))),
+                value: Arc::new(StateEntryType::Raw(Octets::from_vec(state_val))),
                 status: CacheEntryStatus::Dirty(StateMut::Add),
             },
         );
@@ -142,8 +142,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                clean_snapshot: StateEntryType::Raw(Octets::from_vec(old_state)),
-                value: StateEntryType::Raw(Octets::from_vec(new_val)),
+                clean_snapshot: Arc::new(StateEntryType::Raw(Octets::from_vec(old_state))),
+                value: Arc::new(StateEntryType::Raw(Octets::from_vec(new_val))),
                 status: CacheEntryStatus::Dirty(StateMut::Update),
             },
         );
@@ -161,8 +161,8 @@ impl StateManager {
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
-                value: StateEntryType::Raw(Octets::default()),
-                clean_snapshot: StateEntryType::Raw(Octets::from_vec(old_state)),
+                value: Arc::new(StateEntryType::Raw(Octets::default())),
+                clean_snapshot: Arc::new(StateEntryType::Raw(Octets::from_vec(old_state))),
                 status: CacheEntryStatus::Dirty(StateMut::Remove),
             },
         );
@@ -653,7 +653,7 @@ impl StateManager {
             return Err(StateManagerError::StateEntryAlreadyExists);
         }
 
-        let state_entry_type = state_entry.into_entry_type();
+        let state_entry_type = Arc::new(state_entry.into_entry_type());
         self.cache.insert_entry(
             state_key.clone(),
             CacheEntry {
