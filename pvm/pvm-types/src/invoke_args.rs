@@ -126,12 +126,14 @@ pub struct IsAuthorizedInvokeArgs {
     /// **`p`**: Work package
     pub package: WorkPackage,
     /// `c`: Core index to process the work package
-    pub core_index: CoreIndex,
+    pub core_idx: CoreIndex,
 }
 
 /// Refine entry-point function arguments
 #[derive(Clone, Default)]
 pub struct RefineInvokeArgs {
+    /// `c`: Index of the core which is executing the refinement.
+    pub core_idx: CoreIndex,
     /// `i`: Index of the work item to be refined
     pub item_idx: usize,
     /// `p`: Work package that contains the work item to be refined
