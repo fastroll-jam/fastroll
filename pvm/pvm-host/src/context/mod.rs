@@ -249,11 +249,13 @@ impl AccumulateHostContext {
         manager_service: ServiceId,
         assign_services: FixedVec<ServiceId, CORE_COUNT>,
         designate_service: ServiceId,
+        registrar_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
         self.partial_state.manager_service = manager_service;
         self.partial_state.assign_services = assign_services;
         self.partial_state.designate_service = designate_service;
+        self.partial_state.registrar_service = registrar_service;
         self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 

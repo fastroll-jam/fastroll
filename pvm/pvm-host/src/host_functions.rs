@@ -1161,6 +1161,9 @@ impl HostFunction {
         let Ok(designate) = vm.regs[9].as_service_id() else {
             continue_who!()
         };
+        let Ok(registrar) = vm.regs[10].as_service_id() else {
+            continue_who!()
+        };
 
         if !vm
             .memory
@@ -1171,10 +1174,10 @@ impl HostFunction {
         let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
         let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
 
-        let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
+        let Ok(always_accumulate_offset) = vm.regs[11].as_mem_address() else {
             host_call_panic!()
         };
-        let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
+        let Ok(always_accumulates_count) = vm.regs[12].as_usize() else {
             host_call_panic!()
         };
 
@@ -1203,10 +1206,11 @@ impl HostFunction {
             manager,
             assign_services.clone(),
             designate,
+            registrar,
             always_accumulate_services.clone(),
         );
         tracing::debug!(
-            "BLESS manager={manager} assigns={:?} designate={designate} always_accumulates={:?}",
+            "BLESS manager={manager} assigns={:?} designate={designate} registrar={registrar} always_accumulates={:?}",
             assign_services.as_slice(),
             always_accumulate_services.keys()
         );
