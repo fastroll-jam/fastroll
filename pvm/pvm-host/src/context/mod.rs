@@ -237,7 +237,7 @@ impl AccumulateHostContext {
             let modulus = (1u64 << 32) - s - (1u64 << 8);
             ((prev_next_new_id as u64 - s + 42) % modulus + s) as ServiceId
         };
-        self.next_new_service_id = bump(state_manager.check(self.next_new_service_id).await?);
+        self.next_new_service_id = state_manager.check(bump(self.next_new_service_id)).await?;
         Ok(())
     }
 
