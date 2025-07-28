@@ -54,7 +54,7 @@ where
     /// RocksDB column family name
     pub cf_name: &'static str,
     /// A thread-safe in-memory LRU cache
-    pub cache: Cache<K, V>,
+    pub cache: Cache<K, Arc<V>>,
 }
 
 impl<K, V> CachedDB<K, V>
@@ -77,7 +77,7 @@ where
     pub async fn get_entry(&self, key: &K) -> Result<Option<V>, CachedDBError> {
         // lookup the cache
         if let Some(v) = self.cache.get(key) {
-            return Ok(Some(v));
+            return Ok(Some((*v).clone()));
         }
 
         // fetch encoded state data octets from the db and put into the cache
@@ -89,7 +89,7 @@ where
 
         // insert into cache if found
         if let Some(data) = &value {
-            self.cache.insert(key.clone(), data.clone());
+            self.cache.insert(key.clone(), Arc::new(data.clone()));
         }
 
         Ok(value)
@@ -101,7 +101,7 @@ where
             .put_entry(self.cf_name, key.as_ref(), &val.clone().into_db_value())
             .await?;
         // insert into cache
-        self.cache.insert(key.clone(), val);
+        self.cache.insert(key.clone(), Arc::new(val));
         Ok(())
     }
 
