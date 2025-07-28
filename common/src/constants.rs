@@ -26,6 +26,9 @@ pub const MAX_AUTH_POOL_SIZE: usize = 8;
 /// `Q`: The number of items in the authorizations queue.
 pub const AUTH_QUEUE_SIZE: usize = 80;
 
+/// `S`: The minimum public service index. Services of indices below these may only be created by the Registrar.
+pub const MIN_PUBLIC_SERVICE_ID: usize = 1 << 16;
+
 /// `H`: The size of recent history, in blocks.
 pub const BLOCK_HISTORY_LENGTH: usize = 8;
 

@@ -8,7 +8,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
-    CORE_COUNT,
+    CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_limited_vec::FixedVec;
@@ -207,9 +207,9 @@ impl AccumulateHostContext {
 
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
-        let modulus = (1u64 << 32) - (1 << 9);
+        let modulus = (1u64 << 32) - MIN_PUBLIC_SERVICE_ID as u64 - (1 << 8);
         let initial_check_id = (hash_as_u64 % modulus)
-            .checked_add(1 << 8)
+            .checked_add(MIN_PUBLIC_SERVICE_ID as u64)
             .ok_or(HostCallError::ServiceIdOverflow)?;
         let new_service_id = state_manager.check(initial_check_id as ServiceId).await?;
 

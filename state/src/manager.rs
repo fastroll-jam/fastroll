@@ -18,6 +18,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey, TimeslotIndex,
+    MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
@@ -222,8 +223,9 @@ impl StateManager {
                 return Ok(check_id);
             }
 
-            check_id =
-                ((check_id as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9)) + (1 << 8)) as ServiceId;
+            check_id = ((check_id as u64 - MIN_PUBLIC_SERVICE_ID as u64 + 1)
+                % ((1 << 32) - (1 << 8) - MIN_PUBLIC_SERVICE_ID as u64)
+                + MIN_PUBLIC_SERVICE_ID as u64) as ServiceId;
         }
     }
 
