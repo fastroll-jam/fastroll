@@ -289,6 +289,18 @@ impl AccountsSandboxMap {
         Ok(())
     }
 
+    pub async fn account_exists(
+        &self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<bool, PartialStateError> {
+        if self.contains_key(&service_id) || state_manager.account_exists(service_id).await? {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     pub async fn get_account_sandbox(
         &mut self,
         state_manager: Arc<StateManager>,

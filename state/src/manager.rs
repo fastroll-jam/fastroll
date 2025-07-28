@@ -222,10 +222,8 @@ impl StateManager {
             if !self.account_exists(check_id).await? {
                 return Ok(check_id);
             }
-
-            check_id = ((check_id as u64 - MIN_PUBLIC_SERVICE_ID as u64 + 1)
-                % ((1 << 32) - (1 << 8) - MIN_PUBLIC_SERVICE_ID as u64)
-                + MIN_PUBLIC_SERVICE_ID as u64) as ServiceId;
+            let s = MIN_PUBLIC_SERVICE_ID as u64;
+            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
         }
     }
 

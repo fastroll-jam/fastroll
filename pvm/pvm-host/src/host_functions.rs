@@ -9,8 +9,8 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
     AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
-    SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MIN_PUBLIC_SERVICE_ID,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::{
@@ -1364,6 +1364,7 @@ impl HostFunction {
                 "as_balance() conversion should not fail: both RegValue and Balance are u64"
             )
         };
+        let new_small_service_id = vm.regs[12].as_service_id().unwrap_or(ServiceId::MAX); // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
@@ -1393,28 +1394,47 @@ impl HostFunction {
             continue_cash!()
         }
 
+        let has_small_service_id = new_small_service_id < MIN_PUBLIC_SERVICE_ID
+            && x.accumulate_host == x.partial_state.registrar_service;
+        let new_small_service_id_already_taken = x
+            .partial_state
+            .accounts_sandbox
+            .account_exists(state_manager.clone(), new_small_service_id)
+            .await?;
+
+        if has_small_service_id && new_small_service_id_already_taken {
+            continue_full!()
+        }
+
         x.subtract_accumulator_balance(state_manager.clone(), new_account_threshold_balance)
             .await?;
 
         // Add a new account to the partial state
         let curr_timeslot = state_manager.get_timeslot().await?.slot();
-        let new_service_id = x
-            .add_new_account(
-                state_manager.clone(),
-                code_hash.clone(),
-                new_account_threshold_balance,
-                gas_limit_g,
-                gas_limit_m,
-                (code_hash, code_lookup_len),
-                gratis_storage_offset,
-                curr_timeslot,
-                0,
-                x.accumulate_host,
-            )
-            .await?;
+        let new_service_id = if has_small_service_id {
+            // Taking small service ids doesn't require rotating the next new service id
+            new_small_service_id
+        } else {
+            let new_service_id = x
+                .add_new_account(
+                    state_manager.clone(),
+                    code_hash.clone(),
+                    new_account_threshold_balance,
+                    gas_limit_g,
+                    gas_limit_m,
+                    (code_hash, code_lookup_len),
+                    gratis_storage_offset,
+                    curr_timeslot,
+                    0,
+                    x.accumulate_host,
+                )
+                .await?;
 
-        // Update the next new service account index in the partial state
-        x.rotate_new_account_index(state_manager).await?;
+            // Update the next new service account index in the partial state
+            x.rotate_new_account_id(state_manager).await?;
+            new_service_id
+        };
+
         tracing::debug!(
             "NEW service_id={new_service_id} parent={}",
             x.accumulate_host
