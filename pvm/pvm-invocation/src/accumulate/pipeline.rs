@@ -300,6 +300,70 @@ async fn accumulate_parallel(
         .await;
     }
 
+    // Accumulate privileged services except the manager service, which will be accumulated lastly.
+    // Accumulation results of privileged services are not handled except for updating the partial state.
+    let privileged_services_except_manager =
+        BTreeSet::from_iter(partial_state_union.assign_services.iter().cloned().chain([
+            partial_state_union.registrar_service,
+            partial_state_union.designate_service,
+        ]));
+    let mut privileged_handles = Vec::with_capacity(service_gas_pairs.len());
+    for privileged_service_id in privileged_services_except_manager {
+        let state_manager_cloned = state_manager.clone();
+        let prev_transfers_cloned = prev_deferred_transfers.clone();
+        let reports_cloned = reports.clone();
+        let always_accumulate_services_cloned = always_accumulate_services.clone();
+        // each `Δ1` within the same `Δ*` batch has isolated view of the partial state
+        let partial_state_cloned = partial_state_union.clone();
+
+        let handle = tokio::spawn(async move {
+            accumulate_single_service(
+                state_manager_cloned,
+                partial_state_cloned,
+                prev_transfers_cloned,
+                reports_cloned,
+                always_accumulate_services_cloned,
+                privileged_service_id,
+                curr_timeslot_index,
+            )
+            .await
+        });
+        privileged_handles.push(handle);
+    }
+
+    for handle in privileged_handles {
+        let accumulate_result = handle
+            .await
+            .map_err(|_| PVMInvokeError::AccumulateTaskPanicked)??;
+        add_partial_state_change(
+            state_manager.clone(),
+            accumulate_result.accumulate_host,
+            partial_state_union,
+            accumulate_result.partial_state,
+        )
+        .await;
+    }
+
+    // Lastly, accumulate manager service, overriding changes from other privileged services
+    // and granting the manager service priority for privileged service mutations.
+    let manager_accumulate_result = accumulate_single_service(
+        state_manager.clone(),
+        partial_state_union.clone(),
+        prev_deferred_transfers.clone(),
+        reports.clone(),
+        always_accumulate_services.clone(),
+        partial_state_union.manager_service,
+        curr_timeslot_index,
+    )
+    .await?;
+    add_partial_state_change(
+        state_manager.clone(),
+        manager_accumulate_result.accumulate_host,
+        partial_state_union,
+        manager_accumulate_result.partial_state,
+    )
+    .await;
+
     let service_output_pairs = AccumulationOutputPairs(service_output_pairs);
 
     Ok(ParallelAccumulationResult {
