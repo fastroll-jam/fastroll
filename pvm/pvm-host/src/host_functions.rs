@@ -1147,11 +1147,6 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        // Only the privileged manager service is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.manager_service {
-            continue_huh!()
-        }
-
         let Ok(manager) = vm.regs[7].as_service_id() else {
             continue_who!()
         };
