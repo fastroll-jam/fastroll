@@ -9,8 +9,8 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
     AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
-    SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, MIN_PUBLIC_SERVICE_ID,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::{
@@ -48,7 +48,7 @@ pub enum HostCallReturnCode {
     OOB = u64::MAX - 2,
     /// Index unknown.
     WHO = u64::MAX - 3,
-    /// Storage full.
+    /// Storage full or resource already allocated.
     FULL = u64::MAX - 4,
     /// Core index unknown.
     CORE = u64::MAX - 5,
@@ -56,7 +56,7 @@ pub enum HostCallReturnCode {
     CASH = u64::MAX - 6,
     /// Gas limit too low.
     LOW = u64::MAX - 7,
-    /// The item is already solicited or cannot be forgotten.
+    /// The item is already solicited, cannot be forgotten or the operation is invalid due to privilege level.
     HUH = u64::MAX - 8,
     /// The return value indicating general success.
     OK = 0,
@@ -1137,8 +1137,8 @@ impl HostFunction {
 
     // --- Accumulate Functions
 
-    /// Assigns new privileged services: manager (m), assign (a), designate (v) and
-    /// always-accumulates (g) to the accumulate context partial state.
+    /// Assigns new privileged services: manager (M), assign (A), designate (V), registrar (R) and
+    /// always-accumulates (Z) to the accumulate context partial state.
     pub fn host_bless(
         vm: &VMState,
         context: &mut InvocationContext,
@@ -1147,11 +1147,6 @@ impl HostFunction {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        // Only the privileged manager service is allowed to invoke this host call
-        if x.accumulate_host != x.partial_state.manager_service {
-            continue_huh!()
-        }
-
         let Ok(manager) = vm.regs[7].as_service_id() else {
             continue_who!()
         };
@@ -1159,6 +1154,9 @@ impl HostFunction {
             host_call_panic!()
         };
         let Ok(designate) = vm.regs[9].as_service_id() else {
+            continue_who!()
+        };
+        let Ok(registrar) = vm.regs[10].as_service_id() else {
             continue_who!()
         };
 
@@ -1171,10 +1169,10 @@ impl HostFunction {
         let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
         let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
 
-        let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
+        let Ok(always_accumulate_offset) = vm.regs[11].as_mem_address() else {
             host_call_panic!()
         };
-        let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
+        let Ok(always_accumulates_count) = vm.regs[12].as_usize() else {
             host_call_panic!()
         };
 
@@ -1203,10 +1201,11 @@ impl HostFunction {
             manager,
             assign_services.clone(),
             designate,
+            registrar,
             always_accumulate_services.clone(),
         );
         tracing::debug!(
-            "BLESS manager={manager} assigns={:?} designate={designate} always_accumulates={:?}",
+            "BLESS manager={manager} assigns={:?} designate={designate} registrar={registrar} always_accumulates={:?}",
             assign_services.as_slice(),
             always_accumulate_services.keys()
         );
@@ -1230,8 +1229,7 @@ impl HostFunction {
             host_call_panic!()
         };
         let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
-            // TODO: Invalid assign service id handling
-            unimplemented!()
+            continue_who!()
         };
 
         if !vm
@@ -1360,6 +1358,7 @@ impl HostFunction {
                 "as_balance() conversion should not fail: both RegValue and Balance are u64"
             )
         };
+        let new_small_service_id = vm.regs[12].as_service_id().unwrap_or(ServiceId::MAX); // Not used if this value is larger than `MIN_PUBLIC_SERVICE_ID`
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
@@ -1389,28 +1388,47 @@ impl HostFunction {
             continue_cash!()
         }
 
+        let has_small_service_id = new_small_service_id < MIN_PUBLIC_SERVICE_ID
+            && x.accumulate_host == x.partial_state.registrar_service;
+        let new_small_service_id_already_taken = x
+            .partial_state
+            .accounts_sandbox
+            .account_exists(state_manager.clone(), new_small_service_id)
+            .await?;
+
+        if has_small_service_id && new_small_service_id_already_taken {
+            continue_full!()
+        }
+
         x.subtract_accumulator_balance(state_manager.clone(), new_account_threshold_balance)
             .await?;
 
         // Add a new account to the partial state
         let curr_timeslot = state_manager.get_timeslot().await?.slot();
-        let new_service_id = x
-            .add_new_account(
-                state_manager.clone(),
-                code_hash.clone(),
-                new_account_threshold_balance,
-                gas_limit_g,
-                gas_limit_m,
-                (code_hash, code_lookup_len),
-                gratis_storage_offset,
-                curr_timeslot,
-                0,
-                x.accumulate_host,
-            )
-            .await?;
+        let new_service_id = if has_small_service_id {
+            // Taking small service ids doesn't require rotating the next new service id
+            new_small_service_id
+        } else {
+            let new_service_id = x
+                .add_new_account(
+                    state_manager.clone(),
+                    code_hash.clone(),
+                    new_account_threshold_balance,
+                    gas_limit_g,
+                    gas_limit_m,
+                    (code_hash, code_lookup_len),
+                    gratis_storage_offset,
+                    curr_timeslot,
+                    0,
+                    x.accumulate_host,
+                )
+                .await?;
 
-        // Update the next new service account index in the partial state
-        x.rotate_new_account_index(state_manager).await?;
+            // Update the next new service account index in the partial state
+            x.rotate_new_account_id(state_manager).await?;
+            new_service_id
+        };
+
         tracing::debug!(
             "NEW service_id={new_service_id} parent={}",
             x.accumulate_host

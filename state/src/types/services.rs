@@ -137,10 +137,11 @@ impl_account_state_component!(AccountMetadata, AccountMetadata);
 
 impl JamEncode for AccountMetadata {
     fn size_hint(&self) -> usize {
-        self.code_hash.size_hint() + 8 * 5 + 4 * 4
+        0u8.size_hint() + self.code_hash.size_hint() + 8 * 5 + 4 * 4
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
+        0u8.encode_to(dest)?;
         self.code_hash.encode_to(dest)?;
         self.balance.encode_to_fixed(dest, 8)?;
         self.gas_limit_accumulate.encode_to_fixed(dest, 8)?;
@@ -160,6 +161,7 @@ impl JamDecode for AccountMetadata {
     where
         Self: Sized,
     {
+        let _version = u8::decode(input)?; // TODO: check usage
         Ok(Self {
             code_hash: CodeHash::decode(input)?,
             balance: Balance::decode_fixed(input, 8)?,

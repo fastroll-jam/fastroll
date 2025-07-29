@@ -92,7 +92,7 @@ impl IsAuthorizedInvocation {
         }
 
         let vm_args = IsAuthorizedVmArgs {
-            core_index: args.core_index,
+            core_index: args.core_idx,
         };
 
         let result = PVMInterface::invoke_with_args(

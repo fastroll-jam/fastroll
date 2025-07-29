@@ -289,6 +289,18 @@ impl AccountsSandboxMap {
         Ok(())
     }
 
+    pub async fn account_exists(
+        &self,
+        state_manager: Arc<StateManager>,
+        service_id: ServiceId,
+    ) -> Result<bool, PartialStateError> {
+        if self.contains_key(&service_id) || state_manager.account_exists(service_id).await? {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     pub async fn get_account_sandbox(
         &mut self,
         state_manager: Arc<StateManager>,
@@ -977,6 +989,8 @@ pub struct AccumulatePartialState {
     pub assign_services: AssignServices,
     /// `v`: Sandboxed copy of privileged designate service id
     pub designate_service: ServiceId,
+    /// `r`: Sandboxed copy of privileged registrar service id
+    pub registrar_service: ServiceId,
     /// **`z`**: Sandboxed copy of privileged always-accumulate services
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
@@ -996,6 +1010,7 @@ impl AccumulatePartialState {
             manager_service,
             assign_services,
             designate_service,
+            registrar_service,
             always_accumulate_services,
         } = state_manager.get_privileged_services().await?;
 
@@ -1008,6 +1023,7 @@ impl AccumulatePartialState {
             manager_service,
             assign_services,
             designate_service,
+            registrar_service,
             always_accumulate_services,
         })
     }

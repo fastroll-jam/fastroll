@@ -8,7 +8,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
-    CORE_COUNT,
+    CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_limited_vec::FixedVec;
@@ -204,15 +204,15 @@ impl AccumulateHostContext {
         accumulate_host.encode_to(&mut buf)?;
         entropy.encode_to(&mut buf)?;
         timeslot_index.encode_to(&mut buf)?;
-
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
-        let modulus = (1u64 << 32) - (1 << 9);
+
+        let s = MIN_PUBLIC_SERVICE_ID as u64;
+        let modulus = (1u64 << 32) - s - (1 << 8);
         let initial_check_id = (hash_as_u64 % modulus)
-            .checked_add(1 << 8)
+            .checked_add(s)
             .ok_or(HostCallError::ServiceIdOverflow)?;
         let new_service_id = state_manager.check(initial_check_id as ServiceId).await?;
-
         Ok(new_service_id)
     }
 
@@ -228,15 +228,16 @@ impl AccumulateHostContext {
     }
 
     #[allow(clippy::redundant_closure_call)]
-    pub async fn rotate_new_account_index(
+    pub async fn rotate_new_account_id(
         &mut self,
         state_manager: Arc<StateManager>,
     ) -> Result<(), HostCallError> {
-        let bump = |a: ServiceId| -> ServiceId {
-            let modulus = (1u64 << 32) - (1u64 << 9);
-            ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as ServiceId
+        let s = MIN_PUBLIC_SERVICE_ID as u64;
+        let bump = |prev_next_new_id: ServiceId| -> ServiceId {
+            let modulus = (1u64 << 32) - s - (1u64 << 8);
+            ((prev_next_new_id as u64 - s + 42) % modulus + s) as ServiceId
         };
-        self.next_new_service_id = bump(state_manager.check(self.next_new_service_id).await?);
+        self.next_new_service_id = state_manager.check(bump(self.next_new_service_id)).await?;
         Ok(())
     }
 
@@ -249,11 +250,13 @@ impl AccumulateHostContext {
         manager_service: ServiceId,
         assign_services: FixedVec<ServiceId, CORE_COUNT>,
         designate_service: ServiceId,
+        registrar_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
         self.partial_state.manager_service = manager_service;
         self.partial_state.assign_services = assign_services;
         self.partial_state.designate_service = designate_service;
+        self.partial_state.registrar_service = registrar_service;
         self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 
