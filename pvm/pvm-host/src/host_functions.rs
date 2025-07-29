@@ -1137,8 +1137,8 @@ impl HostFunction {
 
     // --- Accumulate Functions
 
-    /// Assigns new privileged services: manager (m), assign (a), designate (v) and
-    /// always-accumulates (g) to the accumulate context partial state.
+    /// Assigns new privileged services: manager (M), assign (A), designate (V), registrar (R) and
+    /// always-accumulates (Z) to the accumulate context partial state.
     pub fn host_bless(
         vm: &VMState,
         context: &mut InvocationContext,
@@ -1234,8 +1234,7 @@ impl HostFunction {
             host_call_panic!()
         };
         let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
-            // TODO: Invalid assign service id handling
-            unimplemented!()
+            continue_who!()
         };
 
         if !vm
