@@ -231,15 +231,22 @@ async fn accumulate_parallel(
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
+    // Group 1: Accumulate service accounts that are related to provided work digests,
+    // always-accumulate services and destinations of deferred transfers from the previous `Δ*` round.
     let mut service_ids: BTreeSet<ServiceId> = reports
         .iter()
         .flat_map(|wr| wr.digests.iter())
         .map(|wd| wd.service_id)
         .collect();
     service_ids.extend(always_accumulate_services.keys().cloned());
+    service_ids.extend(
+        prev_deferred_transfers
+            .iter()
+            .map(|t| t.to)
+            .collect::<Vec<_>>(),
+    );
 
     let services_count = service_ids.len();
-
     let mut service_gas_pairs = Vec::with_capacity(services_count);
     let mut service_output_pairs = BTreeSet::new();
     let mut new_deferred_transfers = Vec::new();
@@ -300,8 +307,9 @@ async fn accumulate_parallel(
         .await;
     }
 
-    // Accumulate privileged services except the manager service, which will be accumulated lastly.
-    // Accumulation results of privileged services are not handled except for updating the partial state.
+    // Group 2: Accumulate privileged services except the manager service,
+    // which will be accumulated lastly. Accumulation results of privileged services
+    // are not handled except for updating the partial state.
     let privileged_services_except_manager =
         BTreeSet::from_iter(partial_state_union.assign_services.iter().cloned().chain([
             partial_state_union.registrar_service,
@@ -344,7 +352,7 @@ async fn accumulate_parallel(
         .await;
     }
 
-    // Lastly, accumulate manager service, overriding changes from other privileged services
+    // Group 3: Lastly, accumulate manager service, overriding changes from other privileged services
     // and granting the manager service priority for privileged service mutations.
     let manager_accumulate_result = accumulate_single_service(
         state_manager.clone(),
