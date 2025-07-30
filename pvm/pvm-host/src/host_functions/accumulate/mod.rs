@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::{
     context::InvocationContext, error::HostCallError, host_functions::HostCallResult, macros::*,
 };

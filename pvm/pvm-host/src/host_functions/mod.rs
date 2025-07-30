@@ -7,6 +7,8 @@ use fr_pvm_types::{
 pub mod accumulate;
 pub mod general;
 pub mod refine;
+#[cfg(test)]
+mod test_utils;
 
 #[repr(u64)]
 #[derive(Debug)]
@@ -47,7 +49,7 @@ pub enum InnerPVMResultConstant {
     OOG = 4,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct HostCallResult {
     pub exit_reason: ExitReason,
     pub vm_change: HostCallVMStateChange,
