@@ -4,7 +4,10 @@ use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator}
 use fr_pvm_host::{
     context::InvocationContext,
     error::HostCallError::InvalidExitReason,
-    host_functions::{HostCallResult, HostFunction},
+    host_functions::{
+        accumulate::AccumulateHostFunction, general::GeneralHostFunction,
+        refine::RefineHostFunction, HostCallResult,
+    },
 };
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
 use fr_state::manager::StateManager;
@@ -202,61 +205,75 @@ impl PVMInterface {
         tracing::trace!("{:?}", h);
         let result = match h {
             // --- General Functions
-            HostCallType::GAS => HostFunction::host_gas(&pvm.state)?,
-            HostCallType::FETCH => HostFunction::host_fetch(&pvm.state, context)?,
+            HostCallType::GAS => GeneralHostFunction::host_gas(&pvm.state)?,
+            HostCallType::FETCH => GeneralHostFunction::host_fetch(&pvm.state, context)?,
             HostCallType::LOOKUP => {
-                HostFunction::host_lookup(service_id, &pvm.state, state_manager, context).await?
+                GeneralHostFunction::host_lookup(service_id, &pvm.state, state_manager, context)
+                    .await?
             }
             HostCallType::READ => {
-                HostFunction::host_read(service_id, &pvm.state, state_manager, context).await?
+                GeneralHostFunction::host_read(service_id, &pvm.state, state_manager, context)
+                    .await?
             }
             HostCallType::WRITE => {
-                HostFunction::host_write(service_id, &pvm.state, state_manager, context).await?
+                GeneralHostFunction::host_write(service_id, &pvm.state, state_manager, context)
+                    .await?
             }
             HostCallType::INFO => {
-                HostFunction::host_info(service_id, &pvm.state, state_manager, context).await?
+                GeneralHostFunction::host_info(service_id, &pvm.state, state_manager, context)
+                    .await?
             }
 
             // ---Refine Functions
             HostCallType::HISTORICAL_LOOKUP => {
-                HostFunction::host_historical_lookup(service_id, &pvm.state, context, state_manager)
-                    .await?
+                RefineHostFunction::host_historical_lookup(
+                    service_id,
+                    &pvm.state,
+                    context,
+                    state_manager,
+                )
+                .await?
             }
-            HostCallType::EXPORT => HostFunction::host_export(&pvm.state, context)?,
-            HostCallType::MACHINE => HostFunction::host_machine(&pvm.state, context)?,
-            HostCallType::PEEK => HostFunction::host_peek(&pvm.state, context)?,
-            HostCallType::POKE => HostFunction::host_poke(&pvm.state, context)?,
-            HostCallType::PAGES => HostFunction::host_pages(&pvm.state, context)?,
-            HostCallType::INVOKE => HostFunction::host_invoke(&pvm.state, context)?,
-            HostCallType::EXPUNGE => HostFunction::host_expunge(&pvm.state, context)?,
+            HostCallType::EXPORT => RefineHostFunction::host_export(&pvm.state, context)?,
+            HostCallType::MACHINE => RefineHostFunction::host_machine(&pvm.state, context)?,
+            HostCallType::PEEK => RefineHostFunction::host_peek(&pvm.state, context)?,
+            HostCallType::POKE => RefineHostFunction::host_poke(&pvm.state, context)?,
+            HostCallType::PAGES => RefineHostFunction::host_pages(&pvm.state, context)?,
+            HostCallType::INVOKE => RefineHostFunction::host_invoke(&pvm.state, context)?,
+            HostCallType::EXPUNGE => RefineHostFunction::host_expunge(&pvm.state, context)?,
 
             // --- Accumulate Functions
-            HostCallType::BLESS => HostFunction::host_bless(&pvm.state, context)?,
-            HostCallType::ASSIGN => HostFunction::host_assign(&pvm.state, context)?,
-            HostCallType::DESIGNATE => HostFunction::host_designate(&pvm.state, context)?,
-            HostCallType::CHECKPOINT => HostFunction::host_checkpoint(&pvm.state, context)?,
-            HostCallType::NEW => HostFunction::host_new(&pvm.state, state_manager, context).await?,
+            HostCallType::BLESS => AccumulateHostFunction::host_bless(&pvm.state, context)?,
+            HostCallType::ASSIGN => AccumulateHostFunction::host_assign(&pvm.state, context)?,
+            HostCallType::DESIGNATE => AccumulateHostFunction::host_designate(&pvm.state, context)?,
+            HostCallType::CHECKPOINT => {
+                AccumulateHostFunction::host_checkpoint(&pvm.state, context)?
+            }
+            HostCallType::NEW => {
+                AccumulateHostFunction::host_new(&pvm.state, state_manager, context).await?
+            }
             HostCallType::UPGRADE => {
-                HostFunction::host_upgrade(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_upgrade(&pvm.state, state_manager, context).await?
             }
             HostCallType::TRANSFER => {
-                HostFunction::host_transfer(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_transfer(&pvm.state, state_manager, context).await?
             }
             HostCallType::EJECT => {
-                HostFunction::host_eject(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_eject(&pvm.state, state_manager, context).await?
             }
             HostCallType::QUERY => {
-                HostFunction::host_query(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_query(&pvm.state, state_manager, context).await?
             }
             HostCallType::SOLICIT => {
-                HostFunction::host_solicit(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_solicit(&pvm.state, state_manager, context).await?
             }
             HostCallType::FORGET => {
-                HostFunction::host_forget(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_forget(&pvm.state, state_manager, context).await?
             }
-            HostCallType::YIELD => HostFunction::host_yield(&pvm.state, context).await?,
+            HostCallType::YIELD => AccumulateHostFunction::host_yield(&pvm.state, context).await?,
             HostCallType::PROVIDE => {
-                HostFunction::host_provide(service_id, &pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_provide(service_id, &pvm.state, state_manager, context)
+                    .await?
             }
         };
 

@@ -120,15 +120,21 @@ macro_rules! continue_with_vm_change {
 #[macro_export]
 macro_rules! continue_with_code {
     ($code:ident) => {{
-        tracing::debug!("Hostcall result: {:?}", HostCallReturnCode::$code);
+        tracing::debug!(
+            "Hostcall result: {:?}",
+            $crate::host_functions::HostCallReturnCode::$code
+        );
         return Ok(HostCallResult::continue_with_return_code(
-            HostCallReturnCode::$code,
+            $crate::host_functions::HostCallReturnCode::$code,
         ));
     }};
     ($code:ident, $gas:expr) => {{
-        tracing::debug!("Hostcall result: {:?}", HostCallReturnCode::$code);
+        tracing::debug!(
+            "Hostcall result: {:?}",
+            $crate::host_functions::HostCallReturnCode::$code
+        );
         return Ok(HostCallResult::continue_with_return_code_and_gas(
-            HostCallReturnCode::$code,
+            $crate::host_functions::HostCallReturnCode::$code,
             $gas,
         ));
     }};
@@ -245,6 +251,16 @@ macro_rules! host_call_panic {
 }
 
 #[macro_export]
+macro_rules! out_of_gas {
+    () => {
+        return Ok(HostCallResult::out_of_gas())
+    };
+    ($gas:expr) => {
+        return Ok(HostCallResult::out_of_gas_with_gas($gas))
+    };
+}
+
+#[macro_export]
 macro_rules! check_out_of_gas {
     ($gas_counter:expr) => {
         if $gas_counter < HOSTCALL_BASE_GAS_CHARGE as SignedGas {
@@ -258,15 +274,5 @@ macro_rules! check_out_of_gas {
         if $gas_counter < gas_signed {
             $crate::out_of_gas!($gas)
         }
-    };
-}
-
-#[macro_export]
-macro_rules! out_of_gas {
-    () => {
-        return Ok(HostCallResult::out_of_gas())
-    };
-    ($gas:expr) => {
-        return Ok(HostCallResult::out_of_gas_with_gas($gas))
     };
 }
