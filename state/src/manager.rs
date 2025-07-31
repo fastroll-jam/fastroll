@@ -30,7 +30,7 @@ use fr_state_merkle::{
     types::nodes::LeafType,
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 use tracing::instrument;
 
 pub struct StateManager {
@@ -267,15 +267,26 @@ impl StateManager {
         Ok(self.get_account_metadata(service_id).await?.is_some())
     }
 
-    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+    pub async fn check_impl<F, Fut>(
+        service_id: ServiceId,
+        account_exists_in_state: F,
+    ) -> Result<ServiceId, StateManagerError>
+    where
+        F: Fn(ServiceId) -> Fut,
+        Fut: Future<Output = Result<bool, StateManagerError>>,
+    {
         let mut check_id = service_id;
         loop {
-            if !self.account_exists(check_id).await? {
+            if !account_exists_in_state(check_id).await? {
                 return Ok(check_id);
             }
             let s = MIN_PUBLIC_SERVICE_ID as u64;
             check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
         }
+    }
+
+    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        Self::check_impl(service_id, |id| self.account_exists(id)).await
     }
 
     pub async fn get_account_code_hash(

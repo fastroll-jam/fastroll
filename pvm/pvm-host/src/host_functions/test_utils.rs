@@ -1,6 +1,6 @@
 use crate::context::{AccumulateHostContext, AccumulateHostContextPair};
 use async_trait::async_trait;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId, SignedGas, MIN_PUBLIC_SERVICE_ID};
+use fr_common::{Hash32, LookupsKey, Octets, ServiceId, SignedGas};
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
     register::Register,
@@ -12,6 +12,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     error::StateManagerError,
+    manager::StateManager,
     provider::HostStateProvider,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
@@ -45,14 +46,7 @@ impl HostStateProvider for MockStateManager {
     }
 
     async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
-        let mut check_id = service_id;
-        loop {
-            if !self.account_exists(check_id).await? {
-                return Ok(check_id);
-            }
-            let s = MIN_PUBLIC_SERVICE_ID as u64;
-            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
-        }
+        StateManager::check_impl(service_id, |id| self.account_exists(id)).await
     }
 
     async fn get_account_metadata(
