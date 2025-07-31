@@ -1082,6 +1082,7 @@ dependencies = [
 name = "fr-pvm-host"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "fr-codec",
  "fr-common",
  "fr-crypto",

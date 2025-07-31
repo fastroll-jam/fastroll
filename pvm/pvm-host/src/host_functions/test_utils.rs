@@ -1,5 +1,6 @@
 use crate::context::{AccumulateHostContext, AccumulateHostContextPair};
-use fr_common::{ServiceId, SignedGas};
+use async_trait::async_trait;
+use fr_common::{Hash32, LookupsKey, Octets, ServiceId, SignedGas, MIN_PUBLIC_SERVICE_ID};
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
     register::Register,
@@ -9,7 +10,94 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT},
 };
-use std::{error::Error, ops::Range};
+use fr_state::{
+    error::StateManagerError,
+    provider::HostStateProvider,
+    types::{
+        privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
+        AccountPreimagesEntry, AccountStorageEntry,
+    },
+};
+use std::{collections::HashMap, error::Error, ops::Range};
+
+#[allow(dead_code)]
+struct MockAccountState {
+    metadata: AccountMetadata,
+    storage: HashMap<Octets, AccountStorageEntry>,
+    preimages: HashMap<Hash32, AccountPreimagesEntry>,
+    lookups: HashMap<LookupsKey, AccountLookupsEntry>,
+}
+
+#[allow(dead_code)]
+pub(crate) struct MockStateManager {
+    accounts: HashMap<ServiceId, MockAccountState>,
+    privileges: PrivilegedServices,
+}
+
+#[async_trait]
+impl HostStateProvider for MockStateManager {
+    async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
+        Ok(self.privileges.clone())
+    }
+
+    async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
+        Ok(self.accounts.contains_key(&service_id))
+    }
+
+    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        let mut check_id = service_id;
+        loop {
+            if !self.account_exists(check_id).await? {
+                return Ok(check_id);
+            }
+            let s = MIN_PUBLIC_SERVICE_ID as u64;
+            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
+        }
+    }
+
+    async fn get_account_metadata(
+        &self,
+        service_id: ServiceId,
+    ) -> Result<Option<AccountMetadata>, StateManagerError> {
+        Ok(self
+            .accounts
+            .get(&service_id)
+            .map(|account| account.metadata.clone()))
+    }
+
+    async fn get_account_storage_entry(
+        &self,
+        service_id: ServiceId,
+        storage_key: &Octets,
+    ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
+        Ok(self
+            .accounts
+            .get(&service_id)
+            .and_then(|account| account.storage.get(storage_key).cloned()))
+    }
+
+    async fn get_account_preimages_entry(
+        &self,
+        service_id: ServiceId,
+        preimages_key: &Hash32,
+    ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
+        Ok(self
+            .accounts
+            .get(&service_id)
+            .and_then(|account| account.preimages.get(preimages_key).cloned()))
+    }
+
+    async fn get_account_lookups_entry(
+        &self,
+        service_id: ServiceId,
+        lookups_key: &LookupsKey,
+    ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
+        Ok(self
+            .accounts
+            .get(&service_id)
+            .and_then(|account| account.lookups.get(lookups_key).cloned()))
+    }
+}
 
 pub(crate) fn mock_empty_vm_state(gas_counter: SignedGas) -> VMState {
     VMState {
