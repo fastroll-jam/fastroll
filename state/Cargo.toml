@@ -14,6 +14,7 @@ fr-limited-vec = { workspace = true }
 fr-merkle = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state-merkle = { workspace = true }
+async-trait = { workspace = true }
 mini-moka = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true }

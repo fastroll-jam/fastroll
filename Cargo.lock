@@ -1141,6 +1141,7 @@ dependencies = [
 name = "fr-state"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "fr-block",
  "fr-clock",
  "fr-codec",
