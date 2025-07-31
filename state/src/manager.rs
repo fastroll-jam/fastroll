@@ -2,6 +2,7 @@ use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     config::StateManagerConfig,
     error::StateManagerError,
+    provider::HostStateProvider,
     state_db::StateDB,
     state_utils::{
         get_account_lookups_state_key, get_account_metadata_state_key,
@@ -15,6 +16,7 @@ use crate::{
         OnChainStatistics, PastSet, PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
     },
 };
+use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
     CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey, TimeslotIndex,
@@ -65,6 +67,55 @@ macro_rules! impl_simple_state_accessors {
             }
         }
     };
+}
+
+#[async_trait]
+impl HostStateProvider for StateManager {
+    async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
+        self.get_privileged_services().await
+    }
+
+    async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
+        self.account_exists(service_id).await
+    }
+
+    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        self.check(service_id).await
+    }
+
+    async fn get_account_metadata(
+        &self,
+        service_id: ServiceId,
+    ) -> Result<Option<AccountMetadata>, StateManagerError> {
+        self.get_account_metadata(service_id).await
+    }
+
+    async fn get_account_storage_entry(
+        &self,
+        service_id: ServiceId,
+        storage_key: &Octets,
+    ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
+        self.get_account_storage_entry(service_id, storage_key)
+            .await
+    }
+
+    async fn get_account_preimages_entry(
+        &self,
+        service_id: ServiceId,
+        preimages_key: &Hash32,
+    ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
+        self.get_account_preimages_entry(service_id, preimages_key)
+            .await
+    }
+
+    async fn get_account_lookups_entry(
+        &self,
+        service_id: ServiceId,
+        lookups_key: &LookupsKey,
+    ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
+        self.get_account_lookups_entry(service_id, lookups_key)
+            .await
+    }
 }
 
 impl StateManager {
