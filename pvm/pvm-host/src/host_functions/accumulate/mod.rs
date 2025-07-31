@@ -19,21 +19,23 @@ use fr_pvm_types::{
     invoke_results::AccumulationOutputHash,
 };
 use fr_state::{
-    manager::StateManager,
+    provider::HostStateProvider,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
         AuthQueue, StagingSet, Timeslot,
     },
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
 
-pub struct AccumulateHostFunction;
-impl AccumulateHostFunction {
+pub struct AccumulateHostFunction<S> {
+    _phantom: PhantomData<S>,
+}
+impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Assigns new privileged services: manager (M), assign (A), designate (V), registrar (R) and
     /// always-accumulates (Z) to the accumulate context partial state.
     pub fn host_bless(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: BLESS");
         check_out_of_gas!(vm.gas_counter);
@@ -108,7 +110,7 @@ impl AccumulateHostFunction {
     /// in the accumulate context partial state.
     pub fn host_assign(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: ASSIGN");
         check_out_of_gas!(vm.gas_counter);
@@ -160,7 +162,7 @@ impl AccumulateHostFunction {
     /// Assigns `VALIDATOR_COUNT` new validators to the `StagingSet` in the accumulate context partial state.
     pub fn host_designate(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: DESIGNATE");
         check_out_of_gas!(vm.gas_counter);
@@ -201,7 +203,7 @@ impl AccumulateHostFunction {
     /// the checkpoint context of the context pair.
     pub fn host_checkpoint(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: CHECKPOINT");
         check_out_of_gas!(vm.gas_counter);
@@ -230,8 +232,8 @@ impl AccumulateHostFunction {
     /// The account storage and lookup dictionary are initialized as empty.
     pub async fn host_new(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: NEW");
@@ -332,8 +334,8 @@ impl AccumulateHostFunction {
     /// code hash and gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: UPGRADE");
         check_out_of_gas!(vm.gas_counter);
@@ -366,8 +368,8 @@ impl AccumulateHostFunction {
     /// Transfers tokens from the accumulating service account to another service account.
     pub async fn host_transfer(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
@@ -439,8 +441,8 @@ impl AccumulateHostFunction {
     /// Completely removes a service account from the global state.
     pub async fn host_eject(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: EJECT");
@@ -521,8 +523,8 @@ impl AccumulateHostFunction {
     /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
     pub async fn host_query(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: QUERY");
         check_out_of_gas!(vm.gas_counter);
@@ -599,8 +601,8 @@ impl AccumulateHostFunction {
     /// lookup dictionary entry. It is asserted that the previous length of the vector is 2.
     pub async fn host_solicit(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: SOLICIT");
@@ -701,8 +703,8 @@ impl AccumulateHostFunction {
     /// to the timeslot vector.
     pub async fn host_forget(
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FORGET");
@@ -884,7 +886,7 @@ impl AccumulateHostFunction {
     /// Yields the accumulation result commitment hash to the accumulate context.
     pub async fn host_yield(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: YIELD");
         check_out_of_gas!(vm.gas_counter);
@@ -912,8 +914,8 @@ impl AccumulateHostFunction {
     pub async fn host_provide(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: PROVIDE");
         check_out_of_gas!(vm.gas_counter);

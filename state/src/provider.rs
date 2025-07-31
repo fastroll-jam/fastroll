@@ -2,7 +2,7 @@ use crate::{
     error::StateManagerError,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
-        AccountPreimagesEntry, AccountStorageEntry,
+        AccountPreimagesEntry, AccountStorageEntry, Timeslot,
     },
 };
 use async_trait::async_trait;
@@ -51,4 +51,11 @@ pub trait HostStateProvider {
         service_id: ServiceId,
         lookups_key: &LookupsKey,
     ) -> Result<Option<AccountLookupsEntry>, StateManagerError>;
+
+    async fn lookup_historical_preimage(
+        &self,
+        service_id: ServiceId,
+        reference_timeslot: &Timeslot,
+        preimage_hash: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError>;
 }

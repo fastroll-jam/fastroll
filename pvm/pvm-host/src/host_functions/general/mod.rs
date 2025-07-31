@@ -20,13 +20,15 @@ use fr_pvm_types::{
     common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, invoke_args::RefineInvokeArgs,
 };
 use fr_state::{
-    manager::StateManager,
+    provider::HostStateProvider,
     types::{AccountMetadata, AccountStorageEntry, AccountStorageEntryExt},
 };
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
-pub struct GeneralHostFunction;
-impl GeneralHostFunction {
+pub struct GeneralHostFunction<S> {
+    _phantom: PhantomData<S>,
+}
+impl<S: HostStateProvider> GeneralHostFunction<S> {
     /// Retrieves the current remaining gas limit of the VM state after deducting the base gas charge
     /// for executing this instruction.
     pub fn host_gas(vm: &VMState) -> Result<HostCallResult, HostCallError> {
@@ -41,7 +43,7 @@ impl GeneralHostFunction {
     /// Fetches various data types introduced as arguments of PVM entry-point invocations.
     pub fn host_fetch(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FETCH");
         let Ok(data_id) = vm.regs[10].as_usize() else {
@@ -233,8 +235,8 @@ impl GeneralHostFunction {
     pub async fn host_lookup(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: LOOKUP");
         check_out_of_gas!(vm.gas_counter);
@@ -300,8 +302,8 @@ impl GeneralHostFunction {
     pub async fn host_read(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: READ");
         check_out_of_gas!(vm.gas_counter);
@@ -370,8 +372,8 @@ impl GeneralHostFunction {
     pub async fn host_write(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: WRITE");
         check_out_of_gas!(vm.gas_counter);
@@ -480,8 +482,8 @@ impl GeneralHostFunction {
     pub async fn host_info(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<StateManager>,
-        context: &mut InvocationContext,
+        state_manager: Arc<S>,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: INFO");
         check_out_of_gas!(vm.gas_counter);

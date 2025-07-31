@@ -116,6 +116,16 @@ impl HostStateProvider for StateManager {
         self.get_account_lookups_entry(service_id, lookups_key)
             .await
     }
+
+    async fn lookup_historical_preimage(
+        &self,
+        service_id: ServiceId,
+        reference_timeslot: &Timeslot,
+        preimage_hash: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        self.lookup_historical_preimage(service_id, reference_timeslot, preimage_hash)
+            .await
+    }
 }
 
 impl StateManager {

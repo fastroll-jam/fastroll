@@ -158,7 +158,7 @@ pub async fn transition_on_accumulate(
 async fn transition_service_account(
     state_manager: Arc<StateManager>,
     service_id: ServiceId,
-    sandbox: &mut AccountSandbox,
+    sandbox: &mut AccountSandbox<StateManager>,
 ) -> Result<AccountStateChange, TransitionError> {
     // TODO: Optimize writes
 

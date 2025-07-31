@@ -23,11 +23,13 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
     exit_reason::ExitReason,
 };
-use fr_state::{manager::StateManager, types::Timeslot};
-use std::sync::Arc;
+use fr_state::{provider::HostStateProvider, types::Timeslot};
+use std::{marker::PhantomData, sync::Arc};
 
-pub struct RefineHostFunction;
-impl RefineHostFunction {
+pub struct RefineHostFunction<S> {
+    _phantom: PhantomData<S>,
+}
+impl<S: HostStateProvider> RefineHostFunction<S> {
     /// Performs a historical preimage lookup for the specified account and hash,
     /// retrieving the preimage data if available.
     ///
@@ -36,8 +38,8 @@ impl RefineHostFunction {
     pub async fn host_historical_lookup(
         refine_service_id: ServiceId,
         vm: &VMState,
-        context: &mut InvocationContext,
-        state_manager: Arc<StateManager>,
+        context: &mut InvocationContext<S>,
+        state_manager: Arc<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: HISTORICAL_LOOKUP");
         check_out_of_gas!(vm.gas_counter);
@@ -113,7 +115,7 @@ impl RefineHostFunction {
     /// of the refinement process.
     pub fn host_export(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: EXPORT");
         check_out_of_gas!(vm.gas_counter);
@@ -155,7 +157,7 @@ impl RefineHostFunction {
     /// Memory of the inner VM is initialized with zero value cells and `Inaccessible` pages.
     pub fn host_machine(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: MACHINE");
         check_out_of_gas!(vm.gas_counter);
@@ -196,7 +198,7 @@ impl RefineHostFunction {
     /// `HostVM` `<--(peek)--` `InnerVM`
     pub fn host_peek(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: PEEK");
         check_out_of_gas!(vm.gas_counter);
@@ -241,7 +243,7 @@ impl RefineHostFunction {
     /// `HostVM` `--(poke)-->` `InnerVM`
     pub fn host_poke(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: POKE");
         check_out_of_gas!(vm.gas_counter);
@@ -289,7 +291,7 @@ impl RefineHostFunction {
     /// This is done by updating accessibility of the pages. Optionally, values can be cleared.
     pub fn host_pages(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: PAGES");
         check_out_of_gas!(vm.gas_counter);
@@ -359,7 +361,7 @@ impl RefineHostFunction {
     /// is preserved within the inner VM.
     pub fn host_invoke(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: INVOKE");
         check_out_of_gas!(vm.gas_counter);
@@ -473,7 +475,7 @@ impl RefineHostFunction {
     /// Removes an inner VM instance from the refine context and returns its final pc.
     pub fn host_expunge(
         vm: &VMState,
-        context: &mut InvocationContext,
+        context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: EXPUNGE");
         check_out_of_gas!(vm.gas_counter);

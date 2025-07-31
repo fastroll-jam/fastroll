@@ -1,4 +1,4 @@
-use crate::context::{AccumulateHostContext, AccumulateHostContextPair};
+#![allow(dead_code)]
 use async_trait::async_trait;
 use fr_common::{Hash32, LookupsKey, Octets, ServiceId, SignedGas};
 use fr_pvm_core::state::{
@@ -16,7 +16,7 @@ use fr_state::{
     provider::HostStateProvider,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
-        AccountPreimagesEntry, AccountStorageEntry,
+        AccountPreimagesEntry, AccountStorageEntry, Timeslot,
     },
 };
 use std::{collections::HashMap, error::Error, ops::Range};
@@ -92,6 +92,15 @@ impl HostStateProvider for MockStateManager {
             .get(&service_id)
             .and_then(|account| account.lookups.get(lookups_key).cloned()))
     }
+
+    async fn lookup_historical_preimage(
+        &self,
+        _service_id: ServiceId,
+        _reference_timeslot: &Timeslot,
+        _preimage_hash: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        unimplemented!()
+    }
 }
 
 pub(crate) fn mock_empty_vm_state(gas_counter: SignedGas) -> VMState {
@@ -117,18 +126,18 @@ pub(crate) fn mock_vm_state(
     }
 }
 
-pub(crate) fn mock_accumulate_host_context(
-    accumulate_host: ServiceId,
-) -> AccumulateHostContextPair {
-    let context = AccumulateHostContext {
-        accumulate_host,
-        ..Default::default()
-    };
-    AccumulateHostContextPair {
-        x: Box::new(context.clone()),
-        y: Box::new(context),
-    }
-}
+// pub(crate) fn mock_accumulate_host_context(
+//     accumulate_host: ServiceId,
+// ) -> AccumulateHostContextPair<MockStateManager> {
+//     let context = AccumulateHostContext {
+//         accumulate_host,
+//         ..Default::default()
+//     };
+//     AccumulateHostContextPair {
+//         x: Box::new(context.clone()),
+//         y: Box::new(context),
+//     }
+// }
 
 pub(crate) fn mock_memory(
     readable_range: Range<MemAddress>,
