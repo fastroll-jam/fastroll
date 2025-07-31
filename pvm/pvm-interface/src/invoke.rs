@@ -1,5 +1,5 @@
 use crate::{error::PVMError, pvm::PVM};
-use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, UnsignedGas};
+use fr_common::{workloads::WorkExecutionResult, ServiceId, SignedGas, TimeslotIndex, UnsignedGas};
 use fr_pvm_core::{interpreter::Interpreter, state::state_change::VMStateMutator};
 use fr_pvm_host::{
     context::InvocationContext,
@@ -87,6 +87,7 @@ impl PVMInterface {
     /// to be utilized during the execution of the `invoke_extended` and `invoke_general` functions.
     ///
     /// Represents `Ψ_M` of the GP.
+    #[allow(clippy::too_many_arguments)]
     pub async fn invoke_with_args(
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
@@ -95,6 +96,7 @@ impl PVMInterface {
         gas_limit: UnsignedGas,
         args: &[u8],
         context: &mut InvocationContext,
+        curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<PVMInvocationResult, PVMError> {
         tracing::info!("Ψ_M invoked.");
         // Initialize mutable PVM states: memory, registers, pc and gas_counter
@@ -105,7 +107,14 @@ impl PVMInterface {
         pvm.state.pc = pc;
         pvm.state.gas_counter = gas_limit as SignedGas;
 
-        let result = Self::invoke_extended(&mut pvm, state_manager, service_id, context).await?;
+        let result = Self::invoke_extended(
+            &mut pvm,
+            state_manager,
+            service_id,
+            context,
+            curr_timeslot_index,
+        )
+        .await?;
         let gas_used = gas_limit - 0.max(pvm.state.gas_counter) as UnsignedGas;
 
         tracing::info!("Ψ_M Exit Reason: {:?}", result.exit_reason);
@@ -141,6 +150,7 @@ impl PVMInterface {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         context: &mut InvocationContext,
+        curr_timeslot_index: Option<TimeslotIndex>,
     ) -> Result<ExtendedInvocationResult, PVMError> {
         tracing::info!("Ψ_H invoked.");
         loop {
@@ -152,8 +162,15 @@ impl PVMInterface {
 
             let host_call_result = match exit_reason {
                 ExitReason::HostCall(h) => {
-                    Self::execute_host_function(pvm, state_manager.clone(), service_id, context, &h)
-                        .await?
+                    Self::execute_host_function(
+                        pvm,
+                        state_manager.clone(),
+                        service_id,
+                        context,
+                        curr_timeslot_index,
+                        &h,
+                    )
+                    .await?
                 }
                 _ => return Ok(ExtendedInvocationResult { exit_reason }),
             };
@@ -200,6 +217,7 @@ impl PVMInterface {
         state_manager: Arc<StateManager>,
         service_id: ServiceId,
         context: &mut InvocationContext,
+        curr_timeslot_index: Option<TimeslotIndex>,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
         tracing::trace!("{:?}", h);
@@ -250,7 +268,14 @@ impl PVMInterface {
                 AccumulateHostFunction::host_checkpoint(&pvm.state, context)?
             }
             HostCallType::NEW => {
-                AccumulateHostFunction::host_new(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_new(
+                    &pvm.state,
+                    state_manager,
+                    context,
+                    curr_timeslot_index
+                        .expect("Timeslot index should be provided for accumulate invocation"),
+                )
+                .await?
             }
             HostCallType::UPGRADE => {
                 AccumulateHostFunction::host_upgrade(&pvm.state, state_manager, context).await?
@@ -259,16 +284,37 @@ impl PVMInterface {
                 AccumulateHostFunction::host_transfer(&pvm.state, state_manager, context).await?
             }
             HostCallType::EJECT => {
-                AccumulateHostFunction::host_eject(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_eject(
+                    &pvm.state,
+                    state_manager,
+                    context,
+                    curr_timeslot_index
+                        .expect("Timeslot index should be provided for accumulate invocation"),
+                )
+                .await?
             }
             HostCallType::QUERY => {
                 AccumulateHostFunction::host_query(&pvm.state, state_manager, context).await?
             }
             HostCallType::SOLICIT => {
-                AccumulateHostFunction::host_solicit(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_solicit(
+                    &pvm.state,
+                    state_manager,
+                    context,
+                    curr_timeslot_index
+                        .expect("Timeslot index should be provided for accumulate invocation"),
+                )
+                .await?
             }
             HostCallType::FORGET => {
-                AccumulateHostFunction::host_forget(&pvm.state, state_manager, context).await?
+                AccumulateHostFunction::host_forget(
+                    &pvm.state,
+                    state_manager,
+                    context,
+                    curr_timeslot_index
+                        .expect("Timeslot index should be provided for accumulate invocation"),
+                )
+                .await?
             }
             HostCallType::YIELD => AccumulateHostFunction::host_yield(&pvm.state, context).await?,
             HostCallType::PROVIDE => {

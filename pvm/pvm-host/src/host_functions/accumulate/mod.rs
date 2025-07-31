@@ -6,9 +6,9 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
-    TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex, UnsignedGas,
+    AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD,
+    PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
@@ -232,6 +232,7 @@ impl AccumulateHostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
+        curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: NEW");
         check_out_of_gas!(vm.gas_counter);
@@ -296,7 +297,6 @@ impl AccumulateHostFunction {
             .await?;
 
         // Add a new account to the partial state
-        let curr_timeslot = state_manager.get_timeslot().await?.slot();
         let new_service_id = if has_small_service_id {
             // Taking small service ids doesn't require rotating the next new service id
             new_small_service_id
@@ -310,7 +310,7 @@ impl AccumulateHostFunction {
                     gas_limit_m,
                     (code_hash, code_lookup_len),
                     gratis_storage_offset,
-                    curr_timeslot,
+                    curr_timeslot_index,
                     0,
                     x.accumulate_host,
                 )
@@ -441,6 +441,7 @@ impl AccumulateHostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
+        curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: EJECT");
         check_out_of_gas!(vm.gas_counter);
@@ -501,9 +502,8 @@ impl AccumulateHostFunction {
             continue_huh!()
         };
 
-        let curr_timeslot = state_manager.get_timeslot().await?.slot();
         if entry.value.len() != 2
-            || entry.value[1].slot() + PREIMAGE_EXPIRATION_PERIOD >= curr_timeslot
+            || entry.value[1].slot() + PREIMAGE_EXPIRATION_PERIOD >= curr_timeslot_index
         {
             continue_huh!()
         }
@@ -601,6 +601,7 @@ impl AccumulateHostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
+        curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: SOLICIT");
         check_out_of_gas!(vm.gas_counter);
@@ -632,8 +633,6 @@ impl AccumulateHostFunction {
             .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
-        let timeslot = state_manager.get_timeslot().await?;
-
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
         // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
@@ -643,7 +642,7 @@ impl AccumulateHostFunction {
                     continue_huh!()
                 }
                 // Add current timeslot to the timeslot vector.
-                let Ok(_) = entry.value.try_push(timeslot) else {
+                let Ok(_) = entry.value.try_push(Timeslot::new(curr_timeslot_index)) else {
                     continue_huh!()
                 };
                 entry
@@ -704,6 +703,7 @@ impl AccumulateHostFunction {
         vm: &VMState,
         state_manager: Arc<StateManager>,
         context: &mut InvocationContext,
+        curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FORGET");
         check_out_of_gas!(vm.gas_counter);
@@ -731,7 +731,6 @@ impl AccumulateHostFunction {
             .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
-        let timeslot = state_manager.get_timeslot().await?;
         match lookups_entry {
             None => continue_huh!(),
             Some(entry) => {
@@ -771,7 +770,7 @@ impl AccumulateHostFunction {
                                 state_manager,
                                 x.accumulate_host,
                                 lookups_key.clone(),
-                                timeslot,
+                                Timeslot::new(curr_timeslot_index),
                             )
                             .await?
                             .expect("Lookups entry for key already exists in global state")
@@ -795,7 +794,7 @@ impl AccumulateHostFunction {
                     }
                     len if len == 2 || len == 3 => {
                         let is_expired = lookups_timeslots[1].slot() + PREIMAGE_EXPIRATION_PERIOD
-                            < timeslot.slot();
+                            < curr_timeslot_index;
                         if is_expired {
                             if len == 2 {
                                 // Remove preimage and lookups storage entry
@@ -845,7 +844,10 @@ impl AccumulateHostFunction {
                                         state_manager,
                                         x.accumulate_host,
                                         lookups_key.clone(),
-                                        vec![prev_last_timeslot, timeslot],
+                                        vec![
+                                            prev_last_timeslot,
+                                            Timeslot::new(curr_timeslot_index),
+                                        ],
                                     )
                                     .await?
                                     .expect("Lookups entry for key already exists in global state")

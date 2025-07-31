@@ -103,6 +103,7 @@ impl IsAuthorizedInvocation {
             IS_AUTHORIZED_GAS_PER_WORK_PACKAGE,
             &vm_args.encode()?,
             &mut InvocationContext::X_I(IsAuthorizedHostContext::new(args.clone())),
+            None,
         )
         .await?;
 

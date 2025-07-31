@@ -130,6 +130,7 @@ impl AccumulateInvocation {
             args.gas_limit,
             &vm_args.encode()?,
             &mut accumulate_ctx,
+            Some(args.curr_timeslot_index),
         )
         .await?;
 

@@ -14,7 +14,7 @@ use fr_common::{Hash32, LookupsKey, Octets, ServiceId};
 /// state management, test mocks, etc.
 #[async_trait]
 pub trait HostStateProvider {
-    /// Get privileged services info
+    /// Get privileged services info.
     async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError>;
 
     /// Checks if a service account with the given service id exists in the global state.
