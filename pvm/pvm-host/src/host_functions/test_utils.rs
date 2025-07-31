@@ -29,6 +29,7 @@ struct MockAccountState {
     lookups: HashMap<LookupsKey, AccountLookupsEntry>,
 }
 
+// TODO: Init with builder pattern
 #[allow(dead_code)]
 pub(crate) struct MockStateManager {
     accounts: HashMap<ServiceId, MockAccountState>,
