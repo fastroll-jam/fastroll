@@ -281,6 +281,18 @@ impl InvocationContextBuilder {
         Self::X_R(RefineHostContext::default())
     }
 
+    pub(crate) async fn accumulate_context_builder_with_default_entropy_and_timeslot(
+        state_provider: Arc<MockStateManager>,
+        accumulate_host: ServiceId,
+    ) -> Result<Self, Box<dyn Error>> {
+        Self::accumulate_context_builder(
+            state_provider,
+            accumulate_host,
+            EntropyHash::default(),
+            TimeslotIndex::default(),
+        ).await
+    }
+
     pub(crate) async fn accumulate_context_builder(
         state_provider: Arc<MockStateManager>,
         accumulate_host: ServiceId,

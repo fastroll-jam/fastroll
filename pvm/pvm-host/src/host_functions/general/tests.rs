@@ -3,9 +3,7 @@ use crate::host_functions::{
     test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
     HostCallResult,
 };
-use fr_common::{
-    utils::tracing::setup_tracing, ByteEncodable, EntropyHash, Hash32, Octets, SignedGas,
-};
+use fr_common::{utils::tracing::setup_tracing, ByteEncodable, Hash32, Octets, SignedGas};
 use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -63,8 +61,6 @@ mod lookup_tests {
     async fn test_lookup_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let accumulate_host = 1;
-        let curr_timeslot_index = 1;
-        let curr_entropy = EntropyHash::default();
 
         let key_offset = 0u32;
         let mem_write_offset = 2u64;
@@ -97,14 +93,13 @@ mod lookup_tests {
                 ),
         );
 
-        let mut context = InvocationContextBuilder::accumulate_context_builder(
-            state_provider.clone(),
-            accumulate_host,
-            curr_entropy,
-            curr_timeslot_index,
-        )
-        .await?
-        .build();
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
 
         let res = GeneralHostFunction::<MockStateManager>::host_lookup(
             accumulate_host,
