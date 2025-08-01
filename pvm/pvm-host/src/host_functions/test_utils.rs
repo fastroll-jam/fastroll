@@ -12,7 +12,7 @@ use fr_pvm_core::state::{
 };
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::REGISTERS_COUNT,
+    constants::{MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT},
     invoke_args::AccumulateInvokeArgs,
 };
 use fr_state::{
@@ -183,11 +183,15 @@ pub(crate) struct VMStateBuilder {
     pub memory: Memory,
     pub pc: RegValue,
     pub gas_counter: SignedGas,
+    mem_write_done: bool,
 }
 
 impl VMStateBuilder {
     pub(crate) fn builder() -> Self {
-        Self::default()
+        Self {
+            memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
+            ..Default::default()
+        }
     }
 
     pub(crate) fn with_reg(mut self, reg_idx: usize, reg_val: impl Into<RegValue>) -> Self {
@@ -208,10 +212,35 @@ impl VMStateBuilder {
         self
     }
 
+    pub(crate) fn with_empty_mem(mut self) -> Self {
+        self.mem_write_done = true;
+        self
+    }
+
+    pub(crate) fn with_mem_data(
+        mut self,
+        start_address: impl Into<MemAddress>,
+        bytes: &[u8],
+    ) -> Result<Self, Box<dyn Error>> {
+        let start_address = start_address.into();
+        let range = start_address..start_address + bytes.len() as MemAddress;
+        // Temporary write access for the data write
+        self.memory
+            .set_address_range_access(range.clone(), AccessType::ReadWrite)?;
+        self.memory.write_bytes(start_address, bytes)?;
+        self.memory
+            .set_address_range_access(range, AccessType::Inaccessible)?;
+        self.mem_write_done = true;
+        Ok(self)
+    }
+
     pub(crate) fn with_mem_readable_range(
         mut self,
         range: Range<MemAddress>,
     ) -> Result<Self, Box<dyn Error>> {
+        if !self.mem_write_done {
+            panic!("Mem data write should be done prior to setting access pattern")
+        }
         self.memory
             .set_address_range_access(range, AccessType::ReadOnly)?;
         Ok(self)
@@ -221,6 +250,9 @@ impl VMStateBuilder {
         mut self,
         range: Range<MemAddress>,
     ) -> Result<Self, Box<dyn Error>> {
+        if !self.mem_write_done {
+            panic!("Mem data write should be done prior to setting access pattern")
+        }
         self.memory
             .set_address_range_access(range, AccessType::ReadWrite)?;
         Ok(self)

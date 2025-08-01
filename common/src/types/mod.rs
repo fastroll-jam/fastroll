@@ -272,12 +272,18 @@ impl<const N: usize> ByteEncodable for ByteArray<N> {
 
     fn from_hex(hex_str: &str) -> Result<Self, CommonTypeError> {
         let hex_stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        if hex_stripped.len() != N * 2 {
+        if hex_stripped.len() > N * 2 {
             return Err(CommonTypeError::HexToByteArrayConversionError(N));
         }
 
+        let padded_hex = if hex_stripped.len() < N * 2 {
+            format!("{:0>width$}", hex_stripped, width = N * 2)
+        } else {
+            hex_stripped.to_string()
+        };
+
         // Decode hex string
-        let octets = hex::decode(hex_stripped).expect("Failed decoding hexstring into ByteArray");
+        let octets = hex::decode(padded_hex).expect("Failed decoding hexstring into ByteArray");
         Self::from_slice(&octets)
     }
 }

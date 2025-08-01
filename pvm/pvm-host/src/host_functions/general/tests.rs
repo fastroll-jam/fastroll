@@ -3,7 +3,9 @@ use crate::host_functions::{
     test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
     HostCallResult,
 };
-use fr_common::{ByteEncodable, EntropyHash, Hash32, Octets, SignedGas};
+use fr_common::{
+    utils::tracing::setup_tracing, ByteEncodable, EntropyHash, Hash32, Octets, SignedGas,
+};
 use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
@@ -59,14 +61,19 @@ mod lookup_tests {
 
     #[tokio::test]
     async fn test_lookup_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
         let accumulate_host = 1;
         let curr_timeslot_index = 1;
         let curr_entropy = EntropyHash::default();
 
-        let key_offset = 0u64;
+        let key_offset = 0u32;
         let mem_write_offset = 2u64;
         let preimage_read_offset = 0u64;
         let preimage_read_size = 5u64;
+
+        let preimages_key = Hash32::from_hex("0x123")?;
+        let preimages_data = vec![0, 0, 0];
+        let preimages_len = preimages_data.len();
 
         let vm = VMStateBuilder::builder()
             .with_pc(0)
@@ -76,13 +83,9 @@ mod lookup_tests {
             .with_reg(9, mem_write_offset)
             .with_reg(10, preimage_read_offset)
             .with_reg(11, preimage_read_size)
-            .with_mem_readable_range(0..100)?
+            .with_mem_data(key_offset, preimages_key.as_slice())?
             .with_mem_writable_range(0..100)?
             .build();
-
-        let preimages_key = Hash32::from_hex("0x123")?;
-        let preimages_data = vec![0, 0, 0];
-        let preimages_len = preimages_data.len();
 
         let state_provider = Arc::new(
             MockStateManager::builder()
