@@ -1,6 +1,10 @@
 #![allow(dead_code)]
+use crate::context::{
+    partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
+    InvocationContext, IsAuthorizedHostContext, RefineHostContext,
+};
 use async_trait::async_trait;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId, SignedGas};
+use fr_common::{EntropyHash, Hash32, LookupsKey, Octets, ServiceId, SignedGas, TimeslotIndex};
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
     register::Register,
@@ -9,6 +13,7 @@ use fr_pvm_core::state::{
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::REGISTERS_COUNT,
+    invoke_args::AccumulateInvokeArgs,
 };
 use fr_state::{
     error::StateManagerError,
@@ -19,7 +24,7 @@ use fr_state::{
         AccountPreimagesEntry, AccountStorageEntry, Timeslot,
     },
 };
-use std::{collections::HashMap, error::Error, ops::Range};
+use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
 
 #[derive(Default)]
 struct MockAccountState {
@@ -227,6 +232,50 @@ impl VMStateBuilder {
             memory: self.memory,
             pc: self.pc,
             gas_counter: self.gas_counter,
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum InvocationContextBuilder {
+    X_I(IsAuthorizedHostContext),
+    X_R(RefineHostContext),
+    X_A(AccumulateHostContextPair<MockStateManager>),
+}
+
+impl InvocationContextBuilder {
+    pub(crate) fn refine_context_builder() -> Self {
+        Self::X_R(RefineHostContext::default())
+    }
+
+    pub(crate) async fn accumulate_context_builder(
+        state_provider: Arc<MockStateManager>,
+        accumulate_host: ServiceId,
+        curr_entropy: EntropyHash,
+        curr_timeslot_index: TimeslotIndex,
+    ) -> Result<Self, Box<dyn Error>> {
+        let partial_state = AccumulatePartialState::default();
+        let context = AccumulateHostContext::new(
+            state_provider.clone(),
+            partial_state,
+            accumulate_host,
+            curr_entropy,
+            curr_timeslot_index,
+            AccumulateInvokeArgs::default(),
+        )
+        .await?;
+        Ok(Self::X_A(AccumulateHostContextPair {
+            x: Box::new(context.clone()),
+            y: Box::new(context),
+        }))
+    }
+
+    pub(crate) fn build(self) -> InvocationContext<MockStateManager> {
+        match self {
+            Self::X_I(context) => InvocationContext::X_I(context),
+            Self::X_R(context) => InvocationContext::X_R(context),
+            Self::X_A(context) => InvocationContext::X_A(context),
         }
     }
 }

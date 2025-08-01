@@ -1,14 +1,21 @@
-use crate::host_functions::{general::GeneralHostFunction, HostCallResult};
-use fr_common::{ByteEncodable, SignedGas};
-use fr_pvm_core::state::state_change::HostCallVMStateChange;
-use fr_pvm_types::{
-    common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, exit_reason::ExitReason,
+use crate::host_functions::{
+    general::GeneralHostFunction,
+    test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
+    HostCallResult,
 };
-use std::error::Error;
+use fr_common::{ByteEncodable, EntropyHash, Hash32, Octets, SignedGas};
+use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
+use fr_pvm_types::{
+    common::{MemAddress, RegValue},
+    constants::HOSTCALL_BASE_GAS_CHARGE,
+    exit_reason::ExitReason,
+};
+use fr_state::types::AccountPreimagesEntry;
+use std::{error::Error, sync::Arc};
 
 mod gas_tests {
     use super::*;
-    use crate::host_functions::test_utils::{MockStateManager, VMStateBuilder};
+
     #[test]
     fn test_gas_success() -> Result<(), Box<dyn Error>> {
         let init_gas = 100;
@@ -49,24 +56,12 @@ mod gas_tests {
 
 mod lookup_tests {
     use super::*;
-    use crate::{
-        context::{
-            partial_state::AccumulatePartialState, AccumulateHostContext,
-            AccumulateHostContextPair, InvocationContext,
-        },
-        host_functions::test_utils::{MockStateManager, VMStateBuilder},
-    };
-    use fr_common::{Hash32, Octets};
-    use fr_pvm_core::state::state_change::MemWrite;
-    use fr_pvm_types::{common::MemAddress, invoke_args::AccumulateInvokeArgs};
-    use fr_state::types::AccountPreimagesEntry;
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_lookup_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
         let accumulate_host = 1;
         let curr_timeslot_index = 1;
-        let curr_entropy = Hash32::default();
+        let curr_entropy = EntropyHash::default();
 
         let key_offset = 0u64;
         let mem_write_offset = 2u64;
@@ -99,20 +94,14 @@ mod lookup_tests {
                 ),
         );
 
-        let partial_state = AccumulatePartialState::default();
-        let accumulate_context = AccumulateHostContext::new(
+        let mut context = InvocationContextBuilder::accumulate_context_builder(
             state_provider.clone(),
-            partial_state,
             accumulate_host,
             curr_entropy,
             curr_timeslot_index,
-            AccumulateInvokeArgs::default(),
         )
-        .await?;
-        let mut context = InvocationContext::X_A(AccumulateHostContextPair {
-            x: Box::new(accumulate_context.clone()),
-            y: Box::new(accumulate_context),
-        });
+        .await?
+        .build();
 
         let res = GeneralHostFunction::<MockStateManager>::host_lookup(
             accumulate_host,
