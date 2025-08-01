@@ -21,7 +21,7 @@ use fr_state::{
 };
 use std::{collections::HashMap, error::Error, ops::Range};
 
-#[allow(dead_code)]
+#[derive(Default)]
 struct MockAccountState {
     metadata: AccountMetadata,
     storage: HashMap<Octets, AccountStorageEntry>,
@@ -29,8 +29,16 @@ struct MockAccountState {
     lookups: HashMap<LookupsKey, AccountLookupsEntry>,
 }
 
-// TODO: Init with builder pattern
-#[allow(dead_code)]
+impl MockAccountState {
+    fn new_with_account_metadata(metadata: AccountMetadata) -> Self {
+        Self {
+            metadata,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Default)]
 pub(crate) struct MockStateManager {
     accounts: HashMap<ServiceId, MockAccountState>,
     privileges: PrivilegedServices,
@@ -103,6 +111,63 @@ impl HostStateProvider for MockStateManager {
     }
 }
 
+impl MockStateManager {
+    pub(crate) fn with_privileged_services(mut self, privileges: PrivilegedServices) -> Self {
+        self.privileges = privileges;
+        self
+    }
+
+    pub(crate) fn with_empty_account(mut self, service_id: ServiceId) -> Self {
+        self.accounts
+            .insert(service_id, MockAccountState::default());
+        self
+    }
+
+    pub(crate) fn with_account(mut self, service_id: ServiceId, metadata: AccountMetadata) -> Self {
+        self.accounts.insert(
+            service_id,
+            MockAccountState::new_with_account_metadata(metadata),
+        );
+        self
+    }
+
+    pub(crate) fn with_storage_entry(
+        mut self,
+        service_id: ServiceId,
+        key: Octets,
+        entry: AccountStorageEntry,
+    ) -> Self {
+        self.accounts
+            .get_mut(&service_id)
+            .and_then(|account| account.storage.insert(key, entry));
+        self
+    }
+
+    pub(crate) fn with_preimages_entry(
+        mut self,
+        service_id: ServiceId,
+        key: Hash32,
+        entry: AccountPreimagesEntry,
+    ) -> Self {
+        self.accounts
+            .get_mut(&service_id)
+            .and_then(|account| account.preimages.insert(key, entry));
+        self
+    }
+
+    pub(crate) fn with_lookups_entry(
+        mut self,
+        service_id: ServiceId,
+        key: LookupsKey,
+        entry: AccountLookupsEntry,
+    ) -> Self {
+        self.accounts
+            .get_mut(&service_id)
+            .and_then(|account| account.lookups.insert(key, entry));
+        self
+    }
+}
+
 pub(crate) fn mock_empty_vm_state(gas_counter: SignedGas) -> VMState {
     VMState {
         regs: [Register::default(); REGISTERS_COUNT],
@@ -125,19 +190,6 @@ pub(crate) fn mock_vm_state(
         gas_counter,
     }
 }
-
-// pub(crate) fn mock_accumulate_host_context(
-//     accumulate_host: ServiceId,
-// ) -> AccumulateHostContextPair<MockStateManager> {
-//     let context = AccumulateHostContext {
-//         accumulate_host,
-//         ..Default::default()
-//     };
-//     AccumulateHostContextPair {
-//         x: Box::new(context.clone()),
-//         y: Box::new(context),
-//     }
-// }
 
 pub(crate) fn mock_memory(
     readable_range: Range<MemAddress>,

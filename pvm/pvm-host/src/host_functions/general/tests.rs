@@ -51,23 +51,94 @@ mod gas_tests {
 
 mod lookup_tests {
     use super::*;
+    use crate::{
+        context::{
+            partial_state::AccumulatePartialState, AccumulateHostContext,
+            AccumulateHostContextPair, InvocationContext,
+        },
+        host_functions::test_utils::{mock_memory, mock_vm_state, MockStateManager},
+    };
+    use fr_common::{Hash32, Octets};
+    use fr_pvm_core::state::{register::Register, state_change::MemWrite};
+    use fr_pvm_types::{
+        common::MemAddress, constants::REGISTERS_COUNT, invoke_args::AccumulateInvokeArgs,
+    };
+    use fr_state::types::AccountPreimagesEntry;
+    use std::sync::Arc;
 
-    #[test]
-    fn test_lookup_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
-        //     let accumulate_host = 1;
-        //     let read_range = 0..10;
-        //     let write_range = 0..10;
-        //     let mem = mock_memory(read_range, write_range)?;
-        //
-        //     let _context = mock_accumulate_host_context(accumulate_host);
-        //
-        //     let init_gas = 100;
-        //     let init_pc = 0;
-        //     let mut regs = [Register::default(); REGISTERS_COUNT];
-        //     regs[7].value = accumulate_host as RegValue;
-        //
-        //     let _vm = mock_vm_state(init_gas, init_pc, regs, mem);
-        unimplemented!()
+    #[tokio::test]
+    async fn test_lookup_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
+        let accumulate_host = 1;
+        let curr_timeslot_index = 1;
+        let curr_entropy = Hash32::default();
+        let read_range = 0..100;
+        let write_range = 0..100;
+        let mem = mock_memory(read_range, write_range)?;
+
+        let init_gas = 100;
+        let init_pc = 0;
+        let mut regs = [Register::default(); REGISTERS_COUNT];
+        let key_offset = 0;
+        let mem_write_offset = 2;
+        regs[7].value = accumulate_host as RegValue;
+        regs[8].value = key_offset;
+        regs[9].value = mem_write_offset;
+        regs[10].value = 0;
+        regs[11].value = 5;
+
+        let vm = mock_vm_state(init_gas, init_pc, regs, mem);
+
+        let preimages_key = Hash32::default();
+        let preimages_data = Octets::from_vec(vec![0, 0, 0]);
+        let preimages_len = preimages_data.len();
+
+        let state_provider = MockStateManager::default();
+        let state_provider = state_provider
+            .with_empty_account(accumulate_host)
+            .with_preimages_entry(
+                accumulate_host,
+                preimages_key,
+                AccountPreimagesEntry::new(preimages_data.clone()),
+            );
+        let state_provider = Arc::new(state_provider);
+
+        let partial_state = AccumulatePartialState::default();
+        let accumulate_context = AccumulateHostContext::new(
+            state_provider.clone(),
+            partial_state,
+            accumulate_host,
+            curr_entropy,
+            curr_timeslot_index,
+            AccumulateInvokeArgs::default(),
+        )
+        .await?;
+        let mut context = InvocationContext::X_A(AccumulateHostContextPair {
+            x: Box::new(accumulate_context.clone()),
+            y: Box::new(accumulate_context),
+        });
+
+        let res = GeneralHostFunction::<MockStateManager>::host_lookup(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: Some(preimages_len as RegValue),
+                r8_write: None,
+                memory_write: Some(MemWrite {
+                    buf_offset: mem_write_offset as MemAddress,
+                    write_data: preimages_data.to_vec(),
+                }),
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
     }
 
     #[test]
