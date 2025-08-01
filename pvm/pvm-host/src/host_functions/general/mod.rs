@@ -235,7 +235,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     pub async fn host_lookup(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: LOOKUP");
@@ -268,7 +268,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .expect("Should not fail to convert 32-byte octets to Hash32 type");
 
         let Ok(Some(entry)) = accounts_sandbox
-            .get_account_preimages_entry(state_manager, service_id, &hash)
+            .get_account_preimages_entry(state_provider, service_id, &hash)
             .await
         else {
             continue_none!()
@@ -302,7 +302,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     pub async fn host_read(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: READ");
@@ -336,7 +336,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         let storage_key = Octets::from_vec(storage_key);
 
         let Ok(Some(entry)) = accounts_sandbox
-            .get_account_storage_entry(state_manager, service_id, &storage_key)
+            .get_account_storage_entry(state_provider, service_id, &storage_key)
             .await
         else {
             continue_none!()
@@ -372,7 +372,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     pub async fn host_write(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: WRITE");
@@ -408,7 +408,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
 
         // Threshold balance change simulation
         let maybe_prev_storage_entry = accounts_sandbox
-            .get_account_storage_entry(state_manager.clone(), service_id, &storage_key)
+            .get_account_storage_entry(state_provider.clone(), service_id, &storage_key)
             .await
             .ok()
             .flatten();
@@ -443,7 +443,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
 
         if !storage_usage_delta.is_zero() {
             let metadata = accounts_sandbox
-                .get_account_metadata(state_manager.clone(), service_id)
+                .get_account_metadata(state_provider.clone(), service_id)
                 .await?
                 .ok_or(HostCallError::AccountNotFound)?; // unreachable (accumulate host / transfer subject account not found)
 
@@ -459,7 +459,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         if let Some(new_entry) = new_storage_entry {
             accounts_sandbox
                 .insert_account_storage_entry(
-                    state_manager,
+                    state_provider,
                     service_id,
                     storage_key.clone(),
                     new_entry,
@@ -469,7 +469,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
-                .remove_account_storage_entry(state_manager, service_id, storage_key.clone())
+                .remove_account_storage_entry(state_provider, service_id, storage_key.clone())
                 .await
                 .map_err(|_| HostCallError::AccountStorageRemovalFailed)?; // unreachable (accumulate host / transfer subject account not found)
         }
@@ -482,7 +482,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     pub async fn host_info(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: INFO");
@@ -501,7 +501,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         };
 
         let Ok(Some(metadata)) = accounts_sandbox
-            .get_account_metadata(state_manager, service_id)
+            .get_account_metadata(state_provider, service_id)
             .await
         else {
             continue_none!()

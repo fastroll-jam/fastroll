@@ -232,7 +232,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// The account storage and lookup dictionary are initialized as empty.
     pub async fn host_new(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
@@ -273,7 +273,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
 
         // Check if the accumulate host service account's balance is sufficient
         // and subtract by the initial threshold balance to be transferred to the new account.
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_provider.clone()).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
@@ -288,14 +288,14 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let new_small_service_id_already_taken = x
             .partial_state
             .accounts_sandbox
-            .account_exists(state_manager.clone(), new_small_service_id)
+            .account_exists(state_provider.clone(), new_small_service_id)
             .await?;
 
         if has_small_service_id && new_small_service_id_already_taken {
             continue_full!()
         }
 
-        x.subtract_accumulator_balance(state_manager.clone(), new_account_threshold_balance)
+        x.subtract_accumulator_balance(state_provider.clone(), new_account_threshold_balance)
             .await?;
 
         // Add a new account to the partial state
@@ -305,7 +305,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         } else {
             let new_service_id = x
                 .add_new_account(
-                    state_manager.clone(),
+                    state_provider.clone(),
                     code_hash.clone(),
                     new_account_threshold_balance,
                     gas_limit_g,
@@ -319,7 +319,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                 .await?;
 
             // Update the next new service account index in the partial state
-            x.rotate_new_account_id(state_manager).await?;
+            x.rotate_new_account_id(state_provider).await?;
             new_service_id
         };
 
@@ -334,7 +334,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// code hash and gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: UPGRADE");
@@ -356,7 +356,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         };
         let code_hash = Hash32::decode(&mut code_hash_octets.as_slice())?;
 
-        x.update_accumulator_metadata(state_manager, code_hash.clone(), gas_limit_g, gas_limit_m)
+        x.update_accumulator_metadata(state_provider, code_hash.clone(), gas_limit_g, gas_limit_m)
             .await?;
         tracing::debug!(
             "UPGRADE service_id={} code_hash={code_hash} g={gas_limit_g} m={gas_limit_m}",
@@ -368,7 +368,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Transfers tokens from the accumulating service account to another service account.
     pub async fn host_transfer(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: TRANSFER");
@@ -405,7 +405,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             gas_limit,
         };
 
-        let accumulator_metadata = x.get_accumulator_metadata(state_manager.clone()).await?;
+        let accumulator_metadata = x.get_accumulator_metadata(state_provider.clone()).await?;
         let accumulator_balance = accumulator_metadata.balance();
         let accumulator_threshold_balance = accumulator_metadata.threshold_balance();
 
@@ -414,7 +414,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Some(dest_account_metadata) = x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager.clone(), dest)
+            .get_account_metadata(state_provider.clone(), dest)
             .await?
         else {
             continue_who!(gas_charge)
@@ -428,7 +428,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_cash!(gas_charge)
         }
 
-        x.subtract_accumulator_balance(state_manager, amount)
+        x.subtract_accumulator_balance(state_provider, amount)
             .await?;
         x.add_to_deferred_transfers(transfer);
         tracing::debug!(
@@ -441,7 +441,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Completely removes a service account from the global state.
     pub async fn host_eject(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
@@ -471,7 +471,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Some(eject_account_metadata) = x
             .partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager.clone(), eject_service_id)
+            .get_account_metadata(state_provider.clone(), eject_service_id)
             .await?
             .cloned()
         else {
@@ -498,7 +498,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager.clone(), eject_service_id, &lookups_key)
+            .get_account_lookups_entry(state_provider.clone(), eject_service_id, &lookups_key)
             .await?
         else {
             continue_huh!()
@@ -510,11 +510,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_huh!()
         }
 
-        x.add_accumulator_balance(state_manager.clone(), eject_account_metadata.balance())
+        x.add_accumulator_balance(state_provider.clone(), eject_account_metadata.balance())
             .await?;
         x.partial_state
             .accounts_sandbox
-            .eject_account(state_manager, eject_service_id, lookups_key)
+            .eject_account(state_provider, eject_service_id, lookups_key)
             .await?;
         tracing::debug!("EJECT service_id={eject_service_id}");
         continue_ok!()
@@ -523,7 +523,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// Queries the lookups storage's timeslot scopes to determine the availability of a preimage entry.
     pub async fn host_query(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: QUERY");
@@ -549,7 +549,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Some(entry) = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager, x.accumulate_host, &lookups_key)
+            .get_account_lookups_entry(state_provider, x.accumulate_host, &lookups_key)
             .await?
         else {
             continue_none!()
@@ -601,7 +601,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// lookup dictionary entry. It is asserted that the previous length of the vector is 2.
     pub async fn host_solicit(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
@@ -632,7 +632,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let prev_lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
+            .get_account_lookups_entry(state_provider.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
@@ -664,7 +664,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                 .unwrap_or_default(); // Attempting to delete a storage entry that doesn't exist is basically a no-op
 
                 let accumulator_metadata =
-                    x.get_accumulator_metadata(state_manager.clone()).await?;
+                    x.get_accumulator_metadata(state_provider.clone()).await?;
                 let simulated_threshold_balance = accumulator_metadata
                     .simulate_threshold_balance_after_mutation(None, Some(lookups_usage_delta));
 
@@ -680,7 +680,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         x.partial_state
             .accounts_sandbox
             .insert_account_lookups_entry(
-                state_manager,
+                state_provider,
                 x.accumulate_host,
                 lookups_key.clone(),
                 new_lookups_entry.clone(),
@@ -703,7 +703,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     /// to the timeslot vector.
     pub async fn host_forget(
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
         curr_timeslot_index: TimeslotIndex,
     ) -> Result<HostCallResult, HostCallError> {
@@ -730,7 +730,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let lookups_entry = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager.clone(), x.accumulate_host, &lookups_key)
+            .get_account_lookups_entry(state_provider.clone(), x.accumulate_host, &lookups_key)
             .await?;
 
         match lookups_entry {
@@ -743,7 +743,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_preimages_entry(
-                                state_manager.clone(),
+                                state_provider.clone(),
                                 x.accumulate_host,
                                 lookup_hash,
                             )
@@ -751,7 +751,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_lookups_entry(
-                                state_manager,
+                                state_provider,
                                 x.accumulate_host,
                                 lookups_key.clone(),
                             )
@@ -769,7 +769,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                             .partial_state
                             .accounts_sandbox
                             .push_timeslot_to_account_lookups_entry(
-                                state_manager,
+                                state_provider,
                                 x.accumulate_host,
                                 lookups_key.clone(),
                                 Timeslot::new(curr_timeslot_index),
@@ -803,7 +803,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_preimages_entry(
-                                        state_manager.clone(),
+                                        state_provider.clone(),
                                         x.accumulate_host,
                                         lookup_hash,
                                     )
@@ -811,7 +811,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_lookups_entry(
-                                        state_manager,
+                                        state_provider,
                                         x.accumulate_host,
                                         lookups_key.clone(),
                                     )
@@ -834,7 +834,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 x.partial_state
                                     .accounts_sandbox
                                     .drain_account_lookups_entry_timeslots(
-                                        state_manager.clone(),
+                                        state_provider.clone(),
                                         x.accumulate_host,
                                         lookups_key.clone(),
                                     )
@@ -843,7 +843,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                     .partial_state
                                     .accounts_sandbox
                                     .extend_timeslots_to_account_lookups_entry(
-                                        state_manager,
+                                        state_provider,
                                         x.accumulate_host,
                                         lookups_key.clone(),
                                         vec![
@@ -914,7 +914,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
     pub async fn host_provide(
         service_id: ServiceId,
         vm: &VMState,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: PROVIDE");
@@ -946,7 +946,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // Service account not found
         if x.partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager.clone(), service_id)
+            .get_account_metadata(state_provider.clone(), service_id)
             .await?
             .is_none()
         {
@@ -958,7 +958,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Some(lookups_entry) = x
             .partial_state
             .accounts_sandbox
-            .get_account_lookups_entry(state_manager.clone(), service_id, &lookups_key)
+            .get_account_lookups_entry(state_provider.clone(), service_id, &lookups_key)
             .await?
         else {
             // Preimage not requested

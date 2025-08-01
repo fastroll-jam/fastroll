@@ -151,7 +151,6 @@ impl<S: HostStateProvider> AccumulateHostContextPair<S> {
 /// to retrieve their states. Any newly created or mutated accounts during the accumulation process
 /// must first be copied into the `accounts_sandbox` field of the `AccumulatePartialState` to ensure
 /// proper isolation.
-#[derive(Default)]
 pub struct AccumulateHostContext<S: HostStateProvider> {
     /// `s`: Accumulate host service account index
     pub accumulate_host: ServiceId,
@@ -190,7 +189,7 @@ impl<S: HostStateProvider> Clone for AccumulateHostContext<S> {
 
 impl<S: HostStateProvider> AccumulateHostContext<S> {
     pub async fn new(
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         partial_state: AccumulatePartialState<S>,
         accumulate_host: ServiceId,
         curr_entropy: EntropyHash,
@@ -199,7 +198,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     ) -> Result<Self, HostCallError> {
         Ok(Self {
             next_new_service_id: Self::initialize_new_service_id(
-                state_manager,
+                state_provider,
                 accumulate_host,
                 curr_entropy.clone(),
                 timeslot_index,
@@ -216,7 +215,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     }
 
     async fn initialize_new_service_id(
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         accumulate_host: ServiceId,
         entropy: EntropyHash,
         timeslot_index: TimeslotIndex,
@@ -233,17 +232,17 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         let initial_check_id = (hash_as_u64 % modulus)
             .checked_add(s)
             .ok_or(HostCallError::ServiceIdOverflow)?;
-        let new_service_id = state_manager.check(initial_check_id as ServiceId).await?;
+        let new_service_id = state_provider.check(initial_check_id as ServiceId).await?;
         Ok(new_service_id)
     }
 
     pub async fn get_accumulator_metadata(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
     ) -> Result<&AccountMetadata, HostCallError> {
         self.partial_state
             .accounts_sandbox
-            .get_account_metadata(state_manager, self.accumulate_host)
+            .get_account_metadata(state_provider, self.accumulate_host)
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)
     }
@@ -251,14 +250,14 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     #[allow(clippy::redundant_closure_call)]
     pub async fn rotate_new_account_id(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
     ) -> Result<(), HostCallError> {
         let s = MIN_PUBLIC_SERVICE_ID as u64;
         let bump = |prev_next_new_id: ServiceId| -> ServiceId {
             let modulus = (1u64 << 32) - s - (1u64 << 8);
             ((prev_next_new_id as u64 - s + 42) % modulus + s) as ServiceId
         };
-        self.next_new_service_id = state_manager.check(bump(self.next_new_service_id)).await?;
+        self.next_new_service_id = state_provider.check(bump(self.next_new_service_id)).await?;
         Ok(())
     }
 
@@ -295,13 +294,13 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
     pub async fn subtract_accumulator_balance(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         amount: Balance,
     ) -> Result<(), HostCallError> {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
+            .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
@@ -309,7 +308,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         account_metadata.balance -= amount;
         self.partial_state
             .accounts_sandbox
-            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .mark_account_metadata_updated(state_provider, self.accumulate_host)
             .await?;
 
         Ok(())
@@ -317,13 +316,13 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
     pub async fn add_accumulator_balance(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         amount: Balance,
     ) -> Result<(), HostCallError> {
         let account_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
+            .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
@@ -333,7 +332,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
         self.partial_state
             .accounts_sandbox
-            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .mark_account_metadata_updated(state_provider, self.accumulate_host)
             .await?;
 
         Ok(())
@@ -342,7 +341,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     #[allow(clippy::too_many_arguments)]
     pub async fn add_new_account(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         code_hash: CodeHash,
         balance: Balance,
         gas_limit_accumulate: UnsignedGas,
@@ -387,7 +386,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         self.partial_state
             .accounts_sandbox
             .insert_account_lookups_entry(
-                state_manager,
+                state_provider,
                 new_service_id,
                 code_lookups_key,
                 code_lookups_entry,
@@ -399,7 +398,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
     pub async fn update_accumulator_metadata(
         &mut self,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
         code_hash: CodeHash,
         gas_limit_accumulate: UnsignedGas,
         gas_limit_on_transfer: UnsignedGas,
@@ -407,7 +406,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         let accumulator_metadata = self
             .partial_state
             .accounts_sandbox
-            .get_mut_account_metadata(state_manager.clone(), self.accumulate_host)
+            .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
@@ -417,7 +416,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
         self.partial_state
             .accounts_sandbox
-            .mark_account_metadata_updated(state_manager, self.accumulate_host)
+            .mark_account_metadata_updated(state_provider, self.accumulate_host)
             .await?;
         Ok(())
     }

@@ -39,7 +39,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         refine_service_id: ServiceId,
         vm: &VMState,
         context: &mut InvocationContext<S>,
-        state_manager: Arc<S>,
+        state_provider: Arc<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: HISTORICAL_LOOKUP");
         check_out_of_gas!(vm.gas_counter);
@@ -54,14 +54,14 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         };
 
         let service_id = if service_id_reg == u64::MAX
-            || state_manager.account_exists(refine_service_id).await?
+            || state_provider.account_exists(refine_service_id).await?
         {
             refine_service_id
         } else {
             let Ok(service_id_reg) = vm.regs[7].as_service_id() else {
                 continue_none!()
             };
-            if state_manager.account_exists(service_id_reg).await? {
+            if state_provider.account_exists(service_id_reg).await? {
                 service_id_reg
             } else {
                 continue_none!()
@@ -77,7 +77,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         };
         let lookup_hash = Hash32::decode(&mut lookup_hash_octets.as_slice())?;
 
-        let Some(preimage) = state_manager
+        let Some(preimage) = state_provider
             .lookup_historical_preimage(
                 service_id,
                 &Timeslot::new(x.invoke_args.package.context.lookup_anchor_timeslot),
