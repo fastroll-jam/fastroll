@@ -1,7 +1,5 @@
-use crate::host_functions::{
-    general::GeneralHostFunction, test_utils::mock_empty_vm_state, HostCallResult,
-};
-use fr_common::SignedGas;
+use crate::host_functions::{general::GeneralHostFunction, HostCallResult};
+use fr_common::{ByteEncodable, SignedGas};
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, exit_reason::ExitReason,
@@ -10,13 +8,13 @@ use std::error::Error;
 
 mod gas_tests {
     use super::*;
-    use crate::host_functions::test_utils::MockStateManager;
+    use crate::host_functions::test_utils::{MockStateManager, VMStateBuilder};
     #[test]
     fn test_gas_success() -> Result<(), Box<dyn Error>> {
         let init_gas = 100;
-        let vm = mock_empty_vm_state(init_gas);
-        let expected_remaining_gas = init_gas as RegValue - HOSTCALL_BASE_GAS_CHARGE as RegValue;
+        let vm = VMStateBuilder::builder().with_gas_counter(init_gas).build();
         let res = GeneralHostFunction::<MockStateManager>::host_gas(&vm)?;
+        let expected_remaining_gas = init_gas as RegValue - HOSTCALL_BASE_GAS_CHARGE as RegValue;
         let expected = HostCallResult {
             exit_reason: ExitReason::Continue,
             vm_change: HostCallVMStateChange {
@@ -32,8 +30,8 @@ mod gas_tests {
 
     #[test]
     fn test_gas_oog() -> Result<(), Box<dyn Error>> {
-        let init_gas = HOSTCALL_BASE_GAS_CHARGE - 1;
-        let vm = mock_empty_vm_state(init_gas as SignedGas);
+        let init_gas = (HOSTCALL_BASE_GAS_CHARGE - 1) as SignedGas;
+        let vm = VMStateBuilder::builder().with_gas_counter(init_gas).build();
         let res = GeneralHostFunction::<MockStateManager>::host_gas(&vm)?;
         let expected = HostCallResult {
             exit_reason: ExitReason::OutOfGas,
@@ -56,13 +54,11 @@ mod lookup_tests {
             partial_state::AccumulatePartialState, AccumulateHostContext,
             AccumulateHostContextPair, InvocationContext,
         },
-        host_functions::test_utils::{mock_memory, mock_vm_state, MockStateManager},
+        host_functions::test_utils::{MockStateManager, VMStateBuilder},
     };
     use fr_common::{Hash32, Octets};
-    use fr_pvm_core::state::{register::Register, state_change::MemWrite};
-    use fr_pvm_types::{
-        common::MemAddress, constants::REGISTERS_COUNT, invoke_args::AccumulateInvokeArgs,
-    };
+    use fr_pvm_core::state::state_change::MemWrite;
+    use fr_pvm_types::{common::MemAddress, invoke_args::AccumulateInvokeArgs};
     use fr_state::types::AccountPreimagesEntry;
     use std::sync::Arc;
 
@@ -71,36 +67,37 @@ mod lookup_tests {
         let accumulate_host = 1;
         let curr_timeslot_index = 1;
         let curr_entropy = Hash32::default();
-        let read_range = 0..100;
-        let write_range = 0..100;
-        let mem = mock_memory(read_range, write_range)?;
 
-        let init_gas = 100;
-        let init_pc = 0;
-        let mut regs = [Register::default(); REGISTERS_COUNT];
-        let key_offset = 0;
-        let mem_write_offset = 2;
-        regs[7].value = accumulate_host as RegValue;
-        regs[8].value = key_offset;
-        regs[9].value = mem_write_offset;
-        regs[10].value = 0;
-        regs[11].value = 5;
+        let key_offset = 0u64;
+        let mem_write_offset = 2u64;
+        let preimage_read_offset = 0u64;
+        let preimage_read_size = 5u64;
 
-        let vm = mock_vm_state(init_gas, init_pc, regs, mem);
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, accumulate_host)
+            .with_reg(8, key_offset)
+            .with_reg(9, mem_write_offset)
+            .with_reg(10, preimage_read_offset)
+            .with_reg(11, preimage_read_size)
+            .with_mem_readable_range(0..100)?
+            .with_mem_writable_range(0..100)?
+            .build();
 
-        let preimages_key = Hash32::default();
-        let preimages_data = Octets::from_vec(vec![0, 0, 0]);
+        let preimages_key = Hash32::from_hex("0x123")?;
+        let preimages_data = vec![0, 0, 0];
         let preimages_len = preimages_data.len();
 
-        let state_provider = MockStateManager::default();
-        let state_provider = state_provider
-            .with_empty_account(accumulate_host)
-            .with_preimages_entry(
-                accumulate_host,
-                preimages_key,
-                AccountPreimagesEntry::new(preimages_data.clone()),
-            );
-        let state_provider = Arc::new(state_provider);
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(accumulate_host)
+                .with_preimages_entry(
+                    accumulate_host,
+                    preimages_key,
+                    AccountPreimagesEntry::new(Octets::from_vec(preimages_data.clone())),
+                ),
+        );
 
         let partial_state = AccumulatePartialState::default();
         let accumulate_context = AccumulateHostContext::new(
@@ -133,7 +130,7 @@ mod lookup_tests {
                 r8_write: None,
                 memory_write: Some(MemWrite {
                     buf_offset: mem_write_offset as MemAddress,
-                    write_data: preimages_data.to_vec(),
+                    write_data: preimages_data,
                 }),
             },
         };

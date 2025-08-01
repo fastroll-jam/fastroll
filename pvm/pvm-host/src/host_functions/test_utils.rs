@@ -8,7 +8,7 @@ use fr_pvm_core::state::{
 };
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::{MEMORY_SIZE, PAGE_SIZE, REGISTERS_COUNT},
+    constants::REGISTERS_COUNT,
 };
 use fr_state::{
     error::StateManagerError,
@@ -112,6 +112,10 @@ impl HostStateProvider for MockStateManager {
 }
 
 impl MockStateManager {
+    pub(crate) fn builder() -> Self {
+        Self::default()
+    }
+
     pub(crate) fn with_privileged_services(mut self, privileges: PrivilegedServices) -> Self {
         self.privileges = privileges;
         self
@@ -168,35 +172,61 @@ impl MockStateManager {
     }
 }
 
-pub(crate) fn mock_empty_vm_state(gas_counter: SignedGas) -> VMState {
-    VMState {
-        regs: [Register::default(); REGISTERS_COUNT],
-        memory: Memory::default(),
-        pc: 0,
-        gas_counter,
-    }
+#[derive(Default)]
+pub(crate) struct VMStateBuilder {
+    pub regs: [Register; REGISTERS_COUNT],
+    pub memory: Memory,
+    pub pc: RegValue,
+    pub gas_counter: SignedGas,
 }
 
-pub(crate) fn mock_vm_state(
-    gas_counter: SignedGas,
-    pc: RegValue,
-    regs: [Register; REGISTERS_COUNT],
-    memory: Memory,
-) -> VMState {
-    VMState {
-        regs,
-        memory,
-        pc,
-        gas_counter,
+impl VMStateBuilder {
+    pub(crate) fn builder() -> Self {
+        Self::default()
     }
-}
 
-pub(crate) fn mock_memory(
-    readable_range: Range<MemAddress>,
-    writable_range: Range<MemAddress>,
-) -> Result<Memory, Box<dyn Error>> {
-    let mut mem = Memory::new(MEMORY_SIZE, PAGE_SIZE);
-    mem.set_address_range_access(readable_range, AccessType::ReadOnly)?;
-    mem.set_address_range_access(writable_range, AccessType::ReadWrite)?;
-    Ok(mem)
+    pub(crate) fn with_reg(mut self, reg_idx: usize, reg_val: impl Into<RegValue>) -> Self {
+        if reg_idx >= REGISTERS_COUNT {
+            panic!("Register index out of bounds: {reg_idx:?}");
+        }
+        self.regs[reg_idx].value = reg_val.into();
+        self
+    }
+
+    pub(crate) fn with_pc(mut self, pc: RegValue) -> Self {
+        self.pc = pc;
+        self
+    }
+
+    pub(crate) fn with_gas_counter(mut self, gas_counter: SignedGas) -> Self {
+        self.gas_counter = gas_counter;
+        self
+    }
+
+    pub(crate) fn with_mem_readable_range(
+        mut self,
+        range: Range<MemAddress>,
+    ) -> Result<Self, Box<dyn Error>> {
+        self.memory
+            .set_address_range_access(range, AccessType::ReadOnly)?;
+        Ok(self)
+    }
+
+    pub(crate) fn with_mem_writable_range(
+        mut self,
+        range: Range<MemAddress>,
+    ) -> Result<Self, Box<dyn Error>> {
+        self.memory
+            .set_address_range_access(range, AccessType::ReadWrite)?;
+        Ok(self)
+    }
+
+    pub(crate) fn build(self) -> VMState {
+        VMState {
+            regs: self.regs,
+            memory: self.memory,
+            pc: self.pc,
+            gas_counter: self.gas_counter,
+        }
+    }
 }
