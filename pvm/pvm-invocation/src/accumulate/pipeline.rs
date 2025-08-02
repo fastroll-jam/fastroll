@@ -27,7 +27,7 @@ pub struct OuterAccumulationResult {
     /// `n`: The total number of work reports accumulated.
     pub accumulated_reports_count: usize,
     /// **`o′`**: The union of posterior partial state of all service accounts.
-    pub partial_state_union: AccumulatePartialState,
+    pub partial_state_union: AccumulatePartialState<StateManager>,
     /// **`b`**: The posterior accumulation output log; pairs of service ids and accumulation output hashes.
     pub service_output_pairs: AccumulationOutputPairs,
     /// **`u`**: Pairs of service ids and gas usages.
@@ -135,8 +135,8 @@ struct ParallelAccumulationResult {
 async fn add_partial_state_change(
     state_manager: Arc<StateManager>,
     accumulate_host: ServiceId,
-    partial_state_union: &mut AccumulatePartialState,
-    mut accumulate_result_partial_state: AccumulatePartialState,
+    partial_state_union: &mut AccumulatePartialState<StateManager>,
+    mut accumulate_result_partial_state: AccumulatePartialState<StateManager>,
 ) {
     if let (None, Some(new_staging_set)) = (
         &partial_state_union.new_staging_set,
@@ -185,7 +185,7 @@ async fn add_partial_state_change(
 /// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
 async fn add_provided_preimages(
     state_manager: Arc<StateManager>,
-    partial_state_union: &mut AccumulatePartialState,
+    partial_state_union: &mut AccumulatePartialState<StateManager>,
     provided_images: HashSet<(ServiceId, Octets)>,
     curr_timeslot_index: TimeslotIndex,
 ) {
@@ -227,7 +227,7 @@ async fn accumulate_parallel(
     prev_deferred_transfers: Arc<Vec<DeferredTransfer>>,
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
-    partial_state_union: &mut AccumulatePartialState,
+    partial_state_union: &mut AccumulatePartialState<StateManager>,
 ) -> Result<ParallelAccumulationResult, PVMInvokeError> {
     let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
 
@@ -419,13 +419,13 @@ fn extract_transfers(
 /// Represents `Δ1` of the GP.
 async fn accumulate_single_service(
     state_manager: Arc<StateManager>,
-    partial_state: AccumulatePartialState,
+    partial_state: AccumulatePartialState<StateManager>,
     prev_deferred_transfers: Arc<Vec<DeferredTransfer>>,
     reports: Arc<Vec<WorkReport>>,
     always_accumulate_services: Arc<BTreeMap<ServiceId, UnsignedGas>>,
     service_id: ServiceId,
     curr_timeslot_index: TimeslotIndex,
-) -> Result<AccumulateResult, PVMInvokeError> {
+) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
     let mut gas_limit = always_accumulate_services
         .get(&service_id)
         .cloned()
@@ -440,7 +440,7 @@ async fn accumulate_single_service(
 
     gas_limit += reports_gas_aggregated;
 
-    AccumulateInvocation::accumulate(
+    AccumulateInvocation::<StateManager>::accumulate(
         state_manager,
         partial_state,
         &AccumulateInvokeArgs {

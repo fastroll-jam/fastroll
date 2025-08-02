@@ -2,6 +2,7 @@ use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
     config::StateManagerConfig,
     error::StateManagerError,
+    provider::HostStateProvider,
     state_db::StateDB,
     state_utils::{
         get_account_lookups_state_key, get_account_metadata_state_key,
@@ -15,6 +16,7 @@ use crate::{
         OnChainStatistics, PastSet, PendingReports, SafroleState, SlotSealer, StagingSet, Timeslot,
     },
 };
+use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
     CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey, TimeslotIndex,
@@ -28,7 +30,7 @@ use fr_state_merkle::{
     types::nodes::LeafType,
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 use tracing::instrument;
 
 pub struct StateManager {
@@ -65,6 +67,65 @@ macro_rules! impl_simple_state_accessors {
             }
         }
     };
+}
+
+#[async_trait]
+impl HostStateProvider for StateManager {
+    async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
+        self.get_privileged_services().await
+    }
+
+    async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
+        self.account_exists(service_id).await
+    }
+
+    async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        self.check(service_id).await
+    }
+
+    async fn get_account_metadata(
+        &self,
+        service_id: ServiceId,
+    ) -> Result<Option<AccountMetadata>, StateManagerError> {
+        self.get_account_metadata(service_id).await
+    }
+
+    async fn get_account_storage_entry(
+        &self,
+        service_id: ServiceId,
+        storage_key: &Octets,
+    ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
+        self.get_account_storage_entry(service_id, storage_key)
+            .await
+    }
+
+    async fn get_account_preimages_entry(
+        &self,
+        service_id: ServiceId,
+        preimages_key: &Hash32,
+    ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
+        self.get_account_preimages_entry(service_id, preimages_key)
+            .await
+    }
+
+    async fn get_account_lookups_entry(
+        &self,
+        service_id: ServiceId,
+        lookups_key: &LookupsKey,
+    ) -> Result<Option<AccountLookupsEntry>, StateManagerError> {
+        self.get_account_lookups_entry(service_id, lookups_key)
+            .await
+    }
+
+    async fn lookup_historical_preimage(
+        &self,
+        service_id: ServiceId,
+        reference_timeslot: &Timeslot,
+        preimage_hash: &Hash32,
+    ) -> Result<Option<Vec<u8>>, StateManagerError> {
+        self.lookup_historical_preimage(service_id, reference_timeslot, preimage_hash)
+            .await
+    }
 }
 
 impl StateManager {
@@ -216,15 +277,26 @@ impl StateManager {
         Ok(self.get_account_metadata(service_id).await?.is_some())
     }
 
-    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+    pub async fn check_impl<F, Fut>(
+        service_id: ServiceId,
+        account_exists_in_state: F,
+    ) -> Result<ServiceId, StateManagerError>
+    where
+        F: Fn(ServiceId) -> Fut,
+        Fut: Future<Output = Result<bool, StateManagerError>>,
+    {
         let mut check_id = service_id;
         loop {
-            if !self.account_exists(check_id).await? {
+            if !account_exists_in_state(check_id).await? {
                 return Ok(check_id);
             }
             let s = MIN_PUBLIC_SERVICE_ID as u64;
             check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
         }
+    }
+
+    pub async fn check(&self, service_id: ServiceId) -> Result<ServiceId, StateManagerError> {
+        Self::check_impl(service_id, |id| self.account_exists(id)).await
     }
 
     pub async fn get_account_code_hash(

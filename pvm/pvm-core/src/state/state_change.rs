@@ -14,7 +14,7 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, INST_BASE_GAS_CHARGE, REGISTERS_COUNT},
 };
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MemWrite {
     pub buf_offset: MemAddress,
     pub write_data: Vec<u8>,
@@ -50,6 +50,7 @@ impl Default for VMStateChange {
 }
 
 /// VM state change set resulting from a single host function execution.
+#[derive(Debug, PartialEq)]
 pub struct HostCallVMStateChange {
     pub gas_charge: UnsignedGas,
     pub r7_write: Option<RegValue>,

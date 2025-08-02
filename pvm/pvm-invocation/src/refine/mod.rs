@@ -163,6 +163,7 @@ impl RefineInvocation {
             work_item.refine_gas_limit,
             &vm_args.encode()?,
             &mut refine_ctx,
+            None,
         )
         .await?;
 

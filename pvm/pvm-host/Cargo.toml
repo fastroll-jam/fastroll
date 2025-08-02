@@ -11,5 +11,9 @@ fr-limited-vec = { workspace = true }
 fr-state = { workspace = true }
 fr-pvm-core = { workspace = true }
 fr-pvm-types = { workspace = true }
+async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

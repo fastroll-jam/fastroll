@@ -1082,6 +1082,7 @@ dependencies = [
 name = "fr-pvm-host"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "fr-codec",
  "fr-common",
  "fr-crypto",
@@ -1090,6 +1091,7 @@ dependencies = [
  "fr-pvm-types",
  "fr-state",
  "thiserror 2.0.12",
+ "tokio",
  "tracing",
 ]
 
@@ -1141,6 +1143,7 @@ dependencies = [
 name = "fr-state"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "fr-block",
  "fr-clock",
  "fr-codec",

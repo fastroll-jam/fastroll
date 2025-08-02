@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 pub(crate) async fn run_privileged_transitions(
     state_manager: Arc<StateManager>,
-    partial_state_union: AccumulatePartialState,
+    partial_state_union: AccumulatePartialState<StateManager>,
 ) -> Result<(), TransitionError> {
     // Transition staging set
     if let Some(new_staging_set) = partial_state_union.new_staging_set {

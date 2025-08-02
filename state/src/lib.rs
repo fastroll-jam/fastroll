@@ -2,6 +2,7 @@ pub mod cache;
 pub mod config;
 pub mod error;
 pub mod manager;
+pub mod provider;
 pub mod state_db;
 pub mod state_utils;
 pub mod test_utils;

@@ -18,8 +18,10 @@ use fr_pvm_types::{
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
     invoke_results::AccumulationOutputHash,
 };
-use fr_state::{cache::StateMut, error::StateManagerError, manager::StateManager};
-use std::{collections::HashSet, sync::Arc};
+use fr_state::{
+    cache::StateMut, error::StateManagerError, manager::StateManager, provider::HostStateProvider,
+};
+use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 /// `Ψ_M` invocation function arguments for `Ψ_A`
 #[derive(JamEncode)]
@@ -32,10 +34,9 @@ struct AccumulateVMArgs {
     accumulate_input_len: usize,
 }
 
-#[derive(Default)]
-pub struct AccumulateResult {
+pub struct AccumulateResult<S: HostStateProvider> {
     /// **`e`**: The posterior partial state
-    pub partial_state: AccumulatePartialState,
+    pub partial_state: AccumulatePartialState<S>,
     /// **`t`**: All transfers deferred by a single-service accumulation
     pub deferred_transfers: Vec<DeferredTransfer>,
     /// `y`: Accumulation result hash
@@ -47,8 +48,23 @@ pub struct AccumulateResult {
     pub accumulate_host: ServiceId,
 }
 
-pub struct AccumulateInvocation;
-impl AccumulateInvocation {
+impl<S: HostStateProvider> Default for AccumulateResult<S> {
+    fn default() -> Self {
+        Self {
+            partial_state: AccumulatePartialState::default(),
+            deferred_transfers: Vec::new(),
+            yielded_accumulate_hash: None,
+            gas_used: UnsignedGas::default(),
+            provided_preimages: HashSet::new(),
+            accumulate_host: ServiceId::default(),
+        }
+    }
+}
+
+pub struct AccumulateInvocation<S> {
+    _phantom: PhantomData<S>,
+}
+impl<S: HostStateProvider> AccumulateInvocation<S> {
     /// Accumulate invocation function
     ///
     /// # Arguments
@@ -60,9 +76,9 @@ impl AccumulateInvocation {
     /// Represents `Ψ_A` of the GP
     pub(crate) async fn accumulate(
         state_manager: Arc<StateManager>,
-        partial_state: AccumulatePartialState,
+        partial_state: AccumulatePartialState<StateManager>,
         args: &AccumulateInvokeArgs,
-    ) -> Result<AccumulateResult, PVMInvokeError> {
+    ) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
         tracing::info!("Ψ_A (accumulate) invoked.");
 
         // Update accumulate host account's balance to apply deferred transfers
@@ -130,6 +146,7 @@ impl AccumulateInvocation {
             args.gas_limit,
             &vm_args.encode()?,
             &mut accumulate_ctx,
+            Some(args.curr_timeslot_index),
         )
         .await?;
 
