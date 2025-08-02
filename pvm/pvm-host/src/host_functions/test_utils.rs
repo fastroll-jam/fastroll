@@ -290,7 +290,8 @@ impl InvocationContextBuilder {
             accumulate_host,
             EntropyHash::default(),
             TimeslotIndex::default(),
-        ).await
+        )
+        .await
     }
 
     pub(crate) async fn accumulate_context_builder(

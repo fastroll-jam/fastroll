@@ -448,3 +448,425 @@ mod lookup_tests {
         Ok(())
     }
 }
+
+mod read_tests {
+    use super::*;
+    use fr_state::types::AccountStorageEntry;
+
+    #[tokio::test]
+    async fn test_read_accumulate_host_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+        let storage_data = (0..255).collect::<Vec<u8>>();
+        let storage_data_len = storage_data.len();
+
+        let mem_readable_range =
+            key_offset as MemAddress..key_offset as MemAddress + key_size as MemAddress;
+        let mem_writable_range = mem_write_offset as MemAddress
+            ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, u64::MAX)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_readable_range(mem_readable_range)?
+            .with_mem_writable_range(mem_writable_range)?
+            .build();
+
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(accumulate_host)
+                .with_storage_entry(
+                    accumulate_host,
+                    storage_key,
+                    AccountStorageEntry::new(Octets::from_vec(storage_data.clone())),
+                ),
+        );
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: Some(storage_data_len as RegValue),
+                r8_write: None,
+                memory_write: Some(MemWrite {
+                    buf_offset: mem_write_offset as MemAddress,
+                    write_data: storage_data
+                        [storage_read_offset..storage_read_offset + storage_read_size]
+                        .to_vec(),
+                }),
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_other_account_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+        let other_service_id = ServiceId::MAX - 1;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+        let storage_data = (0..255).collect::<Vec<u8>>();
+        let storage_data_len = storage_data.len();
+
+        let mem_readable_range =
+            key_offset as MemAddress..key_offset as MemAddress + key_size as MemAddress;
+        let mem_writable_range = mem_write_offset as MemAddress
+            ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, other_service_id)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_readable_range(mem_readable_range)?
+            .with_mem_writable_range(mem_writable_range)?
+            .build();
+
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(other_service_id)
+                .with_storage_entry(
+                    other_service_id,
+                    storage_key,
+                    AccountStorageEntry::new(Octets::from_vec(storage_data.clone())),
+                ),
+        );
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: Some(storage_data_len as RegValue),
+                r8_write: None,
+                memory_write: Some(MemWrite {
+                    buf_offset: mem_write_offset as MemAddress,
+                    write_data: storage_data
+                        [storage_read_offset..storage_read_offset + storage_read_size]
+                        .to_vec(),
+                }),
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_account_not_found() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+
+        let mem_readable_range =
+            key_offset as MemAddress..key_offset as MemAddress + key_size as MemAddress;
+        let mem_writable_range = mem_write_offset as MemAddress
+            ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, u64::MAX)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_readable_range(mem_readable_range)?
+            .with_mem_writable_range(mem_writable_range)?
+            .build();
+
+        let state_provider =
+            Arc::new(MockStateManager::builder().with_empty_account(accumulate_host));
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                r8_write: None,
+                memory_write: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+        let storage_data = (0..255).collect::<Vec<u8>>();
+
+        let mem_writable_range = mem_write_offset as MemAddress
+            ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, u64::MAX)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_writable_range(mem_writable_range)?
+            .build();
+
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(accumulate_host)
+                .with_storage_entry(
+                    accumulate_host,
+                    storage_key,
+                    AccountStorageEntry::new(Octets::from_vec(storage_data.clone())),
+                ),
+        );
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Panic,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: None,
+                r8_write: None,
+                memory_write: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_mem_not_writable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+        let storage_data = (0..255).collect::<Vec<u8>>();
+
+        let mem_readable_range =
+            key_offset as MemAddress..key_offset as MemAddress + key_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, u64::MAX)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_readable_range(mem_readable_range)?
+            .build();
+
+        let state_provider = Arc::new(
+            MockStateManager::builder()
+                .with_empty_account(accumulate_host)
+                .with_storage_entry(
+                    accumulate_host,
+                    storage_key,
+                    AccountStorageEntry::new(Octets::from_vec(storage_data.clone())),
+                ),
+        );
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Panic,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: None,
+                r8_write: None,
+                memory_write: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_key_not_found_from_partial_state() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = ServiceId::MAX;
+
+        let key_offset = 10000u32;
+        let key_size = 3usize;
+        let mem_write_offset = 3u64;
+        let storage_read_offset = 30usize;
+        let storage_read_size = 30usize;
+
+        let storage_key = Octets::from_vec((0..key_size as u8).collect::<Vec<u8>>());
+
+        let mem_readable_range =
+            key_offset as MemAddress..key_offset as MemAddress + key_size as MemAddress;
+        let mem_writable_range = mem_write_offset as MemAddress
+            ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+        let vm = VMStateBuilder::builder()
+            .with_pc(0)
+            .with_gas_counter(100)
+            .with_reg(7, u64::MAX)
+            .with_reg(8, key_offset)
+            .with_reg(9, key_size as RegValue)
+            .with_reg(10, mem_write_offset)
+            .with_reg(11, storage_read_offset as RegValue)
+            .with_reg(12, storage_read_size as RegValue)
+            .with_mem_data(key_offset, storage_key.as_slice())?
+            .with_mem_readable_range(mem_readable_range)?
+            .with_mem_writable_range(mem_writable_range)?
+            .build();
+
+        let state_provider =
+            Arc::new(MockStateManager::builder().with_empty_account(accumulate_host));
+
+        let mut context =
+            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
+                state_provider.clone(),
+                accumulate_host,
+            )
+            .await?
+            .build();
+
+        let res = GeneralHostFunction::<MockStateManager>::host_read(
+            accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+
+        let expected = HostCallResult {
+            exit_reason: ExitReason::Continue,
+            vm_change: HostCallVMStateChange {
+                gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                r8_write: None,
+                memory_write: None,
+            },
+        };
+        assert_eq!(res, expected);
+        Ok(())
+    }
+}
