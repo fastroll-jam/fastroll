@@ -62,6 +62,7 @@ mod gas_tests {
 mod lookup_tests {
     use super::*;
     use fr_common::HASH_SIZE;
+    use fr_pvm_types::constants::PAGE_SIZE;
 
     struct LookupTestFixture {
         accumulate_host: ServiceId,
@@ -79,11 +80,11 @@ mod lookup_tests {
 
     impl Default for LookupTestFixture {
         fn default() -> Self {
-            let preimages_key_mem_offset = 10_000;
+            let preimages_key_mem_offset = PAGE_SIZE as MemAddress;
             let preimages_read_size = 5;
             let preimages_data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let preimages_data_len = preimages_data.len();
-            let mem_write_offset = 2;
+            let mem_write_offset = 2 * PAGE_SIZE as MemAddress;
             let mem_readable_range = preimages_key_mem_offset as MemAddress
                 ..preimages_key_mem_offset as MemAddress + HASH_SIZE as MemAddress;
             let mem_writable_range = mem_write_offset as MemAddress
@@ -348,6 +349,7 @@ mod lookup_tests {
 
 mod read_tests {
     use super::*;
+    use fr_pvm_types::constants::PAGE_SIZE;
 
     struct ReadTestFixture {
         accumulate_host: ServiceId,
@@ -366,12 +368,12 @@ mod read_tests {
 
     impl Default for ReadTestFixture {
         fn default() -> Self {
-            let storage_key_mem_offset = 10_000;
+            let storage_key_mem_offset = 3 * PAGE_SIZE as MemAddress;
             let storage_key_size = 3;
             let storage_data = (0..255).collect::<Vec<u8>>();
             let storage_data_len = storage_data.len();
             let storage_read_size = 30;
-            let mem_write_offset = 3;
+            let mem_write_offset = 10 * PAGE_SIZE as MemAddress;
             let mem_readable_range = storage_key_mem_offset as MemAddress
                 ..storage_key_mem_offset as MemAddress + storage_key_size as MemAddress;
             let mem_writable_range = mem_write_offset as MemAddress
