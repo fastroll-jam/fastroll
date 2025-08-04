@@ -4,7 +4,9 @@ use crate::context::{
     InvocationContext, IsAuthorizedHostContext, RefineHostContext,
 };
 use async_trait::async_trait;
-use fr_common::{EntropyHash, Hash32, LookupsKey, Octets, ServiceId, SignedGas, TimeslotIndex};
+use fr_common::{
+    Balance, EntropyHash, Hash32, LookupsKey, Octets, ServiceId, SignedGas, TimeslotIndex,
+};
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
     register::Register,
@@ -137,6 +139,15 @@ impl MockStateManager {
             service_id,
             MockAccountState::new_with_account_metadata(metadata),
         );
+        self
+    }
+
+    pub(crate) fn with_balance(mut self, service_id: ServiceId, balance: Balance) -> Self {
+        let account = self
+            .accounts
+            .get_mut(&service_id)
+            .expect("Service not found");
+        account.metadata.balance = balance;
         self
     }
 
@@ -281,7 +292,7 @@ impl InvocationContextBuilder {
         Self::X_R(RefineHostContext::default())
     }
 
-    pub(crate) async fn accumulate_context_builder_with_default_entropy_and_timeslot(
+    pub(crate) async fn accumulate_context_builder_default(
         state_provider: Arc<MockStateManager>,
         accumulate_host: ServiceId,
     ) -> Result<Self, Box<dyn Error>> {
