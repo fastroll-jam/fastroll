@@ -713,13 +713,15 @@ mod write_tests {
 
     impl WriteTestFixture {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
-            Ok(VMStateBuilder::builder()
+            VMStateBuilder::builder()
                 .with_pc(0)
                 .with_gas_counter(100)
                 .with_reg(7, self.storage_key_mem_offset)
                 .with_reg(8, self.storage_key_size as RegValue)
                 .with_reg(9, self.storage_data_mem_offset)
-                .with_reg(10, self.storage_data_size as RegValue))
+                .with_reg(10, self.storage_data_size as RegValue)
+                .with_mem_data(self.storage_key_mem_offset, self.storage_key.as_slice())?
+                .with_mem_data(self.storage_data_mem_offset, self.storage_data.as_slice())
         }
 
         fn prepare_state_provider(&self) -> MockStateManager {
@@ -821,14 +823,6 @@ mod write_tests {
         let fixture = WriteTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
             .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
             .build();
@@ -866,14 +860,6 @@ mod write_tests {
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
             .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
             .build();
@@ -914,14 +900,6 @@ mod write_tests {
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
             .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
             .build();
@@ -954,14 +932,6 @@ mod write_tests {
         let fixture = WriteTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
             .build();
         let state_provider = Arc::new(fixture.prepare_state_provider());
@@ -994,14 +964,6 @@ mod write_tests {
         let fixture = WriteTestFixture::default();
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
             .build();
         let state_provider = Arc::new(fixture.prepare_state_provider());
@@ -1037,14 +999,6 @@ mod write_tests {
         };
         let vm = fixture
             .prepare_vm_builder()?
-            .with_mem_data(
-                fixture.storage_key_mem_offset,
-                fixture.storage_key.as_slice(),
-            )?
-            .with_mem_data(
-                fixture.storage_data_mem_offset,
-                fixture.storage_data.as_slice(),
-            )?
             .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
             .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
             .build();
