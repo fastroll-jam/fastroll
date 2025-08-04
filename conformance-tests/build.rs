@@ -1,4 +1,4 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, fs::ReadDir, path::PathBuf};
 
 /// Build script to generate test cases from JSON test vectors
 fn main() {
@@ -33,6 +33,33 @@ fn generate_pvm_tests() {
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
 
+fn write_block_import_test_cases(
+    test_files_dir: ReadDir,
+    test_group: &str,
+    test_case_contents: &mut String,
+) {
+    for test_file in test_files_dir {
+        let test_file_path = test_file.expect("Failed to get test file").path();
+        let test_file_path_str = test_file_path.to_str().unwrap();
+        let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
+        if test_file_name.ends_with(".bin") {
+            continue;
+        }
+        if test_file_name.ends_with("genesis.json") {
+            continue;
+        }
+        let test_name = test_file_name.trim_end_matches(".json");
+        test_case_contents.push_str(&format!(
+            "\
+            #[tokio::test]\
+            async fn block_import_{test_group}_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
+                run_test_case(\"{test_file_path_str}\").await?;
+                Ok(())
+            }}"
+        ));
+    }
+}
+
 #[allow(dead_code)]
 fn generate_block_import_tests() {
     let test_vectors_dir = PathBuf::from("jamtestvectors-polkajam/traces");
@@ -43,109 +70,35 @@ fn generate_block_import_tests() {
         fs::read_dir(full_path.join("fallback")).expect("Failed to read fallback test vectors dir");
     let safrole_test_files =
         fs::read_dir(full_path.join("safrole")).expect("Failed to read safrole test vectors dir");
-    let reports_l0_test_files = fs::read_dir(full_path.join("reports-l0"))
-        .expect("Failed to read reports-l0 test vectors dir");
-    let reports_l1_test_files = fs::read_dir(full_path.join("reports-l1"))
-        .expect("Failed to read reports-l1 test vectors dir");
+    let preimages_test_files = fs::read_dir(full_path.join("preimages"))
+        .expect("Failed to read preimages test vectors dir");
+    let preimages_light_test_files = fs::read_dir(full_path.join("preimages_light"))
+        .expect("Failed to read preimages_light test vectors dir");
+    let storage_test_files =
+        fs::read_dir(full_path.join("storage")).expect("Failed to read storage test vectors dir");
+    let storage_light_test_files = fs::read_dir(full_path.join("storage_light"))
+        .expect("Failed to read storage_light test vectors dir");
 
     let dest_path =
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_block_import_tests.rs");
 
     let mut test_case_contents =
-        // String::from("use fr_conformance_tests::importer_harness::run_test_case;");
-        String::new();
+        String::from("use fr_conformance_tests::importer_harness::run_test_case;");
 
-    // Fallback tests
-    for test_file in fallback_test_files {
-        let test_file_path = test_file.expect("Failed to get test file").path();
-        let test_file_path_str = test_file_path.to_str().unwrap();
-        let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        if test_file_name.ends_with(".bin") {
-            continue;
-        }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
-            continue;
-        }
-        let test_name = test_file_name.trim_end_matches(".json");
-        test_case_contents.push_str(&format!(
-            "\
-            #[tokio::test]\
-            async fn block_import_fallback_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
-                run_test_case(\"{test_file_path_str}\").await?;
-                Ok(())
-            }}"
-        ));
-    }
-
-    // Safrole tests
-    for test_file in safrole_test_files {
-        let test_file_path = test_file.expect("Failed to get test file").path();
-        let test_file_path_str = test_file_path.to_str().unwrap();
-        let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        if test_file_name.ends_with(".bin") {
-            continue;
-        }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
-            continue;
-        }
-        let test_name = test_file_name.trim_end_matches(".json");
-        test_case_contents.push_str(&format!(
-            "\
-            #[tokio::test]\
-            async fn block_import_safrole_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
-                run_test_case(\"{test_file_path_str}\").await?;
-                Ok(())
-            }}"
-        ));
-    }
-
-    // Reports-l0 tests
-    for test_file in reports_l0_test_files {
-        let test_file_path = test_file.expect("Failed to get test file").path();
-        let test_file_path_str = test_file_path.to_str().unwrap();
-        let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        if test_file_name.ends_with(".bin") {
-            continue;
-        }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
-            continue;
-        }
-        let test_name = test_file_name.trim_end_matches(".json");
-        test_case_contents.push_str(&format!(
-            "\
-            #[tokio::test]\
-            async fn block_import_reports_l0_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
-                run_test_case(\"{test_file_path_str}\").await?;
-                Ok(())
-            }}"
-        ));
-    }
-
-    // Reports-l1 tests
-    for test_file in reports_l1_test_files {
-        let test_file_path = test_file.expect("Failed to get test file").path();
-        let test_file_path_str = test_file_path.to_str().unwrap();
-        let test_file_name = test_file_path.file_name().unwrap().to_str().unwrap();
-        if test_file_name.ends_with(".bin") {
-            continue;
-        }
-        // FIXME: Genesis: import genesis blocks
-        if test_file_name.ends_with("00000000.json") {
-            continue;
-        }
-        let test_name = test_file_name.trim_end_matches(".json");
-        test_case_contents.push_str(&format!(
-            "\
-            #[tokio::test]\
-            async fn block_import_reports_l1_{test_name}() -> Result<(), Box<dyn std::error::Error>> {{
-                run_test_case(\"{test_file_path_str}\").await?;
-                Ok(())
-            }}"
-        ));
-    }
+    write_block_import_test_cases(fallback_test_files, "fallback", &mut test_case_contents);
+    write_block_import_test_cases(safrole_test_files, "safrole", &mut test_case_contents);
+    write_block_import_test_cases(preimages_test_files, "preimages", &mut test_case_contents);
+    write_block_import_test_cases(
+        preimages_light_test_files,
+        "preimages_light",
+        &mut test_case_contents,
+    );
+    write_block_import_test_cases(storage_test_files, "storage", &mut test_case_contents);
+    write_block_import_test_cases(
+        storage_light_test_files,
+        "storage_light",
+        &mut test_case_contents,
+    );
 
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
