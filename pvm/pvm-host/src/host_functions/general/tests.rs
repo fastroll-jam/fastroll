@@ -7,12 +7,13 @@ use crate::{
     },
 };
 use fr_common::{
-    utils::tracing::setup_tracing, ByteEncodable, Hash32, Octets, ServiceId, SignedGas,
+    utils::tracing::setup_tracing, Balance, ByteEncodable, Hash32, Octets, ServiceId, SignedGas,
+    HASH_SIZE,
 };
 use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
-    constants::HOSTCALL_BASE_GAS_CHARGE,
+    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
 };
 use fr_state::types::{AccountPreimagesEntry, AccountStorageEntry};
@@ -61,8 +62,6 @@ mod gas_tests {
 
 mod lookup_tests {
     use super::*;
-    use fr_common::HASH_SIZE;
-    use fr_pvm_types::constants::PAGE_SIZE;
 
     struct LookupTestFixture {
         accumulate_host: ServiceId,
@@ -85,10 +84,10 @@ mod lookup_tests {
             let preimages_data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let preimages_data_len = preimages_data.len();
             let mem_write_offset = 2 * PAGE_SIZE as MemAddress;
-            let mem_readable_range = preimages_key_mem_offset as MemAddress
-                ..preimages_key_mem_offset as MemAddress + HASH_SIZE as MemAddress;
-            let mem_writable_range = mem_write_offset as MemAddress
-                ..mem_write_offset as MemAddress + preimages_read_size as MemAddress;
+            let mem_readable_range =
+                preimages_key_mem_offset..preimages_key_mem_offset + HASH_SIZE as MemAddress;
+            let mem_writable_range =
+                mem_write_offset..mem_write_offset + preimages_read_size as MemAddress;
             Self {
                 accumulate_host: 1,
                 other_service_id: 2,
@@ -138,11 +137,13 @@ mod lookup_tests {
             state_provider: Arc<MockStateManager>,
         ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
             Ok(
-            InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
-                state_provider,
-                self.accumulate_host
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
             )
-            .await?.build())
         }
 
         fn host_call_result_successful(&self) -> HostCallResult {
@@ -349,7 +350,6 @@ mod lookup_tests {
 
 mod read_tests {
     use super::*;
-    use fr_pvm_types::constants::PAGE_SIZE;
 
     struct ReadTestFixture {
         accumulate_host: ServiceId,
@@ -374,10 +374,10 @@ mod read_tests {
             let storage_data_len = storage_data.len();
             let storage_read_size = 30;
             let mem_write_offset = 10 * PAGE_SIZE as MemAddress;
-            let mem_readable_range = storage_key_mem_offset as MemAddress
-                ..storage_key_mem_offset as MemAddress + storage_key_size as MemAddress;
-            let mem_writable_range = mem_write_offset as MemAddress
-                ..mem_write_offset as MemAddress + storage_read_size as MemAddress;
+            let mem_readable_range =
+                storage_key_mem_offset..storage_key_mem_offset + storage_key_size as MemAddress;
+            let mem_writable_range =
+                mem_write_offset..mem_write_offset + storage_read_size as MemAddress;
             Self {
                 accumulate_host: ServiceId::MAX,
                 other_service_id: ServiceId::MAX - 1,
@@ -427,12 +427,14 @@ mod read_tests {
             &self,
             state_provider: Arc<MockStateManager>,
         ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
-            Ok(InvocationContextBuilder::accumulate_context_builder_with_default_entropy_and_timeslot(
-                state_provider,
-                self.accumulate_host,
-            )
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
                 .await?
-                .build())
+                .build(),
+            )
         }
 
         fn host_call_result_successful(&self) -> HostCallResult {
@@ -657,6 +659,189 @@ mod read_tests {
         )
         .await?;
         assert_eq!(res, ReadTestFixture::host_call_result_none());
+        Ok(())
+    }
+}
+
+mod write_tests {
+    use super::*;
+
+    struct WriteTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_balance: Balance,
+        storage_key_mem_offset: MemAddress,
+        storage_key_size: usize,
+        storage_data_mem_offset: MemAddress,
+        storage_data_size: usize,
+        storage_key: Octets,
+        storage_data: Vec<u8>,
+        prev_storage_data: Option<Vec<u8>>,
+        prev_storage_data_size: usize,
+        mem_readable_range_for_key: Range<MemAddress>,
+        mem_readable_range_for_data: Range<MemAddress>,
+    }
+
+    impl Default for WriteTestFixture {
+        fn default() -> Self {
+            let storage_data = (0..PAGE_SIZE + 1)
+                .map(|i| i as u8 % u8::MAX)
+                .collect::<Vec<u8>>();
+            let storage_key_mem_offset = 3 * PAGE_SIZE as MemAddress;
+            let storage_key_size = 150;
+            let storage_data_mem_offset = 10 * PAGE_SIZE as MemAddress;
+            let storage_data_size = storage_data.len();
+            let mem_readable_range_for_key =
+                storage_key_mem_offset..storage_key_mem_offset + storage_key_size as MemAddress;
+            let mem_readable_range_for_data =
+                storage_data_mem_offset..storage_data_mem_offset + storage_data_size as MemAddress;
+            Self {
+                accumulate_host: 0,
+                accumulate_host_balance: 10_000,
+                storage_key_mem_offset,
+                storage_key_size,
+                storage_data_mem_offset,
+                storage_data_size: PAGE_SIZE + 1,
+                storage_key: Octets::from_vec((0..storage_key_size as u8).collect::<Vec<_>>()),
+                storage_data,
+                prev_storage_data: Some((0..5).collect::<Vec<u8>>()),
+                prev_storage_data_size: 5,
+                mem_readable_range_for_key,
+                mem_readable_range_for_data,
+            }
+        }
+    }
+
+    impl WriteTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            Ok(VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.storage_key_mem_offset)
+                .with_reg(8, self.storage_key_size as RegValue)
+                .with_reg(9, self.storage_data_mem_offset)
+                .with_reg(10, self.storage_data_size as RegValue))
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            let provider = MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance);
+            match &self.prev_storage_data {
+                Some(prev_data) => provider.with_storage_entry(
+                    self.accumulate_host,
+                    self.storage_key.clone(),
+                    AccountStorageEntry::new(Octets::from_vec(prev_data.clone())),
+                ),
+                None => provider,
+            }
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(self.prev_storage_data_size as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_successful_no_prev_entry(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_full(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::FULL as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        async fn get_storage_entry_from_partial_state(
+            &self,
+            state_provider: Arc<MockStateManager>,
+            context: InvocationContext<MockStateManager>,
+        ) -> Result<Octets, Box<dyn Error>> {
+            Ok(context
+                .get_accumulate_x()
+                .cloned()
+                .unwrap()
+                .partial_state
+                .accounts_sandbox
+                .get_account_storage_entry(state_provider, self.accumulate_host, &self.storage_key)
+                .await?
+                .unwrap()
+                .value
+                .clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_write_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(res, fixture.host_call_result_successful());
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?;
+        assert_eq!(storage_entry_added.0, fixture.storage_data);
         Ok(())
     }
 }
