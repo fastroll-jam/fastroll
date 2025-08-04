@@ -107,14 +107,14 @@ mod lookup_tests {
 
     impl LookupTestFixture {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
-            Ok(VMStateBuilder::builder()
+            VMStateBuilder::builder()
                 .with_pc(0)
                 .with_gas_counter(100)
                 .with_reg(8, self.preimages_key_mem_offset)
                 .with_reg(9, self.mem_write_offset)
                 .with_reg(10, self.preimages_read_offset as RegValue)
                 .with_reg(11, self.preimages_read_size as RegValue)
-                .with_mem_data(self.preimages_key_mem_offset, self.preimages_key.as_slice())?)
+                .with_mem_data(self.preimages_key_mem_offset, self.preimages_key.as_slice())
         }
 
         fn prepare_state_provider(
