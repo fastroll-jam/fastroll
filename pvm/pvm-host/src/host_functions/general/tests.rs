@@ -844,4 +844,38 @@ mod write_tests {
         assert_eq!(storage_entry_added.0, fixture.storage_data);
         Ok(())
     }
+
+    // #[tokio::test]
+    // async fn test_write_successful_no_prev_entry() -> Result<(), Box<dyn Error>> {
+    //     setup_tracing();
+    //     let mut fixture = WriteTestFixture::default();
+    //     fixture.prev_storage_data = None;
+    //     fixture.prev_storage_data_size = 0;
+    //
+    //     Ok(())
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_write_successful_entry_removed() -> Result<(), Box<dyn Error>> {
+    //     setup_tracing();
+    //     Ok(())
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_write_mem_not_readable_storage_key() -> Result<(), Box<dyn Error>> {
+    //     setup_tracing();
+    //     Ok(())
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_write_mem_not_readable_storage_data() -> Result<(), Box<dyn Error>> {
+    //     setup_tracing();
+    //     Ok(())
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_write_insufficient_balance() -> Result<(), Box<dyn Error>> {
+    //     setup_tracing();
+    //     Ok(())
+    // }
 }
