@@ -762,7 +762,7 @@ mod write_tests {
             }
         }
 
-        fn host_call_result_successful_no_prev_entry(&self) -> HostCallResult {
+        fn host_call_result_successful_no_prev_entry() -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
@@ -774,7 +774,19 @@ mod write_tests {
             }
         }
 
-        fn host_call_result_full(&self) -> HostCallResult {
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_full() -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
@@ -790,7 +802,7 @@ mod write_tests {
             &self,
             state_provider: Arc<MockStateManager>,
             context: InvocationContext<MockStateManager>,
-        ) -> Result<Octets, Box<dyn Error>> {
+        ) -> Result<Option<Octets>, Box<dyn Error>> {
             Ok(context
                 .get_accumulate_x()
                 .cloned()
@@ -799,9 +811,7 @@ mod write_tests {
                 .accounts_sandbox
                 .get_account_storage_entry(state_provider, self.accumulate_host, &self.storage_key)
                 .await?
-                .unwrap()
-                .value
-                .clone())
+                .map(|e| e.value.clone()))
         }
     }
 
@@ -840,42 +850,225 @@ mod write_tests {
         // Check partial state after host-call
         let storage_entry_added = fixture
             .get_storage_entry_from_partial_state(state_provider, context)
-            .await?;
+            .await?
+            .expect("Storage entry should exist");
         assert_eq!(storage_entry_added.0, fixture.storage_data);
         Ok(())
     }
 
-    // #[tokio::test]
-    // async fn test_write_successful_no_prev_entry() -> Result<(), Box<dyn Error>> {
-    //     setup_tracing();
-    //     let mut fixture = WriteTestFixture::default();
-    //     fixture.prev_storage_data = None;
-    //     fixture.prev_storage_data_size = 0;
-    //
-    //     Ok(())
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_write_successful_entry_removed() -> Result<(), Box<dyn Error>> {
-    //     setup_tracing();
-    //     Ok(())
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_write_mem_not_readable_storage_key() -> Result<(), Box<dyn Error>> {
-    //     setup_tracing();
-    //     Ok(())
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_write_mem_not_readable_storage_data() -> Result<(), Box<dyn Error>> {
-    //     setup_tracing();
-    //     Ok(())
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_write_insufficient_balance() -> Result<(), Box<dyn Error>> {
-    //     setup_tracing();
-    //     Ok(())
-    // }
+    #[tokio::test]
+    async fn test_write_successful_no_prev_entry() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture {
+            prev_storage_data: None,
+            prev_storage_data_size: 0,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(
+            res,
+            WriteTestFixture::host_call_result_successful_no_prev_entry()
+        );
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?
+            .expect("Storage entry should exist");
+        assert_eq!(storage_entry_added.0, fixture.storage_data);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_successful_entry_removed() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture {
+            storage_data_size: 0,
+            storage_data: Vec::new(),
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(res, fixture.host_call_result_successful());
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?;
+        assert!(storage_entry_added.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_mem_not_readable_storage_key() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(res, WriteTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?
+            .expect("Storage entry should exist");
+        assert_eq!(storage_entry_added.0, fixture.prev_storage_data.unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_mem_not_readable_storage_data() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(res, WriteTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?
+            .expect("Storage entry should exist");
+        assert_eq!(storage_entry_added.0, fixture.prev_storage_data.unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_insufficient_balance() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = WriteTestFixture {
+            accumulate_host_balance: 0,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_data(
+                fixture.storage_key_mem_offset,
+                fixture.storage_key.as_slice(),
+            )?
+            .with_mem_data(
+                fixture.storage_data_mem_offset,
+                fixture.storage_data.as_slice(),
+            )?
+            .with_mem_readable_range(fixture.mem_readable_range_for_key.clone())?
+            .with_mem_readable_range(fixture.mem_readable_range_for_data.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let res = GeneralHostFunction::<MockStateManager>::host_write(
+            fixture.accumulate_host,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        // Check host-call result
+        assert_eq!(res, WriteTestFixture::host_call_result_full());
+
+        // Check partial state after host-call
+        let storage_entry_added = fixture
+            .get_storage_entry_from_partial_state(state_provider, context)
+            .await?
+            .expect("Storage entry should exist");
+        assert_eq!(storage_entry_added.0, fixture.prev_storage_data.unwrap());
+        Ok(())
+    }
 }
