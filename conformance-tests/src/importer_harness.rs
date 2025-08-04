@@ -1,4 +1,6 @@
-use fr_asn_types::types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnOpaqueHash};
+use fr_asn_types::types::common::{
+    AsnBlock, AsnByteArray, AsnByteSequence, AsnHeader, AsnOpaqueHash,
+};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, StateKey, StateRoot};
 use fr_node::roles::importer::BlockImporter;
@@ -39,6 +41,12 @@ pub struct AsnTestCase {
     pub post_state: AsnRawState,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AsnGenesisBlockTestCase {
+    pub header: AsnHeader,
+    pub state: AsnRawState,
+}
+
 // --- FastRoll Types
 pub struct RawState {
     pub state_root: StateRoot,
@@ -54,6 +62,11 @@ pub struct TestCase {
     pub pre_state: RawState,
     pub block: Block,
     pub post_state: RawState,
+}
+
+pub struct GenesisBlockTestCase {
+    pub header: BlockHeader,
+    pub state: RawState,
 }
 
 // --- Type Conversion
@@ -98,7 +111,11 @@ impl From<AsnRawState> for RawState {
 struct BlockImportHarness;
 impl BlockImportHarness {
     fn load_test_case(file_path: &Path) -> AsnTestCase {
-        tracing::info!("file_path: {:?}", file_path);
+        let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
+        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+    }
+
+    fn load_genesis_test_case(file_path: &Path) -> AsnGenesisBlockTestCase {
         let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
@@ -108,6 +125,13 @@ impl BlockImportHarness {
             pre_state: test_case.pre_state.into(),
             block: test_case.block.into(),
             post_state: test_case.post_state.into(),
+        }
+    }
+
+    fn convert_genesis_block_test_case(test_case: AsnGenesisBlockTestCase) -> GenesisBlockTestCase {
+        GenesisBlockTestCase {
+            header: test_case.header.into(),
+            state: test_case.state.into(),
         }
     }
 
@@ -223,20 +247,28 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
 }
 
 fn get_parent_block_header(file_path: &str) -> BlockHeader {
-    let parent_block_test_file_path = {
-        let file_str = file_path.to_string();
+    let file_str = file_path.to_string();
+    if file_path.ends_with("00000001.json") {
+        let reg = Regex::new(r"\d{8}\.json$").unwrap();
+        let genesis_block_file_path = reg.replace(&file_str, "genesis.json").to_string();
+        let genesis_block_test_case = BlockImportHarness::convert_genesis_block_test_case(
+            BlockImportHarness::load_genesis_test_case(&PathBuf::from(genesis_block_file_path)),
+        );
+        genesis_block_test_case.header
+    } else {
         let reg = Regex::new(r"(\d{8})\.json$").unwrap();
         // Get parent block test case file path
-        reg.replace(&file_str, |caps: &regex::Captures| {
-            let num_str = &caps[1];
-            let num: u64 = num_str.parse().unwrap_or(0);
-            let decremented = num.saturating_sub(1);
-            format!("{:0width$}.json", decremented, width = num_str.len())
-        })
-        .to_string()
-    };
-    let parent_block_test_case = BlockImportHarness::convert_test_case(
-        BlockImportHarness::load_test_case(&PathBuf::from(parent_block_test_file_path)),
-    );
-    parent_block_test_case.block.header
+        let parent_block_file_path = reg
+            .replace(&file_str, |caps: &regex::Captures| {
+                let num_str = &caps[1];
+                let num: u64 = num_str.parse().unwrap_or(0);
+                let decremented = num.saturating_sub(1);
+                format!("{:0width$}.json", decremented, width = num_str.len())
+            })
+            .to_string();
+        let parent_block_test_case = BlockImportHarness::convert_test_case(
+            BlockImportHarness::load_test_case(&PathBuf::from(parent_block_file_path)),
+        );
+        parent_block_test_case.block.header
+    }
 }
