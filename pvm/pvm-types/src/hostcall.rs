@@ -32,6 +32,8 @@ pub enum HostCallType {
     FORGET = 24,
     YIELD = 25,
     PROVIDE = 26,
+    // Debugging
+    LOG = 100,
 }
 
 impl TryFrom<u8> for HostCallType {
@@ -66,6 +68,7 @@ impl TryFrom<u8> for HostCallType {
             24 => Ok(HostCallType::FORGET),
             25 => Ok(HostCallType::YIELD),
             26 => Ok(HostCallType::PROVIDE),
+            100 => Ok(HostCallType::LOG),
             _ => Err(()),
         }
     }
