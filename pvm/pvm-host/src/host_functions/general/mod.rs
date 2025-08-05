@@ -510,8 +510,9 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         // Encode account metadata with JAM Codec
         let info = metadata.encode_for_info_hostcall()?;
 
+        // TODO: check - GP using reg indices 11 & 12 for f & l
         // f
-        let info_read_offset = match vm.regs[11].as_usize() {
+        let info_read_offset = match vm.regs[9].as_usize() {
             Ok(info_read_offset_reg) => info_read_offset_reg.min(info.len()),
             Err(_) => info.len(),
         };
@@ -521,7 +522,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .expect("info_read_offset is less than info blob length");
 
         // l
-        let info_write_len = match vm.regs[12].as_usize() {
+        let info_write_len = match vm.regs[10].as_usize() {
             Ok(info_write_len_reg) => info_write_len_reg.min(info_blob_len_minus_offset),
             Err(_) => info_blob_len_minus_offset,
         };
