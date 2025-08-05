@@ -63,6 +63,12 @@ pub type SignedGas = i64;
 /// Unsigned integer gas type.
 pub type UnsignedGas = u64;
 
+/// Service account storage key.
+pub type StorageKey = Octets;
+
+/// Service account preimage entry key (hash).
+pub type PreimagesKey = Hash32;
+
 /// Service account preimage lookup metadata map key.
 /// A tuple of the hash and its preimage length in octets.
 pub type LookupsKey = (Hash32, u32);

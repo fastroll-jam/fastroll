@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId};
+use fr_common::{LookupsKey, PreimagesKey, ServiceId, StorageKey};
 
 /// State provider defining the interface for host state access in the PVM.
 ///
@@ -35,14 +35,14 @@ pub trait HostStateProvider {
     async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError>;
 
     /// Get account preimages entry with the given service id and storage key.
     async fn get_account_preimages_entry(
         &self,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError>;
 
     /// Get account lookups entry with the given service id and storage key.
@@ -56,6 +56,6 @@ pub trait HostStateProvider {
         &self,
         service_id: ServiceId,
         reference_timeslot: &Timeslot,
-        preimage_hash: &Hash32,
+        preimage_hash: &PreimagesKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError>;
 }

@@ -19,8 +19,8 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, Hash32, LookupsKey, MerkleRoot, Octets, ServiceId, StateKey, TimeslotIndex,
-    MIN_PUBLIC_SERVICE_ID,
+    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
+    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
@@ -93,7 +93,7 @@ impl HostStateProvider for StateManager {
     async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         self.get_account_storage_entry(service_id, storage_key)
             .await
@@ -102,7 +102,7 @@ impl HostStateProvider for StateManager {
     async fn get_account_preimages_entry(
         &self,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         self.get_account_preimages_entry(service_id, preimages_key)
             .await
@@ -121,7 +121,7 @@ impl HostStateProvider for StateManager {
         &self,
         service_id: ServiceId,
         reference_timeslot: &Timeslot,
-        preimage_hash: &Hash32,
+        preimage_hash: &PreimagesKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         self.lookup_historical_preimage(service_id, reference_timeslot, preimage_hash)
             .await
@@ -354,7 +354,7 @@ impl StateManager {
         &self,
         service_id: ServiceId,
         reference_timeslot: &Timeslot,
-        preimage_hash: &Hash32,
+        preimage_hash: &PreimagesKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         let preimage = match self
             .get_account_preimages_entry(service_id, preimage_hash)
@@ -874,7 +874,7 @@ impl StateManager {
     pub async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);
         self.get_account_state_entry(&state_key).await
@@ -884,7 +884,7 @@ impl StateManager {
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -899,7 +899,7 @@ impl StateManager {
     pub async fn add_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
         storage_entry: AccountStorageEntry,
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_storage_state_key(service_id, storage_key);
@@ -910,7 +910,7 @@ impl StateManager {
     pub async fn get_account_preimages_entry(
         &self,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         let state_key = get_account_preimage_state_key(service_id, preimages_key);
         self.get_account_state_entry(&state_key).await
@@ -920,7 +920,7 @@ impl StateManager {
         &self,
         state_mut: StateMut,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
         f: F,
     ) -> Result<(), StateManagerError>
     where
@@ -935,7 +935,7 @@ impl StateManager {
     pub async fn add_account_preimages_entry(
         &self,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
         preimages_entry: AccountPreimagesEntry,
     ) -> Result<(), StateManagerError> {
         let state_key = get_account_preimage_state_key(service_id, preimages_key);

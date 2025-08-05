@@ -5,7 +5,7 @@ use crate::context::{
 };
 use async_trait::async_trait;
 use fr_common::{
-    Balance, EntropyHash, Hash32, LookupsKey, Octets, ServiceId, SignedGas, TimeslotIndex,
+    Balance, EntropyHash, LookupsKey, PreimagesKey, ServiceId, SignedGas, StorageKey, TimeslotIndex,
 };
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
@@ -31,8 +31,8 @@ use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
 #[derive(Default)]
 struct MockAccountState {
     metadata: AccountMetadata,
-    storage: HashMap<Octets, AccountStorageEntry>,
-    preimages: HashMap<Hash32, AccountPreimagesEntry>,
+    storage: HashMap<StorageKey, AccountStorageEntry>,
+    preimages: HashMap<PreimagesKey, AccountPreimagesEntry>,
     lookups: HashMap<LookupsKey, AccountLookupsEntry>,
 }
 
@@ -78,7 +78,7 @@ impl HostStateProvider for MockStateManager {
     async fn get_account_storage_entry(
         &self,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntry>, StateManagerError> {
         Ok(self
             .accounts
@@ -89,7 +89,7 @@ impl HostStateProvider for MockStateManager {
     async fn get_account_preimages_entry(
         &self,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, StateManagerError> {
         Ok(self
             .accounts
@@ -112,7 +112,7 @@ impl HostStateProvider for MockStateManager {
         &self,
         _service_id: ServiceId,
         _reference_timeslot: &Timeslot,
-        _preimage_hash: &Hash32,
+        _preimage_hash: &PreimagesKey,
     ) -> Result<Option<Vec<u8>>, StateManagerError> {
         unimplemented!()
     }
@@ -154,7 +154,7 @@ impl MockStateManager {
     pub(crate) fn with_storage_entry(
         mut self,
         service_id: ServiceId,
-        key: Octets,
+        key: StorageKey,
         entry: AccountStorageEntry,
     ) -> Self {
         self.accounts
@@ -166,7 +166,7 @@ impl MockStateManager {
     pub(crate) fn with_preimages_entry(
         mut self,
         service_id: ServiceId,
-        key: Hash32,
+        key: PreimagesKey,
         entry: AccountPreimagesEntry,
     ) -> Self {
         self.accounts

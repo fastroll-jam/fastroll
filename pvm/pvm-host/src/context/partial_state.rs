@@ -1,5 +1,5 @@
 use crate::error::PartialStateError;
-use fr_common::{Hash32, LookupsKey, Octets, ServiceId};
+use fr_common::{LookupsKey, PreimagesKey, ServiceId, StorageKey};
 use fr_state::{
     error::StateManagerError,
     provider::HostStateProvider,
@@ -198,8 +198,8 @@ where
 /// which makes this type to be specific to the `accumulate` process.
 pub struct AccountSandbox<S: HostStateProvider> {
     pub metadata: SandboxEntryVersioned<AccountMetadata>,
-    pub storage: HashMap<Octets, SandboxEntryVersioned<AccountStorageEntryExt>>,
-    pub preimages: HashMap<Hash32, SandboxEntryVersioned<AccountPreimagesEntry>>,
+    pub storage: HashMap<StorageKey, SandboxEntryVersioned<AccountStorageEntryExt>>,
+    pub preimages: HashMap<PreimagesKey, SandboxEntryVersioned<AccountPreimagesEntry>>,
     pub lookups: HashMap<LookupsKey, SandboxEntryVersioned<AccountLookupsEntryExt>>,
     pub _phantom: PhantomData<S>,
 }
@@ -468,7 +468,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         Ok(self
             .get_account_storage_entry_sandboxed(state_provider, service_id, storage_key)
@@ -480,7 +480,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<SandboxEntryVersioned<AccountStorageEntryExt>>, PartialStateError> {
         let Some(sandbox) = self
             .get_mut_account_sandbox(state_provider.clone(), service_id)
@@ -501,7 +501,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        storage_key: &Octets,
+        storage_key: &StorageKey,
     ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         let sandbox_entry = if let Some(entry) = self
             .get_account_storage_entry_sandboxed(state_provider, service_id, storage_key)
@@ -523,7 +523,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        storage_key: Octets,
+        storage_key: StorageKey,
         new_entry: AccountStorageEntryExt,
     ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         // Check the storage entry from the partial state and/or the global state
@@ -552,7 +552,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        storage_key: Octets,
+        storage_key: StorageKey,
     ) -> Result<Option<AccountStorageEntryExt>, PartialStateError> {
         // Lookup the state entry from both the sandbox and the global state.
         //
@@ -604,7 +604,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         Ok(self
             .get_account_preimages_entry_sandboxed(state_provider, service_id, preimages_key)
@@ -616,7 +616,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<SandboxEntryVersioned<AccountPreimagesEntry>>, PartialStateError> {
         let Some(sandbox) = self
             .get_mut_account_sandbox(state_provider.clone(), service_id)
@@ -635,7 +635,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        preimages_key: &Hash32,
+        preimages_key: &PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         let sandbox_entry = if let Some(entry) = self
             .get_account_preimages_entry_sandboxed(state_provider, service_id, preimages_key)
@@ -657,7 +657,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        preimages_key: Hash32,
+        preimages_key: PreimagesKey,
         new_entry: AccountPreimagesEntry,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         // Check the preimages entry from the partial state and/or the global state
@@ -686,7 +686,7 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
         &mut self,
         state_provider: Arc<S>,
         service_id: ServiceId,
-        preimages_key: Hash32,
+        preimages_key: PreimagesKey,
     ) -> Result<Option<AccountPreimagesEntry>, PartialStateError> {
         // Lookup the state entry from both the sandbox and the global state.
         //

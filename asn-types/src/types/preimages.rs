@@ -2,7 +2,7 @@ use crate::types::common::{
     AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot,
 };
 use fr_block::types::extrinsics::preimages::PreimagesXt;
-use fr_common::{Hash32, LookupsKey, Octets};
+use fr_common::{LookupsKey, Octets, PreimagesKey};
 use fr_state::types::{
     AccountLookupsEntry, AccountLookupsEntryTimeslots, AccountPreimagesEntry, Timeslot,
 };
@@ -18,7 +18,7 @@ pub enum PreimagesErrorCode {
 
 /// Wrapper of `AccountPreimagesEntry` including preimages key.
 pub struct PreimagesMapEntry {
-    pub key: Hash32,
+    pub key: PreimagesKey,
     pub data: AccountPreimagesEntry,
 }
 

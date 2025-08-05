@@ -5,7 +5,7 @@ use crate::types::{
     },
     preimages::AsnPreimagesMapEntry,
 };
-use fr_common::{workloads::work_report::WorkReport, AccumulateRoot, Octets};
+use fr_common::{workloads::work_report::WorkReport, AccumulateRoot, Octets, StorageKey};
 use fr_state::types::{AccountStorageEntry, Timeslot};
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ pub enum AccumulateErrorCode {
 
 /// Wrapper of `AccountStorageEntry` including storage key.
 pub struct StorageMapEntry {
-    pub key: Octets,
+    pub key: StorageKey,
     pub data: AccountStorageEntry,
 }
 
@@ -39,7 +39,7 @@ impl From<StorageMapEntry> for AsnStorageMapEntry {
 impl From<AsnStorageMapEntry> for StorageMapEntry {
     fn from(value: AsnStorageMapEntry) -> Self {
         Self {
-            key: Octets::from_vec(value.key.0),
+            key: StorageKey::from_vec(value.key.0),
             data: AccountStorageEntry::new(Octets::from_vec(value.value.0)),
         }
     }
