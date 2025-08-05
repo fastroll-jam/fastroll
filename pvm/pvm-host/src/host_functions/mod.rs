@@ -5,6 +5,7 @@ use fr_pvm_types::{
 };
 
 pub mod accumulate;
+pub mod debug;
 pub mod general;
 pub mod refine;
 #[cfg(test)]
