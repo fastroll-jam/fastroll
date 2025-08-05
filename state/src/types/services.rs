@@ -5,7 +5,7 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CodeHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
+    Balance, CodeHash, LookupsKey, Octets, ServiceId, StorageKey, TimeslotIndex, UnsignedGas,
     MIN_BALANCE_PER_ITEM, MIN_BALANCE_PER_OCTET, MIN_BASIC_BALANCE,
 };
 use fr_limited_vec::LimitedVec;
@@ -402,7 +402,7 @@ impl StorageFootprint for AccountStorageEntryExt {
 }
 
 impl AccountStorageEntryExt {
-    pub fn from_entry(key: &Octets, entry: AccountStorageEntry) -> Self {
+    pub fn from_entry(key: &StorageKey, entry: AccountStorageEntry) -> Self {
         Self {
             key_length: key.len(),
             entry,
