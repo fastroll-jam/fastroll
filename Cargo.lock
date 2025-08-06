@@ -735,6 +735,7 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "fr-block",
+ "fr-codec",
  "fr-common",
  "fr-crypto",
  "fr-limited-vec",
