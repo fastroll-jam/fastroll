@@ -18,6 +18,7 @@ use fr_block::types::{
         Extrinsics,
     },
 };
+use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket,
     workloads::{
@@ -1754,23 +1755,15 @@ pub struct AsnAvailAssurance {
     pub signature: AsnEd25519Signature,
 }
 
-// Example: 0x01 => 0b0000_0001 => (truncate num_bits) => 0b01 => BitVec([1, 0])
-fn bytes_to_bitvec(bytes: &[u8], num_bits: usize) -> BitVec {
-    let bitvec = BitVec::from_bytes(bytes);
-    let mut bitvec_rev = BitVec::new();
-    for bit in bitvec.iter().rev() {
-        bitvec_rev.push(bit);
-    }
-
-    bitvec_rev.truncate(num_bits);
-    bitvec_rev
-}
-
 impl From<AsnAvailAssurance> for AssurancesXtEntry {
     fn from(value: AsnAvailAssurance) -> Self {
         Self {
             anchor_parent_hash: BlockHeaderHash::from(value.anchor),
-            assuring_cores_bitvec: bytes_to_bitvec(&value.bitfield.0, ASN_CORE_COUNT),
+            assuring_cores_bitvec: BitVec::decode_fixed(
+                &mut value.bitfield.0.as_slice(),
+                ASN_CORE_COUNT,
+            )
+            .unwrap(),
             validator_index: value.validator_index,
             signature: Ed25519Sig::from(value.signature),
         }
@@ -1779,18 +1772,12 @@ impl From<AsnAvailAssurance> for AssurancesXtEntry {
 
 impl From<AssurancesXtEntry> for AsnAvailAssurance {
     fn from(value: AssurancesXtEntry) -> Self {
-        let mut rev = BitVec::new();
-        for b in value.assuring_cores_bitvec.iter().rev() {
-            rev.push(b);
-        }
-
-        let mut bytes = rev.to_bytes();
-        let bytes_count = ASN_CORE_COUNT.div_ceil(8);
-        bytes.resize(bytes_count, 0u8);
+        let bv_len = value.assuring_cores_bitvec.len();
+        let bitfield = AsnByteSequence(value.assuring_cores_bitvec.encode_fixed(bv_len).unwrap());
 
         Self {
             anchor: value.anchor_parent_hash.into(),
-            bitfield: AsnByteSequence(bytes),
+            bitfield,
             validator_index: value.validator_index,
             signature: value.signature.into(),
         }
