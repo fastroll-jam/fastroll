@@ -153,6 +153,7 @@ impl StateTransitionTest for ReportsTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         pre_state: &Self::State,
+        _test_case_post_state: &Self::State,
         error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError> {
         if error_code.is_some() {

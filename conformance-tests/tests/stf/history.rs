@@ -107,6 +107,7 @@ impl StateTransitionTest for HistoryTest {
     async fn extract_post_state(
         state_manager: Arc<StateManager>,
         _pre_state: &Self::State,
+        _test_case_post_state: &Self::State,
         _error_code: &Option<Self::ErrorCode>,
     ) -> Result<Self::State, StateManagerError> {
         Ok(State {
