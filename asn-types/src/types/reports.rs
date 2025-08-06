@@ -102,7 +102,7 @@ pub struct State {
     pub prev_validators: AsnValidatorsData,
     pub entropy: AsnEntropyBuffer,
     pub offenders: Vec<AsnEd25519Key>,
-    pub recent_blocks: AsnBlocksHistory,
+    pub recent_blocks: AsnRecentBlocks,
     pub auth_pools: AsnAuthPools,
     pub accounts: AsnServices,
 }
