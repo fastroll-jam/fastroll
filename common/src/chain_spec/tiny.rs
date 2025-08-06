@@ -9,7 +9,7 @@ pub const SLOT_DURATION: u64 = 6;
 
 /// `D`: The period in timeslots after which an unreferenced preimage may be expunged.
 /// `PREIMAGE_EXPIRATION_PERIOD` = `MAX_LOOKUP_ANCHOR_AGE` + `8-hour buffer`
-/// 
+///
 /// `D` = (full `PREIMAGE_EXPIRATION_PERIOD`) * (tiny EPOCH_LENGTH) / (full EPOCH_LENGTH) = 384
 /// Note: "tiny" configuration has `D` = 384, but here set as 32 for testing purpose.
 pub const PREIMAGE_EXPIRATION_PERIOD: u32 = 32;
