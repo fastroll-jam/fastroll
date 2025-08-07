@@ -1,15 +1,18 @@
-use crate::types::{
-    privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata, AccountPreimagesEntry,
-    AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue,
-    BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,
-    PendingReports, SafroleState, StagingSet, Timeslot,
+use crate::{
+    manager::StateManager,
+    types::{
+        privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
+        AccountPreimagesEntry, AccountStorageEntry, AccumulateHistory, AccumulateQueue, ActiveSet,
+        AuthPool, AuthQueue, BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs,
+        OnChainStatistics, PastSet, PendingReports, SafroleState, StagingSet, Timeslot,
+    },
 };
 use fr_codec::prelude::*;
 use fr_common::{
     ByteArray, LookupsKey, Octets, PreimagesKey, ServiceId, StateKey, StorageKey, STATE_KEY_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
-use std::fmt::Debug;
+use std::{error::Error, fmt::Debug};
 
 /// Represents global state types with simple fixed state keys
 pub trait SimpleStateComponent: StateComponent {
@@ -243,6 +246,60 @@ impl TryFrom<u8> for StateKeyConstant {
         };
         Ok(state_key_constant)
     }
+}
+
+/// Collection of simple state components for easy initialization for genesis.
+#[derive(Default)]
+pub struct SimpleStates {
+    pub auth_pool: AuthPool,
+    pub auth_queue: AuthQueue,
+    pub block_history: BlockHistory,
+    pub safrole: SafroleState,
+    pub disputes: DisputesState,
+    pub entropy: EpochEntropy,
+    pub staging_set: StagingSet,
+    pub active_set: ActiveSet,
+    pub past_set: PastSet,
+    pub reports: PendingReports,
+    pub timeslot: Timeslot,
+    pub privileges: PrivilegedServices,
+    pub onchain_statistics: OnChainStatistics,
+    pub accumulate_queue: AccumulateQueue,
+    pub accumulate_history: AccumulateHistory,
+    pub last_accumulate_outputs: LastAccumulateOutputs,
+}
+
+/// Adds state entry values into the global state for genesis or for test initializations.
+pub async fn add_all_simple_state_entries(
+    state_manager: &StateManager,
+    genesis_simple_states: Option<SimpleStates>,
+) -> Result<(), Box<dyn Error>> {
+    let ss = genesis_simple_states.unwrap_or_default();
+    state_manager.add_auth_pool(ss.auth_pool).await?;
+    state_manager.add_auth_queue(ss.auth_queue).await?;
+    state_manager.add_block_history(ss.block_history).await?;
+    state_manager.add_safrole(ss.safrole).await?;
+    state_manager.add_disputes(ss.disputes).await?;
+    state_manager.add_epoch_entropy(ss.entropy).await?;
+    state_manager.add_staging_set(ss.staging_set).await?;
+    state_manager.add_active_set(ss.active_set).await?;
+    state_manager.add_past_set(ss.past_set).await?;
+    state_manager.add_pending_reports(ss.reports).await?;
+    state_manager.add_timeslot(ss.timeslot).await?;
+    state_manager.add_privileged_services(ss.privileges).await?;
+    state_manager
+        .add_onchain_statistics(ss.onchain_statistics)
+        .await?;
+    state_manager
+        .add_accumulate_queue(ss.accumulate_queue)
+        .await?;
+    state_manager
+        .add_accumulate_history(ss.accumulate_history)
+        .await?;
+    state_manager
+        .add_last_accumulate_outputs(ss.last_accumulate_outputs)
+        .await?;
+    Ok(())
 }
 
 const fn construct_state_key(i: u8) -> StateKey {

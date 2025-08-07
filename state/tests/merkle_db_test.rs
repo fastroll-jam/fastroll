@@ -6,8 +6,10 @@ use fr_state::{
     cache::StateMut,
     error::StateManagerError,
     manager::StateManager,
-    state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
-    test_utils::{add_all_simple_state_entries, init_db_and_manager},
+    state_utils::{
+        add_all_simple_state_entries, get_simple_state_key, StateComponent, StateKeyConstant,
+    },
+    test_utils::init_db_and_manager,
     types::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
         DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,

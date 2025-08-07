@@ -3,7 +3,7 @@ use fr_block::types::block::Block;
 use fr_common::{utils::serde::FileLoader, ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;
 use fr_state::{
-    test_utils::SimpleStates,
+    state_utils::SimpleStates,
     types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers, StagingSet},
 };
 use std::path::PathBuf;

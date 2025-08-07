@@ -1,13 +1,4 @@
-use crate::{
-    cache::StateCache,
-    manager::StateManager,
-    state_db::StateDB,
-    types::{
-        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
-        DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,
-        PendingReports, PrivilegedServices, SafroleState, StagingSet, Timeslot,
-    },
-};
+use crate::{cache::StateCache, manager::StateManager, state_db::StateDB};
 use fr_block::{
     header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::block::BlockHeader,
     xt_db::XtDB,
@@ -20,7 +11,7 @@ use fr_db::{
     core::core_db::CoreDB,
 };
 use fr_state_merkle::merkle_db::MerkleDB;
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tempfile::tempdir;
 
 fn init_core_db() -> CoreDB {
@@ -75,57 +66,4 @@ pub fn init_db_and_manager(
         init_state_manager(core_db.clone()),
         init_post_state_root_db(core_db),
     )
-}
-
-/// Note: test-only
-#[derive(Default)]
-pub struct SimpleStates {
-    pub auth_pool: AuthPool,
-    pub auth_queue: AuthQueue,
-    pub block_history: BlockHistory,
-    pub safrole: SafroleState,
-    pub disputes: DisputesState,
-    pub entropy: EpochEntropy,
-    pub staging_set: StagingSet,
-    pub active_set: ActiveSet,
-    pub past_set: PastSet,
-    pub reports: PendingReports,
-    pub timeslot: Timeslot,
-    pub privileges: PrivilegedServices,
-    pub onchain_statistics: OnChainStatistics,
-    pub accumulate_queue: AccumulateQueue,
-    pub accumulate_history: AccumulateHistory,
-    pub last_accumulate_outputs: LastAccumulateOutputs,
-}
-
-pub async fn add_all_simple_state_entries(
-    state_manager: &StateManager,
-    test_simple_states: Option<SimpleStates>,
-) -> Result<(), Box<dyn Error>> {
-    let ss = test_simple_states.unwrap_or_default();
-    state_manager.add_auth_pool(ss.auth_pool).await?;
-    state_manager.add_auth_queue(ss.auth_queue).await?;
-    state_manager.add_block_history(ss.block_history).await?;
-    state_manager.add_safrole(ss.safrole).await?;
-    state_manager.add_disputes(ss.disputes).await?;
-    state_manager.add_epoch_entropy(ss.entropy).await?;
-    state_manager.add_staging_set(ss.staging_set).await?;
-    state_manager.add_active_set(ss.active_set).await?;
-    state_manager.add_past_set(ss.past_set).await?;
-    state_manager.add_pending_reports(ss.reports).await?;
-    state_manager.add_timeslot(ss.timeslot).await?;
-    state_manager.add_privileged_services(ss.privileges).await?;
-    state_manager
-        .add_onchain_statistics(ss.onchain_statistics)
-        .await?;
-    state_manager
-        .add_accumulate_queue(ss.accumulate_queue)
-        .await?;
-    state_manager
-        .add_accumulate_history(ss.accumulate_history)
-        .await?;
-    state_manager
-        .add_last_accumulate_outputs(ss.last_accumulate_outputs)
-        .await?;
-    Ok(())
 }

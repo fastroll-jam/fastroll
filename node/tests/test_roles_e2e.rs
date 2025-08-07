@@ -7,7 +7,7 @@ use fr_node::{
     keystore::dev_account_profile::DevNodeAccountProfile,
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
-use fr_state::test_utils::{add_all_simple_state_entries, init_db_and_manager};
+use fr_state::{state_utils::add_all_simple_state_entries, test_utils::init_db_and_manager};
 use fr_storage::node_storage::NodeStorage;
 use std::{
     error::Error,
