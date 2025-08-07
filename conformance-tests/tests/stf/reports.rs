@@ -21,6 +21,7 @@ use fr_transition::{
 use futures::future::join_all;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 struct ReportsTest;
 
 #[async_trait]
