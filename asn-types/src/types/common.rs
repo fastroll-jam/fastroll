@@ -1,6 +1,3 @@
-use crate::serde_utils::{
-    deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
-};
 use bit_vec::BitVec;
 use fr_block::types::{
     block::{
@@ -21,6 +18,9 @@ use fr_block::types::{
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket,
+    utils::serde::{
+        deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+    },
     workloads::{
         AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         SegmentRootLookupTable, WorkDigest, WorkDigests,

@@ -1,3 +1,5 @@
+//! Serde utils module
+
 use serde::{
     de::{Error, Visitor},
     Deserializer, Serializer,

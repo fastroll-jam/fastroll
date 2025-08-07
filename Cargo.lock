@@ -900,6 +900,7 @@ dependencies = [
  "fr-codec",
  "fr-limited-vec",
  "hex",
+ "serde",
  "thiserror 2.0.12",
  "time",
  "tracing",
