@@ -15,7 +15,7 @@ use fr_db::{
 use fr_extrinsics::pool::XtPool;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_state::{
-    config::StateManagerConfig, manager::StateManager, test_utils::add_all_simple_state_entries,
+    config::StateManagerConfig, manager::StateManager, state_utils::add_all_simple_state_entries,
 };
 use fr_storage::node_storage::NodeStorage;
 use std::{error::Error, path::PathBuf, sync::Arc};

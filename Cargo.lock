@@ -809,11 +809,10 @@ name = "fastroll"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fr-asn-types",
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "fr-fuzz-target",
+ "fr-fuzz",
  "fr-network",
  "fr-node",
  "serde",
@@ -851,7 +850,6 @@ dependencies = [
  "fr-state",
  "hex",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -901,6 +899,8 @@ dependencies = [
  "fr-codec",
  "fr-limited-vec",
  "hex",
+ "serde",
+ "serde_json",
  "thiserror 2.0.12",
  "time",
  "tracing",
@@ -994,7 +994,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fr-fuzz-target"
+name = "fr-fuzz"
 version = "0.1.0"
 dependencies = [
  "fr-block",

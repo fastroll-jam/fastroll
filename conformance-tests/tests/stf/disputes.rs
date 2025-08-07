@@ -1,6 +1,6 @@
 //! Disputes state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{common::*, disputes::*};
+use fr_asn_types::{common::*, disputes::*};
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker},
@@ -42,8 +42,8 @@ impl StateTransitionTest for DisputesTest {
         let pre_disputes = DisputesState::from(test_pre_state.psi.clone());
         let pre_pending_reports = PendingReports::from(test_pre_state.rho.clone());
         let pre_timeslot = Timeslot::new(test_pre_state.tau);
-        let pre_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-        let pre_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+        let pre_active_set = ActiveSet(test_pre_state.kappa.clone().into());
+        let pre_past_set = PastSet(test_pre_state.lambda.clone().into());
 
         // Load pre-state info the state cache.
         state_manager.add_disputes(pre_disputes).await?;
@@ -127,8 +127,8 @@ impl StateTransitionTest for DisputesTest {
             psi: curr_disputes_state.into(),
             rho: curr_pending_reports.into(),
             tau: curr_timeslot.0,
-            kappa: validator_set_to_validators_data(&curr_active_set),
-            lambda: validator_set_to_validators_data(&curr_past_set),
+            kappa: curr_active_set.0.into(),
+            lambda: curr_past_set.0.into(),
         })
     }
 }

@@ -9,8 +9,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage, Octets,
-    ServiceId, SignedGas, UnsignedGas,
+    constants::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
+    Octets, ServiceId, SignedGas, UnsignedGas,
 };
 use fr_crypto::octets_to_hash32;
 use fr_pvm_core::state::{

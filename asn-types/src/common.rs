@@ -1,6 +1,3 @@
-use crate::serde_utils::{
-    deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
-};
 use bit_vec::BitVec;
 use fr_block::types::{
     block::{
@@ -21,6 +18,9 @@ use fr_block::types::{
 use fr_codec::prelude::*;
 use fr_common::{
     ticket::Ticket,
+    utils::serde::{
+        deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+    },
     workloads::{
         AvailSpecs, ExtrinsicInfo, ImportInfo, RefineStats, RefinementContext,
         SegmentRootLookupTable, WorkDigest, WorkDigests,
@@ -247,11 +247,12 @@ pub type AsnEntropy = AsnOpaqueHash;
 
 pub type AsnHeaderHash = AsnOpaqueHash;
 
-pub type AsnValidatorsData = Vec<AsnValidatorData>;
-
 pub type AsnWorkPackageHash = AsnOpaqueHash;
 
 pub type AsnWorkReportHash = AsnOpaqueHash;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AsnValidatorsData(pub Vec<AsnValidatorData>);
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnEntropyBuffer(pub [AsnEntropy; 4]);
@@ -298,21 +299,24 @@ impl From<AsnValidatorData> for ValidatorKey {
     }
 }
 
-pub fn validators_data_to_validator_set(data: &AsnValidatorsData) -> ValidatorKeySet {
-    let mut keys_vec = Vec::with_capacity(ASN_VALIDATORS_COUNT);
-    for validator_data in data.iter() {
-        keys_vec.push(ValidatorKey::from(validator_data.clone()));
+impl From<ValidatorKeySet> for AsnValidatorsData {
+    fn from(value: ValidatorKeySet) -> Self {
+        let mut validators_data = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+        for key in value.iter() {
+            validators_data.push(AsnValidatorData::from(key.clone()));
+        }
+        Self(validators_data)
     }
-
-    ValidatorKeySet(ValidatorKeys::try_from(keys_vec).unwrap())
 }
 
-pub fn validator_set_to_validators_data(data: &ValidatorKeySet) -> AsnValidatorsData {
-    let mut validators_data = Vec::with_capacity(ASN_VALIDATORS_COUNT);
-    for key in data.iter() {
-        validators_data.push(AsnValidatorData::from(key.clone()));
+impl From<AsnValidatorsData> for ValidatorKeySet {
+    fn from(value: AsnValidatorsData) -> Self {
+        let mut keys_vec = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+        for validator_data in value.0.iter() {
+            keys_vec.push(ValidatorKey::from(validator_data.clone()));
+        }
+        Self(ValidatorKeys::try_from(keys_vec).unwrap())
     }
-    validators_data
 }
 
 // ----------------------------------------------------

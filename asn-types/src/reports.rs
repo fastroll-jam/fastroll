@@ -1,4 +1,4 @@
-use crate::types::common::*;
+use crate::common::*;
 use fr_common::{Balance, ServiceId, TimeslotIndex};
 
 use fr_block::types::extrinsics::guarantees::GuaranteesXt;

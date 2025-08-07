@@ -1,5 +1,7 @@
 use crate::{Balance, ServiceId, UnsignedGas, VALIDATOR_COUNT};
 
+pub mod constants_encoder;
+
 // --- Derived values from `VALIDATOR_COUNT`.
 pub const FLOOR_ONE_THIRDS_VALIDATOR_COUNT: usize = VALIDATOR_COUNT / 3;
 pub const FLOOR_TWO_THIRDS_VALIDATOR_COUNT: usize = 2 * VALIDATOR_COUNT / 3;

@@ -1,6 +1,6 @@
 //! Safrole state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{common::*, safrole::*};
+use fr_asn_types::{common::*, safrole::*};
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{
@@ -56,9 +56,9 @@ impl StateTransitionTest for SafroleTest {
         // Convert ASN pre-state into FastRoll types.
         let pre_safrole = SafroleState::from(test_pre_state);
         let pre_entropy = EpochEntropy::from(test_pre_state.eta.clone());
-        let pre_staging_set = StagingSet(validators_data_to_validator_set(&test_pre_state.iota));
-        let pre_active_set = ActiveSet(validators_data_to_validator_set(&test_pre_state.kappa));
-        let pre_past_set = PastSet(validators_data_to_validator_set(&test_pre_state.lambda));
+        let pre_staging_set = StagingSet(test_pre_state.iota.clone().into());
+        let pre_active_set = ActiveSet(test_pre_state.kappa.clone().into());
+        let pre_past_set = PastSet(test_pre_state.lambda.clone().into());
         let pre_timeslot = Timeslot::new(test_pre_state.tau);
         let pre_post_offenders = test_pre_state
             .post_offenders
@@ -194,10 +194,10 @@ impl StateTransitionTest for SafroleTest {
         Ok(State {
             tau: curr_timeslot.slot(),
             eta: curr_entropy.into(),
-            lambda: validator_set_to_validators_data(&curr_past_set),
-            kappa: validator_set_to_validators_data(&curr_active_set),
+            lambda: curr_past_set.0.into(),
+            kappa: curr_active_set.0.into(),
             gamma_k,
-            iota: validator_set_to_validators_data(&curr_staging_set),
+            iota: curr_staging_set.0.into(),
             gamma_a,
             gamma_s,
             gamma_z,

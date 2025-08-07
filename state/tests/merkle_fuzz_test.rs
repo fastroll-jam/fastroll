@@ -1,10 +1,21 @@
 //! MerkleDB Fuzz Tests
-#![allow(unused_imports)]
-use fr_codec::prelude::*;
-use fr_common::utils::tracing::setup_timed_tracing;
-use fr_state::test_utils::{init_db_and_manager, random_state_key, random_state_val};
-use rand::{seq::SliceRandom, thread_rng};
+use fr_common::{utils::tracing::setup_timed_tracing, StateKey};
+use fr_state::test_utils::init_db_and_manager;
+use rand::{seq::SliceRandom, thread_rng, Rng};
 use std::{collections::HashMap, error::Error};
+
+fn random_state_key() -> StateKey {
+    let mut rng = thread_rng();
+    StateKey::new(rng.gen())
+}
+
+fn random_state_val(max_len: usize) -> Vec<u8> {
+    let mut rng = thread_rng();
+    let len = rng.gen_range(max_len / 2..max_len);
+    let mut data = vec![0u8; len];
+    rng.fill(&mut data[..]);
+    data
+}
 
 #[tokio::test]
 async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {

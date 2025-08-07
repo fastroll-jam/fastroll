@@ -1,4 +1,4 @@
-use fr_asn_types::types::preimages::PreimagesErrorCode;
+use fr_asn_types::preimages::PreimagesErrorCode;
 use fr_extrinsics::validation::error::XtError;
 use fr_transition::error::TransitionError;
 

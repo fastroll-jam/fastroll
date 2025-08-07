@@ -6,26 +6,28 @@ edition.workspace = true
 [dependencies]
 fr-asn-types = { workspace = true }
 fr-block = { workspace = true }
-fr-codec = { workspace = true }
 fr-common = { workspace = true }
-fr-crypto = { workspace = true }
-fr-erasure-coding = { workspace = true }
 fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
 fr-node = { workspace = true }
 fr-pvm-core = { workspace = true }
 fr-pvm-interface = { workspace = true }
-fr-pvm-invocation = { workspace = true }
 fr-pvm-types = { workspace = true }
 fr-state = { workspace = true }
 fr-storage = { workspace = true }
 fr-transition = { workspace = true }
 async-trait = { workspace = true }
-futures = { workspace = true }
 hex = { workspace = true }
-paste = { workspace = true }
-rand = { workspace = true }
 regex = { workspace = true, features = [] }
 serde = { workspace = true }
-serde_json = "1.0.141"
-tokio = { workspace = true }
+serde_json = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+fr-codec = { workspace = true }
+fr-crypto = { workspace = true }
+fr-erasure-coding = { workspace = true }
+fr-pvm-invocation = { workspace = true }
+futures = { workspace = true }
+paste = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }

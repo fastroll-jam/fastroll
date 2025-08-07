@@ -1,8 +1,28 @@
+//! Serde utils module
+
 use serde::{
-    de::{Error, Visitor},
-    Deserializer, Serializer,
+    de::{DeserializeOwned, Error, Visitor},
+    Deserializer, Serialize, Serializer,
 };
-use std::{fmt, fmt::Formatter};
+use std::{fmt, fmt::Formatter, fs, fs::File, io, io::Read, path::Path};
+
+pub struct FileLoader;
+impl FileLoader {
+    pub fn load_from_bin_file(path: &Path) -> io::Result<Vec<u8>> {
+        let mut file = File::open(path)?;
+        let mut buffer = vec![];
+        file.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    }
+
+    pub fn load_from_json_file<T>(full_path: &Path) -> T
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let json_str = fs::read_to_string(full_path).expect("Failed to read test vector file");
+        serde_json::from_str(&json_str).expect("Failed to parse JSON")
+    }
+}
 
 /// Helper deserializer for bytes array to manage `0x` prefix
 pub fn deserialize_hex_array<'de, D, const N: usize>(der: D) -> Result<[u8; N], D::Error>
@@ -14,7 +34,7 @@ where
     impl<const N: usize> Visitor<'_> for HexVisitor<N> {
         type Value = [u8; N];
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
             write!(formatter, "a 0x-prefixed hex string with {N} bytes")
         }
 

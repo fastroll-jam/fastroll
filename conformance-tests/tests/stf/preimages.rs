@@ -1,6 +1,6 @@
 //! Preimages state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::preimages::*;
+use fr_asn_types::preimages::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::{LookupsKey, PreimagesKey};
 use fr_conformance_tests::{

@@ -1,7 +1,7 @@
 //! Erasure codec conformance tests
 mod erasure {
-    use fr_asn_types::{types::common::AsnByteSequence, utils::AsnTypeLoader};
-    use fr_common::utils::tracing::setup_timed_tracing;
+    use fr_asn_types::common::AsnByteSequence;
+    use fr_common::utils::{serde::FileLoader, tracing::setup_timed_tracing};
     use fr_erasure_coding::ErasureCodec;
     use rand::{seq::SliceRandom, thread_rng};
     use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ mod erasure {
 
     fn test_encode_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
-        let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
+        let test_case: TestCase = FileLoader::load_from_json_file(path);
         let chunks = rs.erasure_encode(&test_case.data.0).unwrap();
         let chunks_expected = test_case
             .shards
@@ -55,7 +55,7 @@ mod erasure {
 
     fn test_recover_internal(path: &Path, rs: ErasureCodec) {
         setup_timed_tracing();
-        let test_case: TestCase = AsnTypeLoader::load_from_json_file(path);
+        let test_case: TestCase = FileLoader::load_from_json_file(path);
 
         // Generate random chunk indices
         let mut indices: Vec<usize> = (0..rs.total_chunks()).collect();

@@ -1,12 +1,10 @@
-use fr_asn_types::types::common::{
-    AsnBlock, AsnByteArray, AsnByteSequence, AsnHeader, AsnOpaqueHash,
-};
+use fr_asn_types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, StateKey, StateRoot};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
-    manager::StateManager,
-    test_utils::{add_all_simple_state_entries, init_db_and_manager},
+    manager::StateManager, state_utils::add_all_simple_state_entries,
+    test_utils::init_db_and_manager,
 };
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::state::services::AccountStateChanges;

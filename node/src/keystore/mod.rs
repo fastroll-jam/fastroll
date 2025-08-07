@@ -1,8 +1,9 @@
 //! Test-only keystore module
 pub mod dev_account_profile;
 
-use fr_asn_types::{types::common::AsnByteArray, utils::AsnTypeLoader};
+use fr_asn_types::common::AsnByteArray;
 use fr_codec::prelude::*;
+use fr_common::utils::serde::FileLoader;
 use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
 use fr_network::manager::LocalNodeInfo;
 use serde::{Deserialize, Serialize};
@@ -21,7 +22,7 @@ pub fn load_author_secret_key(pub_key: &BandersnatchPubKey) -> Option<Bandersnat
 pub fn load_dev_accounts_from_file() -> DevAccountsInfo {
     let json_path = PathBuf::from("src/keystore/dev_accounts.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    AsnTypeLoader::load_from_json_file(&full_path)
+    FileLoader::load_from_json_file(&full_path)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,6 +1,4 @@
-use crate::types::common::{
-    AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot,
-};
+use crate::common::{AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot};
 use fr_block::types::extrinsics::preimages::PreimagesXt;
 use fr_common::{LookupsKey, Octets, PreimagesKey};
 use fr_state::types::{
