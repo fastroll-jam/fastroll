@@ -17,6 +17,7 @@ pub use disputes::*;
 pub use entropy::*;
 pub use fr_common::workloads::*;
 pub use history::*;
+pub use privileges::*;
 pub use reports::*;
 pub use safrole::*;
 pub use services::*;

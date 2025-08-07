@@ -1,17 +1,155 @@
 //! MerkleDB Integration Tests
 use fr_codec::prelude::*;
-use fr_common::utils::tracing::setup_timed_tracing;
+use fr_common::{utils::tracing::setup_timed_tracing, Hash32, StateKey};
+use fr_crypto::{hash, Blake2b256};
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
-    state_utils::{get_simple_state_key, StateKeyConstant},
-    test_utils::{
-        add_all_simple_state_entries, compare_all_simple_state_cache_and_db, init_db_and_manager,
+    manager::StateManager,
+    state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
+    test_utils::{add_all_simple_state_entries, init_db_and_manager},
+    types::{
+        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
+        DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,
+        PendingReport, PendingReports, PrivilegedServices, SafroleState, StagingSet, Timeslot,
     },
-    types::{AuthPool, PendingReport, PendingReports},
 };
-use fr_state_merkle::test_utils::simple_hash;
 use std::error::Error;
+
+fn hash_str(value: &str) -> Hash32 {
+    hash::<Blake2b256>(value.as_bytes()).unwrap()
+}
+
+async fn compare_cache_and_db<T: StateComponent>(
+    state_manager: &StateManager,
+    state_key: &StateKey,
+) -> Result<bool, Box<dyn Error>> {
+    let db_entry_encoded = state_manager
+        .retrieve_state_encoded(state_key)
+        .await?
+        .unwrap();
+    let db_entry = T::decode(&mut db_entry_encoded.as_slice())?;
+    let cache_entry = state_manager.get_cache_entry_as_state(state_key).unwrap();
+    Ok(db_entry == cache_entry)
+}
+
+pub async fn compare_all_simple_state_cache_and_db(
+    state_manager: &StateManager,
+) -> Result<(), Box<dyn Error>> {
+    assert!(
+        compare_cache_and_db::<AuthPool>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AuthPool)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AuthQueue>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AuthQueue)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<BlockHistory>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::BlockHistory)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<SafroleState>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::SafroleState)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<DisputesState>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::DisputesState)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<EpochEntropy>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::EpochEntropy)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<StagingSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::StagingSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<ActiveSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::ActiveSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PastSet>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PastSet)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PendingReports>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PendingReports)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<Timeslot>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::Timeslot)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<PrivilegedServices>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::PrivilegedServices)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<OnChainStatistics>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::OnChainStatistics)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AccumulateQueue>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AccumulateQueue)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<AccumulateHistory>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::AccumulateHistory)
+        )
+        .await?
+    );
+    assert!(
+        compare_cache_and_db::<LastAccumulateOutputs>(
+            state_manager,
+            &get_simple_state_key(StateKeyConstant::LastAccumulateOutputs)
+        )
+        .await?
+    );
+    Ok(())
+}
 
 #[tokio::test]
 async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
@@ -23,8 +161,8 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // --- 1. Add one state entry, initializing the Merkle Trie
     tracing::info!("1. Add the first state entry.");
     let mut auth_pool = AuthPool::default();
-    auth_pool.0[0].try_push(simple_hash("00")).unwrap();
-    auth_pool.0[1].try_push(simple_hash("01")).unwrap();
+    auth_pool.0[0].try_push(hash_str("00")).unwrap();
+    auth_pool.0[1].try_push(hash_str("01")).unwrap();
     let auth_pool_expected = auth_pool.clone();
 
     // Apply state mutation
@@ -90,7 +228,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     tracing::info!("3. Update state entry.");
     state_manager
         .with_mut_auth_pool(StateMut::Update, |pool| -> Result<(), StateManagerError> {
-            pool.0[1].try_push(simple_hash("02")).unwrap();
+            pool.0[1].try_push(hash_str("02")).unwrap();
             Ok(())
         })
         .await?;

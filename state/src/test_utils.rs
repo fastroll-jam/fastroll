@@ -2,18 +2,16 @@ use crate::{
     cache::StateCache,
     manager::StateManager,
     state_db::StateDB,
-    state_utils::{get_simple_state_key, StateComponent, StateKeyConstant},
     types::{
-        privileges::PrivilegedServices, AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool,
-        AuthQueue, BlockHistory, DisputesState, EpochEntropy, LastAccumulateOutputs,
-        OnChainStatistics, PastSet, PendingReports, SafroleState, StagingSet, Timeslot,
+        AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, AuthQueue, BlockHistory,
+        DisputesState, EpochEntropy, LastAccumulateOutputs, OnChainStatistics, PastSet,
+        PendingReports, PrivilegedServices, SafroleState, StagingSet, Timeslot,
     },
 };
 use fr_block::{
     header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::block::BlockHeader,
     xt_db::XtDB,
 };
-use fr_common::StateKey;
 use fr_db::{
     config::{
         RocksDBOpts, HEADER_CF_NAME, MERKLE_CF_NAME, POST_STATE_ROOT_CF_NAME, STATE_CF_NAME,
@@ -22,7 +20,6 @@ use fr_db::{
     core::core_db::CoreDB,
 };
 use fr_state_merkle::merkle_db::MerkleDB;
-use rand::{thread_rng, Rng};
 use std::{error::Error, sync::Arc};
 use tempfile::tempdir;
 
@@ -80,19 +77,6 @@ pub fn init_db_and_manager(
     )
 }
 
-pub fn random_state_key() -> StateKey {
-    let mut rng = thread_rng();
-    StateKey::new(rng.gen())
-}
-
-pub fn random_state_val(max_len: usize) -> Vec<u8> {
-    let mut rng = thread_rng();
-    let len = rng.gen_range(max_len / 2..max_len);
-    let mut data = vec![0u8; len];
-    rng.fill(&mut data[..]);
-    data
-}
-
 /// Note: test-only
 #[derive(Default)]
 pub struct SimpleStates {
@@ -144,135 +128,4 @@ pub async fn add_all_simple_state_entries(
         .add_last_accumulate_outputs(ss.last_accumulate_outputs)
         .await?;
     Ok(())
-}
-
-pub async fn compare_all_simple_state_cache_and_db(
-    state_manager: &StateManager,
-) -> Result<(), Box<dyn Error>> {
-    assert!(
-        compare_cache_and_db::<AuthPool>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::AuthPool)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<AuthQueue>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::AuthQueue)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<BlockHistory>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::BlockHistory)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<SafroleState>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::SafroleState)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<DisputesState>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::DisputesState)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<EpochEntropy>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::EpochEntropy)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<StagingSet>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::StagingSet)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<ActiveSet>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::ActiveSet)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<PastSet>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::PastSet)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<PendingReports>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::PendingReports)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<Timeslot>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::Timeslot)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<PrivilegedServices>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::PrivilegedServices)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<OnChainStatistics>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::OnChainStatistics)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<AccumulateQueue>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::AccumulateQueue)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<AccumulateHistory>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::AccumulateHistory)
-        )
-        .await?
-    );
-    assert!(
-        compare_cache_and_db::<LastAccumulateOutputs>(
-            state_manager,
-            &get_simple_state_key(StateKeyConstant::LastAccumulateOutputs)
-        )
-        .await?
-    );
-    Ok(())
-}
-
-pub async fn compare_cache_and_db<T: StateComponent>(
-    state_manager: &StateManager,
-    state_key: &StateKey,
-) -> Result<bool, Box<dyn Error>> {
-    let db_entry_encoded = state_manager
-        .retrieve_state_encoded(state_key)
-        .await?
-        .unwrap();
-    let db_entry = T::decode(&mut db_entry_encoded.as_slice())?;
-    let cache_entry = state_manager.get_cache_entry_as_state(state_key).unwrap();
-    Ok(db_entry == cache_entry)
 }
