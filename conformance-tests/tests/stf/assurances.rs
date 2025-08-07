@@ -1,6 +1,6 @@
 //! Assurances state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::assurances::*;
+use fr_asn_types::assurances::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::BlockHeaderHash;
 use fr_conformance_tests::{

@@ -1,4 +1,4 @@
-use crate::types::common::*;
+use crate::common::*;
 use fr_block::types::extrinsics::tickets::TicketsXt;
 use fr_common::{ticket::Ticket, EntropyHash, TicketId};
 use fr_crypto::types::BandersnatchRingRoot;

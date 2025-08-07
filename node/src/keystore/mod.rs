@@ -1,7 +1,7 @@
 //! Test-only keystore module
 pub mod dev_account_profile;
 
-use fr_asn_types::types::common::AsnByteArray;
+use fr_asn_types::common::AsnByteArray;
 use fr_codec::prelude::*;
 use fr_common::utils::serde::FileLoader;
 use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};

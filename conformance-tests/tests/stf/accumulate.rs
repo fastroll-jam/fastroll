@@ -1,7 +1,7 @@
 //! Accumulate state transition conformance tests
 #![allow(unused_imports)]
 use async_trait::async_trait;
-use fr_asn_types::types::{
+use fr_asn_types::{
     accumulate::*,
     common::{AsnOpaqueHash, AsnServiceInfo},
     preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},

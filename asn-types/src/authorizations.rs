@@ -1,4 +1,4 @@
-use crate::types::common::*;
+use crate::common::*;
 use fr_common::AuthHash;
 
 use fr_block::types::extrinsics::guarantees::{

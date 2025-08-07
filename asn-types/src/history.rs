@@ -1,4 +1,4 @@
-use crate::types::common::*;
+use crate::common::*;
 use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, StateRoot};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

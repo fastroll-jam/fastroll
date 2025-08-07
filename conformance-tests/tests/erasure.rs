@@ -1,6 +1,6 @@
 //! Erasure codec conformance tests
 mod erasure {
-    use fr_asn_types::types::common::AsnByteSequence;
+    use fr_asn_types::common::AsnByteSequence;
     use fr_common::utils::{serde::FileLoader, tracing::setup_timed_tracing};
     use fr_erasure_coding::ErasureCodec;
     use rand::{seq::SliceRandom, thread_rng};

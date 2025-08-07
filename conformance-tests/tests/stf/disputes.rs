@@ -1,6 +1,6 @@
 //! Disputes state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{common::*, disputes::*};
+use fr_asn_types::{common::*, disputes::*};
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker},

@@ -1,4 +1,4 @@
-use fr_asn_types::types::common::{AsnBlock, AsnValidatorsData};
+use fr_asn_types::common::{AsnBlock, AsnValidatorsData};
 use fr_block::types::block::Block;
 use fr_common::{utils::serde::FileLoader, ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;

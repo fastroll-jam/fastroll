@@ -1,7 +1,7 @@
 //! JAM Codec conformance tests
 #![allow(unused_imports)]
 mod codec {
-    use fr_asn_types::types::common::*;
+    use fr_asn_types::common::*;
     use fr_block::types::{
         block::{Block, BlockHeader},
         extrinsics::{

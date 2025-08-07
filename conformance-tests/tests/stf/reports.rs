@@ -1,6 +1,6 @@
 //! Reports state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{common::*, reports::*};
+use fr_asn_types::{common::*, reports::*};
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_conformance_tests::{
     err_map::reports::map_error_to_custom_code, harness::StateTransitionTest,

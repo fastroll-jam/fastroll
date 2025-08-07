@@ -1,6 +1,6 @@
 //! Statistics state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::statistics::*;
+use fr_asn_types::statistics::*;
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::Extrinsics},

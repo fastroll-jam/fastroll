@@ -1,6 +1,6 @@
 //! Authorizers state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::authorizations::*;
+use fr_asn_types::authorizations::*;
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt},

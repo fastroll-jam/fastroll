@@ -1,4 +1,4 @@
-use fr_asn_types::types::reports::ReportsErrorCode;
+use fr_asn_types::reports::ReportsErrorCode;
 use fr_extrinsics::validation::error::XtError;
 use fr_transition::error::TransitionError;
 
