@@ -813,7 +813,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "fr-fuzz-target",
+ "fr-fuzz",
  "fr-network",
  "fr-node",
  "serde",
@@ -994,7 +994,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fr-fuzz-target"
+name = "fr-fuzz"
 version = "0.1.0"
 dependencies = [
  "fr-block",

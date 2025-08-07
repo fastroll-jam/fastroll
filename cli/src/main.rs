@@ -1,8 +1,8 @@
 use clap::Parser;
 use fastroll::cli::{Cli, CliCommand};
 use fr_common::utils::tracing::setup_tracing;
-use fr_fuzz_target::{
-    runner::FuzzTargetRunner,
+use fr_fuzz::{
+    fuzz_target::FuzzTargetRunner,
     types::{PeerInfo, Version},
 };
 use fr_node::jam_node::{init::init_node, runner::run_node};

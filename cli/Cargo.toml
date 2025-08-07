@@ -9,7 +9,7 @@ fr-asn-types = { workspace = true }
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-crypto = { workspace = true }
-fr-fuzz-target = { workspace = true }
+fr-fuzz = { workspace = true }
 fr-network = { workspace = true }
 fr-node = { workspace = true }
 clap = { workspace = true }

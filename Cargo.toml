@@ -12,10 +12,10 @@ members = [
     "common/erasure-coding",
     "common/limited-vec",
     "conformance-tests",
-    "conformance-tests/fuzz-target",
     "crypto",
     "db",
     "extrinsics",
+    "fuzz",
     "merkle",
     "network",
     "node",
@@ -45,7 +45,7 @@ fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
 fr-extrinsics = { path = "extrinsics" }
-fr-fuzz-target = { path = "conformance-tests/fuzz-target" }
+fr-fuzz = { path = "fuzz" }
 fr-limited-vec = { path = "common/limited-vec" }
 fr-merkle = { path = "merkle" }
 fr-network = { path = "network" }
