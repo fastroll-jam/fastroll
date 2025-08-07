@@ -82,7 +82,7 @@ pub struct State {
 impl From<&State> for SafroleState {
     fn from(value: &State) -> Self {
         SafroleState {
-            pending_set: validators_data_to_validator_set(&value.gamma_k),
+            pending_set: value.gamma_k.clone().into(),
             ring_root: BandersnatchRingRoot::from(value.gamma_z),
             slot_sealers: SlotSealers::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
@@ -107,10 +107,11 @@ pub fn safrole_state_to_gammas(
     AsnTicketsOrKeys,
     AsnBandersnatchRingRoot,
 ) {
-    let mut gamma_k: AsnValidatorsData = Vec::with_capacity(ASN_VALIDATORS_COUNT);
+    let mut gamma_k: AsnValidatorsData =
+        AsnValidatorsData(Vec::with_capacity(ASN_VALIDATORS_COUNT));
 
     for key in safrole.pending_set.0.iter() {
-        gamma_k.push(AsnValidatorData::from(key.clone()))
+        gamma_k.0.push(AsnValidatorData::from(key.clone()))
     }
     let gamma_a = safrole
         .ticket_accumulator

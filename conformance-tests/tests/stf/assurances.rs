@@ -1,6 +1,6 @@
 //! Assurances state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{assurances::*, common::*};
+use fr_asn_types::types::assurances::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::BlockHeaderHash;
 use fr_conformance_tests::{
@@ -38,9 +38,7 @@ impl StateTransitionTest for AssurancesTest {
     ) -> Result<(), StateManagerError> {
         // Convert ASN pre-state into FastRoll types.
         let pre_pending_reports = PendingReports::from(test_pre_state.avail_assignments.clone());
-        let pre_active_set = ActiveSet(validators_data_to_validator_set(
-            &test_pre_state.curr_validators,
-        ));
+        let pre_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
 
         // Load pre-state info the state cache.
         state_manager
@@ -114,7 +112,7 @@ impl StateTransitionTest for AssurancesTest {
 
         Ok(State {
             avail_assignments: curr_pending_reports.into(),
-            curr_validators: validator_set_to_validators_data(&curr_active_set),
+            curr_validators: curr_active_set.0.into(),
         })
     }
 }

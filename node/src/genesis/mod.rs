@@ -1,5 +1,5 @@
 use fr_asn_types::{
-    types::common::{validators_data_to_validator_set, AsnBlock, AsnValidatorsData},
+    types::common::{AsnBlock, AsnValidatorsData},
     utils::AsnTypeLoader,
 };
 use fr_block::types::block::Block;
@@ -22,7 +22,7 @@ fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
     let json_path = PathBuf::from("src/genesis/data/genesis_validator_set.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
     let asn_validators_data: AsnValidatorsData = AsnTypeLoader::load_from_json_file(&full_path);
-    validators_data_to_validator_set(&asn_validators_data)
+    asn_validators_data.into()
 }
 
 pub fn genesis_simple_state() -> SimpleStates {

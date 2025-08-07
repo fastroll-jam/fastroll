@@ -40,12 +40,8 @@ impl StateTransitionTest for ReportsTest {
     ) -> Result<(), StateManagerError> {
         // Convert ASN pre-state into FastRoll types.
         let pre_pending_reports = PendingReports::from(test_pre_state.avail_assignments.clone());
-        let pre_active_set = ActiveSet(validators_data_to_validator_set(
-            &test_pre_state.curr_validators,
-        ));
-        let pre_past_set = PastSet(validators_data_to_validator_set(
-            &test_pre_state.prev_validators,
-        ));
+        let pre_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
+        let pre_past_set = PastSet(test_pre_state.prev_validators.clone().into());
         let pre_entropy = EpochEntropy::from(test_pre_state.entropy.clone());
         let offenders: Vec<Ed25519PubKey> = test_pre_state
             .offenders
@@ -182,8 +178,8 @@ impl StateTransitionTest for ReportsTest {
 
         Ok(State {
             avail_assignments: curr_pending_reports.into(),
-            curr_validators: validator_set_to_validators_data(&curr_active_set),
-            prev_validators: validator_set_to_validators_data(&curr_past_set),
+            curr_validators: curr_active_set.0.into(),
+            prev_validators: curr_past_set.0.into(),
             entropy: curr_entropy.into(),
             offenders: curr_disputes
                 .punish_set

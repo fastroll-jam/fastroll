@@ -809,7 +809,6 @@ name = "fastroll"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fr-asn-types",
  "fr-codec",
  "fr-common",
  "fr-crypto",

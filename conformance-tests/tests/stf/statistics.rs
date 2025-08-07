@@ -1,6 +1,6 @@
 //! Statistics state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::types::{common::*, statistics::*};
+use fr_asn_types::types::statistics::*;
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::Extrinsics},
@@ -49,9 +49,7 @@ impl StateTransitionTest for StatisticsTest {
         };
 
         let pre_timeslot = Timeslot::new(test_pre_state.slot);
-        let posterior_active_set = ActiveSet(validators_data_to_validator_set(
-            &test_pre_state.curr_validators,
-        ));
+        let posterior_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
 
         // Load pre-state info the state cache.
         state_manager
@@ -121,7 +119,7 @@ impl StateTransitionTest for StatisticsTest {
             vals_curr_stats: curr_onchain_stats.validator_stats.curr.into(),
             vals_last_stats: curr_onchain_stats.validator_stats.prev.into(),
             slot: curr_timeslot.slot(),
-            curr_validators: validator_set_to_validators_data(&posterior_active_set),
+            curr_validators: posterior_active_set.0.into(),
         })
     }
 }
