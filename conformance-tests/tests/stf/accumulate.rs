@@ -25,7 +25,7 @@ use fr_transition::{
     error::TransitionError,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
-        services::transition_on_accumulate,
+        services::{transition_on_accumulate, transition_services_on_transfer},
         timeslot::transition_timeslot,
     },
 };
@@ -153,8 +153,23 @@ impl StateTransitionTest for AccumulateTest {
             acc_summary.accumulated_reports_count,
         )
         .await?;
-        transition_accumulate_queue(state_manager, &queued_reports, pre_timeslot, curr_timeslot)
-            .await?;
+        transition_accumulate_queue(
+            state_manager.clone(),
+            &queued_reports,
+            pre_timeslot,
+            curr_timeslot,
+        )
+        .await?;
+        transition_services_on_transfer(
+            state_manager,
+            &acc_summary.deferred_transfers,
+            &acc_summary
+                .accumulate_stats
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+        .await?;
 
         Ok(JamTransitionOutput {
             accumulate_root: acc_summary.output_pairs.accumulate_root(),

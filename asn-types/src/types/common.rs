@@ -27,10 +27,10 @@ use fr_common::{
         WorkExecutionError::{Bad, BadExports, Big, OutOfGas, Oversize, Panic},
         WorkExecutionResult, WorkItem, WorkItems, WorkPackage, WorkPackageId, WorkReport,
     },
-    AuthHash, Balance, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
-    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, TimeslotIndex,
-    WorkPackageHash, WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH,
-    MAX_AUTH_POOL_SIZE, VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
+    AuthHash, BeefyRoot, BlockHeaderHash, ByteArray, ByteSequence, CodeHash, EntropyHash,
+    ErasureRoot, Hash32, Octets, SegmentRoot, ServiceId, StateRoot, TicketId, WorkPackageHash,
+    WorkReportHash, XtHash, AUTH_QUEUE_SIZE, CORE_COUNT, EPOCH_LENGTH, MAX_AUTH_POOL_SIZE,
+    VALIDATORS_SUPER_MAJORITY, VALIDATOR_COUNT,
 };
 use fr_crypto::{types::*, Hasher};
 use fr_merkle::mmr::MerkleMountainRange;
@@ -328,7 +328,11 @@ pub struct AsnServiceInfo {
     pub min_item_gas: AsnGas,
     pub min_memo_gas: AsnGas,
     pub bytes: u64,
+    pub deposit_offset: u64,
     pub items: u32,
+    pub creation_slot: u32,
+    pub last_accumulation_slot: u32,
+    pub parent_service: u32,
 }
 
 impl From<AsnServiceInfo> for AccountMetadata {
@@ -340,11 +344,10 @@ impl From<AsnServiceInfo> for AccountMetadata {
             gas_limit_on_transfer: value.min_memo_gas,
             items_footprint: value.items,
             octets_footprint: value.bytes,
-            // FIXME: test vectors should be aligned with GP v0.6.7
-            gratis_storage_offset: Balance::default(),
-            created_at: TimeslotIndex::default(),
-            last_accumulate_at: TimeslotIndex::default(),
-            parent_service_id: ServiceId::default(),
+            gratis_storage_offset: value.deposit_offset,
+            created_at: value.creation_slot,
+            last_accumulate_at: value.last_accumulation_slot,
+            parent_service_id: value.parent_service,
         }
     }
 }
@@ -356,8 +359,12 @@ impl From<AccountMetadata> for AsnServiceInfo {
             balance: value.balance,
             min_item_gas: value.gas_limit_accumulate,
             min_memo_gas: value.gas_limit_on_transfer,
-            items: value.items_footprint,
             bytes: value.octets_footprint,
+            deposit_offset: value.gratis_storage_offset,
+            items: value.items_footprint,
+            creation_slot: value.created_at,
+            last_accumulation_slot: value.last_accumulate_at,
+            parent_service: value.parent_service_id,
         }
     }
 }

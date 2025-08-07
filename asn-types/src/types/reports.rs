@@ -1,5 +1,5 @@
 use crate::types::common::*;
-use fr_common::{Balance, ServiceId, TimeslotIndex};
+use fr_common::ServiceId;
 
 use fr_block::types::extrinsics::guarantees::GuaranteesXt;
 use fr_common::workloads::ReportedWorkPackage;
@@ -56,18 +56,22 @@ pub struct AsnAccountsMapEntry {
 
 impl From<AccountsMapEntry> for AsnAccountsMapEntry {
     fn from(value: AccountsMapEntry) -> Self {
-        let info = AsnServiceInfo {
-            code_hash: value.metadata.code_hash.into(),
-            balance: value.metadata.balance,
-            min_item_gas: value.metadata.gas_limit_accumulate,
-            min_memo_gas: value.metadata.gas_limit_on_transfer,
-            bytes: value.metadata.octets_footprint,
-            items: value.metadata.items_footprint,
-        };
-
         Self {
             id: value.service_id,
-            data: AsnAccount { service: info },
+            data: AsnAccount {
+                service: AsnServiceInfo {
+                    code_hash: value.metadata.code_hash.into(),
+                    balance: value.metadata.balance,
+                    min_item_gas: value.metadata.gas_limit_accumulate,
+                    min_memo_gas: value.metadata.gas_limit_on_transfer,
+                    bytes: value.metadata.octets_footprint,
+                    deposit_offset: value.metadata.gratis_storage_offset,
+                    items: value.metadata.items_footprint,
+                    creation_slot: value.metadata.created_at,
+                    last_accumulation_slot: value.metadata.last_accumulate_at,
+                    parent_service: value.metadata.parent_service_id,
+                },
+            },
         }
     }
 }
@@ -83,11 +87,10 @@ impl From<AsnAccountsMapEntry> for AccountsMapEntry {
                 gas_limit_on_transfer: value.data.service.min_memo_gas,
                 items_footprint: value.data.service.items,
                 octets_footprint: value.data.service.bytes,
-                // FIXME: test vectors should be aligned with GP v0.6.7
-                gratis_storage_offset: Balance::default(),
-                created_at: TimeslotIndex::default(),
-                last_accumulate_at: TimeslotIndex::default(),
-                parent_service_id: ServiceId::default(),
+                gratis_storage_offset: value.data.service.deposit_offset,
+                created_at: value.data.service.creation_slot,
+                last_accumulate_at: value.data.service.last_accumulation_slot,
+                parent_service_id: value.data.service.parent_service,
             },
         }
     }
