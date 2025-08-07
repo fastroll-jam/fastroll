@@ -421,7 +421,7 @@ mod ticket_accumulator_tests {
         for i in 0..epoch_length_u16 {
             tickets.add(create_ticket(i));
         }
-        assert_eq!(tickets.len(), epoch_length_u16.into());
+        assert_eq!(tickets.len(), epoch_length_u16 as usize);
         assert_eq!(
             tickets.as_vec(),
             (0..epoch_length_u16).map(create_ticket).collect::<Vec<_>>()

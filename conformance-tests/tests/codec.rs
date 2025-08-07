@@ -1,7 +1,7 @@
 //! JAM Codec conformance tests
 #![allow(unused_imports)]
 mod codec {
-    use fr_asn_types::{types::common::*, utils::AsnTypeLoader};
+    use fr_asn_types::types::common::*;
     use fr_block::types::{
         block::{Block, BlockHeader},
         extrinsics::{
@@ -10,7 +10,10 @@ mod codec {
         },
     };
     use fr_codec::prelude::*;
-    use fr_common::workloads::{RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport};
+    use fr_common::{
+        utils::serde::FileLoader,
+        workloads::{RefinementContext, WorkDigest, WorkItem, WorkPackage, WorkReport},
+    };
     use serde::{de::DeserializeOwned, Serialize};
     use std::{fmt::Debug, path::PathBuf};
 
@@ -23,13 +26,13 @@ mod codec {
     {
         let json_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.json"));
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-        let asn_type: AsnType = AsnTypeLoader::load_from_json_file(&full_path);
+        let asn_type: AsnType = FileLoader::load_from_json_file(&full_path);
         let fr_type = FastRollType::from(asn_type);
         let fr_type_encoded = fr_type.encode().expect("Failed to encode.");
 
         let bin_path = PathBuf::from(PATH_PREFIX).join(format!("{filename}.bin"));
         let asn_type_encoded =
-            AsnTypeLoader::load_from_bin_file(&bin_path).expect("Failed to load .bin test vector.");
+            FileLoader::load_from_bin_file(&bin_path).expect("Failed to load .bin test vector.");
 
         // Test encoding
         println!(
