@@ -29,6 +29,7 @@ use fr_transition::{
 use futures::future::join_all;
 use std::{collections::HashSet, sync::Arc};
 
+#[allow(dead_code)]
 struct AccumulateTest;
 
 #[async_trait]
