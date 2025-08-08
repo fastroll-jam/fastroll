@@ -10,4 +10,5 @@ fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-limited-vec = { workspace = true }
 bit-vec = { workspace = true }
+serde = { workspace = true }
 thiserror = { workspace = true }

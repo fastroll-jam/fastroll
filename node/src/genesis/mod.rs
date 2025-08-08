@@ -1,7 +1,8 @@
-mod validator_keys;
+pub(crate) mod serde_types;
 
-use crate::genesis::validator_keys::GenesisValidatorKeySet;
-use fr_asn_types::common::AsnBlock;
+use crate::genesis::serde_types::{
+    block::GenesisBlockHeader, validator_keys::GenesisValidatorKeySet,
+};
 use fr_block::types::block::Block;
 use fr_common::{utils::serde::FileLoader, ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;
@@ -12,10 +13,10 @@ use fr_state::{
 use std::path::PathBuf;
 
 pub fn load_genesis_block_from_file() -> Block {
-    let json_path = PathBuf::from("src/genesis/data/genesis_block.json");
+    let json_path = PathBuf::from("src/genesis/data/genesis_block_header.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let asn_block: AsnBlock = FileLoader::load_from_json_file(&full_path);
-    asn_block.into()
+    let genesis_header: GenesisBlockHeader = FileLoader::load_from_json_file(&full_path);
+    genesis_header.into()
 }
 
 fn load_genesis_validator_set_from_file() -> ValidatorKeySet {

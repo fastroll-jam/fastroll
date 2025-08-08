@@ -1872,8 +1872,8 @@ pub struct AsnEpochMarkValidatorKeys {
 impl From<AsnEpochMarkValidatorKeys> for EpochMarkerValidatorKey {
     fn from(value: AsnEpochMarkValidatorKeys) -> Self {
         Self {
-            bandersnatch_key: value.bandersnatch,
-            ed25519_key: value.ed25519,
+            bandersnatch: value.bandersnatch,
+            ed25519: value.ed25519,
         }
     }
 }
@@ -1881,8 +1881,8 @@ impl From<AsnEpochMarkValidatorKeys> for EpochMarkerValidatorKey {
 impl From<EpochMarkerValidatorKey> for AsnEpochMarkValidatorKeys {
     fn from(value: EpochMarkerValidatorKey) -> Self {
         Self {
-            bandersnatch: value.bandersnatch_key,
-            ed25519: value.ed25519_key,
+            bandersnatch: value.bandersnatch,
+            ed25519: value.ed25519,
         }
     }
 }

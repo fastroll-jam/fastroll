@@ -862,6 +862,7 @@ dependencies = [
  "fr-crypto",
  "fr-db",
  "fr-limited-vec",
+ "serde",
  "thiserror 2.0.12",
 ]
 
@@ -1049,7 +1050,6 @@ name = "fr-node"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fr-asn-types",
  "fr-block",
  "fr-clock",
  "fr-codec",
@@ -1057,6 +1057,7 @@ dependencies = [
  "fr-crypto",
  "fr-db",
  "fr-extrinsics",
+ "fr-limited-vec",
  "fr-network",
  "fr-pvm-invocation",
  "fr-state",

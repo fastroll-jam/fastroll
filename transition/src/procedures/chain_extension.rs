@@ -54,8 +54,8 @@ fn extract_epoch_marker_keys(
     let mut result = Vec::with_capacity(VALIDATOR_COUNT);
     for key in validator_set.iter() {
         result.push(EpochMarkerValidatorKey {
-            bandersnatch_key: key.bandersnatch.clone(),
-            ed25519_key: key.ed25519.clone(),
+            bandersnatch: key.bandersnatch.clone(),
+            ed25519: key.ed25519.clone(),
         });
     }
 
