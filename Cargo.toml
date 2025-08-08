@@ -2,7 +2,6 @@
 resolver = "2"
 
 members = [
-    "asn-types",
     "block",
     "cli",
     "clock",
@@ -12,6 +11,7 @@ members = [
     "common/erasure-coding",
     "common/limited-vec",
     "conformance-tests",
+    "conformance-tests/asn-types",
     "crypto",
     "db",
     "extrinsics",
@@ -35,7 +35,7 @@ edition = "2021"
 
 [workspace.dependencies]
 # Internal dependencies
-fr-asn-types = { path = "asn-types" }
+fr-asn-types = { path = "conformance-tests/asn-types" }
 fr-block = { path = "block" }
 fr-clock = { path = "clock" }
 fr-codec = { path = "codec/fr-codec" }
