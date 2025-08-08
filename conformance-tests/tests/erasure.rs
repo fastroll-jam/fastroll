@@ -1,7 +1,9 @@
 //! Erasure codec conformance tests
 mod erasure {
-    use fr_asn_types::common::AsnByteSequence;
-    use fr_common::utils::{serde::FileLoader, tracing::setup_timed_tracing};
+    use fr_common::{
+        utils::{serde::FileLoader, tracing::setup_timed_tracing},
+        ByteSequence,
+    };
     use fr_erasure_coding::ErasureCodec;
     use rand::{seq::SliceRandom, thread_rng};
     use serde::{Deserialize, Serialize};
@@ -13,8 +15,8 @@ mod erasure {
     // --- Types
     #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
     pub struct TestCase {
-        data: AsnByteSequence,
-        shards: Vec<AsnByteSequence>, // length of VALIDATOR_COUNT
+        data: ByteSequence,
+        shards: Vec<ByteSequence>, // length of VALIDATOR_COUNT
     }
 
     pub fn test_encode_full(filename: &str) {

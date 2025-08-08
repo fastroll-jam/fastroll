@@ -1,6 +1,8 @@
-use fr_asn_types::common::{AsnBlock, AsnByteArray, AsnByteSequence, AsnHeader, AsnOpaqueHash};
+use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
-use fr_common::{utils::tracing::setup_timed_tracing, ByteSequence, StateKey, StateRoot};
+use fr_common::{
+    utils::tracing::setup_timed_tracing, ByteArray, ByteSequence, StateKey, StateRoot,
+};
 use fr_node::roles::importer::BlockImporter;
 use fr_state::{
     manager::StateManager, state_utils::add_all_simple_state_entries,
@@ -18,7 +20,7 @@ use std::{
 };
 // --- ASN Types
 
-pub type AsnStateKey = AsnByteArray<31>;
+pub type AsnStateKey = ByteArray<31>;
 pub type AsnStateRoot = AsnOpaqueHash;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -30,7 +32,7 @@ pub struct AsnRawState {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnKeyValue {
     pub key: AsnStateKey,
-    pub value: AsnByteSequence,
+    pub value: ByteSequence,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -72,8 +74,8 @@ pub struct GenesisBlockTestCase {
 impl From<KeyValue> for AsnKeyValue {
     fn from(kv: KeyValue) -> Self {
         Self {
-            key: kv.key.into(),
-            value: kv.value.into(),
+            key: kv.key,
+            value: kv.value,
         }
     }
 }
@@ -81,8 +83,8 @@ impl From<KeyValue> for AsnKeyValue {
 impl From<AsnKeyValue> for KeyValue {
     fn from(kv: AsnKeyValue) -> Self {
         Self {
-            key: kv.key.into(),
-            value: kv.value.into(),
+            key: kv.key,
+            value: kv.value,
         }
     }
 }
@@ -90,7 +92,7 @@ impl From<AsnKeyValue> for KeyValue {
 impl From<RawState> for AsnRawState {
     fn from(value: RawState) -> Self {
         Self {
-            state_root: value.state_root.into(),
+            state_root: value.state_root,
             keyvals: value.keyvals.into_iter().map(AsnKeyValue::from).collect(),
         }
     }
@@ -99,7 +101,7 @@ impl From<RawState> for AsnRawState {
 impl From<AsnRawState> for RawState {
     fn from(value: AsnRawState) -> Self {
         Self {
-            state_root: value.state_root.into(),
+            state_root: value.state_root,
             keyvals: value.keyvals.into_iter().map(KeyValue::from).collect(),
         }
     }

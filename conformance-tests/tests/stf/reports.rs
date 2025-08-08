@@ -1,6 +1,6 @@
 //! Reports state transition conformance tests
 use async_trait::async_trait;
-use fr_asn_types::{common::*, reports::*};
+use fr_asn_types::reports::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_conformance_tests::{
     err_map::reports::map_error_to_custom_code, harness::StateTransitionTest,
@@ -44,11 +44,7 @@ impl StateTransitionTest for ReportsTest {
         let pre_active_set = ActiveSet(test_pre_state.curr_validators.clone().into());
         let pre_past_set = PastSet(test_pre_state.prev_validators.clone().into());
         let pre_entropy = EpochEntropy::from(test_pre_state.entropy.clone());
-        let offenders: Vec<Ed25519PubKey> = test_pre_state
-            .offenders
-            .iter()
-            .map(|k| Ed25519PubKey::from(*k))
-            .collect();
+        let offenders: Vec<Ed25519PubKey> = test_pre_state.offenders.clone();
         let pre_disputes = DisputesState {
             punish_set: offenders,
             ..Default::default()
@@ -182,11 +178,7 @@ impl StateTransitionTest for ReportsTest {
             curr_validators: curr_active_set.0.into(),
             prev_validators: curr_past_set.0.into(),
             entropy: curr_entropy.into(),
-            offenders: curr_disputes
-                .punish_set
-                .into_iter()
-                .map(AsnEd25519Key::from)
-                .collect(),
+            offenders: curr_disputes.punish_set,
             recent_blocks: curr_blocks_history.into(),
             auth_pools: curr_auth_pool.into(),
             accounts: curr_accounts,

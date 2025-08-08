@@ -1,11 +1,13 @@
 use crate::{
     common::{
-        AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnByteSequence, AsnEntropy,
+        AsnAccumulateHistory, AsnAccumulateQueue, AsnAccumulateRoot, AsnEntropy,
         AsnPrivilegedServices, AsnServiceId, AsnServiceInfo, AsnTimeSlot, AsnWorkReport,
     },
     preimages::AsnPreimagesMapEntry,
 };
-use fr_common::{workloads::work_report::WorkReport, AccumulateRoot, Octets, StorageKey};
+use fr_common::{
+    workloads::work_report::WorkReport, AccumulateRoot, ByteSequence, Octets, StorageKey,
+};
 use fr_state::types::{AccountStorageEntry, Timeslot};
 use serde::{Deserialize, Serialize};
 
@@ -23,15 +25,15 @@ pub struct StorageMapEntry {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnStorageMapEntry {
-    pub key: AsnByteSequence,
-    pub value: AsnByteSequence,
+    pub key: ByteSequence,
+    pub value: ByteSequence,
 }
 
 impl From<StorageMapEntry> for AsnStorageMapEntry {
     fn from(value: StorageMapEntry) -> Self {
         Self {
-            key: AsnByteSequence(value.key.0),
-            value: AsnByteSequence(value.data.value.0),
+            key: ByteSequence(value.key.0),
+            value: ByteSequence(value.data.value.0),
         }
     }
 }

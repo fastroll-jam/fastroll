@@ -85,7 +85,7 @@ pub async fn init_node(
     let network_manager =
         NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
     let mut node = JamNode::new(node_info.clone(), node_storage, Arc::new(network_manager));
-    tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch_key.to_hex(), node.network_manager().local_node_info.validator_key.ed25519_key.to_hex());
+    tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch.to_hex(), node.network_manager().local_node_info.validator_key.ed25519.to_hex());
 
     // Set genesis state
     set_genesis_state(&node).await?;

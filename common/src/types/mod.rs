@@ -1,5 +1,11 @@
-use crate::{HASH_SIZE, STATE_KEY_SIZE};
+use crate::{
+    utils::serde::{
+        deserialize_hex_array, deserialize_hex_vec, serialize_hex_array, serialize_hex_vec,
+    },
+    HASH_SIZE, STATE_KEY_SIZE,
+};
 use fr_codec::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::{
     array::from_fn,
     fmt::{Display, Formatter},
@@ -108,8 +114,14 @@ impl ByteEncodable for Vec<u8> {
 }
 
 /// Bytes sequence type with no length limit.
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ByteSequence(pub Vec<u8>);
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteSequence(
+    #[serde(
+        serialize_with = "serialize_hex_vec",
+        deserialize_with = "deserialize_hex_vec"
+    )]
+    pub Vec<u8>,
+);
 
 impl Deref for ByteSequence {
     type Target = Vec<u8>;
@@ -206,8 +218,14 @@ impl ByteSequence {
 }
 
 /// A bytes array type of size `N`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ByteArray<const N: usize>(pub [u8; N]);
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteArray<const N: usize>(
+    #[serde(
+        serialize_with = "serialize_hex_array",
+        deserialize_with = "deserialize_hex_array"
+    )]
+    pub [u8; N],
+);
 
 impl<const N: usize> Deref for ByteArray<N> {
     type Target = [u8; N];

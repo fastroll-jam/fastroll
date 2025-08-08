@@ -49,7 +49,7 @@ impl StateTransitionTest for AccumulateTest {
         // Convert ASN pre-state into FastRoll types.
         let pre_timeslot = Timeslot::new(test_pre_state.slot);
         let pre_entropy = EpochEntropy([
-            Hash32::from(test_pre_state.entropy),
+            test_pre_state.entropy.clone(),
             Hash32::default(),
             Hash32::default(),
             Hash32::default(),
@@ -101,7 +101,7 @@ impl StateTransitionTest for AccumulateTest {
             }
             // Add preimages entries
             for preimage in &account.data.preimages {
-                let key = Hash32::from(preimage.hash);
+                let key = preimage.hash.clone();
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
                 state_manager
                     .add_account_preimages_entry(account.id, &key, val)
@@ -221,7 +221,7 @@ impl StateTransitionTest for AccumulateTest {
             .await;
             let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
                 // Get the key from the pre-state
-                let key = Hash32::from(e.hash);
+                let key = e.hash.clone();
                 // Get the posterior preimage value
                 let preimage = state_manager
                     .get_account_preimages_entry(s.id, &key)
@@ -248,7 +248,7 @@ impl StateTransitionTest for AccumulateTest {
 
         Ok(State {
             slot: curr_timeslot.slot(),
-            entropy: curr_entropy.clone().into(),
+            entropy: curr_entropy.clone(),
             ready_queue: curr_acc_queue.into(),
             accumulated: curr_acc_history.into(),
             privileges: curr_privileged_services.into(),

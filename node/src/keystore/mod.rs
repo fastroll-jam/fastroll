@@ -1,10 +1,12 @@
 //! Test-only keystore module
 pub mod dev_account_profile;
 
-use fr_asn_types::common::AsnByteArray;
 use fr_codec::prelude::*;
-use fr_common::utils::serde::FileLoader;
-use fr_crypto::types::{BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, ValidatorKey};
+use fr_common::{utils::serde::FileLoader, ByteArray};
+use fr_crypto::types::{
+    BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, Ed25519PubKey, ValidatorKey,
+    ValidatorMetadata,
+};
 use fr_network::manager::LocalNodeInfo;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -27,13 +29,13 @@ pub fn load_dev_accounts_from_file() -> DevAccountsInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevAccountInfo {
-    seed: AsnByteArray<32>,
-    ed25519_private: AsnByteArray<32>,
-    ed25519_public: AsnByteArray<32>,
-    bandersnatch_private: AsnByteArray<32>,
-    bandersnatch_public: AsnByteArray<32>,
+    seed: ByteArray<32>,
+    ed25519_private: ByteArray<32>,
+    ed25519_public: Ed25519PubKey,
+    bandersnatch_private: ByteArray<32>,
+    bandersnatch_public: BandersnatchPubKey,
     dns_alt_name: String,
-    metadata: AsnByteArray<128>,
+    metadata: ValidatorMetadata,
 }
 
 impl From<DevAccountInfo> for LocalNodeInfo {
@@ -42,10 +44,10 @@ impl From<DevAccountInfo> for LocalNodeInfo {
         let port = u16::decode_fixed(&mut &value.metadata.0[16..18], 2).unwrap();
         let socket_addr_v6 = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
         let validator_key = ValidatorKey {
-            bandersnatch_key: value.bandersnatch_public.into(),
-            ed25519_key: value.ed25519_public.into(),
-            bls_key: BlsPubKey::default(),
-            metadata: value.metadata.into(),
+            bandersnatch: value.bandersnatch_public,
+            ed25519: value.ed25519_public,
+            bls: BlsPubKey::default(),
+            metadata: value.metadata,
         };
         Self {
             socket_addr: socket_addr_v6,
@@ -56,11 +58,11 @@ impl From<DevAccountInfo> for LocalNodeInfo {
 
 impl DevAccountInfo {
     pub fn bandersnatch_secret_key(&self) -> BandersnatchSecretKey {
-        BandersnatchSecretKey(self.bandersnatch_private.into())
+        BandersnatchSecretKey(self.bandersnatch_private.clone())
     }
 
     pub fn bandersnatch_pub_key(&self) -> BandersnatchPubKey {
-        BandersnatchPubKey(self.bandersnatch_public.into())
+        self.bandersnatch_public.clone()
     }
 }
 

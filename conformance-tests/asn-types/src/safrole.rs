@@ -83,14 +83,14 @@ impl From<&State> for SafroleState {
     fn from(value: &State) -> Self {
         SafroleState {
             pending_set: value.gamma_k.clone().into(),
-            ring_root: BandersnatchRingRoot::from(value.gamma_z),
+            ring_root: BandersnatchRingRoot::from(value.gamma_z.clone()),
             slot_sealers: SlotSealers::from(value.gamma_s.clone()),
             ticket_accumulator: TicketAccumulator::from_vec(
                 value
                     .gamma_a
                     .iter()
                     .map(|ticket_body| Ticket {
-                        id: TicketId::from(ticket_body.id),
+                        id: TicketId::from(ticket_body.id.clone()),
                         attempt: ticket_body.attempt,
                     })
                     .collect(),

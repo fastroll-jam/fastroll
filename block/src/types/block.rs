@@ -10,6 +10,7 @@ use fr_crypto::{
     types::*,
 };
 use fr_limited_vec::FixedVec;
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -38,21 +39,17 @@ impl Block {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JamEncode, JamDecode)]
 pub struct EpochMarkerValidatorKey {
-    pub bandersnatch_key: BandersnatchPubKey,
-    pub ed25519_key: Ed25519PubKey,
+    pub bandersnatch: BandersnatchPubKey,
+    pub ed25519: Ed25519PubKey,
 }
 
 impl Display for EpochMarkerValidatorKey {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "ValidatorKey:")?;
-        writeln!(
-            f,
-            "\t\t\t\tbandersnatch_key: 0x{}",
-            &self.bandersnatch_key.to_hex()
-        )?;
-        write!(f, "\t\t\t\ted25519_key: 0x{}", &self.ed25519_key.to_hex())
+        writeln!(f, "\t\t\t\tbandersnatch: 0x{}", &self.bandersnatch.to_hex())?;
+        write!(f, "\t\t\t\ted25519: 0x{}", &self.ed25519.to_hex())
     }
 }
 

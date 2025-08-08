@@ -381,7 +381,7 @@ impl NetworkManager {
     }
 
     fn local_node_ed25519_key(&self) -> &Ed25519PubKey {
-        &self.local_node_info.validator_key.ed25519_key
+        &self.local_node_info.validator_key.ed25519
     }
 
     /// UP-0: Block Announcement
@@ -438,6 +438,6 @@ impl LocalNodeInfo {
     }
 
     pub fn bandersnatch_key(&self) -> &BandersnatchPubKey {
-        &self.validator_key.bandersnatch_key
+        &self.validator_key.bandersnatch
     }
 }
