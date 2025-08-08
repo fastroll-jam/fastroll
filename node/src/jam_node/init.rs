@@ -79,8 +79,8 @@ pub async fn init_node(
     };
 
     let socket_addr = node_info.socket_addr;
-    let node_storage =
-        init_storage(format!("[{}]:{}", socket_addr.ip(), socket_addr.port()).as_str())?;
+    let node_id = format!("[{}]:{}", socket_addr.ip(), socket_addr.port());
+    let node_storage = init_storage(node_id.as_str())?;
     tracing::info!("Storage initialized");
     let network_manager =
         NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;

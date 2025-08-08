@@ -909,6 +909,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fr-config"
+version = "0.1.0"
+dependencies = [
+ "fr-db",
+]
+
+[[package]]
 name = "fr-conformance-tests"
 version = "0.1.0"
 dependencies = [

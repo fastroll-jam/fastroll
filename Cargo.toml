@@ -10,6 +10,7 @@ members = [
     "common",
     "common/erasure-coding",
     "common/limited-vec",
+    "config",
     "conformance-tests",
     "conformance-tests/asn-types",
     "crypto",
@@ -40,6 +41,7 @@ fr-clock = { path = "clock" }
 fr-codec = { path = "codec/fr-codec" }
 fr-codec-derive = { path = "codec/fr-codec-derive" }
 fr-common = { path = "common" }
+fr-config = { path = "config" }
 fr-crypto = { path = "crypto" }
 fr-db = { path = "db" }
 fr-erasure-coding = { path = "common/erasure-coding" }
