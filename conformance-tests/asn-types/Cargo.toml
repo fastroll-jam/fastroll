@@ -2,6 +2,7 @@
 name = "fr-asn-types"
 version = "0.1.0"
 edition.workspace = true
+publish = false
 
 [dependencies]
 fr-block = { workspace = true }
