@@ -55,11 +55,13 @@ impl ValidatorMetadata {
 /// stored as a fixed-size byte array.
 ///
 /// The final `ValidatorKey` type is a simple concatenation of each component.
-#[derive(Debug, Clone, Hash, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(
+    Debug, Clone, Hash, Default, PartialEq, Eq, Serialize, Deserialize, JamEncode, JamDecode,
+)]
 pub struct ValidatorKey {
-    pub bandersnatch_key: BandersnatchPubKey,
-    pub ed25519_key: Ed25519PubKey,
-    pub bls_key: BlsPubKey,
+    pub bandersnatch: BandersnatchPubKey,
+    pub ed25519: Ed25519PubKey,
+    pub bls: BlsPubKey,
     pub metadata: ValidatorMetadata,
 }
 
@@ -69,10 +71,10 @@ impl Display for ValidatorKey {
         writeln!(
             f,
             "  \"Bandersnatch\": \"0x{}\",",
-            self.bandersnatch_key.to_hex()
+            self.bandersnatch.to_hex()
         )?;
-        writeln!(f, "  \"Ed25519\": \"0x{}\",", self.ed25519_key.to_hex())?;
-        writeln!(f, "  \"BLS\": \"0x{}\",", self.bls_key.to_hex())?;
+        writeln!(f, "  \"Ed25519\": \"0x{}\",", self.ed25519.to_hex())?;
+        writeln!(f, "  \"BLS\": \"0x{}\",", self.bls.to_hex())?;
         writeln!(f, "  \"Metadata\": \"0x{}\"", self.metadata.encode_hex())?;
         write!(f, "}}")
     }
@@ -82,9 +84,9 @@ impl ValidatorKey {
     pub fn to_byte_array(self) -> ByteArray<PUBLIC_KEY_SIZE> {
         let mut result = [0u8; PUBLIC_KEY_SIZE];
 
-        result[0..32].copy_from_slice(self.bandersnatch_key.as_slice());
-        result[32..64].copy_from_slice(self.ed25519_key.as_slice());
-        result[64..208].copy_from_slice(self.bls_key.as_slice());
+        result[0..32].copy_from_slice(self.bandersnatch.as_slice());
+        result[32..64].copy_from_slice(self.ed25519.as_slice());
+        result[64..208].copy_from_slice(self.bls.as_slice());
         result[208..336].copy_from_slice(self.metadata.as_slice());
 
         ByteArray::new(result)
@@ -94,9 +96,9 @@ impl ValidatorKey {
         let spaces = " ".repeat(indent);
         format!(
             "{s}\"bandersnatch_key\": \"{}\",\n{s}\"ed25519_key\": \"{}\",\n{s}\"bls_key\": \"{}\",\n{s}\"metadata\": \"{}\"",
-            self.bandersnatch_key.to_hex(),
-            self.ed25519_key.to_hex(),
-            self.bandersnatch_key.to_hex(),
+            self.bandersnatch.to_hex(),
+            self.ed25519.to_hex(),
+            self.bandersnatch.to_hex(),
             self.metadata.encode_hex(),
             s = spaces
         )
@@ -127,8 +129,7 @@ impl ValidatorKeySet {
         &self,
         validator_index: ValidatorIndex,
     ) -> Option<&Ed25519PubKey> {
-        self.get_validator_key(validator_index)
-            .map(|v| &v.ed25519_key)
+        self.get_validator_key(validator_index).map(|v| &v.ed25519)
     }
 
     pub fn get_validator_bandersnatch_key(
@@ -136,7 +137,7 @@ impl ValidatorKeySet {
         validator_index: ValidatorIndex,
     ) -> Option<&BandersnatchPubKey> {
         self.get_validator_key(validator_index)
-            .map(|v| &v.bandersnatch_key)
+            .map(|v| &v.bandersnatch)
     }
 
     fn get_validator_key(&self, validator_index: ValidatorIndex) -> Option<&ValidatorKey> {
@@ -151,7 +152,7 @@ impl ValidatorKeySet {
         bandersnatch_key: &BandersnatchPubKey,
     ) -> Option<ValidatorIndex> {
         self.iter()
-            .position(|k| &k.bandersnatch_key == bandersnatch_key)
+            .position(|k| &k.bandersnatch == bandersnatch_key)
             .map(|i| i as ValidatorIndex)
     }
 }

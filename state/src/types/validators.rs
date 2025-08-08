@@ -26,19 +26,19 @@ pub trait ValidatorSet {
 
     fn ed25519_keys_set(&self) -> HashSet<Ed25519PubKey> {
         self.iter()
-            .map(|validator| validator.ed25519_key.clone())
+            .map(|validator| validator.ed25519.clone())
             .collect()
     }
 
     fn ed25519_keys(&self) -> Vec<Ed25519PubKey> {
         self.iter()
-            .map(|validator| validator.ed25519_key.clone())
+            .map(|validator| validator.ed25519.clone())
             .collect()
     }
 
     fn nullify_punished_validators(&mut self, punish_set: &[Ed25519PubKey]) {
         for validator in self.iter_mut() {
-            if punish_set.contains(&validator.ed25519_key) {
+            if punish_set.contains(&validator.ed25519) {
                 *validator = ValidatorKey::default();
             }
         }

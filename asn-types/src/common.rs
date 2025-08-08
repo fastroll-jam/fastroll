@@ -129,9 +129,9 @@ pub struct AsnValidatorData {
 impl From<ValidatorKey> for AsnValidatorData {
     fn from(value: ValidatorKey) -> Self {
         Self {
-            bandersnatch: value.bandersnatch_key,
-            ed25519: value.ed25519_key,
-            bls: value.bls_key,
+            bandersnatch: value.bandersnatch,
+            ed25519: value.ed25519,
+            bls: value.bls,
             metadata: value.metadata,
         }
     }
@@ -140,9 +140,9 @@ impl From<ValidatorKey> for AsnValidatorData {
 impl From<AsnValidatorData> for ValidatorKey {
     fn from(value: AsnValidatorData) -> Self {
         Self {
-            bandersnatch_key: value.bandersnatch,
-            ed25519_key: value.ed25519,
-            bls_key: value.bls,
+            bandersnatch: value.bandersnatch,
+            ed25519: value.ed25519,
+            bls: value.bls,
             metadata: value.metadata,
         }
     }

@@ -1,4 +1,7 @@
-use fr_asn_types::common::{AsnBlock, AsnValidatorsData};
+mod validator_keys;
+
+use crate::genesis::validator_keys::GenesisValidatorKeySet;
+use fr_asn_types::common::AsnBlock;
 use fr_block::types::block::Block;
 use fr_common::{utils::serde::FileLoader, ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;
@@ -18,8 +21,8 @@ pub fn load_genesis_block_from_file() -> Block {
 fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
     let json_path = PathBuf::from("src/genesis/data/genesis_validator_set.json");
     let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let asn_validators_data: AsnValidatorsData = FileLoader::load_from_json_file(&full_path);
-    asn_validators_data.into()
+    let genesis_validators: GenesisValidatorKeySet = FileLoader::load_from_json_file(&full_path);
+    genesis_validators.into()
 }
 
 pub fn genesis_simple_state() -> SimpleStates {

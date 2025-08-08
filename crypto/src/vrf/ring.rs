@@ -38,7 +38,7 @@ pub(crate) fn validator_set_to_bandersnatch_ring(
 ) -> Result<Vec<Public>, CryptoError> {
     let mut public_keys = vec![];
     validator_set.iter().for_each(|validator_key| {
-        match point_decode::<BandersnatchSha512Ell2>(validator_key.bandersnatch_key.as_slice()) {
+        match point_decode::<BandersnatchSha512Ell2>(validator_key.bandersnatch.as_slice()) {
             Ok(decoded_point) => {
                 public_keys.push(Public::from(decoded_point));
             }

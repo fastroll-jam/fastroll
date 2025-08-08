@@ -110,7 +110,7 @@ impl ValidatorPeer {
 
     pub fn from_validator_key(validator_key: ValidatorKey) -> Self {
         Self {
-            ed25519_key: validator_key.ed25519_key,
+            ed25519_key: validator_key.ed25519,
             socket_addr: validator_key.metadata.socket_address(),
             conn: None,
         }

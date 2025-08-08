@@ -44,9 +44,9 @@ impl From<DevAccountInfo> for LocalNodeInfo {
         let port = u16::decode_fixed(&mut &value.metadata.0[16..18], 2).unwrap();
         let socket_addr_v6 = SocketAddrV6::new(Ipv6Addr::from(ipv6), port, 0, 0);
         let validator_key = ValidatorKey {
-            bandersnatch_key: value.bandersnatch_public,
-            ed25519_key: value.ed25519_public,
-            bls_key: BlsPubKey::default(),
+            bandersnatch: value.bandersnatch_public,
+            ed25519: value.ed25519_public,
+            bls: BlsPubKey::default(),
             metadata: value.metadata,
         };
         Self {
