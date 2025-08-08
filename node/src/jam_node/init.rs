@@ -3,40 +3,17 @@ use crate::{
     jam_node::JamNode,
     keystore::dev_account_profile::DevNodeAccountProfile,
 };
-use fr_block::{
-    header_db::BlockHeaderDB, post_state_root_db::PostStateRootDB, types::extrinsics::Extrinsics,
-    xt_db::XtDB,
-};
+use fr_block::types::extrinsics::Extrinsics;
 use fr_common::{ByteEncodable, Hash32};
-use fr_db::{
-    config::{RocksDBOpts, HEADER_CF_NAME, POST_STATE_ROOT_CF_NAME, XT_CF_NAME},
-    core::core_db::CoreDB,
-};
-use fr_extrinsics::pool::XtPool;
+use fr_config::{NodeConfig, StorageConfig};
+
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
-use fr_state::{
-    config::StateManagerConfig, manager::StateManager, state_utils::add_all_simple_state_entries,
-};
+use fr_state::state_utils::add_all_simple_state_entries;
 use fr_storage::node_storage::NodeStorage;
-use std::{error::Error, path::PathBuf, sync::Arc};
+use std::{error::Error, sync::Arc};
 
-fn init_storage(db_id: &str) -> Result<Arc<NodeStorage>, Box<dyn Error>> {
-    let core_db = Arc::new(CoreDB::open(
-        PathBuf::from(format!("./.rocksdb/{db_id}")),
-        RocksDBOpts::default(),
-    )?);
-    let header_db = BlockHeaderDB::new(core_db.clone(), HEADER_CF_NAME, 1024, None);
-    let xt_db = XtDB::new(core_db.clone(), XT_CF_NAME, 1024);
-    let post_state_root_db = PostStateRootDB::new(core_db.clone(), POST_STATE_ROOT_CF_NAME, 1024);
-    let state_manager = StateManager::from_core_db(core_db, StateManagerConfig::default());
-    let _xt_pool = XtPool::new(1024);
-
-    Ok(Arc::new(NodeStorage::new(
-        Arc::new(state_manager),
-        Arc::new(header_db),
-        Arc::new(xt_db),
-        Arc::new(post_state_root_db),
-    )))
+fn init_storage(cfg: StorageConfig) -> Result<Arc<NodeStorage>, Box<dyn Error>> {
+    Ok(Arc::new(NodeStorage::new(cfg, None)?))
 }
 
 async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
@@ -80,7 +57,8 @@ pub async fn init_node(
 
     let socket_addr = node_info.socket_addr;
     let node_id = format!("[{}]:{}", socket_addr.ip(), socket_addr.port());
-    let node_storage = init_storage(node_id.as_str())?;
+    let node_config = NodeConfig::from_node_id(node_id.as_str());
+    let node_storage = init_storage(node_config.storage)?;
     tracing::info!("Storage initialized");
     let network_manager =
         NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;

@@ -1,5 +1,4 @@
-use crate::config::RocksDBOpts;
-use rocksdb::{ColumnFamily, WriteBatch, WriteOptions, DB};
+use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Options, WriteBatch, WriteOptions, DB};
 use std::{path::Path, sync::Arc};
 use thiserror::Error;
 
@@ -21,14 +20,14 @@ pub struct CoreDB {
 
 impl CoreDB {
     /// Opens or creates a RocksDB instance at the given `path` with column families.
-    pub fn open<P: AsRef<Path>>(path: P, db_opts: RocksDBOpts) -> Result<Self, CoreDBError> {
+    pub fn open<P: AsRef<Path>>(
+        path: P,
+        opts: Options,
+        cf_descriptors: impl IntoIterator<Item = ColumnFamilyDescriptor>,
+    ) -> Result<Self, CoreDBError> {
         // Open DB with the CF descriptors
         Ok(Self {
-            db: Arc::new(DB::open_cf_descriptors(
-                &db_opts.opts,
-                path,
-                db_opts.column_families,
-            )?),
+            db: Arc::new(DB::open_cf_descriptors(&opts, path, cf_descriptors)?),
         })
     }
 

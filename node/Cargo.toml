@@ -8,6 +8,7 @@ fr-block = { workspace = true }
 fr-clock = { workspace = true }
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
+fr-config = { workspace = true }
 fr-crypto = { workspace = true }
 fr-db = { workspace = true }
 fr-extrinsics = { workspace = true }

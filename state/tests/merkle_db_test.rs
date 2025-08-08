@@ -158,7 +158,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
-    let (_, _, state_manager, _) = init_db_and_manager(None);
+    let (_, state_manager) = init_db_and_manager(None);
 
     // --- 1. Add one state entry, initializing the Merkle Trie
     tracing::info!("1. Add the first state entry.");
@@ -284,7 +284,7 @@ async fn merkle_db_test() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn merkle_db_simple_states() -> Result<(), Box<dyn Error>> {
-    let (_, _, state_manager, _) = init_db_and_manager(None);
+    let (_, state_manager) = init_db_and_manager(None);
     add_all_simple_state_entries(&state_manager, None).await?;
     state_manager.commit_dirty_cache().await?;
     compare_all_simple_state_cache_and_db(&state_manager).await?;

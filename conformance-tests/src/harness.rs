@@ -39,7 +39,7 @@ pub trait StateTransitionTest {
     }
 
     fn init_header_and_manager() -> (BlockHeaderDB, BlockHeader, StateManager) {
-        let (header_db, _, manager, _) = fr_state::test_utils::init_db_and_manager(None);
+        let (header_db, manager) = fr_state::test_utils::init_db_and_manager(None);
         (header_db, BlockHeader::default(), manager)
     }
 

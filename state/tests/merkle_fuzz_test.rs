@@ -22,7 +22,7 @@ async fn test_merkle_fuzz() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
-    let (_, _, state_manager, _) = init_db_and_manager(None);
+    let (_, state_manager) = init_db_and_manager(None);
 
     // Test with n random state entries
     const N_DEFAULT: usize = 100;
