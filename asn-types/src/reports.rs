@@ -57,7 +57,7 @@ pub struct AsnAccountsMapEntry {
 impl From<AccountsMapEntry> for AsnAccountsMapEntry {
     fn from(value: AccountsMapEntry) -> Self {
         let info = AsnServiceInfo {
-            code_hash: value.metadata.code_hash.into(),
+            code_hash: value.metadata.code_hash,
             balance: value.metadata.balance,
             min_item_gas: value.metadata.gas_limit_accumulate,
             min_memo_gas: value.metadata.gas_limit_on_transfer,
@@ -77,7 +77,7 @@ impl From<AsnAccountsMapEntry> for AccountsMapEntry {
         Self {
             service_id: value.id,
             metadata: AccountMetadata {
-                code_hash: value.data.service.code_hash.into(),
+                code_hash: value.data.service.code_hash,
                 balance: value.data.service.balance,
                 gas_limit_accumulate: value.data.service.min_item_gas,
                 gas_limit_on_transfer: value.data.service.min_memo_gas,
@@ -147,11 +147,7 @@ impl From<JamTransitionOutput> for OutputData {
                     segment_tree_root: AsnOpaqueHash::from(reported.segment_root),
                 })
                 .collect(),
-            reporters: output
-                .reporters
-                .into_iter()
-                .map(AsnEd25519Key::from)
-                .collect(),
+            reporters: output.reporters,
         }
     }
 }

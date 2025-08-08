@@ -1,6 +1,6 @@
-use crate::common::{AsnByteSequence, AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot};
+use crate::common::{AsnOpaqueHash, AsnPreimagesXt, AsnServiceId, AsnTimeSlot};
 use fr_block::types::extrinsics::preimages::PreimagesXt;
-use fr_common::{LookupsKey, Octets, PreimagesKey};
+use fr_common::{ByteSequence, LookupsKey, Octets, PreimagesKey};
 use fr_state::types::{
     AccountLookupsEntry, AccountLookupsEntryTimeslots, AccountPreimagesEntry, Timeslot,
 };
@@ -23,14 +23,14 @@ pub struct PreimagesMapEntry {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AsnPreimagesMapEntry {
     pub hash: AsnOpaqueHash,
-    pub blob: AsnByteSequence,
+    pub blob: ByteSequence,
 }
 
 impl From<PreimagesMapEntry> for AsnPreimagesMapEntry {
     fn from(value: PreimagesMapEntry) -> Self {
         Self {
-            hash: value.key.into(),
-            blob: value.data.value.into(),
+            hash: value.key,
+            blob: value.data.value,
         }
     }
 }
@@ -38,7 +38,7 @@ impl From<PreimagesMapEntry> for AsnPreimagesMapEntry {
 impl From<AsnPreimagesMapEntry> for PreimagesMapEntry {
     fn from(value: AsnPreimagesMapEntry) -> Self {
         Self {
-            key: value.hash.into(),
+            key: value.hash,
             data: AccountPreimagesEntry::new(Octets::from(value.blob)),
         }
     }
@@ -59,7 +59,7 @@ pub struct AsnLookupMetaMapKey {
 impl From<LookupsKey> for AsnLookupMetaMapKey {
     fn from(value: LookupsKey) -> Self {
         Self {
-            hash: value.0.into(),
+            hash: value.0,
             length: value.1,
         }
     }
@@ -67,7 +67,7 @@ impl From<LookupsKey> for AsnLookupMetaMapKey {
 
 impl From<AsnLookupMetaMapKey> for LookupsKey {
     fn from(value: AsnLookupMetaMapKey) -> Self {
-        (value.hash.into(), value.length)
+        (value.hash, value.length)
     }
 }
 

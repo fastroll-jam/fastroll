@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use fr_asn_types::preimages::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{LookupsKey, PreimagesKey};
+use fr_common::LookupsKey;
 use fr_conformance_tests::{
     err_map::preimages::map_error_to_custom_code,
     generate_typed_tests,
@@ -37,10 +37,10 @@ impl StateTransitionTest for PreimagesTest {
         for account in &test_pre_state.accounts {
             // Add preimages entries
             for preimage in &account.data.preimages {
-                let key = PreimagesKey::from(preimage.hash);
+                let key = &preimage.hash;
                 let val = PreimagesMapEntry::from(preimage.clone()).data;
                 state_manager
-                    .add_account_preimages_entry(account.id, &key, val)
+                    .add_account_preimages_entry(account.id, key, val)
                     .await?;
             }
             // Add lookups entries
@@ -109,7 +109,7 @@ impl StateTransitionTest for PreimagesTest {
         let curr_accounts = join_all(pre_state.accounts.iter().map(|s| async {
             let curr_preimages = join_all(s.data.preimages.iter().map(|e| async {
                 // Get the key from the pre-state
-                let key = PreimagesKey::from(e.hash);
+                let key = e.hash.clone();
                 // Get the posterior preimage value
                 let preimage = state_manager
                     .get_account_preimages_entry(s.id, &key)

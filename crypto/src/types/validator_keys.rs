@@ -8,6 +8,7 @@ use fr_common::{
     ByteArray, ByteEncodable, CommonTypeError, ValidatorIndex, PUBLIC_KEY_SIZE, VALIDATOR_COUNT,
 };
 use fr_limited_vec::FixedVec;
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Display, Formatter},
     net::{Ipv6Addr, SocketAddrV6},
@@ -18,7 +19,9 @@ use std::{
 pub type BandersnatchRingRoot = ByteArray<144>;
 
 /// 128-byte validator metadata.
-#[derive(Debug, Clone, Hash, Default, PartialEq, Eq, JamEncode, JamDecode)]
+#[derive(
+    Debug, Clone, Hash, Default, PartialEq, Eq, Serialize, Deserialize, JamEncode, JamDecode,
+)]
 pub struct ValidatorMetadata(pub ByteArray<128>);
 impl_byte_encodable!(ValidatorMetadata);
 

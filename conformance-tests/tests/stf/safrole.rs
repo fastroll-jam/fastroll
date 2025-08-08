@@ -14,7 +14,6 @@ use fr_conformance_tests::{
     generate_typed_tests,
     harness::{run_test_case, StateTransitionTest},
 };
-use fr_crypto::types::Ed25519PubKey;
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
@@ -60,11 +59,7 @@ impl StateTransitionTest for SafroleTest {
         let pre_active_set = ActiveSet(test_pre_state.kappa.clone().into());
         let pre_past_set = PastSet(test_pre_state.lambda.clone().into());
         let pre_timeslot = Timeslot::new(test_pre_state.tau);
-        let pre_post_offenders = test_pre_state
-            .post_offenders
-            .iter()
-            .map(|k| Ed25519PubKey::from(*k))
-            .collect();
+        let pre_post_offenders = test_pre_state.post_offenders.clone();
 
         // Load pre-state into the state cache.
         state_manager.add_safrole(pre_safrole).await?;
@@ -90,7 +85,7 @@ impl StateTransitionTest for SafroleTest {
     fn convert_input_type(test_input: &Self::Input) -> Result<Self::JamInput, TransitionError> {
         // Convert ASN Input into FastRoll types.
         let input_timeslot = Timeslot::new(test_input.slot);
-        let input_header_entropy_hash = test_input.entropy;
+        let input_header_entropy_hash = test_input.entropy.clone();
         let input_ticket_entries: Vec<TicketsXtEntry> = test_input
             .extrinsic
             .clone()
@@ -201,10 +196,7 @@ impl StateTransitionTest for SafroleTest {
             gamma_a,
             gamma_s,
             gamma_z,
-            post_offenders: curr_post_offenders
-                .into_iter()
-                .map(AsnEd25519Key::from)
-                .collect(),
+            post_offenders: curr_post_offenders,
         })
     }
 }
