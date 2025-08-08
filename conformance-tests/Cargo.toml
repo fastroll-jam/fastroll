@@ -5,7 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-fr-asn-types = { workspace = true }
+fr-asn-types = { path = "asn-types" }
 fr-block = { workspace = true }
 fr-common = { workspace = true }
 fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
