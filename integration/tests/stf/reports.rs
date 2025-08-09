@@ -1,11 +1,11 @@
-//! Reports state transition conformance tests
+//! Reports state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::reports::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_conformance_tests::{
+use fr_crypto::types::Ed25519PubKey;
+use fr_integration::{
     err_map::reports::map_error_to_custom_code, stf_harness::StateTransitionTest,
 };
-use fr_crypto::types::Ed25519PubKey;
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,

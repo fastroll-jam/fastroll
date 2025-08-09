@@ -1,11 +1,11 @@
-//! Authorizers state transition conformance tests
+//! Authorizers state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::authorizations::*;
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt},
 };
-use fr_conformance_tests::{
+use fr_integration::{
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},
 };

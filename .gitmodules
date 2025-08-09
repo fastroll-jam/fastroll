@@ -1,0 +1,11 @@
+[submodule "integration/jamtestvectors"]
+	path = integration/jamtestvectors
+	url = https://github.com/w3f/jamtestvectors.git
+[submodule "integration/jamtestvectors-polkajam"]
+	path = integration/jamtestvectors-polkajam
+	url = https://github.com/davxy/jam-test-vectors.git
+	branch = master
+[submodule "integration/jamtestvectors-pvm"]
+	path = integration/jamtestvectors-pvm
+	url = https://github.com/koute/jamtestvectors.git
+	branch = master_pvm_initial

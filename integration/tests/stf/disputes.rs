@@ -1,11 +1,11 @@
-//! Disputes state transition conformance tests
+//! Disputes state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::{common::*, disputes::*};
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker},
 };
-use fr_conformance_tests::{
+use fr_integration::{
     err_map::disputes::map_error_to_custom_code,
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},

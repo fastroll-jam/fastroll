@@ -1,4 +1,4 @@
-//! Safrole state transition conformance tests
+//! Safrole state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::{common::*, safrole::*};
 use fr_block::{
@@ -9,7 +9,7 @@ use fr_block::{
     },
 };
 use fr_common::EntropyHash;
-use fr_conformance_tests::{
+use fr_integration::{
     err_map::safrole::map_error_to_custom_code,
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},

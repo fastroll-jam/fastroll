@@ -1,4 +1,4 @@
-//! JAM Codec conformance tests
+//! JAM Codec integration tests
 #![allow(unused_imports)]
 mod codec {
     use fr_asn_types::common::*;

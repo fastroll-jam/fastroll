@@ -1,4 +1,4 @@
-// //! Block history state transition conformance tests
+// //! Block history state transition integration tests
 // use async_trait::async_trait;
 // use fr_asn_types::types::history::*;
 // use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
@@ -6,7 +6,7 @@
 //     workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, SegmentRoot, StateRoot,
 //     WorkPackageHash,
 // };
-// use fr_conformance_tests::{
+// use fr_integration::{
 //     generate_typed_tests,
 //     stf_harness::{run_test_case, StateTransitionTest},
 // };

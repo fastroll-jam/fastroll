@@ -916,39 +916,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fr-conformance-tests"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "fr-asn-types",
- "fr-block",
- "fr-codec",
- "fr-common",
- "fr-config",
- "fr-crypto",
- "fr-erasure-coding",
- "fr-extrinsics",
- "fr-node",
- "fr-pvm-core",
- "fr-pvm-interface",
- "fr-pvm-invocation",
- "fr-pvm-types",
- "fr-state",
- "fr-storage",
- "fr-transition",
- "futures",
- "hex",
- "paste",
- "rand 0.8.5",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "fr-crypto"
 version = "0.1.0"
 dependencies = [
@@ -1014,6 +981,39 @@ dependencies = [
  "fr-config",
  "fr-node",
  "fr-storage",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fr-integration"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "fr-asn-types",
+ "fr-block",
+ "fr-codec",
+ "fr-common",
+ "fr-config",
+ "fr-crypto",
+ "fr-erasure-coding",
+ "fr-extrinsics",
+ "fr-node",
+ "fr-pvm-core",
+ "fr-pvm-interface",
+ "fr-pvm-invocation",
+ "fr-pvm-types",
+ "fr-state",
+ "fr-storage",
+ "fr-transition",
+ "futures",
+ "hex",
+ "paste",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
 ]

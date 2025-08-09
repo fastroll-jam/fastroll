@@ -1,9 +1,9 @@
-//! Preimages state transition conformance tests
+//! Preimages state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::preimages::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::LookupsKey;
-use fr_conformance_tests::{
+use fr_integration::{
     err_map::preimages::map_error_to_custom_code,
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},
