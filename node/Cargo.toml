@@ -10,7 +10,6 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-crypto = { workspace = true }
-fr-db = { workspace = true }
 fr-extrinsics = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-network = { workspace = true }

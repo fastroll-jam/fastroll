@@ -5,12 +5,8 @@ edition.workspace = true
 description = "FastRoll JAM client CLI tool"
 
 [dependencies]
-fr-codec = { workspace = true }
 fr-common = { workspace = true }
-fr-crypto = { workspace = true }
 fr-fuzz = { workspace = true }
-fr-network = { workspace = true }
 fr-node = { workspace = true }
 clap = { workspace = true }
-serde = { workspace = true }
 tokio = { workspace = true }
