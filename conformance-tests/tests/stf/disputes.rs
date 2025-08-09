@@ -8,7 +8,7 @@ use fr_block::{
 use fr_conformance_tests::{
     err_map::disputes::map_error_to_custom_code,
     generate_typed_tests,
-    harness::{run_test_case, StateTransitionTest},
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_state::{
     error::StateManagerError,

@@ -8,7 +8,7 @@
 // };
 // use fr_conformance_tests::{
 //     generate_typed_tests,
-//     harness::{run_test_case, StateTransitionTest},
+//     stf_harness::{run_test_case, StateTransitionTest},
 // };
 // use fr_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
 // use fr_transition::{

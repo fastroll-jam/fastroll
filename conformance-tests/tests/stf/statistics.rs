@@ -7,7 +7,7 @@ use fr_block::{
 };
 use fr_conformance_tests::{
     generate_typed_tests,
-    harness::{run_test_case, StateTransitionTest},
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{

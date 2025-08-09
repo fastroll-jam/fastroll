@@ -6,7 +6,7 @@ use fr_common::LookupsKey;
 use fr_conformance_tests::{
     err_map::preimages::map_error_to_custom_code,
     generate_typed_tests,
-    harness::{run_test_case, StateTransitionTest},
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
 use fr_transition::{
