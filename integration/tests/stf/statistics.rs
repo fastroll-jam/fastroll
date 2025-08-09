@@ -1,13 +1,13 @@
-//! Statistics state transition conformance tests
+//! Statistics state transition integration tests
 use async_trait::async_trait;
 use fr_asn_types::statistics::*;
 use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::Extrinsics},
 };
-use fr_conformance_tests::{
+use fr_integration::{
     generate_typed_tests,
-    harness::{run_test_case, StateTransitionTest},
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{

@@ -1,4 +1,4 @@
-//! Fisher-Yates Shuffle function conformance tests
+//! Fisher-Yates Shuffle function integration tests
 mod shuffle {
     use fr_common::Hash32;
     use fr_extrinsics::utils::shuffle::shuffle_with_hash;

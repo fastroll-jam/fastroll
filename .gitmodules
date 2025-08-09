@@ -1,11 +1,11 @@
-[submodule "conformance-tests/jamtestvectors"]
-	path = conformance-tests/jamtestvectors
+[submodule "integration/jamtestvectors"]
+	path = integration/jamtestvectors
 	url = https://github.com/w3f/jamtestvectors.git
-[submodule "conformance-tests/jamtestvectors-polkajam"]
-	path = conformance-tests/jamtestvectors-polkajam
+[submodule "integration/jamtestvectors-polkajam"]
+	path = integration/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
 	branch = master
-[submodule "conformance-tests/jamtestvectors-pvm"]
-	path = conformance-tests/jamtestvectors-pvm
+[submodule "integration/jamtestvectors-pvm"]
+	path = integration/jamtestvectors-pvm
 	url = https://github.com/koute/jamtestvectors.git
 	branch = master_pvm_initial

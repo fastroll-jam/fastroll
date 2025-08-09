@@ -1,4 +1,4 @@
-//! Accumulate state transition conformance tests
+//! Accumulate state transition integration tests
 #![allow(unused_imports)]
 use async_trait::async_trait;
 use fr_asn_types::{
@@ -8,7 +8,7 @@ use fr_asn_types::{
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::{workloads::WorkReport, Hash32, Octets};
-use fr_conformance_tests::harness::StateTransitionTest;
+use fr_integration::stf_harness::StateTransitionTest;
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,

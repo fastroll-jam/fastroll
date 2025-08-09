@@ -1,4 +1,4 @@
-//! Erasure codec conformance tests
+//! Erasure codec integration tests
 mod erasure {
     use fr_common::{
         utils::{serde::FileLoader, tracing::setup_timed_tracing},
