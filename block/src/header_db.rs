@@ -64,15 +64,10 @@ pub struct BlockHeaderDB {
 }
 
 impl BlockHeaderDB {
-    pub fn new(
-        core: Arc<CoreDB>,
-        cf_name: &'static str,
-        cache_size: usize,
-        best_header: Option<BlockHeader>,
-    ) -> Self {
+    pub fn new(core: Arc<CoreDB>, cf_name: &'static str, cache_size: usize) -> Self {
         Self {
             db: CachedDB::new(core, cf_name, cache_size),
-            best_header: Mutex::new(best_header.unwrap_or_default()),
+            best_header: Mutex::new(BlockHeader::default()),
         }
     }
 

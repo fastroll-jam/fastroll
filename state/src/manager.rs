@@ -1,6 +1,5 @@
 use crate::{
     cache::{CacheEntry, CacheEntryStatus, StateCache, StateMut},
-    config::StateManagerConfig,
     error::StateManagerError,
     provider::HostStateProvider,
     state_db::StateDB,
@@ -22,6 +21,7 @@ use fr_common::{
     CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
     TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
+use fr_config::StorageConfig;
 use fr_crypto::octets_to_hash32;
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
@@ -129,15 +129,19 @@ impl HostStateProvider for StateManager {
 }
 
 impl StateManager {
-    pub fn from_core_db(core_db: Arc<CoreDB>, config: StateManagerConfig) -> Self {
+    pub fn from_core_db(core_db: Arc<CoreDB>, cfg: &StorageConfig) -> Self {
         Self::new(
             StateDB::new(
                 core_db.clone(),
-                config.state_cf_name,
-                config.state_db_cache_size,
+                cfg.cfs.state_db.cf_name,
+                cfg.cfs.state_db.cache_size,
             ),
-            MerkleDB::new(core_db, config.merkle_cf_name, config.merkle_db_cache_size),
-            StateCache::new(config.state_cache_size),
+            MerkleDB::new(
+                core_db,
+                cfg.cfs.merkle_db.cf_name,
+                cfg.cfs.merkle_db.cache_size,
+            ),
+            StateCache::new(cfg.state_cache_size),
         )
     }
 

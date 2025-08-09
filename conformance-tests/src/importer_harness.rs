@@ -3,11 +3,9 @@ use fr_block::types::block::{Block, BlockHeader};
 use fr_common::{
     utils::tracing::setup_timed_tracing, ByteArray, ByteSequence, StateKey, StateRoot,
 };
+use fr_config::StorageConfig;
 use fr_node::roles::importer::BlockImporter;
-use fr_state::{
-    manager::StateManager, state_utils::add_all_simple_state_entries,
-    test_utils::init_db_and_manager,
-};
+use fr_state::{manager::StateManager, state_utils::add_all_simple_state_entries};
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::state::services::AccountStateChanges;
 use regex::Regex;
@@ -18,6 +16,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tempfile::tempdir;
 // --- ASN Types
 
 pub type AsnStateKey = ByteArray<31>;
@@ -137,13 +136,10 @@ impl BlockImportHarness {
     }
 
     fn init_node_storage() -> NodeStorage {
-        let (header_db, xt_db, state_manager, post_state_root_db) = init_db_and_manager(None);
-        NodeStorage::new(
-            Arc::new(state_manager),
-            Arc::new(header_db),
-            Arc::new(xt_db),
-            Arc::new(post_state_root_db),
-        )
+        NodeStorage::new(StorageConfig::from_path(
+            tempdir().unwrap().path().join("test_db"),
+        ))
+        .expect("Failed to initialize NodeStorage with tempdir")
     }
 
     async fn commit_pre_state(

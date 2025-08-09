@@ -6,6 +6,8 @@ edition.workspace = true
 [dependencies]
 fr-block = { workspace = true }
 fr-common = { workspace = true }
+fr-config = { workspace = true }
+fr-db = { workspace = true }
 fr-state = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }

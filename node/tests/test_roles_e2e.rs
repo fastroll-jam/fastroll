@@ -1,5 +1,6 @@
 //! End-to-end state transition tests
 use fr_common::utils::tracing::setup_timed_tracing;
+use fr_config::StorageConfig;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
     genesis::{genesis_simple_state, load_genesis_block_from_file},
@@ -7,7 +8,7 @@ use fr_node::{
     keystore::dev_account_profile::DevNodeAccountProfile,
     roles::{author::BlockAuthor, importer::BlockImporter},
 };
-use fr_state::{state_utils::add_all_simple_state_entries, test_utils::init_db_and_manager};
+use fr_state::state_utils::add_all_simple_state_entries;
 use fr_storage::node_storage::NodeStorage;
 use std::{
     error::Error,
@@ -15,14 +16,19 @@ use std::{
     sync::Arc,
 };
 
+fn init_node_storage(node_id: &str) -> NodeStorage {
+    NodeStorage::new(StorageConfig::from_node_id(node_id))
+        .expect("Failed to initialize NodeStorage")
+}
+
 /// Mocking DB initialization and genesis state.
 async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode, Box<dyn Error>> {
     // Genesis header is the best header
     let genesis_header = load_genesis_block_from_file().header;
     let genesis_header_hash = genesis_header.hash()?;
-    let (header_db, xt_db, state_manager, post_state_root_db) =
-        init_db_and_manager(Some(genesis_header));
-
+    let storage = Arc::new(init_node_storage(socket_addr_v6.to_string().as_str()));
+    storage.header_db().set_best_header(genesis_header);
+    let state_manager = storage.state_manager();
     // Init genesis simple state with initial validators: active set and pending set
     add_all_simple_state_entries(&state_manager, Some(genesis_simple_state())).await?;
     // Commit genesis state
@@ -30,7 +36,8 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
 
     // Commit posterior state root of the genesis block
     let post_state_root = state_manager.merkle_root();
-    post_state_root_db
+    storage
+        .post_state_root_db()
         .set_post_state_root(&genesis_header_hash, post_state_root)
         .await?;
 
@@ -42,14 +49,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
         Arc::new(NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr_v6)).await?);
 
     // Construct JamNode
-    let node_storage = Arc::new(NodeStorage::new(
-        Arc::new(state_manager),
-        Arc::new(header_db),
-        Arc::new(xt_db),
-        Arc::new(post_state_root_db),
-    ));
-
-    let node = JamNode::new(node_info, node_storage, network_manager);
+    let node = JamNode::new(node_info, storage, network_manager);
 
     // Load initial validator peers from the genesis validator set state
     node.network_manager()

@@ -8,7 +8,6 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
-use fr_state::test_utils::init_db_and_manager;
 use fr_storage::node_storage::NodeStorage;
 use std::{collections::BTreeSet, error::Error, sync::Arc};
 use tokio::{
@@ -44,15 +43,9 @@ pub struct FuzzTargetRunner {
 
 impl FuzzTargetRunner {
     pub fn new(target_peer_info: PeerInfo) -> Self {
-        let (header_db, xt_db, state_manager, post_state_root_db) = init_db_and_manager(None);
-        let node_storage = Arc::new(NodeStorage::new(
-            Arc::new(state_manager),
-            Arc::new(header_db),
-            Arc::new(xt_db),
-            Arc::new(post_state_root_db),
-        ));
+        let storage = NodeStorage::default();
         Self {
-            node_storage,
+            node_storage: Arc::new(storage),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
         }

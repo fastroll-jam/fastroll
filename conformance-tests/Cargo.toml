@@ -8,6 +8,7 @@ publish = false
 fr-asn-types = { path = "asn-types" }
 fr-block = { workspace = true }
 fr-common = { workspace = true }
+fr-config = { workspace = true }
 fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
 fr-node = { workspace = true }
 fr-pvm-core = { workspace = true }
@@ -21,6 +22,7 @@ hex = { workspace = true }
 regex = { workspace = true, features = [] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

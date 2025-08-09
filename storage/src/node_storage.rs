@@ -7,6 +7,8 @@ use fr_block::{
     xt_db::{XtDB, XtDBError},
 };
 use fr_common::{BlockHeaderHash, ByteEncodable};
+use fr_config::StorageConfig;
+use fr_db::core::core_db::{CoreDB, CoreDBError};
 use fr_state::{error::StateManagerError, manager::StateManager, types::EffectiveValidators};
 use std::sync::Arc;
 use thiserror::Error;
@@ -15,6 +17,8 @@ use thiserror::Error;
 pub enum NodeStorageError {
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("CoreDBError: {0}")]
+    CoreDBError(#[from] CoreDBError),
     #[error("BlockHeaderDBError: {0}")]
     BlockHeaderDBError(#[from] BlockHeaderDBError),
     #[error("XtDBError: {0}")]
@@ -50,19 +54,42 @@ impl NodeServerTrait for NodeStorage {
     }
 }
 
+impl Default for NodeStorage {
+    fn default() -> Self {
+        Self::new(StorageConfig::default())
+            .expect("Failed to initialize NodeStorage with default config")
+    }
+}
+
 impl NodeStorage {
-    pub fn new(
-        state_manager: Arc<StateManager>,
-        header_db: Arc<BlockHeaderDB>,
-        xt_db: Arc<XtDB>,
-        post_state_root_db: Arc<PostStateRootDB>,
-    ) -> Self {
-        Self {
+    pub fn new(cfg: StorageConfig) -> Result<Self, NodeStorageError> {
+        let core_db = Arc::new(CoreDB::open(
+            cfg.path.clone(),
+            StorageConfig::rocksdb_opts(),
+            StorageConfig::cf_descriptors(),
+        )?);
+        let header_db = Arc::new(BlockHeaderDB::new(
+            core_db.clone(),
+            cfg.cfs.header_db.cf_name,
+            cfg.cfs.header_db.cache_size,
+        ));
+        let xt_db = Arc::new(XtDB::new(
+            core_db.clone(),
+            cfg.cfs.xt_db.cf_name,
+            cfg.cfs.xt_db.cache_size,
+        ));
+        let post_state_root_db = Arc::new(PostStateRootDB::new(
+            core_db.clone(),
+            cfg.cfs.post_state_root_db.cf_name,
+            cfg.cfs.post_state_root_db.cache_size,
+        ));
+        let state_manager = Arc::new(StateManager::from_core_db(core_db, &cfg));
+        Ok(Self {
             state_manager,
             header_db,
             xt_db,
             post_state_root_db,
-        }
+        })
     }
 
     pub fn state_manager(&self) -> Arc<StateManager> {

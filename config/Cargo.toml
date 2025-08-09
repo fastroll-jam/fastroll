@@ -1,0 +1,7 @@
+[package]
+name = "fr-config"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+fr-db = { workspace = true }
