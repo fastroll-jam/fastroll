@@ -141,9 +141,6 @@ impl BlockImporter {
             return Ok(post_state_root);
         }
 
-        // Validate Xts
-        Self::validate_xts(&storage, &block).await?; // TODO: consider removing upfront validation
-
         // Validate header fields (prior to STF)
         Self::validate_block_header_prior_stf(&storage, &block).await?;
         // Re-execute STF
@@ -158,6 +155,7 @@ impl BlockImporter {
 
     /// Note: Currently, each STF validates Xt types as well. Up-front Xt validations might work
     /// incorrectly, since some validation rules need to refer to partially transitioned state.
+    #[allow(dead_code)]
     async fn validate_xts(storage: &NodeStorage, block: &Block) -> Result<(), BlockImportError> {
         let prior_timeslot = storage.state_manager().get_timeslot_clean().await?;
         let curr_timeslot_index = block.header.timeslot_index();
