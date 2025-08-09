@@ -809,13 +809,9 @@ name = "fastroll"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fr-codec",
  "fr-common",
- "fr-crypto",
  "fr-fuzz",
- "fr-network",
  "fr-node",
- "serde",
  "tokio",
 ]
 
@@ -848,7 +844,6 @@ dependencies = [
  "fr-crypto",
  "fr-merkle",
  "fr-state",
- "hex",
  "serde",
 ]
 
@@ -978,7 +973,6 @@ dependencies = [
  "fr-block",
  "fr-codec",
  "fr-common",
- "fr-config",
  "fr-node",
  "fr-storage",
  "tokio",
@@ -1065,7 +1059,6 @@ dependencies = [
  "fr-common",
  "fr-config",
  "fr-crypto",
- "fr-db",
  "fr-extrinsics",
  "fr-limited-vec",
  "fr-network",

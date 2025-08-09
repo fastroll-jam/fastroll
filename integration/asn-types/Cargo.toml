@@ -12,5 +12,4 @@ fr-crypto = { workspace = true }
 fr-merkle = { workspace = true }
 fr-state = { workspace = true }
 bit-vec = { workspace = true }
-hex = { workspace = true }
 serde = { workspace = true }
