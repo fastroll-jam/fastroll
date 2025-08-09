@@ -4,7 +4,7 @@
 [submodule "conformance-tests/jamtestvectors-polkajam"]
 	path = conformance-tests/jamtestvectors-polkajam
 	url = https://github.com/davxy/jam-test-vectors.git
-	branch = v0.6.7
+	branch = master
 [submodule "conformance-tests/jamtestvectors-pvm"]
 	path = conformance-tests/jamtestvectors-pvm
 	url = https://github.com/koute/jamtestvectors.git
