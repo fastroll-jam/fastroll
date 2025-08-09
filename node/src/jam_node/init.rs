@@ -13,7 +13,7 @@ use fr_storage::node_storage::NodeStorage;
 use std::{error::Error, sync::Arc};
 
 fn init_storage(cfg: StorageConfig) -> Result<Arc<NodeStorage>, Box<dyn Error>> {
-    Ok(Arc::new(NodeStorage::new(cfg, None)?))
+    Ok(Arc::new(NodeStorage::new(cfg)?))
 }
 
 async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {

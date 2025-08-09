@@ -136,10 +136,9 @@ impl BlockImportHarness {
     }
 
     fn init_node_storage() -> NodeStorage {
-        NodeStorage::new(
-            StorageConfig::from_path(tempdir().unwrap().path().join("test_db")),
-            None,
-        )
+        NodeStorage::new(StorageConfig::from_path(
+            tempdir().unwrap().path().join("test_db"),
+        ))
         .expect("Failed to initialize NodeStorage with tempdir")
     }
 

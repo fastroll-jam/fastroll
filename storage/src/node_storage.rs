@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use fr_block::{
     header_db::{BlockHeaderDB, BlockHeaderDBError},
     post_state_root_db::PostStateRootDB,
-    types::block::{Block, BlockHeader},
+    types::block::Block,
     xt_db::{XtDB, XtDBError},
 };
 use fr_common::{BlockHeaderHash, ByteEncodable};
@@ -56,16 +56,13 @@ impl NodeServerTrait for NodeStorage {
 
 impl Default for NodeStorage {
     fn default() -> Self {
-        Self::new(StorageConfig::default(), None)
+        Self::new(StorageConfig::default())
             .expect("Failed to initialize NodeStorage with default config")
     }
 }
 
 impl NodeStorage {
-    pub fn new(
-        cfg: StorageConfig,
-        best_header: Option<BlockHeader>,
-    ) -> Result<Self, NodeStorageError> {
+    pub fn new(cfg: StorageConfig) -> Result<Self, NodeStorageError> {
         let core_db = Arc::new(CoreDB::open(
             cfg.path.clone(),
             StorageConfig::rocksdb_opts(),
@@ -75,7 +72,6 @@ impl NodeStorage {
             core_db.clone(),
             cfg.cfs.header_db.cf_name,
             cfg.cfs.header_db.cache_size,
-            best_header,
         ));
         let xt_db = Arc::new(XtDB::new(
             core_db.clone(),

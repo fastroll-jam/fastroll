@@ -1,5 +1,5 @@
 use crate::{cache::StateCache, manager::StateManager, state_db::StateDB};
-use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
+use fr_block::header_db::BlockHeaderDB;
 use fr_config::{
     StorageConfig, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, MERKLE_CF_NAME, MERKLE_DB_CACHE_SIZE,
     STATE_CACHE_SIZE, STATE_CF_NAME, STATE_DB_CACHE_SIZE,
@@ -19,8 +19,8 @@ fn init_core_db() -> CoreDB {
     .unwrap()
 }
 
-fn init_header_db(core_db: Arc<CoreDB>, best_header: Option<BlockHeader>) -> BlockHeaderDB {
-    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE, best_header)
+fn init_header_db(core_db: Arc<CoreDB>) -> BlockHeaderDB {
+    BlockHeaderDB::new(core_db, HEADER_CF_NAME, HEADER_DB_CACHE_SIZE)
 }
 
 fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
@@ -30,10 +30,10 @@ fn init_state_manager(core_db: Arc<CoreDB>) -> StateManager {
     StateManager::new(state_db, merkle_db, state_cache)
 }
 
-pub fn init_db_and_manager(best_header: Option<BlockHeader>) -> (BlockHeaderDB, StateManager) {
+pub fn init_db_and_manager() -> (BlockHeaderDB, StateManager) {
     let core_db = Arc::new(init_core_db());
     (
-        init_header_db(core_db.clone(), best_header),
+        init_header_db(core_db.clone()),
         init_state_manager(core_db.clone()),
     )
 }
