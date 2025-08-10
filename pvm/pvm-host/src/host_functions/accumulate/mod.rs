@@ -53,6 +53,12 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         let Ok(registrar) = vm.regs[10].as_service_id() else {
             continue_who!()
         };
+        let Ok(always_accumulate_offset) = vm.regs[11].as_mem_address() else {
+            host_call_panic!()
+        };
+        let Ok(always_accumulates_count) = vm.regs[12].as_usize() else {
+            host_call_panic!()
+        };
 
         // Read assign services from the memory
         if !vm
@@ -71,13 +77,6 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                 4,
             )?)
         }
-
-        let Ok(always_accumulate_offset) = vm.regs[11].as_mem_address() else {
-            host_call_panic!()
-        };
-        let Ok(always_accumulates_count) = vm.regs[12].as_usize() else {
-            host_call_panic!()
-        };
 
         // Read always-accumulate services from the memory
         if !vm
