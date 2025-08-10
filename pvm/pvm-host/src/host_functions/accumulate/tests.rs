@@ -8,8 +8,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_tracing, AuthHash, ByteEncodable, CoreIndex, ServiceId, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
+    utils::tracing::setup_tracing, AuthHash, ByteEncodable, CoreIndex, ServiceId, SignedGas,
+    AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -879,6 +879,151 @@ mod designate_tests {
         // Check partial state after host-call
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(x.partial_state.new_staging_set, None);
+        Ok(())
+    }
+}
+
+mod checkpoint_tests {
+    use super::*;
+
+    struct CheckpointTestFixture {
+        accumulate_host: ServiceId,
+        privileged_services: PrivilegedServices,
+        prev_gas_remaining: SignedGas,
+    }
+
+    impl Default for CheckpointTestFixture {
+        fn default() -> Self {
+            Self {
+                accumulate_host: 1,
+                privileged_services: PrivilegedServices {
+                    manager_service: 2,
+                    assign_services: AssignServices::try_from(
+                        (10..10 + CORE_COUNT as ServiceId).collect::<Vec<_>>(),
+                    )
+                    .unwrap(),
+                    designate_service: 3,
+                    registrar_service: 4,
+                    always_accumulate_services: AlwaysAccumulateServices::from_iter([
+                        (100, 1000),
+                        (101, 2000),
+                    ]),
+                },
+                prev_gas_remaining: 100,
+            }
+        }
+    }
+
+    impl CheckpointTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            Ok(VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(self.prev_gas_remaining))
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .with_privileged_services(PrivilegedServices {
+                    manager_service: self.privileged_services.manager_service,
+                    assign_services: self.privileged_services.assign_services.clone(),
+                    designate_service: self.privileged_services.designate_service,
+                    registrar_service: self.privileged_services.registrar_service,
+                    always_accumulate_services: self
+                        .privileged_services
+                        .always_accumulate_services
+                        .clone(),
+                })
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful(self) -> HostCallResult {
+            let gas_charge = HOSTCALL_BASE_GAS_CHARGE;
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge,
+                    r7_write: Some((self.prev_gas_remaining - gas_charge as SignedGas) as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_checkpoint_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = CheckpointTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Compare accumulate context X & Y before host-call
+        let x = context.get_accumulate_x().unwrap();
+        let y = context.get_accumulate_y().unwrap();
+        assert_ne!(
+            x.partial_state.manager_service,
+            y.partial_state.manager_service
+        );
+        assert_ne!(
+            x.partial_state.assign_services,
+            y.partial_state.assign_services
+        );
+        assert_ne!(
+            x.partial_state.designate_service,
+            y.partial_state.designate_service
+        );
+        assert_ne!(
+            x.partial_state.registrar_service,
+            y.partial_state.registrar_service
+        );
+        assert_ne!(
+            x.partial_state.always_accumulate_services,
+            y.partial_state.always_accumulate_services
+        );
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_checkpoint(&vm, &mut context)?;
+        assert_eq!(res, fixture.host_call_result_successful());
+
+        // Compare accumulate context X & Y after host-call
+        let x = context.get_accumulate_x().unwrap();
+        let y = context.get_accumulate_y().unwrap();
+        assert_eq!(
+            x.partial_state.manager_service,
+            y.partial_state.manager_service
+        );
+        assert_eq!(
+            x.partial_state.assign_services,
+            y.partial_state.assign_services
+        );
+        assert_eq!(
+            x.partial_state.designate_service,
+            y.partial_state.designate_service
+        );
+        assert_eq!(
+            x.partial_state.registrar_service,
+            y.partial_state.registrar_service
+        );
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            y.partial_state.always_accumulate_services
+        );
         Ok(())
     }
 }

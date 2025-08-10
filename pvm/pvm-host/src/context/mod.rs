@@ -75,6 +75,14 @@ impl<S: HostStateProvider> InvocationContext<S> {
         }
     }
 
+    pub fn get_accumulate_y(&self) -> Option<&AccumulateHostContext<S>> {
+        if let InvocationContext::X_A(ref pair) = self {
+            Some(pair.get_y())
+        } else {
+            None
+        }
+    }
+
     pub fn get_mut_accumulate_x(&mut self) -> Option<&mut AccumulateHostContext<S>> {
         if let InvocationContext::X_A(ref mut pair) = self {
             Some(pair.get_mut_x())
