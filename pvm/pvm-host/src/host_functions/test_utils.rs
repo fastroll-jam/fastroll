@@ -5,7 +5,8 @@ use crate::context::{
 };
 use async_trait::async_trait;
 use fr_common::{
-    Balance, EntropyHash, LookupsKey, PreimagesKey, ServiceId, SignedGas, StorageKey, TimeslotIndex,
+    Balance, CoreIndex, EntropyHash, LookupsKey, PreimagesKey, ServiceId, SignedGas, StorageKey,
+    TimeslotIndex,
 };
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
@@ -23,7 +24,7 @@ use fr_state::{
     provider::HostStateProvider,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
-        AccountPreimagesEntry, AccountStorageEntry, Timeslot,
+        AccountPreimagesEntry, AccountStorageEntry, AuthQueue, Timeslot,
     },
 };
 use std::{collections::HashMap, error::Error, ops::Range, sync::Arc};
@@ -49,12 +50,17 @@ impl MockAccountState {
 pub(crate) struct MockStateManager {
     accounts: HashMap<ServiceId, MockAccountState>,
     privileges: PrivilegedServices,
+    auth_queue: AuthQueue,
 }
 
 #[async_trait]
 impl HostStateProvider for MockStateManager {
     async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError> {
         Ok(self.privileges.clone())
+    }
+
+    async fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
+        Ok(self.auth_queue.clone())
     }
 
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
@@ -125,6 +131,11 @@ impl MockStateManager {
 
     pub(crate) fn with_privileged_services(mut self, privileges: PrivilegedServices) -> Self {
         self.privileges = privileges;
+        self
+    }
+
+    pub(crate) fn with_auth_queue(mut self, auth_queue: AuthQueue) -> Self {
+        self.auth_queue = auth_queue;
         self
     }
 
@@ -345,6 +356,26 @@ impl InvocationContextBuilder {
             context_pair.y.partial_state.registrar_service = privileged_services.registrar_service;
             context_pair.y.partial_state.always_accumulate_services =
                 privileged_services.always_accumulate_services;
+        }
+        self
+    }
+
+    pub(crate) fn with_auth_queue(mut self, auth_queue: AuthQueue) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.partial_state.auth_queue = auth_queue.clone();
+            context_pair.y.partial_state.auth_queue = auth_queue;
+        }
+        self
+    }
+
+    pub(crate) fn with_assign_service(
+        mut self,
+        core_index: CoreIndex,
+        assign_service: ServiceId,
+    ) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.partial_state.assign_services[core_index as usize] = assign_service;
+            context_pair.y.partial_state.assign_services[core_index as usize] = assign_service;
         }
         self
     }

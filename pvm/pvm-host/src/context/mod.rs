@@ -7,8 +7,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    Balance, CodeHash, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex, UnsignedGas,
-    CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
+    Balance, CodeHash, CoreIndex, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex,
+    UnsignedGas, CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_limited_vec::FixedVec;
@@ -22,7 +22,9 @@ use fr_pvm_types::{
 };
 use fr_state::{
     provider::HostStateProvider,
-    types::{AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, AuthQueue, StagingSet},
+    types::{
+        AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata, CoreAuthQueue, StagingSet,
+    },
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -284,8 +286,12 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         self.partial_state.assign_services[core_index] = assign_service;
     }
 
-    pub fn assign_new_auth_queue(&mut self, auth_queue: AuthQueue) {
-        self.partial_state.new_auth_queue = Some(auth_queue);
+    pub fn assign_core_auth_queue(
+        &mut self,
+        core_index: CoreIndex,
+        core_auth_queue: CoreAuthQueue,
+    ) {
+        self.partial_state.auth_queue.0[core_index as usize] = core_auth_queue;
     }
 
     pub fn assign_new_staging_set(&mut self, staging_set: StagingSet) {

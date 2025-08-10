@@ -6,9 +6,9 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex, UnsignedGas,
-    AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD,
-    PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas, TimeslotIndex,
+    UnsignedGas, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MIN_PUBLIC_SERVICE_ID,
+    PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
@@ -22,7 +22,7 @@ use fr_state::{
     provider::HostStateProvider,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-        AuthQueue, StagingSet, Timeslot,
+        CoreAuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
@@ -155,7 +155,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_huh!()
         }
 
-        let mut queue_assignment = AuthQueue::default();
+        let mut new_core_auth_queue = CoreAuthQueue::default();
         for i in 0..AUTH_QUEUE_SIZE {
             let Ok(authorizer) = vm
                 .memory
@@ -163,10 +163,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             else {
                 host_call_panic!()
             };
-            queue_assignment.0[core_index][i] = AuthHash::decode(&mut authorizer.as_slice())?;
+            new_core_auth_queue[i] = AuthHash::decode(&mut authorizer.as_slice())?;
         }
 
-        x.assign_new_auth_queue(queue_assignment);
+        x.assign_core_auth_queue(core_index as CoreIndex, new_core_auth_queue);
         x.assign_new_core_assign_service(core_index, core_assign_service);
         tracing::debug!("ASSIGN core={core_index} new_assigner={core_assign_service}",);
         continue_ok!()
