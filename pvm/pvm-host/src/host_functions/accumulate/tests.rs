@@ -9,7 +9,10 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, ByteEncodable, CoreIndex, ServiceId, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE,
+    CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
+};
+use fr_crypto::types::{
+    BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
 };
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
@@ -19,7 +22,7 @@ use fr_pvm_types::{
 };
 use fr_state::types::{
     privileges::AssignServices, AlwaysAccumulateServices, AuthQueue, CoreAuthQueue,
-    PrivilegedServices,
+    PrivilegedServices, StagingSet,
 };
 use std::{error::Error, ops::Range, sync::Arc};
 
@@ -636,7 +639,7 @@ mod assign_tests {
     }
 
     #[tokio::test]
-    async fn test_assign_mem_accumulate_host_not_assigner() -> Result<(), Box<dyn Error>> {
+    async fn test_assign_accumulate_host_not_assigner() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let accumulate_host = 2;
         let fixture = AssignTestFixture {
@@ -695,6 +698,187 @@ mod assign_tests {
             x.partial_state.assign_services[fixture.core_index as usize],
             fixture.prev_assign_service
         );
+        Ok(())
+    }
+}
+
+mod designate_tests {
+    use super::*;
+
+    struct DesignateTestFixture {
+        accumulate_host: ServiceId,
+        staging_set_offset: MemAddress,
+        prev_designator: ServiceId,
+        new_staging_set: StagingSet,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for DesignateTestFixture {
+        fn default() -> Self {
+            let validator = ValidatorKey {
+                bandersnatch: BandersnatchPubKey::from_hex("0x123").unwrap(),
+                ed25519: Ed25519PubKey::from_hex("0x456").unwrap(),
+                ..Default::default()
+            };
+            let validators = vec![validator.clone(); VALIDATOR_COUNT];
+            let new_staging_set = StagingSet(ValidatorKeySet(
+                ValidatorKeys::try_from(validators).unwrap(),
+            ));
+            let staging_set_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range =
+                staging_set_offset..staging_set_offset + 336 * VALIDATOR_COUNT as MemAddress;
+
+            Self {
+                accumulate_host: 1,
+                staging_set_offset,
+                prev_designator: 1,
+                new_staging_set,
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl DesignateTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.staging_set_offset)
+                .with_mem_data(
+                    self.staging_set_offset,
+                    self.new_staging_set.encode()?.as_slice(),
+                )
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+            accumulate_host: Option<ServiceId>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            let accumulate_host = accumulate_host.unwrap_or(self.accumulate_host);
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    accumulate_host,
+                )
+                .await?
+                .with_designate_service(self.prev_designator)
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_designate_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = DesignateTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), None)
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(
+            x.partial_state.new_staging_set,
+            Some(fixture.new_staging_set)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_designate_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = DesignateTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), None)
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.new_staging_set, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_designate_accumulate_host_not_designator() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = 2;
+        let fixture = DesignateTestFixture {
+            accumulate_host,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), Some(accumulate_host))
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_designate(&vm, &mut context)?;
+        assert_eq!(res, DesignateTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.new_staging_set, None);
         Ok(())
     }
 }

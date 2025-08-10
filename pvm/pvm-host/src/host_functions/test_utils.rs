@@ -380,6 +380,14 @@ impl InvocationContextBuilder {
         self
     }
 
+    pub(crate) fn with_designate_service(mut self, designate_service: ServiceId) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.partial_state.designate_service = designate_service;
+            context_pair.y.partial_state.designate_service = designate_service;
+        }
+        self
+    }
+
     pub(crate) fn build(self) -> InvocationContext<MockStateManager> {
         match self {
             Self::X_I(context) => InvocationContext::X_I(context),
