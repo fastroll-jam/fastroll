@@ -324,12 +324,70 @@ mod bless_tests {
 
     #[tokio::test]
     async fn test_bless_mem_not_readable_assign_services() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = BlessTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert_eq!(
+            x.partial_state.assign_services,
+            fixture.prev_assign_services
+        );
+        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
+        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_bless_mem_not_readable_always_accumulate_services() -> Result<(), Box<dyn Error>>
     {
+        setup_tracing();
+        let fixture = BlessTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
+        assert_eq!(res, BlessTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
+        assert_eq!(
+            x.partial_state.assign_services,
+            fixture.prev_assign_services
+        );
+        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
+        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
+        assert_eq!(
+            x.partial_state.always_accumulate_services,
+            fixture.prev_always_accumulate_services
+        );
         Ok(())
     }
 }
