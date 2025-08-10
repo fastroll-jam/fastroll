@@ -8,8 +8,8 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_tracing, AuthHash, ByteEncodable, CoreIndex, ServiceId, SignedGas,
-    AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
+    utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex,
+    ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -1025,5 +1025,24 @@ mod checkpoint_tests {
             y.partial_state.always_accumulate_services
         );
         Ok(())
+    }
+}
+
+mod new_tests {
+    use super::*;
+
+    #[allow(dead_code)]
+    struct NewTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_balance: Balance,
+        code_hash_offset: MemAddress,
+        service_code_length: RegValue,
+        gas_limit_accumulate: RegValue,
+        gas_limit_on_transfer: RegValue,
+        gratis_storage_offset: RegValue,
+        new_small_service_id: RegValue,
+        code_hash: CodeHash,
+        mem_readable_range: Range<MemAddress>,
+        curr_timeslot_index: TimeslotIndex,
     }
 }
