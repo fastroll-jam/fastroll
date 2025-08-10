@@ -398,7 +398,6 @@ mod bless_tests {
     }
 }
 
-#[allow(dead_code)]
 mod assign_tests {
     use super::*;
 
@@ -406,7 +405,7 @@ mod assign_tests {
         accumulate_host: ServiceId,
         core_index: RegValue,
         auth_offset: MemAddress,
-        prev_assign_service: RegValue,
+        prev_assign_service: ServiceId,
         new_assign_service: RegValue,
         prev_auth_queue: AuthQueue,
         new_core_auth_queue: CoreAuthQueue,
@@ -479,18 +478,17 @@ mod assign_tests {
         async fn prepare_invocation_context(
             &self,
             state_provider: Arc<MockStateManager>,
+            accumulate_host: Option<ServiceId>,
         ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            let accumulate_host = accumulate_host.unwrap_or(self.accumulate_host);
             Ok(
                 InvocationContextBuilder::accumulate_context_builder_default(
                     state_provider,
-                    self.accumulate_host,
+                    accumulate_host,
                 )
                 .await?
                 .with_auth_queue(self.prev_auth_queue.clone())
-                .with_assign_service(
-                    self.core_index as CoreIndex,
-                    self.prev_assign_service as ServiceId,
-                )
+                .with_assign_service(self.core_index as CoreIndex, self.prev_assign_service)
                 .build(),
             )
         }
@@ -566,7 +564,7 @@ mod assign_tests {
             .build();
         let state_provider = Arc::new(fixture.prepare_state_provider());
         let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
+            .prepare_invocation_context(state_provider.clone(), None)
             .await?;
 
         // Check host-call result
@@ -579,6 +577,123 @@ mod assign_tests {
         assert_eq!(
             x.partial_state.assign_services[fixture.core_index as usize],
             fixture.new_assign_service as ServiceId
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_assign_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = AssignTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), None)
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_assign(&vm, &mut context)?;
+        assert_eq!(res, AssignTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
+        assert_eq!(
+            x.partial_state.assign_services[fixture.core_index as usize],
+            fixture.prev_assign_service
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_assign_invalid_core_index() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = AssignTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(7, RegValue::MAX) // overwrite core index with invalid value
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), None)
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_assign(&vm, &mut context)?;
+        assert_eq!(res, AssignTestFixture::host_call_result_core());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
+        assert_eq!(
+            x.partial_state.assign_services[fixture.core_index as usize],
+            fixture.prev_assign_service
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_assign_mem_accumulate_host_not_assigner() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let accumulate_host = 2;
+        let fixture = AssignTestFixture {
+            accumulate_host,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), Some(accumulate_host))
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_assign(&vm, &mut context)?;
+        assert_eq!(res, AssignTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
+        assert_eq!(
+            x.partial_state.assign_services[fixture.core_index as usize],
+            fixture.prev_assign_service
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_assign_invalid_service_id() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = AssignTestFixture {
+            new_assign_service: RegValue::MAX,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone(), None)
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_assign(&vm, &mut context)?;
+        assert_eq!(res, AssignTestFixture::host_call_result_who());
+
+        // Check partial state after host-call
+        // Partial state should remain unchanged
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.auth_queue, fixture.prev_auth_queue);
+        assert_eq!(
+            x.partial_state.assign_services[fixture.core_index as usize],
+            fixture.prev_assign_service
         );
         Ok(())
     }
