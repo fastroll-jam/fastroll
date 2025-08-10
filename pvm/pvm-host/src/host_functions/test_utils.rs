@@ -344,17 +344,10 @@ impl InvocationContextBuilder {
     ) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.partial_state.manager_service = privileged_services.manager_service;
-            context_pair.x.partial_state.assign_services =
-                privileged_services.assign_services.clone();
+            context_pair.x.partial_state.assign_services = privileged_services.assign_services;
             context_pair.x.partial_state.designate_service = privileged_services.designate_service;
             context_pair.x.partial_state.registrar_service = privileged_services.registrar_service;
             context_pair.x.partial_state.always_accumulate_services =
-                privileged_services.always_accumulate_services.clone();
-            context_pair.y.partial_state.manager_service = privileged_services.manager_service;
-            context_pair.y.partial_state.assign_services = privileged_services.assign_services;
-            context_pair.y.partial_state.designate_service = privileged_services.designate_service;
-            context_pair.y.partial_state.registrar_service = privileged_services.registrar_service;
-            context_pair.y.partial_state.always_accumulate_services =
                 privileged_services.always_accumulate_services;
         }
         self
@@ -362,8 +355,7 @@ impl InvocationContextBuilder {
 
     pub(crate) fn with_auth_queue(mut self, auth_queue: AuthQueue) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
-            context_pair.x.partial_state.auth_queue = auth_queue.clone();
-            context_pair.y.partial_state.auth_queue = auth_queue;
+            context_pair.x.partial_state.auth_queue = auth_queue;
         }
         self
     }
@@ -375,7 +367,6 @@ impl InvocationContextBuilder {
     ) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.partial_state.assign_services[core_index as usize] = assign_service;
-            context_pair.y.partial_state.assign_services[core_index as usize] = assign_service;
         }
         self
     }
@@ -383,7 +374,6 @@ impl InvocationContextBuilder {
     pub(crate) fn with_designate_service(mut self, designate_service: ServiceId) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.partial_state.designate_service = designate_service;
-            context_pair.y.partial_state.designate_service = designate_service;
         }
         self
     }
