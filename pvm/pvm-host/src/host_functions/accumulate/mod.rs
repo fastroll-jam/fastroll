@@ -54,14 +54,23 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_who!()
         };
 
+        // Read assign services from the memory
         if !vm
             .memory
             .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
         {
             host_call_panic!()
         }
-        let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
-        let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
+        let Ok(assign_services_data) = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT) else {
+            host_call_panic!()
+        };
+        let mut assign_services = Vec::with_capacity(CORE_COUNT);
+        for i in 0..CORE_COUNT {
+            assign_services.push(ServiceId::decode_fixed(
+                &mut &assign_services_data[i * 4..i * 4 + 4],
+                4,
+            )?)
+        }
 
         let Ok(always_accumulate_offset) = vm.regs[11].as_mem_address() else {
             host_call_panic!()
@@ -70,30 +79,35 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             host_call_panic!()
         };
 
+        // Read always-accumulate services from the memory
         if !vm
             .memory
             .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
         {
             host_call_panic!()
         }
-
+        let Ok(always_accumulate_services_data) = vm
+            .memory
+            .read_bytes(always_accumulate_offset, 12 * always_accumulates_count)
+        else {
+            host_call_panic!()
+        };
         let mut always_accumulate_services = BTreeMap::new();
-
         for i in 0..always_accumulates_count {
-            let Ok(always_accumulate_encoded) = vm
-                .memory
-                .read_bytes(always_accumulate_offset + 12 * i as MemAddress, 12)
-            else {
-                host_call_panic!()
-            };
-            let address = u32::decode_fixed(&mut always_accumulate_encoded.as_slice(), 4)?;
-            let basic_gas = u64::decode_fixed(&mut always_accumulate_encoded.as_slice(), 8)?;
+            let address = ServiceId::decode_fixed(
+                &mut &always_accumulate_services_data[i * 12..i * 12 + 4],
+                4,
+            )?;
+            let basic_gas = UnsignedGas::decode_fixed(
+                &mut &always_accumulate_services_data[i * 12 + 4..i * 12 + 12],
+                8,
+            )?;
             always_accumulate_services.insert(address, basic_gas);
         }
 
         x.assign_new_privileged_services(
             manager,
-            assign_services.clone(),
+            AssignServices::try_from(assign_services.clone())?,
             designate,
             registrar,
             always_accumulate_services.clone(),
