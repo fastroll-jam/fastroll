@@ -7,14 +7,20 @@ use crate::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{utils::tracing::setup_tracing, ServiceId, CORE_COUNT};
+use fr_common::{
+    utils::tracing::setup_tracing, AuthHash, ByteEncodable, CoreIndex, ServiceId, AUTH_QUEUE_SIZE,
+    CORE_COUNT, HASH_SIZE,
+};
 use fr_pvm_core::state::state_change::HostCallVMStateChange;
 use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
 };
-use fr_state::types::{privileges::AssignServices, AlwaysAccumulateServices, PrivilegedServices};
+use fr_state::types::{
+    privileges::AssignServices, AlwaysAccumulateServices, AuthQueue, CoreAuthQueue,
+    PrivilegedServices,
+};
 use std::{error::Error, ops::Range, sync::Arc};
 
 mod bless_tests {
@@ -387,6 +393,192 @@ mod bless_tests {
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
+        );
+        Ok(())
+    }
+}
+
+#[allow(dead_code)]
+mod assign_tests {
+    use super::*;
+
+    struct AssignTestFixture {
+        accumulate_host: ServiceId,
+        core_index: RegValue,
+        auth_offset: MemAddress,
+        prev_assign_service: RegValue,
+        new_assign_service: RegValue,
+        prev_auth_queue: AuthQueue,
+        new_core_auth_queue: CoreAuthQueue,
+        updated_auth_queue: AuthQueue,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for AssignTestFixture {
+        fn default() -> Self {
+            // AuthQueue prior to `ASSIGN` host call
+            let mut prev_auth_queue = AuthQueue::default();
+            for i in 0..CORE_COUNT {
+                for j in 0..AUTH_QUEUE_SIZE {
+                    let mut val = (i * AUTH_QUEUE_SIZE + j).encode().unwrap();
+                    val.resize(HASH_SIZE, 0);
+                    prev_auth_queue.0[i][j] = AuthHash::from_slice(&val).unwrap();
+                }
+            }
+
+            // New CoreAuthQueue assignment
+            let core_index = 1;
+            let new_core_auth_queue = CoreAuthQueue::try_from(vec![
+                AuthHash::from_hex(
+                    "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                )
+                .unwrap();
+                AUTH_QUEUE_SIZE
+            ])
+            .unwrap();
+
+            // Updated AuthQueue after `ASSIGN` host call
+            let mut updated_auth_queue = prev_auth_queue.clone();
+            updated_auth_queue.0[core_index] = new_core_auth_queue.clone();
+
+            let auth_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = auth_offset..auth_offset + 32 * AUTH_QUEUE_SIZE as MemAddress;
+
+            Self {
+                accumulate_host: 1,
+                core_index: core_index as RegValue,
+                auth_offset,
+                prev_assign_service: 1,
+                new_assign_service: 100,
+                prev_auth_queue,
+                new_core_auth_queue,
+                updated_auth_queue,
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl AssignTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.core_index)
+                .with_reg(8, self.auth_offset)
+                .with_reg(9, self.new_assign_service)
+                .with_mem_data(
+                    self.auth_offset,
+                    self.new_core_auth_queue.encode()?.as_slice(),
+                )
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .with_auth_queue(self.prev_auth_queue.clone())
+                .with_assign_service(
+                    self.core_index as CoreIndex,
+                    self.prev_assign_service as ServiceId,
+                )
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_core() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::CORE as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_who() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::WHO as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assign_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = AssignTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_assign(&vm, &mut context)?;
+        assert_eq!(res, AssignTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(x.partial_state.auth_queue, fixture.updated_auth_queue);
+        assert_eq!(
+            x.partial_state.assign_services[fixture.core_index as usize],
+            fixture.new_assign_service as ServiceId
         );
         Ok(())
     }
