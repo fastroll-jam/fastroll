@@ -1033,8 +1033,13 @@ mod checkpoint_tests {
 mod new_tests {
     use super::*;
 
+    const MANAGER_SERVICE: ServiceId = 2;
+    const REGISTRAR_SERVICE: ServiceId = 3;
+
     struct NewTestFixture {
         accumulate_host: ServiceId,
+        manager_service: ServiceId,
+        registrar_service: ServiceId,
         accumulate_host_balance: Balance,
         code_hash_offset: MemAddress,
         code_length: RegValue,
@@ -1060,13 +1065,15 @@ mod new_tests {
                 as ServiceId;
             Self {
                 accumulate_host: 1,
+                manager_service: MANAGER_SERVICE,
+                registrar_service: REGISTRAR_SERVICE,
                 accumulate_host_balance: 10_000_000,
                 code_hash_offset,
                 code_length: 30_000,
                 gas_limit_accumulate: 100,
                 gas_limit_on_transfer: 100,
                 gratis_storage_offset: 0,
-                new_small_service_id: 0,
+                new_small_service_id: MIN_PUBLIC_SERVICE_ID as RegValue + 1,
                 code_hash: CodeHash::from_hex("0x123").unwrap(),
                 mem_readable_range,
                 curr_timeslot_index: 10,
@@ -1107,6 +1114,8 @@ mod new_tests {
                 )
                 .await?
                 .with_next_new_service_id(self.prev_next_new_service_id)
+                .with_manager_service(self.manager_service)
+                .with_registrar_service(self.registrar_service)
                 .build(),
             )
         }
@@ -1238,6 +1247,57 @@ mod new_tests {
 
     #[tokio::test]
     async fn test_new_successful_small_service_id() -> Result<(), Box<dyn Error>> {
+        let small_service_id = 200 as ServiceId;
+        // Invoke as registrar service
+        let fixture = NewTestFixture {
+            accumulate_host: REGISTRAR_SERVICE,
+            new_small_service_id: small_service_id as RegValue,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(12, small_service_id)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let prev_x = context.get_accumulate_x().unwrap();
+        let expected_new_service_id = small_service_id;
+        // New account is not yet added
+        assert!(
+            !prev_x
+                .partial_state
+                .accounts_sandbox
+                .account_exists(state_provider.clone(), expected_new_service_id)
+                .await?
+        );
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(res, fixture.host_call_result_successful_small_service_id());
+
+        // Check partial state after host-call
+
+        // `next_new_service_id` context not updated (added via registrar; no rotation)
+        assert_eq!(x.next_new_service_id, fixture.prev_next_new_service_id);
+        // The new service account added to the partial state
+        assert!(
+            x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, expected_new_service_id)
+                .await?
+        );
+        // TODO: test new account fields (e.g. parent service), parent service balance deducted
         Ok(())
     }
 

@@ -378,6 +378,20 @@ impl InvocationContextBuilder {
         self
     }
 
+    pub(crate) fn with_manager_service(mut self, manager_service: ServiceId) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.partial_state.manager_service = manager_service;
+        }
+        self
+    }
+
+    pub(crate) fn with_registrar_service(mut self, registrar_service: ServiceId) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.partial_state.registrar_service = registrar_service;
+        }
+        self
+    }
+
     pub(crate) fn with_next_new_service_id(mut self, service_id: ServiceId) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.next_new_service_id = service_id;

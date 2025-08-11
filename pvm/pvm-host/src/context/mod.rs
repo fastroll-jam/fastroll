@@ -151,6 +151,18 @@ impl<S: HostStateProvider> AccumulateHostContextPair<S> {
     }
 }
 
+pub struct NewAccountFields {
+    pub code_hash: CodeHash,
+    pub balance: Balance,
+    pub gas_limit_accumulate: UnsignedGas,
+    pub gas_limit_on_transfer: UnsignedGas,
+    pub code_lookups_key: LookupsKey,
+    pub gratis_storage_offset: Balance,
+    pub created_at: TimeslotIndex,
+    pub last_accumulate_at: TimeslotIndex,
+    pub parent_service_id: ServiceId,
+}
+
 /// Represents the contextual state maintained throughout the `accumulate` process.
 ///
 /// This provides the necessary state to manage mutations and track changes during the accumulation.
@@ -352,34 +364,48 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn add_new_account(
+    /// Adds a new _regular_ service account with the `next_new_service_id`
+    /// kept in the accumulation context.
+    pub async fn add_new_regular_account(
         &mut self,
         state_provider: Arc<S>,
-        code_hash: CodeHash,
-        balance: Balance,
-        gas_limit_accumulate: UnsignedGas,
-        gas_limit_on_transfer: UnsignedGas,
-        code_lookups_key: LookupsKey,
-        gratis_storage_offset: Balance,
-        created_at: TimeslotIndex,
-        last_accumulate_at: TimeslotIndex,
-        parent_service_id: ServiceId,
+        new_account_fields: NewAccountFields,
     ) -> Result<ServiceId, HostCallError> {
-        let new_service_id = self.next_new_service_id;
+        self.add_new_account_internal(state_provider, new_account_fields, self.next_new_service_id)
+            .await
+    }
 
+    /// Adds a new _special_ service account to the partial state, which have small IDs and can be
+    /// added via registrar service.
+    pub async fn add_new_special_account(
+        &mut self,
+        state_provider: Arc<S>,
+        new_account_fields: NewAccountFields,
+        special_service_id: ServiceId,
+    ) -> Result<ServiceId, HostCallError> {
+        self.add_new_account_internal(state_provider, new_account_fields, special_service_id)
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn add_new_account_internal(
+        &mut self,
+        state_provider: Arc<S>,
+        new_account_fields: NewAccountFields,
+        new_service_id: ServiceId,
+    ) -> Result<ServiceId, HostCallError> {
         let new_account = AccountSandbox {
             metadata: SandboxEntryVersioned::new_added(AccountMetadata {
-                code_hash,
-                balance,
-                gas_limit_accumulate,
-                gas_limit_on_transfer,
+                code_hash: new_account_fields.code_hash,
+                balance: new_account_fields.balance,
+                gas_limit_accumulate: new_account_fields.gas_limit_accumulate,
+                gas_limit_on_transfer: new_account_fields.gas_limit_on_transfer,
                 octets_footprint: 0,
-                gratis_storage_offset,
+                gratis_storage_offset: new_account_fields.gratis_storage_offset,
                 items_footprint: 0,
-                created_at,
-                last_accumulate_at,
-                parent_service_id,
+                created_at: new_account_fields.created_at,
+                last_accumulate_at: new_account_fields.last_accumulate_at,
+                parent_service_id: new_account_fields.parent_service_id,
             }),
             storage: HashMap::new(),
             preimages: HashMap::new(),
@@ -393,7 +419,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
 
         // Lookups dictionary entry for the code hash preimage entry
         let code_lookups_entry = AccountLookupsEntryExt::from_entry(
-            code_lookups_key.clone(),
+            new_account_fields.code_lookups_key.clone(),
             AccountLookupsEntry::default(),
         );
 
@@ -402,7 +428,7 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .insert_account_lookups_entry(
                 state_provider,
                 new_service_id,
-                code_lookups_key,
+                new_account_fields.code_lookups_key,
                 code_lookups_entry,
             )
             .await?;

@@ -2,7 +2,10 @@
 mod tests;
 
 use crate::{
-    context::InvocationContext, error::HostCallError, host_functions::HostCallResult, macros::*,
+    context::{InvocationContext, NewAccountFields},
+    error::HostCallError,
+    host_functions::HostCallResult,
+    macros::*,
 };
 use fr_codec::prelude::*;
 use fr_common::{
@@ -311,24 +314,30 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         x.subtract_accumulator_balance(state_provider.clone(), new_account_threshold_balance)
             .await?;
 
+        let new_account_fields = NewAccountFields {
+            code_hash: code_hash.clone(),
+            balance: new_account_threshold_balance,
+            gas_limit_accumulate: gas_limit_g,
+            gas_limit_on_transfer: gas_limit_m,
+            code_lookups_key: (code_hash, code_lookup_len),
+            gratis_storage_offset,
+            created_at: curr_timeslot_index,
+            last_accumulate_at: 0,
+            parent_service_id: x.accumulate_host,
+        };
+
         // Add a new account to the partial state
         let new_service_id = if has_small_service_id {
             // Taking small service ids doesn't require rotating the next new service id
-            new_small_service_id
+            x.add_new_special_account(
+                state_provider.clone(),
+                new_account_fields,
+                new_small_service_id,
+            )
+            .await?
         } else {
             let new_service_id = x
-                .add_new_account(
-                    state_provider.clone(),
-                    code_hash.clone(),
-                    new_account_threshold_balance,
-                    gas_limit_g,
-                    gas_limit_m,
-                    (code_hash, code_lookup_len),
-                    gratis_storage_offset,
-                    curr_timeslot_index,
-                    0,
-                    x.accumulate_host,
-                )
+                .add_new_regular_account(state_provider.clone(), new_account_fields)
                 .await?;
 
             // Update the next new service account index in the partial state
