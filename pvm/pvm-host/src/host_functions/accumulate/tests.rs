@@ -10,7 +10,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex,
     ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MIN_PUBLIC_SERVICE_ID, VALIDATOR_COUNT,
+    MIN_PUBLIC_SERVICE_ID, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -20,6 +20,7 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
+    invoke_args::TransferMemo,
 };
 use fr_state::types::{
     privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
@@ -1708,6 +1709,185 @@ mod upgrade_tests {
         assert_eq!(
             accumulate_host.gas_limit_on_transfer,
             fixture.prev_gas_limit_on_transfer
+        );
+        Ok(())
+    }
+}
+
+mod transfer_tests {
+    use super::*;
+    use fr_pvm_types::invoke_args::DeferredTransfer;
+
+    struct TransferTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_balance: Balance,
+        transfer_destination: RegValue,
+        transfer_amount: RegValue,
+        transfer_gas_limit: RegValue,
+        memo_offset: MemAddress,
+        memo: TransferMemo,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for TransferTestFixture {
+        fn default() -> Self {
+            let memo_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = memo_offset..memo_offset + TRANSFER_MEMO_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                accumulate_host_balance: 1_000_000,
+                transfer_destination: 2,
+                transfer_amount: 50_000,
+                transfer_gas_limit: 100,
+                memo_offset,
+                memo: TransferMemo::from_hex("0x616263").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl TransferTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(150)
+                .with_reg(7, self.transfer_destination)
+                .with_reg(8, self.transfer_amount)
+                .with_reg(9, self.transfer_gas_limit)
+                .with_reg(10, self.memo_offset)
+                .with_mem_data(self.memo_offset, self.memo.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_empty_account(self.transfer_destination as ServiceId)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_who(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    r7_write: Some(HostCallReturnCode::WHO as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_low(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    r7_write: Some(HostCallReturnCode::LOW as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_cash(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    r7_write: Some(HostCallReturnCode::CASH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn expected_deferred_transfer(&self) -> DeferredTransfer {
+            DeferredTransfer {
+                from: self.accumulate_host,
+                to: self.transfer_destination as ServiceId,
+                amount: self.transfer_amount,
+                memo: TransferMemo::try_from(self.memo.clone()).unwrap(),
+                gas_limit: self.transfer_gas_limit,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transfer_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = TransferTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_transfer(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        // Deferred transfer added
+        assert_eq!(
+            x.deferred_transfers[x.deferred_transfers.len() - 1].clone(),
+            fixture.expected_deferred_transfer()
+        );
+        // Sender balance deducted
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance,
+            fixture.accumulate_host_balance - fixture.transfer_amount
         );
         Ok(())
     }

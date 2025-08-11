@@ -25,7 +25,9 @@ pub struct AccumulateOperand {
     pub auth_trace: Vec<u8>,
 }
 
-#[derive(Clone, JamEncode)]
+pub type TransferMemo = ByteArray<TRANSFER_MEMO_SIZE>;
+
+#[derive(Clone, Debug, PartialEq, JamEncode)]
 pub struct DeferredTransfer {
     /// `s`: Sender service id
     pub from: ServiceId,
@@ -34,7 +36,7 @@ pub struct DeferredTransfer {
     /// `a`: Token transfer amount
     pub amount: Balance,
     /// `m`: A simple memo transferred alongside the balance
-    pub memo: ByteArray<TRANSFER_MEMO_SIZE>,
+    pub memo: TransferMemo,
     /// `g`: Gas limit for the transfer
     pub gas_limit: UnsignedGas,
 }
