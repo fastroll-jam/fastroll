@@ -378,6 +378,13 @@ impl InvocationContextBuilder {
         self
     }
 
+    pub(crate) fn with_next_new_service_id(mut self, service_id: ServiceId) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.next_new_service_id = service_id;
+        }
+        self
+    }
+
     pub(crate) fn build(self) -> InvocationContext<MockStateManager> {
         match self {
             Self::X_I(context) => InvocationContext::X_I(context),

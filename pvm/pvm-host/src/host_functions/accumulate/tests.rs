@@ -9,7 +9,8 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex,
-    ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, VALIDATOR_COUNT,
+    ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    MIN_PUBLIC_SERVICE_ID, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -1028,15 +1029,15 @@ mod checkpoint_tests {
     }
 }
 
+#[allow(dead_code)]
 mod new_tests {
     use super::*;
 
-    #[allow(dead_code)]
     struct NewTestFixture {
         accumulate_host: ServiceId,
         accumulate_host_balance: Balance,
         code_hash_offset: MemAddress,
-        service_code_length: RegValue,
+        code_length: RegValue,
         gas_limit_accumulate: RegValue,
         gas_limit_on_transfer: RegValue,
         gratis_storage_offset: RegValue,
@@ -1044,5 +1045,219 @@ mod new_tests {
         code_hash: CodeHash,
         mem_readable_range: Range<MemAddress>,
         curr_timeslot_index: TimeslotIndex,
+        prev_next_new_service_id: ServiceId,
+        updated_next_new_service_id: ServiceId,
+    }
+
+    impl Default for NewTestFixture {
+        fn default() -> Self {
+            let code_hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = code_hash_offset..code_hash_offset + HASH_SIZE as MemAddress;
+            let prev_next_new_service_id = 1 << 16;
+            let s = MIN_PUBLIC_SERVICE_ID as u64;
+            let updated_next_new_service_id = (s
+                + (prev_next_new_service_id as u64 - s + 42) % ((1 << 32) - s - (1 << 8)))
+                as ServiceId;
+            Self {
+                accumulate_host: 1,
+                accumulate_host_balance: 10_000_000,
+                code_hash_offset,
+                code_length: 30_000,
+                gas_limit_accumulate: 100,
+                gas_limit_on_transfer: 100,
+                gratis_storage_offset: 0,
+                new_small_service_id: 0,
+                code_hash: CodeHash::from_hex("0x123").unwrap(),
+                mem_readable_range,
+                curr_timeslot_index: 10,
+                prev_next_new_service_id,
+                updated_next_new_service_id,
+            }
+        }
+    }
+
+    impl NewTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.code_hash_offset)
+                .with_reg(8, self.code_length)
+                .with_reg(9, self.gas_limit_accumulate)
+                .with_reg(10, self.gas_limit_on_transfer)
+                .with_reg(11, self.gratis_storage_offset)
+                .with_reg(12, self.new_small_service_id)
+                .with_mem_data(self.code_hash_offset, self.code_hash.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .with_next_new_service_id(self.prev_next_new_service_id)
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful(new_service_id: ServiceId) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(new_service_id as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_successful_small_service_id(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(self.new_small_service_id),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_cash() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::CASH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_full() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::FULL as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_new_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = NewTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let prev_x = context.get_accumulate_x().unwrap();
+        let expected_new_service_id = prev_x.next_new_service_id;
+        // New account is not yet added
+        assert!(
+            !prev_x
+                .partial_state
+                .accounts_sandbox
+                .account_exists(state_provider.clone(), expected_new_service_id)
+                .await?
+        );
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(
+            res,
+            NewTestFixture::host_call_result_successful(expected_new_service_id)
+        );
+
+        // Check partial state after host-call
+
+        // `next_new_service_id` context update (rotated)
+        assert_eq!(x.next_new_service_id, fixture.updated_next_new_service_id);
+        // The new service account added to the partial state
+        assert!(
+            x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, expected_new_service_id)
+                .await?
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_successful_small_service_id() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_gratis_storage_unauthorized() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_insufficient_balance() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_small_service_id_already_taken() -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
