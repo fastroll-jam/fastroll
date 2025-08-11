@@ -1029,7 +1029,6 @@ mod checkpoint_tests {
     }
 }
 
-#[allow(dead_code)]
 mod new_tests {
     use super::*;
 
@@ -1390,21 +1389,147 @@ mod new_tests {
 
     #[tokio::test]
     async fn test_new_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = NewTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, NewTestFixture::host_call_result_panic());
+
+        // No new account added
+        let x = context.get_accumulate_x().unwrap();
+        assert!(
+            !x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, x.next_new_service_id)
+                .await?
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_new_gratis_storage_unauthorized() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = NewTestFixture {
+            gratis_storage_offset: 100,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, NewTestFixture::host_call_result_huh());
+
+        // No new account added
+        let x = context.get_accumulate_x().unwrap();
+        assert!(
+            !x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, x.next_new_service_id)
+                .await?
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_new_insufficient_balance() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = NewTestFixture {
+            accumulate_host_balance: 10_000, // Insufficient balance
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, NewTestFixture::host_call_result_cash());
+
+        // No new account added
+        let x = context.get_accumulate_x().unwrap();
+        assert!(
+            !x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, x.next_new_service_id)
+                .await?
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_new_small_service_id_already_taken() -> Result<(), Box<dyn Error>> {
+        let small_service_id = REGISTRAR_SERVICE; // already taken (initialized as accumulate host)
+
+        // Invoke as registrar service
+        let fixture = NewTestFixture {
+            accumulate_host: REGISTRAR_SERVICE,
+            new_small_service_id: small_service_id as RegValue,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_reg(12, small_service_id)
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_new(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, NewTestFixture::host_call_result_full());
+
+        // No new account added
+        let x = context.get_accumulate_x().unwrap();
+        assert!(
+            !x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider, x.next_new_service_id)
+                .await?
+        );
         Ok(())
     }
 }
