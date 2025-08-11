@@ -22,8 +22,8 @@ use fr_pvm_types::{
     exit_reason::ExitReason,
 };
 use fr_state::types::{
-    privileges::AssignServices, AlwaysAccumulateServices, AuthQueue, CoreAuthQueue,
-    PrivilegedServices, StagingSet,
+    privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
+    AlwaysAccumulateServices, AuthQueue, CoreAuthQueue, PrivilegedServices, StagingSet,
 };
 use std::{error::Error, ops::Range, sync::Arc};
 
@@ -1225,6 +1225,7 @@ mod new_tests {
             fixture.curr_timeslot_index,
         )
         .await?;
+
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(
             res,
@@ -1235,12 +1236,80 @@ mod new_tests {
 
         // `next_new_service_id` context update (rotated)
         assert_eq!(x.next_new_service_id, fixture.updated_next_new_service_id);
+
         // The new service account added to the partial state
         assert!(
             x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, expected_new_service_id)
+                .account_exists(state_provider.clone(), expected_new_service_id)
                 .await?
+        );
+
+        // Check new account fields
+        let x_mut = context.get_mut_accumulate_x().unwrap();
+        let new_account = x_mut
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider.clone(), expected_new_service_id)
+            .await?
+            .unwrap()
+            .clone();
+        assert_eq!(new_account.code_hash, fixture.code_hash);
+        assert_eq!(
+            x_mut
+                .partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    expected_new_service_id,
+                    &(fixture.code_hash, fixture.code_length as u32)
+                )
+                .await?
+                .expect("Lookups entry should be inserted with empty timeslot"),
+            AccountLookupsEntryExt {
+                preimage_length: fixture.code_length as u32,
+                entry: AccountLookupsEntry {
+                    value: vec![].try_into().unwrap()
+                }
+            }
+        );
+        assert_eq!(
+            new_account.balance,
+            AccountMetadata::get_initial_threshold_balance(
+                fixture.code_length as u32,
+                fixture.gratis_storage_offset
+            )
+        );
+        assert_eq!(
+            new_account.gas_limit_accumulate,
+            fixture.gas_limit_accumulate
+        );
+        assert_eq!(
+            new_account.gas_limit_on_transfer,
+            fixture.gas_limit_on_transfer
+        );
+        assert_eq!(new_account.created_at, fixture.curr_timeslot_index);
+        assert_eq!(
+            new_account.gratis_storage_offset,
+            fixture.gratis_storage_offset
+        );
+        assert_eq!(new_account.last_accumulate_at, 0);
+        assert_eq!(new_account.parent_service_id, fixture.accumulate_host);
+
+        // Accumulate host balance should be deducted by the threshold balance of the new account
+        assert_eq!(
+            x_mut
+                .partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .unwrap()
+                .balance,
+            fixture.accumulate_host_balance
+                - AccountMetadata::get_initial_threshold_balance(
+                    fixture.code_length as u32,
+                    fixture.gratis_storage_offset
+                )
         );
         Ok(())
     }
@@ -1283,6 +1352,7 @@ mod new_tests {
             fixture.curr_timeslot_index,
         )
         .await?;
+
         let x = context.get_accumulate_x().unwrap();
         assert_eq!(res, fixture.host_call_result_successful_small_service_id());
 
@@ -1290,14 +1360,81 @@ mod new_tests {
 
         // `next_new_service_id` context not updated (added via registrar; no rotation)
         assert_eq!(x.next_new_service_id, fixture.prev_next_new_service_id);
+
         // The new service account added to the partial state
         assert!(
             x.partial_state
                 .accounts_sandbox
-                .account_exists(state_provider, expected_new_service_id)
+                .account_exists(state_provider.clone(), expected_new_service_id)
                 .await?
         );
-        // TODO: test new account fields (e.g. parent service), parent service balance deducted
+
+        // Check new account fields
+        let x_mut = context.get_mut_accumulate_x().unwrap();
+        let new_account = x_mut
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider.clone(), expected_new_service_id)
+            .await?
+            .unwrap()
+            .clone();
+        assert_eq!(new_account.code_hash, fixture.code_hash);
+        assert_eq!(
+            x_mut
+                .partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    expected_new_service_id,
+                    &(fixture.code_hash, fixture.code_length as u32)
+                )
+                .await?
+                .expect("Lookups entry should be inserted with empty timeslot"),
+            AccountLookupsEntryExt {
+                preimage_length: fixture.code_length as u32,
+                entry: AccountLookupsEntry {
+                    value: vec![].try_into().unwrap()
+                }
+            }
+        );
+        assert_eq!(
+            new_account.balance,
+            AccountMetadata::get_initial_threshold_balance(
+                fixture.code_length as u32,
+                fixture.gratis_storage_offset
+            )
+        );
+        assert_eq!(
+            new_account.gas_limit_accumulate,
+            fixture.gas_limit_accumulate
+        );
+        assert_eq!(
+            new_account.gas_limit_on_transfer,
+            fixture.gas_limit_on_transfer
+        );
+        assert_eq!(new_account.created_at, fixture.curr_timeslot_index);
+        assert_eq!(
+            new_account.gratis_storage_offset,
+            fixture.gratis_storage_offset
+        );
+        assert_eq!(new_account.last_accumulate_at, 0);
+        assert_eq!(new_account.parent_service_id, fixture.accumulate_host);
+
+        // Accumulate host balance should be deducted by the threshold balance of the new account
+        assert_eq!(
+            x_mut
+                .partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .unwrap()
+                .balance,
+            fixture.accumulate_host_balance
+                - AccountMetadata::get_initial_threshold_balance(
+                    fixture.code_length as u32,
+                    fixture.gratis_storage_offset
+                )
+        );
         Ok(())
     }
 
