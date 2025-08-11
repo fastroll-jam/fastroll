@@ -1,5 +1,8 @@
 use crate::{
-    context::InvocationContext,
+    context::{
+        partial_state::{SandboxEntryAccessor, SandboxEntryStatus},
+        InvocationContext,
+    },
     host_functions::{
         accumulate::AccumulateHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
@@ -8,9 +11,9 @@ use crate::{
 };
 use fr_codec::prelude::*;
 use fr_common::{
-    utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex,
+    utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex, Hash32,
     ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MIN_PUBLIC_SERVICE_ID, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -23,8 +26,9 @@ use fr_pvm_types::{
     invoke_args::{DeferredTransfer, TransferMemo},
 };
 use fr_state::types::{
-    privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-    AlwaysAccumulateServices, AuthQueue, CoreAuthQueue, PrivilegedServices, StagingSet,
+    privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt,
+    AccountLookupsEntryTimeslots, AccountMetadata, AlwaysAccumulateServices, AuthQueue,
+    CoreAuthQueue, PrivilegedServices, StagingSet, Timeslot,
 };
 use std::{error::Error, ops::Range, sync::Arc};
 
@@ -2071,6 +2075,216 @@ mod transfer_tests {
                 .balance,
             fixture.accumulate_host_balance
         );
+        Ok(())
+    }
+}
+
+mod eject_tests {
+    use super::*;
+
+    struct EjectTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_balance: Balance,
+        eject_service: ServiceId,
+        eject_service_balance: Balance,
+        eject_service_code_hash: CodeHash,
+        hash_offset: MemAddress,
+        last_preimage_hash: Hash32,
+        last_preimage_length: u32,
+        eject_service_octets_footprint: u64,
+        eject_service_items_footprint: u32,
+        curr_timeslot_index: TimeslotIndex,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for EjectTestFixture {
+        fn default() -> Self {
+            let accumulate_host = 1;
+            let hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
+            let eject_service_octets_footprint = 200u64;
+            let curr_timeslot_index = 20_000;
+            let mut accumulate_host_encoded_32 = accumulate_host.encode_fixed(4).unwrap();
+            accumulate_host_encoded_32.resize(32, 0);
+            Self {
+                accumulate_host,
+                accumulate_host_balance: 100,
+                eject_service: 2,
+                eject_service_balance: 150,
+                eject_service_code_hash: CodeHash::from_slice(
+                    accumulate_host_encoded_32.as_slice(),
+                )
+                .unwrap(),
+                hash_offset,
+                last_preimage_hash: Hash32::from_hex("0x123").unwrap(),
+                last_preimage_length: 81.max(eject_service_octets_footprint as u32) - 81,
+                eject_service_octets_footprint,
+                eject_service_items_footprint: 2,
+                curr_timeslot_index,
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl EjectTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.eject_service)
+                .with_reg(8, self.hash_offset)
+                .with_mem_data(self.hash_offset, self.last_preimage_hash.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_account(
+                    self.eject_service,
+                    AccountMetadata {
+                        balance: self.eject_service_balance,
+                        code_hash: self.eject_service_code_hash.clone(),
+                        items_footprint: self.eject_service_items_footprint,
+                        octets_footprint: self.eject_service_octets_footprint,
+                        ..Default::default()
+                    },
+                )
+                .with_lookups_entry(
+                    self.eject_service,
+                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            Timeslot::new(
+                                self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD - 2,
+                            ),
+                            Timeslot::new(
+                                self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD - 1,
+                            ),
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_who() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::WHO as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_eject_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+
+        // accumulate host balance added by the eject service balance
+        let accumulate_host_balance_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider.clone(), fixture.accumulate_host)
+            .await?
+            .expect("Accumulate host must exist in the partial state")
+            .balance;
+        assert_eq!(
+            accumulate_host_balance_updated,
+            fixture.accumulate_host_balance + fixture.eject_service_balance
+        );
+
+        // eject service account removed from the partial state
+        assert!(
+            !x.partial_state
+                .accounts_sandbox
+                .account_exists(state_provider.clone(), fixture.eject_service)
+                .await?
+                || x.partial_state
+                    .accounts_sandbox
+                    .get_account_sandbox(state_provider, fixture.eject_service)
+                    .await?
+                    .unwrap()
+                    .metadata
+                    .status()
+                    == &SandboxEntryStatus::Removed
+        );
+
         Ok(())
     }
 }

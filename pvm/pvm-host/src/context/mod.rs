@@ -352,10 +352,11 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .await?
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
 
-        account_metadata
+        let added_amount = account_metadata
             .balance
             .checked_add(amount)
             .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
+        account_metadata.balance = added_amount;
         self.partial_state
             .accounts_sandbox
             .mark_account_metadata_updated(state_provider, self.accumulate_host)

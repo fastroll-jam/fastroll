@@ -500,7 +500,9 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_who!()
         };
 
-        let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
+        let mut accumulate_host_encoded_32 = x.accumulate_host.encode_fixed(4)?;
+        accumulate_host_encoded_32.resize(32, 0);
+        let accumulate_host_as_hash = octets_to_hash32(accumulate_host_encoded_32.as_slice())
             .expect("Should not fail convert 32-byte octets into Hash32");
         if eject_account_metadata.code_hash != accumulate_host_as_hash {
             continue_who!()
