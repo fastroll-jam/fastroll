@@ -396,15 +396,15 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
+        let gas_limit = vm.regs[9].value();
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
         let Ok(dest) = vm.regs[7].as_service_id() else {
-            continue_who!()
+            continue_who!(gas_charge)
         };
         let amount = vm.regs[8].value();
-        let gas_limit = vm.regs[9].value();
         let Ok(offset) = vm.regs[10].as_mem_address() else {
-            host_call_panic!()
+            host_call_panic!(gas_charge)
         };
-        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
 
         check_out_of_gas!(vm.gas_counter, gas_charge);
 

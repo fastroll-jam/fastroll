@@ -20,7 +20,7 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
-    invoke_args::TransferMemo,
+    invoke_args::{DeferredTransfer, TransferMemo},
 };
 use fr_state::types::{
     privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
@@ -1716,7 +1716,6 @@ mod upgrade_tests {
 
 mod transfer_tests {
     use super::*;
-    use fr_pvm_types::invoke_args::DeferredTransfer;
 
     struct TransferTestFixture {
         accumulate_host: ServiceId,
@@ -1762,7 +1761,13 @@ mod transfer_tests {
             MockStateManager::builder()
                 .with_empty_account(self.accumulate_host)
                 .with_balance(self.accumulate_host, self.accumulate_host_balance)
-                .with_empty_account(self.transfer_destination as ServiceId)
+                .with_account(
+                    self.transfer_destination as ServiceId,
+                    AccountMetadata {
+                        gas_limit_on_transfer: 100,
+                        ..Default::default()
+                    },
+                )
         }
 
         async fn prepare_invocation_context(
@@ -1888,6 +1893,183 @@ mod transfer_tests {
                 .expect("Accumulate host must exist in the partial state")
                 .balance,
             fixture.accumulate_host_balance - fixture.transfer_amount
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transfer_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = TransferTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let x = context.get_accumulate_x().unwrap();
+        let prev_deferred_transfers = x.deferred_transfers.clone();
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_transfer(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_panic());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        // Deferred transfer not added
+        assert_eq!(x.deferred_transfers, prev_deferred_transfers);
+        // Sender balance unchanged
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance,
+            fixture.accumulate_host_balance
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transfer_destination_not_found() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = TransferTestFixture::default();
+
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+
+        // Change transfer destination to an account that doesn't exist in the `MockStateManager`
+        fixture.transfer_destination = 3;
+
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let x = context.get_accumulate_x().unwrap();
+        let prev_deferred_transfers = x.deferred_transfers.clone();
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_transfer(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_who());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        // Deferred transfer not added
+        assert_eq!(x.deferred_transfers, prev_deferred_transfers);
+        // Sender balance unchanged
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance,
+            fixture.accumulate_host_balance
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transfer_low_gas_limit() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = TransferTestFixture {
+            transfer_gas_limit: 50,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let x = context.get_accumulate_x().unwrap();
+        let prev_deferred_transfers = x.deferred_transfers.clone();
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_transfer(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_low());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        // Deferred transfer not added
+        assert_eq!(x.deferred_transfers, prev_deferred_transfers);
+        // Sender balance unchanged
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance,
+            fixture.accumulate_host_balance
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transfer_insufficient_balance() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = TransferTestFixture {
+            accumulate_host_balance: 0, // Insufficient balance
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        let x = context.get_accumulate_x().unwrap();
+        let prev_deferred_transfers = x.deferred_transfers.clone();
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_transfer(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_cash());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        // Deferred transfer not added
+        assert_eq!(x.deferred_transfers, prev_deferred_transfers);
+        // Sender balance unchanged
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider, fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance,
+            fixture.accumulate_host_balance
         );
         Ok(())
     }
