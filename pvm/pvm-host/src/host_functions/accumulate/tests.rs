@@ -1533,3 +1533,182 @@ mod new_tests {
         Ok(())
     }
 }
+
+mod upgrade_tests {
+    use super::*;
+
+    struct UpgradeTestFixture {
+        accumulate_host: ServiceId,
+        code_hash_offset: MemAddress,
+        gas_limit_accumulate: RegValue,
+        gas_limit_on_transfer: RegValue,
+        code_hash: CodeHash,
+        prev_gas_limit_accumulate: RegValue,
+        prev_gas_limit_on_transfer: RegValue,
+        prev_code_hash: CodeHash,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for UpgradeTestFixture {
+        fn default() -> Self {
+            let code_hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = code_hash_offset..code_hash_offset + HASH_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                code_hash_offset,
+                gas_limit_accumulate: 200,
+                gas_limit_on_transfer: 100,
+                code_hash: CodeHash::from_hex("0x123").unwrap(),
+                prev_gas_limit_accumulate: 2,
+                prev_gas_limit_on_transfer: 1,
+                prev_code_hash: CodeHash::from_hex("0x1").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl UpgradeTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.code_hash_offset)
+                .with_reg(8, self.gas_limit_accumulate)
+                .with_reg(9, self.gas_limit_on_transfer)
+                .with_mem_data(self.code_hash_offset, self.code_hash.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder().with_account(
+                self.accumulate_host,
+                AccountMetadata {
+                    code_hash: self.prev_code_hash.clone(),
+                    gas_limit_accumulate: self.prev_gas_limit_accumulate,
+                    gas_limit_on_transfer: self.prev_gas_limit_on_transfer,
+                    ..Default::default()
+                },
+            )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_upgrade_successful() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = UpgradeTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_upgrade(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, UpgradeTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        let accumulate_host_upgraded = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider, fixture.accumulate_host)
+            .await?
+            .expect("Accumulate host must exist in the partial state");
+
+        assert_eq!(accumulate_host_upgraded.code_hash, fixture.code_hash);
+        assert_eq!(
+            accumulate_host_upgraded.gas_limit_accumulate,
+            fixture.gas_limit_accumulate
+        );
+        assert_eq!(
+            accumulate_host_upgraded.gas_limit_on_transfer,
+            fixture.gas_limit_on_transfer
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upgrade_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = UpgradeTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_upgrade(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, UpgradeTestFixture::host_call_result_panic());
+
+        // Accumulate host account should remain unchanged
+        let x = context.get_mut_accumulate_x().unwrap();
+        let accumulate_host = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_metadata(state_provider, fixture.accumulate_host)
+            .await?
+            .expect("Accumulate host must exist in the partial state");
+
+        assert_eq!(accumulate_host.code_hash, fixture.prev_code_hash);
+        assert_eq!(
+            accumulate_host.gas_limit_accumulate,
+            fixture.prev_gas_limit_accumulate
+        );
+        assert_eq!(
+            accumulate_host.gas_limit_on_transfer,
+            fixture.prev_gas_limit_on_transfer
+        );
+        Ok(())
+    }
+}
