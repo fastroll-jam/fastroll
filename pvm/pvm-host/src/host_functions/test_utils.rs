@@ -5,8 +5,8 @@ use crate::context::{
 };
 use async_trait::async_trait;
 use fr_common::{
-    Balance, CoreIndex, EntropyHash, LookupsKey, PreimagesKey, ServiceId, SignedGas, StorageKey,
-    TimeslotIndex,
+    Balance, CoreIndex, EntropyHash, LookupsKey, Octets, PreimagesKey, ServiceId, SignedGas,
+    StorageKey, TimeslotIndex,
 };
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
@@ -395,6 +395,13 @@ impl InvocationContextBuilder {
     pub(crate) fn with_next_new_service_id(mut self, service_id: ServiceId) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.next_new_service_id = service_id;
+        }
+        self
+    }
+
+    pub(crate) fn with_preimage_provided(mut self, provided: (ServiceId, Octets)) -> Self {
+        if let Self::X_A(ref mut context_pair) = self {
+            context_pair.x.provided_preimages.insert(provided);
         }
         self
     }
