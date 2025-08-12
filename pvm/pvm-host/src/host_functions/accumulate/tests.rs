@@ -1,5 +1,8 @@
 use crate::{
-    context::{partial_state::SandboxEntryAccessor, InvocationContext},
+    context::{
+        partial_state::{SandboxEntryAccessor, SandboxEntryStatus},
+        InvocationContext,
+    },
     host_functions::{
         accumulate::AccumulateHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
@@ -9,7 +12,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex, Hash32,
-    ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
+    Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
     MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
@@ -24,8 +27,8 @@ use fr_pvm_types::{
 };
 use fr_state::types::{
     privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt,
-    AccountLookupsEntryTimeslots, AccountMetadata, AlwaysAccumulateServices, AuthQueue,
-    CoreAuthQueue, PrivilegedServices, StagingSet, Timeslot,
+    AccountLookupsEntryTimeslots, AccountMetadata, AccountPreimagesEntry, AlwaysAccumulateServices,
+    AuthQueue, CoreAuthQueue, PrivilegedServices, StagingSet, Timeslot,
 };
 use std::{error::Error, ops::Range, sync::Arc};
 
@@ -2078,7 +2081,6 @@ mod transfer_tests {
 
 mod eject_tests {
     use super::*;
-    use crate::context::partial_state::SandboxEntryStatus;
 
     struct EjectTestFixture {
         accumulate_host: ServiceId,
@@ -3207,8 +3209,6 @@ mod solicit_tests {
 
 mod forget_tests {
     use super::*;
-    use fr_common::Octets;
-    use fr_state::types::AccountPreimagesEntry;
 
     struct ForgetTestFixture {
         accumulate_host: ServiceId,
@@ -3456,31 +3456,199 @@ mod forget_tests {
 
     #[tokio::test]
     async fn test_forget_successful_timeslots_1() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_1());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    fixture.accumulate_host,
+                    &(fixture.preimage_hash.clone(), fixture.preimage_size)
+                )
+                .await?
+                .unwrap()
+                .entry,
+            AccountLookupsEntry {
+                value: AccountLookupsEntryTimeslots::try_from(vec![
+                    fixture.timeslot_x,
+                    Timeslot::new(fixture.curr_timeslot_index)
+                ])
+                .unwrap()
+            }
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forget_successful_timeslots_2() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        // preimages & lookups entries removed from the partial state
+        ForgetTestFixture::assert_preimages_and_lookups_entries_removed(
+            &mut context,
+            state_provider,
+            &fixture,
+        )
+        .await?;
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forget_successful_timeslots_3() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_3());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert_eq!(
+            x.partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    fixture.accumulate_host,
+                    &(fixture.preimage_hash.clone(), fixture.preimage_size)
+                )
+                .await?
+                .unwrap()
+                .entry,
+            AccountLookupsEntry {
+                value: AccountLookupsEntryTimeslots::try_from(vec![
+                    fixture.timeslot_z,
+                    Timeslot::new(fixture.curr_timeslot_index)
+                ])
+                .unwrap()
+            }
+        );
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forget_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_0());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_panic());
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forget_lookups_entry_not_found() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_lookups_entry());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_huh());
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forget_preimage_not_expired() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture {
+            curr_timeslot_index: 4,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_huh());
         Ok(())
     }
 }
