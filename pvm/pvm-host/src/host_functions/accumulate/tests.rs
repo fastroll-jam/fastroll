@@ -1,5 +1,5 @@
 use crate::{
-    context::InvocationContext,
+    context::{partial_state::SandboxEntryAccessor, InvocationContext},
     host_functions::{
         accumulate::AccumulateHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
@@ -2078,6 +2078,7 @@ mod transfer_tests {
 
 mod eject_tests {
     use super::*;
+    use crate::context::partial_state::SandboxEntryStatus;
 
     struct EjectTestFixture {
         accumulate_host: ServiceId,
@@ -2345,10 +2346,18 @@ mod eject_tests {
 
         // eject service account removed from the partial state
         assert!(
-            x.partial_state
+            !x.partial_state
                 .accounts_sandbox
                 .account_exists(state_provider.clone(), fixture.eject_service)
                 .await?
+                || x.partial_state
+                    .accounts_sandbox
+                    .get_account_sandbox(state_provider, fixture.eject_service)
+                    .await?
+                    .unwrap()
+                    .metadata
+                    .status()
+                    == &SandboxEntryStatus::Removed
         );
         Ok(())
     }
@@ -2988,6 +2997,7 @@ mod solicit_tests {
                 },
             }
         }
+
         fn host_call_result_full() -> HostCallResult {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
@@ -3191,6 +3201,286 @@ mod solicit_tests {
             )
             .await?;
         assert!(lookups_entry_updated.is_none());
+        Ok(())
+    }
+}
+
+mod forget_tests {
+    use super::*;
+    use fr_common::Octets;
+    use fr_state::types::AccountPreimagesEntry;
+
+    struct ForgetTestFixture {
+        accumulate_host: ServiceId,
+        hash_offset: MemAddress,
+        preimage_size: u32,
+        timeslot_x: Timeslot,
+        timeslot_y: Timeslot,
+        timeslot_z: Timeslot,
+        curr_timeslot_index: TimeslotIndex,
+        preimage_hash: Hash32,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for ForgetTestFixture {
+        fn default() -> Self {
+            let hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                hash_offset,
+                preimage_size: 100,
+                timeslot_x: Timeslot::new(1),
+                timeslot_y: Timeslot::new(2),
+                timeslot_z: Timeslot::new(3),
+                curr_timeslot_index: 1000,
+                preimage_hash: Hash32::from_hex("0xffff").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl ForgetTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.hash_offset)
+                .with_reg(8, self.preimage_size)
+                .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
+        }
+
+        fn prepare_state_provider_no_lookups_entry(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        }
+
+        fn prepare_state_provider_timeslots_0(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_preimages_entry(
+                    self.accumulate_host,
+                    self.preimage_hash.clone(),
+                    AccountPreimagesEntry {
+                        value: Octets::from_vec(vec![0; self.preimage_size as usize]),
+                    },
+                )
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![]).unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_1(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_preimages_entry(
+                    self.accumulate_host,
+                    self.preimage_hash.clone(),
+                    AccountPreimagesEntry {
+                        value: Octets::from_vec(vec![0; self.preimage_size as usize]),
+                    },
+                )
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![self.timeslot_x])
+                            .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_2(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_preimages_entry(
+                    self.accumulate_host,
+                    self.preimage_hash.clone(),
+                    AccountPreimagesEntry {
+                        value: Octets::from_vec(vec![0; self.preimage_size as usize]),
+                    },
+                )
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            self.timeslot_x,
+                            self.timeslot_y,
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_3(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_preimages_entry(
+                    self.accumulate_host,
+                    self.preimage_hash.clone(),
+                    AccountPreimagesEntry {
+                        value: Octets::from_vec(vec![0; self.preimage_size as usize]),
+                    },
+                )
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            self.timeslot_x,
+                            self.timeslot_y,
+                            self.timeslot_z,
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        async fn assert_preimages_and_lookups_entries_removed(
+            context: &mut InvocationContext<MockStateManager>,
+            state_provider: Arc<MockStateManager>,
+            fixture: &ForgetTestFixture,
+        ) -> Result<(), Box<dyn Error>> {
+            let x = context.get_mut_accumulate_x().unwrap();
+            // preimages & lookups entries removed from the partial state
+            assert!(x
+                .partial_state
+                .accounts_sandbox
+                .get_account_preimages_entry(
+                    state_provider.clone(),
+                    fixture.accumulate_host,
+                    &fixture.preimage_hash
+                )
+                .await?
+                .is_none());
+            assert!(x
+                .partial_state
+                .accounts_sandbox
+                .get_account_lookups_entry(
+                    state_provider.clone(),
+                    fixture.accumulate_host,
+                    &(fixture.preimage_hash.clone(), fixture.preimage_size)
+                )
+                .await?
+                .is_none());
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_forget_successful_timeslots_0() -> Result<(), Box<dyn Error>> {
+        let fixture = ForgetTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_0());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_forget(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, ForgetTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        // preimages & lookups entries removed from the partial state
+        ForgetTestFixture::assert_preimages_and_lookups_entries_removed(
+            &mut context,
+            state_provider,
+            &fixture,
+        )
+        .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_successful_timeslots_1() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_successful_timeslots_2() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_successful_timeslots_3() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_lookups_entry_not_found() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forget_preimage_not_expired() -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }
