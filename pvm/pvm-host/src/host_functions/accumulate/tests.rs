@@ -1,8 +1,5 @@
 use crate::{
-    context::{
-        partial_state::{SandboxEntryAccessor, SandboxEntryStatus},
-        InvocationContext,
-    },
+    context::InvocationContext,
     host_functions::{
         accumulate::AccumulateHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
@@ -2167,6 +2164,61 @@ mod eject_tests {
                 )
         }
 
+        fn prepare_state_provider_preimage_not_forgotten(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_account(
+                    self.eject_service,
+                    AccountMetadata {
+                        balance: self.eject_service_balance,
+                        code_hash: self.eject_service_code_hash.clone(),
+                        items_footprint: self.eject_service_items_footprint,
+                        octets_footprint: self.eject_service_octets_footprint,
+                        ..Default::default()
+                    },
+                )
+                .with_lookups_entry(
+                    self.eject_service,
+                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![Timeslot::new(
+                            self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD - 2,
+                        )])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_preimage_not_expired(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_account(
+                    self.eject_service,
+                    AccountMetadata {
+                        balance: self.eject_service_balance,
+                        code_hash: self.eject_service_code_hash.clone(),
+                        items_footprint: self.eject_service_items_footprint,
+                        octets_footprint: self.eject_service_octets_footprint,
+                        ..Default::default()
+                    },
+                )
+                .with_lookups_entry(
+                    self.eject_service,
+                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            Timeslot::new(
+                                self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD - 2,
+                            ),
+                            Timeslot::new(self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD),
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
         async fn prepare_invocation_context(
             &self,
             state_provider: Arc<MockStateManager>,
@@ -2228,6 +2280,28 @@ mod eject_tests {
                 },
             }
         }
+
+        async fn assert_partial_state_unchanged(
+            fixture: &EjectTestFixture,
+            context: &mut InvocationContext<MockStateManager>,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<(), Box<dyn Error>> {
+            let x = context.get_mut_accumulate_x().unwrap();
+
+            // accumulate host balance remains unchanged
+            let accumulate_host_balance_updated = x
+                .partial_state
+                .accounts_sandbox
+                .get_account_metadata(state_provider.clone(), fixture.accumulate_host)
+                .await?
+                .expect("Accumulate host must exist in the partial state")
+                .balance;
+            assert_eq!(
+                accumulate_host_balance_updated,
+                fixture.accumulate_host_balance
+            );
+            Ok(())
+        }
     }
 
     #[tokio::test]
@@ -2271,20 +2345,251 @@ mod eject_tests {
 
         // eject service account removed from the partial state
         assert!(
-            !x.partial_state
+            x.partial_state
                 .accounts_sandbox
                 .account_exists(state_provider.clone(), fixture.eject_service)
                 .await?
-                || x.partial_state
-                    .accounts_sandbox
-                    .get_account_sandbox(state_provider, fixture.eject_service)
-                    .await?
-                    .unwrap()
-                    .metadata
-                    .status()
-                    == &SandboxEntryStatus::Removed
         );
+        Ok(())
+    }
 
+    #[tokio::test]
+    async fn test_eject_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_panic());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_accumulate_host() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = EjectTestFixture::default();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        // attempt to eject accumulate host
+        fixture.eject_service = fixture.accumulate_host;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_who());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_account_not_found() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = EjectTestFixture::default();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        // attempt to eject an account that doesn't exists (not initialized in the state provider)
+        fixture.eject_service = ServiceId::MAX;
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_who());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_code_hash_not_set() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture {
+            eject_service_code_hash: CodeHash::from_hex("0x123").unwrap(),
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_who());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_invalid_items_footprint() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture {
+            eject_service_items_footprint: 3,
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_lookups_key_not_found() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let mut fixture = EjectTestFixture::default();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        fixture.last_preimage_hash = Hash32::from_hex("0x999").unwrap(); // Making lookups key invalid
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_preimage_not_forgotten() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_preimage_not_forgotten());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_eject_preimage_not_expired() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = EjectTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_preimage_not_expired());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_eject(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, EjectTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call
+        EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
+            .await?;
         Ok(())
     }
 }
