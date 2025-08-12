@@ -3768,3 +3768,177 @@ mod yield_tests {
         Ok(())
     }
 }
+
+mod provide_tests {
+    use super::*;
+    use fr_crypto::{hash, Blake2b256};
+
+    struct ProvideTestFixture {
+        accumulate_host: ServiceId,
+        provide_service: ServiceId,
+        preimage_offset: MemAddress,
+        preimage_size: u32,
+        preimage_data: Vec<u8>,
+        preimage_hash: Hash32,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for ProvideTestFixture {
+        fn default() -> Self {
+            let preimage_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = preimage_offset..preimage_offset + HASH_SIZE as MemAddress;
+            let preimage_size = 100u32;
+            let preimage_data = vec![0; preimage_size as usize];
+            let preimage_hash = hash::<Blake2b256>(preimage_data.as_slice()).unwrap();
+            Self {
+                accumulate_host: 1,
+                provide_service: 2,
+                preimage_offset,
+                preimage_size,
+                preimage_data,
+                preimage_hash,
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl ProvideTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.provide_service)
+                .with_reg(8, self.preimage_offset)
+                .with_reg(9, self.preimage_size)
+                .with_mem_data(self.preimage_offset, self.preimage_data.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.provide_service)
+                .with_lookups_entry(
+                    self.provide_service,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![]).unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_preimage_not_solicited(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.provide_service)
+        }
+
+        fn prepare_state_provider_preimage_integrated(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.provide_service)
+                .with_lookups_entry(
+                    self.provide_service,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![]).unwrap(),
+                    },
+                )
+                .with_preimages_entry(
+                    self.provide_service,
+                    self.preimage_hash.clone(),
+                    AccountPreimagesEntry {
+                        value: Octets::from_vec(self.preimage_data.clone()),
+                    },
+                )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_who() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::WHO as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_provide_successful() -> Result<(), Box<dyn Error>> {
+        let fixture = ProvideTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_provide(
+            fixture.provide_service,
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, ProvideTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        assert!(x.provided_preimages.contains(&(
+            fixture.provide_service,
+            Octets::from_vec(fixture.preimage_data.clone())
+        )));
+        Ok(())
+    }
+}
