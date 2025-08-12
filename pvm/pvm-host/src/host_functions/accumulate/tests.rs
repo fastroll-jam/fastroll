@@ -2617,8 +2617,8 @@ mod query_tests {
                 hash_offset,
                 preimage_size: 100,
                 timeslot_x: Timeslot::new(1),
-                timeslot_y: Timeslot::new(1),
-                timeslot_z: Timeslot::new(1),
+                timeslot_y: Timeslot::new(2),
+                timeslot_z: Timeslot::new(3),
                 preimage_hash: Hash32::from_hex("0xffff").unwrap(),
                 mem_readable_range,
             }
@@ -2855,6 +2855,342 @@ mod query_tests {
         )
         .await?;
         assert_eq!(res, fixture.host_call_result_successful_timeslots_3());
+        Ok(())
+    }
+}
+
+mod solicit_tests {
+    use super::*;
+
+    struct SolicitTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_balance: Balance,
+        hash_offset: MemAddress,
+        preimage_size: u32,
+        timeslot_x: Timeslot,
+        timeslot_y: Timeslot,
+        curr_timeslot_index: TimeslotIndex,
+        preimage_hash: Hash32,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for SolicitTestFixture {
+        fn default() -> Self {
+            let hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                accumulate_host_balance: 100_000,
+                hash_offset,
+                preimage_size: 100,
+                timeslot_x: Timeslot::new(1),
+                timeslot_y: Timeslot::new(2),
+                curr_timeslot_index: 3,
+                preimage_hash: Hash32::from_hex("0xffff").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl SolicitTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.hash_offset)
+                .with_reg(8, self.preimage_size)
+                .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
+        }
+
+        fn prepare_state_provider_no_lookups_entry(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+        }
+
+        fn prepare_state_provider_timeslots_1(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![self.timeslot_x])
+                            .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_2(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_balance(self.accumulate_host, self.accumulate_host_balance)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            self.timeslot_x,
+                            self.timeslot_y,
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_huh() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::HUH as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+        fn host_call_result_full() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::FULL as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_solicit_successful_create_lookups_entry() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_lookups_entry());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        let lookups_entry_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(
+                state_provider,
+                fixture.accumulate_host,
+                &(fixture.preimage_hash.clone(), fixture.preimage_size),
+            )
+            .await?;
+        assert!(lookups_entry_updated.is_some());
+        assert_eq!(
+            lookups_entry_updated.unwrap().entry.value,
+            AccountLookupsEntryTimeslots::try_from(vec![])?
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_successful_push_timeslot() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_mut_accumulate_x().unwrap();
+        let lookups_entry_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(
+                state_provider,
+                fixture.accumulate_host,
+                &(fixture.preimage_hash.clone(), fixture.preimage_size),
+            )
+            .await?
+            .expect("Lookups inserted during initialization");
+        assert_eq!(
+            lookups_entry_updated.entry.value,
+            AccountLookupsEntryTimeslots::try_from(vec![
+                fixture.timeslot_x,
+                fixture.timeslot_y,
+                Timeslot::new(fixture.curr_timeslot_index)
+            ])?
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_panic());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_preimage_already_provided() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_1());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_huh());
+
+        // Check partial state after host-call (should remain unchanged)
+        let x = context.get_mut_accumulate_x().unwrap();
+        let lookups_entry_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(
+                state_provider,
+                fixture.accumulate_host,
+                &(fixture.preimage_hash.clone(), fixture.preimage_size),
+            )
+            .await?
+            .expect("Lookups inserted during initialization");
+        assert_eq!(
+            lookups_entry_updated.entry.value,
+            AccountLookupsEntryTimeslots::try_from(vec![fixture.timeslot_x,])?
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_solicit_insufficient_balance() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = SolicitTestFixture {
+            accumulate_host_balance: 100, // Insufficient balance
+            ..Default::default()
+        };
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_lookups_entry());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_solicit(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+            fixture.curr_timeslot_index,
+        )
+        .await?;
+        assert_eq!(res, SolicitTestFixture::host_call_result_full());
+
+        // Check partial state after host-call (should remain unchanged)
+        let x = context.get_mut_accumulate_x().unwrap();
+        let lookups_entry_updated = x
+            .partial_state
+            .accounts_sandbox
+            .get_account_lookups_entry(
+                state_provider,
+                fixture.accumulate_host,
+                &(fixture.preimage_hash.clone(), fixture.preimage_size),
+            )
+            .await?;
+        assert!(lookups_entry_updated.is_none());
         Ok(())
     }
 }
