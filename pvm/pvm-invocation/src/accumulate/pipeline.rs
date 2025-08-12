@@ -144,13 +144,10 @@ async fn add_partial_state_change(
     ) {
         partial_state_union.new_staging_set = Some(new_staging_set);
     }
-    if let (None, Some(new_auth_queue)) = (
-        &partial_state_union.new_auth_queue,
-        accumulate_result_partial_state.new_auth_queue,
-    ) {
-        partial_state_union.new_auth_queue = Some(new_auth_queue);
-    }
 
+    if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
+        partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
+    }
     if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
         partial_state_union.manager_service = accumulate_result_partial_state.manager_service;
     }

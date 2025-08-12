@@ -505,7 +505,7 @@ impl AccountLookupsEntry {
 /// An extended type of `AccountLookupsEntry` that includes additional metadata about the preimage
 /// entry size in octets. This is useful for tracking storage usage and calculating threshold balance
 /// of an account. This is NOT serialized as part of the global state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AccountLookupsEntryExt {
     /// Length of the preimage data, which is also part of the lookups key
     pub preimage_length: u32,

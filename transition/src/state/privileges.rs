@@ -21,17 +21,16 @@ pub(crate) async fn run_privileged_transitions(
     }
 
     // Transition auth queue
-    if let Some(new_auth_queue) = partial_state_union.new_auth_queue {
-        state_manager
-            .with_mut_auth_queue(
-                StateMut::Update,
-                |auth_queue| -> Result<(), StateManagerError> {
-                    *auth_queue = new_auth_queue;
-                    Ok(())
-                },
-            )
-            .await?;
-    }
+    let auth_queue_sandboxed = partial_state_union.auth_queue;
+    state_manager
+        .with_mut_auth_queue(
+            StateMut::Update,
+            |auth_queue| -> Result<(), StateManagerError> {
+                *auth_queue = auth_queue_sandboxed;
+                Ok(())
+            },
+        )
+        .await?;
 
     // Transition privileged services
     let manager_service_sandboxed = partial_state_union.manager_service;

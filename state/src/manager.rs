@@ -75,6 +75,10 @@ impl HostStateProvider for StateManager {
         self.get_privileged_services().await
     }
 
+    async fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError> {
+        self.get_auth_queue().await
+    }
+
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError> {
         self.account_exists(service_id).await
     }

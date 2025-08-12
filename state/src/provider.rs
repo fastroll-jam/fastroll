@@ -2,7 +2,7 @@ use crate::{
     error::StateManagerError,
     types::{
         privileges::PrivilegedServices, AccountLookupsEntry, AccountMetadata,
-        AccountPreimagesEntry, AccountStorageEntry, Timeslot,
+        AccountPreimagesEntry, AccountStorageEntry, AuthQueue, Timeslot,
     },
 };
 use async_trait::async_trait;
@@ -16,6 +16,9 @@ use fr_common::{LookupsKey, PreimagesKey, ServiceId, StorageKey};
 pub trait HostStateProvider {
     /// Get privileged services info.
     async fn get_privileged_services(&self) -> Result<PrivilegedServices, StateManagerError>;
+
+    /// Get AuthQueue.
+    async fn get_auth_queue(&self) -> Result<AuthQueue, StateManagerError>;
 
     /// Checks if a service account with the given service id exists in the global state.
     async fn account_exists(&self, service_id: ServiceId) -> Result<bool, StateManagerError>;

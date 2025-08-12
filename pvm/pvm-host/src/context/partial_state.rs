@@ -1009,8 +1009,8 @@ pub struct AccumulatePartialState<S: HostStateProvider> {
     pub accounts_sandbox: AccountsSandboxMap<S>,
     /// **`i`**: New allocation of `StagingSet` after accumulation
     pub new_staging_set: Option<StagingSet>,
-    /// **`q`**: New allocation of `AuthQueue` after accumulation
-    pub new_auth_queue: Option<AuthQueue>,
+    /// **`q`**: Sandboxed copy of auth queue
+    pub auth_queue: AuthQueue,
     /// `m`: Sandboxed copy of privileged manager service id
     pub manager_service: ServiceId,
     /// **`a`**: Sandboxed copy of privileged assign service ids
@@ -1028,7 +1028,7 @@ impl<S: HostStateProvider> Clone for AccumulatePartialState<S> {
         Self {
             accounts_sandbox: self.accounts_sandbox.clone(),
             new_staging_set: self.new_staging_set.clone(),
-            new_auth_queue: self.new_auth_queue.clone(),
+            auth_queue: self.auth_queue.clone(),
             manager_service: self.manager_service,
             assign_services: self.assign_services.clone(),
             designate_service: self.designate_service,
@@ -1043,7 +1043,7 @@ impl<S: HostStateProvider> Default for AccumulatePartialState<S> {
         Self {
             accounts_sandbox: AccountsSandboxMap::default(),
             new_staging_set: None,
-            new_auth_queue: None,
+            auth_queue: AuthQueue::default(),
             manager_service: ServiceId::default(),
             assign_services: AssignServices::default(),
             designate_service: ServiceId::default(),
@@ -1064,6 +1064,7 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             AccountSandbox::from_service_id(state_provider.clone(), service_id).await?;
         accounts_sandbox.insert(service_id, account_sandbox);
 
+        let auth_queue = state_provider.get_auth_queue().await?;
         let PrivilegedServices {
             manager_service,
             assign_services,
@@ -1077,7 +1078,7 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
                 accounts: accounts_sandbox,
             },
             new_staging_set: None,
-            new_auth_queue: None,
+            auth_queue,
             manager_service,
             assign_services,
             designate_service,
