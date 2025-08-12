@@ -2087,7 +2087,7 @@ mod eject_tests {
         eject_service_code_hash: CodeHash,
         hash_offset: MemAddress,
         last_preimage_hash: Hash32,
-        last_preimage_length: u32,
+        last_preimage_size: u32,
         eject_service_octets_footprint: u64,
         eject_service_items_footprint: u32,
         curr_timeslot_index: TimeslotIndex,
@@ -2114,7 +2114,7 @@ mod eject_tests {
                 .unwrap(),
                 hash_offset,
                 last_preimage_hash: Hash32::from_hex("0x123").unwrap(),
-                last_preimage_length: 81.max(eject_service_octets_footprint as u32) - 81,
+                last_preimage_size: 81.max(eject_service_octets_footprint as u32) - 81,
                 eject_service_octets_footprint,
                 eject_service_items_footprint: 2,
                 curr_timeslot_index,
@@ -2149,7 +2149,7 @@ mod eject_tests {
                 )
                 .with_lookups_entry(
                     self.eject_service,
-                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    (self.last_preimage_hash.clone(), self.last_preimage_size),
                     AccountLookupsEntry {
                         value: AccountLookupsEntryTimeslots::try_from(vec![
                             Timeslot::new(
@@ -2180,7 +2180,7 @@ mod eject_tests {
                 )
                 .with_lookups_entry(
                     self.eject_service,
-                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    (self.last_preimage_hash.clone(), self.last_preimage_size),
                     AccountLookupsEntry {
                         value: AccountLookupsEntryTimeslots::try_from(vec![Timeslot::new(
                             self.curr_timeslot_index - PREIMAGE_EXPIRATION_PERIOD - 2,
@@ -2206,7 +2206,7 @@ mod eject_tests {
                 )
                 .with_lookups_entry(
                     self.eject_service,
-                    (self.last_preimage_hash.clone(), self.last_preimage_length),
+                    (self.last_preimage_hash.clone(), self.last_preimage_size),
                     AccountLookupsEntry {
                         value: AccountLookupsEntryTimeslots::try_from(vec![
                             Timeslot::new(
@@ -2590,6 +2590,271 @@ mod eject_tests {
         // Check partial state after host-call
         EjectTestFixture::assert_partial_state_unchanged(&fixture, &mut context, state_provider)
             .await?;
+        Ok(())
+    }
+}
+
+mod query_tests {
+    use super::*;
+
+    struct QueryTestFixture {
+        accumulate_host: ServiceId,
+        hash_offset: MemAddress,
+        preimage_size: u32,
+        timeslot_x: Timeslot,
+        timeslot_y: Timeslot,
+        timeslot_z: Timeslot,
+        preimage_hash: Hash32,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for QueryTestFixture {
+        fn default() -> Self {
+            let hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                hash_offset,
+                preimage_size: 100,
+                timeslot_x: Timeslot::new(1),
+                timeslot_y: Timeslot::new(1),
+                timeslot_z: Timeslot::new(1),
+                preimage_hash: Hash32::from_hex("0xffff").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl QueryTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.hash_offset)
+                .with_reg(8, self.preimage_size)
+                .with_mem_data(self.hash_offset, self.preimage_hash.as_slice())
+        }
+
+        fn prepare_state_provider_timeslots_0(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![]).unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_1(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![self.timeslot_x])
+                            .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_2(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            self.timeslot_x,
+                            self.timeslot_y,
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        fn prepare_state_provider_timeslots_3(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_empty_account(self.accumulate_host)
+                .with_lookups_entry(
+                    self.accumulate_host,
+                    (self.preimage_hash.clone(), self.preimage_size),
+                    AccountLookupsEntry {
+                        value: AccountLookupsEntryTimeslots::try_from(vec![
+                            self.timeslot_x,
+                            self.timeslot_y,
+                            self.timeslot_z,
+                        ])
+                        .unwrap(),
+                    },
+                )
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful_timeslots_0() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(0),
+                    r8_write: Some(0),
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_successful_timeslots_1(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(1 + (1 << 32) * self.timeslot_x.slot() as RegValue),
+                    r8_write: Some(0),
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_successful_timeslots_2(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(2 + (1 << 32) * self.timeslot_x.slot() as RegValue),
+                    r8_write: Some(self.timeslot_y.slot() as RegValue),
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_successful_timeslots_3(&self) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(3 + (1 << 32) * self.timeslot_x.slot() as RegValue),
+                    r8_write: Some(
+                        self.timeslot_y.slot() as RegValue
+                            + (1 << 32) * self.timeslot_z.slot() as RegValue,
+                    ),
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_successful_timeslots_0() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_0());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(
+            res,
+            QueryTestFixture::host_call_result_successful_timeslots_0()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_successful_timeslots_1() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_1());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful_timeslots_1());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_successful_timeslots_2() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_2());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful_timeslots_2());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_successful_timeslots_3() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let fixture = QueryTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_timeslots_3());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_query(
+            &vm,
+            state_provider.clone(),
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful_timeslots_3());
         Ok(())
     }
 }
