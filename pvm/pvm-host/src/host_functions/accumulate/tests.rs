@@ -3652,3 +3652,119 @@ mod forget_tests {
         Ok(())
     }
 }
+
+mod yield_tests {
+    use super::*;
+
+    struct YieldTestFixture {
+        accumulate_host: ServiceId,
+        hash_offset: MemAddress,
+        accumulate_result_hash: Hash32,
+        mem_readable_range: Range<MemAddress>,
+    }
+
+    impl Default for YieldTestFixture {
+        fn default() -> Self {
+            let hash_offset = PAGE_SIZE as MemAddress;
+            let mem_readable_range = hash_offset..hash_offset + HASH_SIZE as MemAddress;
+            Self {
+                accumulate_host: 1,
+                hash_offset,
+                accumulate_result_hash: Hash32::from_hex("0xaaaa").unwrap(),
+                mem_readable_range,
+            }
+        }
+    }
+
+    impl YieldTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.hash_offset)
+                .with_mem_data(self.hash_offset, self.accumulate_result_hash.as_slice())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder().with_empty_account(self.accumulate_host)
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::OK as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_yield_successful() -> Result<(), Box<dyn Error>> {
+        let fixture = YieldTestFixture::default();
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_readable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_yield(&vm, &mut context).await?;
+        assert_eq!(res, YieldTestFixture::host_call_result_successful());
+
+        // Check partial state after host-call
+        let x = context.get_accumulate_x().unwrap();
+        assert_eq!(
+            x.yielded_accumulate_hash,
+            Some(fixture.accumulate_result_hash)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_yield_mem_not_readable() -> Result<(), Box<dyn Error>> {
+        let fixture = YieldTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = AccumulateHostFunction::<MockStateManager>::host_yield(&vm, &mut context).await?;
+        assert_eq!(res, YieldTestFixture::host_call_result_panic());
+        Ok(())
+    }
+}
