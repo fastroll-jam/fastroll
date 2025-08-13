@@ -80,7 +80,6 @@ mod gas_tests {
     }
 }
 
-#[allow(dead_code)]
 mod fetch_tests {
     use super::*;
 
@@ -815,26 +814,91 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_accumulate_id_0() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(0);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.chain_params_encoded.clone())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_accumulate_id_1() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(1);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.entropy.to_vec())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_accumulate_id_14() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(14);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.accumulate_inputs.inputs().encode()?)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_accumulate_id_15() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(15);
+            let acc_input_idx = 0;
+            fixture.regs.index_reg_11 = acc_input_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(
+                    fixture.accumulate_inputs.inputs()[acc_input_idx].encode()?
+                )
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_fetch_accumulate_id_15_out_of_range() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(15);
+            let acc_input_idx = 5; // Accumulate input out of range
+            fixture.regs.index_reg_11 = acc_input_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_accumulate_invalid_data_id() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(2); // Invalid data id for `accumulate`
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_accumulate_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
     }
