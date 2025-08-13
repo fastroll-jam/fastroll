@@ -99,7 +99,7 @@ impl JamDecode for ExtrinsicInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WorkItem {
     /// `s`: Associated service id
     pub service_id: ServiceId,

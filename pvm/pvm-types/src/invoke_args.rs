@@ -131,6 +131,8 @@ pub struct IsAuthorizedInvokeArgs {
     pub core_idx: CoreIndex,
 }
 
+pub type ExtrinsicDataMap = HashMap<ExtrinsicInfo, Vec<u8>>;
+
 /// Refine entry-point function arguments
 #[derive(Clone, Default)]
 pub struct RefineInvokeArgs {
@@ -148,5 +150,5 @@ pub struct RefineInvokeArgs {
     pub export_segments_offset: usize,
     /// A mapping form `ExtrinsicInfo` to its corresponding extrinsic data blob.
     /// This is expected to be known by guarantors.
-    pub extrinsic_data_map: HashMap<ExtrinsicInfo, Vec<u8>>,
+    pub extrinsic_data_map: ExtrinsicDataMap,
 }
