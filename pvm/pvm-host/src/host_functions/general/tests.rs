@@ -31,7 +31,7 @@ use fr_pvm_types::{
         ExtrinsicDataMap, IsAuthorizedInvokeArgs, RefineInvokeArgs, TransferMemo,
     },
 };
-use fr_state::types::{AccountPreimagesEntry, AccountStorageEntry};
+use fr_state::types::{AccountMetadata, AccountPreimagesEntry, AccountStorageEntry};
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     error::Error,
@@ -1884,6 +1884,247 @@ mod write_tests {
             .await?
             .expect("Storage entry should exist");
         assert_eq!(storage_entry_added.0, fixture.prev_storage_data.unwrap());
+        Ok(())
+    }
+}
+
+mod info_tests {
+    use super::*;
+
+    struct InfoTestFixture {
+        accumulate_host: ServiceId,
+        accumulate_host_metadata: AccountMetadata,
+        info_service_id: ServiceId,
+        info_service_metadata: AccountMetadata,
+        mem_write_offset: MemAddress,
+        mem_writable_range: Range<MemAddress>,
+        info_offset: usize,
+        info_length: usize,
+    }
+
+    impl Default for InfoTestFixture {
+        fn default() -> Self {
+            let mem_write_offset = PAGE_SIZE as MemAddress;
+            let info_length = 15;
+            let mem_writable_range = mem_write_offset..mem_write_offset + info_length as MemAddress;
+            Self {
+                accumulate_host: 1,
+                info_service_id: 2,
+                accumulate_host_metadata: AccountMetadata {
+                    code_hash: CodeHash::from_slice(vec![0xBB; 32].as_slice()).unwrap(),
+                    balance: 500_000,
+                    gas_limit_accumulate: 200,
+                    gas_limit_on_transfer: 50,
+                    created_at: 0,
+                    last_accumulate_at: 100,
+                    parent_service_id: 0,
+                    ..Default::default()
+                },
+                info_service_metadata: AccountMetadata {
+                    code_hash: CodeHash::from_slice(vec![0xAA; 32].as_slice()).unwrap(),
+                    balance: 100_000,
+                    gas_limit_accumulate: 150,
+                    gas_limit_on_transfer: 50,
+                    created_at: 10,
+                    last_accumulate_at: 20,
+                    parent_service_id: 1,
+                    ..Default::default()
+                },
+                mem_write_offset,
+                info_offset: 5,
+                info_length,
+                mem_writable_range,
+            }
+        }
+    }
+
+    impl InfoTestFixture {
+        fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
+            VMStateBuilder::builder()
+                .with_pc(0)
+                .with_gas_counter(100)
+                .with_reg(7, self.info_service_id)
+                .with_reg(8, self.mem_write_offset)
+                .with_reg(9, self.info_offset as RegValue)
+                .with_reg(10, self.info_length as RegValue)
+                .with_empty_mem()
+                .with_mem_writable_range(self.mem_writable_range.clone())
+        }
+
+        fn prepare_state_provider(&self) -> MockStateManager {
+            MockStateManager::builder()
+                .with_account(self.info_service_id, self.info_service_metadata.clone())
+                .with_account(self.accumulate_host, self.accumulate_host_metadata.clone())
+        }
+
+        fn prepare_state_provider_no_account(&self) -> MockStateManager {
+            MockStateManager::builder()
+        }
+
+        async fn prepare_invocation_context(
+            &self,
+            state_provider: Arc<MockStateManager>,
+        ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
+            Ok(
+                InvocationContextBuilder::accumulate_context_builder_default(
+                    state_provider,
+                    self.accumulate_host,
+                )
+                .await?
+                .build(),
+            )
+        }
+
+        fn host_call_result_successful(&self) -> HostCallResult {
+            let account_info = self
+                .info_service_metadata
+                .encode_for_info_hostcall()
+                .unwrap();
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(account_info.len() as RegValue),
+                    r8_write: None,
+                    memory_write: Some(MemWrite::new(
+                        self.mem_write_offset,
+                        account_info[self.info_offset..self.info_offset + self.info_length]
+                            .to_vec(),
+                    )),
+                },
+            }
+        }
+
+        fn host_call_result_successful_accumulate_host(&self) -> HostCallResult {
+            let account_info = self
+                .accumulate_host_metadata
+                .encode_for_info_hostcall()
+                .unwrap();
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(account_info.len() as RegValue),
+                    r8_write: None,
+                    memory_write: Some(MemWrite::new(
+                        self.mem_write_offset,
+                        account_info[self.info_offset..self.info_offset + self.info_length]
+                            .to_vec(),
+                    )),
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_none() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_info_successful() -> Result<(), Box<dyn Error>> {
+        let fixture = InfoTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = GeneralHostFunction::<MockStateManager>::host_info(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_info_successful_accumulate_host() -> Result<(), Box<dyn Error>> {
+        let fixture = InfoTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.with_reg(7, u64::MAX).build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = GeneralHostFunction::<MockStateManager>::host_info(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, fixture.host_call_result_successful_accumulate_host());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_info_mem_not_writable() -> Result<(), Box<dyn Error>> {
+        let fixture = InfoTestFixture::default();
+        // Overwrite mem access as `ReadOnly`
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_writable_range.clone())?
+            .build();
+        let state_provider = Arc::new(fixture.prepare_state_provider());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = GeneralHostFunction::<MockStateManager>::host_info(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, InfoTestFixture::host_call_result_panic());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_info_account_not_found() -> Result<(), Box<dyn Error>> {
+        let fixture = InfoTestFixture::default();
+        let vm = fixture.prepare_vm_builder()?.build();
+        let state_provider = Arc::new(fixture.prepare_state_provider_no_account());
+        let mut context = fixture
+            .prepare_invocation_context(state_provider.clone())
+            .await?;
+
+        // Check host-call result
+        let res = GeneralHostFunction::<MockStateManager>::host_info(
+            fixture.accumulate_host,
+            &vm,
+            state_provider,
+            &mut context,
+        )
+        .await?;
+        assert_eq!(res, InfoTestFixture::host_call_result_none());
         Ok(())
     }
 }
