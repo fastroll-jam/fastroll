@@ -1,5 +1,8 @@
 use crate::{
-    context::InvocationContext,
+    context::{
+        partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
+        InvocationContext, IsAuthorizedHostContext, RefineHostContext,
+    },
     host_functions::{
         general::GeneralHostFunction,
         test_utils::{InvocationContextBuilder, MockStateManager, VMStateBuilder},
@@ -7,20 +10,33 @@ use crate::{
     },
 };
 use fr_common::{
+    constants_encoder::encode_constants_for_fetch_hostcall,
     utils::tracing::setup_tracing,
-    workloads::{RefinementContext, WorkItems, WorkPackage},
-    Balance, ByteEncodable, CodeHash, EntropyHash, Octets, PreimagesKey, ServiceId, SignedGas,
-    StorageKey, HASH_SIZE,
+    workloads::{
+        ExtrinsicInfo, RefinementContext, WorkExecutionResult, WorkItem, WorkItems, WorkPackage,
+    },
+    AuthHash, Balance, BeefyRoot, BlockHeaderHash, ByteEncodable, CodeHash, EntropyHash, Hash32,
+    Octets, PreimagesKey, SegmentRoot, ServiceId, SignedGas, StateRoot, StorageKey,
+    WorkPackageHash, HASH_SIZE, SEGMENT_SIZE,
 };
+use fr_crypto::{hash, Blake2b256};
 use fr_pvm_core::state::state_change::{HostCallVMStateChange, MemWrite};
 use fr_pvm_types::{
-    common::{MemAddress, RegValue, WorkPackageImportSegments},
+    common::{ExportDataSegment, MemAddress, RegValue, WorkPackageImportSegments},
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
-    invoke_args::AccumulateInputs,
+    invoke_args::{
+        AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer,
+        ExtrinsicDataMap, IsAuthorizedInvokeArgs, RefineInvokeArgs, TransferMemo,
+    },
 };
 use fr_state::types::{AccountPreimagesEntry, AccountStorageEntry};
-use std::{error::Error, ops::Range, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    error::Error,
+    ops::Range,
+    sync::Arc,
+};
 
 mod gas_tests {
     use super::*;
@@ -66,24 +82,6 @@ mod gas_tests {
 #[allow(dead_code)]
 mod fetch_tests {
     use super::*;
-    use crate::context::{
-        partial_state::AccumulatePartialState, AccumulateHostContext, AccumulateHostContextPair,
-        IsAuthorizedHostContext, RefineHostContext,
-    };
-    use fr_common::{
-        constants_encoder::encode_constants_for_fetch_hostcall,
-        workloads::{WorkExecutionResult, WorkItem},
-        AuthHash, BeefyRoot, BlockHeaderHash, Hash32, SegmentRoot, StateRoot, WorkPackageHash,
-        SEGMENT_SIZE,
-    };
-    use fr_pvm_types::{
-        common::ExportDataSegment,
-        invoke_args::{
-            AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer, IsAuthorizedInvokeArgs,
-            RefineInvokeArgs, TransferMemo,
-        },
-    };
-    use std::collections::{BTreeSet, HashMap, HashSet};
 
     struct RegParams {
         mem_write_offset: MemAddress,
@@ -113,9 +111,11 @@ mod fetch_tests {
         entropy: EntropyHash,
         auth_trace: Vec<u8>,
         extrinsics: Vec<Vec<Vec<u8>>>,
+        extrinsic_data_map: ExtrinsicDataMap,
         imports: WorkPackageImportSegments,
         package: WorkPackage,
         accumulate_inputs: AccumulateInputs,
+        mem_writable_range: Range<MemAddress>,
     }
 
     impl Default for FetchTestFixture {
@@ -160,6 +160,23 @@ mod fetch_tests {
                 work_items,
             };
 
+            // Extrinsics: 1 xt per work-item / 3 work-items
+            let extrinsics = vec![
+                vec![vec![0xAA; 100]],
+                vec![vec![0xBB; 100]],
+                vec![vec![0xCC; 100]],
+            ];
+            let extrinsic_data_map =
+                ExtrinsicDataMap::from_iter(extrinsics.clone().into_iter().flatten().map(|xt| {
+                    (
+                        ExtrinsicInfo {
+                            blob_hash: hash::<Blake2b256>(xt.as_slice()).unwrap(),
+                            blob_length: xt.len() as u32,
+                        },
+                        xt,
+                    )
+                }));
+
             let deferred_transfers = vec![DeferredTransfer {
                 from: 0,
                 to: 1,
@@ -176,22 +193,28 @@ mod fetch_tests {
                 refine_result: WorkExecutionResult::Output(Octets::from_vec(vec![])),
                 auth_trace: vec![],
             }];
+
+            let regs = RegParams::default();
+            let mem_writable_range =
+                regs.mem_write_offset..regs.mem_write_offset + regs.fetch_length as MemAddress;
             Self {
-                regs: RegParams::default(),
+                regs,
                 chain_params_encoded: encode_constants_for_fetch_hostcall().unwrap(),
                 entropy: EntropyHash::from_hex("0x1").unwrap(),
                 auth_trace: vec![0; 100],
-                extrinsics: vec![vec![vec![1; 100]; 64]; work_items_in_package], // 64 extrinsics per work-item / 3 work-items // TODO: distinct xts
+                extrinsics,
+                extrinsic_data_map,
                 imports: vec![vec![imports_segment; 1024]; work_items_in_package], // 1024 imports per work-item / 3 work-items
                 package,
                 accumulate_inputs: AccumulateInputs::new(deferred_transfers, accumulate_operands),
+                mem_writable_range,
             }
         }
     }
 
     impl FetchTestFixture {
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
-            Ok(VMStateBuilder::builder()
+            VMStateBuilder::builder()
                 .with_pc(0)
                 .with_gas_counter(100)
                 .with_reg(7, self.regs.mem_write_offset)
@@ -199,7 +222,9 @@ mod fetch_tests {
                 .with_reg(9, self.regs.fetch_length as RegValue)
                 .with_reg(10, self.regs.data_id as RegValue)
                 .with_reg(11, self.regs.index_reg_11 as RegValue)
-                .with_reg(12, self.regs.index_reg_12 as RegValue))
+                .with_reg(12, self.regs.index_reg_12 as RegValue)
+                .with_empty_mem()
+                .with_mem_writable_range(self.mem_writable_range.clone())
         }
 
         fn prepare_is_authorized_invocation_context(
@@ -228,12 +253,12 @@ mod fetch_tests {
                     auth_trace: self.auth_trace.clone(),
                     import_segments: self.imports.clone(),
                     export_segments_offset: 0,
-                    extrinsic_data_map: HashMap::new(), // TODO: fill data
+                    extrinsic_data_map: self.extrinsic_data_map.clone(),
                 },
             }))
         }
 
-        fn prepare_is_accumulate_invocation_context(
+        fn prepare_accumulate_invocation_context(
             &self,
         ) -> Result<InvocationContext<MockStateManager>, Box<dyn Error>> {
             let context = AccumulateHostContext {
@@ -254,6 +279,47 @@ mod fetch_tests {
                 y: Box::new(context),
             }))
         }
+
+        fn host_call_result_successful(&self, data: Vec<u8>) -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(data.len() as RegValue),
+                    r8_write: None,
+                    memory_write: Some(MemWrite::new(
+                        self.regs.mem_write_offset,
+                        data[self.regs.fetch_offset
+                            ..self.regs.fetch_offset + self.regs.fetch_length]
+                            .to_vec(),
+                    )),
+                },
+            }
+        }
+
+        fn host_call_result_panic() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Panic,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: None,
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
+
+        fn host_call_result_none() -> HostCallResult {
+            HostCallResult {
+                exit_reason: ExitReason::Continue,
+                vm_change: HostCallVMStateChange {
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
+                    r7_write: Some(HostCallReturnCode::NONE as RegValue),
+                    r8_write: None,
+                    memory_write: None,
+                },
+            }
+        }
     }
 
     mod is_authorized {
@@ -261,6 +327,22 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_0() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture {
+                regs: RegParams {
+                    data_id: 0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.chain_params_encoded.clone())
+            );
             Ok(())
         }
 
@@ -396,6 +478,17 @@ mod fetch_tests {
         async fn test_fetch_accumulate_id_15() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
+    }
+
+    // General tests
+    #[tokio::test]
+    async fn test_fetch_invalid_params() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_mem_not_writable() -> Result<(), Box<dyn Error>> {
+        Ok(())
     }
 }
 
