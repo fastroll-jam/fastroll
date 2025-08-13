@@ -98,7 +98,7 @@ mod fetch_tests {
             Self {
                 mem_write_offset: PAGE_SIZE as MemAddress,
                 fetch_offset: 5,
-                fetch_length: 30,
+                fetch_length: 20,
                 data_id: 0,
                 index_reg_11: 0,
                 index_reg_12: 0,
@@ -134,36 +134,6 @@ mod fetch_tests {
                 lookup_anchor_timeslot: 10,
                 prerequisite_work_packages: BTreeSet::new(),
             };
-            let work_items_in_package = 3;
-            let work_items = WorkItems::try_from(vec![
-                WorkItem {
-                    service_id: 0,
-                    service_code_hash: CodeHash::from_slice(vec![6; 32].as_slice()).unwrap(),
-                    payload_blob: Octets::from_vec(vec![0xDD; 100]),
-                    ..Default::default()
-                },
-                WorkItem {
-                    service_id: 1,
-                    service_code_hash: CodeHash::from_slice(vec![7; 32].as_slice()).unwrap(),
-                    payload_blob: Octets::from_vec(vec![0xEE; 100]),
-                    ..Default::default()
-                },
-                WorkItem {
-                    service_id: 2,
-                    service_code_hash: CodeHash::from_slice(vec![8; 32].as_slice()).unwrap(),
-                    payload_blob: Octets::from_vec(vec![0xFF; 100]),
-                    ..Default::default()
-                },
-            ])
-            .unwrap();
-            let package = WorkPackage {
-                authorizer_service_id: ServiceId::MAX,
-                auth_code_hash: package_auth_code_hash,
-                context: package_refine_context,
-                auth_token: Octets::from_vec(package_auth_token),
-                config_blob: Octets::from_vec(package_config_blob),
-                work_items,
-            };
 
             // Extrinsics: 1 xt per work-item / 3 work-items
             let extrinsics = vec![
@@ -181,6 +151,51 @@ mod fetch_tests {
                         xt,
                     )
                 }));
+
+            let work_items_in_package = 3;
+            let imports_per_item = 1_024;
+            let work_items = WorkItems::try_from(vec![
+                WorkItem {
+                    service_id: 0,
+                    service_code_hash: CodeHash::from_slice(vec![6; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xDD; 100]),
+                    extrinsic_data_info: vec![ExtrinsicInfo {
+                        blob_hash: hash::<Blake2b256>(extrinsics[0][0].as_slice()).unwrap(),
+                        blob_length: extrinsics[0][0].len() as u32,
+                    }],
+                    ..Default::default()
+                },
+                WorkItem {
+                    service_id: 1,
+                    service_code_hash: CodeHash::from_slice(vec![7; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xEE; 100]),
+                    extrinsic_data_info: vec![ExtrinsicInfo {
+                        blob_hash: hash::<Blake2b256>(extrinsics[1][0].as_slice()).unwrap(),
+                        blob_length: extrinsics[1][0].len() as u32,
+                    }],
+                    ..Default::default()
+                },
+                WorkItem {
+                    service_id: 2,
+                    service_code_hash: CodeHash::from_slice(vec![8; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xFF; 100]),
+                    extrinsic_data_info: vec![ExtrinsicInfo {
+                        blob_hash: hash::<Blake2b256>(extrinsics[2][0].as_slice()).unwrap(),
+                        blob_length: extrinsics[2][0].len() as u32,
+                    }],
+                    ..Default::default()
+                },
+            ])
+            .unwrap();
+
+            let package = WorkPackage {
+                authorizer_service_id: ServiceId::MAX,
+                auth_code_hash: package_auth_code_hash,
+                context: package_refine_context,
+                auth_token: Octets::from_vec(package_auth_token),
+                config_blob: Octets::from_vec(package_config_blob),
+                work_items,
+            };
 
             let deferred_transfers = vec![DeferredTransfer {
                 from: 0,
@@ -209,7 +224,7 @@ mod fetch_tests {
                 auth_trace: vec![0; 100],
                 extrinsics,
                 extrinsic_data_map,
-                imports: vec![vec![imports_segment; 1024]; work_items_in_package], // 1024 imports per work-item / 3 work-items
+                imports: vec![vec![imports_segment; imports_per_item]; work_items_in_package],
                 package,
                 accumulate_inputs: AccumulateInputs::new(deferred_transfers, accumulate_operands),
                 mem_writable_range,
@@ -489,7 +504,7 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_is_authorized_invalid_data_id() -> Result<(), Box<dyn Error>> {
-            let fixture = FetchTestFixture::from_data_id(14); // Invalid data id for `is_authozied`
+            let fixture = FetchTestFixture::from_data_id(14); // Invalid data id for `is_authorized`
             let vm = fixture.prepare_vm_builder()?.build();
             let mut context = fixture.prepare_is_authorized_invocation_context()?;
 
@@ -505,76 +520,292 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_refine_id_0() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(0);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.chain_params_encoded.clone())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_1() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(1);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.entropy.to_vec())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_2() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(2);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.auth_trace.clone())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_3() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(3);
+            let item_idx = 1;
+            let xt_idx = 0;
+            fixture.regs.index_reg_11 = item_idx;
+            fixture.regs.index_reg_12 = xt_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.extrinsics[item_idx][xt_idx].clone())
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_fetch_refine_id_3_out_of_range() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(3);
+            let item_idx = 1;
+            let xt_idx = 2; // Xt index out of range
+            fixture.regs.index_reg_11 = item_idx;
+            fixture.regs.index_reg_12 = xt_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_4() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(4);
+            let xt_idx = 0;
+            fixture.regs.index_reg_11 = xt_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+            let item_idx = context.get_refine_x().unwrap().invoke_args.item_idx;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.extrinsics[item_idx][xt_idx].clone())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_5() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(5);
+            let item_idx = 1;
+            let segment_idx = 1_023;
+            fixture.regs.index_reg_11 = item_idx;
+            fixture.regs.index_reg_12 = segment_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(
+                    fixture.imports[item_idx][segment_idx].clone().into()
+                )
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_fetch_refine_id_5_out_of_range() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(5);
+            let item_idx = 4; // work-item index out of range
+            let segment_idx = 1_023;
+            fixture.regs.index_reg_11 = item_idx;
+            fixture.regs.index_reg_12 = segment_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_6() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(6);
+            let segment_idx = 1_023;
+            fixture.regs.index_reg_11 = segment_idx;
+
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+            let item_idx = context.get_refine_x().unwrap().invoke_args.item_idx;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(
+                    fixture.imports[item_idx][segment_idx].clone().into()
+                )
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_7() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(7);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.encode()?)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_8() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(8);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let mut buf = vec![];
+            fixture.package.auth_code_hash.encode_to(&mut buf)?;
+            fixture.package.config_blob.encode_to(&mut buf)?;
+            assert_eq!(res, fixture.host_call_result_successful(buf));
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_9() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(9);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.auth_token.to_vec())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_10() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(10);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.context.encode()?)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_11() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(11);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let mut buf = vec![];
+            for work_item in &fixture.package.work_items {
+                buf.push(work_item.encode_for_fetch_hostcall()?)
+            }
+            let all_work_items_encoded = buf.encode()?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(all_work_items_encoded)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_12() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(12);
+            let work_item_idx = 1;
+            fixture.regs.index_reg_11 = work_item_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let work_item_encoded = fixture.package.work_items[work_item_idx]
+                .clone()
+                .encode_for_fetch_hostcall()?;
+            assert_eq!(res, fixture.host_call_result_successful(work_item_encoded));
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_id_13() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(13);
+            let work_item_idx = 1;
+            fixture.regs.index_reg_11 = work_item_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(
+                    fixture.package.work_items[work_item_idx]
+                        .payload_blob
+                        .to_vec()
+                )
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_refine_invalid_data_id() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(14); // Invalid data id for `refine`
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_refine_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
     }
