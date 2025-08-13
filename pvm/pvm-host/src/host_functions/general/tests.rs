@@ -453,6 +453,20 @@ mod fetch_tests {
         }
 
         #[tokio::test]
+        async fn test_fetch_is_authorized_id_12_out_of_range() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(12);
+            let work_item_idx = 3; // work item index out of range
+            fixture.regs.index_reg_11 = work_item_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
+            Ok(())
+        }
+
+        #[tokio::test]
         async fn test_fetch_is_authorized_id_13() -> Result<(), Box<dyn Error>> {
             let mut fixture = FetchTestFixture::from_data_id(13);
             let work_item_idx = 1;
@@ -470,6 +484,18 @@ mod fetch_tests {
                         .to_vec()
                 )
             );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_fetch_is_authorized_invalid_data_id() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(14); // Invalid data id for `is_authozied`
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(res, FetchTestFixture::host_call_result_none());
             Ok(())
         }
     }
@@ -546,6 +572,11 @@ mod fetch_tests {
         async fn test_fetch_refine_id_13() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
+
+        #[tokio::test]
+        async fn test_fetch_refine_invalid_data_id() -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
     }
 
     mod accumulate {
@@ -570,16 +601,27 @@ mod fetch_tests {
         async fn test_fetch_accumulate_id_15() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
+
+        #[tokio::test]
+        async fn test_fetch_accumulate_invalid_data_id() -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
     }
 
-    // General tests
-    #[tokio::test]
-    async fn test_fetch_invalid_params() -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-
+    // General failure case
     #[tokio::test]
     async fn test_fetch_mem_not_writable() -> Result<(), Box<dyn Error>> {
+        let fixture = FetchTestFixture::from_data_id(9);
+        // Overwrite mem access as `ReadOnly`
+        let vm = fixture
+            .prepare_vm_builder()?
+            .with_mem_readable_range(fixture.mem_writable_range.clone())?
+            .build();
+        let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+        // Check host-call result
+        let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+        assert_eq!(res, FetchTestFixture::host_call_result_panic());
         Ok(())
     }
 }
