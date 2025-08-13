@@ -9,6 +9,7 @@ use crate::{
         HostCallResult, HostCallReturnCode,
     },
 };
+use fr_codec::prelude::*;
 use fr_common::{
     constants_encoder::encode_constants_for_fetch_hostcall,
     utils::tracing::setup_tracing,
@@ -97,7 +98,7 @@ mod fetch_tests {
             Self {
                 mem_write_offset: PAGE_SIZE as MemAddress,
                 fetch_offset: 5,
-                fetch_length: 10,
+                fetch_length: 30,
                 data_id: 0,
                 index_reg_11: 0,
                 index_reg_12: 0,
@@ -120,15 +121,16 @@ mod fetch_tests {
 
     impl Default for FetchTestFixture {
         fn default() -> Self {
-            let imports_segment = ExportDataSegment::try_from(vec![3; SEGMENT_SIZE]).unwrap();
-            let package_auth_code_hash = CodeHash::from_hex("0x2").unwrap();
-            let package_config_blob = vec![4; 100];
-            let package_auth_token = vec![5; 100];
+            let imports_segment = ExportDataSegment::try_from(vec![0xAA; SEGMENT_SIZE]).unwrap();
+            let package_auth_code_hash = CodeHash::from_slice(vec![1; 32].as_slice()).unwrap();
+            let package_config_blob = vec![0xBB; 100];
+            let package_auth_token = vec![0xCC; 100];
             let package_refine_context = RefinementContext {
-                anchor_header_hash: BlockHeaderHash::from_hex("0x3").unwrap(),
-                anchor_state_root: StateRoot::from_hex("0x4").unwrap(),
-                anchor_beefy_root: BeefyRoot::from_hex("0x5").unwrap(),
-                lookup_anchor_header_hash: BlockHeaderHash::from_hex("0x6").unwrap(),
+                anchor_header_hash: BlockHeaderHash::from_slice(vec![2; 32].as_slice()).unwrap(),
+                anchor_state_root: StateRoot::from_slice(vec![3; 32].as_slice()).unwrap(),
+                anchor_beefy_root: BeefyRoot::from_slice(vec![4; 32].as_slice()).unwrap(),
+                lookup_anchor_header_hash: BlockHeaderHash::from_slice(vec![5; 32].as_slice())
+                    .unwrap(),
                 lookup_anchor_timeslot: 10,
                 prerequisite_work_packages: BTreeSet::new(),
             };
@@ -136,17 +138,20 @@ mod fetch_tests {
             let work_items = WorkItems::try_from(vec![
                 WorkItem {
                     service_id: 0,
-                    payload_blob: Octets::from_vec(vec![7; 100]),
+                    service_code_hash: CodeHash::from_slice(vec![6; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xDD; 100]),
                     ..Default::default()
                 },
                 WorkItem {
                     service_id: 1,
-                    payload_blob: Octets::from_vec(vec![8; 100]),
+                    service_code_hash: CodeHash::from_slice(vec![7; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xEE; 100]),
                     ..Default::default()
                 },
                 WorkItem {
                     service_id: 2,
-                    payload_blob: Octets::from_vec(vec![9; 100]),
+                    service_code_hash: CodeHash::from_slice(vec![8; 32].as_slice()).unwrap(),
+                    payload_blob: Octets::from_vec(vec![0xFF; 100]),
                     ..Default::default()
                 },
             ])
@@ -181,11 +186,11 @@ mod fetch_tests {
                 from: 0,
                 to: 1,
                 amount: 333,
-                memo: TransferMemo::from_hex("0xabc").unwrap(),
+                memo: TransferMemo::from_hex("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
                 gas_limit: 10,
             }];
             let accumulate_operands = vec![AccumulateOperand {
-                work_package_hash: WorkPackageHash::from_hex("0x7").unwrap(),
+                work_package_hash: WorkPackageHash::from_slice(vec![9; 32].as_slice()).unwrap(),
                 segment_root: SegmentRoot::default(),
                 authorizer_hash: AuthHash::default(),
                 work_item_payload_hash: Hash32::default(),
@@ -200,7 +205,7 @@ mod fetch_tests {
             Self {
                 regs,
                 chain_params_encoded: encode_constants_for_fetch_hostcall().unwrap(),
-                entropy: EntropyHash::from_hex("0x1").unwrap(),
+                entropy: EntropyHash::from_slice(vec![10; 32].as_slice()).unwrap(),
                 auth_trace: vec![0; 100],
                 extrinsics,
                 extrinsic_data_map,
@@ -213,6 +218,16 @@ mod fetch_tests {
     }
 
     impl FetchTestFixture {
+        fn from_data_id(data_id: usize) -> Self {
+            Self {
+                regs: RegParams {
+                    data_id,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        }
+
         fn prepare_vm_builder(&self) -> Result<VMStateBuilder, Box<dyn Error>> {
             VMStateBuilder::builder()
                 .with_pc(0)
@@ -327,13 +342,7 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_0() -> Result<(), Box<dyn Error>> {
-            let fixture = FetchTestFixture {
-                regs: RegParams {
-                    data_id: 0,
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
+            let fixture = FetchTestFixture::from_data_id(0);
             let vm = fixture.prepare_vm_builder()?.build();
             let mut context = fixture.prepare_is_authorized_invocation_context()?;
 
@@ -348,36 +357,119 @@ mod fetch_tests {
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_7() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(7);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.encode()?)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_8() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(8);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let mut buf = vec![];
+            fixture.package.auth_code_hash.encode_to(&mut buf)?;
+            fixture.package.config_blob.encode_to(&mut buf)?;
+            assert_eq!(res, fixture.host_call_result_successful(buf));
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_9() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(9);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.auth_token.to_vec())
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_10() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(10);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(fixture.package.context.encode()?)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_11() -> Result<(), Box<dyn Error>> {
+            let fixture = FetchTestFixture::from_data_id(11);
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let mut buf = vec![];
+            for work_item in &fixture.package.work_items {
+                buf.push(work_item.encode_for_fetch_hostcall()?)
+            }
+            let all_work_items_encoded = buf.encode()?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(all_work_items_encoded)
+            );
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_12() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(12);
+            let work_item_idx = 1;
+            fixture.regs.index_reg_11 = work_item_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            let work_item_encoded = fixture.package.work_items[work_item_idx]
+                .clone()
+                .encode_for_fetch_hostcall()?;
+            assert_eq!(res, fixture.host_call_result_successful(work_item_encoded));
             Ok(())
         }
 
         #[tokio::test]
         async fn test_fetch_is_authorized_id_13() -> Result<(), Box<dyn Error>> {
+            let mut fixture = FetchTestFixture::from_data_id(13);
+            let work_item_idx = 1;
+            fixture.regs.index_reg_11 = work_item_idx;
+            let vm = fixture.prepare_vm_builder()?.build();
+            let mut context = fixture.prepare_is_authorized_invocation_context()?;
+
+            // Check host-call result
+            let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
+            assert_eq!(
+                res,
+                fixture.host_call_result_successful(
+                    fixture.package.work_items[work_item_idx]
+                        .payload_blob
+                        .to_vec()
+                )
+            );
             Ok(())
         }
     }
