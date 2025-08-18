@@ -3,7 +3,7 @@ use fr_common::workloads::WorkExecutionError;
 use fr_crypto::error::CryptoError;
 use fr_erasure_coding::ErasureCodingError;
 use fr_merkle::common::MerkleError;
-use fr_pvm_host::error::HostCallError;
+use fr_pvm_host::error::{HostCallError, PartialStateError};
 use fr_pvm_interface::error::PVMError;
 use fr_state::error::StateManagerError;
 use thiserror::Error;
@@ -31,6 +31,8 @@ pub enum PVMInvokeError {
     ErasureCodingError(#[from] ErasureCodingError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
+    #[error("PartialStateError: {0}")]
+    PartialStateError(#[from] PartialStateError),
     #[error("PVMError: {0}")]
     PVMError(#[from] PVMError),
     #[error("HostCallError: {0}")]
