@@ -8,9 +8,9 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     utils::constants_encoder::encode_constants_for_fetch_hostcall, workloads::WorkPackage,
-    AuthHash, ByteArray, Hash32, Octets, ServiceId, SignedGas, UnsignedGas, AUTH_QUEUE_SIZE,
-    CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD, PUBLIC_KEY_SIZE,
-    SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    AuthHash, ByteArray, CoreIndex, Hash32, Octets, ServiceId, SignedGas, UnsignedGas,
+    AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE, MAX_EXPORTS_PER_PACKAGE, PREIMAGE_EXPIRATION_PERIOD,
+    PUBLIC_KEY_SIZE, SEGMENT_SIZE, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::{hash, octets_to_hash32, types::ValidatorKey, Blake2b256};
 use fr_pvm_core::{
@@ -32,7 +32,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-        AccountStorageEntry, AccountStorageEntryExt, AuthQueue, StagingSet, Timeslot,
+        AccountStorageEntry, AccountStorageEntryExt, CoreAuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -1152,6 +1152,7 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
+        tracing::error!("BLESS INVOKED");
         tracing::debug!("Hostcall invoked: BLESS");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
@@ -1170,16 +1171,6 @@ impl HostFunction {
         let Ok(designate) = vm.regs[9].as_service_id() else {
             continue_who!()
         };
-
-        if !vm
-            .memory
-            .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
-        {
-            host_call_panic!()
-        }
-        let assign_services_encoded = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT)?;
-        let assign_services = AssignServices::decode(&mut assign_services_encoded.as_slice())?;
-
         let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
             host_call_panic!()
         };
@@ -1189,28 +1180,52 @@ impl HostFunction {
 
         if !vm
             .memory
+            .is_address_range_readable(assign_offset, 4 * CORE_COUNT)
+        {
+            host_call_panic!()
+        }
+        let Ok(assign_services_data) = vm.memory.read_bytes(assign_offset, 4 * CORE_COUNT) else {
+            host_call_panic!()
+        };
+        let mut assign_services = Vec::with_capacity(CORE_COUNT);
+        for i in 0..CORE_COUNT {
+            assign_services.push(ServiceId::decode_fixed(
+                &mut &assign_services_data[i * 4..i * 4 + 4],
+                4,
+            )?)
+        }
+
+        // Read always-accumulate services from the memory
+        if !vm
+            .memory
             .is_address_range_readable(always_accumulate_offset, 12 * always_accumulates_count)
         {
             host_call_panic!()
         }
 
+        let Ok(always_accumulate_services_data) = vm
+            .memory
+            .read_bytes(always_accumulate_offset, 12 * always_accumulates_count)
+        else {
+            host_call_panic!()
+        };
         let mut always_accumulate_services = BTreeMap::new();
 
         for i in 0..always_accumulates_count {
-            let Ok(always_accumulate_encoded) = vm
-                .memory
-                .read_bytes(always_accumulate_offset + 12 * i as MemAddress, 12)
-            else {
-                host_call_panic!()
-            };
-            let address = u32::decode_fixed(&mut always_accumulate_encoded.as_slice(), 4)?;
-            let basic_gas = u64::decode_fixed(&mut always_accumulate_encoded.as_slice(), 8)?;
+            let address = ServiceId::decode_fixed(
+                &mut &always_accumulate_services_data[i * 12..i * 12 + 4],
+                4,
+            )?;
+            let basic_gas = UnsignedGas::decode_fixed(
+                &mut &always_accumulate_services_data[i * 12 + 4..i * 12 + 12],
+                8,
+            )?;
             always_accumulate_services.insert(address, basic_gas);
         }
 
         x.assign_new_privileged_services(
             manager,
-            assign_services.clone(),
+            AssignServices::try_from(assign_services.clone())?,
             designate,
             always_accumulate_services.clone(),
         );
@@ -1239,8 +1254,7 @@ impl HostFunction {
             host_call_panic!()
         };
         let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
-            // TODO: Invalid assign service id handling
-            unimplemented!()
+            continue_who!()
         };
 
         if !vm
@@ -1259,7 +1273,7 @@ impl HostFunction {
             continue_huh!()
         }
 
-        let mut queue_assignment = AuthQueue::default();
+        let mut new_core_auth_queue = CoreAuthQueue::default();
         for i in 0..AUTH_QUEUE_SIZE {
             let Ok(authorizer) = vm
                 .memory
@@ -1267,10 +1281,10 @@ impl HostFunction {
             else {
                 host_call_panic!()
             };
-            queue_assignment.0[core_index][i] = AuthHash::decode(&mut authorizer.as_slice())?;
+            new_core_auth_queue[i] = AuthHash::decode(&mut authorizer.as_slice())?;
         }
 
-        x.assign_new_auth_queue(queue_assignment);
+        x.assign_core_auth_queue(core_index as CoreIndex, new_core_auth_queue);
         x.assign_new_core_assign_service(core_index, core_assign_service);
         tracing::debug!("ASSIGN core={core_index} new_assigner={core_assign_service}",);
         continue_ok!()
@@ -1470,16 +1484,16 @@ impl HostFunction {
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
+        let gas_limit = vm.regs[9].value();
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
 
         let Ok(dest) = vm.regs[7].as_service_id() else {
-            continue_who!()
+            continue_who!(gas_charge)
         };
         let amount = vm.regs[8].value();
-        let gas_limit = vm.regs[9].value();
         let Ok(offset) = vm.regs[10].as_mem_address() else {
-            host_call_panic!()
+            host_call_panic!(gas_charge)
         };
-        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
 
         check_out_of_gas!(vm.gas_counter, gas_charge);
 
@@ -1574,7 +1588,9 @@ impl HostFunction {
             continue_who!()
         };
 
-        let accumulate_host_as_hash = octets_to_hash32(&x.accumulate_host.encode_fixed(32)?)
+        let mut accumulate_host_encoded_32 = x.accumulate_host.encode_fixed(4)?;
+        accumulate_host_encoded_32.resize(32, 0);
+        let accumulate_host_as_hash = octets_to_hash32(accumulate_host_encoded_32.as_slice())
             .expect("Should not fail convert 32-byte octets into Hash32");
         if eject_account_metadata.code_hash != accumulate_host_as_hash {
             continue_who!()

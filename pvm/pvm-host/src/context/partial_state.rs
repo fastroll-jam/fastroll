@@ -963,14 +963,14 @@ impl AccountsSandboxMap {
 ///
 /// This provides a sandboxed environment for performing state mutations safely, yielding the final
 /// change set of the state on success and discarding the mutations on failure.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct AccumulatePartialState {
     /// **`d`**: Sandboxed copy of service accounts states
     pub accounts_sandbox: AccountsSandboxMap,
     /// **`i`**: New allocation of `StagingSet` after accumulation
     pub new_staging_set: Option<StagingSet>,
-    /// **`q`**: New allocation of `AuthQueue` after accumulation
-    pub new_auth_queue: Option<AuthQueue>,
+    /// **`q`**: Sandboxed copy of auth queue
+    pub auth_queue: AuthQueue,
     /// `m`: Sandboxed copy of privileged manager service id
     pub manager_service: ServiceId,
     /// **`a`**: Sandboxed copy of privileged assign service ids
@@ -981,7 +981,41 @@ pub struct AccumulatePartialState {
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
 
+impl Clone for AccumulatePartialState {
+    fn clone(&self) -> Self {
+        Self {
+            accounts_sandbox: self.accounts_sandbox.clone(),
+            new_staging_set: self.new_staging_set.clone(),
+            auth_queue: self.auth_queue.clone(),
+            manager_service: self.manager_service,
+            assign_services: self.assign_services.clone(),
+            designate_service: self.designate_service,
+            always_accumulate_services: self.always_accumulate_services.clone(),
+        }
+    }
+}
+
 impl AccumulatePartialState {
+    /// Initializes `AccumulatePartialState`.
+    pub async fn new(state_manager: Arc<StateManager>) -> Result<Self, PartialStateError> {
+        let auth_queue = state_manager.get_auth_queue().await?;
+        let PrivilegedServices {
+            manager_service,
+            assign_services,
+            designate_service,
+            always_accumulate_services,
+        } = state_manager.get_privileged_services().await?;
+        Ok(Self {
+            accounts_sandbox: AccountsSandboxMap::default(),
+            new_staging_set: None,
+            auth_queue,
+            manager_service,
+            assign_services,
+            designate_service,
+            always_accumulate_services,
+        })
+    }
+
     /// Initializes `AccumulatePartialState` with the accumulator service account sandbox entry.
     pub async fn new_from_service_id(
         state_manager: Arc<StateManager>,
@@ -992,6 +1026,7 @@ impl AccumulatePartialState {
             AccountSandbox::from_service_id(state_manager.clone(), service_id).await?;
         accounts_sandbox.insert(service_id, account_sandbox);
 
+        let auth_queue = state_manager.get_auth_queue().await?;
         let PrivilegedServices {
             manager_service,
             assign_services,
@@ -1004,7 +1039,7 @@ impl AccumulatePartialState {
                 accounts: accounts_sandbox,
             },
             new_staging_set: None,
-            new_auth_queue: None,
+            auth_queue,
             manager_service,
             assign_services,
             designate_service,

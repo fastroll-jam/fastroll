@@ -18,7 +18,7 @@ use fr_state::{
     manager::StateManager,
     types::{
         privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
-        EpochEntropy, Timeslot,
+        AuthQueue, EpochEntropy, Timeslot,
     },
 };
 use fr_transition::{
@@ -67,6 +67,9 @@ impl StateTransitionTest for AccumulateTest {
         state_manager
             .add_accumulate_history(pre_acc_history)
             .await?;
+
+        // Load AuthQueue (required for partial state initialization)
+        state_manager.add_auth_queue(AuthQueue::default()).await?;
 
         // Add service info for privileged services
         let mut privileged_service_ids = HashSet::new();

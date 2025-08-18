@@ -61,7 +61,7 @@ pub async fn accumulate_outer(
     let mut service_output_pairs_flattened = BTreeSet::new();
 
     // Initialize accumulate partial state
-    let mut partial_state_union = AccumulatePartialState::default();
+    let mut partial_state_union = AccumulatePartialState::new(state_manager.clone()).await?;
 
     loop {
         // All always-accumulate services must be processed in the initial loop.
@@ -223,11 +223,8 @@ async fn add_partial_state_change(
     ) {
         partial_state_union.new_staging_set = Some(new_staging_set);
     }
-    if let (None, Some(new_auth_queue)) = (
-        &partial_state_union.new_auth_queue,
-        accumulate_result_partial_state.new_auth_queue,
-    ) {
-        partial_state_union.new_auth_queue = Some(new_auth_queue);
+    if partial_state_union.auth_queue != accumulate_result_partial_state.auth_queue {
+        partial_state_union.auth_queue = accumulate_result_partial_state.auth_queue;
     }
 
     if partial_state_union.manager_service != accumulate_result_partial_state.manager_service {
