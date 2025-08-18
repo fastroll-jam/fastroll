@@ -1054,6 +1054,28 @@ impl<S: HostStateProvider> Default for AccumulatePartialState<S> {
 }
 
 impl<S: HostStateProvider> AccumulatePartialState<S> {
+    /// Initializes `AccumulatePartialState`.
+    pub async fn new(state_provider: Arc<S>) -> Result<Self, PartialStateError> {
+        let auth_queue = state_provider.get_auth_queue().await?;
+        let PrivilegedServices {
+            manager_service,
+            assign_services,
+            designate_service,
+            registrar_service,
+            always_accumulate_services,
+        } = state_provider.get_privileged_services().await?;
+        Ok(Self {
+            accounts_sandbox: AccountsSandboxMap::default(),
+            new_staging_set: None,
+            auth_queue,
+            manager_service,
+            assign_services,
+            designate_service,
+            registrar_service,
+            always_accumulate_services,
+        })
+    }
+
     /// Initializes `AccumulatePartialState` with the accumulator service account sandbox entry.
     pub async fn new_from_service_id(
         state_provider: Arc<S>,

@@ -72,7 +72,7 @@ pub async fn accumulate_outer(
     let mut service_output_pairs_flattened = BTreeSet::new();
 
     // Initialize accumulate partial state
-    let mut partial_state_union = AccumulatePartialState::default();
+    let mut partial_state_union = AccumulatePartialState::new(state_manager.clone()).await?;
 
     // There is no deferred transfers in the initial round of `Δ+`
     let mut deferred_transfers = Vec::new();
