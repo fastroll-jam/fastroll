@@ -94,8 +94,8 @@ impl AssurancesXtValidator {
         let hash = hash::<Blake2b256>(&buf[..])?;
         let message = [X_A, hash.as_slice()].concat();
 
-        let current_active_set = self.state_manager.get_active_set().await?;
-        let assurer_public_key = current_active_set
+        let active_set = self.state_manager.get_active_set_clean().await?;
+        let assurer_public_key = active_set
             .get_validator_ed25519_key(entry.validator_index)
             .ok_or(XtError::InvalidValidatorIndex)?;
 
