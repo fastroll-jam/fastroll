@@ -1,15 +1,19 @@
 use crate::error::TransitionError;
-use fr_block::types::extrinsics::tickets::TicketsXt;
-use fr_common::{ticket::Ticket, EntropyHash, TICKET_CONTEST_DURATION};
-use fr_crypto::{traits::VrfSignature, vrf::ring::generate_ring_root};
+use fr_block::types::{
+    block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
+    extrinsics::tickets::TicketsXt,
+};
+use fr_common::{ticket::Ticket, EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use fr_crypto::{traits::VrfSignature, types::ValidatorKeySet, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
+use fr_limited_vec::FixedVec;
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
     manager::StateManager,
     types::{
-        generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleState, SlotSealers,
-        TicketAccumulator, Timeslot, ValidatorSet,
+        generate_fallback_keys, outside_in_vec, ActiveSet, EpochTickets, SafroleHeaderMarkers,
+        SafroleState, SlotSealers, TicketAccumulator, Timeslot, ValidatorSet,
     },
 };
 use std::sync::Arc;
@@ -122,6 +126,16 @@ pub(crate) fn update_slot_sealers(
     }
 }
 
+pub(crate) fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
+    tickets_xt
+        .iter()
+        .map(|ticket| Ticket {
+            id: ticket.ticket_proof.output_hash(),
+            attempt: ticket.entry_index,
+        })
+        .collect()
+}
+
 async fn handle_ticket_accumulation(
     state_manager: Arc<StateManager>,
     tickets_xt: &TicketsXt,
@@ -168,12 +182,55 @@ async fn handle_ticket_accumulation(
     Ok(())
 }
 
-pub(crate) fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
-    tickets_xt
-        .iter()
-        .map(|ticket| Ticket {
-            id: ticket.ticket_proof.output_hash(),
-            attempt: ticket.entry_index,
+fn extract_epoch_marker_keys(
+    validator_set: &ValidatorKeySet,
+) -> FixedVec<EpochMarkerValidatorKey, VALIDATOR_COUNT> {
+    let mut result = Vec::with_capacity(VALIDATOR_COUNT);
+    for key in validator_set.iter() {
+        result.push(EpochMarkerValidatorKey {
+            bandersnatch: key.bandersnatch.clone(),
+            ed25519: key.ed25519.clone(),
+        });
+    }
+
+    FixedVec::try_from(result).expect("size checked")
+}
+
+pub async fn mark_safrole_header_markers(
+    state_manager: Arc<StateManager>,
+    epoch_progressed: bool,
+) -> Result<SafroleHeaderMarkers, TransitionError> {
+    let prev_timeslot = state_manager.get_timeslot_clean().await?;
+    let curr_timeslot = state_manager.get_timeslot().await?;
+    let curr_safrole = state_manager.get_safrole().await?;
+
+    let epoch_marker = if epoch_progressed {
+        let prior_entropy = state_manager.get_epoch_entropy_clean().await?;
+        let curr_pending_set = curr_safrole.pending_set;
+        Some(EpochMarker {
+            entropy: prior_entropy.current().clone(),
+            tickets_entropy: prior_entropy.first_history().clone(),
+            validators: extract_epoch_marker_keys(&curr_pending_set),
         })
-        .collect()
+    } else {
+        None
+    };
+
+    let needs_winning_tickets_marker = !epoch_progressed
+        && prev_timeslot.slot_phase() < TICKET_CONTEST_DURATION as u32
+        && curr_timeslot.slot_phase() >= TICKET_CONTEST_DURATION as u32
+        && curr_safrole.ticket_accumulator.is_full();
+
+    let winning_tickets_marker = if needs_winning_tickets_marker {
+        let marker_vec_outside_in = outside_in_vec(curr_safrole.ticket_accumulator.into_vec());
+        let marker = WinningTicketsMarker::try_from(marker_vec_outside_in)?;
+        Some(marker)
+    } else {
+        None
+    };
+
+    Ok(SafroleHeaderMarkers {
+        epoch_marker,
+        winning_tickets_marker,
+    })
 }

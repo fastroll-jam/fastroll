@@ -13,7 +13,6 @@ use fr_state::{
 use fr_storage::node_storage::NodeStorage;
 use fr_transition::{
     error::TransitionError,
-    procedures::chain_extension::mark_safrole_header_markers,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
         authorizer::transition_auth_pool,
@@ -27,7 +26,7 @@ use fr_transition::{
             transition_reports_clear_availables, transition_reports_eliminate_invalid,
             transition_reports_update_entries,
         },
-        safrole::transition_safrole,
+        safrole::{mark_safrole_header_markers, transition_safrole},
         services::{
             transition_on_accumulate, transition_services_integrate_preimages,
             transition_services_last_accumulate_at, AccountStateChanges,

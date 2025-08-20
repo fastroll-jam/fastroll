@@ -25,10 +25,9 @@ use fr_state::{
 };
 use fr_transition::{
     error::TransitionError,
-    procedures::chain_extension::mark_safrole_header_markers,
     state::{
         entropy::{transition_epoch_entropy_on_epoch_change, transition_epoch_entropy_per_block},
-        safrole::transition_safrole,
+        safrole::{mark_safrole_header_markers, transition_safrole},
         timeslot::transition_timeslot,
         validators::{transition_active_set, transition_past_set},
     },
