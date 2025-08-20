@@ -150,13 +150,8 @@ impl BlockAuthor {
             .await?;
 
         // STF phase #3
-        self.run_final_state_transition(
-            &storage,
-            new_header_hash,
-            &self.new_block.header.data.vrf_signature,
-            execution_output,
-        )
-        .await?;
+        self.run_final_state_transition(&storage, new_header_hash, execution_output)
+            .await?;
 
         // Commit the state transitions
         // Note: Also some STFs can be run asynchronously after committing the header.
@@ -203,17 +198,12 @@ impl BlockAuthor {
             .await?;
         self.seal_block_header(&curr_slot_sealer, curr_entropy_3)
             .await?;
-        let (new_header, new_header_hash) = self.commit_header(&storage).await?;
+        let (_new_header, new_header_hash) = self.commit_header(&storage).await?;
         let execution_output = self
             .run_state_transition_post_header_commitment(&storage)
             .await?;
-        self.run_final_state_transition(
-            &storage,
-            new_header_hash,
-            &new_header.data.vrf_signature,
-            execution_output,
-        )
-        .await?;
+        self.run_final_state_transition(&storage, new_header_hash, execution_output)
+            .await?;
         storage.state_manager().commit_dirty_cache().await?;
         let post_state_root = storage.state_manager().merkle_root();
         tracing::debug!("Post State Root: {}", &post_state_root);
@@ -367,18 +357,14 @@ impl BlockAuthor {
         )
     }
 
-    /// Runs the final two STFs.
-    /// 1. Accumulates epoch entropy (`η0` --> `η0′`)
-    /// 2. Appends the last accumulate outputs to the beefy belt
-    ///    and appends new block history entry (`β_B` --> `β_B′`), (`β_H†` --> `β_H′`)
+    /// Runs the final STF: Appends the last accumulate outputs to the beefy belt
+    /// and appends new block history entry (`β_B` --> `β_B′`), (`β_H†` --> `β_H′`)
     async fn run_final_state_transition(
         &self,
         storage: &NodeStorage,
         new_header_hash: BlockHeaderHash,
-        vrf_sig: &VrfSig,
         stf_output: BlockExecutionOutput,
     ) -> Result<(), BlockAuthorError> {
-        BlockExecutor::accumulate_entropy(storage, vrf_sig).await?;
         BlockExecutor::append_beefy_belt_and_block_history(
             storage,
             stf_output.accumulate_root,

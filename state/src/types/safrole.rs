@@ -268,11 +268,11 @@ pub fn generate_fallback_keys(
     Ok(fallback_keys)
 }
 
-/// The ticket accumulator which holds submitted tickets sorted by their id with a length limit of `EPOCH_LENGTH`.
+/// The ticket accumulator which holds submitted tickets with a length limit of `EPOCH_LENGTH`.
 ///
-/// This struct maintains a max-heap of tickets, ensuring that the tickets are kept in ascending
-/// order by their id. When the number of tickets reaches `EPOCH_LENGTH`, any new tickets added
-/// will only replace existing tickets if they have a lower id.
+/// This struct maintains a max-heap of tickets, ensuring that we can easily get the ticket with the
+/// highest id. When the number of tickets reaches `EPOCH_LENGTH`, any new tickets added will only
+/// replace existing tickets if they have a lower id.
 #[derive(Clone, Debug)]
 pub struct TicketAccumulator {
     heap: BinaryHeap<Ticket>,
@@ -336,9 +336,11 @@ impl TicketAccumulator {
             self.heap.push(ticket);
         } else if let Some(max_ticket) = self.heap.peek() {
             // Peek gives the largest element (max-heap)
+            //
+            // Removes the largest ticket and insert the new ticket with smaller ID
             if &ticket < max_ticket {
-                self.heap.pop(); // Remove the peek
-                self.heap.push(ticket); // Insert the new smaller ticket
+                self.heap.pop();
+                self.heap.push(ticket);
             }
         }
     }
@@ -378,8 +380,7 @@ impl JamEncode for TicketAccumulator {
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
-        let tickets_vec: Vec<Ticket> = self.as_vec();
-        tickets_vec.encode_to(dest)
+        self.heap.clone().into_sorted_vec().encode_to(dest)
     }
 }
 
