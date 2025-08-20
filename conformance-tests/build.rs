@@ -6,6 +6,8 @@ fn main() {
     generate_pvm_tests();
     // Block import test cases
     generate_block_import_tests();
+    // Fuzzer block import test cases
+    generate_fuzz_block_import_tests();
 }
 
 fn generate_pvm_tests() {
@@ -100,5 +102,58 @@ fn generate_block_import_tests() {
         &mut test_case_contents,
     );
 
+    fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
+}
+
+fn generate_fuzz_block_import_tests() {
+    let test_vectors_dir = PathBuf::from("fuzz-traces");
+    let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
+    println!("cargo:rerun-if-changed={}", full_path.display());
+
+    let traces_folders = [
+        // "1754982087", // FIXME: should be removed (using fixed encoding for new service ids)
+        "1754982630",
+        "1754983524",
+        "1754984893",
+        "1754988078",
+        "1754990132",
+        "1755081941",
+        "1755082451",
+        "1755083543",
+        "1755105426",
+        "1755106159",
+        "1755150174",
+        "1755151480",
+        "1755155137",
+        "1755183715",
+        "1755185281",
+        "1755186567",
+        "1755186771",
+        "1755248769",
+        "1755248982",
+        "1755250287",
+        "1755251719",
+        "1755252727",
+        "1755530300",
+        "1755530397",
+        "1755530466",
+        "1755530509",
+        "1755530535", // TESTING
+        "1755530728", // TESTING
+        "1755530896", // TESTING
+        "1755531265",
+        "1755620371", // TESTING
+        "1755621252", // TESTING
+    ];
+
+    let mut test_case_contents = String::new();
+    for traces_folder in traces_folders {
+        let test_file =
+            fs::read_dir(full_path.join(traces_folder)).expect("Failed to read trace folder");
+        write_block_import_test_cases(test_file, traces_folder, &mut test_case_contents);
+    }
+
+    let dest_path =
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_fuzz_block_import_tests.rs");
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }

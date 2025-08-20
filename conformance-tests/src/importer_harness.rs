@@ -163,7 +163,15 @@ impl BlockImportHarness {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<StateRoot, Box<dyn Error>> {
-        let post_state_root = BlockImporter::import_block(storage, block).await?;
+        let pre_state_root = storage.state_manager().merkle_root();
+        let post_state_root = match BlockImporter::import_block(storage, block).await {
+            Ok(post_state_root) => post_state_root,
+            Err(e) => {
+                tracing::warn!("Invalid block - import failed: {e:?}");
+                // Return pre-state root for invalid blocks
+                pre_state_root
+            }
+        };
         Ok(post_state_root)
     }
 
@@ -190,7 +198,7 @@ impl BlockImportHarness {
                     );
                 }
             } else {
-                tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
+                tracing::error!("Raw state entry not found. Key: {}", kv.key.encode_hex());
             };
         }
         assert_eq!(actual_post_state_root, expected_post_state.state_root);
@@ -215,21 +223,21 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
 
     BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
 
-    if !test_case.block.is_genesis() {
-        // Workaround: Import parent block from the previous test case and then set it as best header.
-        let parent_header = get_parent_block_header(file_path);
-        let parent_header_hash = parent_header.hash()?;
-        storage.header_db().set_best_header(parent_header);
-
-        // Set post state root of the parent block (prior state root)
-        storage
-            .post_state_root_db()
-            .set_post_state_root(
-                &parent_header_hash,
-                test_case.block.header.parent_state_root().clone(),
-            )
-            .await?;
-    }
+    // if !test_case.block.is_genesis() {
+    //     // Workaround: Import parent block from the previous test case and then set it as best header.
+    //     let parent_header = get_parent_block_header(file_path);
+    //     let parent_header_hash = parent_header.hash()?;
+    //     storage.header_db().set_best_header(parent_header);
+    //
+    //     // Set post state root of the parent block (prior state root)
+    //     storage
+    //         .post_state_root_db()
+    //         .set_post_state_root(
+    //             &parent_header_hash,
+    //             test_case.block.header.parent_state_root().clone(),
+    //         )
+    //         .await?;
+    // }
 
     // import block
     let post_state_root =
