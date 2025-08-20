@@ -89,16 +89,6 @@ impl OnTransferInvocation {
         let total_amount = args.transfers.iter().map(|t| t.amount).sum();
         let total_gas_limit = args.transfers.iter().map(|t| t.gas_limit).sum();
 
-        let Some(account_code) = state_manager.get_account_code(args.destination).await? else {
-            tracing::warn!("OnTransfer service code not found.");
-            return Ok(OnTransferResult::default());
-        };
-
-        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
-            tracing::warn!("OnTransfer service code exceeds maximum allowed.");
-            return Ok(OnTransferResult::default());
-        }
-
         let curr_timeslot = state_manager.get_timeslot().await?;
 
         let vm_args = OnTransferVMArgs {
@@ -109,14 +99,40 @@ impl OnTransferInvocation {
 
         let epoch_entropy = state_manager.get_epoch_entropy().await?;
         let curr_entropy = epoch_entropy.current();
-        let ctx = OnTransferHostContext::new(
+        let mut ctx = OnTransferHostContext::new(
             state_manager.clone(),
             args.destination,
             curr_entropy.clone(),
             args.clone(),
         )
         .await?;
-        let mut on_transfer_ctx = InvocationContext::X_T(ctx);
+        let mut on_transfer_ctx = InvocationContext::X_T(ctx.clone());
+
+        let recipient_sandbox_unchanged = ctx
+            .accounts_sandbox
+            .get_account_sandbox(state_manager.clone(), args.destination)
+            .await?
+            .cloned();
+
+        let Some(account_code) = state_manager.get_account_code(args.destination).await? else {
+            tracing::warn!("OnTransfer service code not found.");
+            return Ok(OnTransferResult::new(
+                args.destination,
+                total_amount,
+                recipient_sandbox_unchanged,
+                0,
+            ));
+        };
+
+        if account_code.code().len() > MAX_SERVICE_CODE_SIZE {
+            tracing::warn!("OnTransfer service code exceeds maximum allowed.");
+            return Ok(OnTransferResult::new(
+                args.destination,
+                total_amount,
+                recipient_sandbox_unchanged,
+                0,
+            ));
+        }
 
         let result = PVMInterface::invoke_with_args(
             state_manager.clone(),
