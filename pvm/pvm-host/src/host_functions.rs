@@ -1152,7 +1152,6 @@ impl HostFunction {
         vm: &VMState,
         context: &mut InvocationContext,
     ) -> Result<HostCallResult, HostCallError> {
-        tracing::error!("BLESS INVOKED");
         tracing::debug!("Hostcall invoked: BLESS");
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
