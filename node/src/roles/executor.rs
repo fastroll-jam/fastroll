@@ -1,6 +1,6 @@
 use crate::utils::spawn_timed;
 use fr_block::types::{
-    block::{Block, BlockHeaderError, VrfSig},
+    block::{Block, BlockHeaderError},
     extrinsics::disputes::OffendersHeaderMarker,
 };
 use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId};
@@ -199,6 +199,14 @@ impl BlockExecutor {
             Ok::<_, TransitionError>((available_reports, reported))
         });
 
+        // Second EpochEntropy STF (per-block accumulation)
+        // Note: this is a prerequisite for Accumulate STF (η0′ required)
+        transition_epoch_entropy_per_block(
+            storage.state_manager(),
+            block.header.vrf_signature().output_hash(),
+        )
+        .await?;
+
         // Accumulate STF
         let (available_reports, reported_packages) = reports_jh.await??;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
@@ -348,15 +356,6 @@ impl BlockExecutor {
             reported_packages: Vec::new(),
             account_state_changes: AccountStateChanges::default(), // TODO: Check this value for genesis block
         })
-    }
-
-    /// The second EpochEntropy STF
-    pub async fn accumulate_entropy(
-        storage: &NodeStorage,
-        vrf_sig: &VrfSig,
-    ) -> Result<(), BlockExecutionError> {
-        transition_epoch_entropy_per_block(storage.state_manager(), vrf_sig.output_hash()).await?;
-        Ok(())
     }
 
     /// The remaining BlockHistory STFs
