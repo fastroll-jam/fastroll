@@ -447,7 +447,6 @@ impl BlockImporter {
                 BlockExecutor::run_state_transition_post_header_commitment(storage, block).await?;
 
             // STF phase #3
-            BlockExecutor::accumulate_entropy(storage, &block.header.vrf_signature()).await?;
             BlockExecutor::append_beefy_belt_and_block_history(
                 storage,
                 output.accumulate_root,

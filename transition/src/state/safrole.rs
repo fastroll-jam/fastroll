@@ -147,7 +147,7 @@ async fn handle_ticket_accumulation(
 
     // Check if the ticket accumulator contains the new ticket entry.
     // If not, accumulate the new ticket entry into the accumulator.
-    let mut curr_ticket_accumulator = state_manager.get_safrole_clean().await?.ticket_accumulator;
+    let mut curr_ticket_accumulator = state_manager.get_safrole().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
             return Err(TransitionError::XtError(XtError::DuplicateTicket));
