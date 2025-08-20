@@ -243,6 +243,7 @@ async fn add_partial_state_change(
             accumulate_result_partial_state.always_accumulate_services;
     }
 
+    // Accumulate host state change
     let accumulate_host_sandbox = partial_state_union
         .accounts_sandbox
         .get_mut_account_sandbox(state_manager.clone(), accumulate_host)
@@ -256,6 +257,15 @@ async fn add_partial_state_change(
         .unwrap()
         .cloned()
         .expect("should not be None");
+
+    // Integrate new accounts: all accounts other than the accumulate host are new accounts
+    for (&service_id, sandbox) in accumulate_result_partial_state.accounts_sandbox.iter() {
+        if service_id != accumulate_host {
+            partial_state_union
+                .accounts_sandbox
+                .insert(service_id, sandbox.clone());
+        }
+    }
 }
 
 /// Integrates all provided preimages by a single-service accumulation into the partial state accounts sandbox.
