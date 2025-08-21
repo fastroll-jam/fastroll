@@ -1,12 +1,22 @@
 use crate::validation::error::XtError;
 use fr_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use fr_common::{
-    ByteEncodable, Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR,
+    ticket::Ticket, ByteEncodable, Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR,
     TICKET_CONTEST_DURATION, X_T,
 };
-use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
+use fr_crypto::{traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
+
+fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
+    tickets_xt
+        .iter()
+        .map(|ticket| Ticket {
+            id: ticket.ticket_proof.output_hash(),
+            attempt: ticket.entry_index,
+        })
+        .collect()
+}
 
 /// Validate contents of `TicketsXt` type.
 ///
@@ -36,9 +46,9 @@ impl TicketsXtValidator {
     }
 
     /// Validates the entire `TicketsXt`.
-    pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<(), XtError> {
+    pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<Vec<Ticket>, XtError> {
         if extrinsic.is_empty() {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         // Check the slot phase
@@ -52,6 +62,26 @@ impl TicketsXtValidator {
                 extrinsic.len(),
                 MAX_TICKETS_PER_EXTRINSIC,
             ));
+        }
+
+        // Construct new tickets from the tickets Xt.
+        let new_tickets = ticket_xt_to_new_tickets(extrinsic);
+
+        // Duplication check (within the Xt)
+        let mut ticket_ids = HashSet::new();
+        let no_duplicate_tickets = new_tickets
+            .iter()
+            .all(|entry| ticket_ids.insert(entry.id.clone()));
+        if !no_duplicate_tickets {
+            return Err(XtError::DuplicateTicket);
+        }
+
+        // Duplication check (ticket accumulator)
+        let curr_ticket_accumulator = self.state_manger.get_safrole().await?.ticket_accumulator;
+        for ticket in &new_tickets {
+            if curr_ticket_accumulator.contains(ticket) {
+                return Err(XtError::DuplicateTicket);
+            }
         }
 
         // Check if the entries are sorted
@@ -72,7 +102,7 @@ impl TicketsXtValidator {
             self.validate_entry(entry, &verifier, entropy_2)?;
         }
 
-        Ok(())
+        Ok(new_tickets)
     }
 
     /// Validates each `TicketsXtEntry`.

@@ -3,8 +3,8 @@ use fr_block::types::{
     block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use fr_common::{ticket::Ticket, EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use fr_crypto::{traits::VrfSignature, types::ValidatorKeySet, vrf::ring::generate_ring_root};
+use fr_common::{EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use fr_crypto::{types::ValidatorKeySet, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_limited_vec::FixedVec;
 use fr_state::{
@@ -127,16 +127,6 @@ pub(crate) fn update_slot_sealers(
     }
 }
 
-pub(crate) fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
-    tickets_xt
-        .iter()
-        .map(|ticket| Ticket {
-            id: ticket.ticket_proof.output_hash(),
-            attempt: ticket.entry_index,
-        })
-        .collect()
-}
-
 async fn handle_ticket_accumulation(
     state_manager: Arc<StateManager>,
     tickets_xt: &TicketsXt,
@@ -155,13 +145,9 @@ async fn handle_ticket_accumulation(
 
     // Validate ticket extrinsic data.
     let ticket_validator = TicketsXtValidator::new(state_manager.clone());
-    ticket_validator.validate(tickets_xt).await?;
+    let new_tickets = ticket_validator.validate(tickets_xt).await?;
 
-    // Construct new tickets from ticket extrinsics.
-    let new_tickets = ticket_xt_to_new_tickets(tickets_xt);
-
-    // Check if the ticket accumulator contains the new ticket entry.
-    // If not, accumulate the new ticket entry into the accumulator.
+    // Accumulate the new ticket entry into the accumulator (duplicate check done by `TicketsXtValidator`)
     let mut curr_ticket_accumulator = state_manager.get_safrole().await?.ticket_accumulator;
     for ticket in new_tickets {
         if curr_ticket_accumulator.contains(&ticket) {
