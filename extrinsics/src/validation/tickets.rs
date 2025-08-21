@@ -13,7 +13,7 @@ use std::sync::Arc;
 /// # Validation Rules
 ///
 /// ## Ordering
-/// - No ordering rule applies.
+/// - Tickets entries ordered by their output hash of RingVRF proofs.
 ///
 /// ## Length Limit
 /// - The submission of tickets is limited to timeslots earlier than the ticket submission deadline
@@ -59,10 +59,13 @@ impl TicketsXtValidator {
             return Err(XtError::TicketsNotSorted);
         }
 
+        // Note: current Safrole pending set (γP′; after on-epoch-change transition) is used as
+        // the ring validator set.
         let pending_set = self.state_manger.get_safrole().await?.pending_set;
+        let verifier = RingVrfVerifier::new(pending_set);
+
         let epoch_entropy = self.state_manger.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();
-        let verifier = RingVrfVerifier::new(pending_set);
 
         // Validate each entry
         for entry in extrinsic.iter() {
@@ -91,8 +94,7 @@ impl TicketsXtValidator {
 
     /// Checks if the ticket extrinsics have valid VRF proofs.
     ///
-    /// The entropy_2 is the second history of the entropy accumulator, assuming that the Safrole state
-    /// transition happens after the entropy transition.
+    /// `entropy_2` refers to the current epoch entropy, after on-epoch-change transition.
     fn validate_ticket_proof(
         entry: &TicketsXtEntry,
         verifier: &RingVrfVerifier,
