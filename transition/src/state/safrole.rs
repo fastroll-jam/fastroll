@@ -119,7 +119,8 @@ pub(crate) fn update_slot_sealers(
         safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(fallback_keys);
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
-        let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());
+        let ticket_accumulator_outside_in =
+            outside_in_vec(safrole.ticket_accumulator.clone().into_sorted_vec());
         let epoch_tickets = EpochTickets::try_from(ticket_accumulator_outside_in)
             .expect("ticket accumulator length exceeds EPOCH_LENGTH");
         safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
@@ -222,7 +223,8 @@ pub async fn mark_safrole_header_markers(
         && curr_safrole.ticket_accumulator.is_full();
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
-        let marker_vec_outside_in = outside_in_vec(curr_safrole.ticket_accumulator.into_vec());
+        let marker_vec_outside_in =
+            outside_in_vec(curr_safrole.ticket_accumulator.into_sorted_vec());
         let marker = WinningTicketsMarker::try_from(marker_vec_outside_in)?;
         Some(marker)
     } else {
