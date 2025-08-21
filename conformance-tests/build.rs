@@ -111,7 +111,6 @@ fn generate_fuzz_block_import_tests() {
     println!("cargo:rerun-if-changed={}", full_path.display());
 
     let traces_folders = [
-        // "1754982087", // FIXME: should be removed (using fixed encoding for new service ids)
         "1754982630",
         "1754983524",
         "1754984893",
@@ -120,8 +119,8 @@ fn generate_fuzz_block_import_tests() {
         "1755081941",
         "1755082451",
         "1755083543",
-        "1755105426",
-        "1755106159",
+        // "1755105426",
+        // "1755106159",
         "1755150174",
         "1755151480",
         "1755155137",
@@ -138,12 +137,12 @@ fn generate_fuzz_block_import_tests() {
         "1755530397",
         "1755530466",
         "1755530509",
-        "1755530535", // TESTING
-        "1755530728", // TESTING
-        "1755530896", // TESTING
         "1755531265",
+        "1755530535", // TESTING
+        // "1755530728", // TESTING // FIXME: should be included in RETIRED
+        "1755530896", // TESTING
         "1755620371", // TESTING
-        "1755621252", // TESTING
+                      // "1755621252", // FIXME: should be removed
     ];
 
     let mut test_case_contents = String::new();
