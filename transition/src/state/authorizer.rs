@@ -10,9 +10,9 @@ use std::sync::Arc;
 ///
 /// On every block, the pool for each core must be updated based on the guarantees extrinsics submitted.
 /// If a guarantees extrinsic entry exists for a given core and thus used the computing resource (core-time),
-/// the oldest authorizer hash in the pool is removed, and the next authorizer hash in the queue
-/// is added to the pool. If no guarantee exists, the next authorizer hash is still
-/// added to the pool, discarding the oldest entry from the pool if it is full.
+/// such authorizer hash is removed from the pool and an authorizer hash in the queue is added to
+/// the pool. If no guarantee exists, the next authorizer hash is still added to the pool,
+/// discarding the oldest entry from the pool if it is full.
 pub async fn transition_auth_pool(
     state_manager: Arc<StateManager>,
     guarantees_xt: &GuaranteesXt,
