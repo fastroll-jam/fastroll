@@ -115,7 +115,7 @@ pub fn safrole_state_to_gammas(
     let gamma_a = safrole
         .ticket_accumulator
         .clone()
-        .into_vec()
+        .into_sorted_vec()
         .into_iter()
         .map(|ticket| AsnTicketBody {
             id: AsnOpaqueHash::from(ticket.id),

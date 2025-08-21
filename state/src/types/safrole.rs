@@ -246,18 +246,10 @@ pub fn generate_fallback_keys(
     entropy: &EntropyHash,
 ) -> Result<FixedVec<BandersnatchPubKey, EPOCH_LENGTH>, SlotSealerError> {
     let mut fallback_keys = EpochFallbackKeys::default();
-    let entropy_vec = entropy.to_vec();
-
     for (i, key) in fallback_keys.iter_mut().enumerate() {
-        let i_encoded = (i as u32)
-            .encode_fixed(4)
-            .map_err(SlotSealerError::CodecError)?;
-
-        let mut entropy_with_index = entropy_vec.clone();
-        entropy_with_index.extend_from_slice(&i_encoded);
-
-        let mut hash: &[u8] = &hash_prefix_4::<Blake2b256>(&entropy_with_index)?;
-        let key_index: u32 = u32::decode_fixed(&mut hash, 4)? % (VALIDATOR_COUNT as u32);
+        let hash_input = [entropy.as_slice(), (i as u32).encode_fixed(4)?.as_slice()].concat();
+        let hash = hash_prefix_4::<Blake2b256>(hash_input.as_slice())?;
+        let key_index = u32::decode_fixed(&mut hash.as_slice(), 4)? % (VALIDATOR_COUNT as u32);
 
         *key = validator_set
             .get_validator_bandersnatch_key(key_index as ValidatorIndex)
@@ -354,16 +346,8 @@ impl TicketAccumulator {
         self.heap.iter().any(|t| *t == *ticket)
     }
 
-    pub fn into_vec(self) -> Vec<Ticket> {
-        let mut tickets: Vec<_> = self.heap.into_iter().collect();
-        tickets.sort_unstable(); // Return in a sorted form
-        tickets
-    }
-
-    pub fn as_vec(&self) -> Vec<Ticket> {
-        let mut tickets: Vec<_> = self.heap.iter().cloned().collect();
-        tickets.sort_unstable(); // Return in a sorted form
-        tickets
+    pub fn into_sorted_vec(self) -> Vec<Ticket> {
+        self.heap.into_sorted_vec()
     }
 
     pub fn from_vec(tickets: Vec<Ticket>) -> Self {
@@ -375,7 +359,7 @@ impl TicketAccumulator {
 
 impl JamEncode for TicketAccumulator {
     fn size_hint(&self) -> usize {
-        let tickets_vec: Vec<Ticket> = self.as_vec();
+        let tickets_vec: Vec<Ticket> = self.clone().into_sorted_vec();
         tickets_vec.size_hint()
     }
 
@@ -424,7 +408,7 @@ mod ticket_accumulator_tests {
         }
         assert_eq!(tickets.len(), epoch_length_u16.into());
         assert_eq!(
-            tickets.as_vec(),
+            tickets.clone().into_sorted_vec(),
             (0..epoch_length_u16).map(create_ticket).collect::<Vec<_>>()
         );
     }
@@ -457,7 +441,7 @@ mod ticket_accumulator_tests {
             })
             .collect();
 
-        assert_eq!(tickets.as_vec(), expected);
+        assert_eq!(tickets.clone().into_sorted_vec(), expected);
 
         // Large ticket should not be included in the MaxHeap
         let large_ticket = {
@@ -469,7 +453,7 @@ mod ticket_accumulator_tests {
                 attempt: (EPOCH_LENGTH as u16 % 2) as u8,
             }
         };
-        assert!(!tickets.as_vec().contains(&large_ticket));
+        assert!(!tickets.clone().into_sorted_vec().contains(&large_ticket));
     }
 
     #[test]
@@ -479,7 +463,7 @@ mod ticket_accumulator_tests {
         tickets.add_multiple(new_tickets);
         assert_eq!(tickets.len(), EPOCH_LENGTH);
         assert_eq!(
-            tickets.as_vec(),
+            tickets.clone().into_sorted_vec(),
             (0..EPOCH_LENGTH as u16)
                 .map(create_ticket)
                 .collect::<Vec<_>>()
@@ -496,7 +480,7 @@ mod ticket_accumulator_tests {
         tickets.add(create_ticket(200));
         tickets.add(create_ticket(900));
         assert_eq!(
-            tickets.as_vec(),
+            tickets.clone().into_sorted_vec(),
             vec![
                 create_ticket(100),
                 create_ticket(200),

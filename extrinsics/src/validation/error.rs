@@ -169,6 +169,8 @@ pub enum XtError {
     TicketsEntryLimitExceeded(usize, usize),
     #[error("Duplicate ticket found in accumulator")]
     DuplicateTicket,
+    #[error("Tickets Xt includes useless tickets")]
+    UselessTickets,
     #[error("Ticket entries must be sorted by proof hash")]
     TicketsNotSorted,
     #[error("Invalid VRF proof for ticket entry. Proof: {0}")]
