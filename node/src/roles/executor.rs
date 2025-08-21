@@ -73,7 +73,6 @@ impl BlockExecutor {
         block: &Block,
     ) -> Result<BlockExecutionHeaderMarkers, BlockExecutionError> {
         let disputes_xt = block.extrinsics.disputes.clone();
-        let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
         let prev_timeslot = storage.state_manager().get_timeslot().await?;
         let header_timeslot = Timeslot::new(block.header.timeslot_index());
@@ -124,33 +123,20 @@ impl BlockExecutor {
         })
         .await??;
 
-        // Authorizer STF
-        let manager = storage.state_manager();
-        let guarantees_xt_cloned = guarantees_xt.clone();
-        let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-            transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot).await
-        });
-
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
         #[allow(unused_must_use)]
         try_join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh)?;
 
         // Safrole STF
         let manager = storage.state_manager();
-        let safrole_jh = spawn_timed("safrole_stf", async move {
-            transition_safrole(
-                manager,
-                &prev_timeslot,
-                &curr_timeslot,
-                epoch_progressed,
-                &tickets_xt,
-            )
-            .await
-        });
-
-        // --- Join: Safrole, AuthPool
-        #[allow(unused_must_use)]
-        try_join!(safrole_jh, auth_pool_jh)?;
+        transition_safrole(
+            manager,
+            &prev_timeslot,
+            &curr_timeslot,
+            epoch_progressed,
+            &tickets_xt,
+        )
+        .await?;
 
         // Collect header markers
         let safrole_markers =
@@ -182,6 +168,7 @@ impl BlockExecutor {
         // Reports STF
         let manager = storage.state_manager();
         let header_db = storage.header_db();
+        let guarantees_xt_cloned = guarantees_xt.clone();
         let reports_jh = spawn_timed("reports_stf", async move {
             transition_reports_eliminate_invalid(manager.clone(), &disputes_xt, prev_timeslot)
                 .await?;
@@ -191,7 +178,7 @@ impl BlockExecutor {
             let (reported, _reporters) = transition_reports_update_entries(
                 manager,
                 header_db,
-                &guarantees_xt,
+                &guarantees_xt_cloned,
                 curr_timeslot,
             )
             .await?;
@@ -206,7 +193,7 @@ impl BlockExecutor {
         )
         .await?;
 
-        // Accumulate STF
+        // Accumulation STFs
         let (available_reports, reported_packages) = reports_jh.await??;
         let acc_queue = storage.state_manager().get_accumulate_queue().await?;
         let acc_history = storage.state_manager().get_accumulate_history().await?;
@@ -243,12 +230,21 @@ impl BlockExecutor {
         });
         let accumulate_root = last_acc_output_jh.await??;
 
+        // AuthPool STF (post-accumulation)
+        let manager = storage.state_manager();
+        let header_timeslot_index = block.header.timeslot_index();
+        let guarantees_xt_cloned = guarantees_xt.clone();
+        let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
+            transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot_index).await
+        });
+
         // Services last_accumulate_at STF
         let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
         let manager = storage.state_manager();
         let last_acc_at_jh = spawn_timed("last_acc_at_stf", async move {
             transition_services_last_accumulate_at(manager, &accumulated_services).await
         });
+
         // OnChainStatistics STF
         let manager = storage.state_manager();
         let stats_jh = spawn_timed("stats_stf", async move {
@@ -268,9 +264,9 @@ impl BlockExecutor {
             transition_services_integrate_preimages(manager, &preimages_xt).await
         });
 
-        // --- Join: Services(last_accumulate_at), OnChainStatistics, Preimage integration STFs
+        // --- Join: AuthPool, Services(last_accumulate_at), OnChainStatistics, Preimage integration STFs
         #[allow(unused_must_use)]
-        try_join!(last_acc_at_jh, stats_jh, preimage_jh)?;
+        try_join!(auth_pool_jh, last_acc_at_jh, stats_jh, preimage_jh)?;
 
         Ok(BlockExecutionOutput {
             accumulate_root,
@@ -287,7 +283,6 @@ impl BlockExecutor {
         let guarantees_xt = block.extrinsics.guarantees.clone();
         let tickets_xt = block.extrinsics.tickets.clone();
         let prev_timeslot = storage.state_manager().get_timeslot().await?;
-        let header_timeslot = Timeslot::new(block.header.timeslot_index());
         let parent_state_root = block.header.data.prior_state_root.clone();
 
         // Epoch progress check
@@ -316,8 +311,9 @@ impl BlockExecutor {
 
         // Authorizer STF
         let manager = storage.state_manager();
+        let header_timeslot_index = block.header.timeslot_index();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
-            transition_auth_pool(manager, &guarantees_xt, header_timeslot).await
+            transition_auth_pool(manager, &guarantees_xt, header_timeslot_index).await
         });
 
         // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
