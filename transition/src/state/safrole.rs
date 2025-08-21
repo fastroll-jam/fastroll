@@ -203,6 +203,7 @@ pub async fn mark_safrole_header_markers(
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
     let prev_timeslot = state_manager.get_timeslot_clean().await?;
     let curr_timeslot = state_manager.get_timeslot().await?;
+    let prev_safrole = state_manager.get_safrole_clean().await?;
     let curr_safrole = state_manager.get_safrole().await?;
 
     let epoch_marker = if epoch_progressed {
@@ -220,11 +221,11 @@ pub async fn mark_safrole_header_markers(
     let needs_winning_tickets_marker = !epoch_progressed
         && prev_timeslot.slot_phase() < TICKET_CONTEST_DURATION as u32
         && curr_timeslot.slot_phase() >= TICKET_CONTEST_DURATION as u32
-        && curr_safrole.ticket_accumulator.is_full();
+        && prev_safrole.ticket_accumulator.is_full();
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
         let marker_vec_outside_in =
-            outside_in_vec(curr_safrole.ticket_accumulator.into_sorted_vec());
+            outside_in_vec(prev_safrole.ticket_accumulator.into_sorted_vec());
         let marker = WinningTicketsMarker::try_from(marker_vec_outside_in)?;
         Some(marker)
     } else {
