@@ -1,8 +1,8 @@
 use crate::validation::error::XtError;
 use fr_block::types::extrinsics::tickets::{TicketsXt, TicketsXtEntry};
 use fr_common::{
-    ticket::Ticket, ByteEncodable, Hash32, MAX_TICKETS_PER_EXTRINSIC, TICKETS_PER_VALIDATOR,
-    TICKET_CONTEST_DURATION, X_T,
+    ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, MAX_TICKETS_PER_EXTRINSIC,
+    TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
 use fr_crypto::{traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
@@ -64,6 +64,11 @@ impl TicketsXtValidator {
             ));
         }
 
+        // Check if the entries are sorted
+        if !extrinsic.is_sorted() {
+            return Err(XtError::TicketsNotSorted);
+        }
+
         // Construct new tickets from the tickets Xt.
         let new_tickets = ticket_xt_to_new_tickets(extrinsic);
 
@@ -84,9 +89,28 @@ impl TicketsXtValidator {
             }
         }
 
-        // Check if the entries are sorted
-        if !extrinsic.is_sorted() {
-            return Err(XtError::TicketsNotSorted);
+        // All new tickets should be useful; if any of them cannot be included in the posterior
+        // ticket accumulator, the Xt is invalid.
+        let accumulator_becomes_saturated =
+            curr_ticket_accumulator.len() + new_tickets.len() > EPOCH_LENGTH;
+        if accumulator_becomes_saturated {
+            let tickets_in_accumulator_sorted = curr_ticket_accumulator.into_sorted_vec();
+
+            // The number of tickets to be dropped after merging the new tickets
+            let tickets_overflow =
+                tickets_in_accumulator_sorted.len() + new_tickets.len() - EPOCH_LENGTH;
+
+            if tickets_overflow <= tickets_in_accumulator_sorted.len() {
+                let threshold_idx = tickets_in_accumulator_sorted.len() - tickets_overflow;
+                let threshold_ticket = &tickets_in_accumulator_sorted[threshold_idx];
+                if let Some(largest_new_ticket) = new_tickets.last() {
+                    // There should be at least `tickets_overflow` tickets in the accumulator that have
+                    // larger id than the largest new ticket.
+                    if largest_new_ticket >= threshold_ticket {
+                        return Err(XtError::UselessTickets);
+                    }
+                }
+            }
         }
 
         // Note: current Safrole pending set (γP′; after on-epoch-change transition) is used as
