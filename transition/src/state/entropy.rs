@@ -46,11 +46,11 @@ pub async fn transition_epoch_entropy_per_block(
         .with_mut_epoch_entropy(
             StateMut::Update,
             |entropy| -> Result<(), StateManagerError> {
-                let current_accumulator_hash = entropy.current();
-                let mut hash_combined = [0u8; 64];
-                hash_combined[..32].copy_from_slice(current_accumulator_hash.as_slice());
-                hash_combined[32..].copy_from_slice(source_hash.as_slice());
-                entropy.0[0] = hash::<Blake2b256>(hash_combined.as_slice())?;
+                entropy.0[0] = hash::<Blake2b256>(
+                    [entropy.current().as_slice(), source_hash.as_slice()]
+                        .concat()
+                        .as_slice(),
+                )?;
                 Ok(())
             },
         )

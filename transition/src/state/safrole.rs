@@ -3,8 +3,8 @@ use fr_block::types::{
     block::{EpochMarker, EpochMarkerValidatorKey, WinningTicketsMarker},
     extrinsics::tickets::TicketsXt,
 };
-use fr_common::{ticket::Ticket, EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use fr_crypto::{traits::VrfSignature, types::ValidatorKeySet, vrf::ring::generate_ring_root};
+use fr_common::{EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
+use fr_crypto::{types::ValidatorKeySet, vrf::ring::generate_ring_root};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_limited_vec::FixedVec;
 use fr_state::{
@@ -119,21 +119,12 @@ pub(crate) fn update_slot_sealers(
         safrole.slot_sealers = SlotSealers::BandersnatchPubKeys(fallback_keys);
         tracing::trace!("Post slot sealers:\n{}", &safrole.slot_sealers);
     } else {
-        let ticket_accumulator_outside_in = outside_in_vec(safrole.ticket_accumulator.as_vec());
+        let ticket_accumulator_outside_in =
+            outside_in_vec(safrole.ticket_accumulator.clone().into_sorted_vec());
         let epoch_tickets = EpochTickets::try_from(ticket_accumulator_outside_in)
             .expect("ticket accumulator length exceeds EPOCH_LENGTH");
         safrole.slot_sealers = SlotSealers::Tickets(epoch_tickets);
     }
-}
-
-pub(crate) fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
-    tickets_xt
-        .iter()
-        .map(|ticket| Ticket {
-            id: ticket.ticket_proof.output_hash(),
-            attempt: ticket.entry_index,
-        })
-        .collect()
 }
 
 async fn handle_ticket_accumulation(
@@ -154,26 +145,14 @@ async fn handle_ticket_accumulation(
 
     // Validate ticket extrinsic data.
     let ticket_validator = TicketsXtValidator::new(state_manager.clone());
-    ticket_validator.validate(tickets_xt).await?;
+    let new_tickets = ticket_validator.validate(tickets_xt).await?;
 
-    // Construct new tickets from ticket extrinsics.
-    let new_tickets = ticket_xt_to_new_tickets(tickets_xt);
-
-    // Check if the ticket accumulator contains the new ticket entry.
-    // If not, accumulate the new ticket entry into the accumulator.
-    let mut curr_ticket_accumulator = state_manager.get_safrole().await?.ticket_accumulator;
-    for ticket in new_tickets {
-        if curr_ticket_accumulator.contains(&ticket) {
-            return Err(TransitionError::XtError(XtError::DuplicateTicket));
-        }
-        curr_ticket_accumulator.add(ticket);
-    }
-
+    // Accumulate the new ticket entry into the accumulator (duplicate check done by `TicketsXtValidator`)
     state_manager
         .with_mut_safrole(
             StateMut::Update,
             |safrole| -> Result<(), StateManagerError> {
-                safrole.ticket_accumulator = curr_ticket_accumulator;
+                safrole.ticket_accumulator.add_multiple(new_tickets);
                 Ok(())
             },
         )
@@ -202,6 +181,7 @@ pub async fn mark_safrole_header_markers(
 ) -> Result<SafroleHeaderMarkers, TransitionError> {
     let prev_timeslot = state_manager.get_timeslot_clean().await?;
     let curr_timeslot = state_manager.get_timeslot().await?;
+    let prev_safrole = state_manager.get_safrole_clean().await?;
     let curr_safrole = state_manager.get_safrole().await?;
 
     let epoch_marker = if epoch_progressed {
@@ -219,10 +199,11 @@ pub async fn mark_safrole_header_markers(
     let needs_winning_tickets_marker = !epoch_progressed
         && prev_timeslot.slot_phase() < TICKET_CONTEST_DURATION as u32
         && curr_timeslot.slot_phase() >= TICKET_CONTEST_DURATION as u32
-        && curr_safrole.ticket_accumulator.is_full();
+        && prev_safrole.ticket_accumulator.is_full();
 
     let winning_tickets_marker = if needs_winning_tickets_marker {
-        let marker_vec_outside_in = outside_in_vec(curr_safrole.ticket_accumulator.into_vec());
+        let marker_vec_outside_in =
+            outside_in_vec(prev_safrole.ticket_accumulator.into_sorted_vec());
         let marker = WinningTicketsMarker::try_from(marker_vec_outside_in)?;
         Some(marker)
     } else {
