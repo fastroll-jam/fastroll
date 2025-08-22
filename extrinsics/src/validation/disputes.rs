@@ -77,7 +77,7 @@ impl DisputesXtValidator {
 
         let all_past_report_hashes = self
             .state_manager
-            .get_disputes()
+            .get_disputes_clean()
             .await?
             .get_all_report_hashes();
 
