@@ -125,7 +125,7 @@ impl GuaranteesXtValidator {
 
         // Validate each entry
         let pending_reports = self.state_manager.get_pending_reports().await?;
-        let auth_pool = self.state_manager.get_auth_pool().await?;
+        let auth_pool = self.state_manager.get_auth_pool_clean().await?;
         let block_history = self.state_manager.get_block_history().await?;
         let accumulate_queue = self.state_manager.get_accumulate_queue().await?;
         let accumulate_history = self.state_manager.get_accumulate_history().await?;
