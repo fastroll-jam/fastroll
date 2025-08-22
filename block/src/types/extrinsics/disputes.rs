@@ -101,36 +101,14 @@ impl DisputesXt {
     }
 
     pub fn collect_offender_keys(&self) -> OffendersHeaderMarker {
-        let mut offenders_keys: Vec<Ed25519PubKey> = self
-            .culprits
-            .iter()
-            .map(|culprit| culprit.validator_key.clone())
-            .collect();
-        let faults_keys: Vec<Ed25519PubKey> = self
-            .faults
-            .iter()
-            .map(|fault| fault.validator_key.clone())
-            .collect();
-
-        offenders_keys.extend(faults_keys);
-
         OffendersHeaderMarker {
-            items: offenders_keys,
+            items: self
+                .culprits
+                .iter()
+                .map(|culprit| culprit.validator_key.clone())
+                .chain(self.faults.iter().map(|fault| fault.validator_key.clone()))
+                .collect(),
         }
-    }
-
-    pub fn culprits_keys(&self) -> Vec<Ed25519PubKey> {
-        self.culprits
-            .iter()
-            .map(|culprit| culprit.validator_key.clone())
-            .collect()
-    }
-
-    pub fn faults_keys(&self) -> Vec<Ed25519PubKey> {
-        self.faults
-            .iter()
-            .map(|fault| fault.validator_key.clone())
-            .collect()
     }
 }
 
@@ -204,14 +182,11 @@ impl Verdict {
             .iter()
             .filter(|&judgment| judgment.is_report_valid)
             .count();
-        if valid_judgments_count == VALIDATORS_SUPER_MAJORITY {
-            VerdictEvaluation::IsGood
-        } else if valid_judgments_count == 0 {
-            VerdictEvaluation::IsBad
-        } else if valid_judgments_count == FLOOR_ONE_THIRDS_VALIDATOR_COUNT {
-            VerdictEvaluation::IsWonky
-        } else {
-            VerdictEvaluation::Invalid(valid_judgments_count)
+        match valid_judgments_count {
+            VALIDATORS_SUPER_MAJORITY => VerdictEvaluation::IsGood,
+            0 => VerdictEvaluation::IsBad,
+            FLOOR_ONE_THIRDS_VALIDATOR_COUNT => VerdictEvaluation::IsWonky,
+            _ => VerdictEvaluation::Invalid(valid_judgments_count),
         }
     }
 }

@@ -85,7 +85,7 @@ impl PendingReports {
     ) -> Result<bool, PendingReportsError> {
         for report_entry in self.0.iter_mut() {
             if let Some(report) = report_entry {
-                if hash::<Blake2b256>(&report.work_report.encode()?)? == *target_hash {
+                if &hash::<Blake2b256>(&report.work_report.encode()?)? == target_hash {
                     *report_entry = None;
                     return Ok(true); // Hash found and entry turned into None
                 }

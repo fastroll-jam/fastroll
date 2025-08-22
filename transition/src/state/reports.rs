@@ -46,7 +46,7 @@ pub async fn transition_reports_eliminate_invalid(
         .with_mut_pending_reports(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
-                for report_hash in bad_set.iter().chain(wonky_set.iter()) {
+                for report_hash in bad_set.iter().chain(&wonky_set) {
                     pending_reports.remove_by_hash(report_hash)?;
                 }
                 Ok(())

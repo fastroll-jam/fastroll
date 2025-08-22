@@ -82,7 +82,7 @@ impl GuarantorAssignment {
         let within_same_epoch = previous_timeslot_value / EPOCH_LENGTH as u32
             == current_timeslot.slot() / EPOCH_LENGTH as u32;
 
-        let (entropy, ref mut validator_set) = if within_same_epoch {
+        let (entropy, mut validator_set) = if within_same_epoch {
             (
                 entropy.second_history(),
                 state_manager.get_active_set().await?.0,
