@@ -248,12 +248,15 @@ impl DisputesXtValidator {
             ));
         }
 
-        // Check the verdict entry that corresponds to the fault entry exists
-        extrinsic
+        // Check the verdict entry that corresponds to the fault entry exists, and it is actually "bad".
+        let verdict = extrinsic
             .get_verdict_by_report_hash(&entry.report_hash)
             .ok_or(XtError::InvalidCulpritReportHash(
                 entry.validator_key.to_hex(),
             ))?;
+        if !matches!(verdict.evaluate_verdict(), VerdictEvaluation::IsBad) {
+            return Err(XtError::NotCulprit(entry.validator_key.to_hex()));
+        }
 
         if !valid_set.contains(&entry.validator_key) {
             return Err(XtError::InvalidCulpritsGuarantorKey(
