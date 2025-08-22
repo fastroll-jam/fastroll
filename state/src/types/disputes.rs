@@ -49,11 +49,11 @@ impl DisputesState {
     }
 
     pub fn get_all_report_hashes(&self) -> Vec<WorkReportHash> {
-        let mut all_reports = vec![];
-        all_reports.extend(self.good_set.clone());
-        all_reports.extend(self.bad_set.clone());
-        all_reports.extend(self.wonky_set.clone());
-
-        all_reports
+        self.good_set
+            .iter()
+            .chain(&self.bad_set)
+            .chain(&self.wonky_set)
+            .cloned()
+            .collect()
     }
 }
