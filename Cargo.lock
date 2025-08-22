@@ -958,6 +958,7 @@ dependencies = [
  "fr-pvm-core",
  "fr-pvm-types",
  "fr-state",
+ "hex",
  "thiserror 2.0.12",
  "tracing",
 ]

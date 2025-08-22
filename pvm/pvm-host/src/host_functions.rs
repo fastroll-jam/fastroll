@@ -30,6 +30,7 @@ use fr_pvm_types::{
 };
 use fr_state::{
     manager::StateManager,
+    state_utils::get_account_storage_state_key,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
         AccountStorageEntry, AccountStorageEntryExt, CoreAuthQueue, StagingSet, Timeslot,
@@ -263,6 +264,10 @@ impl HostFunction {
         }
 
         tracing::debug!("FETCH id={data_id} len={data_read_size}");
+        let full_data = hex::encode(&data);
+        let fetch_data =
+            hex::encode(&data[data_read_offset..data_read_offset + data_read_size].to_vec());
+        tracing::info!("FETCH full_data={full_data} fetch_data={fetch_data}");
         continue_with_vm_change!(
             r7: data.len(),
             mem_offset: buf_offset,
@@ -491,6 +496,13 @@ impl HostFunction {
         }
 
         tracing::debug!("READ key={storage_key} len={read_len}");
+        let state_key = get_account_storage_state_key(service_id, &storage_key);
+        let full_data = hex::encode(&entry.value.clone().0);
+        let read_data =
+            hex::encode(&entry.value[storage_val_offset..storage_val_offset + read_len].to_vec());
+        tracing::info!(
+            "READ s={service_id} s_key={state_key} full_data={full_data} read_data={read_data}"
+        );
         continue_with_vm_change!(
             r7: storage_val_size,
             mem_offset: buf_offset,
@@ -568,6 +580,11 @@ impl HostFunction {
             ))
         };
 
+        let write_data = match &new_storage_entry {
+            Some(data) => hex::encode(data.value.clone().0.as_slice()),
+            None => String::new(),
+        };
+
         let storage_usage_delta = AccountMetadata::calculate_storage_usage_delta(
             maybe_prev_storage_entry.as_ref(),
             new_storage_entry.as_ref(),
@@ -608,6 +625,8 @@ impl HostFunction {
         }
 
         tracing::debug!("WRITE key={storage_key} len={value_size}");
+        let state_key = get_account_storage_state_key(service_id, &storage_key);
+        tracing::info!("WRITE s={service_id} s_key={state_key} offset={value_offset} len={value_size} val={write_data}");
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)
     }
 
@@ -669,6 +688,11 @@ impl HostFunction {
 
         let info_write = info[info_read_offset..info_read_offset + info_write_len].to_vec();
         tracing::debug!("INFO service_id={service_id} len={info_write_len}");
+
+        let full_data = hex::encode(&info);
+        let info_data = hex::encode(&info_write);
+        tracing::info!("INFO full_data={full_data} info_data={info_data}");
+
         continue_with_vm_change!(
             r7: info.len() as RegValue,
             mem_offset: buf_offset,
