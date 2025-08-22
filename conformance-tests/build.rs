@@ -138,11 +138,12 @@ fn generate_fuzz_block_import_tests() {
         "1755530466",
         "1755530509",
         "1755531265",
-        "1755530535", // TESTING
-        // "1755530728", // TESTING // FIXME: should be included in RETIRED
-        "1755530896", // TESTING
-        "1755620371", // TESTING
-                      // "1755621252", // FIXME: should be removed
+        "1755530535",
+        // "1755530728", // FIXME: should be included in RETIRED
+        "1755530896",
+        "1755620371",
+        "1755796851", // TESTING
+        "1755796995", // TESTING
     ];
 
     let mut test_case_contents = String::new();
