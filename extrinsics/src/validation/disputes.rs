@@ -72,8 +72,8 @@ impl DisputesXtValidator {
 
         // Used for duplicate validation
         let mut verdicts_hashes = HashSet::new();
-        let mut culprits_hashes = HashSet::new();
-        let mut faults_hashes = HashSet::new();
+        let mut culprits_keys = HashSet::new();
+        let mut faults_keys = HashSet::new();
 
         let all_past_report_hashes = self
             .state_manager
@@ -84,13 +84,17 @@ impl DisputesXtValidator {
         let active_set = self.state_manager.get_active_set_clean().await?;
         let past_set = self.state_manager.get_past_set_clean().await?;
 
+        // Verdicts duplication check (report hash)
+        let no_duplicate_verdicts = extrinsic
+            .verdicts
+            .iter()
+            .all(|verdict| verdicts_hashes.insert(verdict.report_hash.clone()));
+        if !no_duplicate_verdicts {
+            return Err(XtError::DuplicateVerdict);
+        }
+
         // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
-            // Check for duplicate entry (report_hash)
-            if !verdicts_hashes.insert(verdict.report_hash.clone()) {
-                return Err(XtError::DuplicateVerdict);
-            }
-
             Self::validate_verdicts_entry(
                 verdict,
                 &active_set,
@@ -111,22 +115,29 @@ impl DisputesXtValidator {
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
 
+        // Culprits duplication check (validator key)
+        let no_duplicate_culprits = extrinsic
+            .culprits
+            .iter()
+            .all(|culprit| culprits_keys.insert(culprit.validator_key.clone()));
+        if !no_duplicate_culprits {
+            return Err(XtError::DuplicateCulprit);
+        }
         // Validate each culprit entry
         for culprit in extrinsic.culprits.iter() {
-            // Check for duplicate entry (validator_key)
-            if !culprits_hashes.insert(culprit.validator_key.clone()) {
-                return Err(XtError::DuplicateCulprit);
-            }
-
             Self::validate_culprits_entry(culprit, &valid_set, &punish_set, extrinsic)?;
         }
 
+        // Faults duplication check (validator key)
+        let no_duplicate_faults = extrinsic
+            .faults
+            .iter()
+            .all(|fault| faults_keys.insert(fault.validator_key.clone()));
+        if !no_duplicate_faults {
+            return Err(XtError::DuplicateFault);
+        }
         // Validate each fault entry
         for fault in extrinsic.faults.iter() {
-            // Check for duplicate entry (validator_key)
-            if !faults_hashes.insert(fault.validator_key.clone()) {
-                return Err(XtError::DuplicateFault);
-            }
             Self::validate_faults_entry(fault, &valid_set, &punish_set, extrinsic)?;
         }
         Ok(())
@@ -202,10 +213,12 @@ impl DisputesXtValidator {
 
         // Check for duplicate entry
         let mut voters_set = HashSet::new();
-        for judgment in entry.judgments.iter() {
-            if !voters_set.insert(judgment.voter) {
-                return Err(XtError::DuplicateJudgment);
-            }
+        let no_duplicate_judgments = entry
+            .judgments
+            .iter()
+            .all(|judgment| voters_set.insert(judgment.voter));
+        if !no_duplicate_judgments {
+            return Err(XtError::DuplicateJudgment);
         }
 
         let validator_set = if entry.epoch_index == prior_timeslot.epoch() {
