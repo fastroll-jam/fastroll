@@ -81,8 +81,8 @@ impl DisputesXtValidator {
             .await?
             .get_all_report_hashes();
 
-        let active_set = self.state_manager.get_active_set().await?;
-        let past_set = self.state_manager.get_past_set().await?;
+        let active_set = self.state_manager.get_active_set_clean().await?;
+        let past_set = self.state_manager.get_past_set_clean().await?;
 
         // Validate each verdict entry
         for verdict in extrinsic.verdicts.iter() {
@@ -107,7 +107,7 @@ impl DisputesXtValidator {
         }
 
         // Get the union of the ActiveSet and PastSet, then exclude any validators in the punish set.
-        let punish_set = self.state_manager.get_disputes().await?.punish_set;
+        let punish_set = self.state_manager.get_disputes_clean().await?.punish_set;
         let valid_set =
             Self::union_active_and_past_exclude_punish(&active_set, &past_set, &punish_set);
 
