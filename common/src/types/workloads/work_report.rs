@@ -386,7 +386,7 @@ pub struct WorkReport {
     pub authorizer_hash: AuthHash,
     /// `g`: The amount of gas used in `is_authorized` invocation, prior to the refinement.
     pub auth_gas_used: UnsignedGas,
-    /// **`o`**: Authorization trace
+    /// **`t`**: Authorization trace
     pub auth_trace: Octets,
     /// **`l`**: Segment-root lookup dictionary, up to 8 items
     pub segment_roots_lookup: SegmentRootLookupTable,
