@@ -9,9 +9,8 @@ use fr_common::{
         common::RefinementContext,
         work_report::{ReportedWorkPackage, WorkReport},
     },
-    CoreIndex, Hash32, SegmentRoot, TimeslotIndex, ACCUMULATION_GAS_PER_CORE,
-    GUARANTOR_ROTATION_PERIOD, MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES,
-    WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
+    CoreIndex, Hash32, TimeslotIndex, ACCUMULATION_GAS_PER_CORE, GUARANTOR_ROTATION_PERIOD,
+    MAX_LOOKUP_ANCHOR_AGE, MAX_REPORT_DEPENDENCIES, WORK_REPORT_OUTPUT_SIZE_LIMIT, X_G,
 };
 use fr_crypto::{
     hash,
@@ -124,11 +123,12 @@ impl GuaranteesXtValidator {
             .collect();
 
         // Validate each entry
-        let pending_reports = self.state_manager.get_pending_reports().await?;
-        let auth_pool = self.state_manager.get_auth_pool().await?;
-        let block_history = self.state_manager.get_block_history().await?;
-        let accumulate_queue = self.state_manager.get_accumulate_queue().await?;
-        let accumulate_history = self.state_manager.get_accumulate_history().await?;
+        let pending_reports = self.state_manager.get_pending_reports().await?; // ρ‡
+        let pending_reports_clean = self.state_manager.get_pending_reports_clean().await?; // ρ
+        let auth_pool = self.state_manager.get_auth_pool_clean().await?; // α
+        let block_history = self.state_manager.get_block_history().await?; // β_H†
+        let accumulate_queue = self.state_manager.get_accumulate_queue_clean().await?; // ω
+        let accumulate_history = self.state_manager.get_accumulate_history_clean().await?; // ξ
 
         let mut all_guarantor_keys = vec![];
         for entry in extrinsic.iter() {
@@ -137,6 +137,7 @@ impl GuaranteesXtValidator {
                     entry,
                     &exports_manifests,
                     &pending_reports,
+                    &pending_reports_clean,
                     &auth_pool,
                     &block_history,
                     &accumulate_queue,
@@ -160,6 +161,7 @@ impl GuaranteesXtValidator {
         entry: &GuaranteesXtEntry,
         exports_manifests: &[ReportedWorkPackage],
         pending_reports: &PendingReports,
+        pending_reports_clean: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
         accumulate_queue: &AccumulateQueue,
@@ -171,6 +173,7 @@ impl GuaranteesXtValidator {
             &entry.work_report,
             exports_manifests,
             pending_reports,
+            pending_reports_clean,
             auth_pool,
             block_history,
             accumulate_queue,
@@ -189,6 +192,7 @@ impl GuaranteesXtValidator {
         work_report: &WorkReport,
         exports_manifests: &[ReportedWorkPackage],
         pending_reports: &PendingReports,
+        pending_reports_clean: &PendingReports,
         auth_pool: &AuthPool,
         block_history: &BlockHistory,
         accumulate_queue: &AccumulateQueue,
@@ -206,6 +210,7 @@ impl GuaranteesXtValidator {
             return Err(XtError::WorkReportTotalGasTooHigh);
         }
 
+        // Check accumulate gas limit of each work digest
         for digest in &work_report.digests {
             let Some(target_service_account_metadata) = self
                 .state_manager
@@ -225,11 +230,11 @@ impl GuaranteesXtValidator {
             }
         }
 
+        // Check the core has no pending report
         let core_index = work_report.core_index;
         let core_pending_report = pending_reports
             .get_by_core_index(core_index)
             .map_err(|_| XtError::InvalidCoreIndex)?;
-
         if core_pending_report.is_some() {
             return Err(XtError::PendingReportExists(core_index));
         }
@@ -261,7 +266,7 @@ impl GuaranteesXtValidator {
             block_history,
             accumulate_history,
             accumulate_queue,
-            pending_reports,
+            pending_reports_clean,
         )?;
 
         // Check the dependency items limit. Sum of the number of segment-root lookup dictionary items
@@ -275,26 +280,25 @@ impl GuaranteesXtValidator {
             return Err(XtError::TooManyDependencies(core_index));
         }
 
-        // Check the segment root lookup dictionary entries can be found either in the guarantees
-        // extrinsic in the same block or in the recent block history
-        let mut exports_manifests_merged = block_history.get_reported_packages_flattened();
-        exports_manifests_merged.extend_from_slice(exports_manifests);
+        // Check the segment root lookup dictionary entries (WPH -> SR; exports manifest) can be found
+        // either in the guarantees extrinsic in the same block or in the recent block history.
+        let mut observable_exports_manifests = block_history.get_reported_packages_flattened();
+        observable_exports_manifests.extend_from_slice(exports_manifests);
 
-        for (package_hash, segments_root) in work_report.segment_roots_lookup.iter() {
-            if let Some(observed_segment_root) = Self::find_segments_root_from_work_package_hash(
-                &exports_manifests_merged,
-                package_hash,
-            ) {
-                if &observed_segment_root != segments_root {
-                    return Err(XtError::SegmentsRoofLookupEntryInvalidValue);
-                }
-            } else {
-                return Err(XtError::SegmentsRootLookupEntryNotFound);
+        for (wph, lookup_table_sr) in work_report.segment_roots_lookup.iter() {
+            let observed_sr = observable_exports_manifests
+                .iter()
+                .find(|&r| &r.work_package_hash == wph)
+                .map(|r| r.segment_root.clone())
+                .ok_or(XtError::SegmentsRootLookupEntryNotFound)?;
+
+            if &observed_sr != lookup_table_sr {
+                return Err(XtError::SegmentsRoofLookupEntryInvalidValue);
             }
         }
 
         // Check prerequisite work-packages exist either in the guarantees extrinsic in the same block
-        // or in the recent block history
+        // or in the recent block history.
         for prerequisite_hash in work_report.prerequisites().iter() {
             if !work_package_hashes.contains(prerequisite_hash)
                 && !block_history.check_work_package_hash_exists(prerequisite_hash)
@@ -308,7 +312,6 @@ impl GuaranteesXtValidator {
 
         // Validate work digests' code hashes
         self.validate_work_digests(work_report).await?;
-
         Ok(())
     }
 
@@ -321,7 +324,7 @@ impl GuaranteesXtValidator {
         block_history: &BlockHistory,
         accumulate_history: &AccumulateHistory,
         accumulate_queue: &AccumulateQueue,
-        pending_reports: &PendingReports,
+        pending_reports_clean: &PendingReports,
     ) -> Result<(), XtError> {
         // Check that the work-package hash is not in the block history
         if block_history.check_work_package_hash_exists(work_package_hash) {
@@ -353,7 +356,7 @@ impl GuaranteesXtValidator {
 
         // Check from the pending reports
         let mut package_hashes_from_pending_reports = HashSet::new();
-        for pending_report in pending_reports.0.iter().filter_map(|x| x.as_ref()) {
+        for pending_report in pending_reports_clean.0.iter().filter_map(|x| x.as_ref()) {
             package_hashes_from_pending_reports
                 .insert(pending_report.work_report.work_package_hash().clone());
         }
@@ -371,21 +374,6 @@ impl GuaranteesXtValidator {
         Ok(())
     }
 
-    /// Helper method to find segments root by work package hash from a vector of `ReportedWorkPackage` type.
-    ///
-    /// A vector of flattened `ReportedWorkPackage`s found from the recent block history
-    /// and the same guarantees extrinsic should be provided as the argument `reported_packages`.
-    fn find_segments_root_from_work_package_hash(
-        reported_packages: &[ReportedWorkPackage],
-        work_package_hash: &Hash32,
-    ) -> Option<SegmentRoot> {
-        let reported_package = reported_packages
-            .iter()
-            .find(|r| r.work_package_hash == *work_package_hash);
-
-        reported_package.map(|r| r.segment_root.clone())
-    }
-
     fn validate_anchor_block(
         &self,
         core_index: CoreIndex,
@@ -397,35 +385,33 @@ impl GuaranteesXtValidator {
         let anchor_beefy_root = &work_report_context.anchor_beefy_root;
 
         // Check that the anchor block is within the last H blocks
-        let anchor_in_block_history = block_history.get_by_header_hash(anchor_hash);
+        let anchor_in_block_history =
+            block_history
+                .get_by_header_hash(anchor_hash)
+                .ok_or(XtError::AnchorBlockNotFound(
+                    core_index,
+                    anchor_hash.encode_hex(),
+                ))?;
 
         // Validate contents of the anchor block if it exists in the recent block history
-        if let Some(entry) = anchor_in_block_history {
-            if &entry.header_hash != anchor_hash {
-                return Err(XtError::InvalidAnchorHeaderHash(
-                    core_index,
-                    anchor_hash.encode_hex(),
-                ));
-            }
-            if &entry.state_root != anchor_state_root {
-                return Err(XtError::InvalidAnchorStateRoot(
-                    core_index,
-                    anchor_hash.encode_hex(),
-                ));
-            }
-            if &entry.accumulation_result_mmr_root != anchor_beefy_root {
-                return Err(XtError::InvalidAnchorBeefyRoot(
-                    core_index,
-                    anchor_hash.encode_hex(),
-                ));
-            }
-        } else {
-            return Err(XtError::AnchorBlockNotFound(
+        if &anchor_in_block_history.header_hash != anchor_hash {
+            return Err(XtError::InvalidAnchorHeaderHash(
                 core_index,
                 anchor_hash.encode_hex(),
             ));
         }
-
+        if &anchor_in_block_history.state_root != anchor_state_root {
+            return Err(XtError::InvalidAnchorStateRoot(
+                core_index,
+                anchor_hash.encode_hex(),
+            ));
+        }
+        if &anchor_in_block_history.accumulation_result_mmr_root != anchor_beefy_root {
+            return Err(XtError::InvalidAnchorBeefyRoot(
+                core_index,
+                anchor_hash.encode_hex(),
+            ));
+        }
         Ok(())
     }
 
@@ -474,15 +460,16 @@ impl GuaranteesXtValidator {
                 lookup_anchor_hash.encode_hex(),
             ));
         };
+
         // Compare the lookup-anchor block fields with the refinement context fields.
-        if lookup_anchor_header.data.timeslot_index != work_report_context.lookup_anchor_timeslot {
-            return Err(XtError::LookupAnchorBlockTimeslotMismatch(
+        if lookup_anchor_header.hash()? != work_report_context.lookup_anchor_header_hash {
+            return Err(XtError::LookupAnchorBlockHeaderHashMismatch(
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
         }
-        if lookup_anchor_header.hash()? != work_report_context.lookup_anchor_header_hash {
-            return Err(XtError::LookupAnchorBlockHeaderHashMismatch(
+        if lookup_anchor_header.data.timeslot_index != work_report_context.lookup_anchor_timeslot {
+            return Err(XtError::LookupAnchorBlockTimeslotMismatch(
                 core_index,
                 lookup_anchor_hash.encode_hex(),
             ));
@@ -492,28 +479,24 @@ impl GuaranteesXtValidator {
 
     async fn validate_work_digests(&self, work_report: &WorkReport) -> Result<(), XtError> {
         for digest in &work_report.digests {
-            if let Some(expected_code_hash) = self
+            let service_code_hash = self
                 .state_manager
                 .get_account_code_hash(digest.service_id)
                 .await?
-            {
-                // code hash doesn't match
-                if expected_code_hash != digest.service_code_hash {
-                    return Err(XtError::InvalidCodeHash(
-                        work_report.core_index,
-                        digest.service_id,
-                        digest.service_code_hash.encode_hex(),
-                    ));
-                }
-            } else {
-                // service account not found
-                return Err(XtError::AccountOfWorkDigestNotFound(
+                .ok_or(XtError::AccountOfWorkDigestNotFound(
                     work_report.core_index,
                     digest.service_id,
+                ))?;
+
+            // code hash doesn't match
+            if service_code_hash != digest.service_code_hash {
+                return Err(XtError::InvalidCodeHash(
+                    work_report.core_index,
+                    digest.service_id,
+                    digest.service_code_hash.encode_hex(),
                 ));
             }
         }
-
         Ok(())
     }
 
@@ -617,18 +600,12 @@ impl GuaranteesXtValidator {
         entry_timeslot_index: TimeslotIndex,
         current_timeslot_index: TimeslotIndex,
     ) -> Result<GuarantorAssignment, XtError> {
-        let within_same_rotation = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
+        let within_same_rotation_period = current_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32
             == entry_timeslot_index / GUARANTOR_ROTATION_PERIOD as u32;
-        if within_same_rotation {
-            Ok(
-                GuarantorAssignment::current_guarantor_assignments(self.state_manager.as_ref())
-                    .await?,
-            )
+        Ok(if within_same_rotation_period {
+            GuarantorAssignment::current_guarantor_assignments(self.state_manager.as_ref()).await?
         } else {
-            Ok(
-                GuarantorAssignment::previous_guarantor_assignments(self.state_manager.as_ref())
-                    .await?,
-            )
-        }
+            GuarantorAssignment::previous_guarantor_assignments(self.state_manager.as_ref()).await?
+        })
     }
 }

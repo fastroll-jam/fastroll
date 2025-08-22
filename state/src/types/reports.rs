@@ -63,7 +63,6 @@ impl PendingReports {
         current_timeslot: &Timeslot,
     ) -> Result<Vec<CoreIndex>, PendingReportsError> {
         let mut timed_out_core_indices = vec![];
-
         for (i, maybe_report) in self.0.iter().enumerate() {
             if let Some(report) = maybe_report {
                 if current_timeslot.slot() as usize
@@ -73,7 +72,6 @@ impl PendingReports {
                 }
             }
         }
-
         Ok(timed_out_core_indices)
     }
 

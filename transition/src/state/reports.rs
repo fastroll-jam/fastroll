@@ -84,9 +84,9 @@ pub async fn transition_reports_clear_availables(
     let mut available_reports = Vec::with_capacity(available_reports_core_indices.len());
 
     let prior_pending_reports = state_manager.get_pending_reports().await?;
-    for core_index in &available_reports_core_indices {
+    for &core_index in &available_reports_core_indices {
         let report: WorkReport = prior_pending_reports
-            .get_by_core_index(*core_index)?
+            .get_by_core_index(core_index)?
             .clone()
             .expect("Core index verified to have pending report")
             .work_report;
@@ -103,11 +103,11 @@ pub async fn transition_reports_clear_availables(
             StateMut::Update,
             |pending_reports| -> Result<(), StateManagerError> {
                 // Remove now-available reports and timed-out reports
-                for core_index in available_reports_core_indices
+                for &core_index in available_reports_core_indices
                     .iter()
-                    .chain(timed_out_core_indices.iter())
+                    .chain(&timed_out_core_indices)
                 {
-                    pending_reports.remove_by_core_index(*core_index)?;
+                    pending_reports.remove_by_core_index(core_index)?;
                 }
                 Ok(())
             },

@@ -76,12 +76,13 @@ impl GuarantorAssignment {
         let current_timeslot = state_manager.get_timeslot().await?;
         let punish_set = state_manager.get_disputes().await?.punish_set;
         let entropy = state_manager.get_epoch_entropy().await?;
-        let previous_timeslot_value = current_timeslot
-            .slot()
-            .saturating_sub(GUARANTOR_ROTATION_PERIOD as u32);
-        let within_same_epoch = previous_timeslot_value / EPOCH_LENGTH as u32
-            == current_timeslot.slot() / EPOCH_LENGTH as u32;
+        let previous_rotation_timeslot = Timeslot::new(
+            current_timeslot
+                .slot()
+                .saturating_sub(GUARANTOR_ROTATION_PERIOD as u32),
+        );
 
+        let within_same_epoch = previous_rotation_timeslot.epoch() == current_timeslot.epoch();
         let (entropy, mut validator_set) = if within_same_epoch {
             (
                 entropy.second_history(),
@@ -98,10 +99,10 @@ impl GuarantorAssignment {
         Ok(Self {
             core_indices: CoreIndices::try_from(Self::permute_validator_indices(
                 entropy,
-                Timeslot::new(previous_timeslot_value),
+                previous_rotation_timeslot,
             ))
             .map_err(|_| GuarantorAssignmentError::InvalidValidatorsLength)?,
-            validator_keys: validator_set.clone(),
+            validator_keys: validator_set,
         })
     }
 }
