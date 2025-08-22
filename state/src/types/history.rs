@@ -57,9 +57,9 @@ impl BlockHistory {
             entry
                 .reported_packages
                 .iter()
-                .map(|package| package.work_package_hash.clone())
+                .map(|package| &package.work_package_hash)
                 .collect::<Vec<_>>()
-                .contains(work_package_hash)
+                .contains(&work_package_hash)
         })
     }
 
