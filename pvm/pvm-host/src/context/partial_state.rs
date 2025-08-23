@@ -5,10 +5,9 @@ use fr_state::{
     provider::HostStateProvider,
     types::{
         privileges::{AlwaysAccumulateServices, AssignServices, PrivilegedServices},
-        AccountLookupsEntry, AccountLookupsEntryExt, AccountLookupsEntryTimeslots, AccountMetadata,
-        AccountPartialState, AccountPreimagesEntry, AccountStorageEntryExt,
-        AccountStorageUsageDelta, AuthQueue, StagingSet, StorageFootprint, StorageUsageDelta,
-        Timeslot,
+        AccountFootprintDelta, AccountLookupsEntry, AccountLookupsEntryExt,
+        AccountLookupsEntryTimeslots, AccountMetadata, AccountPartialState, AccountPreimagesEntry,
+        AccountStorageEntryExt, AccountStorageUsageDelta, AuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{
@@ -170,25 +169,6 @@ where
     }
 }
 
-fn storage_usage_delta<T>(entry: &SandboxEntryVersioned<T>) -> Option<StorageUsageDelta>
-where
-    T: AccountPartialState + StorageFootprint + Clone,
-{
-    match entry.status() {
-        SandboxEntryStatus::Clean => None,
-        SandboxEntryStatus::Added => {
-            AccountMetadata::calculate_storage_usage_delta(None, entry.as_ref())
-        }
-        SandboxEntryStatus::Updated => AccountMetadata::calculate_storage_usage_delta(
-            entry.clean_snapshot.as_ref(),
-            entry.as_ref(),
-        ),
-        SandboxEntryStatus::Removed => {
-            AccountMetadata::calculate_storage_usage_delta(entry.clean_snapshot.as_ref(), None)
-        }
-    }
-}
-
 /// Represents a sandboxed environment of a service account, including its metadata
 /// and associated storage entries.
 ///
@@ -232,37 +212,6 @@ impl<S: HostStateProvider> AccountSandbox<S> {
             lookups: HashMap::new(),
             _phantom: PhantomData,
         })
-    }
-
-    pub fn storage_usage_delta_aggregated(&self) -> AccountStorageUsageDelta {
-        // storage usage delta
-        let (storage_items_count_delta, storage_octets_delta) = self
-            .storage
-            .values()
-            .filter_map(storage_usage_delta)
-            .fold((0, 0), |(items_acc, octets_acc), delta| {
-                (
-                    items_acc + delta.items_count_delta,
-                    octets_acc + delta.octets_delta,
-                )
-            });
-
-        // lookups usage delta
-        let (lookups_items_count_delta, lookups_octets_delta) = self
-            .lookups
-            .values()
-            .filter_map(storage_usage_delta)
-            .fold((0, 0), |(items_acc, octets_acc), delta| {
-                (
-                    items_acc + delta.items_count_delta,
-                    octets_acc + delta.octets_delta,
-                )
-            });
-
-        AccountStorageUsageDelta {
-            storage_delta: StorageUsageDelta::new(storage_items_count_delta, storage_octets_delta),
-            lookups_delta: StorageUsageDelta::new(lookups_items_count_delta, lookups_octets_delta),
-        }
     }
 }
 
@@ -420,6 +369,27 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
             .await?
         {
             sandbox.metadata.mark_removed();
+        }
+        Ok(())
+    }
+
+    pub async fn update_account_footprints(
+        &mut self,
+        state_manager: Arc<S>,
+        service_id: ServiceId,
+        account_storage_usage_delta: AccountStorageUsageDelta,
+    ) -> Result<(), PartialStateError> {
+        let sandbox = self
+            .get_mut_account_sandbox(state_manager.clone(), service_id)
+            .await?
+            .ok_or(PartialStateError::AccumulatorAccountNotInitialized)?;
+
+        if let Some(metadata_mut) = sandbox.metadata.as_mut() {
+            let updated = metadata_mut
+                .update_footprints(AccountFootprintDelta::from(account_storage_usage_delta));
+            if updated {
+                sandbox.metadata.mark_updated()
+            }
         }
         Ok(())
     }

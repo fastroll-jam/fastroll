@@ -25,7 +25,7 @@ use fr_state::{
     provider::HostStateProvider,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-        CoreAuthQueue, StagingSet, Timeslot,
+        AccountStorageUsageDelta, CoreAuthQueue, StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
@@ -662,7 +662,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         // Insert current timeslot if the entry exists and the timeslot vector length is 2.
         // If the key doesn't exist, insert a new empty Vec<Timeslot> with the key.
         // If the entry's timeslot vector length is not equal to 2, return with result constant `HUH`.
-        let new_lookups_entry = match prev_lookups_entry {
+        let (new_lookups_entry, storage_usage_delta) = match prev_lookups_entry {
             Some(mut entry) => {
                 if entry.value.len() != 2 {
                     continue_huh!()
@@ -671,7 +671,8 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                 let Ok(_) = entry.value.try_push(Timeslot::new(curr_timeslot_index)) else {
                     continue_huh!()
                 };
-                entry
+                // If the lookups entry is simply updated by adding a new timeslot, footprints remain unchanged.
+                (entry, None)
             }
             None => {
                 // Simulate the threshold balance change. In this case, a new lookups entry with an
@@ -696,7 +697,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                     continue_full!()
                 }
 
-                AccountLookupsEntryExt::from_entry(lookups_key.clone(), new_lookups_entry)
+                (
+                    AccountLookupsEntryExt::from_entry(lookups_key.clone(), new_lookups_entry),
+                    Some(lookups_usage_delta),
+                )
             }
         };
 
@@ -704,12 +708,28 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         x.partial_state
             .accounts_sandbox
             .insert_account_lookups_entry(
-                state_provider,
+                state_provider.clone(),
                 x.accumulate_host,
                 lookups_key.clone(),
                 new_lookups_entry.clone(),
             )
             .await?;
+
+        // Update storage footprints (added a new lookups entry)
+        if let Some(lookups_delta) = storage_usage_delta {
+            x.partial_state
+                .accounts_sandbox
+                .update_account_footprints(
+                    state_provider.clone(),
+                    x.accumulate_host,
+                    AccountStorageUsageDelta {
+                        lookups_delta,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+        }
+
         tracing::debug!(
             "SOLICIT key=({}, {}) post_slots={:?}",
             lookups_key.0,
@@ -775,11 +795,29 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_lookups_entry(
-                                state_provider,
+                                state_provider.clone(),
                                 x.accumulate_host,
                                 lookups_key.clone(),
                             )
                             .await?;
+
+                        // Update storage footprints (removed lookups entry)
+                        let lookups_usage_delta =
+                            AccountMetadata::calculate_storage_usage_delta(Some(&entry), None)
+                                .unwrap_or_default();
+
+                        x.partial_state
+                            .accounts_sandbox
+                            .update_account_footprints(
+                                state_provider,
+                                x.accumulate_host,
+                                AccountStorageUsageDelta {
+                                    lookups_delta: lookups_usage_delta,
+                                    ..Default::default()
+                                },
+                            )
+                            .await?;
+
                         tracing::debug!(
                             "FORGET key=({}, {}) prev=[], curr=None",
                             lookups_key.0,
@@ -835,11 +873,32 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_lookups_entry(
-                                        state_provider,
+                                        state_provider.clone(),
                                         x.accumulate_host,
                                         lookups_key.clone(),
                                     )
                                     .await?;
+
+                                // Update storage footprints (removed lookups entry)
+                                let lookups_usage_delta =
+                                    AccountMetadata::calculate_storage_usage_delta(
+                                        Some(&entry),
+                                        None,
+                                    )
+                                    .unwrap_or_default();
+
+                                x.partial_state
+                                    .accounts_sandbox
+                                    .update_account_footprints(
+                                        state_provider,
+                                        x.accumulate_host,
+                                        AccountStorageUsageDelta {
+                                            lookups_delta: lookups_usage_delta,
+                                            ..Default::default()
+                                        },
+                                    )
+                                    .await?;
+
                                 tracing::debug!(
                                     "FORGET key=({}, {}) prev={:?}, curr=None",
                                     lookups_key.0,

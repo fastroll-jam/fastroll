@@ -21,7 +21,9 @@ use fr_pvm_types::{
 };
 use fr_state::{
     provider::HostStateProvider,
-    types::{AccountMetadata, AccountStorageEntry, AccountStorageEntryExt},
+    types::{
+        AccountMetadata, AccountStorageEntry, AccountStorageEntryExt, AccountStorageUsageDelta,
+    },
 };
 use std::{marker::PhantomData, sync::Arc};
 
@@ -459,7 +461,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         if let Some(new_entry) = new_storage_entry {
             accounts_sandbox
                 .insert_account_storage_entry(
-                    state_provider,
+                    state_provider.clone(),
                     service_id,
                     storage_key.clone(),
                     new_entry,
@@ -469,10 +471,26 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
-                .remove_account_storage_entry(state_provider, service_id, storage_key.clone())
+                .remove_account_storage_entry(
+                    state_provider.clone(),
+                    service_id,
+                    storage_key.clone(),
+                )
                 .await
                 .map_err(|_| HostCallError::AccountStorageRemovalFailed)?; // unreachable (accumulate host / transfer subject account not found)
         }
+
+        // Update storage footprints
+        accounts_sandbox
+            .update_account_footprints(
+                state_provider,
+                service_id,
+                AccountStorageUsageDelta {
+                    storage_delta: storage_usage_delta,
+                    ..Default::default()
+                },
+            )
+            .await?;
 
         tracing::debug!("WRITE key={storage_key} len={value_size}");
         continue_with_vm_change!(r7: prev_storage_val_size_or_return_code)

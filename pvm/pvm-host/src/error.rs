@@ -12,8 +12,6 @@ pub enum HostCallError {
     DataSegmentTooLarge,
     #[error("Invalid host call invocation context")]
     InvalidContext,
-    #[error("Accumulator account is not initialized in the service accounts partial state")]
-    AccumulatorAccountNotInitialized,
     #[error("Service id overflowed")]
     ServiceIdOverflow,
     #[error("Account not found from the global account state")]
@@ -45,6 +43,8 @@ pub enum HostCallError {
 pub enum PartialStateError {
     #[error("Account not found from the global state")]
     AccountNotFoundFromGlobalState,
+    #[error("Accumulator account is not initialized in the service accounts partial state")]
+    AccumulatorAccountNotInitialized,
     #[error("LimitedVecError: {0}")]
     LimitedVecError(#[from] LimitedVecError),
     #[error("StateManagerError: {0}")]

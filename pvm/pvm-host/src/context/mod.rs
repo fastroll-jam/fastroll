@@ -2,7 +2,7 @@ use crate::{
     context::partial_state::{
         AccountSandbox, AccountsSandboxMap, AccumulatePartialState, SandboxEntryVersioned,
     },
-    error::HostCallError,
+    error::{HostCallError, PartialStateError},
     inner_vm::InnerPVM,
 };
 use fr_codec::prelude::*;
@@ -266,7 +266,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .accounts_sandbox
             .get_account_metadata(state_provider, self.accumulate_host)
             .await?
-            .ok_or(HostCallError::AccumulatorAccountNotInitialized)
+            .ok_or(HostCallError::PartialStateError(
+                PartialStateError::AccumulatorAccountNotInitialized,
+            ))
     }
 
     #[allow(clippy::redundant_closure_call)]
@@ -328,7 +330,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .accounts_sandbox
             .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
-            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
+            .ok_or(HostCallError::PartialStateError(
+                PartialStateError::AccumulatorAccountNotInitialized,
+            ))?;
 
         // Explicitly checked from callsites (host functions) that this has positive value.
         account_metadata.balance -= amount;
@@ -350,12 +354,13 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .accounts_sandbox
             .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
-            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
+            .ok_or(HostCallError::PartialStateError(
+                PartialStateError::AccumulatorAccountNotInitialized,
+            ))?;
 
-        let added_amount = account_metadata
-            .balance
-            .checked_add(amount)
-            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
+        let added_amount = account_metadata.balance.checked_add(amount).ok_or(
+            HostCallError::PartialStateError(PartialStateError::AccumulatorAccountNotInitialized),
+        )?;
         account_metadata.balance = added_amount;
         self.partial_state
             .accounts_sandbox
@@ -395,15 +400,16 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         new_account_fields: NewAccountFields,
         new_service_id: ServiceId,
     ) -> Result<ServiceId, HostCallError> {
+        let code_length = new_account_fields.code_lookups_key.clone().1;
         let new_account = AccountSandbox {
             metadata: SandboxEntryVersioned::new_added(AccountMetadata {
                 code_hash: new_account_fields.code_hash,
                 balance: new_account_fields.balance,
                 gas_limit_accumulate: new_account_fields.gas_limit_accumulate,
                 gas_limit_on_transfer: new_account_fields.gas_limit_on_transfer,
-                octets_footprint: 0,
+                octets_footprint: 81 + code_length as u64,
                 gratis_storage_offset: new_account_fields.gratis_storage_offset,
-                items_footprint: 0,
+                items_footprint: 2,
                 created_at: new_account_fields.created_at,
                 last_accumulate_at: new_account_fields.last_accumulate_at,
                 parent_service_id: new_account_fields.parent_service_id,
@@ -449,7 +455,9 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
             .accounts_sandbox
             .get_mut_account_metadata(state_provider.clone(), self.accumulate_host)
             .await?
-            .ok_or(HostCallError::AccumulatorAccountNotInitialized)?;
+            .ok_or(HostCallError::PartialStateError(
+                PartialStateError::AccumulatorAccountNotInitialized,
+            ))?;
 
         accumulator_metadata.code_hash = code_hash;
         accumulator_metadata.gas_limit_accumulate = gas_limit_accumulate;
