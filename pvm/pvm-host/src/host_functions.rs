@@ -33,7 +33,8 @@ use fr_state::{
     state_utils::get_account_storage_state_key,
     types::{
         privileges::AssignServices, AccountLookupsEntry, AccountLookupsEntryExt, AccountMetadata,
-        AccountStorageEntry, AccountStorageEntryExt, CoreAuthQueue, StagingSet, Timeslot,
+        AccountStorageEntry, AccountStorageEntryExt, AccountStorageUsageDelta, CoreAuthQueue,
+        StagingSet, Timeslot,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -609,7 +610,7 @@ impl HostFunction {
         if let Some(new_entry) = new_storage_entry {
             accounts_sandbox
                 .insert_account_storage_entry(
-                    state_manager,
+                    state_manager.clone(),
                     service_id,
                     storage_key.clone(),
                     new_entry,
@@ -619,10 +620,26 @@ impl HostFunction {
         } else {
             // Remove the entry if the size of the new entry value is zero
             accounts_sandbox
-                .remove_account_storage_entry(state_manager, service_id, storage_key.clone())
+                .remove_account_storage_entry(
+                    state_manager.clone(),
+                    service_id,
+                    storage_key.clone(),
+                )
                 .await
                 .map_err(|_| HostCallError::AccountStorageRemovalFailed)?; // unreachable (accumulate host / transfer subject account not found)
         }
+
+        // Update storage footprints
+        accounts_sandbox
+            .update_account_footprints(
+                state_manager,
+                service_id,
+                AccountStorageUsageDelta {
+                    storage_delta: storage_usage_delta,
+                    ..Default::default()
+                },
+            )
+            .await?;
 
         tracing::debug!("WRITE key={storage_key} len={value_size}");
         let state_key = get_account_storage_state_key(service_id, &storage_key);
@@ -1465,7 +1482,7 @@ impl HostFunction {
     }
 
     /// Upgrades three metadata fields of the accumulating service account:
-    /// code hash ahs gas limits for accumulate & on-transfer.
+    /// code hash and gas limits for accumulate & on-transfer.
     pub async fn host_upgrade(
         vm: &VMState,
         state_manager: Arc<StateManager>,
@@ -1809,6 +1826,19 @@ impl HostFunction {
                     continue_full!()
                 }
 
+                // Update storage footprints (added a new lookups entry)
+                x.partial_state
+                    .accounts_sandbox
+                    .update_account_footprints(
+                        state_manager.clone(),
+                        x.accumulate_host,
+                        AccountStorageUsageDelta {
+                            lookups_delta: lookups_usage_delta,
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+
                 AccountLookupsEntryExt::from_entry(lookups_key.clone(), new_lookups_entry)
             }
         };
@@ -1888,11 +1918,29 @@ impl HostFunction {
                         x.partial_state
                             .accounts_sandbox
                             .remove_account_lookups_entry(
-                                state_manager,
+                                state_manager.clone(),
                                 x.accumulate_host,
                                 lookups_key.clone(),
                             )
                             .await?;
+
+                        // Update storage footprints (removed lookups entry)
+                        let lookups_usage_delta =
+                            AccountMetadata::calculate_storage_usage_delta(Some(&entry), None)
+                                .unwrap_or_default();
+
+                        x.partial_state
+                            .accounts_sandbox
+                            .update_account_footprints(
+                                state_manager.clone(),
+                                x.accumulate_host,
+                                AccountStorageUsageDelta {
+                                    lookups_delta: lookups_usage_delta,
+                                    ..Default::default()
+                                },
+                            )
+                            .await?;
+
                         tracing::debug!(
                             "FORGET key=({}, {}) prev=[], curr=None",
                             lookups_key.0,
@@ -1948,11 +1996,32 @@ impl HostFunction {
                                 x.partial_state
                                     .accounts_sandbox
                                     .remove_account_lookups_entry(
-                                        state_manager,
+                                        state_manager.clone(),
                                         x.accumulate_host,
                                         lookups_key.clone(),
                                     )
                                     .await?;
+
+                                // Update storage footprints (removed lookups entry)
+                                let lookups_usage_delta =
+                                    AccountMetadata::calculate_storage_usage_delta(
+                                        Some(&entry),
+                                        None,
+                                    )
+                                    .unwrap_or_default();
+
+                                x.partial_state
+                                    .accounts_sandbox
+                                    .update_account_footprints(
+                                        state_manager.clone(),
+                                        x.accumulate_host,
+                                        AccountStorageUsageDelta {
+                                            lookups_delta: lookups_usage_delta,
+                                            ..Default::default()
+                                        },
+                                    )
+                                    .await?;
+
                                 tracing::debug!(
                                     "FORGET key=({}, {}) prev={:?}, curr=None",
                                     lookups_key.0,

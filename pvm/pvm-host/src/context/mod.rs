@@ -377,15 +377,16 @@ impl AccumulateHostContext {
     ) -> Result<ServiceId, HostCallError> {
         let new_service_id = self.next_new_service_id;
 
+        let code_length = code_lookups_key.clone().1;
         let new_account = AccountSandbox {
             metadata: SandboxEntryVersioned::new_added(AccountMetadata {
                 code_hash,
                 balance,
                 gas_limit_accumulate,
                 gas_limit_on_transfer,
-                octets_footprint: 0,
+                octets_footprint: 81 + code_length as u64,
                 gratis_storage_offset,
-                items_footprint: 0,
+                items_footprint: 2,
                 created_at,
                 last_accumulate_at,
                 parent_service_id,

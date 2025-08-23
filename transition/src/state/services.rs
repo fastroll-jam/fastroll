@@ -17,10 +17,7 @@ use fr_pvm_types::{
     stats::{AccumulateStats, OnTransferStats, OnTransferStatsEntry},
 };
 use fr_state::{
-    cache::StateMut,
-    error::StateManagerError,
-    manager::StateManager,
-    types::{AccountFootprintDelta, AccountPreimagesEntry},
+    cache::StateMut, error::StateManagerError, manager::StateManager, types::AccountPreimagesEntry,
 };
 use std::{collections::HashSet, sync::Arc};
 
@@ -115,19 +112,6 @@ async fn transition_service_account(
     service_id: ServiceId,
     sandbox: &mut AccountSandbox,
 ) -> Result<(), TransitionError> {
-    // TODO: Optimize writes
-
-    // Iterate all storage entries of the account sandbox and update storage footprint fields
-    // of the `AccountMetadata` if there is any change.
-    let storage_usage_delta = sandbox.storage_usage_delta_aggregated();
-    if let Some(metadata_mut) = sandbox.metadata.as_mut() {
-        let updated =
-            metadata_mut.update_footprints(AccountFootprintDelta::from(storage_usage_delta));
-        if updated {
-            sandbox.metadata.mark_updated()
-        }
-    }
-
     match &sandbox.metadata.status() {
         SandboxEntryStatus::Added => {
             state_manager

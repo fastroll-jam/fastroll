@@ -30,7 +30,7 @@ impl StorageUsageDelta {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AccountStorageUsageDelta {
     pub storage_delta: StorageUsageDelta,
     pub lookups_delta: StorageUsageDelta,
