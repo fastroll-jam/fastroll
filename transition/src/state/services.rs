@@ -19,7 +19,7 @@ use fr_state::{
         get_account_lookups_state_key, get_account_metadata_state_key,
         get_account_preimage_state_key, get_account_storage_state_key,
     },
-    types::{AccountFootprintDelta, AccountPreimagesEntry},
+    types::AccountPreimagesEntry,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -160,19 +160,6 @@ async fn transition_service_account(
     service_id: ServiceId,
     sandbox: &mut AccountSandbox<StateManager>,
 ) -> Result<AccountStateChange, TransitionError> {
-    // TODO: Optimize writes
-
-    // Iterate all storage entries of the account sandbox and update storage footprint fields
-    // of the `AccountMetadata` if there is any change.
-    let storage_usage_delta = sandbox.storage_usage_delta_aggregated();
-    if let Some(metadata_mut) = sandbox.metadata.as_mut() {
-        let updated =
-            metadata_mut.update_footprints(AccountFootprintDelta::from(storage_usage_delta));
-        if updated {
-            sandbox.metadata.mark_updated()
-        }
-    }
-
     // Collect account state change set of the given service
     let mut account_state_change = AccountStateChange::default();
 
