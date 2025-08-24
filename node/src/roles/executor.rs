@@ -29,7 +29,8 @@ use fr_transition::{
         safrole::{mark_safrole_header_markers, transition_safrole},
         services::{
             transition_on_accumulate, transition_services_integrate_preimages,
-            transition_services_on_transfer, AccountStateChanges,
+            transition_services_last_accumulate_at, transition_services_on_transfer,
+            AccountStateChanges,
         },
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
@@ -224,6 +225,13 @@ impl BlockExecutor {
         });
         let (transfers, acc_stats, acc_output_pairs, account_state_changes) = acc_jh.await??;
 
+        // Services last_accumulate_at STF
+        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
+        let manager = storage.state_manager();
+        let last_acc_at_jh = spawn_timed("last_acc_at_stf", async move {
+            transition_services_last_accumulate_at(manager, &accumulated_services).await
+        });
+
         // LastAccumulateOutputs STF
         let manager = storage.state_manager();
         let last_acc_output_jh = spawn_timed("last_acc_output_stf", async move {
@@ -232,14 +240,13 @@ impl BlockExecutor {
 
         // On-transfer STF
         let manager = storage.state_manager();
-        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
         let on_transfer_jh = spawn_timed("on_transfer_stf", async move {
-            transition_services_on_transfer(manager, &transfers, &accumulated_services).await
+            transition_services_on_transfer(manager, &transfers).await
         });
 
-        // --- Join: LastAccumulateOutputs, On-transfer STFs
-        let (accumulate_root_result, transfer_summary_result) =
-            try_join!(last_acc_output_jh, on_transfer_jh)?;
+        // --- Join: LastAccumulateOutputs, Services last_accumulate_at, On-transfer STFs
+        let (accumulate_root_result, _, transfer_summary_result) =
+            try_join!(last_acc_output_jh, last_acc_at_jh, on_transfer_jh)?;
         let accumulate_root = accumulate_root_result?;
         let transfer_summary = transfer_summary_result?;
 

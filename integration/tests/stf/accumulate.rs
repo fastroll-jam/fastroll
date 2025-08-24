@@ -7,7 +7,7 @@ use fr_asn_types::{
     preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::WorkReport, Hash32, Octets};
+use fr_common::{workloads::WorkReport, Hash32, Octets, ServiceId};
 use fr_integration::{
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},
@@ -25,7 +25,7 @@ use fr_transition::{
     error::TransitionError,
     state::{
         accumulate::{transition_accumulate_history, transition_accumulate_queue},
-        services::transition_on_accumulate,
+        services::{transition_on_accumulate, transition_services_last_accumulate_at},
         timeslot::transition_timeslot,
     },
 };
@@ -151,6 +151,10 @@ impl StateTransitionTest for AccumulateTest {
         );
         let acc_summary =
             transition_on_accumulate(state_manager.clone(), &accumulatable_reports).await?;
+        let accumulated_services: Vec<ServiceId> =
+            acc_summary.accumulate_stats.keys().cloned().collect();
+        transition_services_last_accumulate_at(state_manager.clone(), &accumulated_services)
+            .await?;
         transition_accumulate_history(
             state_manager.clone(),
             &accumulatable_reports,
