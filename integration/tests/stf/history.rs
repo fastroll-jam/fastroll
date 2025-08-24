@@ -13,7 +13,10 @@ use fr_integration::{
 use fr_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
 use fr_transition::{
     error::TransitionError,
-    state::history::{transition_block_history_append, transition_block_history_parent_root},
+    state::history::{
+        transition_block_history_append, transition_block_history_beefy_belt,
+        transition_block_history_parent_root,
+    },
 };
 use std::sync::Arc;
 
@@ -74,7 +77,11 @@ impl StateTransitionTest for HistoryTest {
         transition_block_history_parent_root(state_manager.clone(), jam_input.parent_state_root)
             .await?;
 
-        // Second transition: Append new history entry.
+        // Second transition: Append to BEEFY belt
+        transition_block_history_beefy_belt(state_manager.clone(), jam_input.accumulate_root)
+            .await?;
+
+        // Third transition: Append new history entry.
         transition_block_history_append(
             state_manager,
             jam_input.header_hash,

@@ -350,13 +350,39 @@ pub struct OnTransferSummary {
     pub account_state_changes: AccountStateChanges,
 }
 
+/// The second state transition function of service accounts, updating `last_accumulate_at` field of
+/// all service accounts that had been accumulated during `transition_on_accumulate`, yielding `δ‡`.
+pub async fn transition_services_last_accumulate_at(
+    state_manager: Arc<StateManager>,
+    accumulated_services: &[ServiceId],
+) -> Result<(), TransitionError> {
+    // Mark the last accumulate timeslots of all accumulated services in the blocks.
+    let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
+    for service_id in accumulated_services {
+        // Directly mutate account metadata
+        // Note: not considering new accounts having accumulated items within the same block
+        // of the creation. `StateMut` variant is always `Update` here.
+        state_manager
+            .with_mut_account_metadata(
+                StateMut::Update,
+                *service_id,
+                |metadata| -> Result<(), StateManagerError> {
+                    metadata.last_accumulate_at = curr_timeslot_index;
+                    Ok(())
+                },
+            )
+            .await?
+    }
+
+    Ok(())
+}
+
 /// State transition function of service accounts, processing deferred transfers.
 ///
 /// # Transitions
 ///
 /// This handles the second state transition for service accounts, invoking the `on_transfer`
-/// PVM entrypoint and yielding `δ‡`. Also, this step updates `last_accumulate_at` field of all
-/// service accounts that had been accumulated during `transition_on_accumulate`.
+/// PVM entrypoint and yielding `δ‡`.
 ///
 /// Steps:
 /// 1. Identifies unique destination addresses from the input transfers.
@@ -365,7 +391,6 @@ pub struct OnTransferSummary {
 pub async fn transition_services_on_transfer(
     state_manager: Arc<StateManager>,
     transfers: &[DeferredTransfer],
-    accumulated_services: &[ServiceId],
 ) -> Result<OnTransferSummary, TransitionError> {
     // Gather all unique destination addresses.
     let destinations: HashSet<ServiceId> = transfers.iter().map(|t| t.to).collect();
@@ -418,24 +443,6 @@ pub async fn transition_services_on_transfer(
                 },
             );
         }
-    }
-
-    // Mark the last accumulate timeslots of all accumulated services in the blocks.
-    let curr_timeslot_index = state_manager.get_timeslot().await?.slot();
-    for service_id in accumulated_services {
-        // Directly mutate account metadata
-        // Note: not considering new accounts having accumulated items within the same block
-        // of the creation. `StateMut` variant is always `Update` here.
-        state_manager
-            .with_mut_account_metadata(
-                StateMut::Update,
-                *service_id,
-                |metadata| -> Result<(), StateManagerError> {
-                    metadata.last_accumulate_at = curr_timeslot_index;
-                    Ok(())
-                },
-            )
-            .await?
     }
 
     Ok(OnTransferSummary {
