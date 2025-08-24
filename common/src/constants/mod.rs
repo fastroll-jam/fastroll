@@ -74,12 +74,6 @@ pub const ACCUMULATION_GAS_PER_CORE: UnsignedGas = 10_000_000;
 /// `G_I`: The gas allocated to invoke a work-package's Is-Authorized logic.
 pub const IS_AUTHORIZED_GAS_PER_WORK_PACKAGE: UnsignedGas = 50_000_000;
 
-/// `G_R`: The gas allocated to invoke a work-package's Refine logic.
-pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 5_000_000_000;
-
-/// `G_T`: The total gas allocated across for all Accumulation.
-pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
-
 // --- Data Size Limits
 
 /// `W_A`: The maximum size of is-authorized code in octets.
