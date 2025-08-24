@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
     CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
-    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    TimeslotIndex,
 };
 use fr_config::StorageConfig;
 use fr_crypto::octets_to_hash32;
@@ -298,8 +298,8 @@ impl StateManager {
             if !account_exists_in_state(check_id).await? {
                 return Ok(check_id);
             }
-            let s = MIN_PUBLIC_SERVICE_ID as u64;
-            check_id = ((check_id as u64 - s + 1) % ((1 << 32) - (1 << 8) - s) + s) as ServiceId;
+            check_id =
+                ((check_id as u64 - (1 << 8) + 1) % ((1 << 32) - (1 << 9)) + (1 << 8)) as ServiceId;
         }
     }
 
@@ -320,7 +320,8 @@ impl StateManager {
     /// Retrieves service account code (preimage of the code hash)
     /// directly from the account preimage storage.
     ///
-    /// Used by `accumulate` PVM invocation where direct access to on-chain state is possible.
+    /// Used by on-chain PVM invocations (`accumulate` and `on-transfer`) where direct access to
+    /// on-chain state is possible.
     pub async fn get_account_code(
         &self,
         service_id: ServiceId,

@@ -172,10 +172,10 @@ where
 /// Represents a sandboxed environment of a service account, including its metadata
 /// and associated storage entries.
 ///
-/// It is primarily used in the `accumulate` PVM invocation contexts for
+/// It is primarily used in the `accumulate` and `on_transfer` PVM invocation contexts for
 /// state mutations of service accounts. The global state serialization doesn't require
 /// the service metadata and storage entries to be placed together,
-/// which makes this type to be specific to the `accumulate` process.
+/// which makes this type to be specific to the `accumulate` and `on_transfer` processes.
 pub struct AccountSandbox<S: HostStateProvider> {
     pub metadata: SandboxEntryVersioned<AccountMetadata>,
     pub storage: HashMap<StorageKey, SandboxEntryVersioned<AccountStorageEntryExt>>,
@@ -987,8 +987,6 @@ pub struct AccumulatePartialState<S: HostStateProvider> {
     pub assign_services: AssignServices,
     /// `v`: Sandboxed copy of privileged designate service id
     pub designate_service: ServiceId,
-    /// `r`: Sandboxed copy of privileged registrar service id
-    pub registrar_service: ServiceId,
     /// **`z`**: Sandboxed copy of privileged always-accumulate services
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
@@ -1002,7 +1000,6 @@ impl<S: HostStateProvider> Clone for AccumulatePartialState<S> {
             manager_service: self.manager_service,
             assign_services: self.assign_services.clone(),
             designate_service: self.designate_service,
-            registrar_service: self.registrar_service,
             always_accumulate_services: self.always_accumulate_services.clone(),
         }
     }
@@ -1017,7 +1014,6 @@ impl<S: HostStateProvider> Default for AccumulatePartialState<S> {
             manager_service: ServiceId::default(),
             assign_services: AssignServices::default(),
             designate_service: ServiceId::default(),
-            registrar_service: ServiceId::default(),
             always_accumulate_services: AlwaysAccumulateServices::default(),
         }
     }
@@ -1031,7 +1027,6 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             manager_service,
             assign_services,
             designate_service,
-            registrar_service,
             always_accumulate_services,
         } = state_provider.get_privileged_services().await?;
         Ok(Self {
@@ -1041,7 +1036,6 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             manager_service,
             assign_services,
             designate_service,
-            registrar_service,
             always_accumulate_services,
         })
     }
@@ -1061,7 +1055,6 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             manager_service,
             assign_services,
             designate_service,
-            registrar_service,
             always_accumulate_services,
         } = state_provider.get_privileged_services().await?;
 
@@ -1074,7 +1067,6 @@ impl<S: HostStateProvider> AccumulatePartialState<S> {
             manager_service,
             assign_services,
             designate_service,
-            registrar_service,
             always_accumulate_services,
         })
     }

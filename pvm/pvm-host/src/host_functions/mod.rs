@@ -22,7 +22,7 @@ pub enum HostCallReturnCode {
     OOB = u64::MAX - 2,
     /// Index unknown.
     WHO = u64::MAX - 3,
-    /// Storage full or resource already allocated.
+    /// Storage full
     FULL = u64::MAX - 4,
     /// Core index unknown.
     CORE = u64::MAX - 5,
@@ -30,7 +30,7 @@ pub enum HostCallReturnCode {
     CASH = u64::MAX - 6,
     /// Gas limit too low.
     LOW = u64::MAX - 7,
-    /// The item is already solicited, cannot be forgotten or the operation is invalid due to privilege level.
+    /// The item is already solicited or cannot be forgotten.
     HUH = u64::MAX - 8,
     /// The return value indicating general success.
     OK = 0,
