@@ -29,7 +29,7 @@ use fr_transition::{
         safrole::{mark_safrole_header_markers, transition_safrole},
         services::{
             transition_on_accumulate, transition_services_integrate_preimages,
-            transition_services_last_accumulate_at, AccountStateChanges,
+            transition_services_on_transfer, AccountStateChanges,
         },
         statistics::transition_onchain_statistics,
         timeslot::transition_timeslot,
@@ -216,19 +216,32 @@ impl BlockExecutor {
             transition_accumulate_queue(manager, &queued_reports, prev_timeslot, curr_timeslot)
                 .await?;
             Ok::<_, TransitionError>((
+                acc_summary.deferred_transfers,
                 acc_summary.accumulate_stats,
                 acc_summary.output_pairs,
                 acc_summary.account_state_changes,
             ))
         });
-        let (acc_stats, acc_output_pairs, account_state_changes) = acc_jh.await??;
+        let (transfers, acc_stats, acc_output_pairs, account_state_changes) = acc_jh.await??;
 
         // LastAccumulateOutputs STF
         let manager = storage.state_manager();
         let last_acc_output_jh = spawn_timed("last_acc_output_stf", async move {
             transition_last_accumulate_outputs(manager, acc_output_pairs).await
         });
-        let accumulate_root = last_acc_output_jh.await??;
+
+        // On-transfer STF
+        let manager = storage.state_manager();
+        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
+        let on_transfer_jh = spawn_timed("on_transfer_stf", async move {
+            transition_services_on_transfer(manager, &transfers, &accumulated_services).await
+        });
+
+        // --- Join: LastAccumulateOutputs, On-transfer STFs
+        let (accumulate_root_result, transfer_summary_result) =
+            try_join!(last_acc_output_jh, on_transfer_jh)?;
+        let accumulate_root = accumulate_root_result?;
+        let transfer_summary = transfer_summary_result?;
 
         // AuthPool STF (post-accumulation)
         let manager = storage.state_manager();
@@ -236,13 +249,6 @@ impl BlockExecutor {
         let guarantees_xt_cloned = guarantees_xt.clone();
         let auth_pool_jh = spawn_timed("auth_pool_stf", async move {
             transition_auth_pool(manager, &guarantees_xt_cloned, header_timeslot_index).await
-        });
-
-        // Services last_accumulate_at STF
-        let accumulated_services: Vec<ServiceId> = acc_stats.keys().cloned().collect();
-        let manager = storage.state_manager();
-        let last_acc_at_jh = spawn_timed("last_acc_at_stf", async move {
-            transition_services_last_accumulate_at(manager, &accumulated_services).await
         });
 
         // OnChainStatistics STF
@@ -255,6 +261,7 @@ impl BlockExecutor {
                 &xt_cloned,
                 &available_reports,
                 acc_stats,
+                transfer_summary.stats,
             )
             .await
         });
@@ -264,9 +271,9 @@ impl BlockExecutor {
             transition_services_integrate_preimages(manager, &preimages_xt).await
         });
 
-        // --- Join: AuthPool, Services(last_accumulate_at), OnChainStatistics, Preimage integration STFs
+        // --- Join: AuthPool, OnChainStatistics, Preimage integration STFs
         #[allow(unused_must_use)]
-        try_join!(auth_pool_jh, last_acc_at_jh, stats_jh, preimage_jh)?;
+        try_join!(auth_pool_jh, stats_jh, preimage_jh)?;
 
         Ok(BlockExecutionOutput {
             accumulate_root,

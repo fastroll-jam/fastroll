@@ -346,7 +346,6 @@ impl InvocationContextBuilder {
             context_pair.x.partial_state.manager_service = privileged_services.manager_service;
             context_pair.x.partial_state.assign_services = privileged_services.assign_services;
             context_pair.x.partial_state.designate_service = privileged_services.designate_service;
-            context_pair.x.partial_state.registrar_service = privileged_services.registrar_service;
             context_pair.x.partial_state.always_accumulate_services =
                 privileged_services.always_accumulate_services;
         }
@@ -381,13 +380,6 @@ impl InvocationContextBuilder {
     pub(crate) fn with_manager_service(mut self, manager_service: ServiceId) -> Self {
         if let Self::X_A(ref mut context_pair) = self {
             context_pair.x.partial_state.manager_service = manager_service;
-        }
-        self
-    }
-
-    pub(crate) fn with_registrar_service(mut self, registrar_service: ServiceId) -> Self {
-        if let Self::X_A(ref mut context_pair) = self {
-            context_pair.x.partial_state.registrar_service = registrar_service;
         }
         self
     }

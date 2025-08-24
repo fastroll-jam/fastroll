@@ -18,9 +18,7 @@ use fr_pvm_types::{
     invoke_args::{AccumulateInvokeArgs, DeferredTransfer},
     invoke_results::AccumulationOutputHash,
 };
-use fr_state::{
-    cache::StateMut, error::StateManagerError, manager::StateManager, provider::HostStateProvider,
-};
+use fr_state::{manager::StateManager, provider::HostStateProvider};
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 /// `Ψ_M` invocation function arguments for `Ψ_A`
@@ -30,8 +28,8 @@ struct AccumulateVMArgs {
     timeslot_index: TimeslotIndex,
     /// `s` of `AccumulateInvokeArgs`
     accumulate_host: ServiceId,
-    /// Length of **`i`** of `AccumulateInvokeArgs`
-    accumulate_input_len: usize,
+    /// Length of **`o`** of `AccumulateInvokeArgs`
+    operands_count: usize,
 }
 
 pub struct AccumulateResult<S: HostStateProvider> {
@@ -81,19 +79,6 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
     ) -> Result<AccumulateResult<StateManager>, PVMInvokeError> {
         tracing::info!("Ψ_A (accumulate) invoked.");
 
-        // Update accumulate host account's balance to apply deferred transfers
-        let recv_amount = args.inputs.deferred_transfers_amount();
-        state_manager
-            .with_mut_account_metadata(
-                StateMut::Update,
-                args.accumulate_host,
-                |metadata| -> Result<(), StateManagerError> {
-                    metadata.add_balance(recv_amount);
-                    Ok(())
-                },
-            )
-            .await?;
-
         let Some(account_code) = state_manager.get_account_code(args.accumulate_host).await? else {
             tracing::warn!("Accumulate service code not found.");
             return Ok(AccumulateResult {
@@ -120,7 +105,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
         let vm_args = AccumulateVMArgs {
             timeslot_index: args.curr_timeslot_index,
             accumulate_host: args.accumulate_host,
-            accumulate_input_len: args.inputs.inputs().len(),
+            operands_count: args.operands.len(),
         };
 
         let ctx = AccumulateHostContext::new(

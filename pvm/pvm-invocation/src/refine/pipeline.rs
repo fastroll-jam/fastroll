@@ -100,7 +100,7 @@ pub async fn compute_work_report(
 ) -> Result<WorkReport, PVMInvokeError> {
     let is_authorized_args = IsAuthorizedInvokeArgs {
         package: package.clone(),
-        core_idx,
+        core_index: core_idx,
     };
     let IsAuthorizedResult {
         gas_used: auth_gas_used,
@@ -129,7 +129,6 @@ pub async fn compute_work_report(
     for item_idx in 0..work_items_count {
         // Construct Refine invoke args
         let args = RefineInvokeArgs {
-            core_idx,
             item_idx,
             package: package.clone(),
             auth_trace: auth_trace.clone().into_vec(),

@@ -27,8 +27,8 @@ use fr_pvm_types::{
     constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
     invoke_args::{
-        AccumulateInputs, AccumulateInvokeArgs, AccumulateOperand, DeferredTransfer,
-        ExtrinsicDataMap, IsAuthorizedInvokeArgs, RefineInvokeArgs, TransferMemo,
+        AccumulateInvokeArgs, AccumulateOperand, ExtrinsicDataMap, IsAuthorizedInvokeArgs,
+        RefineInvokeArgs,
     },
 };
 use fr_state::types::{AccountMetadata, AccountPreimagesEntry, AccountStorageEntry};
@@ -114,7 +114,7 @@ mod fetch_tests {
         extrinsic_data_map: ExtrinsicDataMap,
         imports: WorkPackageImportSegments,
         package: WorkPackage,
-        accumulate_inputs: AccumulateInputs,
+        accumulate_operands: Vec<AccumulateOperand>,
         mem_writable_range: Range<MemAddress>,
     }
 
@@ -196,13 +196,6 @@ mod fetch_tests {
                 work_items,
             };
 
-            let deferred_transfers = vec![DeferredTransfer {
-                from: 0,
-                to: 1,
-                amount: 333,
-                memo: TransferMemo::from_hex("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
-                gas_limit: 10,
-            }];
             let accumulate_operands = vec![AccumulateOperand {
                 work_package_hash: WorkPackageHash::from_slice(vec![9; 32].as_slice()).unwrap(),
                 segment_root: SegmentRoot::default(),
@@ -225,7 +218,7 @@ mod fetch_tests {
                 extrinsic_data_map,
                 imports: vec![vec![imports_segment; imports_per_item]; work_items_in_package],
                 package,
-                accumulate_inputs: AccumulateInputs::new(deferred_transfers, accumulate_operands),
+                accumulate_operands,
                 mem_writable_range,
             }
         }
@@ -262,7 +255,7 @@ mod fetch_tests {
             Ok(InvocationContext::X_I(IsAuthorizedHostContext {
                 invoke_args: IsAuthorizedInvokeArgs {
                     package: self.package.clone(),
-                    core_idx: 1,
+                    core_index: 1,
                 },
             }))
         }
@@ -276,7 +269,6 @@ mod fetch_tests {
                 export_segments: Vec::new(),
                 refine_entropy: self.entropy.clone(),
                 invoke_args: RefineInvokeArgs {
-                    core_idx: 1,
                     item_idx: 2,
                     package: self.package.clone(),
                     auth_trace: self.auth_trace.clone(),
@@ -298,7 +290,7 @@ mod fetch_tests {
                 yielded_accumulate_hash: None,
                 provided_preimages: HashSet::new(),
                 invoke_args: AccumulateInvokeArgs {
-                    inputs: self.accumulate_inputs.clone(),
+                    operands: self.accumulate_operands.clone(),
                     ..Default::default()
                 },
                 curr_entropy: self.entropy.clone(),
@@ -852,7 +844,7 @@ mod fetch_tests {
             let res = GeneralHostFunction::<MockStateManager>::host_fetch(&vm, &mut context)?;
             assert_eq!(
                 res,
-                fixture.host_call_result_successful(fixture.accumulate_inputs.inputs().encode()?)
+                fixture.host_call_result_successful(fixture.accumulate_operands.encode()?)
             );
             Ok(())
         }
@@ -860,8 +852,8 @@ mod fetch_tests {
         #[tokio::test]
         async fn test_fetch_accumulate_id_15() -> Result<(), Box<dyn Error>> {
             let mut fixture = FetchTestFixture::from_data_id(15);
-            let acc_input_idx = 0;
-            fixture.regs.index_reg_11 = acc_input_idx;
+            let operand_idx = 0;
+            fixture.regs.index_reg_11 = operand_idx;
             let vm = fixture.prepare_vm_builder()?.build();
             let mut context = fixture.prepare_accumulate_invocation_context()?;
 
@@ -870,7 +862,7 @@ mod fetch_tests {
             assert_eq!(
                 res,
                 fixture.host_call_result_successful(
-                    fixture.accumulate_inputs.inputs()[acc_input_idx].encode()?
+                    fixture.accumulate_operands[operand_idx].encode()?
                 )
             );
             Ok(())

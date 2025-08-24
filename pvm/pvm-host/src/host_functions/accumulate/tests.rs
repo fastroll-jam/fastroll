@@ -13,7 +13,7 @@ use fr_codec::prelude::*;
 use fr_common::{
     utils::tracing::setup_tracing, AuthHash, Balance, ByteEncodable, CodeHash, CoreIndex, Hash32,
     Octets, ServiceId, SignedGas, TimeslotIndex, AUTH_QUEUE_SIZE, CORE_COUNT, HASH_SIZE,
-    MIN_PUBLIC_SERVICE_ID, PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
+    PREIMAGE_EXPIRATION_PERIOD, TRANSFER_MEMO_SIZE, VALIDATOR_COUNT,
 };
 use fr_crypto::types::{
     BandersnatchPubKey, Ed25519PubKey, ValidatorKey, ValidatorKeySet, ValidatorKeys,
@@ -39,12 +39,10 @@ mod bless_tests {
         accumulate_host: ServiceId,
         prev_manager: ServiceId,
         prev_designate: ServiceId,
-        prev_registrar: ServiceId,
         prev_assign_services: AssignServices,
         prev_always_accumulate_services: AlwaysAccumulateServices,
         manager: RegValue,
         designate: RegValue,
-        registrar: RegValue,
         assign_services: AssignServices,
         always_accumulate_services: AlwaysAccumulateServices,
         assign_offset: MemAddress,
@@ -73,15 +71,13 @@ mod bless_tests {
                 ..always_accumulate_offset + (12 * always_accumulate_services.len()) as MemAddress;
 
             Self {
-                accumulate_host: 1,
+                accumulate_host: 10,
                 prev_manager: 10,
                 prev_designate: 20,
-                prev_registrar: 30,
                 prev_assign_services,
                 prev_always_accumulate_services,
                 manager: 110,
                 designate: 120,
-                registrar: 130,
                 assign_services,
                 always_accumulate_services,
                 assign_offset,
@@ -111,9 +107,8 @@ mod bless_tests {
                 .with_reg(7, self.manager)
                 .with_reg(8, self.assign_offset)
                 .with_reg(9, self.designate)
-                .with_reg(10, self.registrar)
-                .with_reg(11, self.always_accumulate_offset)
-                .with_reg(12, self.always_accumulate_services.len() as RegValue)
+                .with_reg(10, self.always_accumulate_offset)
+                .with_reg(11, self.always_accumulate_services.len() as RegValue)
                 .with_mem_data(self.assign_offset, assign_services_buf.as_slice())?
                 .with_mem_data(
                     self.always_accumulate_offset,
@@ -139,7 +134,6 @@ mod bless_tests {
                     manager_service: self.prev_manager,
                     assign_services: self.prev_assign_services.clone(),
                     designate_service: self.prev_designate,
-                    registrar_service: self.prev_registrar,
                     always_accumulate_services: self.prev_always_accumulate_services.clone(),
                 })
                 .build(),
@@ -213,10 +207,6 @@ mod bless_tests {
             fixture.designate as ServiceId
         );
         assert_eq!(
-            x.partial_state.registrar_service,
-            fixture.registrar as ServiceId
-        );
-        assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.always_accumulate_services
         );
@@ -253,7 +243,6 @@ mod bless_tests {
             fixture.prev_assign_services
         );
         assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -291,45 +280,6 @@ mod bless_tests {
             fixture.prev_assign_services
         );
         assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
-        assert_eq!(
-            x.partial_state.always_accumulate_services,
-            fixture.prev_always_accumulate_services
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_bless_invalid_service_id_registrar() -> Result<(), Box<dyn Error>> {
-        setup_tracing();
-        let fixture = BlessTestFixture {
-            registrar: RegValue::MAX, // Invalid service id
-            ..Default::default()
-        };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_mem_readable_range(fixture.mem_readable_range_assign.clone())?
-            .with_mem_readable_range(fixture.mem_readable_range_always_accumulate.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_bless(&vm, &mut context)?;
-        assert_eq!(res, BlessTestFixture::host_call_result_who());
-
-        // Check partial state after host-call
-        // Partial state should remain unchanged
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.partial_state.manager_service, fixture.prev_manager);
-        assert_eq!(
-            x.partial_state.assign_services,
-            fixture.prev_assign_services
-        );
-        assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -363,7 +313,6 @@ mod bless_tests {
             fixture.prev_assign_services
         );
         assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -398,7 +347,6 @@ mod bless_tests {
             fixture.prev_assign_services
         );
         assert_eq!(x.partial_state.designate_service, fixture.prev_designate);
-        assert_eq!(x.partial_state.registrar_service, fixture.prev_registrar);
         assert_eq!(
             x.partial_state.always_accumulate_services,
             fixture.prev_always_accumulate_services
@@ -909,7 +857,6 @@ mod checkpoint_tests {
                     )
                     .unwrap(),
                     designate_service: 3,
-                    registrar_service: 4,
                     always_accumulate_services: AlwaysAccumulateServices::from_iter([
                         (100, 1000),
                         (101, 2000),
@@ -945,7 +892,6 @@ mod checkpoint_tests {
                     manager_service: self.privileged_services.manager_service,
                     assign_services: self.privileged_services.assign_services.clone(),
                     designate_service: self.privileged_services.designate_service,
-                    registrar_service: self.privileged_services.registrar_service,
                     always_accumulate_services: self
                         .privileged_services
                         .always_accumulate_services
@@ -995,10 +941,6 @@ mod checkpoint_tests {
             y.partial_state.designate_service
         );
         assert_ne!(
-            x.partial_state.registrar_service,
-            y.partial_state.registrar_service
-        );
-        assert_ne!(
             x.partial_state.always_accumulate_services,
             y.partial_state.always_accumulate_services
         );
@@ -1023,10 +965,6 @@ mod checkpoint_tests {
             y.partial_state.designate_service
         );
         assert_eq!(
-            x.partial_state.registrar_service,
-            y.partial_state.registrar_service
-        );
-        assert_eq!(
             x.partial_state.always_accumulate_services,
             y.partial_state.always_accumulate_services
         );
@@ -1038,19 +976,16 @@ mod new_tests {
     use super::*;
 
     const MANAGER_SERVICE: ServiceId = 2;
-    const REGISTRAR_SERVICE: ServiceId = 3;
 
     struct NewTestFixture {
         accumulate_host: ServiceId,
         manager_service: ServiceId,
-        registrar_service: ServiceId,
         accumulate_host_balance: Balance,
         code_hash_offset: MemAddress,
         code_length: RegValue,
         gas_limit_accumulate: RegValue,
         gas_limit_on_transfer: RegValue,
         gratis_storage_offset: RegValue,
-        new_small_service_id: RegValue,
         code_hash: CodeHash,
         mem_readable_range: Range<MemAddress>,
         curr_timeslot_index: TimeslotIndex,
@@ -1063,21 +998,20 @@ mod new_tests {
             let code_hash_offset = PAGE_SIZE as MemAddress;
             let mem_readable_range = code_hash_offset..code_hash_offset + HASH_SIZE as MemAddress;
             let prev_next_new_service_id = 1 << 16;
-            let s = MIN_PUBLIC_SERVICE_ID as u64;
-            let updated_next_new_service_id = (s
-                + (prev_next_new_service_id as u64 - s + 42) % ((1 << 32) - s - (1 << 8)))
-                as ServiceId;
+            let bump = |a: ServiceId| -> ServiceId {
+                let modulus = (1u64 << 32) - (1u64 << 9);
+                ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as ServiceId
+            };
+            let updated_next_new_service_id = bump(prev_next_new_service_id);
             Self {
                 accumulate_host: 1,
                 manager_service: MANAGER_SERVICE,
-                registrar_service: REGISTRAR_SERVICE,
                 accumulate_host_balance: 10_000_000,
                 code_hash_offset,
                 code_length: 30_000,
                 gas_limit_accumulate: 100,
                 gas_limit_on_transfer: 100,
                 gratis_storage_offset: 0,
-                new_small_service_id: MIN_PUBLIC_SERVICE_ID as RegValue + 1,
                 code_hash: CodeHash::from_hex("0x123").unwrap(),
                 mem_readable_range,
                 curr_timeslot_index: 10,
@@ -1097,7 +1031,6 @@ mod new_tests {
                 .with_reg(9, self.gas_limit_accumulate)
                 .with_reg(10, self.gas_limit_on_transfer)
                 .with_reg(11, self.gratis_storage_offset)
-                .with_reg(12, self.new_small_service_id)
                 .with_mem_data(self.code_hash_offset, self.code_hash.as_slice())
         }
 
@@ -1119,7 +1052,6 @@ mod new_tests {
                 .await?
                 .with_next_new_service_id(self.prev_next_new_service_id)
                 .with_manager_service(self.manager_service)
-                .with_registrar_service(self.registrar_service)
                 .build(),
             )
         }
@@ -1130,18 +1062,6 @@ mod new_tests {
                 vm_change: HostCallVMStateChange {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(new_service_id as RegValue),
-                    r8_write: None,
-                    memory_write: None,
-                },
-            }
-        }
-
-        fn host_call_result_successful_small_service_id(&self) -> HostCallResult {
-            HostCallResult {
-                exit_reason: ExitReason::Continue,
-                vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(self.new_small_service_id),
                     r8_write: None,
                     memory_write: None,
                 },
@@ -1178,18 +1098,6 @@ mod new_tests {
                 vm_change: HostCallVMStateChange {
                     gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
-                    r8_write: None,
-                    memory_write: None,
-                },
-            }
-        }
-
-        fn host_call_result_full() -> HostCallResult {
-            HostCallResult {
-                exit_reason: ExitReason::Continue,
-                vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
-                    r7_write: Some(HostCallReturnCode::FULL as RegValue),
                     r8_write: None,
                     memory_write: None,
                 },
@@ -1336,63 +1244,6 @@ mod new_tests {
     }
 
     #[tokio::test]
-    async fn test_new_successful_small_service_id() -> Result<(), Box<dyn Error>> {
-        let small_service_id = 200 as ServiceId;
-        // Invoke as registrar service
-        let fixture = NewTestFixture {
-            accumulate_host: REGISTRAR_SERVICE,
-            new_small_service_id: small_service_id as RegValue,
-            ..Default::default()
-        };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_reg(12, small_service_id)
-            .with_mem_readable_range(fixture.mem_readable_range.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        let prev_x = context.get_accumulate_x().unwrap();
-        let expected_new_service_id = small_service_id;
-        // New account is not yet added
-        assert!(
-            !prev_x
-                .partial_state
-                .accounts_sandbox
-                .account_exists(state_provider.clone(), expected_new_service_id)
-                .await?
-        );
-
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_new(
-            &vm,
-            state_provider.clone(),
-            &mut context,
-            fixture.curr_timeslot_index,
-        )
-        .await?;
-        assert_eq!(res, fixture.host_call_result_successful_small_service_id());
-
-        // Check partial state after host-call
-
-        // `next_new_service_id` context not updated (added via registrar; no rotation)
-        let x = context.get_accumulate_x().unwrap();
-        assert_eq!(x.next_new_service_id, fixture.prev_next_new_service_id);
-
-        // Validate new account fields
-        NewTestFixture::validate_new_account(
-            &mut context,
-            state_provider,
-            fixture,
-            expected_new_service_id,
-        )
-        .await?;
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_new_mem_not_readable() -> Result<(), Box<dyn Error>> {
         setup_tracing();
         let fixture = NewTestFixture::default();
@@ -1485,47 +1336,6 @@ mod new_tests {
         )
         .await?;
         assert_eq!(res, NewTestFixture::host_call_result_cash());
-
-        // No new account added
-        let x = context.get_accumulate_x().unwrap();
-        assert!(
-            !x.partial_state
-                .accounts_sandbox
-                .account_exists(state_provider, x.next_new_service_id)
-                .await?
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_new_small_service_id_already_taken() -> Result<(), Box<dyn Error>> {
-        let small_service_id = REGISTRAR_SERVICE; // already taken (initialized as accumulate host)
-
-        // Invoke as registrar service
-        let fixture = NewTestFixture {
-            accumulate_host: REGISTRAR_SERVICE,
-            new_small_service_id: small_service_id as RegValue,
-            ..Default::default()
-        };
-        let vm = fixture
-            .prepare_vm_builder()?
-            .with_reg(12, small_service_id)
-            .with_mem_readable_range(fixture.mem_readable_range.clone())?
-            .build();
-        let state_provider = Arc::new(fixture.prepare_state_provider());
-        let mut context = fixture
-            .prepare_invocation_context(state_provider.clone())
-            .await?;
-
-        // Check host-call result
-        let res = AccumulateHostFunction::<MockStateManager>::host_new(
-            &vm,
-            state_provider.clone(),
-            &mut context,
-            fixture.curr_timeslot_index,
-        )
-        .await?;
-        assert_eq!(res, NewTestFixture::host_call_result_full());
 
         // No new account added
         let x = context.get_accumulate_x().unwrap();

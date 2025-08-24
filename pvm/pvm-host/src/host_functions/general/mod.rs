@@ -88,14 +88,14 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 match data_id {
                     0 => &encode_constants_for_fetch_hostcall()?,
                     1 => x.curr_entropy.as_slice(),
-                    14 => &x.invoke_args.inputs.inputs().encode()?,
+                    14 => &x.invoke_args.operands.encode()?,
                     15 => {
-                        let acc_inputs = x.invoke_args.inputs.inputs();
-                        let Ok(acc_input_idx) = vm.regs[11].as_usize() else {
+                        let operands = &x.invoke_args.operands;
+                        let Ok(operand_idx) = vm.regs[11].as_usize() else {
                             continue_none!()
                         };
-                        if acc_input_idx < acc_inputs.len() {
-                            &acc_inputs[acc_input_idx].encode()?
+                        if operand_idx < operands.len() {
+                            &operands[operand_idx].encode()?
                         } else {
                             continue_none!()
                         }
@@ -103,6 +103,23 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                     _ => continue_none!(),
                 }
             }
+            InvocationContext::X_T(ctx) => match data_id {
+                0 => &encode_constants_for_fetch_hostcall()?,
+                1 => ctx.curr_entropy.as_slice(),
+                16 => &ctx.invoke_args.transfers.encode()?,
+                17 => {
+                    let transfers = &ctx.invoke_args.transfers;
+                    let Ok(transfer_idx) = vm.regs[11].as_usize() else {
+                        continue_none!()
+                    };
+                    if transfer_idx < transfers.len() {
+                        &transfers[transfer_idx].encode()?
+                    } else {
+                        continue_none!()
+                    }
+                }
+                _ => continue_none!(),
+            },
         };
 
         let Ok(buf_offset) = vm.regs[7].as_mem_address() else {
