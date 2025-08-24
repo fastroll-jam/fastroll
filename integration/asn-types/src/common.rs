@@ -1068,6 +1068,8 @@ pub struct AsnServiceActivityRecord {
     pub exports: u32,
     pub accumulate_count: u32,
     pub accumulate_gas_used: u64,
+    pub on_transfers_count: u32,
+    pub on_transfers_gas_used: u64,
 }
 
 impl From<AsnServiceActivityRecord> for ServiceStatsEntry {
@@ -1083,6 +1085,8 @@ impl From<AsnServiceActivityRecord> for ServiceStatsEntry {
             exports_count: value.exports,
             accumulate_digests_count: value.accumulate_count,
             accumulate_gas_used: value.accumulate_gas_used,
+            on_transfer_transfers_count: value.on_transfers_count,
+            on_transfer_gas_used: value.on_transfers_gas_used,
         }
     }
 }
@@ -1100,6 +1104,8 @@ impl From<ServiceStatsEntry> for AsnServiceActivityRecord {
             exports: value.exports_count,
             accumulate_count: value.accumulate_digests_count,
             accumulate_gas_used: value.accumulate_gas_used,
+            on_transfers_count: value.on_transfer_transfers_count,
+            on_transfers_gas_used: value.on_transfer_gas_used,
         }
     }
 }
@@ -1821,8 +1827,6 @@ pub struct AsnPrivilegedServices {
     pub bless: AsnServiceId,
     pub assign: Vec<AsnServiceId>,
     pub designate: AsnServiceId,
-    // FIXME: test vectors should be aligned with GP v0.7.1
-    pub registrar: AsnServiceId,
     pub always_acc: Vec<AlwaysAccumulateMapItem>,
 }
 
@@ -1832,7 +1836,6 @@ impl From<AsnPrivilegedServices> for PrivilegedServices {
             manager_service: value.bless,
             assign_services: AssignServices::try_from(value.assign).unwrap(),
             designate_service: value.designate,
-            registrar_service: value.registrar,
             always_accumulate_services: value
                 .always_acc
                 .into_iter()
@@ -1848,7 +1851,6 @@ impl From<PrivilegedServices> for AsnPrivilegedServices {
             bless: value.manager_service,
             assign: value.assign_services.into(),
             designate: value.designate_service,
-            registrar: value.registrar_service,
             always_acc: value
                 .always_accumulate_services
                 .into_iter()

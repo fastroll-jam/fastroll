@@ -8,7 +8,7 @@ use crate::{
 use fr_codec::prelude::*;
 use fr_common::{
     Balance, CodeHash, CoreIndex, EntropyHash, LookupsKey, Octets, ServiceId, TimeslotIndex,
-    UnsignedGas, CORE_COUNT, MIN_PUBLIC_SERVICE_ID,
+    UnsignedGas, CORE_COUNT,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_limited_vec::FixedVec;
@@ -16,7 +16,8 @@ use fr_pvm_core::state::memory::Memory;
 use fr_pvm_types::{
     common::ExportDataSegment,
     invoke_args::{
-        AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, RefineInvokeArgs,
+        AccumulateInvokeArgs, DeferredTransfer, IsAuthorizedInvokeArgs, OnTransferInvokeArgs,
+        RefineInvokeArgs,
     },
     invoke_results::AccumulationOutputHash,
 };
@@ -48,6 +49,8 @@ pub enum InvocationContext<S: HostStateProvider> {
     X_R(RefineHostContext),
     /// `accumulate` host-call context pair
     X_A(AccumulateHostContextPair<S>),
+    /// `on_transfer` host-call context
+    X_T(OnTransferHostContext<S>),
 }
 
 impl<S: HostStateProvider> InvocationContext<S> {
@@ -102,6 +105,7 @@ impl<S: HostStateProvider> InvocationContext<S> {
     pub fn get_mut_accounts_sandbox(&mut self) -> Option<&mut AccountsSandboxMap<S>> {
         match self {
             Self::X_A(ctx_pair) => Some(ctx_pair.get_mut_accounts_sandbox()),
+            Self::X_T(ctx) => Some(ctx.get_mut_accounts_sandbox()),
             _ => None,
         }
     }
@@ -116,6 +120,41 @@ pub struct IsAuthorizedHostContext {
 impl IsAuthorizedHostContext {
     pub fn new(invoke_args: IsAuthorizedInvokeArgs) -> Self {
         Self { invoke_args }
+    }
+}
+
+/// Represents the contextual state maintained throughout the `on_transfer` process.
+#[derive(Clone, Default)]
+pub struct OnTransferHostContext<S: HostStateProvider> {
+    pub accounts_sandbox: AccountsSandboxMap<S>,
+    /// OnTransfer entry-point function invocation args (read-only)
+    pub invoke_args: OnTransferInvokeArgs,
+    /// Current entropy value (`η0′`)
+    pub curr_entropy: EntropyHash,
+}
+
+impl<S: HostStateProvider> AccountsSandboxHolder<S> for OnTransferHostContext<S> {
+    fn get_mut_accounts_sandbox(&mut self) -> &mut AccountsSandboxMap<S> {
+        &mut self.accounts_sandbox
+    }
+}
+
+impl<S: HostStateProvider> OnTransferHostContext<S> {
+    pub async fn new(
+        state_manager: Arc<S>,
+        recipient: ServiceId,
+        curr_entropy: EntropyHash,
+        invoke_args: OnTransferInvokeArgs,
+    ) -> Result<Self, HostCallError> {
+        let mut accounts_sandbox = AccountsSandboxMap::default();
+        let recipient_account_sandbox =
+            AccountSandbox::from_service_id(state_manager, recipient).await?;
+        accounts_sandbox.insert(recipient, recipient_account_sandbox);
+        Ok(Self {
+            accounts_sandbox,
+            invoke_args,
+            curr_entropy,
+        })
     }
 }
 
@@ -248,11 +287,10 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         timeslot_index.encode_to(&mut buf)?;
         let source_hash = hash::<Blake2b256>(&buf[..])?;
         let hash_as_u64 = u64::decode_fixed(&mut &source_hash[..], 4)?;
+        let modulus = (1u64 << 32) - (1 << 9);
 
-        let s = MIN_PUBLIC_SERVICE_ID as u64;
-        let modulus = (1u64 << 32) - s - (1 << 8);
         let initial_check_id = (hash_as_u64 % modulus)
-            .checked_add(s)
+            .checked_add(1 << 8)
             .ok_or(HostCallError::ServiceIdOverflow)?;
         let new_service_id = state_provider.check(initial_check_id as ServiceId).await?;
         Ok(new_service_id)
@@ -272,14 +310,13 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
     }
 
     #[allow(clippy::redundant_closure_call)]
-    pub async fn rotate_new_account_id(
+    pub async fn rotate_new_account_index(
         &mut self,
         state_provider: Arc<S>,
     ) -> Result<(), HostCallError> {
-        let s = MIN_PUBLIC_SERVICE_ID as u64;
-        let bump = |prev_next_new_id: ServiceId| -> ServiceId {
-            let modulus = (1u64 << 32) - s - (1u64 << 8);
-            ((prev_next_new_id as u64 - s + 42) % modulus + s) as ServiceId
+        let bump = |a: ServiceId| -> ServiceId {
+            let modulus = (1u64 << 32) - (1u64 << 9);
+            ((a as u64 - (1u64 << 8) + 42) % modulus + (1u64 << 8)) as ServiceId
         };
         self.next_new_service_id = state_provider.check(bump(self.next_new_service_id)).await?;
         Ok(())
@@ -294,13 +331,11 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         manager_service: ServiceId,
         assign_services: FixedVec<ServiceId, CORE_COUNT>,
         designate_service: ServiceId,
-        registrar_service: ServiceId,
         always_accumulate_services: BTreeMap<ServiceId, UnsignedGas>,
     ) {
         self.partial_state.manager_service = manager_service;
         self.partial_state.assign_services = assign_services;
         self.partial_state.designate_service = designate_service;
-        self.partial_state.registrar_service = registrar_service;
         self.partial_state.always_accumulate_services = always_accumulate_services;
     }
 
@@ -378,18 +413,6 @@ impl<S: HostStateProvider> AccumulateHostContext<S> {
         new_account_fields: NewAccountFields,
     ) -> Result<ServiceId, HostCallError> {
         self.add_new_account_internal(state_provider, new_account_fields, self.next_new_service_id)
-            .await
-    }
-
-    /// Adds a new _special_ service account to the partial state, which have small IDs and can be
-    /// added via registrar service.
-    pub async fn add_new_special_account(
-        &mut self,
-        state_provider: Arc<S>,
-        new_account_fields: NewAccountFields,
-        special_service_id: ServiceId,
-    ) -> Result<ServiceId, HostCallError> {
-        self.add_new_account_internal(state_provider, new_account_fields, special_service_id)
             .await
     }
 

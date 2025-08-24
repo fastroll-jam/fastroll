@@ -5,8 +5,8 @@ pub mod pipeline;
 use crate::error::PVMInvokeError;
 use fr_codec::prelude::*;
 use fr_common::{
-    workloads::WorkExecutionResult, CoreIndex, Octets, ServiceId, UnsignedGas, WorkPackageHash,
-    MAX_SERVICE_CODE_SIZE,
+    workloads::{RefinementContext, WorkExecutionResult},
+    CodeHash, Octets, ServiceId, UnsignedGas, WorkPackageHash, MAX_SERVICE_CODE_SIZE,
 };
 use fr_crypto::{hash, Blake2b256};
 use fr_pvm_host::{
@@ -23,16 +23,16 @@ use std::sync::Arc;
 /// `Ψ_M` invocation function arguments for `Ψ_R`
 #[derive(JamEncode)]
 struct RefineVMArgs {
-    /// Index of the core which is executing the refinement.
-    core_idx: CoreIndex,
-    /// Index of the work item to be refined
-    item_idx: usize,
     /// Associated service id (`s` of `WorkItem`)
     service_id: ServiceId,
     /// Work item payload blob (**`y`** of `WorkItem`)
     work_payload: Vec<u8>,
     /// Work package hash (Hash of `WorkPackage`)
     work_package_hash: WorkPackageHash,
+    /// Refinement context (**`c`** of `WorkPackage`)
+    refinement_context: RefinementContext,
+    /// Authorizer code hash (`u` of `WorkPackage`)
+    auth_code_hash: CodeHash,
 }
 
 pub struct RefineResult {
@@ -146,11 +146,11 @@ impl RefineInvocation {
         }
 
         let vm_args = RefineVMArgs {
-            core_idx: args.core_idx,
-            item_idx: args.item_idx,
             service_id: work_item.service_id,
             work_payload: work_item.payload_blob.clone().into_vec(),
             work_package_hash: hash::<Blake2b256>(&args.package.encode()?)?,
+            refinement_context: args.package.context.clone(),
+            auth_code_hash: args.package.auth_code_hash.clone(),
         };
 
         let mut refine_ctx =

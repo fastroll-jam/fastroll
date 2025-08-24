@@ -22,8 +22,6 @@ pub struct PrivilegedServices {
     pub assign_services: AssignServices,
     /// `V`: A privileged service that can alter the staging validator set (`ι`).
     pub designate_service: ServiceId,
-    /// `R`: A privileged service that can create new services with small IDs in the protected range.
-    pub registrar_service: ServiceId,
     /// `Z`: A mapping of always-accumulate services and their basic gas usages.
     pub always_accumulate_services: AlwaysAccumulateServices,
 }
@@ -31,7 +29,7 @@ impl_simple_state_component!(PrivilegedServices, PrivilegedServices);
 
 impl JamEncode for PrivilegedServices {
     fn size_hint(&self) -> usize {
-        4 + 4 * CORE_COUNT + 4 + 4 + self.always_accumulate_services.size_hint()
+        4 + 4 * CORE_COUNT + 4 + self.always_accumulate_services.size_hint()
     }
 
     fn encode_to<T: JamOutput>(&self, dest: &mut T) -> Result<(), JamCodecError> {
@@ -40,7 +38,6 @@ impl JamEncode for PrivilegedServices {
             assign_service.encode_to_fixed(dest, 4)?;
         }
         self.designate_service.encode_to_fixed(dest, 4)?;
-        self.registrar_service.encode_to_fixed(dest, 4)?;
         self.always_accumulate_services.encode_to(dest)?;
         Ok(())
     }
@@ -60,14 +57,12 @@ impl JamDecode for PrivilegedServices {
         let assign_services = AssignServices::try_from(assign_services_vec)
             .expect("assign_services_vec should have length of 2");
         let designate_service = ServiceId::decode_fixed(input, 4)?;
-        let registrar_service = ServiceId::decode_fixed(input, 4)?;
         let always_accumulate_services = AlwaysAccumulateServices::decode(input)?;
 
         Ok(Self {
             manager_service,
             assign_services,
             designate_service,
-            registrar_service,
             always_accumulate_services,
         })
     }
