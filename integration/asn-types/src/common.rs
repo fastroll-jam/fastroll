@@ -487,12 +487,12 @@ impl From<ExtrinsicInfo> for AsnExtrinsicSpec {
 pub struct AsnWorkItem {
     pub service: u32,
     pub code_hash: AsnOpaqueHash,
-    pub payload: ByteSequence,
     pub refine_gas_limit: u64,
     pub accumulate_gas_limit: u64,
+    pub export_count: u16,
+    pub payload: ByteSequence,
     pub import_segments: Vec<AsnImportSpec>,
     pub extrinsic: Vec<AsnExtrinsicSpec>,
-    pub export_count: u16,
 }
 
 impl From<AsnWorkItem> for WorkItem {
@@ -500,9 +500,10 @@ impl From<AsnWorkItem> for WorkItem {
         Self {
             service_id: value.service,
             service_code_hash: value.code_hash,
-            payload_blob: Octets::from(value.payload),
             refine_gas_limit: value.refine_gas_limit,
             accumulate_gas_limit: value.accumulate_gas_limit,
+            export_segment_count: value.export_count,
+            payload_blob: Octets::from(value.payload),
             import_segment_ids: value
                 .import_segments
                 .into_iter()
@@ -513,7 +514,6 @@ impl From<AsnWorkItem> for WorkItem {
                 .into_iter()
                 .map(ExtrinsicInfo::from)
                 .collect(),
-            export_segment_count: value.export_count,
         }
     }
 }
@@ -523,9 +523,10 @@ impl From<WorkItem> for AsnWorkItem {
         Self {
             service: value.service_id,
             code_hash: value.service_code_hash,
-            payload: value.payload_blob,
             refine_gas_limit: value.refine_gas_limit,
             accumulate_gas_limit: value.accumulate_gas_limit,
+            export_count: value.export_segment_count,
+            payload: value.payload_blob,
             import_segments: value
                 .import_segment_ids
                 .into_iter()
@@ -536,28 +537,28 @@ impl From<WorkItem> for AsnWorkItem {
                 .into_iter()
                 .map(AsnExtrinsicSpec::from)
                 .collect(),
-            export_count: value.export_segment_count,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AsnWorkPackage {
-    pub authorization: ByteSequence,
     pub auth_code_host: u32,
-    pub authorizer: AsnAuthorizer,
+    pub auth_code_hash: AsnOpaqueHash,
     pub context: AsnRefineContext,
+    pub authorization: ByteSequence,
+    pub authorizer_config: ByteSequence,
     pub items: Vec<AsnWorkItem>,
 }
 
 impl From<AsnWorkPackage> for WorkPackage {
     fn from(value: AsnWorkPackage) -> Self {
         Self {
-            auth_token: Octets::from(value.authorization),
             authorizer_service_id: value.auth_code_host,
-            auth_code_hash: value.authorizer.code_hash,
-            config_blob: value.authorizer.params,
+            auth_code_hash: value.auth_code_hash,
             context: value.context.into(),
+            auth_token: Octets::from(value.authorization),
+            config_blob: value.authorizer_config,
             work_items: WorkItems::try_from(
                 value
                     .items
@@ -573,13 +574,11 @@ impl From<AsnWorkPackage> for WorkPackage {
 impl From<WorkPackage> for AsnWorkPackage {
     fn from(value: WorkPackage) -> Self {
         Self {
-            authorization: value.auth_token,
             auth_code_host: value.authorizer_service_id,
-            authorizer: AsnAuthorizer {
-                code_hash: value.auth_code_hash,
-                params: value.config_blob,
-            },
+            auth_code_hash: value.auth_code_hash,
             context: value.context.into(),
+            authorization: value.auth_token,
+            authorizer_config: value.config_blob,
             items: value
                 .work_items
                 .into_iter()
@@ -789,10 +788,10 @@ pub struct AsnWorkReport {
     pub context: AsnRefineContext,
     pub core_index: u16,
     pub authorizer_hash: AsnOpaqueHash,
+    pub auth_gas_used: u64,
     pub auth_output: ByteSequence,
     pub segment_root_lookup: AsnSegmentRootLookupTable,
     pub results: Vec<AsnWorkDigest>, // SIZE(1..4)
-    pub auth_gas_used: u64,
 }
 
 impl From<AsnWorkReport> for WorkReport {
@@ -802,6 +801,7 @@ impl From<AsnWorkReport> for WorkReport {
             refinement_context: value.context.into(),
             core_index: value.core_index,
             authorizer_hash: value.authorizer_hash,
+            auth_gas_used: value.auth_gas_used,
             auth_trace: Octets::from(value.auth_output),
             segment_roots_lookup: value.segment_root_lookup.into(),
             digests: WorkDigests::try_from(
@@ -812,7 +812,6 @@ impl From<AsnWorkReport> for WorkReport {
                     .collect::<Vec<_>>(),
             )
             .unwrap(),
-            auth_gas_used: value.auth_gas_used,
         }
     }
 }
@@ -824,10 +823,10 @@ impl From<WorkReport> for AsnWorkReport {
             context: value.refinement_context.into(),
             core_index: value.core_index,
             authorizer_hash: value.authorizer_hash,
+            auth_gas_used: value.auth_gas_used,
             auth_output: value.auth_trace,
             segment_root_lookup: value.segment_roots_lookup.into(),
             results: value.digests.into_iter().map(AsnWorkDigest::from).collect(),
-            auth_gas_used: value.auth_gas_used,
         }
     }
 }
@@ -1947,9 +1946,9 @@ pub struct AsnHeader {
     pub slot: u32,
     pub epoch_mark: Option<AsnEpochMark>,
     pub tickets_mark: Option<Vec<AsnTicketBody>>,
-    pub offenders_mark: Vec<AsnEd25519Key>,
     pub author_index: u16,
     pub entropy_source: AsnBandersnatchVrfSignature,
+    pub offenders_mark: Vec<AsnEd25519Key>,
     pub seal: AsnBandersnatchVrfSignature,
 }
 
@@ -1970,9 +1969,9 @@ impl From<AsnHeader> for BlockHeader {
                 timeslot_index: value.slot,
                 epoch_marker: value.epoch_mark.map(EpochMarker::from),
                 winning_tickets_marker: winning_tickets,
-                offenders_marker: value.offenders_mark,
                 author_index: value.author_index,
                 vrf_signature: value.entropy_source,
+                offenders_marker: value.offenders_mark,
             },
             block_seal: value.seal,
         }
@@ -1996,9 +1995,9 @@ impl From<BlockHeader> for AsnHeader {
                     })
                     .collect::<Vec<_>>()
             }),
-            offenders_mark: value.offenders_marker().to_vec(),
             author_index: value.author_index(),
             entropy_source: value.vrf_signature(),
+            offenders_mark: value.offenders_marker().to_vec(),
             seal: value.block_seal,
         }
     }
