@@ -64,22 +64,21 @@ mod codec {
         }
     }
 
-    // FIXME: temporarily skipped due to Codec definition mismatches (GP v0.7.0)
     generate_codec_tests! {
         assurances_extrinsic: ("assurances_extrinsic", AssurancesXt, AsnAssurancesXt),
-        // block: ("block", Block, AsnBlock),
+        block: ("block", Block, AsnBlock),
         disputes_extrinsic: ("disputes_extrinsic", DisputesXt, AsnDisputesXt),
-        // extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
-        // guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesXt, AsnGuaranteesXt),
-        // header_0: ("header_0", BlockHeader, AsnHeader),
-        // header_1: ("header_1", BlockHeader, AsnHeader),
+        extrinsic: ("extrinsic", Extrinsics, AsnExtrinsic),
+        guarantees_extrinsic: ("guarantees_extrinsic", GuaranteesXt, AsnGuaranteesXt),
+        header_0: ("header_0", BlockHeader, AsnHeader),
+        header_1: ("header_1", BlockHeader, AsnHeader),
         preimages_extrinsic: ("preimages_extrinsic", PreimagesXt, AsnPreimagesXt),
         refine_context: ("refine_context", RefinementContext, AsnRefineContext),
         tickets_extrinsic: ("tickets_extrinsic", TicketsXt, AsnTicketsXt),
-        // work_item: ("work_item", WorkItem, AsnWorkItem),
-        // work_package: ("work_package", WorkPackage, AsnWorkPackage),
-        // work_report: ("work_report", WorkReport, AsnWorkReport),
-        // work_digest_0: ("work_result_0", WorkDigest, AsnWorkDigest),
-        // work_digest_1: ("work_result_1", WorkDigest, AsnWorkDigest),
+        work_item: ("work_item", WorkItem, AsnWorkItem),
+        work_package: ("work_package", WorkPackage, AsnWorkPackage),
+        work_report: ("work_report", WorkReport, AsnWorkReport),
+        work_digest_0: ("work_result_0", WorkDigest, AsnWorkDigest),
+        work_digest_1: ("work_result_1", WorkDigest, AsnWorkDigest),
     }
 }

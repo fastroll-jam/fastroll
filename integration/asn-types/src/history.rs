@@ -6,7 +6,7 @@ use std::fmt::Debug;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct State {
     /// Blocks history
-    pub beta: AsnBlocksHistory,
+    pub beta: AsnRecentBlocks,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
