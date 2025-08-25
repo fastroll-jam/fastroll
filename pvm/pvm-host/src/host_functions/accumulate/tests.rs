@@ -3233,7 +3233,7 @@ mod forget_tests {
                 timeslot_x: Timeslot::new(1),
                 timeslot_y: Timeslot::new(2),
                 timeslot_z: Timeslot::new(3),
-                curr_timeslot_index: 1000,
+                curr_timeslot_index: 20_000,
                 preimage_hash: Hash32::from_hex("0xffff").unwrap(),
                 mem_readable_range,
             }
