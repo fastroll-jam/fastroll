@@ -858,7 +858,7 @@ dependencies = [
  "fr-db",
  "fr-limited-vec",
  "serde",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -876,7 +876,7 @@ dependencies = [
  "bit-vec",
  "fr-codec-derive",
  "fr-limited-vec",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -897,7 +897,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_json",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "time",
  "tracing",
  "tracing-subscriber",
@@ -925,7 +925,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sha3",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
  "zeroize",
 ]
@@ -937,7 +937,7 @@ dependencies = [
  "fr-common",
  "mini-moka",
  "rocksdb",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
 ]
 
@@ -948,7 +948,7 @@ dependencies = [
  "fr-common",
  "rayon",
  "reed-solomon-simd",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -963,7 +963,7 @@ dependencies = [
  "fr-limited-vec",
  "fr-state",
  "hex",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -1016,7 +1016,7 @@ dependencies = [
 name = "fr-limited-vec"
 version = "0.1.0"
 dependencies = [
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -1026,7 +1026,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-crypto",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -1043,7 +1043,7 @@ dependencies = [
  "quinn",
  "rcgen",
  "rustls",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -1067,7 +1067,7 @@ dependencies = [
  "fr-storage",
  "fr-transition",
  "serde",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -1080,7 +1080,7 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-pvm-types",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -1096,7 +1096,7 @@ dependencies = [
  "fr-pvm-core",
  "fr-pvm-types",
  "fr-state",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -1112,7 +1112,7 @@ dependencies = [
  "fr-pvm-host",
  "fr-pvm-types",
  "fr-state",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -1129,7 +1129,7 @@ dependencies = [
  "fr-pvm-interface",
  "fr-pvm-types",
  "fr-state",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -1165,7 +1165,7 @@ dependencies = [
  "paste",
  "rand 0.8.5",
  "tempfile",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
 ]
@@ -1181,7 +1181,7 @@ dependencies = [
  "fr-db",
  "hex",
  "mini-moka",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -1195,7 +1195,7 @@ dependencies = [
  "fr-config",
  "fr-db",
  "fr-state",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -1211,7 +1211,7 @@ dependencies = [
  "fr-pvm-invocation",
  "fr-pvm-types",
  "fr-state",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -1815,7 +1815,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "rustls",
  "socket2 0.5.8",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
  "web-time",
@@ -1838,7 +1838,7 @@ dependencies = [
  "rustls-pki-types",
  "rustls-platform-verifier",
  "slab",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "tinyvec",
  "tracing",
  "web-time",
@@ -2439,11 +2439,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "3467d614147380f2e4e374161426ff399c91084acd2363eaf549172b3d5e60c0"
 dependencies = [
- "thiserror-impl 2.0.12",
+ "thiserror-impl 2.0.16",
 ]
 
 [[package]]
@@ -2459,9 +2459,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "6c5e1be1c48b9172ee610da68fd9cd2770e7a4056cb3fc98710ee6906f0c7960"
 dependencies = [
  "proc-macro2",
  "quote",
