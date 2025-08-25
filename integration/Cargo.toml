@@ -34,3 +34,7 @@ futures = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+tiny = []
+full = []

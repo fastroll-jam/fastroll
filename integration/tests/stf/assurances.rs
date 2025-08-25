@@ -22,7 +22,7 @@ struct AssurancesTest;
 
 #[async_trait]
 impl StateTransitionTest for AssurancesTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/assurances/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/assurances";
 
     type Input = Input;
     type JamInput = JamInput;

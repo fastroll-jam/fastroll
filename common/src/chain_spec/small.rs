@@ -1,3 +1,5 @@
+pub const CHAIN_SPEC: &str = "small";
+
 /// `V`: The total number of validators.
 pub const VALIDATOR_COUNT: usize = 24;
 

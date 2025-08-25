@@ -1,4 +1,5 @@
 //! End-to-end state transition tests
+#![allow(dead_code, unused_imports)]
 use fr_common::utils::tracing::setup_timed_tracing;
 use fr_config::StorageConfig;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
@@ -60,6 +61,7 @@ async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode
 }
 
 /// Mocking block author role
+#[cfg(feature = "tiny")]
 #[tokio::test]
 async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber

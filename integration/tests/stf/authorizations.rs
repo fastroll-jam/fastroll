@@ -21,7 +21,7 @@ struct AuthorizationsTest;
 
 #[async_trait]
 impl StateTransitionTest for AuthorizationsTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/authorizations/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/authorizations";
 
     type Input = Input;
     type JamInput = JamInput;

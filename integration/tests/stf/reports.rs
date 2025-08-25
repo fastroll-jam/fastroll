@@ -26,7 +26,7 @@ struct ReportsTest;
 
 #[async_trait]
 impl StateTransitionTest for ReportsTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/reports/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/reports";
 
     type Input = Input;
     type JamInput = JamInput;
