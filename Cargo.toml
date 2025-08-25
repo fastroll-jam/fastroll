@@ -79,7 +79,7 @@ quote = "1.0.40"
 rand = "0.8.5"
 rayon = "1.10.0"
 reed-solomon-simd = "3.0.1"
-regex = "1.11.1"
+regex = "1.11.2"
 rcgen = "0.13.2"
 rocksdb = { version = "0.23.0", default-features = false, features = ["snappy"] }
 rustls = { version = "0.23.31", default-features = false, features = ["std"] }
