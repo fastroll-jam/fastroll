@@ -3,7 +3,11 @@
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, ByteSequence, Hash32, STATE_KEY_SIZE};
-use std::fmt::{Display, Formatter};
+use std::{
+    error::Error,
+    fmt::{Display, Formatter},
+    str::FromStr,
+};
 
 pub type TrieKey = ByteArray<STATE_KEY_SIZE>;
 pub type HeaderHash = Hash32;
@@ -19,6 +23,29 @@ pub struct Version {
 impl Display for Version {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl FromStr for Version {
+    type Err = Box<dyn Error>;
+
+    fn from_str(version: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = version.split('.').collect();
+        if parts.len() != 3 {
+            panic!(
+                "Invalid version format: expected `major.minor.patch`, got `{}`",
+                version
+            );
+        }
+
+        let major = parts[0].parse::<u8>().expect("Invalid major version");
+        let minor = parts[1].parse::<u8>().expect("Invalid minor version");
+        let patch = parts[2].parse::<u8>().expect("Invalid patch version");
+        Ok(Self {
+            major,
+            minor,
+            patch,
+        })
     }
 }
 
