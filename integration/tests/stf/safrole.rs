@@ -38,7 +38,7 @@ struct SafroleTest;
 
 #[async_trait]
 impl StateTransitionTest for SafroleTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/safrole/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/safrole";
 
     type Input = Input;
     type JamInput = JamInput;

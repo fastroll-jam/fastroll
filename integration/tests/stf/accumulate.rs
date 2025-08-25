@@ -34,7 +34,7 @@ struct AccumulateTest;
 
 #[async_trait]
 impl StateTransitionTest for AccumulateTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/accumulate/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/accumulate";
 
     type Input = Input;
     type JamInput = JamInput;

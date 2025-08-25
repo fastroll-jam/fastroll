@@ -1,5 +1,7 @@
 use crate::UnsignedGas;
 
+pub const CHAIN_SPEC: &str = "tiny";
+
 /// `V`: The total number of validators.
 pub const VALIDATOR_COUNT: usize = 6;
 

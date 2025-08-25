@@ -25,7 +25,7 @@ struct DisputesTest;
 
 #[async_trait]
 impl StateTransitionTest for DisputesTest {
-    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/disputes/tiny";
+    const PATH_PREFIX: &'static str = "jamtestvectors-polkajam/stf/disputes";
 
     type Input = Input;
     type JamInput = JamInput;
