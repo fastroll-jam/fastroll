@@ -3,7 +3,7 @@ mod fuzz_target_tests {
     #![allow(dead_code)]
     use crate::{
         fuzz_target::FuzzTargetRunner,
-        types::{FuzzMessageKind, PeerInfo, SetState, Version},
+        types::{FuzzMessageKind, ImportBlock, PeerInfo, SetState, Version},
         utils::StreamUtils,
     };
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
@@ -27,8 +27,8 @@ mod fuzz_target_tests {
         FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"))
     }
 
-    fn load_test_case() -> BlockImportCase {
-        let path = "src/data/00000001.json";
+    fn load_test_case(block_number: usize) -> BlockImportCase {
+        let path = format!("src/data/0000000{block_number}.json");
         let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
         FileLoader::load_from_json_file(&full_path)
     }
@@ -66,6 +66,7 @@ mod fuzz_target_tests {
         StreamUtils::read_message(client).await
     }
 
+    // Handshake + SetState
     #[tokio::test]
     async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {
         setup_tracing();
@@ -82,7 +83,7 @@ mod fuzz_target_tests {
         let _ = handshake_as_fuzzer(&mut client).await?;
 
         // Load test case
-        let test_case = load_test_case();
+        let test_case = load_test_case(1);
 
         // Test with post-state of the case
         let test_state = test_case.post_state;
@@ -118,9 +119,72 @@ mod fuzz_target_tests {
         Ok(())
     }
 
+    // Handshake + SetState + ImportBlock
     #[tokio::test]
     async fn test_fuzz_block_import_single() -> Result<(), Box<dyn Error>> {
         setup_tracing();
+        let socket_path = socket_path();
+
+        // Run server (fuzz target)
+        let server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Connect client (fuzzer)
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+
+        // Handshake
+        let _ = handshake_as_fuzzer(&mut client).await?;
+
+        // Load test case
+        let test_case_1 = load_test_case(1); // Block #1
+        let test_case_2 = load_test_case(2); // Block #2
+
+        // --- Set State (post-state of Block #1 == pre-state of Block #2)
+
+        // Send message (SetState)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::SetState(SetState {
+                header: test_case_1.block.header.clone().into(),
+                state: test_case_1.post_state.clone().into(),
+            }),
+        )
+        .await?;
+
+        // Receive response for SetState (StateRoot)
+        let _response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        // --- Import Block
+
+        // Send message (ImportBlock)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
+        )
+        .await?;
+
+        // Receive response for ImportBlock (StateRoot)
+        let response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+        match response {
+            FuzzMessageKind::StateRoot(root) => {
+                assert_eq!(root.0, test_case_2.post_state.state_root);
+            }
+            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
+        }
+
+        // Cleanup
+        drop(client);
+        server_jh.abort();
+        let _ = std::fs::remove_file(&socket_path);
+
         Ok(())
     }
 }
