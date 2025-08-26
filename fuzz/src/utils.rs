@@ -1,4 +1,37 @@
+use crate::types::{FuzzMessageKind, FuzzProtocolMessage};
+use fr_codec::prelude::*;
 use std::{error::Error, path::Path};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::UnixStream,
+};
+
+/// UnixStream message sender & receiver utils
+pub(crate) struct StreamUtils;
+impl StreamUtils {
+    pub(crate) async fn read_message(
+        stream: &mut UnixStream,
+    ) -> Result<FuzzMessageKind, Box<dyn Error>> {
+        let mut length_buf = [0u8; 4];
+        stream.read_exact(&mut length_buf).await?;
+        let message_len = u32::decode_fixed(&mut length_buf.as_slice(), 4)?;
+
+        let mut message_buf = vec![0u8; message_len as usize];
+        stream.read_exact(&mut message_buf).await?;
+        let message_kind = FuzzMessageKind::decode(&mut message_buf.as_slice())?;
+        Ok(message_kind)
+    }
+
+    pub(crate) async fn send_message(
+        stream: &mut UnixStream,
+        message_kind: FuzzMessageKind,
+    ) -> Result<(), Box<dyn Error>> {
+        let message = FuzzProtocolMessage::from_kind(message_kind)?;
+        stream.write_all(&message.encode()?).await?;
+        stream.flush().await?;
+        Ok(())
+    }
+}
 
 #[cfg(unix)]
 fn is_socket_file(metadata: &std::fs::Metadata) -> bool {
