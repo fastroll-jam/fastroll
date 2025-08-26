@@ -62,12 +62,12 @@ fr-storage = { path = "storage" }
 fr-transition = { path = "transition" }
 # External dependencies
 ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }
-async-trait = "0.1.88"
+async-trait = "0.1.89"
 base32 = "0.5.1"
 blake2 = "0.10.6"
 bit-vec = "0.8.0"
-cfg-if = "1.0.1"
-clap = { version = "4.5.42", features = ["derive"] }
+cfg-if = "1.0.3"
+clap = { version = "4.5.45", features = ["derive"] }
 dashmap = "6.1.0"
 ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
 futures = "0.3.31"
@@ -77,18 +77,18 @@ paste = "1.0.15"
 quinn = "0.11.8"
 quote = "1.0.40"
 rand = "0.8.5"
-rayon = "1.10.0"
+rayon = "1.11.0"
 reed-solomon-simd = "3.0.1"
-regex = "1.11.1"
+regex = "1.11.2"
 rcgen = "0.13.2"
-rocksdb = { version = "0.23.0", default-features = false, features = ["snappy"] }
+rocksdb = { version = "0.24.0", default-features = false, features = ["snappy"] }
 rustls = { version = "0.23.31", default-features = false, features = ["std"] }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.142"
+serde_json = "1.0.143"
 sha3 = "0.10.8"
-syn = { version = "2.0.104", features = ["full", "extra-traits"] }
-tempfile = "3.20.0"
-thiserror = "2.0.12"
+syn = { version = "2.0.106", features = ["full", "extra-traits"] }
+tempfile = "3.21.0"
+thiserror = "2.0.16"
 time = { version = "0.3.41", features = ["macros", "local-offset"] }
 tokio = { version = "1.47.1", features = ["rt", "rt-multi-thread", "time", "sync", "macros", "net", "io-util"] }
 tracing = "0.1.41"
