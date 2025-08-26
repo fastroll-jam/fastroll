@@ -130,17 +130,17 @@ impl FuzzTargetRunner {
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
-                let mut latest_state_keys = LatestStateKeys::default();
                 let parent_header = set_state.header;
                 let parent_header_hash = parent_header.hash()?;
-                latest_state_keys.update_header_hash(parent_header_hash.clone());
+                self.latest_state_keys
+                    .update_header_hash(parent_header_hash.clone());
 
                 // Add state entries
                 for kv in set_state.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
                         .await?;
-                    latest_state_keys.insert_state_key(kv.key);
+                    self.latest_state_keys.insert_state_key(kv.key);
                 }
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
