@@ -33,7 +33,7 @@ pub struct Cli {
 pub enum CliCommand {
     Run {
         #[arg(long)]
-        dev_account: Option<DevNodeAccountProfile>,
+        dev_account: DevNodeAccountProfile,
     },
     /// Run JAM block importer as fuzz target
     Fuzz {
