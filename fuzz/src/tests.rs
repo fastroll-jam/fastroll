@@ -9,10 +9,15 @@ mod fuzz_target_tests {
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
     use fr_integration::importer_harness::AsnTestCase as BlockImportCase;
     use std::{error::Error, path::PathBuf, str::FromStr, time::Duration};
+    use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
     fn socket_path() -> String {
-        String::from("/tmp/test_socket.sock")
+        let path = PathBuf::from_str("/tmp").unwrap();
+        path.join(tempdir().unwrap().path())
+            .to_str()
+            .unwrap()
+            .to_string()
     }
 
     fn create_test_peer_info(name: &str) -> PeerInfo {
@@ -24,7 +29,7 @@ mod fuzz_target_tests {
     }
 
     fn init_fuzz_target_runner() -> FuzzTargetRunner {
-        FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"))
+        FuzzTargetRunner::new_for_test(create_test_peer_info("TestFastRoll"))
     }
 
     fn load_test_case(block_number: usize) -> BlockImportCase {
@@ -112,10 +117,8 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
         server_jh.abort();
         let _ = std::fs::remove_file(&socket_path);
-
         Ok(())
     }
 
@@ -184,7 +187,6 @@ mod fuzz_target_tests {
         drop(client);
         server_jh.abort();
         let _ = std::fs::remove_file(&socket_path);
-
         Ok(())
     }
 }

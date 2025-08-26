@@ -44,6 +44,24 @@ impl FuzzTargetRunner {
         }
     }
 
+    /// Creates a `FuzzTargetRunner` with using `tempfile::tempdir` for DB path derivation.
+    #[cfg(test)]
+    pub fn new_for_test(target_peer_info: PeerInfo) -> Self {
+        use fr_config::StorageConfig;
+        use tempfile::tempdir;
+
+        Self {
+            node_storage: Arc::new(
+                NodeStorage::new(StorageConfig::from_path(
+                    tempdir().unwrap().path().join("test_db"),
+                ))
+                .expect("Failed to initialize NodeStorage with tempdir"),
+            ),
+            latest_state_keys: LatestStateKeys::default(),
+            target_peer_info,
+        }
+    }
+
     fn node_storage(&self) -> Arc<NodeStorage> {
         self.node_storage.clone()
     }

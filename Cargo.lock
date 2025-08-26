@@ -972,9 +972,11 @@ dependencies = [
  "fr-block",
  "fr-codec",
  "fr-common",
+ "fr-config",
  "fr-integration",
  "fr-node",
  "fr-storage",
+ "tempfile",
  "tokio",
  "tracing",
 ]
