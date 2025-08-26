@@ -1065,6 +1065,7 @@ dependencies = [
  "fr-storage",
  "fr-transition",
  "serde",
+ "serde_json",
  "thiserror 2.0.16",
  "tokio",
  "tracing",
