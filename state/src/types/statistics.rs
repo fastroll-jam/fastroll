@@ -169,12 +169,12 @@ pub struct CoreStatsEntry {
     pub assurers_count: u16,
     /// `i`: The number of imported segments in the core.
     pub imports_count: u16,
-    /// `e`: The number of exported segments in the core.
-    pub exports_count: u16,
-    /// `z`: The total size of extrinsics used in the core, in octets.
-    pub extrinsics_octets: u32,
     /// `x`: The number of extrinsics items used in the core.
     pub extrinsics_count: u16,
+    /// `z`: The total size of extrinsics used in the core, in octets.
+    pub extrinsics_octets: u32,
+    /// `e`: The number of exported segments in the core.
+    pub exports_count: u16,
     /// `l`: Auditable work bundle length.
     pub work_bundle_length: u32,
     /// `u`: The actual amount of gas used during refinement in the core.
@@ -184,9 +184,9 @@ pub struct CoreStatsEntry {
 impl CoreStatsEntry {
     pub fn accumulate_refine_stats(&mut self, refine_stats: &RefineStats) {
         self.imports_count += refine_stats.imports_count;
-        self.exports_count += refine_stats.exports_count;
-        self.extrinsics_octets += refine_stats.extrinsics_octets;
         self.extrinsics_count += refine_stats.extrinsics_count;
+        self.extrinsics_octets += refine_stats.extrinsics_octets;
+        self.exports_count += refine_stats.exports_count;
         self.refine_gas_used += refine_stats.refine_gas_used;
     }
 }
@@ -215,12 +215,12 @@ pub struct ServiceStatsEntry {
     pub refine_gas_used: UnsignedGas,
     /// `i`: The number of imported segments by the service.
     pub imports_count: u32,
-    /// `e`: The number of exported segments by the service.
-    pub exports_count: u32,
-    /// `z`: The total size of extrinsics used by the service, in octets.
-    pub extrinsics_octets: u32,
     /// `x`: The number of extrinsics items used by the service.
     pub extrinsics_count: u32,
+    /// `z`: The total size of extrinsics used by the service, in octets.
+    pub extrinsics_octets: u32,
+    /// `e`: The number of exported segments by the service.
+    pub exports_count: u32,
     /// `a.0`: The number of accumulated work-digests in the block by the service.
     pub accumulate_digests_count: u32,
     /// `a.1`: The total amount of gas used in the block by accumulation of the service.
