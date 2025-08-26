@@ -33,10 +33,7 @@ impl FromStr for Version {
     fn from_str(version: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = version.split('.').collect();
         if parts.len() != 3 {
-            panic!(
-                "Invalid version format: expected `major.minor.patch`, got `{}`",
-                version
-            );
+            panic!("Invalid version format: expected `major.minor.patch`, got `{version}`",);
         }
 
         let major = parts[0].parse::<u8>().expect("Invalid major version");
