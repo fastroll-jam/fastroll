@@ -3,9 +3,10 @@ mod fuzz_target_tests {
     #![allow(dead_code)]
     use crate::{
         fuzz_target::FuzzTargetRunner,
-        types::{FuzzMessageKind, ImportBlock, PeerInfo, SetState, Version},
+        types::{FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, Version},
         utils::StreamUtils,
     };
+    use fr_block::types::block::BlockHeader;
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
     use fr_integration::importer_harness::AsnTestCase as BlockImportCase;
     use std::{error::Error, path::PathBuf, str::FromStr, time::Duration};
@@ -279,6 +280,113 @@ mod fuzz_target_tests {
                 assert_eq!(root.0, test_case_1.post_state.state_root);
             }
             kind => panic!("Expected StateRoot response. Got: {kind:?}"),
+        }
+
+        // Cleanup
+        drop(client);
+        server_jh.abort();
+        let _ = std::fs::remove_file(&socket_path);
+        Ok(())
+    }
+
+    // Handshake + SetState + ImportBlock + GetState
+    #[tokio::test]
+    async fn test_fuzz_get_state() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let socket_path = socket_path();
+
+        // Run server (fuzz target)
+        let server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Connect client (fuzzer)
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+
+        // Handshake
+        let _ = handshake_as_fuzzer(&mut client).await?;
+
+        // Load test case
+        let test_case_1 = load_test_case(1); // Block #1
+        let test_case_2 = load_test_case(2); // Block #2
+        let test_case_3 = load_test_case(3); // Block #3
+
+        // --- Set State (post-state of Block #1 == pre-state of Block #2)
+
+        // Send message (SetState)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::SetState(SetState {
+                header: test_case_1.block.header.clone().into(),
+                state: test_case_1.post_state.clone().into(),
+            }),
+        )
+        .await?;
+
+        // Receive response for SetState (StateRoot)
+        let _response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        // --- Import Block #2
+
+        // Send message (ImportBlock)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
+        )
+        .await?;
+
+        // Receive response for ImportBlock (StateRoot)
+        let _response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        // --- Import Block #3
+
+        // Send message (ImportBlock)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::ImportBlock(ImportBlock(test_case_3.block.clone().into())),
+        )
+        .await?;
+
+        // Receive response for ImportBlock (StateRoot)
+        let _response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        // --- Get State
+        let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+
+        // Send message (GetState)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::GetState(GetState(last_header_hash)),
+        )
+        .await?;
+
+        // Receive response for SetState (StateRoot)
+        let response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        match response {
+            FuzzMessageKind::State(state) => {
+                // Display the state report
+                tracing::info!("-------------------- GetState Report --------------------");
+                for kv in state.0.into_iter() {
+                    tracing::info!("k: {}, v: {}", kv.key, kv.value);
+                }
+            }
+            kind => panic!("Expected State response. Got: {kind:?}"),
         }
 
         // Cleanup
