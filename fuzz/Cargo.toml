@@ -6,8 +6,11 @@ edition.workspace = true
 [dependencies]
 fr-codec = { workspace = true }
 fr-common = { workspace = true }
+fr-config = { workspace = true }
 fr-block = { workspace = true }
+fr-integration = { workspace = true }
 fr-node = { workspace = true }
 fr-storage = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

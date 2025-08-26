@@ -3,6 +3,7 @@
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, ByteSequence, Hash32, STATE_KEY_SIZE};
+use fr_integration::importer_harness::AsnRawState;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
@@ -13,7 +14,7 @@ pub type TrieKey = ByteArray<STATE_KEY_SIZE>;
 pub type HeaderHash = Hash32;
 pub type StateRootHash = Hash32;
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
 pub struct Version {
     pub major: u8,
     pub minor: u8,
@@ -32,10 +33,7 @@ impl FromStr for Version {
     fn from_str(version: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = version.split('.').collect();
         if parts.len() != 3 {
-            panic!(
-                "Invalid version format: expected `major.minor.patch`, got `{}`",
-                version
-            );
+            panic!("Invalid version format: expected `major.minor.patch`, got `{version}`",);
         }
 
         let major = parts[0].parse::<u8>().expect("Invalid major version");
@@ -59,7 +57,7 @@ impl Version {
     }
 }
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
 pub struct PeerInfo {
     pub name: Vec<u8>,
     pub app_version: Version,
@@ -84,6 +82,22 @@ pub struct KeyValue {
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct State(pub Vec<KeyValue>);
+
+/// Convert ASN raw state type into fuzzer-specific state type
+impl From<AsnRawState> for State {
+    fn from(value: AsnRawState) -> Self {
+        Self(
+            value
+                .keyvals
+                .into_iter()
+                .map(|asn_kv| KeyValue {
+                    key: asn_kv.key,
+                    value: asn_kv.value,
+                })
+                .collect(),
+        )
+    }
+}
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct ImportBlock(pub Block);
