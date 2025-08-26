@@ -3,6 +3,7 @@
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, ByteSequence, Hash32, STATE_KEY_SIZE};
+use fr_integration::importer_harness::AsnRawState;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
@@ -84,6 +85,22 @@ pub struct KeyValue {
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct State(pub Vec<KeyValue>);
+
+/// Convert ASN raw state type into fuzzer-specific state type
+impl From<AsnRawState> for State {
+    fn from(value: AsnRawState) -> Self {
+        Self(
+            value
+                .keyvals
+                .into_iter()
+                .map(|asn_kv| KeyValue {
+                    key: asn_kv.key,
+                    value: asn_kv.value,
+                })
+                .collect(),
+        )
+    }
+}
 
 #[derive(Clone, Debug, JamEncode, JamDecode)]
 pub struct ImportBlock(pub Block);
