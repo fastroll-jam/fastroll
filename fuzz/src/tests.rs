@@ -71,6 +71,34 @@ mod fuzz_target_tests {
         StreamUtils::read_message(client).await
     }
 
+    #[tokio::test]
+    async fn test_fuzz_handshake() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let socket_path = socket_path();
+
+        // Run server (fuzz target)
+        let server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Connect client (fuzzer)
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+
+        // Handshake
+        let response = handshake_as_fuzzer(&mut client).await?;
+        match response {
+            FuzzMessageKind::PeerInfo(info) => {
+                assert_eq!(info, create_test_peer_info("TestFastRoll"));
+            }
+            kind => panic!("Expected PeerInfo response. Got: {kind:?}"),
+        }
+
+        // Cleanup
+        drop(client);
+        server_jh.abort();
+        let _ = std::fs::remove_file(&socket_path);
+        Ok(())
+    }
+
     // Handshake + SetState
     #[tokio::test]
     async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {

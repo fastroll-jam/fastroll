@@ -14,7 +14,7 @@ pub type TrieKey = ByteArray<STATE_KEY_SIZE>;
 pub type HeaderHash = Hash32;
 pub type StateRootHash = Hash32;
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
 pub struct Version {
     pub major: u8,
     pub minor: u8,
@@ -60,7 +60,7 @@ impl Version {
     }
 }
 
-#[derive(Clone, Debug, JamEncode, JamDecode)]
+#[derive(Clone, Debug, PartialEq, JamEncode, JamDecode)]
 pub struct PeerInfo {
     pub name: Vec<u8>,
     pub app_version: Version,
