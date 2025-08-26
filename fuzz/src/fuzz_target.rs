@@ -139,9 +139,15 @@ impl FuzzTargetRunner {
                 .await
             }
             FuzzMessageKind::SetState(set_state) => {
-                let state_manager = self.node_storage().state_manager();
+                let storage = self.node_storage();
+                let state_manager = storage.state_manager();
+
                 let mut latest_state_keys = LatestStateKeys::default();
-                latest_state_keys.update_header_hash(set_state.header.hash()?);
+                let parent_header = set_state.header;
+                let parent_header_hash = parent_header.hash()?;
+                latest_state_keys.update_header_hash(parent_header_hash.clone());
+
+                // Add state entries
                 for kv in set_state.state.0 {
                     state_manager
                         .add_raw_state_entry(&kv.key, kv.value.into_vec())
@@ -150,6 +156,14 @@ impl FuzzTargetRunner {
                 }
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
+
+                // Update `BlockHeaderDB` & `PostStateRootDB`
+                storage.header_db().set_best_header(parent_header);
+                storage
+                    .post_state_root_db()
+                    .set_post_state_root(&parent_header_hash, state_root.clone())
+                    .await?;
+
                 StreamUtils::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root)))
                     .await
             }
