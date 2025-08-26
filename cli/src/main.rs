@@ -26,7 +26,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // CLI args
     match cli.command {
-        Some(CliCommand::Run { dev_account }) => run_node(init_node(dev_account).await?).await,
+        Some(CliCommand::Run {
+            dev_account,
+            db_path,
+        }) => run_node(init_node(dev_account, db_path.as_str()).await?).await,
         Some(CliCommand::Fuzz { socket }) => {
             let mut target_runner = FuzzTargetRunner::new(PeerInfo::new(
                 "FastRoll".to_string(),

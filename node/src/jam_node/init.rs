@@ -45,12 +45,15 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn init_node(node_account: DevNodeAccountProfile) -> Result<JamNode, Box<dyn Error>> {
+pub async fn init_node(
+    node_account: DevNodeAccountProfile,
+    db_path: &str,
+) -> Result<JamNode, Box<dyn Error>> {
     let node_info = &node_account.load_validator_key_info();
 
     let socket_addr = node_info.socket_addr;
     let node_id = format!("[{}]:{}", socket_addr.ip(), socket_addr.port());
-    let node_config = NodeConfig::from_node_id(node_id.as_str());
+    let node_config = NodeConfig::from_node_id(node_id.as_str(), db_path);
     let node_storage = init_storage(node_config.storage)?;
     tracing::info!("Storage initialized");
     let network_manager =

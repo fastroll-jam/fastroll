@@ -1,7 +1,7 @@
 //! End-to-end state transition tests
 #![allow(dead_code, unused_imports)]
 use fr_common::utils::tracing::setup_timed_tracing;
-use fr_config::StorageConfig;
+use fr_config::{StorageConfig, DEFAULT_ROCKSDB_PATH};
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
     genesis::{genesis_simple_state, load_genesis_block},
@@ -18,7 +18,7 @@ use std::{
 };
 
 fn init_node_storage(node_id: &str) -> NodeStorage {
-    NodeStorage::new(StorageConfig::from_node_id(node_id))
+    NodeStorage::new(StorageConfig::from_node_id(node_id, DEFAULT_ROCKSDB_PATH))
         .expect("Failed to initialize NodeStorage")
 }
 

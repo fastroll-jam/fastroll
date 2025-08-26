@@ -1,6 +1,7 @@
 use crate::{CLIENT_VERSION, SPEC_VERSION};
 use clap::{Parser, Subcommand};
 use fr_common::{CHAIN_SPEC, CORE_COUNT, EPOCH_LENGTH, SLOT_DURATION, VALIDATOR_COUNT};
+use fr_config::{DEFAULT_FUZZER_SOCKET, DEFAULT_ROCKSDB_PATH};
 use fr_node::keystore::dev_account_profile::DevNodeAccountProfile;
 use std::sync::LazyLock;
 
@@ -31,13 +32,18 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum CliCommand {
+    /// Run JAM node (dev mode)
     Run {
+        /// Dev account to run the node
         #[arg(long)]
         dev_account: DevNodeAccountProfile,
+        /// Database path
+        #[arg(long, default_value_t = DEFAULT_ROCKSDB_PATH.to_string())]
+        db_path: String,
     },
     /// Run JAM block importer as fuzz target
     Fuzz {
-        #[arg(long, default_value = "/tmp/jam_target.sock")]
+        #[arg(long, default_value_t = DEFAULT_FUZZER_SOCKET.to_string())]
         socket: String,
     },
 }
