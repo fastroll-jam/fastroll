@@ -9,7 +9,7 @@ mod fuzz_target_tests {
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
     use fr_integration::importer_harness::AsnTestCase as BlockImportCase;
     use std::{error::Error, path::PathBuf, str::FromStr, time::Duration};
-    use tokio::{net::UnixStream, time::timeout};
+    use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
     fn socket_path() -> String {
         String::from("/tmp/test_socket.sock")
@@ -45,38 +45,43 @@ mod fuzz_target_tests {
             .collect()
     }
 
-    #[tokio::test]
-    async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {
-        setup_tracing();
-
-        let socket_path = socket_path();
-
-        // Run server (fuzz target)
+    fn run_fuzz_target(socket_path: String) -> Result<JoinHandle<()>, Box<dyn Error>> {
         let mut fuzz_target = init_fuzz_target_runner();
-        let socket_path_cloned = socket_path.clone();
         let server_jh = tokio::spawn(async move {
-            if let Err(e) = fuzz_target.run_as_fuzz_target(socket_path_cloned).await {
+            if let Err(e) = fuzz_target.run_as_fuzz_target(socket_path).await {
                 tracing::error!("Fuzz target runner error: {e:?}");
             }
         });
+        Ok(server_jh)
+    }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // Connect client (fuzzer)
-        let socket_path_cloned = socket_path.clone();
-        let mut client = UnixStream::connect(socket_path_cloned).await?;
-
-        // Handshake
+    async fn handshake_as_fuzzer(
+        client: &mut UnixStream,
+    ) -> Result<FuzzMessageKind, Box<dyn Error>> {
         StreamUtils::send_message(
-            &mut client,
+            client,
             FuzzMessageKind::PeerInfo(create_test_peer_info("TestFuzzer")),
         )
         .await?;
+        StreamUtils::read_message(client).await
+    }
 
-        let _ = StreamUtils::read_message(&mut client).await?;
+    #[tokio::test]
+    async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let socket_path = socket_path();
+
+        // Run server (fuzz target)
+        let server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Connect client (fuzzer)
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+
+        // Handshake
+        let _ = handshake_as_fuzzer(&mut client).await?;
 
         // Load test case
-
         let test_case = load_test_case();
 
         // Test with post-state of the case
@@ -98,7 +103,6 @@ mod fuzz_target_tests {
             StreamUtils::read_message(&mut client),
         )
         .await??;
-
         match response {
             FuzzMessageKind::StateRoot(root) => {
                 assert_eq!(root.0, test_state.state_root);
@@ -111,6 +115,12 @@ mod fuzz_target_tests {
         server_jh.abort();
         let _ = std::fs::remove_file(&socket_path);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fuzz_block_import_single() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
         Ok(())
     }
 }
