@@ -3,6 +3,9 @@ use fr_db::{ColumnFamilyDescriptor, RocksDBOptions};
 use std::path::PathBuf;
 
 // --- Default values
+pub const DEFAULT_ROCKSDB_PATH: &str = "./.rocksdb";
+pub const DEFAULT_FUZZER_SOCKET: &str = "/tmp/jam_target.sock";
+
 pub const STATE_CF_NAME: &str = "state_cf";
 pub const MERKLE_CF_NAME: &str = "merkle_cf";
 pub const HEADER_CF_NAME: &str = "header_cf";
@@ -78,9 +81,9 @@ impl StorageConfig {
         }
     }
 
-    pub fn from_node_id(node_id: &str) -> Self {
+    pub fn from_node_id(node_id: &str, db_path: &str) -> Self {
         Self {
-            path: PathBuf::from(format!("./.rocksdb/{node_id}")),
+            path: PathBuf::from(format!("{db_path}/{node_id}")),
             ..Default::default()
         }
     }
@@ -110,9 +113,9 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub fn from_node_id(node_id: &str) -> Self {
+    pub fn from_node_id(node_id: &str, db_path: &str) -> Self {
         Self {
-            storage: StorageConfig::from_node_id(node_id),
+            storage: StorageConfig::from_node_id(node_id, db_path),
         }
     }
 }

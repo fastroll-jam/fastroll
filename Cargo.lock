@@ -808,6 +808,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "fr-common",
+ "fr-config",
  "fr-fuzz",
  "fr-node",
  "tokio",

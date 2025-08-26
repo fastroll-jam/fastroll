@@ -6,6 +6,7 @@ description = "FastRoll JAM client CLI tool"
 
 [dependencies]
 fr-common = { workspace = true }
+fr-config = { workspace = true }
 fr-fuzz = { workspace = true }
 fr-node = { workspace = true }
 clap = { workspace = true }
