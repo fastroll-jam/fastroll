@@ -46,24 +46,38 @@ async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn init_node(
-    node_account: Option<DevNodeAccountProfile>,
+    node_account: DevNodeAccountProfile,
+    db_path: &str,
 ) -> Result<JamNode, Box<dyn Error>> {
-    let node_info = match &node_account {
-        Some(account) => account.load_validator_key_info(),
-        None => {
-            panic!("Dev account is not set.");
-        }
-    };
+    let node_info = &node_account.load_validator_key_info();
 
     let socket_addr = node_info.socket_addr;
     let node_id = format!("[{}]:{}", socket_addr.ip(), socket_addr.port());
-    let node_config = NodeConfig::from_node_id(node_id.as_str());
+    let node_config = NodeConfig::from_node_id(node_id.as_str(), db_path);
     let node_storage = init_storage(node_config.storage)?;
     tracing::info!("Storage initialized");
     let network_manager =
         NetworkManager::new(node_info.clone(), QuicEndpoint::new(socket_addr)).await?;
     let mut node = JamNode::new(node_info.clone(), node_storage, Arc::new(network_manager));
-    tracing::info!("Node initialized\n[ValidatorInfo]\nSocket Address: {}\nBandersnatch Key: 0x{}\nEd25519 Key: 0x{}\n", node.network_manager().local_node_info.socket_addr, node.network_manager().local_node_info.validator_key.bandersnatch.to_hex(), node.network_manager().local_node_info.validator_key.ed25519.to_hex());
+    tracing::info!(
+        "\
+        Node initialized \n\
+        [ValidatorInfo] \n\
+        Socket Address: {} \n\
+        Bandersnatch Key: 0x{} \n\
+        Ed25519 Key: 0x{} \n",
+        node.network_manager().local_node_info.socket_addr,
+        node.network_manager()
+            .local_node_info
+            .validator_key
+            .bandersnatch
+            .to_hex(),
+        node.network_manager()
+            .local_node_info
+            .validator_key
+            .ed25519
+            .to_hex()
+    );
 
     // Set genesis state
     set_genesis_state(&node).await?;
