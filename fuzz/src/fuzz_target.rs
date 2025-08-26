@@ -1,19 +1,12 @@
 use crate::{
-    types::{
-        FuzzMessageKind, FuzzProtocolMessage, HeaderHash, KeyValue, PeerInfo, State, StateRoot,
-        TrieKey,
-    },
-    utils::validate_socket_path,
+    types::{FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
+    utils::{validate_socket_path, StreamUtils},
 };
-use fr_codec::prelude::*;
 use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
 use fr_storage::node_storage::NodeStorage;
 use std::{collections::BTreeSet, error::Error, sync::Arc};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{UnixListener, UnixStream},
-};
+use tokio::net::{UnixListener, UnixStream};
 
 #[derive(Default)]
 struct LatestStateKeys {
@@ -83,34 +76,13 @@ impl FuzzTargetRunner {
 
         // Handle incoming messages
         loop {
-            let message_kind = Self::read_message(&mut stream).await?;
+            let message_kind = StreamUtils::read_message(&mut stream).await?;
             self.process_message(&mut stream, message_kind).await?;
         }
     }
 
-    async fn read_message(stream: &mut UnixStream) -> Result<FuzzMessageKind, Box<dyn Error>> {
-        let mut length_buf = [0u8; 4];
-        stream.read_exact(&mut length_buf).await?;
-        let message_len = u32::decode_fixed(&mut length_buf.as_slice(), 4)?;
-
-        let mut message_buf = vec![0u8; message_len as usize];
-        stream.read_exact(&mut message_buf).await?;
-        let message_kind = FuzzMessageKind::decode(&mut message_buf.as_slice())?;
-        Ok(message_kind)
-    }
-
-    async fn send_message(
-        stream: &mut UnixStream,
-        message_kind: FuzzMessageKind,
-    ) -> Result<(), Box<dyn Error>> {
-        let message = FuzzProtocolMessage::from_kind(message_kind)?;
-        stream.write_all(&message.encode()?).await?;
-        stream.flush().await?;
-        Ok(())
-    }
-
     async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), Box<dyn Error>> {
-        let message_kind = Self::read_message(stream).await?;
+        let message_kind = StreamUtils::read_message(stream).await?;
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
             tracing::info!(
@@ -119,7 +91,7 @@ impl FuzzTargetRunner {
                 peer_info.app_version,
                 peer_info.jam_version
             );
-            Self::send_message(
+            StreamUtils::send_message(
                 stream,
                 FuzzMessageKind::PeerInfo(self.target_peer_info.clone()),
             )
@@ -160,7 +132,7 @@ impl FuzzTargetRunner {
                         pre_state_root
                     }
                 };
-                Self::send_message(
+                StreamUtils::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
                 )
@@ -178,7 +150,8 @@ impl FuzzTargetRunner {
                 }
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
-                Self::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root))).await
+                StreamUtils::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root)))
+                    .await
             }
             FuzzMessageKind::GetState(get_state) => {
                 let requested_header_hash = get_state.0;
@@ -198,7 +171,8 @@ impl FuzzTargetRunner {
                         });
                     }
                 }
-                Self::send_message(stream, FuzzMessageKind::State(State(post_state))).await?;
+                StreamUtils::send_message(stream, FuzzMessageKind::State(State(post_state)))
+                    .await?;
                 Err("Session terminated by GetState request".into())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
