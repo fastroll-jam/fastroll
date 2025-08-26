@@ -217,4 +217,74 @@ mod fuzz_target_tests {
         let _ = std::fs::remove_file(&socket_path);
         Ok(())
     }
+
+    // Handshake + SetState + ImportBlock (invalid)
+    #[tokio::test]
+    async fn test_fuzz_block_import_single_invalid_block() -> Result<(), Box<dyn Error>> {
+        setup_tracing();
+        let socket_path = socket_path();
+
+        // Run server (fuzz target)
+        let server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Connect client (fuzzer)
+        let mut client = UnixStream::connect(socket_path.clone()).await?;
+
+        // Handshake
+        let _ = handshake_as_fuzzer(&mut client).await?;
+
+        // Load test case
+        let test_case_1 = load_test_case(1); // Block #1
+        let mut test_case_2 = load_test_case(2); // Block #2
+        test_case_2.block.header.slot = 0; // Fault injection
+
+        // --- Set State (post-state of Block #1 == pre-state of Block #2)
+
+        // Send message (SetState)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::SetState(SetState {
+                header: test_case_1.block.header.clone().into(),
+                state: test_case_1.post_state.clone().into(),
+            }),
+        )
+        .await?;
+
+        // Receive response for SetState (StateRoot)
+        let _response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+
+        // --- Import Block
+
+        // Send message (ImportBlock; invalid block)
+        StreamUtils::send_message(
+            &mut client,
+            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
+        )
+        .await?;
+
+        // Receive response for ImportBlock (StateRoot)
+        let response = timeout(
+            Duration::from_secs(3),
+            StreamUtils::read_message(&mut client),
+        )
+        .await??;
+        match response {
+            FuzzMessageKind::StateRoot(root) => {
+                // Invalid block; should return the last valid state root
+                assert_eq!(root.0, test_case_1.post_state.state_root);
+            }
+            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
+        }
+
+        // Cleanup
+        drop(client);
+        server_jh.abort();
+        let _ = std::fs::remove_file(&socket_path);
+        Ok(())
+    }
 }
