@@ -4,30 +4,30 @@ use crate::genesis::serde_types::{
     block::GenesisBlockHeader, validator_keys::GenesisValidatorKeySet,
 };
 use fr_block::types::block::Block;
-use fr_common::{utils::serde::FileLoader, ByteEncodable, EntropyHash};
+use fr_common::{ByteEncodable, EntropyHash};
 use fr_crypto::types::ValidatorKeySet;
 use fr_state::{
     state_utils::SimpleStates,
     types::{generate_fallback_keys, ActiveSet, SafroleState, SlotSealers, StagingSet},
 };
-use std::path::PathBuf;
 
-pub fn load_genesis_block_from_file() -> Block {
-    let json_path = PathBuf::from("src/genesis/data/genesis_block_header.json");
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let genesis_header: GenesisBlockHeader = FileLoader::load_from_json_file(&full_path);
-    genesis_header.into()
+const GENESIS_BLOCK: &str = include_str!("./data/genesis_block_header.json");
+const GENESIS_VALIDATOR_SET: &str = include_str!("./data/genesis_validator_set.json");
+
+pub fn load_genesis_block() -> Block {
+    let genesis_block_header: GenesisBlockHeader =
+        serde_json::from_str(GENESIS_BLOCK).expect("Failed to parse genesis block JSON file");
+    Block::from(genesis_block_header)
 }
 
-fn load_genesis_validator_set_from_file() -> ValidatorKeySet {
-    let json_path = PathBuf::from("src/genesis/data/genesis_validator_set.json");
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    let genesis_validators: GenesisValidatorKeySet = FileLoader::load_from_json_file(&full_path);
-    genesis_validators.into()
+fn load_genesis_validator_set() -> ValidatorKeySet {
+    let genesis_validator_set: GenesisValidatorKeySet = serde_json::from_str(GENESIS_VALIDATOR_SET)
+        .expect("Failed to parse genesis validator set JSON file");
+    ValidatorKeySet::from(genesis_validator_set)
 }
 
 pub fn genesis_simple_state() -> SimpleStates {
-    let genesis_validator_set = load_genesis_validator_set_from_file();
+    let genesis_validator_set = load_genesis_validator_set();
     let genesis_entropy_2 = EntropyHash::default();
     let genesis_fallback_keys =
         generate_fallback_keys(&genesis_validator_set, &genesis_entropy_2).unwrap();

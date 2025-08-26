@@ -1,5 +1,5 @@
 use crate::{
-    genesis::{genesis_simple_state, load_genesis_block_from_file},
+    genesis::{genesis_simple_state, load_genesis_block},
     jam_node::JamNode,
     keystore::dev_account_profile::DevNodeAccountProfile,
 };
@@ -18,7 +18,7 @@ fn init_storage(cfg: StorageConfig) -> Result<Arc<NodeStorage>, Box<dyn Error>> 
 
 async fn set_genesis_state(jam_node: &JamNode) -> Result<(), Box<dyn Error>> {
     // Genesis header is the best header
-    let genesis_header = load_genesis_block_from_file().header;
+    let genesis_header = load_genesis_block().header;
     let genesis_header_hash = genesis_header.hash()?;
     let storage = jam_node.storage();
     storage.header_db().set_best_header(genesis_header.clone());

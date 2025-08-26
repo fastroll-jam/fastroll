@@ -2,7 +2,7 @@
 pub mod dev_account_profile;
 
 use fr_codec::prelude::*;
-use fr_common::{utils::serde::FileLoader, ByteArray};
+use fr_common::ByteArray;
 use fr_crypto::types::{
     BandersnatchPubKey, BandersnatchSecretKey, BlsPubKey, Ed25519PubKey, ValidatorKey,
     ValidatorMetadata,
@@ -12,19 +12,18 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     net::{Ipv6Addr, SocketAddrV6},
-    path::PathBuf,
 };
+
+const DEV_ACCOUNTS: &str = include_str!("dev_accounts.json");
 
 /// Loads Bandersnatch secret key from the dev keystore that corresponds to the given public key.
 pub fn load_author_secret_key(pub_key: &BandersnatchPubKey) -> Option<BandersnatchSecretKey> {
-    let dev_accounts_map = DevAccountsKeyMap::from_dev_accounts(load_dev_accounts_from_file());
+    let dev_accounts_map = DevAccountsKeyMap::from_dev_accounts(load_dev_accounts());
     dev_accounts_map.load_bander_sk_from_pk(pub_key).cloned()
 }
 
-pub fn load_dev_accounts_from_file() -> DevAccountsInfo {
-    let json_path = PathBuf::from("src/keystore/dev_accounts.json");
-    let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(json_path);
-    FileLoader::load_from_json_file(&full_path)
+pub fn load_dev_accounts() -> DevAccountsInfo {
+    serde_json::from_str(DEV_ACCOUNTS).expect("Failed to parse dev accounts JSON file")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

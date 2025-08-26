@@ -1,4 +1,4 @@
-use crate::keystore::load_dev_accounts_from_file;
+use crate::keystore::load_dev_accounts;
 use clap::ValueEnum;
 use fr_network::manager::LocalNodeInfo;
 
@@ -15,7 +15,7 @@ pub enum DevNodeAccountProfile {
 
 impl DevNodeAccountProfile {
     pub fn load_validator_key_info(&self) -> LocalNodeInfo {
-        let devs = load_dev_accounts_from_file();
+        let devs = load_dev_accounts();
         match self {
             DevNodeAccountProfile::Alice => devs.alice.into(),
             DevNodeAccountProfile::Bob => devs.bob.into(),
