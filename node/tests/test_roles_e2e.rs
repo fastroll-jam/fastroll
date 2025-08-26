@@ -4,7 +4,7 @@ use fr_common::utils::tracing::setup_timed_tracing;
 use fr_config::StorageConfig;
 use fr_network::{endpoint::QuicEndpoint, manager::NetworkManager};
 use fr_node::{
-    genesis::{genesis_simple_state, load_genesis_block_from_file},
+    genesis::{genesis_simple_state, load_genesis_block},
     jam_node::JamNode,
     keystore::dev_account_profile::DevNodeAccountProfile,
     roles::{author::BlockAuthor, importer::BlockImporter},
@@ -25,7 +25,7 @@ fn init_node_storage(node_id: &str) -> NodeStorage {
 /// Mocking DB initialization and genesis state.
 async fn init_with_genesis_state(socket_addr_v6: SocketAddrV6) -> Result<JamNode, Box<dyn Error>> {
     // Genesis header is the best header
-    let genesis_header = load_genesis_block_from_file().header;
+    let genesis_header = load_genesis_block().header;
     let genesis_header_hash = genesis_header.hash()?;
     let storage = Arc::new(init_node_storage(socket_addr_v6.to_string().as_str()));
     storage.header_db().set_best_header(genesis_header);
