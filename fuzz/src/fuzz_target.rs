@@ -129,27 +129,36 @@ impl FuzzTargetRunner {
             FuzzMessageKind::ImportBlock(import_block) => {
                 let storage = self.node_storage();
                 let block = import_block.0;
+                let header_hash = block.header.hash()?;
                 self.latest_state_keys
-                    .update_header_hash(block.header.hash()?);
+                    .update_header_hash(header_hash.clone());
                 let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root = match BlockImporter::import_block(storage, block).await {
-                    Ok((post_state_root, account_state_changes)) => {
-                        account_state_changes.inner.values().for_each(|change| {
-                            for added_key in &change.added_state_keys {
-                                self.latest_state_keys.insert_state_key(added_key.clone());
-                            }
-                            for removed_key in &change.removed_state_keys {
-                                self.latest_state_keys.remove_state_key(removed_key.clone());
-                            }
-                        });
-                        post_state_root
-                    }
-                    Err(e) => {
-                        tracing::debug!("Invalid block - import failed: {e:?}");
-                        // Return pre-state root for invalid blocks
-                        pre_state_root
-                    }
-                };
+                let post_state_root =
+                    match BlockImporter::import_block(storage.clone(), block).await {
+                        Ok((post_state_root, account_state_changes)) => {
+                            account_state_changes.inner.values().for_each(|change| {
+                                for added_key in &change.added_state_keys {
+                                    self.latest_state_keys.insert_state_key(added_key.clone());
+                                }
+                                for removed_key in &change.removed_state_keys {
+                                    self.latest_state_keys.remove_state_key(removed_key.clone());
+                                }
+                            });
+
+                            // Update `PostStateRootDB`
+                            storage
+                                .post_state_root_db()
+                                .set_post_state_root(&header_hash, post_state_root.clone())
+                                .await?;
+
+                            post_state_root
+                        }
+                        Err(e) => {
+                            tracing::debug!("Invalid block - import failed: {e:?}");
+                            // Return pre-state root for invalid blocks
+                            pre_state_root
+                        }
+                    };
                 StreamUtils::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
@@ -175,7 +184,7 @@ impl FuzzTargetRunner {
                 state_manager.commit_dirty_cache().await?;
                 let state_root = state_manager.merkle_root();
 
-                // Update `BlockHeaderDB` & `PostStateRootDB`
+                // Initialize `BlockHeaderDB` & `PostStateRootDB`
                 storage.header_db().set_best_header(parent_header);
                 storage
                     .post_state_root_db()
