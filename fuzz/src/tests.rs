@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod fuzz_target_tests {
-    #![allow(dead_code)]
     use crate::{
         fuzz_target::FuzzTargetRunner,
         types::{FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, Version},
@@ -13,7 +12,7 @@ mod fuzz_target_tests {
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
-    fn socket_path() -> String {
+    fn temp_socket_path() -> String {
         let path = PathBuf::from_str("/tmp").unwrap();
         path.join(tempdir().unwrap().path())
             .to_str()
@@ -21,11 +20,15 @@ mod fuzz_target_tests {
             .to_string()
     }
 
+    fn cleanup_socket(path: &str) {
+        std::fs::remove_file(path).unwrap();
+    }
+
     fn create_test_peer_info(name: &str) -> PeerInfo {
         PeerInfo::new(
             name.to_string(),
             Version::from_str("0.1.0").unwrap(),
-            Version::from_str("0.1.0").unwrap(),
+            Version::from_str("0.5.0").unwrap(),
         )
     }
 
@@ -39,6 +42,7 @@ mod fuzz_target_tests {
         FileLoader::load_from_json_file(&full_path)
     }
 
+    #[allow(dead_code)]
     fn load_all_test_cases() -> Vec<BlockImportCase> {
         let filenames = ["00000001", "00000002", "00000003", "00000004", "00000005"];
         filenames
@@ -75,10 +79,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_handshake() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -94,9 +98,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 
@@ -104,10 +106,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -146,8 +148,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 
@@ -155,10 +156,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_block() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -213,9 +214,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 
@@ -223,10 +222,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_single_invalid_block() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -283,9 +282,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 
@@ -293,10 +290,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_import_two_blocks() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -374,9 +371,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 
@@ -384,10 +379,10 @@ mod fuzz_target_tests {
     #[tokio::test]
     async fn test_fuzz_get_state() -> Result<(), Box<dyn Error>> {
         setup_tracing();
-        let socket_path = socket_path();
+        let socket_path = temp_socket_path();
 
         // Run server (fuzz target)
-        let server_jh = run_fuzz_target(socket_path.clone())?;
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Connect client (fuzzer)
@@ -481,9 +476,7 @@ mod fuzz_target_tests {
         }
 
         // Cleanup
-        drop(client);
-        server_jh.abort();
-        let _ = std::fs::remove_file(&socket_path);
+        cleanup_socket(&socket_path);
         Ok(())
     }
 }
