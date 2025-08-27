@@ -10,8 +10,10 @@ fr-config = { workspace = true }
 fr-block = { workspace = true }
 fr-integration = { workspace = true }
 fr-node = { workspace = true }
+fr-state = { workspace = true }
 fr-storage = { workspace = true }
 tempfile = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
