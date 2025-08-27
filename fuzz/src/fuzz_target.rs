@@ -8,6 +8,10 @@ use fr_storage::node_storage::NodeStorage;
 use std::{collections::BTreeSet, error::Error, sync::Arc};
 use tokio::net::{UnixListener, UnixStream};
 
+/// Collection of the state keys of the latest chain state.
+///
+/// This is used specifically for fuzz target to support `GetState` message kind, since the main
+/// JAM client runner doesn't inherently support tracking the full list of available state keys.
 #[derive(Default)]
 struct LatestStateKeys {
     header_hash: HeaderHash,
@@ -104,7 +108,7 @@ impl FuzzTargetRunner {
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
             tracing::info!(
-                "Fuzzer peer info: name={} app_version={} jam_version={}",
+                "[PeerInfo] Fuzzer info: name={} app_version={} jam_version={}",
                 String::from_utf8(peer_info.name)?,
                 peer_info.app_version,
                 peer_info.jam_version
@@ -127,6 +131,7 @@ impl FuzzTargetRunner {
     ) -> Result<(), Box<dyn Error>> {
         match message_kind {
             FuzzMessageKind::SetState(set_state) => {
+                tracing::info!("[SetState] Received message");
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
@@ -156,6 +161,7 @@ impl FuzzTargetRunner {
                     .await
             }
             FuzzMessageKind::ImportBlock(import_block) => {
+                tracing::info!("[ImportBlock] Received message");
                 let storage = self.node_storage();
                 let block = import_block.0;
                 let header_hash = block.header.hash()?;
@@ -195,6 +201,7 @@ impl FuzzTargetRunner {
                 .await
             }
             FuzzMessageKind::GetState(get_state) => {
+                tracing::info!("[GetState] Received message");
                 let requested_header_hash = get_state.0;
                 if self.latest_state_keys.header_hash != requested_header_hash {
                     tracing::error!("Latest header hash mismatch: requested ({requested_header_hash}) observed ({})", self.latest_state_keys.header_hash);
@@ -214,7 +221,8 @@ impl FuzzTargetRunner {
                 }
                 StreamUtils::send_message(stream, FuzzMessageKind::State(State(post_state)))
                     .await?;
-                Err("Session terminated by GetState request".into())
+                tracing::info!("Session terminated by GetState request");
+                Ok(())
             }
             e => Err(format!("Invalid message kind: {e:?}").into()),
         }
