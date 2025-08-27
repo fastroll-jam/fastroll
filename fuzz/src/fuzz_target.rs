@@ -2,11 +2,42 @@ use crate::{
     types::{FuzzMessageKind, HeaderHash, KeyValue, PeerInfo, State, StateRoot, TrieKey},
     utils::{validate_socket_path, StreamUtils},
 };
+use fr_block::{post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError};
+use fr_codec::JamCodecError;
 use fr_common::ByteSequence;
 use fr_node::roles::importer::BlockImporter;
+use fr_state::error::StateManagerError;
 use fr_storage::node_storage::NodeStorage;
-use std::{collections::BTreeSet, error::Error, sync::Arc};
-use tokio::net::{UnixListener, UnixStream};
+use std::{collections::BTreeSet, io::Error as IoError, string::FromUtf8Error, sync::Arc};
+use thiserror::Error;
+use tokio::{
+    net::{UnixListener, UnixStream},
+    time::error::Elapsed,
+};
+
+#[derive(Debug, Error)]
+pub enum FuzzTargetError {
+    #[error("IoError: {0}")]
+    IoError(#[from] IoError),
+    #[error("FromUtf8Error: {0}")]
+    FromUtf8Error(#[from] FromUtf8Error),
+    #[error("ElapsedError: {0}")]
+    ElapsedError(#[from] Elapsed),
+    #[error("JamCodecError: {0}")]
+    JamCodecError(#[from] JamCodecError),
+    #[error("StateManagerError: {0}")]
+    StateManagerError(#[from] StateManagerError),
+    #[error("BlockHeaderError: {0}")]
+    BlockHeaderError(#[from] BlockHeaderError),
+    #[error("PostStateRootDbError: {0}")]
+    PostStateRootDbError(#[from] PostStateRootDbError),
+    #[error("First request message is not a peer info")]
+    NotPeerInfo,
+    #[error("Invalid message kind: {0}")]
+    InvalidMessageKind(String),
+    #[error("Invalid socket path: {0}")]
+    InvalidSocketPath(String),
+}
 
 /// Collection of the state keys of the latest chain state.
 ///
@@ -33,6 +64,7 @@ impl LatestStateKeys {
 }
 
 pub struct FuzzTargetRunner {
+    for_test: bool,
     node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
@@ -42,6 +74,7 @@ impl FuzzTargetRunner {
     pub fn new(target_peer_info: PeerInfo) -> Self {
         let storage = NodeStorage::default();
         Self {
+            for_test: false,
             node_storage: Arc::new(storage),
             latest_state_keys: LatestStateKeys::default(),
             target_peer_info,
@@ -49,12 +82,12 @@ impl FuzzTargetRunner {
     }
 
     /// Creates a `FuzzTargetRunner` with using `tempfile::tempdir` for DB path derivation.
-    #[cfg(test)]
     pub fn new_for_test(target_peer_info: PeerInfo) -> Self {
         use fr_config::StorageConfig;
         use tempfile::tempdir;
 
         Self {
+            for_test: true,
             node_storage: Arc::new(
                 NodeStorage::new(StorageConfig::from_path(
                     tempdir().unwrap().path().join("test_db"),
@@ -70,7 +103,7 @@ impl FuzzTargetRunner {
         self.node_storage.clone()
     }
 
-    pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), Box<dyn Error>> {
+    pub async fn run_as_fuzz_target(&mut self, socket_path: String) -> Result<(), FuzzTargetError> {
         // Validate socket path input
         validate_socket_path(&socket_path)?;
 
@@ -80,30 +113,50 @@ impl FuzzTargetRunner {
         let listener = UnixListener::bind(&socket_path)?;
         tracing::info!("JAM Fuzzer target server listening on {socket_path}");
 
-        // A single connection is used for the fuzzing
-        let (stream, _addr) = listener.accept().await?;
-        tracing::info!("Accepted a connection from the fuzzer");
+        // Continuously accept new connections after closing the previous session.
+        while let Ok((stream, _addr)) = listener.accept().await {
+            tracing::info!("Accepted a connection from the fuzzer");
+            // Reset storage & state for the new session
+            if self.for_test {
+                *self = FuzzTargetRunner::new_for_test(self.target_peer_info.clone());
+            } else {
+                *self = FuzzTargetRunner::new(self.target_peer_info.clone());
+            }
 
-        self.handle_fuzzer_session(stream).await?;
-        tracing::info!("Fuzzer session ended");
+            self.handle_fuzzer_session(stream).await?;
+            tracing::info!("Fuzzer session ended");
+        }
         Ok(())
     }
 
     async fn handle_fuzzer_session(
         &mut self,
         mut stream: UnixStream,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), FuzzTargetError> {
         // First message must be the PeerInfo handshake
         self.handle_handshake(&mut stream).await?;
 
         // Handle incoming messages
         loop {
-            let message_kind = StreamUtils::read_message(&mut stream).await?;
-            self.process_message(&mut stream, message_kind).await?;
+            match StreamUtils::read_message(&mut stream).await {
+                Ok(message_kind) => self.process_message(&mut stream, message_kind).await?,
+                Err(e) => {
+                    if let FuzzTargetError::IoError(io_error) = e {
+                        // Normal disconnection (EOF)
+                        if io_error.kind() == std::io::ErrorKind::UnexpectedEof {
+                            tracing::info!("Fuzzer session disconnected gracefully");
+                            return Ok(());
+                        }
+                    } else {
+                        // Other errors
+                        return Err(e);
+                    }
+                }
+            }
         }
     }
 
-    async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), Box<dyn Error>> {
+    async fn handle_handshake(&self, stream: &mut UnixStream) -> Result<(), FuzzTargetError> {
         let message_kind = StreamUtils::read_message(stream).await?;
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
@@ -120,7 +173,7 @@ impl FuzzTargetRunner {
             .await?;
             Ok(())
         } else {
-            Err("First request message is not a peer info".into())
+            Err(FuzzTargetError::NotPeerInfo)
         }
     }
 
@@ -128,7 +181,7 @@ impl FuzzTargetRunner {
         &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), FuzzTargetError> {
         match message_kind {
             FuzzMessageKind::SetState(set_state) => {
                 tracing::info!("[SetState] Received message");
@@ -224,7 +277,7 @@ impl FuzzTargetRunner {
                 tracing::info!("Session terminated by GetState request");
                 Ok(())
             }
-            e => Err(format!("Invalid message kind: {e:?}").into()),
+            e => Err(FuzzTargetError::InvalidMessageKind(format!("{e:?}"))),
         }
     }
 }
