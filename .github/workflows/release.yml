@@ -1,0 +1,130 @@
+name: Release Build
+
+on:
+  push:
+    branches:
+      - release
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build-aarch64:
+    name: macOS build (aarch64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install stable toolchain
+        run: rustup toolchain install stable
+
+      - name: Check rust version
+        run: rustc +stable --version
+
+      - name: Install llvm/clang
+        run: |
+          brew install llvm
+          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Build release binary (tiny config)
+        run: cargo build --release --target aarch64-apple-darwin --features tiny
+        
+      - name: Copy binary to artifacts (tiny config)
+        run: cp target/aarch64-apple-darwin/release/fastroll artifacts/fastroll-macos-aarch64-tiny
+        
+      - name: Build release binary (full config)
+        run: cargo build --release --target aarch64-apple-darwin --features full
+
+      - name: Copy binary to artifacts (full config)
+        run: cp target/aarch64-apple-darwin/release/fastroll artifacts/fastroll-macos-aarch64-full
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-binaries
+          path: artifacts/*
+          retention-days: 21
+
+  build-linux-x86_64:
+    name: Linux build (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install stable toolchain
+        run: rustup toolchain install stable
+
+      - name: Check rust version
+        run: rustc +stable --version
+
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Build release binary (tiny config)
+        run: cargo build --release --target x86_64-unknown-linux-gnu --features tiny
+
+      - name: Copy binary to artifacts (tiny config)
+        run: cp target/x86_64-unknown-linux-gnu/release/fastroll artifacts/fastroll-linux-x86_64-tiny
+        
+      - name: Build release binary (full config)
+        run: cargo build --release --target x86_64-unknown-linux-gnu --features full
+
+      - name: Copy binary to artifacts (full config)
+        run: cp target/x86_64-unknown-linux-gnu/release/fastroll artifacts/fastroll-linux-x86_64-full
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: artifacts/*
+          retention-days: 21
+
+  release:
+    name: Github Release
+    needs: [ build-aarch64, build-linux-x86_64 ]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts (aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: aarch64-binaries
+          path: ./release-artifacts
+
+      - name: Download artifacts (linux-x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binaries
+          path: ./release-artifacts
+
+      - name: Version tag
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: FastRoll ${{ steps.version.outputs.VERSION }}
+          files: ./release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
