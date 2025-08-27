@@ -469,7 +469,8 @@ mod fuzz_target_tests {
                 // Display the state report
                 tracing::info!("-------------------- GetState Report --------------------");
                 for kv in state.0.into_iter() {
-                    tracing::info!("k: {}, v: {}", kv.key, kv.value);
+                    tracing::info!("k: {}", kv.key);
+                    tracing::debug!("k: {}, v: {}", kv.key, kv.value);
                 }
             }
             kind => panic!("Expected State response. Got: {kind:?}"),
