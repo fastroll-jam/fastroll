@@ -36,7 +36,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Version::from_str(CLIENT_VERSION)?,
                 Version::from_str(SPEC_VERSION)?,
             ));
-            target_runner.run_as_fuzz_target(socket).await
+            target_runner.run_as_fuzz_target(socket).await?;
+            Ok(())
         }
         None => {
             println!("Provide a subcommand or a valid flag.");

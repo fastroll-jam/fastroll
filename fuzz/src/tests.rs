@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod fuzz_target_tests {
     use crate::{
-        fuzz_target::FuzzTargetRunner,
+        fuzz_target::{FuzzTargetError, FuzzTargetRunner},
         types::{
             FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, State, StateRoot, Version,
         },
@@ -11,7 +11,7 @@ mod fuzz_target_tests {
     use fr_block::types::block::BlockHeader;
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
     use fr_integration::importer_harness::AsnTestCase as BlockImportCase;
-    use std::{error::Error, path::PathBuf, str::FromStr, time::Duration};
+    use std::{path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};
 
@@ -58,7 +58,7 @@ mod fuzz_target_tests {
             .collect()
     }
 
-    fn run_fuzz_target(socket_path: String) -> Result<JoinHandle<()>, Box<dyn Error>> {
+    fn run_fuzz_target(socket_path: String) -> Result<JoinHandle<()>, FuzzTargetError> {
         let mut fuzz_target = init_fuzz_target_runner();
         let server_jh = tokio::spawn(async move {
             if let Err(e) = fuzz_target.run_as_fuzz_target(socket_path).await {
@@ -71,7 +71,7 @@ mod fuzz_target_tests {
     struct MockFuzzer;
     impl MockFuzzer {
         /// Send PeerInfo (handshake) message to the fuzz target and receive PeerInfo message.
-        async fn handshake(client: &mut UnixStream) -> Result<PeerInfo, Box<dyn Error>> {
+        async fn handshake(client: &mut UnixStream) -> Result<PeerInfo, FuzzTargetError> {
             StreamUtils::send_message(
                 client,
                 FuzzMessageKind::PeerInfo(create_test_peer_info("TestFuzzer")),
@@ -88,7 +88,7 @@ mod fuzz_target_tests {
         async fn set_state(
             client: &mut UnixStream,
             set_state_message: SetState,
-        ) -> Result<StateRoot, Box<dyn Error>> {
+        ) -> Result<StateRoot, FuzzTargetError> {
             StreamUtils::send_message(client, FuzzMessageKind::SetState(set_state_message)).await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
             match res {
@@ -101,7 +101,7 @@ mod fuzz_target_tests {
         async fn import_block(
             client: &mut UnixStream,
             import_block_message: ImportBlock,
-        ) -> Result<StateRoot, Box<dyn Error>> {
+        ) -> Result<StateRoot, FuzzTargetError> {
             StreamUtils::send_message(client, FuzzMessageKind::ImportBlock(import_block_message))
                 .await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
@@ -115,7 +115,7 @@ mod fuzz_target_tests {
         async fn get_state(
             client: &mut UnixStream,
             get_state_message: GetState,
-        ) -> Result<State, Box<dyn Error>> {
+        ) -> Result<State, FuzzTargetError> {
             StreamUtils::send_message(client, FuzzMessageKind::GetState(get_state_message)).await?;
             let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
             match res {
@@ -126,7 +126,7 @@ mod fuzz_target_tests {
     }
 
     #[tokio::test]
-    async fn test_fuzz_handshake() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_handshake() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -148,7 +148,7 @@ mod fuzz_target_tests {
 
     // Handshake + SetState
     #[tokio::test]
-    async fn test_fuzz_set_state() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_set_state() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -188,7 +188,7 @@ mod fuzz_target_tests {
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
-    async fn test_fuzz_import_single_block() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_import_single_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -230,7 +230,7 @@ mod fuzz_target_tests {
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
-    async fn test_fuzz_import_single_invalid_block() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_import_single_invalid_block() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -274,7 +274,7 @@ mod fuzz_target_tests {
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
-    async fn test_fuzz_import_two_blocks() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_import_two_blocks() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -322,7 +322,7 @@ mod fuzz_target_tests {
     #[cfg(feature = "tiny")]
     #[tokio::test]
     #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
-    async fn test_fuzz_get_state() -> Result<(), Box<dyn Error>> {
+    async fn test_fuzz_get_state() -> Result<(), FuzzTargetError> {
         setup_tracing();
         let socket_path = temp_socket_path();
 
@@ -368,6 +368,106 @@ mod fuzz_target_tests {
         for kv in state.0.into_iter() {
             tracing::info!("k: {}", kv.key);
             tracing::debug!("k: {}, v: {}", kv.key, kv.value);
+        }
+
+        // Cleanup
+        cleanup_socket(&socket_path);
+        Ok(())
+    }
+
+    #[cfg(feature = "tiny")]
+    #[tokio::test]
+    #[ignore] // FIXME: block test cases should be aligned with GP v0.7.1
+    async fn test_fuzz_multiple_sessions() -> Result<(), FuzzTargetError> {
+        setup_tracing();
+        let socket_path = temp_socket_path();
+
+        // Run server (fuzz target)
+        let _server_jh = run_fuzz_target(socket_path.clone())?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // --- Session #1
+        tracing::info!("--- Starting Session #1");
+        {
+            // Connect client (fuzzer)
+            let mut client_1 = UnixStream::connect(socket_path.clone()).await?;
+
+            // --- Handshake
+            let _ = MockFuzzer::handshake(&mut client_1).await?;
+
+            // Load test case
+            let test_case_1 = load_test_case(1); // Block #1
+            let test_case_2 = load_test_case(2); // Block #2
+            let test_case_3 = load_test_case(3); // Block #3
+
+            // --- SetState (post-state of Block #1 == pre-state of Block #2)
+            let _root = MockFuzzer::set_state(
+                &mut client_1,
+                SetState {
+                    header: test_case_1.block.header.clone().into(),
+                    state: test_case_1.post_state.clone().into(),
+                },
+            )
+            .await?;
+
+            // --- ImportBlock (Block #2)
+            let _root =
+                MockFuzzer::import_block(&mut client_1, ImportBlock(test_case_2.block.into()))
+                    .await?;
+
+            // --- ImportBlock (Block #3)
+            let _root = MockFuzzer::import_block(
+                &mut client_1,
+                ImportBlock(test_case_3.block.clone().into()),
+            )
+            .await?;
+
+            // --- GetState
+            let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
+            let _state = MockFuzzer::get_state(&mut client_1, GetState(last_header_hash)).await?;
+        } // Session #1 drops
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // --- Session #2
+        tracing::info!("--- Starting Session #2");
+        {
+            // Connect client (fuzzer)
+            let mut client_2 = UnixStream::connect(socket_path.clone()).await?;
+
+            // --- Handshake
+            let peer_info = MockFuzzer::handshake(&mut client_2).await?;
+            assert_eq!(peer_info, create_test_peer_info("TestFastRoll"));
+
+            // Load test case
+            let test_case_1 = load_test_case(1); // Block #1
+            let test_case_2 = load_test_case(2); // Block #2
+            let test_case_3 = load_test_case(3); // Block #3
+
+            // --- SetState (post-state of Block #1 == pre-state of Block #2)
+            let root = MockFuzzer::set_state(
+                &mut client_2,
+                SetState {
+                    header: test_case_1.block.header.clone().into(),
+                    state: test_case_1.post_state.clone().into(),
+                },
+            )
+            .await?;
+            assert_eq!(root.0, test_case_1.post_state.state_root);
+
+            // --- ImportBlock (Block #2)
+            let root =
+                MockFuzzer::import_block(&mut client_2, ImportBlock(test_case_2.block.into()))
+                    .await?;
+            assert_eq!(root.0, test_case_2.post_state.state_root);
+
+            // --- ImportBlock (Block #3)
+            let root = MockFuzzer::import_block(
+                &mut client_2,
+                ImportBlock(test_case_3.block.clone().into()),
+            )
+            .await?;
+            assert_eq!(root.0, test_case_3.post_state.state_root);
         }
 
         // Cleanup
