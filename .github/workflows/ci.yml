@@ -67,8 +67,11 @@ jobs:
       - name: Install nextest pre-built binary
         run: cargo binstall cargo-nextest --secure
 
-      - name: Run tests
-        run: cargo +stable nextest run --workspace --profile ci
+      - name: Run tests (tiny config)
+        run: cargo +stable nextest run --workspace --profile ci --features tiny
+
+      - name: Run tests (full config)
+        run: cargo +stable nextest run --workspace --profile ci --features full
 
   coverage:
     name: Coverage
