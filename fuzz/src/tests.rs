@@ -1,8 +1,11 @@
+#![allow(dead_code, unused_imports)]
 #[cfg(test)]
 mod fuzz_target_tests {
     use crate::{
         fuzz_target::FuzzTargetRunner,
-        types::{FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, Version},
+        types::{
+            FuzzMessageKind, GetState, ImportBlock, PeerInfo, SetState, State, StateRoot, Version,
+        },
         utils::StreamUtils,
     };
     use fr_block::types::block::BlockHeader;
@@ -65,15 +68,61 @@ mod fuzz_target_tests {
         Ok(server_jh)
     }
 
-    async fn handshake_as_fuzzer(
-        client: &mut UnixStream,
-    ) -> Result<FuzzMessageKind, Box<dyn Error>> {
-        StreamUtils::send_message(
-            client,
-            FuzzMessageKind::PeerInfo(create_test_peer_info("TestFuzzer")),
-        )
-        .await?;
-        StreamUtils::read_message(client).await
+    struct MockFuzzer;
+    impl MockFuzzer {
+        /// Send PeerInfo (handshake) message to the fuzz target and receive PeerInfo message.
+        async fn handshake(client: &mut UnixStream) -> Result<PeerInfo, Box<dyn Error>> {
+            StreamUtils::send_message(
+                client,
+                FuzzMessageKind::PeerInfo(create_test_peer_info("TestFuzzer")),
+            )
+            .await?;
+            let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
+            match res {
+                FuzzMessageKind::PeerInfo(info) => Ok(info),
+                kind => panic!("[PeerInfo] Expected PeerInfo response. Got: {kind:?}"),
+            }
+        }
+
+        /// Send SetState message to the fuzz target and receive StateRoot message.
+        async fn set_state(
+            client: &mut UnixStream,
+            set_state_message: SetState,
+        ) -> Result<StateRoot, Box<dyn Error>> {
+            StreamUtils::send_message(client, FuzzMessageKind::SetState(set_state_message)).await?;
+            let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
+            match res {
+                FuzzMessageKind::StateRoot(root) => Ok(root),
+                kind => panic!("[SetState] Expected StateRoot response. Got: {kind:?}"),
+            }
+        }
+
+        /// Send ImportBlock message to the fuzz target and receive StateRoot message.
+        async fn import_block(
+            client: &mut UnixStream,
+            import_block_message: ImportBlock,
+        ) -> Result<StateRoot, Box<dyn Error>> {
+            StreamUtils::send_message(client, FuzzMessageKind::ImportBlock(import_block_message))
+                .await?;
+            let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
+            match res {
+                FuzzMessageKind::StateRoot(root) => Ok(root),
+                kind => panic!("[ImportBlock] Expected StateRoot response. Got: {kind:?}"),
+            }
+        }
+
+        /// Send GetState message to the fuzz target and receive State message.
+        async fn get_state(
+            client: &mut UnixStream,
+            get_state_message: GetState,
+        ) -> Result<State, Box<dyn Error>> {
+            StreamUtils::send_message(client, FuzzMessageKind::GetState(get_state_message)).await?;
+            let res = timeout(Duration::from_secs(3), StreamUtils::read_message(client)).await??;
+            match res {
+                FuzzMessageKind::State(state) => Ok(state),
+                kind => panic!("[GetState] Expected State response. Got: {kind:?}"),
+            }
+        }
     }
 
     #[tokio::test]
@@ -88,14 +137,9 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let response = handshake_as_fuzzer(&mut client).await?;
-        match response {
-            FuzzMessageKind::PeerInfo(info) => {
-                assert_eq!(info, create_test_peer_info("TestFastRoll"));
-            }
-            kind => panic!("Expected PeerInfo response. Got: {kind:?}"),
-        }
+        // --- Handshake
+        let peer_info = MockFuzzer::handshake(&mut client).await?;
+        assert_eq!(peer_info, create_test_peer_info("TestFastRoll"));
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -115,8 +159,8 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let _ = handshake_as_fuzzer(&mut client).await?;
+        // --- Handshake
+        let _ = MockFuzzer::handshake(&mut client).await?;
 
         // Load test case
         let test_case = load_test_case(1);
@@ -124,28 +168,16 @@ mod fuzz_target_tests {
         // Test with post-state of the case
         let test_state = test_case.post_state;
 
-        // Send message (SetState)
-        StreamUtils::send_message(
+        // --- SetState
+        let root = MockFuzzer::set_state(
             &mut client,
-            FuzzMessageKind::SetState(SetState {
+            SetState {
                 header: test_case.block.header.into(),
                 state: test_state.clone().into(),
-            }),
+            },
         )
         .await?;
-
-        // Receive response for SetState (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-        match response {
-            FuzzMessageKind::StateRoot(root) => {
-                assert_eq!(root.0, test_state.state_root);
-            }
-            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
-        }
+        assert_eq!(root.0, test_state.state_root);
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -153,6 +185,7 @@ mod fuzz_target_tests {
     }
 
     // Handshake + SetState + ImportBlock
+    #[cfg(feature = "tiny")]
     #[tokio::test]
     async fn test_fuzz_import_single_block() -> Result<(), Box<dyn Error>> {
         setup_tracing();
@@ -165,53 +198,27 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let _ = handshake_as_fuzzer(&mut client).await?;
+        // --- Handshake
+        let _ = MockFuzzer::handshake(&mut client).await?;
 
         // Load test case
         let test_case_1 = load_test_case(1); // Block #1
         let test_case_2 = load_test_case(2); // Block #2
 
-        // --- Set State (post-state of Block #1 == pre-state of Block #2)
-
-        // Send message (SetState)
-        StreamUtils::send_message(
+        // --- SetState (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::set_state(
             &mut client,
-            FuzzMessageKind::SetState(SetState {
+            SetState {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
-            }),
+            },
         )
         .await?;
 
-        // Receive response for SetState (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-
-        // --- Import Block
-
-        // Send message (ImportBlock)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-        match response {
-            FuzzMessageKind::StateRoot(root) => {
-                assert_eq!(root.0, test_case_2.post_state.state_root);
-            }
-            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
-        }
+        // --- ImportBlock (Block #2)
+        let root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+        assert_eq!(root.0, test_case_2.post_state.state_root);
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -219,6 +226,7 @@ mod fuzz_target_tests {
     }
 
     // Handshake + SetState + ImportBlock (invalid)
+    #[cfg(feature = "tiny")]
     #[tokio::test]
     async fn test_fuzz_import_single_invalid_block() -> Result<(), Box<dyn Error>> {
         setup_tracing();
@@ -231,55 +239,29 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let _ = handshake_as_fuzzer(&mut client).await?;
+        // --- Handshake
+        let _ = MockFuzzer::handshake(&mut client).await?;
 
         // Load test case
         let test_case_1 = load_test_case(1); // Block #1
         let mut test_case_2 = load_test_case(2); // Block #2
         test_case_2.block.header.slot = 0; // Fault injection
 
-        // --- Set State (post-state of Block #1 == pre-state of Block #2)
-
-        // Send message (SetState)
-        StreamUtils::send_message(
+        // --- SetState (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::set_state(
             &mut client,
-            FuzzMessageKind::SetState(SetState {
+            SetState {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
-            }),
+            },
         )
         .await?;
 
-        // Receive response for SetState (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-
-        // --- Import Block
-
-        // Send message (ImportBlock; invalid block)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-        match response {
-            FuzzMessageKind::StateRoot(root) => {
-                // Invalid block; should return the last valid state root
-                assert_eq!(root.0, test_case_1.post_state.state_root);
-            }
-            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
-        }
+        // --- ImportBlock (Block #2; invalid)
+        let root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+        // Invalid block; should return the last valid state root
+        assert_eq!(root.0, test_case_1.post_state.state_root);
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -287,6 +269,7 @@ mod fuzz_target_tests {
     }
 
     // Handshake + SetState + ImportBlock
+    #[cfg(feature = "tiny")]
     #[tokio::test]
     async fn test_fuzz_import_two_blocks() -> Result<(), Box<dyn Error>> {
         setup_tracing();
@@ -299,76 +282,33 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let _ = handshake_as_fuzzer(&mut client).await?;
+        // --- Handshake
+        let _ = MockFuzzer::handshake(&mut client).await?;
 
         // Load test case
         let test_case_1 = load_test_case(1); // Block #1
         let test_case_2 = load_test_case(2); // Block #2
         let test_case_3 = load_test_case(3); // Block #3
 
-        // --- Set State (post-state of Block #1 == pre-state of Block #2)
-
-        // Send message (SetState)
-        StreamUtils::send_message(
+        // --- SetState (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::set_state(
             &mut client,
-            FuzzMessageKind::SetState(SetState {
+            SetState {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
-            }),
+            },
         )
         .await?;
 
-        // Receive response for SetState (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
+        // --- ImportBlock (Block #2)
+        let root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
+        assert_eq!(root.0, test_case_2.post_state.state_root);
 
-        // --- Import Block #2
-
-        // Send message (ImportBlock)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-        match response {
-            FuzzMessageKind::StateRoot(root) => {
-                assert_eq!(root.0, test_case_2.post_state.state_root);
-            }
-            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
-        }
-
-        // --- Import Block #3
-
-        // Send message (ImportBlock)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_3.block.into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-        match response {
-            FuzzMessageKind::StateRoot(root) => {
-                assert_eq!(root.0, test_case_3.post_state.state_root);
-            }
-            kind => panic!("Expected StateRoot response. Got: {kind:?}"),
-        }
+        // --- ImportBlock (Block #3)
+        let root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.into())).await?;
+        assert_eq!(root.0, test_case_3.post_state.state_root);
 
         // Cleanup
         cleanup_socket(&socket_path);
@@ -376,6 +316,7 @@ mod fuzz_target_tests {
     }
 
     // Handshake + SetState + ImportBlock + GetState
+    #[cfg(feature = "tiny")]
     #[tokio::test]
     async fn test_fuzz_get_state() -> Result<(), Box<dyn Error>> {
         setup_tracing();
@@ -388,92 +329,41 @@ mod fuzz_target_tests {
         // Connect client (fuzzer)
         let mut client = UnixStream::connect(socket_path.clone()).await?;
 
-        // Handshake
-        let _ = handshake_as_fuzzer(&mut client).await?;
+        // --- Handshake
+        let _ = MockFuzzer::handshake(&mut client).await?;
 
         // Load test case
         let test_case_1 = load_test_case(1); // Block #1
         let test_case_2 = load_test_case(2); // Block #2
         let test_case_3 = load_test_case(3); // Block #3
 
-        // --- Set State (post-state of Block #1 == pre-state of Block #2)
-
-        // Send message (SetState)
-        StreamUtils::send_message(
+        // --- SetState (post-state of Block #1 == pre-state of Block #2)
+        let _root = MockFuzzer::set_state(
             &mut client,
-            FuzzMessageKind::SetState(SetState {
+            SetState {
                 header: test_case_1.block.header.clone().into(),
                 state: test_case_1.post_state.clone().into(),
-            }),
+            },
         )
         .await?;
 
-        // Receive response for SetState (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
+        // --- ImportBlock (Block #2)
+        let _root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_2.block.into())).await?;
 
-        // --- Import Block #2
+        // --- ImportBlock (Block #3)
+        let _root =
+            MockFuzzer::import_block(&mut client, ImportBlock(test_case_3.block.clone().into()))
+                .await?;
 
-        // Send message (ImportBlock)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_2.block.into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-
-        // --- Import Block #3
-
-        // Send message (ImportBlock)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::ImportBlock(ImportBlock(test_case_3.block.clone().into())),
-        )
-        .await?;
-
-        // Receive response for ImportBlock (StateRoot)
-        let _response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-
-        // --- Get State
+        // --- GetState
         let last_header_hash = BlockHeader::from(test_case_3.block.header).hash()?;
-
-        // Send message (GetState)
-        StreamUtils::send_message(
-            &mut client,
-            FuzzMessageKind::GetState(GetState(last_header_hash)),
-        )
-        .await?;
-
-        // Receive response for SetState (StateRoot)
-        let response = timeout(
-            Duration::from_secs(3),
-            StreamUtils::read_message(&mut client),
-        )
-        .await??;
-
-        match response {
-            FuzzMessageKind::State(state) => {
-                // Display the state report
-                tracing::info!("-------------------- GetState Report --------------------");
-                for kv in state.0.into_iter() {
-                    tracing::info!("k: {}", kv.key);
-                    tracing::debug!("k: {}, v: {}", kv.key, kv.value);
-                }
-            }
-            kind => panic!("Expected State response. Got: {kind:?}"),
+        let state = MockFuzzer::get_state(&mut client, GetState(last_header_hash)).await?;
+        // Display the state report
+        tracing::info!("-------------------- GetState Report --------------------");
+        for kv in state.0.into_iter() {
+            tracing::info!("k: {}", kv.key);
+            tracing::debug!("k: {}, v: {}", kv.key, kv.value);
         }
 
         // Cleanup
