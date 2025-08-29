@@ -46,12 +46,7 @@ fn ring_proof_params() -> &'static RingProofParams {
     static PARAMS: OnceLock<RingProofParams> = OnceLock::new();
     PARAMS.get_or_init(|| {
         use bandersnatch::PcsParams;
-        use std::{fs::File, io::Read};
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let filename = format!("{manifest_dir}/../crypto/data/zcash-srs-2-11-uncompressed.bin",);
-        let mut file = File::open(filename).unwrap();
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf).unwrap();
+        let buf = include_bytes!("../../data/zcash-srs-2-11-uncompressed.bin");
         let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
         RingProofParams::from_pcs_params(RING_SIZE, pcs_params).unwrap()
     })
