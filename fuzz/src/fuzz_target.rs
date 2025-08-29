@@ -100,11 +100,18 @@ impl FuzzTargetRunner {
         let listener = UnixListener::bind(&socket_path)?;
         tracing::info!("JAM Fuzzer target server listening on {socket_path}");
 
+        let mut is_first_session = true;
+
         // Continuously accept new connections after closing the previous session.
         while let Ok((stream, _addr)) = listener.accept().await {
             tracing::info!("Accepted a connection from the fuzzer");
-            // Reset storage & state for the new session
-            *self = FuzzTargetRunner::new(self.target_peer_info.clone());
+
+            if is_first_session {
+                is_first_session = false;
+            } else {
+                // Reset storage & state for the new session
+                *self = FuzzTargetRunner::new(self.target_peer_info.clone());
+            }
 
             self.handle_fuzzer_session(stream).await?;
             tracing::info!("Fuzzer session ended");
