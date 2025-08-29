@@ -5,10 +5,12 @@ use crate::{
 use fr_block::{post_state_root_db::PostStateRootDbError, types::block::BlockHeaderError};
 use fr_codec::JamCodecError;
 use fr_common::ByteSequence;
+use fr_config::StorageConfig;
 use fr_node::roles::importer::BlockImporter;
 use fr_state::error::StateManagerError;
 use fr_storage::node_storage::NodeStorage;
 use std::{collections::BTreeSet, io::Error as IoError, string::FromUtf8Error, sync::Arc};
+use tempfile::tempdir;
 use thiserror::Error;
 use tokio::{
     net::{UnixListener, UnixStream},
@@ -64,33 +66,18 @@ impl LatestStateKeys {
 }
 
 pub struct FuzzTargetRunner {
-    for_test: bool,
     node_storage: Arc<NodeStorage>,
     latest_state_keys: LatestStateKeys,
     target_peer_info: PeerInfo,
 }
 
 impl FuzzTargetRunner {
-    pub fn new(target_peer_info: PeerInfo) -> Self {
-        let storage = NodeStorage::default();
-        Self {
-            for_test: false,
-            node_storage: Arc::new(storage),
-            latest_state_keys: LatestStateKeys::default(),
-            target_peer_info,
-        }
-    }
-
     /// Creates a `FuzzTargetRunner` with using `tempfile::tempdir` for DB path derivation.
-    pub fn new_for_test(target_peer_info: PeerInfo) -> Self {
-        use fr_config::StorageConfig;
-        use tempfile::tempdir;
-
+    pub fn new(target_peer_info: PeerInfo) -> Self {
         Self {
-            for_test: true,
             node_storage: Arc::new(
                 NodeStorage::new(StorageConfig::from_path(
-                    tempdir().unwrap().path().join("test_db"),
+                    tempdir().unwrap().path().join("fuzz_target_db "),
                 ))
                 .expect("Failed to initialize NodeStorage with tempdir"),
             ),
@@ -117,11 +104,7 @@ impl FuzzTargetRunner {
         while let Ok((stream, _addr)) = listener.accept().await {
             tracing::info!("Accepted a connection from the fuzzer");
             // Reset storage & state for the new session
-            if self.for_test {
-                *self = FuzzTargetRunner::new_for_test(self.target_peer_info.clone());
-            } else {
-                *self = FuzzTargetRunner::new(self.target_peer_info.clone());
-            }
+            *self = FuzzTargetRunner::new(self.target_peer_info.clone());
 
             self.handle_fuzzer_session(stream).await?;
             tracing::info!("Fuzzer session ended");

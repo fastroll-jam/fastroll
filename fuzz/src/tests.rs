@@ -36,7 +36,7 @@ mod fuzz_target_tests {
     }
 
     fn init_fuzz_target_runner() -> FuzzTargetRunner {
-        FuzzTargetRunner::new_for_test(create_test_peer_info("TestFastRoll"))
+        FuzzTargetRunner::new(create_test_peer_info("TestFastRoll"))
     }
 
     fn load_test_case(block_number: usize) -> BlockImportCase {
