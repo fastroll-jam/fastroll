@@ -36,6 +36,12 @@ pub const REFINE_GAS_PER_WORK_PACKAGE: UnsignedGas = 5_000_000_000;
 /// `G_T`: The total gas allocated across for all Accumulation.
 pub const ACCUMULATION_GAS_ALL_CORES: UnsignedGas = 3_500_000_000;
 
+/// `W_E`: Erasure coding basic chunk size in octets.
+pub const ERASURE_CHUNK_SIZE: usize = 684;
+
+/// `W_P`: The number of erasure-coded pieces in a segment.
+pub const DATA_SEGMENTS_CHUNKS: usize = 6;
+
 /// The total number of symbols in a codeword (message + recovery symbols) in erasure codec.
 /// For `k:n` reed-solomon rate, this is `n`.
 pub const ERASURE_CODE_TOTAL_CHUNKS: usize = VALIDATOR_COUNT;
