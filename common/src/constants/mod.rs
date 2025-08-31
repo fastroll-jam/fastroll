@@ -1,4 +1,4 @@
-use crate::{Balance, UnsignedGas, VALIDATOR_COUNT};
+use crate::{Balance, UnsignedGas, DATA_SEGMENTS_CHUNKS, ERASURE_CHUNK_SIZE, VALIDATOR_COUNT};
 
 pub mod constants_encoder;
 
@@ -86,17 +86,11 @@ pub const MAX_PACKAGE_AND_DATA_SIZE: usize = 13_794_305;
 /// `W_C`: The maximum size of service code in octets.
 pub const MAX_SERVICE_CODE_SIZE: usize = 4_000_000;
 
-/// `W_E`: Erasure coding basic chunk size in octets.
-pub const ERASURE_CHUNK_SIZE: usize = 684;
-
 /// `W_G`: Data segment size (`W_E` * `W_P`).
 pub const SEGMENT_SIZE: usize = ERASURE_CHUNK_SIZE * DATA_SEGMENTS_CHUNKS;
 
 /// `W_M`: The maximum number of imports in a work-package.
 pub const MAX_IMPORTS_PER_PACKAGE: usize = 3_072;
-
-/// `W_P`: The number of erasure-coded pieces in a segment.
-pub const DATA_SEGMENTS_CHUNKS: usize = 6;
 
 /// `W_R`: The maximum total size of all unbounded blobs in a work-report, in octets.
 pub const WORK_REPORT_OUTPUT_SIZE_LIMIT: usize = 48 * (1 << 10);
