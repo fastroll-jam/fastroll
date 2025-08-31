@@ -127,9 +127,13 @@ impl FuzzTargetRunner {
         self.handle_handshake(&mut stream).await?;
 
         // Handle incoming messages
+        let mut is_first_block = true;
         loop {
             match StreamUtils::read_message(&mut stream).await {
-                Ok(message_kind) => self.process_message(&mut stream, message_kind).await?,
+                Ok(message_kind) => {
+                    self.process_message(&mut stream, message_kind, &mut is_first_block)
+                        .await?
+                }
                 Err(e) => {
                     if let FuzzTargetError::IoError(io_error) = e {
                         // Normal disconnection (EOF)
@@ -171,6 +175,7 @@ impl FuzzTargetRunner {
         &mut self,
         stream: &mut UnixStream,
         message_kind: FuzzMessageKind,
+        is_first_block: &mut bool,
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
             FuzzMessageKind::SetState(set_state) => {
@@ -216,38 +221,47 @@ impl FuzzTargetRunner {
                 self.latest_state_keys
                     .update_header_hash(header_hash.clone());
                 let pre_state_root = storage.state_manager().merkle_root();
-                let post_state_root =
-                    match BlockImporter::import_block(storage.clone(), block).await {
-                        Ok((post_state_root, account_state_changes)) => {
-                            account_state_changes.inner.values().for_each(|change| {
-                                for added_key in &change.added_state_keys {
-                                    self.latest_state_keys.insert_state_key(added_key.clone());
-                                }
-                                for removed_key in &change.removed_state_keys {
-                                    self.latest_state_keys.remove_state_key(removed_key.clone());
-                                }
-                            });
+                let post_state_root = match BlockImporter::import_block(
+                    storage.clone(),
+                    block,
+                    true,
+                    *is_first_block,
+                )
+                .await
+                {
+                    Ok((post_state_root, account_state_changes)) => {
+                        account_state_changes.inner.values().for_each(|change| {
+                            for added_key in &change.added_state_keys {
+                                self.latest_state_keys.insert_state_key(added_key.clone());
+                            }
+                            for removed_key in &change.removed_state_keys {
+                                self.latest_state_keys.remove_state_key(removed_key.clone());
+                            }
+                        });
 
-                            // Update `PostStateRootDB`
-                            storage
-                                .post_state_root_db()
-                                .set_post_state_root(&header_hash, post_state_root.clone())
-                                .await?;
+                        // Update `PostStateRootDB`
+                        storage
+                            .post_state_root_db()
+                            .set_post_state_root(&header_hash, post_state_root.clone())
+                            .await?;
 
-                            post_state_root
-                        }
-                        Err(e) => {
-                            tracing::debug!("Invalid block - import failed: {e:?}");
-                            // Return pre-state root for invalid blocks
-                            pre_state_root
-                        }
-                    };
+                        post_state_root
+                    }
+                    Err(e) => {
+                        tracing::debug!("Invalid block - import failed: {e:?}");
+                        // Return pre-state root for invalid blocks
+                        pre_state_root
+                    }
+                };
                 StreamUtils::send_message(
                     stream,
                     FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
                 )
                 .await?;
                 tracing::info!("[SEND][ImportBlock] root={post_state_root}");
+                if *is_first_block {
+                    *is_first_block = false;
+                }
                 Ok(())
             }
             FuzzMessageKind::GetState(get_state) => {
