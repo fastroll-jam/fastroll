@@ -124,13 +124,23 @@ impl IsAuthorizedHostContext {
 }
 
 /// Represents the contextual state maintained throughout the `on_transfer` process.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct OnTransferHostContext<S: HostStateProvider> {
     pub accounts_sandbox: AccountsSandboxMap<S>,
     /// OnTransfer entry-point function invocation args (read-only)
     pub invoke_args: OnTransferInvokeArgs,
     /// Current entropy value (`η0′`)
     pub curr_entropy: EntropyHash,
+}
+
+impl<S: HostStateProvider> Clone for OnTransferHostContext<S> {
+    fn clone(&self) -> Self {
+        Self {
+            accounts_sandbox: self.accounts_sandbox.clone(),
+            invoke_args: self.invoke_args.clone(),
+            curr_entropy: self.curr_entropy.clone(),
+        }
+    }
 }
 
 impl<S: HostStateProvider> AccountsSandboxHolder<S> for OnTransferHostContext<S> {
