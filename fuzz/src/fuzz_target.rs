@@ -151,7 +151,7 @@ impl FuzzTargetRunner {
 
         if let FuzzMessageKind::PeerInfo(peer_info) = message_kind {
             tracing::info!(
-                "[PeerInfo] Fuzzer info: name={} app_version={} jam_version={}",
+                "[PeerInfo][RECV] Fuzzer info: name={} app_version={} jam_version={}",
                 String::from_utf8(peer_info.name)?,
                 peer_info.app_version,
                 peer_info.jam_version
@@ -174,7 +174,7 @@ impl FuzzTargetRunner {
     ) -> Result<(), FuzzTargetError> {
         match message_kind {
             FuzzMessageKind::SetState(set_state) => {
-                tracing::info!("[SetState] Received message");
+                tracing::info!("[RECV][SetState] Received message");
                 let storage = self.node_storage();
                 let state_manager = storage.state_manager();
 
@@ -200,11 +200,16 @@ impl FuzzTargetRunner {
                     .set_post_state_root(&parent_header_hash, state_root.clone())
                     .await?;
 
-                StreamUtils::send_message(stream, FuzzMessageKind::StateRoot(StateRoot(state_root)))
-                    .await
+                StreamUtils::send_message(
+                    stream,
+                    FuzzMessageKind::StateRoot(StateRoot(state_root.clone())),
+                )
+                .await?;
+                tracing::info!("[SEND][SetState] root={state_root}");
+                Ok(())
             }
             FuzzMessageKind::ImportBlock(import_block) => {
-                tracing::info!("[ImportBlock] Received message");
+                tracing::info!("[RECV][ImportBlock] Received message");
                 let storage = self.node_storage();
                 let block = import_block.0;
                 let header_hash = block.header.hash()?;
@@ -239,12 +244,14 @@ impl FuzzTargetRunner {
                     };
                 StreamUtils::send_message(
                     stream,
-                    FuzzMessageKind::StateRoot(StateRoot(post_state_root)),
+                    FuzzMessageKind::StateRoot(StateRoot(post_state_root.clone())),
                 )
-                .await
+                .await?;
+                tracing::info!("[SEND][ImportBlock] root={post_state_root}");
+                Ok(())
             }
             FuzzMessageKind::GetState(get_state) => {
-                tracing::info!("[GetState] Received message");
+                tracing::info!("[RECV][GetState] Received message");
                 let requested_header_hash = get_state.0;
                 if self.latest_state_keys.header_hash != requested_header_hash {
                     tracing::error!("Latest header hash mismatch: requested ({requested_header_hash}) observed ({})", self.latest_state_keys.header_hash);
