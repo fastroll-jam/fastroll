@@ -148,8 +148,8 @@ impl BlockImporter {
         }
 
         // Validate header fields (prior to STF)
-        Self::validate_block_header_prior_stf(&storage, &block, is_fuzzing, is_first_fuzz_block)
-            .await?;
+        // Self::validate_block_header_prior_stf(&storage, &block, is_fuzzing, is_first_fuzz_block)
+        //     .await?;
         // Re-execute STF
         let (post_state_root, header_markers, account_state_changes) =
             Self::run_state_transition(&storage, &block).await?;

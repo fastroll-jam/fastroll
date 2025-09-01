@@ -6,6 +6,8 @@ fn main() {
     generate_pvm_tests();
     // Block import test cases
     generate_block_import_tests();
+    // Fuzzer block import test cases
+    generate_fuzz_block_import_tests();
 }
 
 fn generate_pvm_tests() {
@@ -99,5 +101,34 @@ fn generate_block_import_tests() {
         &mut test_case_contents,
     );
 
+    fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
+}
+
+fn generate_fuzz_block_import_tests() {
+    let test_vectors_dir = PathBuf::from("fuzz-traces");
+    let full_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(test_vectors_dir);
+    println!("cargo:rerun-if-changed={}", full_path.display());
+
+    let traces_folders = [
+        "1756548459",
+        "1756548583",
+        "1756548667",
+        "1756548706",
+        "1756548741",
+        "1756548767",
+        "1756548796",
+        "1756548916",
+        "1756572122",
+    ];
+
+    let mut test_case_contents = String::new();
+    for traces_folder in traces_folders {
+        let test_file =
+            fs::read_dir(full_path.join(traces_folder)).expect("Failed to read trace folder");
+        write_block_import_test_cases(test_file, traces_folder, &mut test_case_contents);
+    }
+
+    let dest_path =
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_fuzz_block_import_tests.rs");
     fs::write(&dest_path, test_case_contents).expect("Failed to generate test cases");
 }
