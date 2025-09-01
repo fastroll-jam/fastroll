@@ -1,8 +1,11 @@
 [package]
 name = "fastroll"
+description = "FastRoll JAM client CLI tool"
 version.workspace = true
 edition.workspace = true
-description = "FastRoll JAM client CLI tool"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [dependencies]
 fr-common = { workspace = true }
