@@ -950,11 +950,17 @@ impl<S: HostStateProvider> AccountsSandboxMap<S> {
             return Ok(());
         };
 
-        // Remove the last lookups entry for the account.
+        // Remove the last lookups and preimage entries for the account.
         // Since the `EJECT` host function requires that all storage entries associated with the
         // ejecting account must be removed except for the last lookup entry, removing
-        // that single entry is sufficient.
+        // these two entries is sufficient.
         // There's no need to iterate through all storage items (actually impossible to do so).
+        self.remove_account_preimages_entry(
+            state_provider.clone(),
+            service_id,
+            one_last_lookups_key.0.clone(),
+        )
+        .await?;
         self.remove_account_lookups_entry(state_provider.clone(), service_id, one_last_lookups_key)
             .await?;
 
