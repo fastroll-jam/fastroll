@@ -210,6 +210,7 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
         add_all_simple_state_entries(&storage.state_manager(), None).await?;
     }
 
+    let pre_state_root = test_case.pre_state.state_root.clone();
     BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
 
     // if !test_case.block.is_genesis() {
@@ -229,8 +230,16 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // }
 
     // import block
-    let (post_state_root, _account_state_changes) =
-        BlockImportHarness::import_block(storage.clone(), test_case.block).await?;
+    let post_state_root =
+        match BlockImportHarness::import_block(storage.clone(), test_case.block.clone()).await {
+            Ok((post_state_root, _account_state_changes)) => post_state_root,
+            Err(e) => {
+                tracing::warn!("Invalid block: {e:?}");
+                // If the block is invalid, return the latest committed state root.
+                // Here, returning state root of `pre_state` of the test file for convenience.
+                pre_state_root
+            }
+        };
 
     // assertions
     BlockImportHarness::assert_post_state(
