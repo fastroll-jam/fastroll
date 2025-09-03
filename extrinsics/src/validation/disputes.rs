@@ -241,9 +241,9 @@ impl DisputesXtValidator {
                 .get_validator_ed25519_key(judgment.voter)
                 .ok_or(XtError::InvalidValidatorIndex)?;
             let ed25519_verifier = Ed25519Verifier::new(voter_public_key.clone());
-            if !ed25519_verifier.verify_message(message, &judgment.voter_signature) {
-                return Err(XtError::InvalidJudgmentSignature(judgment.voter));
-            }
+            ed25519_verifier
+                .verify_message(message, &judgment.voter_signature)
+                .map_err(|_| XtError::InvalidAssuranceSignature(judgment.voter))?;
         }
         Ok(())
     }
@@ -282,11 +282,9 @@ impl DisputesXtValidator {
         let message = [X_G, hash.as_slice()].concat();
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
-        if !ed25519_verifier.verify_message(&message, &entry.signature) {
-            return Err(XtError::InvalidCulpritSignature(
-                entry.validator_key.to_hex(),
-            ));
-        }
+        ed25519_verifier
+            .verify_message(&message, &entry.signature)
+            .map_err(|_| XtError::InvalidCulpritSignature(entry.validator_key.to_hex()))?;
         Ok(())
     }
 
@@ -332,9 +330,9 @@ impl DisputesXtValidator {
         };
 
         let ed25519_verifier = Ed25519Verifier::new(entry.validator_key.clone());
-        if !ed25519_verifier.verify_message(&message, &entry.signature) {
-            return Err(XtError::InvalidFaultSignature(entry.validator_key.to_hex()));
-        }
+        ed25519_verifier
+            .verify_message(&message, &entry.signature)
+            .map_err(|_| XtError::InvalidFaultSignature(entry.validator_key.to_hex()))?;
         Ok(())
     }
 }

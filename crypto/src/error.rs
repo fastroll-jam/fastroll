@@ -1,8 +1,11 @@
 use ark_vrf::reexports::ark_serialize::SerializationError;
+use fr_common::CommonTypeError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("Public key has invalid format")]
+    InvalidPubKeyFormat,
     #[error("General Hashing Error")]
     HashError,
     #[error("Blake2b Hashing Error")]
@@ -21,4 +24,8 @@ pub enum CryptoError {
     BandersnatchDecodeError,
     #[error("VRF proof verification Error")]
     VrfVerificationFailed,
+    #[error("CommonTypeError: {0}")]
+    CommonTypeError(#[from] CommonTypeError),
+    #[error("Ed25519SigError: {0}")]
+    Ed25519SigError(#[from] ed25519_dalek::SignatureError),
 }
