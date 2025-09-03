@@ -372,23 +372,23 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
-        let gas_limit = vm.regs[9].value();
-        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + gas_limit;
+        let transfer_gas_limit = vm.regs[9].value();
+        let gas_charge = HOSTCALL_BASE_GAS_CHARGE + transfer_gas_limit;
+        check_out_of_gas!(vm.gas_counter, gas_charge);
+
         let Ok(dest) = vm.regs[7].as_service_id() else {
-            continue_who!(gas_charge)
+            continue_who!()
         };
         let amount = vm.regs[8].value();
         let Ok(offset) = vm.regs[10].as_mem_address() else {
-            host_call_panic!(gas_charge)
+            host_call_panic!()
         };
-
-        check_out_of_gas!(vm.gas_counter, gas_charge);
 
         if !vm
             .memory
             .is_address_range_readable(offset, TRANSFER_MEMO_SIZE)
         {
-            host_call_panic!(gas_charge)
+            host_call_panic!()
         }
 
         let memo = ByteArray::<TRANSFER_MEMO_SIZE>::decode(
@@ -400,7 +400,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             to: dest,
             amount,
             memo,
-            gas_limit,
+            gas_limit: transfer_gas_limit,
         };
 
         let accumulator_metadata = x.get_accumulator_metadata(state_provider.clone()).await?;
@@ -415,15 +415,15 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             .get_account_metadata(state_provider.clone(), dest)
             .await?
         else {
-            continue_who!(gas_charge)
+            continue_who!()
         };
 
-        if gas_limit < dest_account_metadata.gas_limit_on_transfer {
-            continue_low!(gas_charge)
+        if transfer_gas_limit < dest_account_metadata.gas_limit_on_transfer {
+            continue_low!()
         }
 
         if accumulator_balance.saturating_sub(amount) < accumulator_threshold_balance {
-            continue_cash!(gas_charge)
+            continue_cash!()
         }
 
         x.subtract_accumulator_balance(state_provider, amount)
