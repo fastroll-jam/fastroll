@@ -1,4 +1,5 @@
 use crate::{
+    error::CryptoError,
     impl_byte_encodable, impl_signature,
     traits::{Signature, VrfSignature},
     types::{BandersnatchPubKey, Ed25519PubKey},
@@ -19,12 +20,9 @@ impl VrfSignature for BandersnatchSig {
     type VrfOutput = BandersnatchOutputHash;
 
     /// `Y` hash output function for a VRF signature.
-    fn output_hash(&self) -> Self::VrfOutput {
-        BandersnatchOutputHash::new(
-            IetfVrfSignature::deserialize_compressed(self.as_slice())
-                .unwrap()
-                .output_hash(),
-        )
+    fn output_hash(&self) -> Result<Self::VrfOutput, CryptoError> {
+        let sig = IetfVrfSignature::deserialize_compressed(self.as_slice())?;
+        Ok(BandersnatchOutputHash::new(sig.output_hash()))
     }
 }
 
@@ -55,12 +53,9 @@ impl VrfSignature for BandersnatchRingVrfSig {
     type VrfOutput = BandersnatchOutputHash;
 
     /// `Y` hash output function for an anonymous RingVRF signature.
-    fn output_hash(&self) -> Self::VrfOutput {
-        BandersnatchOutputHash::new(
-            RingVrfSignature::deserialize_compressed(self.as_slice())
-                .unwrap()
-                .output_hash(),
-        )
+    fn output_hash(&self) -> Result<Self::VrfOutput, CryptoError> {
+        let sig = RingVrfSignature::deserialize_compressed(self.as_slice())?;
+        Ok(BandersnatchOutputHash::new(sig.output_hash()))
     }
 }
 

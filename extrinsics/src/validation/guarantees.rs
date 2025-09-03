@@ -561,11 +561,9 @@ impl GuaranteesXtValidator {
             .ok_or(XtError::InvalidValidatorIndex)?;
 
         let ed25519_verifier = Ed25519Verifier::new(guarantor_public_key.clone());
-        if !ed25519_verifier.verify_message(&message, &credential.signature) {
-            return Err(XtError::InvalidGuaranteesSignature(
-                credential.validator_index,
-            ));
-        }
+        ed25519_verifier
+            .verify_message(&message, &credential.signature)
+            .map_err(|_| XtError::InvalidGuaranteesSignature(credential.validator_index))?;
 
         // Verify the timeslot of the work report is within a valid range (not in the future)
         if entry_timeslot_index > current_timeslot_index {

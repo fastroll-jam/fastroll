@@ -100,9 +100,9 @@ impl AssurancesXtValidator {
             .ok_or(XtError::InvalidValidatorIndex)?;
 
         let ed25519_verifier = Ed25519Verifier::new(assurer_public_key.clone());
-        if !ed25519_verifier.verify_message(&message, &entry.signature) {
-            return Err(XtError::InvalidAssuranceSignature(entry.validator_index));
-        }
+        ed25519_verifier
+            .verify_message(&message, &entry.signature)
+            .map_err(|_| XtError::InvalidAssuranceSignature(entry.validator_index))?;
 
         // Validate the assuring cores bit-vec
         let pending_reports = self.state_manager.get_pending_reports().await?;

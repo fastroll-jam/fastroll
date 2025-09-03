@@ -1,6 +1,6 @@
 use crate::{
     roles::{
-        author::author_block_seal_is_valid,
+        author::validate_author_block_seal,
         executor::{BlockExecutionError, BlockExecutionHeaderMarkers, BlockExecutor},
     },
     utils::spawn_timed,
@@ -362,9 +362,8 @@ impl BlockImporter {
 
         let vrf_input = match curr_slot_sealer {
             SlotSealer::Ticket(ticket) => {
-                if !author_block_seal_is_valid(block_seal, ticket) {
-                    return Err(BlockImportError::InvalidBlockSealOutput);
-                }
+                validate_author_block_seal(block_seal, ticket)
+                    .map_err(|_| BlockImportError::InvalidBlockSealOutput)?;
                 [X_T, curr_entropy_3.as_slice(), &[ticket.attempt]].concat()
             }
             SlotSealer::BandersnatchPubKeys(key) => {
@@ -392,7 +391,7 @@ impl BlockImporter {
         block: &Block,
         curr_author_bandersnatch_key: &BandersnatchPubKey,
     ) -> Result<(), BlockImportError> {
-        let block_seal_output_hash = block.header.block_seal.output_hash();
+        let block_seal_output_hash = block.header.block_seal.output_hash()?;
 
         let vrf_input = [X_E, block_seal_output_hash.as_slice()].concat();
         let aux_data = vec![]; // no message signed

@@ -1,3 +1,4 @@
+use crate::error::CryptoError;
 use fr_common::ByteEncodable;
 
 pub trait PublicKey: ByteEncodable {}
@@ -5,8 +6,8 @@ pub trait PublicKey: ByteEncodable {}
 pub trait SecretKey: ByteEncodable {
     type PublicKey: PublicKey;
     fn generate() -> Self;
-    fn from_seed(seed: &[u8]) -> Self;
-    fn public_key(&self) -> Self::PublicKey;
+    fn from_seed(seed: &[u8]) -> Result<Self, CryptoError>;
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError>;
 }
 
 pub trait Signature: ByteEncodable {
@@ -16,7 +17,7 @@ pub trait Signature: ByteEncodable {
 pub trait VrfSignature: ByteEncodable {
     type PublicKey: PublicKey;
     type VrfOutput;
-    fn output_hash(&self) -> Self::VrfOutput;
+    fn output_hash(&self) -> Result<Self::VrfOutput, CryptoError>;
 }
 
 #[macro_export]
