@@ -1804,7 +1804,7 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Panic,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: None,
                     r8_write: None,
                     memory_write: None,
@@ -1816,7 +1816,7 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(HostCallReturnCode::WHO as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1828,7 +1828,7 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(HostCallReturnCode::LOW as RegValue),
                     r8_write: None,
                     memory_write: None,
@@ -1840,7 +1840,7 @@ mod transfer_tests {
             HostCallResult {
                 exit_reason: ExitReason::Continue,
                 vm_change: HostCallVMStateChange {
-                    gas_charge: HOSTCALL_BASE_GAS_CHARGE + self.transfer_gas_limit,
+                    gas_charge: HOSTCALL_BASE_GAS_CHARGE,
                     r7_write: Some(HostCallReturnCode::CASH as RegValue),
                     r8_write: None,
                     memory_write: None,
