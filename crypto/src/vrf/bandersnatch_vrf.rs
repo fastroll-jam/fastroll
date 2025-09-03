@@ -33,7 +33,7 @@ impl VrfProver {
     }
 
     pub fn sign_vrf(&self, context: &[u8], message: &[u8]) -> Result<BandersnatchSig, CryptoError> {
-        let sig = BandersnatchSig::from_slice(&self.core.ietf_vrf_sign(context, message))?;
+        let sig = BandersnatchSig::from_slice(&self.core.ietf_vrf_sign(context, message)?)?;
         Ok(sig)
     }
 }
@@ -96,7 +96,7 @@ impl RingVrfProver {
         message: &[u8],
     ) -> Result<BandersnatchRingVrfSig, CryptoError> {
         Ok(BandersnatchRingVrfSig(Box::new(ByteArray::from_slice(
-            &self.core.ring_vrf_sign(context, message),
+            &self.core.ring_vrf_sign(context, message)?,
         )?)))
     }
 }

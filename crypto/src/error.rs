@@ -20,6 +20,8 @@ pub enum CryptoError {
     RingRootError,
     #[error("Failed to decode Bandersnatch public key")]
     BandersnatchDecodeError,
+    #[error("Invalid VRF input format")]
+    InvalidVrfInput,
     #[error("VRF proof verification Error")]
     VrfVerificationFailed,
     #[error("CommonTypeError: {0}")]
