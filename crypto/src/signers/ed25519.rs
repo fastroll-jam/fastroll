@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::{error::CryptoError, types::*};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use fr_common::ByteEncodable;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -16,10 +16,11 @@ impl crate::signers::Signer for Ed25519Signer {
         Self { secret_key }
     }
 
-    fn sign_message(&self, message: &[u8]) -> Self::Signature {
+    fn sign_message(&self, message: &[u8]) -> Result<Self::Signature, CryptoError> {
         let signing_key = SigningKey::from_bytes(&self.secret_key.0);
         let signature = signing_key.sign(message);
-        Ed25519Sig::from_slice(signature.to_bytes().as_slice()).unwrap()
+        let sig = Ed25519Sig::from_slice(signature.to_bytes().as_slice())?;
+        Ok(sig)
     }
 }
 
@@ -35,13 +36,18 @@ impl crate::signers::Verifier for Ed25519Verifier {
         Self { public_key }
     }
 
-    fn verify_message(&self, message: &[u8], signature: &Self::Signature) -> bool {
-        let verifying_key = match VerifyingKey::from_bytes(&self.public_key.0) {
-            Ok(key) => key,
-            Err(_) => return false, // Invalid public key
+    fn verify_message(
+        &self,
+        message: &[u8],
+        signature: &Self::Signature,
+    ) -> Result<(), CryptoError> {
+        let Ok(verifying_key) = VerifyingKey::from_bytes(&self.public_key.0) else {
+            return Err(CryptoError::InvalidPubKeyFormat);
         };
+
         let signature = Signature::from_bytes(&signature.0);
-        verifying_key.verify(message, &signature).is_ok()
+        verifying_key.verify(message, &signature)?;
+        Ok(())
     }
 }
 
@@ -80,23 +86,25 @@ mod tests {
     #[test]
     fn test_sign_and_verify() {
         let (signer, verifier, message) = setup();
-        let signature = signer.sign_message(&message);
-        assert!(verifier.verify_message(&message, &signature));
+        let signature = signer.sign_message(&message).expect("Signing failed");
+        assert!(verifier.verify_message(&message, &signature).is_ok());
     }
 
     #[test]
     fn test_sign_and_verify_different_message() {
         let (signer, verifier, message) = setup();
-        let signature = signer.sign_message(&message);
+        let signature = signer.sign_message(&message).expect("Signing failed");
         let mut different_message = message.clone();
         different_message.push(0x01);
-        assert!(!verifier.verify_message(&different_message, &signature));
+        assert!(verifier
+            .verify_message(&different_message, &signature)
+            .is_err());
     }
 
     #[test]
     fn test_invalid_signature() {
         let (signer, verifier, message) = setup();
-        let signature = signer.sign_message(&message);
+        let signature = signer.sign_message(&message).expect("Signing failed");
         let mut invalid_signature = signature.0.to_vec();
         invalid_signature[0] ^= 0x01;
         let invalid_signature = Ed25519Sig::from_slice(
@@ -106,13 +114,15 @@ mod tests {
                 .as_slice(),
         )
         .unwrap();
-        assert!(!verifier.verify_message(&message, &invalid_signature));
+        assert!(verifier
+            .verify_message(&message, &invalid_signature)
+            .is_err());
     }
 
     #[test]
     fn test_invalid_public_key() {
         let (signer, _verifier, message) = setup();
-        let signature = signer.sign_message(&message);
+        let signature = signer.sign_message(&message).expect("Signing failed");
         let invalid_public_key = Ed25519PubKey::from_slice(
             generate_random_signer()
                 .verifying_key()
@@ -121,6 +131,8 @@ mod tests {
         )
         .unwrap();
         let invalid_verifier = Ed25519Verifier::new(invalid_public_key);
-        assert!(!invalid_verifier.verify_message(&message, &signature));
+        assert!(invalid_verifier
+            .verify_message(&message, &signature)
+            .is_err());
     }
 }

@@ -4,7 +4,7 @@ use fr_block::types::{
     extrinsics::disputes::OffendersHeaderMarker,
 };
 use fr_common::{workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, ServiceId};
-use fr_crypto::traits::VrfSignature;
+use fr_crypto::{error::CryptoError, traits::VrfSignature};
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
@@ -44,6 +44,8 @@ use tokio::try_join;
 pub enum BlockExecutionError {
     #[error("BlockHeaderError: {0}")]
     BlockHeaderError(#[from] BlockHeaderError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("StateManagerError: {0}")]
     StateManagerError(#[from] StateManagerError),
     #[error("TransitionError: {0}")]
@@ -190,7 +192,7 @@ impl BlockExecutor {
         // Note: this is a prerequisite for Accumulate STF (η0′ required)
         transition_epoch_entropy_per_block(
             storage.state_manager(),
-            block.header.vrf_signature().output_hash(),
+            block.header.vrf_signature().output_hash()?,
         )
         .await?;
 
