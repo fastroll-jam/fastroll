@@ -21,6 +21,7 @@ use fr_common::{
     ValidatorIndex, XtHash, X_E, X_F, X_T,
 };
 use fr_crypto::{
+    error::CryptoError,
     traits::VrfSignature,
     types::{BandersnatchPubKey, BandersnatchSecretKey},
     vrf::bandersnatch_vrf::VrfProver,
@@ -35,6 +36,8 @@ use thiserror::Error;
 pub enum BlockAuthorError {
     #[error("JamCodecError: {0}")]
     JamCodecError(#[from] JamCodecError),
+    #[error("CryptoError: {0}")]
+    CryptoError(#[from] CryptoError),
     #[error("CommonTypeError: {0}")]
     CommonTypeError(#[from] CommonTypeError),
     #[error("StateManagerError: {0}")]
@@ -377,10 +380,14 @@ impl BlockAuthor {
 }
 
 /// Verifies output hash of the block seal matches the ticket used for the author selection.
-pub fn author_block_seal_is_valid(seal: &BlockSeal, ticket: &Ticket) -> bool {
-    let seal_output_hash = seal.output_hash();
-    let ticket_output_hash = ticket.id.clone();
-    seal_output_hash == ticket_output_hash
+pub fn validate_author_block_seal(
+    seal: &BlockSeal,
+    ticket: &Ticket,
+) -> Result<(), BlockAuthorError> {
+    if seal.output_hash()? != ticket.id {
+        return Err(BlockAuthorError::InvalidBlockSealOutput);
+    }
+    Ok(())
 }
 
 /// Seals the block header as the block author, in regular (ticket) mode.
@@ -392,14 +399,11 @@ pub fn sign_block_seal(
     curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
-    let prover = VrfProver::from_secret_key(secret_key);
+    let prover = VrfProver::from_secret_key(secret_key)?;
     let vrf_input = [X_T, curr_entropy_3.as_slice(), &[used_ticket.attempt]].concat();
     let aux_data = header_data.encode()?;
-    let seal = prover.sign_vrf(&vrf_input, &aux_data);
-
-    if !author_block_seal_is_valid(&seal, used_ticket) {
-        return Err(BlockAuthorError::InvalidBlockSealOutput);
-    }
+    let seal = prover.sign_vrf(&vrf_input, &aux_data)?;
+    validate_author_block_seal(&seal, used_ticket)?;
     Ok(seal)
 }
 
@@ -411,10 +415,10 @@ pub fn sign_fallback_block_seal(
     curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<BlockSeal, BlockAuthorError> {
-    let prover = VrfProver::from_secret_key(secret_key);
+    let prover = VrfProver::from_secret_key(secret_key)?;
     let vrf_input = [X_F, curr_entropy_3.as_slice()].concat();
     let aux_data = header_data.encode()?;
-    Ok(prover.sign_vrf(&vrf_input, &aux_data))
+    Ok(prover.sign_vrf(&vrf_input, &aux_data)?)
 }
 
 /// Produces VRF signature as the block author.
@@ -434,7 +438,7 @@ pub fn sign_entropy_source_vrf_signature(
     curr_entropy_3: &EntropyHash,
     secret_key: &BandersnatchSecretKey,
 ) -> Result<VrfSig, BlockAuthorError> {
-    let prover = VrfProver::from_secret_key(secret_key);
+    let prover = VrfProver::from_secret_key(secret_key)?;
 
     // This value is equivalent to `Y` hash output of the block seal.
     let seal_output_hash = match slot_sealer {
@@ -444,12 +448,12 @@ pub fn sign_entropy_source_vrf_signature(
             let fallback_seal_vrf_input = [X_F, curr_entropy_3.as_slice()].concat();
             let aux_data = vec![];
             prover
-                .sign_vrf(&fallback_seal_vrf_input, &aux_data)
-                .output_hash()
+                .sign_vrf(&fallback_seal_vrf_input, &aux_data)?
+                .output_hash()?
         }
     };
 
     let vrf_input = [X_E, seal_output_hash.as_slice()].concat();
     let aux_data = vec![]; // no message to sign
-    Ok(prover.sign_vrf(&vrf_input, &aux_data))
+    Ok(prover.sign_vrf(&vrf_input, &aux_data)?)
 }

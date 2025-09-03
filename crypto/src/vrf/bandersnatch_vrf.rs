@@ -19,12 +19,11 @@ pub struct VrfProver {
 }
 
 impl VrfProver {
-    pub fn from_secret_key(secret_key: &BandersnatchSecretKey) -> Self {
-        Self {
-            core: IetfVrfProverCore::new(
-                Secret::deserialize_compressed(secret_key.as_slice()).unwrap(),
-            ),
-        }
+    pub fn from_secret_key(secret_key: &BandersnatchSecretKey) -> Result<Self, CryptoError> {
+        let sk = Secret::deserialize_compressed(secret_key.as_slice())?;
+        Ok(Self {
+            core: IetfVrfProverCore::new(sk),
+        })
     }
 
     pub fn from_seed(seed: &[u8]) -> Self {
@@ -33,9 +32,9 @@ impl VrfProver {
         }
     }
 
-    pub fn sign_vrf(&self, context: &[u8], message: &[u8]) -> BandersnatchSig {
-        let sig = self.core.ietf_vrf_sign(context, message);
-        BandersnatchSig::from_slice(&sig).unwrap()
+    pub fn sign_vrf(&self, context: &[u8], message: &[u8]) -> Result<BandersnatchSig, CryptoError> {
+        let sig = BandersnatchSig::from_slice(&self.core.ietf_vrf_sign(context, message))?;
+        Ok(sig)
     }
 }
 
@@ -69,33 +68,36 @@ impl RingVrfProver {
         author_index: ValidatorIndex,
         validator_set: ValidatorKeySet,
         secret_key: &BandersnatchSecretKey,
-    ) -> Self {
-        Self {
-            core: RingVrfProverCore::new(
-                validator_set_to_bandersnatch_ring(&validator_set).unwrap(),
-                author_index as usize,
-                Secret::deserialize_compressed(secret_key.as_slice()).unwrap(),
-            ),
-        }
+    ) -> Result<Self, CryptoError> {
+        let ring = validator_set_to_bandersnatch_ring(&validator_set)?;
+        let prover = author_index as usize;
+        let secret = Secret::deserialize_compressed(secret_key.as_slice())?;
+
+        Ok(Self {
+            core: RingVrfProverCore::new(ring, prover, secret),
+        })
     }
 
     pub fn from_seed(
         author_index: ValidatorIndex,
         validator_set: ValidatorKeySet,
         seed: &[u8],
-    ) -> Self {
-        Self {
-            core: RingVrfProverCore::from_seed(
-                validator_set_to_bandersnatch_ring(&validator_set).unwrap(),
-                author_index as usize,
-                seed,
-            ),
-        }
+    ) -> Result<Self, CryptoError> {
+        let ring = validator_set_to_bandersnatch_ring(&validator_set)?;
+        let prover = author_index as usize;
+        Ok(Self {
+            core: RingVrfProverCore::from_seed(ring, prover, seed),
+        })
     }
 
-    pub fn sign_ring_vrf(&self, context: &[u8], message: &[u8]) -> BandersnatchRingVrfSig {
-        let sig = self.core.ring_vrf_sign(context, message);
-        BandersnatchRingVrfSig(Box::new(ByteArray::from_slice(&sig).unwrap()))
+    pub fn sign_ring_vrf(
+        &self,
+        context: &[u8],
+        message: &[u8],
+    ) -> Result<BandersnatchRingVrfSig, CryptoError> {
+        Ok(BandersnatchRingVrfSig(Box::new(ByteArray::from_slice(
+            &self.core.ring_vrf_sign(context, message),
+        )?)))
     }
 }
 
@@ -104,12 +106,11 @@ pub struct RingVrfVerifier {
 }
 
 impl RingVrfVerifier {
-    pub fn new(validator_set: ValidatorKeySet) -> Self {
-        Self {
-            core: RingVrfVerifierCore::new(
-                validator_set_to_bandersnatch_ring(&validator_set).unwrap(),
-            ),
-        }
+    pub fn new(validator_set: ValidatorKeySet) -> Result<Self, CryptoError> {
+        let ring = validator_set_to_bandersnatch_ring(&validator_set)?;
+        Ok(Self {
+            core: RingVrfVerifierCore::new(ring),
+        })
     }
 
     pub fn verify_ring_vrf(

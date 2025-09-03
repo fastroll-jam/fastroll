@@ -18,8 +18,6 @@ pub enum CryptoError {
     RingContextResourceError,
     #[error("Failed to construct ring root")]
     RingRootError,
-    #[error("Serialization Error")]
-    SerializationError(SerializationError),
     #[error("Failed to decode Bandersnatch public key")]
     BandersnatchDecodeError,
     #[error("VRF proof verification Error")]
@@ -28,4 +26,6 @@ pub enum CryptoError {
     CommonTypeError(#[from] CommonTypeError),
     #[error("Ed25519SigError: {0}")]
     Ed25519SigError(#[from] ed25519_dalek::SignatureError),
+    #[error("SerializationError: {0}")]
+    SerializationError(#[from] SerializationError),
 }

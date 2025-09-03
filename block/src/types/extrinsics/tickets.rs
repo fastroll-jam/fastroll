@@ -1,7 +1,9 @@
 use crate::types::extrinsics::{XtEntry, XtType};
 use fr_codec::prelude::*;
 use fr_common::{EntropyHash, X_T};
-use fr_crypto::{traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver};
+use fr_crypto::{
+    error::CryptoError, traits::VrfSignature, types::*, vrf::bandersnatch_vrf::RingVrfProver,
+};
 use std::{cmp::Ordering, fmt::Display, ops::Deref};
 
 /// Represents a sequence of validators' ticket proofs for block authoring privileges.
@@ -38,12 +40,18 @@ pub struct TicketsXtEntry {
 
 impl Display for TicketsXtEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: {} }}",
-            self.entry_index,
-            self.ticket_proof.output_hash(),
-        )
+        match self.ticket_proof.output_hash() {
+            Ok(output_hash) => write!(
+                f,
+                "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: {} }}",
+                self.entry_index, output_hash
+            ),
+            Err(_) => write!(
+                f,
+                "TicketsXtEntry {{ entry_index: {}, ticket_proof_hash: INVALID }}",
+                self.entry_index,
+            ),
+        }
     }
 }
 
@@ -61,22 +69,31 @@ impl Ord for TicketsXtEntry {
     // Compare the ticket extrinsics by the hash of the ticket proofs, which is not explicitly
     // represented by the `TicketsXtEntry`.
     fn cmp(&self, other: &Self) -> Ordering {
-        let self_hash = self.ticket_proof.output_hash();
-        let other_hash = other.ticket_proof.output_hash();
+        let self_hash = self
+            .ticket_proof
+            .output_hash()
+            .expect("Ticket proof hashing must not fail for comparison");
+        let other_hash = other
+            .ticket_proof
+            .output_hash()
+            .expect("Ticket proof hashing must not fail for comparison");
         self_hash.cmp(&other_hash)
     }
 }
 
 impl TicketsXtEntry {
-    pub fn new(prover: &RingVrfProver, entry_index: u8, entropy_2: &EntropyHash) -> Self {
+    pub fn new(
+        prover: &RingVrfProver,
+        entry_index: u8,
+        entropy_2: &EntropyHash,
+    ) -> Result<Self, CryptoError> {
         let context = [X_T, entropy_2.as_slice(), &[entry_index]].concat();
-
         let message = vec![]; // no message for ticket vrf signature
-        let ticket_proof = prover.sign_ring_vrf(&context, &message);
+        let ticket_proof = prover.sign_ring_vrf(&context, &message)?;
 
-        Self {
+        Ok(Self {
             entry_index,
             ticket_proof,
-        }
+        })
     }
 }

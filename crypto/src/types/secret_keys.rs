@@ -1,4 +1,5 @@
 use crate::{
+    error::CryptoError,
     impl_byte_encodable,
     traits::SecretKey,
     types::{public_keys::BandersnatchPubKey, Ed25519PubKey},
@@ -29,22 +30,21 @@ impl SecretKey for BandersnatchSecretKey {
         sk
     }
 
-    fn from_seed(seed: &[u8]) -> Self {
+    fn from_seed(seed: &[u8]) -> Result<Self, CryptoError> {
         let ark_secret = ArkSecret::from_seed(seed);
         let mut buf = Vec::with_capacity(32);
-        ark_secret.scalar.serialize_compressed(&mut buf).unwrap();
-        let sk = Self::from_slice(&buf).unwrap();
+        ark_secret.scalar.serialize_compressed(&mut buf)?;
+        let sk = Self::from_slice(&buf)?;
         buf.zeroize();
-        sk
+        Ok(sk)
     }
 
-    fn public_key(&self) -> Self::PublicKey {
-        let ark_public = ArkSecret::deserialize_compressed(self.as_slice())
-            .unwrap()
-            .public();
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        let ark_public = ArkSecret::deserialize_compressed(self.as_slice())?.public();
         let mut buf = Vec::with_capacity(32);
-        ark_public.serialize_compressed(&mut buf).unwrap();
-        Self::PublicKey::from_slice(&buf).unwrap()
+        ark_public.serialize_compressed(&mut buf)?;
+        let key = Self::PublicKey::from_slice(&buf)?;
+        Ok(key)
     }
 }
 
@@ -66,11 +66,11 @@ impl SecretKey for Ed25519SecretKey {
         sk
     }
 
-    fn from_seed(_seed: &[u8]) -> Self {
+    fn from_seed(_seed: &[u8]) -> Result<Self, CryptoError> {
         unimplemented!()
     }
 
-    fn public_key(&self) -> Self::PublicKey {
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
         unimplemented!()
     }
 }

@@ -243,7 +243,7 @@ impl DisputesXtValidator {
             let ed25519_verifier = Ed25519Verifier::new(voter_public_key.clone());
             ed25519_verifier
                 .verify_message(message, &judgment.voter_signature)
-                .map_err(|_| XtError::InvalidAssuranceSignature(judgment.voter))?;
+                .map_err(|_| XtError::InvalidJudgmentSignature(judgment.voter))?;
         }
         Ok(())
     }
