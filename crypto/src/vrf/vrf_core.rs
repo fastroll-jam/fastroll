@@ -23,7 +23,9 @@ pub(crate) struct IetfVrfSignature {
 // Additional impl
 impl IetfVrfSignature {
     pub(crate) fn output_hash(&self) -> [u8; 32] {
-        self.output.hash()[..32].try_into().unwrap()
+        self.output.hash()[..32]
+            .try_into()
+            .expect("Should not fail; 32-byte array")
     }
 }
 
@@ -37,7 +39,9 @@ pub(crate) struct RingVrfSignature {
 // Additional impl
 impl RingVrfSignature {
     pub(crate) fn output_hash(&self) -> [u8; 32] {
-        self.output.hash()[..32].try_into().unwrap()
+        self.output.hash()[..32]
+            .try_into()
+            .expect("Should not fail; 32-byte array")
     }
 }
 
@@ -47,13 +51,15 @@ fn ring_proof_params() -> &'static RingProofParams {
     PARAMS.get_or_init(|| {
         use bandersnatch::PcsParams;
         let buf = include_bytes!("../../data/zcash-srs-2-11-uncompressed.bin");
-        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
-        RingProofParams::from_pcs_params(RING_SIZE, pcs_params).unwrap()
+        let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..])
+            .expect("Failed to deserialize PCS params");
+        RingProofParams::from_pcs_params(RING_SIZE, pcs_params)
+            .expect("Failed to construct ring proof params from PCS params")
     })
 }
 
-fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
-    Input::new(vrf_input_data).unwrap()
+fn vrf_input_point(vrf_input_data: &[u8]) -> Result<Input, CryptoError> {
+    Input::new(vrf_input_data).ok_or(CryptoError::InvalidVrfInput)
 }
 
 /// IETF VRF prover actor.
@@ -79,17 +85,21 @@ impl IetfVrfProverCore {
     /// Not used with Safrole test vectors.
     ///
     /// Returns 96-octet sequence.
-    pub(crate) fn ietf_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ietf_vrf_sign(
+        &self,
+        vrf_input_data: &[u8],
+        aux_data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         use ark_vrf::ietf::Prover as _;
 
-        let input = vrf_input_point(vrf_input_data);
+        let input = vrf_input_point(vrf_input_data)?;
         let output = self.secret.output(input);
         let proof = self.secret.prove(input, output, aux_data);
 
         let signature = IetfVrfSignature { output, proof };
         let mut buf = Vec::new();
-        signature.serialize_compressed(&mut buf).unwrap();
-        buf
+        signature.serialize_compressed(&mut buf)?;
+        Ok(buf)
     }
 }
 
@@ -123,10 +133,14 @@ impl RingVrfProverCore {
     /// Used for tickets submission.
     ///
     /// Returns 784-octet sequence.
-    pub(crate) fn ring_vrf_sign(&self, vrf_input_data: &[u8], aux_data: &[u8]) -> Vec<u8> {
+    pub(crate) fn ring_vrf_sign(
+        &self,
+        vrf_input_data: &[u8],
+        aux_data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         use ark_vrf::ring::Prover as _;
 
-        let input = vrf_input_point(vrf_input_data);
+        let input = vrf_input_point(vrf_input_data)?;
         let output = self.secret.output(input);
 
         let pts: Vec<_> = self.ring.iter().map(|pk| pk.0).collect();
@@ -139,8 +153,8 @@ impl RingVrfProverCore {
 
         let signature = RingVrfSignature { output, proof };
         let mut buf = Vec::new();
-        signature.serialize_compressed(&mut buf).unwrap();
-        buf
+        signature.serialize_compressed(&mut buf)?;
+        Ok(buf)
     }
 }
 
@@ -161,9 +175,9 @@ impl IetfVrfVerifierCore {
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ietf::Verifier as _;
 
-        let signature = IetfVrfSignature::deserialize_compressed(signature).unwrap();
+        let signature = IetfVrfSignature::deserialize_compressed(signature)?;
 
-        let input = vrf_input_point(vrf_input_data);
+        let input = vrf_input_point(vrf_input_data)?;
         let output = signature.output;
 
         if public
@@ -178,7 +192,9 @@ impl IetfVrfVerifierCore {
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
         // using the ring-vrf (regardless of aux_data).
-        let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
+        let vrf_output_hash: [u8; 32] = output.hash()[..32]
+            .try_into()
+            .expect("Should not fail; 32-byte array");
         tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
@@ -214,9 +230,9 @@ impl RingVrfVerifierCore {
     ) -> Result<[u8; 32], CryptoError> {
         use ark_vrf::ring::Verifier as _;
 
-        let signature = RingVrfSignature::deserialize_compressed(signature).unwrap();
+        let signature = RingVrfSignature::deserialize_compressed(signature)?;
 
-        let input = vrf_input_point(vrf_input_data);
+        let input = vrf_input_point(vrf_input_data)?;
         let output = signature.output; // extracted from the signature
 
         let params = ring_proof_params();
@@ -230,7 +246,9 @@ impl RingVrfVerifierCore {
         tracing::debug!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
-        let vrf_output_hash: [u8; 32] = output.hash()[..32].try_into().unwrap();
+        let vrf_output_hash: [u8; 32] = output.hash()[..32]
+            .try_into()
+            .expect("Should not fail; 32-byte array");
         tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }

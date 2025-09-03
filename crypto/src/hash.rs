@@ -11,7 +11,7 @@ pub trait Hasher {
 
     fn hash_prefix_4(value: &[u8]) -> Result<[u8; 4], CryptoError> {
         let hash = Self::hash(value)?;
-        Ok(hash[..4].try_into().unwrap())
+        Ok(hash[..4].try_into().expect("Should not fail; 4-byte array"))
     }
 }
 

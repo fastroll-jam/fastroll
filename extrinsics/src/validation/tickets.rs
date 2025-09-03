@@ -4,16 +4,18 @@ use fr_common::{
     ticket::Ticket, ByteEncodable, Hash32, EPOCH_LENGTH, MAX_TICKETS_PER_EXTRINSIC,
     TICKETS_PER_VALIDATOR, TICKET_CONTEST_DURATION, X_T,
 };
-use fr_crypto::{traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
+use fr_crypto::{error::CryptoError, traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
 
-fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Vec<Ticket> {
+fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, CryptoError> {
     tickets_xt
         .iter()
-        .map(|ticket| Ticket {
-            id: ticket.ticket_proof.output_hash(),
-            attempt: ticket.entry_index,
+        .map(|ticket| {
+            Ok(Ticket {
+                id: ticket.ticket_proof.output_hash()?,
+                attempt: ticket.entry_index,
+            })
         })
         .collect()
 }
@@ -70,7 +72,7 @@ impl TicketsXtValidator {
         }
 
         // Construct new tickets from the tickets Xt.
-        let new_tickets = ticket_xt_to_new_tickets(extrinsic);
+        let new_tickets = ticket_xt_to_new_tickets(extrinsic)?;
 
         // Duplication check (within the Xt)
         let mut ticket_ids = HashSet::new();
@@ -116,7 +118,7 @@ impl TicketsXtValidator {
         // Note: current Safrole pending set (γP′; after on-epoch-change transition) is used as
         // the ring validator set.
         let pending_set = self.state_manger.get_safrole().await?.pending_set;
-        let verifier = RingVrfVerifier::new(pending_set);
+        let verifier = RingVrfVerifier::new(pending_set)?;
 
         let epoch_entropy = self.state_manger.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();
