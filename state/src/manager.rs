@@ -18,11 +18,11 @@ use crate::{
 use async_trait::async_trait;
 use fr_codec::prelude::*;
 use fr_common::{
-    CodeHash, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey, StorageKey,
-    TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
+    CodeHash, EpochIndex, LookupsKey, MerkleRoot, Octets, PreimagesKey, ServiceId, StateKey,
+    StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
-use fr_crypto::octets_to_hash32;
+use fr_crypto::{octets_to_hash32, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_db::{core::core_db::CoreDB, WriteBatch};
 use fr_state_merkle::{
     error::StateMerkleError,
@@ -30,13 +30,18 @@ use fr_state_merkle::{
     types::nodes::LeafType,
     write_set::{DBWriteSet, MerkleDBWriteSet, StateDBWriteSet},
 };
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{
+    collections::HashMap,
+    future::Future,
+    sync::{Arc, RwLock},
+};
 use tracing::instrument;
 
 pub struct StateManager {
     state_db: StateDB,
     merkle_db: MerkleDB,
     cache: StateCache,
+    ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
 }
 
 macro_rules! impl_simple_state_accessors {
@@ -154,7 +159,39 @@ impl StateManager {
             state_db,
             merkle_db,
             cache,
+            ring_vrf_verifier_cache: RwLock::new(None),
         }
+    }
+
+    pub async fn get_or_generate_ring_vrf_verifier(
+        &self,
+    ) -> Result<RingVrfVerifier, StateManagerError> {
+        let curr_epoch_index = self.get_timeslot().await?.epoch();
+        // Check the cache
+        if let Some((epoch_index, verifier)) = self.ring_vrf_verifier_cache.read().unwrap().as_ref()
+        {
+            if *epoch_index == curr_epoch_index {
+                return Ok(verifier.clone());
+            }
+        }
+        // Generate `RingVrfVerifier` with the current pending set (γP′) and cache it to the `StateManager`
+        let curr_pending_set = self.get_safrole().await?.pending_set;
+        let verifier = RingVrfVerifier::new(&curr_pending_set)?;
+        self.update_ring_vrf_verifier_cache(verifier.clone())
+            .await?;
+        Ok(verifier)
+    }
+
+    pub async fn update_ring_vrf_verifier_cache(
+        &self,
+        verifier: RingVrfVerifier,
+    ) -> Result<(), StateManagerError> {
+        let curr_epoch_index = self.get_timeslot().await?.epoch();
+        self.ring_vrf_verifier_cache
+            .write()
+            .unwrap()
+            .replace((curr_epoch_index, verifier));
+        Ok(())
     }
 
     pub async fn get_raw_state_entry(

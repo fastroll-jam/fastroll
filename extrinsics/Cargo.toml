@@ -14,7 +14,9 @@ fr-crypto = { workspace = true }
 fr-limited-vec = { workspace = true }
 fr-state = { workspace = true }
 hex = { workspace = true }
+rayon = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [features]
 skip-ancestor-set-validation = []
