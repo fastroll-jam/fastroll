@@ -963,6 +963,7 @@ dependencies = [
  "fr-state",
  "hex",
  "thiserror 2.0.16",
+ "tracing",
 ]
 
 [[package]]

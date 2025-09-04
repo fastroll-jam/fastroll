@@ -42,6 +42,7 @@ pub async fn transition_safrole(
     epoch_progressed: bool,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
+    tracing::info!("Safrole: new_epoch: {epoch_progressed}");
     if epoch_progressed {
         handle_new_epoch_transition(state_manager.clone(), prior_timeslot, curr_timeslot).await?;
     }
@@ -131,6 +132,7 @@ async fn handle_ticket_accumulation(
     state_manager: Arc<StateManager>,
     tickets_xt: &TicketsXt,
 ) -> Result<(), TransitionError> {
+    tracing::info!("Safrole: {} ticket xts", tickets_xt.len());
     if tickets_xt.is_empty() {
         return Ok(());
     }

@@ -13,6 +13,7 @@ use ark_vrf::{
     suites::bandersnatch::BandersnatchSha512Ell2, Public, Secret,
 };
 use fr_common::{ByteArray, ByteEncodable, Hash32, ValidatorIndex};
+use tracing::instrument;
 
 pub struct VrfProver {
     core: IetfVrfProverCore,
@@ -113,6 +114,7 @@ impl RingVrfVerifier {
         })
     }
 
+    #[instrument(level = "debug", skip_all, name = "verify_ring_vrf")]
     pub fn verify_ring_vrf(
         &self,
         context: &[u8],

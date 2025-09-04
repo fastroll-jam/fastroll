@@ -7,7 +7,9 @@ use fr_common::{
 use fr_crypto::{error::CryptoError, traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
 use std::{collections::HashSet, sync::Arc};
+use tracing::debug_span;
 
+#[tracing::instrument(level = "debug", skip_all, name = "xt_to_new_tickets")]
 fn ticket_xt_to_new_tickets(tickets_xt: &TicketsXt) -> Result<Vec<Ticket>, CryptoError> {
     tickets_xt
         .iter()
@@ -48,6 +50,7 @@ impl TicketsXtValidator {
     }
 
     /// Validates the entire `TicketsXt`.
+    #[tracing::instrument(level = "debug", skip_all, name = "validate_tickets_xt")]
     pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<Vec<Ticket>, XtError> {
         if extrinsic.is_empty() {
             return Ok(vec![]);
@@ -74,42 +77,55 @@ impl TicketsXtValidator {
         // Construct new tickets from the tickets Xt.
         let new_tickets = ticket_xt_to_new_tickets(extrinsic)?;
 
-        // Duplication check (within the Xt)
-        let mut ticket_ids = HashSet::new();
-        let no_duplicate_tickets = new_tickets
-            .iter()
-            .all(|entry| ticket_ids.insert(entry.id.clone()));
-        if !no_duplicate_tickets {
-            return Err(XtError::DuplicateTicket);
-        }
-
-        // Duplication check (ticket accumulator)
-        let curr_ticket_accumulator = self.state_manger.get_safrole().await?.ticket_accumulator;
-        for ticket in &new_tickets {
-            if curr_ticket_accumulator.contains(ticket) {
+        {
+            let span = debug_span!("dup_check");
+            let _e = span.enter();
+            // Duplication check (within the Xt)
+            let mut ticket_ids = HashSet::new();
+            let no_duplicate_tickets = new_tickets
+                .iter()
+                .all(|entry| ticket_ids.insert(entry.id.clone()));
+            if !no_duplicate_tickets {
                 return Err(XtError::DuplicateTicket);
             }
         }
 
-        // All new tickets should be useful; if any of them cannot be included in the posterior
-        // ticket accumulator, the Xt is invalid.
-        let accumulator_becomes_saturated =
-            curr_ticket_accumulator.len() + new_tickets.len() > EPOCH_LENGTH;
-        if accumulator_becomes_saturated {
-            let tickets_in_accumulator_sorted = curr_ticket_accumulator.into_sorted_vec();
+        let curr_ticket_accumulator = {
+            let span = debug_span!("accumulator_dup_check");
+            let _e = span.enter();
+            // Duplication check (ticket accumulator)
+            let curr_ticket_accumulator = self.state_manger.get_safrole().await?.ticket_accumulator;
+            for ticket in &new_tickets {
+                if curr_ticket_accumulator.contains(ticket) {
+                    return Err(XtError::DuplicateTicket);
+                }
+            }
+            curr_ticket_accumulator
+        };
 
-            // The number of tickets to be dropped after merging the new tickets
-            let tickets_overflow =
-                tickets_in_accumulator_sorted.len() + new_tickets.len() - EPOCH_LENGTH;
+        {
+            let span = debug_span!("check_useless_tickets");
+            let _e = span.enter();
+            // All new tickets should be useful; if any of them cannot be included in the posterior
+            // ticket accumulator, the Xt is invalid.
+            let accumulator_becomes_saturated =
+                curr_ticket_accumulator.len() + new_tickets.len() > EPOCH_LENGTH;
+            if accumulator_becomes_saturated {
+                let tickets_in_accumulator_sorted = curr_ticket_accumulator.into_sorted_vec();
 
-            if tickets_overflow <= tickets_in_accumulator_sorted.len() {
-                let threshold_idx = tickets_in_accumulator_sorted.len() - tickets_overflow;
-                let threshold_ticket = &tickets_in_accumulator_sorted[threshold_idx];
-                if let Some(largest_new_ticket) = new_tickets.last() {
-                    // There should be at least `tickets_overflow` tickets in the accumulator that have
-                    // larger id than the largest new ticket.
-                    if largest_new_ticket >= threshold_ticket {
-                        return Err(XtError::UselessTickets);
+                // The number of tickets to be dropped after merging the new tickets
+                let tickets_overflow =
+                    tickets_in_accumulator_sorted.len() + new_tickets.len() - EPOCH_LENGTH;
+
+                if tickets_overflow <= tickets_in_accumulator_sorted.len() {
+                    let threshold_idx = tickets_in_accumulator_sorted.len() - tickets_overflow;
+                    let threshold_ticket = &tickets_in_accumulator_sorted[threshold_idx];
+                    if let Some(largest_new_ticket) = new_tickets.last() {
+                        // There should be at least `tickets_overflow` tickets in the accumulator that have
+                        // larger id than the largest new ticket.
+                        if largest_new_ticket >= threshold_ticket {
+                            return Err(XtError::UselessTickets);
+                        }
                     }
                 }
             }
@@ -132,6 +148,7 @@ impl TicketsXtValidator {
     }
 
     /// Validates each `TicketsXtEntry`.
+    #[tracing::instrument(level = "debug", skip_all)]
     fn validate_entry(
         &self,
         entry: &TicketsXtEntry,

@@ -11,6 +11,7 @@ use bandersnatch::{
     BandersnatchSha512Ell2, IetfProof, Input, Output, Public, RingProof, RingProofParams, Secret,
 };
 use fr_common::VALIDATOR_COUNT;
+use tracing::instrument;
 
 pub const RING_SIZE: usize = VALIDATOR_COUNT;
 
@@ -187,7 +188,7 @@ impl IetfVrfVerifierCore {
             tracing::error!("VRF signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        tracing::debug!("VRF signature verified");
+        tracing::trace!("VRF signature verified");
 
         // `Y` hashed value; this is the actual value used as ticket-id/score
         // NOTE: as far as vrf_input_data is the same, this matches the one produced
@@ -195,7 +196,7 @@ impl IetfVrfVerifierCore {
         let vrf_output_hash: [u8; 32] = output.hash()[..32]
             .try_into()
             .expect("Should not fail; 32-byte array");
-        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 }
@@ -210,6 +211,7 @@ pub(crate) struct RingVrfVerifierCore {
 }
 
 impl RingVrfVerifierCore {
+    #[instrument(level = "debug", skip_all, name = "construct_verifier")]
     pub(crate) fn new(ring: Vec<Public>) -> Self {
         let pts: Vec<_> = ring.iter().map(|pk| pk.0).collect();
         let verifier_key = ring_proof_params().verifier_key(&pts);
@@ -243,13 +245,13 @@ impl RingVrfVerifierCore {
             tracing::error!("Ring signature verification failure");
             return Err(CryptoError::VrfVerificationFailed);
         }
-        tracing::debug!("Ring signature verified");
+        tracing::trace!("Ring signature verified");
 
         // `Y` hashed value; the actual value used as ticket-id/score
         let vrf_output_hash: [u8; 32] = output.hash()[..32]
             .try_into()
             .expect("Should not fail; 32-byte array");
-        tracing::debug!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
+        tracing::trace!("vrf-output-hash: {}", hex::encode(vrf_output_hash));
         Ok(vrf_output_hash)
     }
 }

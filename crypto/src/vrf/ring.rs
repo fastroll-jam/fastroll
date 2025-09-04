@@ -8,8 +8,10 @@ use ark_vrf::{
 };
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
 use fr_common::ByteEncodable;
+use tracing::instrument;
 
 /// Generates Bandersnatch Ring Root from the known validator set (ring)
+#[instrument(level = "debug", skip_all, name = "generate_ring_root")]
 pub fn generate_ring_root(
     validator_set: &ValidatorKeySet,
 ) -> Result<BandersnatchRingRoot, CryptoError> {
@@ -33,6 +35,7 @@ fn generate_ring_root_internal(
 }
 
 /// Converts `ValidatorKeySet` type into `Vec<Public>` type.
+#[instrument(level = "debug", skip_all, name = "construct_ring")]
 pub(crate) fn validator_set_to_bandersnatch_ring(
     validator_set: &ValidatorKeySet,
 ) -> Result<Vec<Public>, CryptoError> {
