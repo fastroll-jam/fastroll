@@ -35,14 +35,16 @@ use tokio::{sync::mpsc, try_join};
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
-    #[error("Block header contains invalid xt hash. Found in block: {header_value}, calculated: {calculated}")]
+    #[error("Block header contains invalid xt hash. Found in block: {header_value}, calculated: {calculated}"
+    )]
     InvalidXtHash {
         header_value: String,
         calculated: String,
     },
     #[error("Block header contains invalid author index")]
     InvalidAuthorIndex,
-    #[error("Block header is sealed with invalid fallback key. Reserved slot sealer key: {slot_sealer_key}, actual author key: {author_key}")]
+    #[error("Block header is sealed with invalid fallback key. Reserved slot sealer key: {slot_sealer_key}, actual author key: {author_key}"
+    )]
     InvalidFallbackAuthorKey {
         slot_sealer_key: String,
         author_key: String,
@@ -142,7 +144,7 @@ impl BlockImporter {
     ) -> Result<(StateRoot, AccountStateChanges), BlockImportError> {
         if block.is_genesis() {
             // Skip validation for the genesis block
-            let (post_state_root, _markers, account_state_changes) =
+            let (post_state_root, account_state_changes) =
                 Self::run_state_transition(&storage, &block).await?;
             return Ok((post_state_root, account_state_changes));
         }
@@ -151,10 +153,8 @@ impl BlockImporter {
         Self::validate_block_header_prior_stf(&storage, &block, is_fuzzing, is_first_fuzz_block)
             .await?;
         // Re-execute STF
-        let (post_state_root, header_markers, account_state_changes) =
+        let (post_state_root, account_state_changes) =
             Self::run_state_transition(&storage, &block).await?;
-        // Validate header fields (post STF)
-        Self::validate_block_header_post_stf(&storage, &block, header_markers).await?;
         // Set best header
         storage.header_db().set_best_header(block.header);
         Ok((post_state_root, account_state_changes))
@@ -249,8 +249,8 @@ impl BlockImporter {
 
     /// Gets posterior state values required for header signatures validation.
     ///
-    /// Note: this method is called after running STFs.
-    async fn get_post_states(
+    /// Note: this method is called after running the initial STFs.
+    async fn get_post_states_for_header_validation(
         storage: &NodeStorage,
         block: &Block,
     ) -> Result<(SlotSealer, BandersnatchPubKey, EntropyHash), BlockImportError> {
@@ -274,13 +274,13 @@ impl BlockImporter {
         ))
     }
 
-    async fn validate_block_header_post_stf(
+    async fn validate_block_header_post_safrole(
         storage: &NodeStorage,
         block: &Block,
         markers: BlockExecutionHeaderMarkers,
     ) -> Result<(), BlockImportError> {
         let (curr_slot_sealer, curr_author_bandersnatch_key, curr_entropy_3) =
-            Self::get_post_states(storage, block).await?;
+            Self::get_post_states_for_header_validation(storage, block).await?;
 
         Self::verify_block_seal(
             block,
@@ -432,9 +432,8 @@ impl BlockImporter {
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
-    ) -> Result<(MerkleRoot, BlockExecutionHeaderMarkers, AccountStateChanges), BlockImportError>
-    {
-        let (markers, account_state_changes) = if block.is_genesis() {
+    ) -> Result<(MerkleRoot, AccountStateChanges), BlockImportError> {
+        let account_state_changes = if block.is_genesis() {
             let output = BlockExecutor::run_genesis_state_transition(storage, block).await?;
             BlockExecutor::append_beefy_belt_and_block_history(
                 storage,
@@ -443,14 +442,14 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
-            (
-                BlockExecutionHeaderMarkers::default(),
-                output.account_state_changes,
-            )
+            output.account_state_changes
         } else {
             // STF phase #1
             let markers =
                 BlockExecutor::run_state_transition_pre_header_commitment(storage, block).await?;
+
+            // Validate remaining header fields (post Safrole STF)
+            Self::validate_block_header_post_safrole(storage, block, markers).await?;
 
             // STF phase #2
             let output =
@@ -464,13 +463,9 @@ impl BlockImporter {
                 output.reported_packages,
             )
             .await?;
-            (markers, output.account_state_changes)
+            output.account_state_changes
         };
         storage.state_manager().commit_dirty_cache().await?;
-        Ok((
-            storage.state_manager().merkle_root(),
-            markers,
-            account_state_changes,
-        ))
+        Ok((storage.state_manager().merkle_root(), account_state_changes))
     }
 }
