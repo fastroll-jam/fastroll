@@ -962,7 +962,9 @@ dependencies = [
  "fr-limited-vec",
  "fr-state",
  "hex",
+ "rayon",
  "thiserror 2.0.16",
+ "tracing",
 ]
 
 [[package]]

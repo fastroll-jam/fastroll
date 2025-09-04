@@ -32,6 +32,7 @@ use fr_transition::state::services::AccountStateChanges;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::{sync::mpsc, try_join};
+use tracing::instrument;
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
@@ -226,6 +227,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all)]
     async fn validate_block_header_prior_stf(
         storage: &NodeStorage,
         block: &Block,
@@ -274,6 +276,7 @@ impl BlockImporter {
         ))
     }
 
+    #[instrument(level = "debug", skip_all)]
     async fn validate_block_header_post_safrole(
         storage: &NodeStorage,
         block: &Block,
@@ -429,6 +432,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[instrument(level = "info", skip_all, name = "importer_stf")]
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,
