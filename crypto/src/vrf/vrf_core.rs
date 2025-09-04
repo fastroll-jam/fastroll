@@ -204,6 +204,7 @@ impl IetfVrfVerifierCore {
 pub(crate) type RingCommitment = ark_vrf::ring::RingCommitment<BandersnatchSha512Ell2>;
 
 /// Ring VRF verifier actor (Ring and its commitment).
+#[derive(Clone)]
 pub(crate) struct RingVrfVerifierCore {
     pub(crate) commitment: RingCommitment,
     #[allow(dead_code)]

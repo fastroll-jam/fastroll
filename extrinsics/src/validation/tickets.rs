@@ -131,11 +131,13 @@ impl TicketsXtValidator {
             }
         }
 
-        // Note: current Safrole pending set (γP′; after on-epoch-change transition) is used as
-        // the ring validator set.
-        // TODO: retrieve from the state manager cache
-        let pending_set = self.state_manger.get_safrole().await?.pending_set;
-        let verifier = RingVrfVerifier::new(&pending_set)?;
+        // Get or generate `RingVrfVerifier` from the state manager cache.
+        // In general this should be found from the cache since it is stored from the Safrole STF
+        // on epoch progress.
+        let verifier = self
+            .state_manger
+            .get_or_generate_ring_vrf_verifier()
+            .await?;
 
         let epoch_entropy = self.state_manger.get_epoch_entropy().await?;
         let entropy_2 = epoch_entropy.second_history();

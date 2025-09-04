@@ -102,6 +102,7 @@ impl RingVrfProver {
     }
 }
 
+#[derive(Clone)]
 pub struct RingVrfVerifier {
     core: RingVrfVerifierCore,
 }

@@ -67,7 +67,10 @@ async fn handle_new_epoch_transition(
     // Note: prior_staging_set is equivalent to current_pending_set
     let ring_vrf_verifier = RingVrfVerifier::new(&prior_staging_set)?;
     let curr_ring_root = ring_vrf_verifier.compute_ring_root()?;
-    // TODO: store the ring_vrf_verifier to the `StateManager`
+    // Store the new `RingVrfVerifier` to the cache
+    state_manager
+        .update_ring_vrf_verifier_cache(ring_vrf_verifier)
+        .await?;
 
     let curr_active_set = state_manager.get_active_set().await?;
     let curr_entropy = state_manager.get_epoch_entropy().await?;
