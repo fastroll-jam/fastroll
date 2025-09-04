@@ -107,11 +107,16 @@ pub struct RingVrfVerifier {
 }
 
 impl RingVrfVerifier {
-    pub fn new(validator_set: ValidatorKeySet) -> Result<Self, CryptoError> {
-        let ring = validator_set_to_bandersnatch_ring(&validator_set)?;
+    pub fn new(validator_set: &ValidatorKeySet) -> Result<Self, CryptoError> {
+        let ring = validator_set_to_bandersnatch_ring(validator_set)?;
         Ok(Self {
             core: RingVrfVerifierCore::new(ring),
         })
+    }
+
+    /// Computes Bandersnatch Ring Root from the known validator set (ring)
+    pub fn compute_ring_root(&self) -> Result<BandersnatchRingRoot, CryptoError> {
+        self.core.compute_ring_root()
     }
 
     #[instrument(level = "debug", skip_all, name = "verify_ring_vrf")]

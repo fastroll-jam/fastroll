@@ -1,38 +1,8 @@
-use crate::{
-    error::CryptoError,
-    types::*,
-    vrf::vrf_core::{RingCommitment, RingVrfVerifierCore},
-};
-use ark_vrf::{
-    codec::point_decode, reexports::ark_serialize::CanonicalSerialize, suites::bandersnatch,
-};
+use crate::{error::CryptoError, types::*};
+use ark_vrf::{codec::point_decode, suites::bandersnatch};
 use bandersnatch::{BandersnatchSha512Ell2, Public, RingProofParams};
 use fr_common::ByteEncodable;
 use tracing::instrument;
-
-/// Generates Bandersnatch Ring Root from the known validator set (ring)
-#[instrument(level = "debug", skip_all, name = "generate_ring_root")]
-pub fn generate_ring_root(
-    validator_set: &ValidatorKeySet,
-) -> Result<BandersnatchRingRoot, CryptoError> {
-    let commitment = generate_ring_root_internal(validator_set)?;
-    let mut bytes: Vec<u8> = vec![];
-    commitment
-        .serialize_compressed(&mut bytes)
-        .map_err(CryptoError::SerializationError)?;
-    bytes
-        .try_into()
-        .map(BandersnatchRingRoot::new)
-        .map_err(|_| CryptoError::RingRootError)
-}
-
-fn generate_ring_root_internal(
-    validator_set: &ValidatorKeySet,
-) -> Result<RingCommitment, CryptoError> {
-    let ring = validator_set_to_bandersnatch_ring(validator_set)?;
-    let verifier = RingVrfVerifierCore::new(ring);
-    Ok(verifier.commitment)
-}
 
 /// Converts `ValidatorKeySet` type into `Vec<Public>` type.
 #[instrument(level = "debug", skip_all, name = "construct_ring")]

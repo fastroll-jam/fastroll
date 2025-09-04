@@ -2,7 +2,7 @@
 //!
 //! This module is based on the [bandersnatch-vrfs-spec](https://github.com/davxy/bandersnatch-vrfs-spec)
 //! repository, with modifications as needed.
-use crate::error::CryptoError;
+use crate::{error::CryptoError, types::BandersnatchRingRoot};
 use ark_vrf::{
     reexports::ark_serialize::{self, CanonicalDeserialize, CanonicalSerialize},
     suites::bandersnatch,
@@ -217,6 +217,19 @@ impl RingVrfVerifierCore {
         let verifier_key = ring_proof_params().verifier_key(&pts);
         let commitment = verifier_key.commitment(); // The Ring Root
         Self { ring, commitment }
+    }
+
+    #[instrument(level = "debug", skip_all, name = "compute_ring_root")]
+    pub(crate) fn compute_ring_root(&self) -> Result<BandersnatchRingRoot, CryptoError> {
+        let commitment = self.commitment.clone();
+        let mut bytes: Vec<u8> = vec![];
+        commitment
+            .serialize_compressed(&mut bytes)
+            .map_err(CryptoError::SerializationError)?;
+        bytes
+            .try_into()
+            .map(BandersnatchRingRoot::new)
+            .map_err(|_| CryptoError::RingRootError)
     }
 
     /// Anonymous VRF signature verification.

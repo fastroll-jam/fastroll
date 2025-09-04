@@ -4,7 +4,7 @@ use fr_block::types::{
     extrinsics::tickets::TicketsXt,
 };
 use fr_common::{EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use fr_crypto::{types::ValidatorKeySet, vrf::ring::generate_ring_root};
+use fr_crypto::{types::ValidatorKeySet, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_limited_vec::FixedVec;
 use fr_state::{
@@ -65,7 +65,10 @@ async fn handle_new_epoch_transition(
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
-    let curr_ring_root = generate_ring_root(&prior_staging_set)?;
+    let ring_vrf_verifier = RingVrfVerifier::new(&prior_staging_set)?;
+    let curr_ring_root = ring_vrf_verifier.compute_ring_root()?;
+    // TODO: store the ring_vrf_verifier to the `StateManager`
+
     let curr_active_set = state_manager.get_active_set().await?;
     let curr_entropy = state_manager.get_epoch_entropy().await?;
 
