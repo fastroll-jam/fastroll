@@ -6,6 +6,7 @@ use fr_common::{
 };
 use fr_crypto::{error::CryptoError, traits::VrfSignature, vrf::bandersnatch_vrf::RingVrfVerifier};
 use fr_state::manager::StateManager;
+use rayon::prelude::*;
 use std::{collections::HashSet, sync::Arc};
 use tracing::debug_span;
 
@@ -143,9 +144,9 @@ impl TicketsXtValidator {
         let entropy_2 = epoch_entropy.second_history();
 
         // Validate each entry
-        for entry in extrinsic.iter() {
-            self.validate_entry(entry, &verifier, entropy_2)?;
-        }
+        extrinsic
+            .par_iter()
+            .try_for_each(|entry| self.validate_entry(entry, &verifier, entropy_2))?;
 
         Ok(new_tickets)
     }
