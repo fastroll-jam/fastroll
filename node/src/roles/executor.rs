@@ -39,6 +39,7 @@ use fr_transition::{
 };
 use thiserror::Error;
 use tokio::try_join;
+use tracing::instrument;
 
 #[derive(Debug, Error)]
 pub enum BlockExecutionError {
@@ -71,6 +72,7 @@ pub struct BlockExecutionHeaderMarkers {
 pub struct BlockExecutor;
 impl BlockExecutor {
     /// Runs state transition functions required to commit the block header.
+    #[instrument(level = "debug", skip_all, name = "stf_pre_header")]
     pub async fn run_state_transition_pre_header_commitment(
         storage: &NodeStorage,
         block: &Block,
@@ -152,6 +154,7 @@ impl BlockExecutor {
         })
     }
 
+    #[instrument(level = "debug", skip_all, name = "stf_post_header")]
     pub async fn run_state_transition_post_header_commitment(
         storage: &NodeStorage,
         block: &Block,
@@ -370,6 +373,7 @@ impl BlockExecutor {
     }
 
     /// The remaining BlockHistory STFs
+    #[instrument(level = "debug", skip_all, name = "last_history_stf")]
     pub async fn append_beefy_belt_and_block_history(
         storage: &NodeStorage,
         accumulate_root: AccumulateRoot,
