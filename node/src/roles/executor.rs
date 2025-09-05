@@ -72,7 +72,7 @@ pub struct BlockExecutionHeaderMarkers {
 pub struct BlockExecutor;
 impl BlockExecutor {
     /// Runs state transition functions required to commit the block header.
-    #[instrument(level = "debug", skip_all, name = "stf_pre_header")]
+    #[instrument(level = "debug", skip_all, name = "stf_1")]
     pub async fn run_state_transition_pre_header_commitment(
         storage: &NodeStorage,
         block: &Block,
@@ -123,25 +123,33 @@ impl BlockExecutor {
 
         // BlockHistory STF (the first half only)
         let manager = storage.state_manager();
-        spawn_timed("history_stf", async move {
+        let history_jh = spawn_timed("history_stf", async move {
             transition_block_history_parent_root(manager, parent_state_root).await
-        })
-        .await??;
+        });
 
-        // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF)
+        // --- Join: Disputes, Entropy, PastSet, ActiveSet STFs (dependencies for Safrole STF) + History
         #[allow(unused_must_use)]
-        try_join!(disputes_jh, entropy_jh, past_set_jh, active_set_jh)?;
+        try_join!(
+            disputes_jh,
+            entropy_jh,
+            past_set_jh,
+            active_set_jh,
+            history_jh
+        )?;
 
         // Safrole STF
         let manager = storage.state_manager();
-        transition_safrole(
-            manager,
-            &prev_timeslot,
-            &curr_timeslot,
-            epoch_progressed,
-            &tickets_xt,
-        )
-        .await?;
+        spawn_timed("safrole_stf", async move {
+            transition_safrole(
+                manager,
+                &prev_timeslot,
+                &curr_timeslot,
+                epoch_progressed,
+                &tickets_xt,
+            )
+            .await
+        })
+        .await??;
 
         // Collect header markers
         let safrole_markers =
@@ -154,7 +162,7 @@ impl BlockExecutor {
         })
     }
 
-    #[instrument(level = "debug", skip_all, name = "stf_post_header")]
+    #[instrument(level = "debug", skip_all, name = "stf_2")]
     pub async fn run_state_transition_post_header_commitment(
         storage: &NodeStorage,
         block: &Block,
@@ -373,7 +381,7 @@ impl BlockExecutor {
     }
 
     /// The remaining BlockHistory STFs
-    #[instrument(level = "debug", skip_all, name = "last_history_stf")]
+    #[instrument(level = "debug", skip_all, name = "stf_3")]
     pub async fn append_beefy_belt_and_block_history(
         storage: &NodeStorage,
         accumulate_root: AccumulateRoot,

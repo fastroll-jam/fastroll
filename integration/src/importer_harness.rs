@@ -17,6 +17,7 @@ use std::{
     sync::Arc,
 };
 use tempfile::tempdir;
+use tracing::{info_span, instrument};
 // --- ASN Types
 
 pub type AsnStateKey = ByteArray<31>;
@@ -48,11 +49,13 @@ pub struct AsnGenesisBlockTestCase {
 }
 
 // --- FastRoll Types
+#[derive(Clone)]
 pub struct RawState {
     pub state_root: StateRoot,
     pub keyvals: Vec<KeyValue>,
 }
 
+#[derive(Clone)]
 pub struct KeyValue {
     pub key: StateKey,
     pub value: ByteSequence,
@@ -156,6 +159,7 @@ impl BlockImportHarness {
         Ok(())
     }
 
+    #[instrument(level = "info", skip_all, name = "import")]
     async fn import_block(
         storage: Arc<NodeStorage>,
         block: Block,
@@ -169,6 +173,7 @@ impl BlockImportHarness {
         unimplemented!()
     }
 
+    #[instrument(level = "info", skip_all)]
     async fn assert_post_state(
         state_manager: &StateManager,
         actual_post_state_root: StateRoot,
@@ -198,36 +203,42 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     // Config tracing subscriber
     setup_timed_tracing();
 
-    // load test case
-    let test_case = BlockImportHarness::load_test_case(&PathBuf::from(file_path));
-    let test_case = BlockImportHarness::convert_test_case(test_case);
+    let (storage, test_case) = {
+        let span = info_span!("init_test");
+        let _e = span.enter();
 
-    // init node storage
-    let storage = Arc::new(BlockImportHarness::init_node_storage());
+        // load test case
+        let test_case = BlockImportHarness::load_test_case(&PathBuf::from(file_path));
+        let test_case = BlockImportHarness::convert_test_case(test_case);
 
-    // initialize state keys if genesis block
-    if test_case.block.is_genesis() {
-        add_all_simple_state_entries(&storage.state_manager(), None).await?;
-    }
+        // init node storage
+        let storage = Arc::new(BlockImportHarness::init_node_storage());
 
-    let pre_state_root = test_case.pre_state.state_root.clone();
-    BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state).await?;
+        // initialize state keys if genesis block
+        if test_case.block.is_genesis() {
+            add_all_simple_state_entries(&storage.state_manager(), None).await?;
+        }
 
-    // if !test_case.block.is_genesis() {
-    //     // Workaround: Import parent block from the previous test case and then set it as best header.
-    //     let parent_header = get_parent_block_header(file_path);
-    //     let parent_header_hash = parent_header.hash()?;
-    //     storage.header_db().set_best_header(parent_header);
-    //
-    //     // Set post state root of the parent block (prior state root)
-    //     storage
-    //         .post_state_root_db()
-    //         .set_post_state_root(
-    //             &parent_header_hash,
-    //             test_case.block.header.parent_state_root().clone(),
-    //         )
-    //         .await?;
-    // }
+        BlockImportHarness::commit_pre_state(&storage.state_manager(), test_case.pre_state.clone())
+            .await?;
+
+        // if !test_case.block.is_genesis() {
+        //     // Workaround: Import parent block from the previous test case and then set it as best header.
+        //     let parent_header = get_parent_block_header(file_path);
+        //     let parent_header_hash = parent_header.hash()?;
+        //     storage.header_db().set_best_header(parent_header);
+        //
+        //     // Set post state root of the parent block (prior state root)
+        //     storage
+        //         .post_state_root_db()
+        //         .set_post_state_root(
+        //             &parent_header_hash,
+        //             test_case.block.header.parent_state_root().clone(),
+        //         )
+        //         .await?;
+        // }
+        (storage, test_case)
+    };
 
     // import block
     let post_state_root =
@@ -237,7 +248,7 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
                 tracing::warn!("Invalid block: {e:?}");
                 // If the block is invalid, return the latest committed state root.
                 // Here, returning state root of `pre_state` of the test file for convenience.
-                pre_state_root
+                test_case.pre_state.state_root.clone()
             }
         };
 

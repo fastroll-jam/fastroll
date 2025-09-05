@@ -229,7 +229,7 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "debug", skip_all, name = "val_header_1")]
     async fn validate_block_header_prior_stf(
         storage: &NodeStorage,
         block: &Block,
@@ -278,7 +278,7 @@ impl BlockImporter {
         ))
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "debug", skip_all, name = "val_header_2")]
     async fn validate_block_header_post_safrole(
         storage: &NodeStorage,
         block: &Block,
@@ -434,7 +434,7 @@ impl BlockImporter {
         Ok(())
     }
 
-    #[instrument(level = "info", skip_all, name = "importer_stf")]
+    #[instrument(level = "info", skip_all, name = "stf")]
     async fn run_state_transition(
         storage: &NodeStorage,
         block: &Block,

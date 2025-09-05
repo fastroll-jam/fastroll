@@ -16,6 +16,7 @@ use fr_pvm_types::{
     constants::{MAX_INST_BLOB_LENGTH, MAX_SKIP_DISTANCE},
     exit_reason::ExitReason,
 };
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct SingleStepResult {
@@ -50,6 +51,7 @@ impl Interpreter {
 
     /// Extracts a single instruction at a given program counter from the instructions blob.
     /// Returns `None` if the parsing fails.
+    #[instrument(level = "debug", skip_all, name = "ext_inst")]
     fn extract_single_inst(
         instructions: &[u8],
         curr_pc: RegValue,
@@ -84,6 +86,7 @@ impl Interpreter {
     /// as arguments to the `invoke_single_step` function.
     ///
     /// Represents `Ψ` of the GP.
+    #[instrument(level = "debug", name = "inv_gen", skip_all)]
     pub fn invoke_general(
         vm_state: &mut VMState,
         program_state: &mut ProgramState, // program code loaded from the `invoke_extended`
@@ -122,7 +125,7 @@ impl Interpreter {
                 return Ok(ExitReason::OutOfGas);
             }
 
-            tracing::debug!(
+            tracing::trace!(
                 "{:?}({}) pc={} gas={} regs={:?}",
                 inst.op,
                 inst.op as u8,
@@ -151,6 +154,7 @@ impl Interpreter {
     /// Instruction `SBRK` is the only instruction that directly mutates the VM state, for a heap expansion.
     ///
     /// Represents `Ψ_1` of the GP.
+    #[instrument(level = "debug", skip_all, name = "run_inst")]
     fn invoke_single_step(
         vm_state: &mut VMState,
         program_state: &ProgramState,
