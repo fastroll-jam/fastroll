@@ -17,6 +17,7 @@ use fr_state::{
     },
 };
 use std::sync::Arc;
+use tracing::instrument;
 
 /// State transition function of `SafroleState`.
 ///
@@ -183,6 +184,7 @@ fn extract_epoch_marker_keys(
     FixedVec::try_from(result).expect("size checked")
 }
 
+#[instrument(level = "debug", skip_all, name = "header_markers")]
 pub async fn mark_safrole_header_markers(
     state_manager: Arc<StateManager>,
     epoch_progressed: bool,

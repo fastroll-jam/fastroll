@@ -585,7 +585,7 @@ impl StateManager {
     /// Collects all dirty cache entries after state transition, then commit them into
     /// `MerkleDB` and `StateDB` as a single synchronous batch write operation.
     /// After committing to the databases, marks the committed cache entries as clean.
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(level = "debug", skip(self), name = "commit_cache")]
     pub async fn commit_dirty_cache(&self) -> Result<(), StateManagerError> {
         let mut dirty_entries = self.cache.collect_dirty();
         tracing::debug!("committing {} dirty cache entries", dirty_entries.len());
@@ -606,7 +606,6 @@ impl StateManager {
         let mut merkle_db_wb = WriteBatch::default();
         let mut state_db_wb = WriteBatch::default();
 
-        tracing::debug!("collecting DB write set");
         for (state_key, entry) in &dirty_entries {
             // Convert dirty cache entries into write batch and commit to the MerkleDB
             let DBWriteSet {
@@ -616,10 +615,6 @@ impl StateManager {
                 .merkle_db
                 .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
                 .await?;
-
-            // Debugging
-            tracing::trace!("MerkleDBWriteSet: {}", &merkle_db_write_set);
-            tracing::trace!("StateDBWriteSet: {}", &state_db_write_set);
 
             self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
             self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;

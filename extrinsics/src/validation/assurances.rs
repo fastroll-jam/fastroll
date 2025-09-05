@@ -39,6 +39,7 @@ impl AssurancesXtValidator {
     }
 
     /// Validates the entire `AssurancesXt`.
+    #[tracing::instrument(level = "debug", skip_all, name = "val_assurances_xt")]
     pub async fn validate(
         &self,
         extrinsic: &AssurancesXt,
@@ -71,6 +72,7 @@ impl AssurancesXtValidator {
     }
 
     /// Validates each `AssurancesXtEntry`.
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn validate_entry(
         &self,
         entry: &AssurancesXtEntry,
