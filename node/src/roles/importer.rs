@@ -117,7 +117,9 @@ impl BlockImporter {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Block Import Error: {e}")
+                    tracing::error!("Invalid block: {e}");
+                    // Rollback uncommitted state changes
+                    storage.state_manager().rollback_dirty_cache();
                 }
             }
         }

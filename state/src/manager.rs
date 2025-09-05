@@ -671,6 +671,14 @@ impl StateManager {
         Ok(())
     }
 
+    /// Rolls back all uncommitted state changes.
+    ///
+    /// This method should be called by the block processor when a block fails validation.
+    /// It reverts the state cache to its last known clean state, discarding the pending state changes.
+    pub fn rollback_dirty_cache(&self) {
+        self.cache.rollback_dirty_cache()
+    }
+
     /// Gets a state entry prior to state mutation, by either referencing `clean_snapshot` of
     /// state cache or directly retrieving the clean value from the DB.
     async fn get_clean_state_entry_internal<T>(
