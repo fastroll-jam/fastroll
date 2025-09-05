@@ -79,6 +79,7 @@ impl GuaranteesXtValidator {
     /// Validates the entire `GuaranteesXt`.
     ///
     /// Returns `Ed25519PubKey`s of guarantors of all report entries.
+    #[tracing::instrument(level = "debug", skip_all, name = "val_guarantees_xt")]
     pub async fn validate(
         &self,
         extrinsic: &GuaranteesXt,
@@ -156,6 +157,7 @@ impl GuaranteesXtValidator {
     ///
     /// Returns `Ed25519PubKey`s of guarantors of the report entry.
     #[allow(clippy::too_many_arguments)]
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn validate_entry(
         &self,
         entry: &GuaranteesXtEntry,

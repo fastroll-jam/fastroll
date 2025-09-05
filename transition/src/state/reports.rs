@@ -34,6 +34,12 @@ pub async fn transition_reports_eliminate_invalid(
     disputes_xt: &DisputesXt,
     prior_timeslot: Timeslot,
 ) -> Result<(), TransitionError> {
+    tracing::info!(
+        "Disputes: {} verdicts, {} culprits, {} faults",
+        disputes_xt.verdicts.len(),
+        disputes_xt.culprits.len(),
+        disputes_xt.faults.len()
+    );
     // Validate disputes extrinsic data.
     let disputes_validator = DisputesXtValidator::new(state_manager.clone());
     disputes_validator
@@ -71,6 +77,7 @@ pub async fn transition_reports_clear_availables(
     assurances_xt: &AssurancesXt,
     header_parent_hash: BlockHeaderHash,
 ) -> Result<Vec<WorkReport>, TransitionError> {
+    tracing::info!("Reports: {} assurances xts", assurances_xt.len());
     // Validate assurances extrinsic data.
     let assurances_validator = AssurancesXtValidator::new(state_manager.clone());
     assurances_validator
@@ -132,6 +139,7 @@ pub async fn transition_reports_update_entries(
     guarantees_xt: &GuaranteesXt,
     current_timeslot: Timeslot,
 ) -> Result<(Vec<ReportedWorkPackage>, Vec<Ed25519PubKey>), TransitionError> {
+    tracing::info!("Reports: {} guarantees xts", guarantees_xt.len());
     // Validate guarantees extrinsic data.
     let guarantees_validator = GuaranteesXtValidator::new(state_manager.clone(), header_db);
     let all_guarantor_keys = guarantees_validator

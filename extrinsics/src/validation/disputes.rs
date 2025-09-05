@@ -47,6 +47,7 @@ impl DisputesXtValidator {
         Self { state_manager }
     }
 
+    #[tracing::instrument(level = "debug", skip_all, name = "val_disputes_xt")]
     pub async fn validate(
         &self,
         extrinsic: &DisputesXt,
@@ -160,6 +161,7 @@ impl DisputesXtValidator {
         active_and_past_keys
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn validate_verdicts_entry(
         entry: &Verdict,
         active_set: &ActiveSet,
@@ -248,6 +250,7 @@ impl DisputesXtValidator {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     fn validate_culprits_entry(
         entry: &Culprit,
         valid_set: &HashSet<Ed25519PubKey>,
@@ -288,6 +291,7 @@ impl DisputesXtValidator {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     pub fn validate_faults_entry(
         entry: &Fault,
         valid_set: &HashSet<Ed25519PubKey>,

@@ -28,6 +28,7 @@ impl PreimagesXtValidator {
     }
 
     /// Validates the entire `PreimagesXt`.
+    #[tracing::instrument(level = "debug", skip_all, name = "val_preimages_xt")]
     pub async fn validate(&self, extrinsic: &PreimagesXt) -> Result<(), XtError> {
         if extrinsic.is_empty() {
             return Ok(());
@@ -53,6 +54,7 @@ impl PreimagesXtValidator {
     }
 
     /// Validates each `PreimagesXtEntry`.
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn validate_entry(&self, entry: &PreimagesXtEntry) -> Result<(), XtError> {
         let service_id = entry.service_id;
         let preimage_data_len = entry.preimage_data_len();
