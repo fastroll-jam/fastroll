@@ -83,15 +83,21 @@ impl CacheEntry {
 
 /// A thread-safe mapping from state keys to their corresponding cache entries.
 pub struct StateCache {
+    /// A state cache which ensures that dirty cache entries never get evicted.
     inner: Cache<StateKey, CacheEntry>,
     /// Tracks state keys of all "dirty" cache entries.
     dirty_keys: Mutex<HashSet<StateKey>>,
 }
 
 impl StateCache {
+    /// Creates a `StateCache` with the given max capacity.
+    /// Cache entries with `Dirty` status never gets evicted since they have zero weight.
     pub fn new(max_capacity: usize) -> Self {
         Self {
-            inner: Cache::new(max_capacity as u64),
+            inner: Cache::builder()
+                .weigher(|_key, entry: &CacheEntry| -> u32 { u32::from(!entry.is_dirty()) })
+                .max_capacity(max_capacity as u64)
+                .build(),
             dirty_keys: Mutex::new(HashSet::new()),
         }
     }
