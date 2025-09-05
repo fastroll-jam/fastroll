@@ -310,6 +310,7 @@ impl StateManager {
         );
     }
 
+    // Note: test-only
     pub fn clear_state_cache(&self) {
         self.cache.invalidate_all();
     }
@@ -669,6 +670,14 @@ impl StateManager {
     async fn commit_to_state_db(&self, batch: WriteBatch) -> Result<(), StateManagerError> {
         self.state_db.commit_write_batch(batch).await?;
         Ok(())
+    }
+
+    /// Rolls back all uncommitted state changes.
+    ///
+    /// This method should be called by the block processor when a block fails validation.
+    /// It reverts the state cache to its last known clean state, discarding the pending state changes.
+    pub fn rollback_dirty_cache(&self) {
+        self.cache.rollback_dirty_cache()
     }
 
     /// Gets a state entry prior to state mutation, by either referencing `clean_snapshot` of
