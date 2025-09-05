@@ -128,6 +128,7 @@ impl StateCache {
         self.inner.insert(key, entry);
     }
 
+    // Note: test-only
     pub(crate) fn invalidate_all(&self) {
         self.inner.invalidate_all();
     }

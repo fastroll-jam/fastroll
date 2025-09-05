@@ -310,6 +310,7 @@ impl StateManager {
         );
     }
 
+    // Note: test-only
     pub fn clear_state_cache(&self) {
         self.cache.invalidate_all();
     }
