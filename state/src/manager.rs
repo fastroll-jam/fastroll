@@ -35,7 +35,7 @@ use std::{
     future::Future,
     sync::{Arc, RwLock},
 };
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 pub struct StateManager {
     state_db: StateDB,
@@ -606,52 +606,62 @@ impl StateManager {
         let mut merkle_db_wb = WriteBatch::default();
         let mut state_db_wb = WriteBatch::default();
 
-        for (state_key, entry) in &dirty_entries {
-            // Convert dirty cache entries into write batch and commit to the MerkleDB
-            let DBWriteSet {
-                merkle_db_write_set,
-                state_db_write_set,
-            } = self
-                .merkle_db
-                .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
-                .await?;
+        {
+            let span = debug_span!("write_set");
+            let _e = span.enter();
 
-            self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
-            self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
+            tracing::debug!("Collecting {} dirty entries", dirty_entries.len());
+            for (state_key, entry) in &dirty_entries {
+                // Convert dirty cache entries into write batch and commit to the MerkleDB
+                let DBWriteSet {
+                    merkle_db_write_set,
+                    state_db_write_set,
+                } = self
+                    .merkle_db
+                    .collect_write_set(state_key, entry.as_merkle_write_op(state_key)?)
+                    .await?;
 
-            // Copy MerkleDBWriteSet entries to the WorkingSet
-            merkle_db_write_set
-                .iter()
-                .for_each(|(_node_hash, node_write)| {
-                    self.merkle_db
-                        .working_set
-                        .insert_node(node_write.clone().into());
-                });
+                self.append_to_merkle_db_write_batch(&mut merkle_db_wb, &merkle_db_write_set)?;
+                self.append_to_state_db_write_batch(&mut state_db_wb, &state_db_write_set)?;
 
-            // Update the WorkingSet root
-            self.merkle_db
-                .update_root(merkle_db_write_set.get_new_root().clone());
-            tracing::trace!(
-                "Merkle root updated: {}",
-                &merkle_db_write_set.get_new_root()
-            );
+                // Copy MerkleDBWriteSet entries to the WorkingSet
+                merkle_db_write_set
+                    .iter()
+                    .for_each(|(_node_hash, node_write)| {
+                        self.merkle_db
+                            .working_set
+                            .insert_node(node_write.clone().into());
+                    });
+
+                // Update the WorkingSet root
+                self.merkle_db
+                    .update_root(merkle_db_write_set.get_new_root().clone());
+                tracing::trace!(
+                    "Merkle root updated: {}",
+                    &merkle_db_write_set.get_new_root()
+                );
+            }
         }
+        {
+            let span = debug_span!("commit_and_sync");
+            let _e = span.enter();
 
-        // Commit the write batch to the MerkleDB
-        self.commit_to_merkle_db(merkle_db_wb).await?;
+            // Commit the write batch to the MerkleDB
+            self.commit_to_merkle_db(merkle_db_wb).await?;
 
-        // Commit the write batch to the StateDB
-        self.commit_to_state_db(state_db_wb).await?;
+            // Commit the write batch to the StateDB
+            self.commit_to_state_db(state_db_wb).await?;
 
-        // Update the merkle root of the MerkleDB
-        let new_root = self.merkle_db.root_with_working_set();
-        self.merkle_db.update_root(new_root);
+            // Update the merkle root of the MerkleDB
+            let new_root = self.merkle_db.root_with_working_set();
+            self.merkle_db.update_root(new_root);
 
-        // Clear the WorkingSet
-        self.merkle_db.clear_working_set();
+            // Clear the WorkingSet
+            self.merkle_db.clear_working_set();
 
-        // Sync up the state cache with the global state.
-        self.cache.sync_cache_status(&dirty_entries);
+            // Sync up the state cache with the global state.
+            self.cache.sync_cache_status(&dirty_entries);
+        }
 
         Ok(())
     }
