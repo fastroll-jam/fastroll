@@ -6,7 +6,10 @@ use fr_codec::prelude::*;
 use fr_common::StateKey;
 use fr_state_merkle::merkle_db::MerkleWriteOp;
 use mini_moka::sync::{Cache, ConcurrentCacheExt};
-use std::sync::Arc;
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateMut {
@@ -41,6 +44,10 @@ impl CacheEntry {
         }
     }
 
+    pub(crate) fn is_dirty(&self) -> bool {
+        matches!(self.status, CacheEntryStatus::Dirty(_))
+    }
+
     pub(crate) fn as_merkle_write_op(
         &self,
         state_key: &StateKey,
@@ -63,6 +70,11 @@ impl CacheEntry {
         self.status = CacheEntryStatus::Dirty(state_mut);
     }
 
+    fn revert_to_clean(&mut self) {
+        self.value = self.clean_snapshot.clone();
+        self.status = CacheEntryStatus::Clean;
+    }
+
     pub fn mark_clean_and_snapshot(&mut self) {
         self.status = CacheEntryStatus::Clean;
         self.clean_snapshot = self.value.clone(); // snapshot clean value
@@ -72,13 +84,32 @@ impl CacheEntry {
 /// A thread-safe mapping from state keys to their corresponding cache entries.
 pub struct StateCache {
     inner: Cache<StateKey, CacheEntry>,
+    /// Tracks state keys of all "dirty" cache entries.
+    dirty_keys: Mutex<HashSet<StateKey>>,
 }
 
 impl StateCache {
     pub fn new(max_capacity: usize) -> Self {
         Self {
             inner: Cache::new(max_capacity as u64),
+            dirty_keys: Mutex::new(HashSet::new()),
         }
+    }
+
+    fn get_dirty_state_keys(&self) -> Vec<StateKey> {
+        self.dirty_keys.lock().unwrap().iter().cloned().collect()
+    }
+
+    fn insert_to_dirty_state_key_set(&self, state_key: StateKey) {
+        self.dirty_keys.lock().unwrap().insert(state_key);
+    }
+
+    fn remove_dirty_state_key(&self, state_key: &StateKey) {
+        self.dirty_keys.lock().unwrap().remove(state_key);
+    }
+
+    fn clear_dirty_state_keys(&self) {
+        self.dirty_keys.lock().unwrap().clear();
     }
 
     pub(crate) fn get_entry(&self, key: &StateKey) -> Option<CacheEntry> {
@@ -100,9 +131,13 @@ impl StateCache {
     }
 
     pub(crate) fn insert_entry(&self, key: StateKey, entry: CacheEntry) {
-        self.inner.insert(key, entry)
+        if entry.is_dirty() {
+            self.insert_to_dirty_state_key_set(key.clone());
+        }
+        self.inner.insert(key, entry);
     }
 
+    // Note: test-only
     pub(crate) fn invalidate_all(&self) {
         self.inner.invalidate_all();
     }
@@ -135,6 +170,7 @@ impl StateCache {
         if cache_entry.status != CacheEntryStatus::Dirty(StateMut::Add)
             || state_mut != StateMut::Update
         {
+            self.insert_to_dirty_state_key_set(state_key.clone());
             cache_entry.mark_dirty(state_mut)
         }
 
@@ -151,24 +187,21 @@ impl StateCache {
             .get(key)
             .ok_or(StateManagerError::CacheEntryNotFound)?;
         cache_entry.mark_clean_and_snapshot();
+        self.remove_dirty_state_key(key);
         self.inner.insert(key.clone(), cache_entry);
         Ok(())
     }
 
     pub(crate) fn collect_dirty(&self) -> Vec<(StateKey, CacheEntry)> {
-        self.inner
-            .iter()
-            .filter_map(|entry_ref| match entry_ref.value().status {
-                CacheEntryStatus::Clean => None,
-                CacheEntryStatus::Dirty(_) => {
-                    Some((entry_ref.key().clone(), entry_ref.value().clone()))
-                }
-            })
+        let dirty_keys = self.get_dirty_state_keys();
+        dirty_keys
+            .into_iter()
+            .filter_map(|key| self.get_entry(&key).map(|entry| (key, entry)))
             .collect()
     }
 
-    // Syncs up the state cache with the global state, by removing cache entries that are deleted
-    // from the global state and marking added or updated entries as clean.
+    /// Syncs up the state cache with the global state, by removing cache entries that are deleted
+    /// from the global state and marking added or updated entries as clean.
     pub(crate) fn sync_cache_status(&self, dirty_entries: &[(StateKey, CacheEntry)]) {
         for (key, entry) in dirty_entries.iter() {
             // Remove cache entries that are removed from the global state
@@ -180,6 +213,33 @@ impl StateCache {
             }
         }
         self.inner.sync();
+        self.clear_dirty_state_keys();
+    }
+
+    /// Rolls back all dirty cache entries to the clean status.
+    /// `Add`ed entries will be explicitly evicted from the state cache.
+    /// `Update`d or `Remove`d entries will be reverted back to the clean snapshot.
+    pub(crate) fn rollback_dirty_cache(&self) {
+        let dirty_keys = self.get_dirty_state_keys();
+        dirty_keys.into_iter().for_each(|key| {
+            if let Some(mut entry) = self.get_entry(&key) {
+                match entry.status {
+                    CacheEntryStatus::Dirty(StateMut::Add) => {
+                        self.inner.invalidate(&key);
+                    },
+                    CacheEntryStatus::Dirty(StateMut::Update) | CacheEntryStatus::Dirty(StateMut::Remove) => {
+                        entry.revert_to_clean();
+                        self.insert_entry(key, entry);
+                    },
+                    CacheEntryStatus::Clean => {
+                        panic!("STATE MISMATCH: Key from `dirty_keys` points to a `Clean` cache entry. Key={key}");
+                    }
+                }
+            } else {
+                panic!("STATE MISMATCH: Key from `dirty_keys` not found from the state cache. Key={key}");
+            }
+        });
+        self.clear_dirty_state_keys();
     }
 }
 

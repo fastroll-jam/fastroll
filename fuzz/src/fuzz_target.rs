@@ -249,6 +249,9 @@ impl FuzzTargetRunner {
                     }
                     Err(e) => {
                         tracing::debug!("Invalid block - import failed: {e:?}");
+
+                        // Rollback the state cache (revert all dirty entries)
+                        storage.state_manager().rollback_dirty_cache();
                         // Return pre-state root for invalid blocks
                         pre_state_root
                     }
