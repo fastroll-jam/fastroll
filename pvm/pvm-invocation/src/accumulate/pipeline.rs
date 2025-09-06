@@ -21,6 +21,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
 };
+use tracing::instrument;
 
 #[derive(Default)]
 pub struct OuterAccumulationResult {
@@ -58,6 +59,7 @@ fn max_processable_reports(reports: &[WorkReport], gas_limit: UnsignedGas) -> us
 }
 
 /// Represents `Δ+` of the GP.
+#[instrument(level = "debug", skip_all, name = "acc_seq")]
 pub async fn accumulate_outer(
     state_manager: Arc<StateManager>,
     gas_limit: UnsignedGas,
@@ -229,6 +231,7 @@ async fn add_provided_preimages(
 }
 
 /// Represents `Δ*` of the GP.
+#[instrument(level = "debug", skip_all, name = "acc_par")]
 async fn accumulate_parallel(
     state_manager: Arc<StateManager>,
     prev_deferred_transfers: Arc<Vec<DeferredTransfer>>,
@@ -424,6 +427,7 @@ fn extract_transfers(
 /// Invokes the `accumulate` PVM entrypoint for a single service.
 ///
 /// Represents `Δ1` of the GP.
+#[instrument(level = "debug", skip_all, name = "acc_one")]
 async fn accumulate_single_service(
     state_manager: Arc<StateManager>,
     partial_state: AccumulatePartialState<StateManager>,

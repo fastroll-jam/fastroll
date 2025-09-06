@@ -51,7 +51,7 @@ impl TicketsXtValidator {
     }
 
     /// Validates the entire `TicketsXt`.
-    #[tracing::instrument(level = "debug", skip_all, name = "validate_tickets_xt")]
+    #[tracing::instrument(level = "debug", skip_all, name = "val_tickets_xt")]
     pub async fn validate(&self, extrinsic: &TicketsXt) -> Result<Vec<Ticket>, XtError> {
         if extrinsic.is_empty() {
             return Ok(vec![]);
