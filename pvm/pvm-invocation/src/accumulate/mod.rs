@@ -22,6 +22,7 @@ use fr_state::{
     cache::StateMut, error::StateManagerError, manager::StateManager, provider::HostStateProvider,
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
+use tracing::instrument;
 
 /// `Ψ_M` invocation function arguments for `Ψ_A`
 #[derive(JamEncode)]
@@ -74,6 +75,7 @@ impl<S: HostStateProvider> AccumulateInvocation<S> {
     /// * `args` - Accumulate entry-point function arguments.
     ///
     /// Represents `Ψ_A` of the GP
+    #[instrument(level = "debug", skip_all, name = "acc")]
     pub(crate) async fn accumulate(
         state_manager: Arc<StateManager>,
         partial_state: AccumulatePartialState<StateManager>,

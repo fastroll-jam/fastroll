@@ -15,6 +15,7 @@ use fr_pvm_host::{
 use fr_pvm_types::{common::RegValue, exit_reason::ExitReason, hostcall::HostCallType};
 use fr_state::manager::StateManager;
 use std::sync::Arc;
+use tracing::instrument;
 
 struct ExtendedInvocationResult {
     exit_reason: ExitReason,
@@ -215,6 +216,7 @@ impl PVMInterface {
         }
     }
 
+    #[instrument(level = "trace", name = "exe_hc", skip_all)]
     async fn execute_host_function(
         pvm: &PVM,
         state_manager: Arc<StateManager>,
