@@ -111,9 +111,9 @@ impl From<AsnRawState> for RawState {
 
 // --- Test Harness
 
-struct BlockImportHarness;
+pub struct BlockImportHarness;
 impl BlockImportHarness {
-    fn load_test_case(file_path: &Path) -> AsnTestCase {
+    pub fn load_test_case(file_path: &Path) -> AsnTestCase {
         let json_str = fs::read_to_string(file_path).expect("Failed to read test vector file");
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
@@ -123,7 +123,7 @@ impl BlockImportHarness {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
-    fn convert_test_case(test_case: AsnTestCase) -> TestCase {
+    pub fn convert_test_case(test_case: AsnTestCase) -> TestCase {
         TestCase {
             pre_state: test_case.pre_state.into(),
             block: test_case.block.into(),
@@ -138,14 +138,14 @@ impl BlockImportHarness {
         }
     }
 
-    fn init_node_storage() -> NodeStorage {
+    pub fn init_node_storage() -> NodeStorage {
         NodeStorage::new(StorageConfig::from_path(
             tempdir().unwrap().path().join("test_db"),
         ))
         .expect("Failed to initialize NodeStorage with tempdir")
     }
 
-    async fn commit_pre_state(
+    pub async fn commit_pre_state(
         state_manager: &StateManager,
         pre_state: RawState,
     ) -> Result<(), Box<dyn Error>> {
@@ -263,7 +263,7 @@ pub async fn run_test_case(file_path: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_parent_block_header(file_path: &str) -> BlockHeader {
+pub fn get_parent_block_header(file_path: &str) -> BlockHeader {
     let file_str = file_path.to_string();
     if file_path.ends_with("00000001.json") {
         let reg = Regex::new(r"\d{8}\.json$").unwrap();
