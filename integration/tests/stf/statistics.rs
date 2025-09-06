@@ -5,10 +5,6 @@ use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::Extrinsics},
 };
-use fr_integration::{
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_pvm_types::stats::AccumulateStats;
 use fr_state::{
     error::StateManagerError,
@@ -17,6 +13,10 @@ use fr_state::{
         ActiveSet, CoreStats, EpochValidatorStats, OnChainStatistics, ServiceStats, Timeslot,
         ValidatorStats,
     },
+};
+use fr_test_utils::{
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{error::TransitionError, state::statistics::transition_onchain_statistics};
 use std::sync::Arc;

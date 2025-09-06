@@ -5,15 +5,15 @@ use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::disputes::OffendersHeaderMarker},
 };
-use fr_integration::{
-    err_map::disputes::map_error_to_custom_code,
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{ActiveSet, DisputesState, PastSet, PendingReports, Timeslot},
+};
+use fr_test_utils::{
+    err_map::disputes::map_error_to_custom_code,
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{
     error::TransitionError,

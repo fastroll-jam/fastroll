@@ -9,11 +9,6 @@ use fr_block::{
     },
 };
 use fr_common::EntropyHash;
-use fr_integration::{
-    err_map::safrole::map_error_to_custom_code,
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_state::{
     cache::StateMut,
     error::StateManagerError,
@@ -22,6 +17,11 @@ use fr_state::{
         ActiveSet, DisputesState, EpochEntropy, PastSet, SafroleHeaderMarkers, SafroleState,
         StagingSet, Timeslot,
     },
+};
+use fr_test_utils::{
+    err_map::safrole::map_error_to_custom_code,
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{
     error::TransitionError,

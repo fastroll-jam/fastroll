@@ -7,8 +7,7 @@ use fr_asn_types::{
     preimages::{AsnPreimagesMapEntry, PreimagesMapEntry},
 };
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_common::{workloads::WorkReport, Hash32, Octets};
-use fr_integration::stf_harness::StateTransitionTest;
+use fr_common::{workloads::WorkReport, Hash32, Octets, ServiceId};
 use fr_pvm_invocation::accumulate::utils::collect_accumulatable_reports;
 use fr_state::{
     error::StateManagerError,
@@ -17,6 +16,10 @@ use fr_state::{
         privileges::PrivilegedServices, AccountMetadata, AccumulateHistory, AccumulateQueue,
         AuthQueue, EpochEntropy, Timeslot,
     },
+};
+use fr_test_utils::{
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{
     error::TransitionError,

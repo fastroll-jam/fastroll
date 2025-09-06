@@ -5,14 +5,14 @@ use fr_block::{
     header_db::BlockHeaderDB,
     types::{block::BlockHeader, extrinsics::guarantees::GuaranteesXt},
 };
-use fr_integration::{
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{AuthPool, AuthQueue, Timeslot},
+};
+use fr_test_utils::{
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{error::TransitionError, state::authorizer::transition_auth_pool};
 use std::sync::Arc;

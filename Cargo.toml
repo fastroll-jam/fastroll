@@ -16,7 +16,6 @@ members = [
     "extrinsics",
     "fuzz",
     "integration",
-    "integration/asn-types",
     "merkle",
     "network",
     "node",
@@ -28,6 +27,8 @@ members = [
     "state",
     "state/state-merkle",
     "storage",
+    "test-utils",
+    "test-utils/asn-types",
     "transition",
 ]
 
@@ -40,6 +41,7 @@ repository = "https://github.com/fastroll-jam/fastroll"
 
 [workspace.dependencies]
 # Internal dependencies
+fr-asn-types = { path = "test-utils/asn-types" }
 fr-block = { path = "block" }
 fr-clock = { path = "clock" }
 fr-codec = { path = "codec/fr-codec" }
@@ -64,6 +66,7 @@ fr-pvm-types = { path = "pvm/pvm-types" }
 fr-state = { path = "state" }
 fr-state-merkle = { path = "state/state-merkle" }
 fr-storage = { path = "storage" }
+fr-test-utils = { path = "test-utils" }
 fr-transition = { path = "transition" }
 # External dependencies
 ark-vrf = { version = "0.1.0", features = ["bandersnatch", "ring"] }

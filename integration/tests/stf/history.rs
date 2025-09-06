@@ -6,7 +6,7 @@
 //     workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, SegmentRoot, StateRoot,
 //     WorkPackageHash,
 // };
-// use fr_integration::{
+// use fr_test_utils::{
 //     generate_typed_tests,
 //     stf_harness::{run_test_case, StateTransitionTest},
 // };
