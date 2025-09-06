@@ -13,7 +13,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-crypto = { workspace = true }
-fr-extrinsics = { workspace = true }
+fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
 fr-limited-vec = { workspace = true }
 fr-network = { workspace = true }
 fr-pvm-invocation = { workspace = true }
