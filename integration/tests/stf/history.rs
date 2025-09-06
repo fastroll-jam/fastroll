@@ -6,11 +6,11 @@ use fr_common::{
     workloads::ReportedWorkPackage, AccumulateRoot, BlockHeaderHash, SegmentRoot, StateRoot,
     WorkPackageHash,
 };
-use fr_integration::{
+use fr_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
+use fr_test_utils::{
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},
 };
-use fr_state::{error::StateManagerError, manager::StateManager, types::BlockHistory};
 use fr_transition::{
     error::TransitionError,
     state::history::{

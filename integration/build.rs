@@ -17,7 +17,7 @@ fn generate_pvm_tests() {
     let dest_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_pvm_tests.rs");
     let test_files = fs::read_dir(&full_path).expect("Failed to read test vectors dir");
 
-    let mut test_case_contents = String::from("use fr_integration::pvm_harness::run_test_case;");
+    let mut test_case_contents = String::from("use fr_test_utils::pvm_harness::run_test_case;");
 
     for test_file in test_files {
         let test_file_path = test_file.expect("Failed to get test file").path();
@@ -84,7 +84,7 @@ fn generate_block_import_tests() {
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("generated_block_import_tests.rs");
 
     let mut test_case_contents =
-        String::from("use fr_integration::importer_harness::run_test_case;");
+        String::from("use fr_test_utils::importer_harness::run_test_case;");
 
     write_block_import_test_cases(fallback_test_files, "fallback", &mut test_case_contents);
     write_block_import_test_cases(safrole_test_files, "safrole", &mut test_case_contents);

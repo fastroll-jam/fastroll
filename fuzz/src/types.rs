@@ -3,7 +3,7 @@
 use fr_block::types::block::{Block, BlockHeader};
 use fr_codec::prelude::*;
 use fr_common::{ByteArray, ByteSequence, Hash32, STATE_KEY_SIZE};
-use fr_integration::importer_harness::AsnRawState;
+use fr_test_utils::importer_harness::AsnRawState;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
