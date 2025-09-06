@@ -3,12 +3,12 @@ use async_trait::async_trait;
 use fr_asn_types::preimages::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_common::LookupsKey;
-use fr_integration::{
+use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
+use fr_test_utils::{
     err_map::preimages::map_error_to_custom_code,
     generate_typed_tests,
     stf_harness::{run_test_case, StateTransitionTest},
 };
-use fr_state::{error::StateManagerError, manager::StateManager, types::Timeslot};
 use fr_transition::{
     error::TransitionError,
     state::{services::transition_services_integrate_preimages, timeslot::transition_timeslot},

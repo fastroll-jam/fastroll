@@ -3,11 +3,6 @@ use async_trait::async_trait;
 use fr_asn_types::reports::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
 use fr_crypto::types::Ed25519PubKey;
-use fr_integration::{
-    err_map::reports::map_error_to_custom_code,
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
@@ -15,6 +10,11 @@ use fr_state::{
         AccumulateHistory, AccumulateQueue, ActiveSet, AuthPool, BlockHistory, DisputesState,
         EpochEntropy, PastSet, PendingReports, Timeslot,
     },
+};
+use fr_test_utils::{
+    err_map::reports::map_error_to_custom_code,
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{
     error::TransitionError,

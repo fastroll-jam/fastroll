@@ -10,7 +10,7 @@ mod fuzz_target_tests {
     };
     use fr_block::types::block::BlockHeader;
     use fr_common::utils::{serde::FileLoader, tracing::setup_tracing};
-    use fr_integration::importer_harness::AsnTestCase as BlockImportCase;
+    use fr_test_utils::importer_harness::AsnTestCase as BlockImportCase;
     use std::{path::PathBuf, str::FromStr, time::Duration};
     use tempfile::tempdir;
     use tokio::{net::UnixStream, task::JoinHandle, time::timeout};

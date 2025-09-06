@@ -2,15 +2,15 @@
 use async_trait::async_trait;
 use fr_asn_types::assurances::*;
 use fr_block::{header_db::BlockHeaderDB, types::block::BlockHeader};
-use fr_integration::{
-    err_map::assurances::map_error_to_custom_code,
-    generate_typed_tests,
-    stf_harness::{run_test_case, StateTransitionTest},
-};
 use fr_state::{
     error::StateManagerError,
     manager::StateManager,
     types::{ActiveSet, PendingReports, Timeslot},
+};
+use fr_test_utils::{
+    err_map::assurances::map_error_to_custom_code,
+    generate_typed_tests,
+    stf_harness::{run_test_case, StateTransitionTest},
 };
 use fr_transition::{
     error::TransitionError,

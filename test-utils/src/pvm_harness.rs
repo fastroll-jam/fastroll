@@ -141,7 +141,9 @@ impl PVMHarness {
 
     pub fn load_test_case(filename: &Path) -> TestCase {
         let path = PathBuf::from(Self::PATH_PREFIX).join(filename);
-        let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path);
+        let full_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../integration")
+            .join(path);
         let json_str = fs::read_to_string(&full_path).expect("Failed to read test vector file");
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }

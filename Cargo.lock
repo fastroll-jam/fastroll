@@ -975,10 +975,10 @@ dependencies = [
  "fr-codec",
  "fr-common",
  "fr-config",
- "fr-integration",
  "fr-node",
  "fr-state",
  "fr-storage",
+ "fr-test-utils",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
@@ -994,28 +994,21 @@ dependencies = [
  "fr-block",
  "fr-codec",
  "fr-common",
- "fr-config",
  "fr-crypto",
  "fr-erasure-coding",
  "fr-extrinsics",
- "fr-node",
- "fr-pvm-core",
- "fr-pvm-interface",
  "fr-pvm-invocation",
  "fr-pvm-types",
  "fr-state",
- "fr-storage",
+ "fr-test-utils",
  "fr-transition",
  "futures",
  "hex",
  "paste",
  "rand 0.8.5",
- "regex",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1203,6 +1196,31 @@ dependencies = [
  "fr-db",
  "fr-state",
  "thiserror 2.0.16",
+]
+
+[[package]]
+name = "fr-test-utils"
+version = "0.1.4"
+dependencies = [
+ "async-trait",
+ "fr-asn-types",
+ "fr-block",
+ "fr-common",
+ "fr-config",
+ "fr-extrinsics",
+ "fr-node",
+ "fr-pvm-core",
+ "fr-pvm-interface",
+ "fr-pvm-types",
+ "fr-state",
+ "fr-storage",
+ "fr-transition",
+ "hex",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
