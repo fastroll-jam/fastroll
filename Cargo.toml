@@ -19,6 +19,7 @@ members = [
     "merkle",
     "network",
     "node",
+    "node-bench",
     "pvm/pvm-core",
     "pvm/pvm-host",
     "pvm/pvm-interface",

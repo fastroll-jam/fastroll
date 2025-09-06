@@ -1130,7 +1130,6 @@ name = "fr-node"
 version = "0.1.4"
 dependencies = [
  "clap",
- "criterion",
  "fr-block",
  "fr-clock",
  "fr-codec",
@@ -1149,6 +1148,18 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "fr-node-bench"
+version = "0.1.4"
+dependencies = [
+ "criterion",
+ "fr-node",
+ "fr-state",
+ "fr-storage",
+ "fr-test-utils",
+ "tokio",
 ]
 
 [[package]]

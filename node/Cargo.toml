@@ -13,7 +13,7 @@ fr-codec = { workspace = true }
 fr-common = { workspace = true }
 fr-config = { workspace = true }
 fr-crypto = { workspace = true }
-fr-extrinsics = { workspace = true }
+fr-extrinsics = { workspace = true, features = ["skip-ancestor-set-validation"] }
 fr-limited-vec = { workspace = true }
 fr-network = { workspace = true }
 fr-pvm-invocation = { workspace = true }
@@ -26,14 +26,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-
-[dev-dependencies]
-criterion = { workspace = true }
-
-[[bench]]
-name = "block_import_perf"
-harness = false
-
 
 [features]
 tiny = []
