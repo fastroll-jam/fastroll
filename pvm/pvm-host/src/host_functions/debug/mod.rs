@@ -54,11 +54,11 @@ pub fn host_log(vm: &VMState) -> Result<HostCallResult, HostCallError> {
         },
     };
 
-    let level = LogLevel::from_reg_val(vm.regs[7].value());
-    let Ok(target_offset) = vm.regs[8].as_mem_address() else {
+    let level = LogLevel::from_reg_val(vm.read_reg(7));
+    let Ok(target_offset) = vm.read_reg_as_mem_address(8) else {
         return Ok(result);
     };
-    let Ok(target_read_size) = vm.regs[9].as_usize() else {
+    let Ok(target_read_size) = vm.read_reg_as_usize(9) else {
         return Ok(result);
     };
     if !vm
@@ -67,10 +67,10 @@ pub fn host_log(vm: &VMState) -> Result<HostCallResult, HostCallError> {
     {
         return Ok(result);
     }
-    let Ok(message_offset) = vm.regs[10].as_mem_address() else {
+    let Ok(message_offset) = vm.read_reg_as_mem_address(10) else {
         return Ok(result);
     };
-    let Ok(message_size) = vm.regs[11].as_usize() else {
+    let Ok(message_size) = vm.read_reg_as_usize(11) else {
         return Ok(result);
     };
     if !vm

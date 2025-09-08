@@ -7,6 +7,7 @@ use std::{
     env,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 use tokio::runtime::Runtime;
 
@@ -93,5 +94,9 @@ fn bench_block_import(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_block_import);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(15));
+    targets = bench_block_import
+}
 criterion_main!(benches);

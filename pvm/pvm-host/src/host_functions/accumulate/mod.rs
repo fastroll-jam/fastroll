@@ -49,19 +49,19 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
             continue_huh!()
         }
 
-        let Ok(manager) = vm.regs[7].as_service_id() else {
+        let Ok(manager) = vm.read_reg_as_service_id(7) else {
             continue_who!()
         };
-        let Ok(assign_offset) = vm.regs[8].as_mem_address() else {
+        let Ok(assign_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(designate) = vm.regs[9].as_service_id() else {
+        let Ok(designate) = vm.read_reg_as_service_id(9) else {
             continue_who!()
         };
-        let Ok(always_accumulate_offset) = vm.regs[10].as_mem_address() else {
+        let Ok(always_accumulate_offset) = vm.read_reg_as_mem_address(10) else {
             host_call_panic!()
         };
-        let Ok(always_accumulates_count) = vm.regs[11].as_usize() else {
+        let Ok(always_accumulates_count) = vm.read_reg_as_usize(11) else {
             host_call_panic!()
         };
 
@@ -133,13 +133,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(core_index) = vm.regs[7].as_usize() else {
+        let Ok(core_index) = vm.read_reg_as_usize(7) else {
             continue_core!()
         };
-        let Ok(queue_offset) = vm.regs[8].as_mem_address() else {
+        let Ok(queue_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(core_assign_service) = vm.regs[9].as_service_id() else {
+        let Ok(core_assign_service) = vm.read_reg_as_service_id(9) else {
             continue_who!()
         };
 
@@ -185,7 +185,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
 
@@ -257,15 +257,15 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let Ok(code_lookup_len) = vm.regs[8].as_u32() else {
+        let Ok(code_lookup_len) = vm.read_reg_as_u32(8) else {
             host_call_panic!()
         };
-        let gas_limit_g = vm.regs[9].value();
-        let gas_limit_m = vm.regs[10].value();
-        let Ok(gratis_storage_offset) = vm.regs[11].as_balance() else {
+        let gas_limit_g = vm.read_reg(9);
+        let gas_limit_m = vm.read_reg(10);
+        let Ok(gratis_storage_offset) = vm.read_reg_as_balance(11) else {
             unreachable!(
                 "as_balance() conversion should not fail: both RegValue and Balance are u64"
             )
@@ -339,11 +339,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let gas_limit_g = vm.regs[8].value();
-        let gas_limit_m = vm.regs[9].value();
+        let gas_limit_g = vm.read_reg(8);
+        let gas_limit_m = vm.read_reg(9);
 
         if !vm.memory.is_address_range_readable(offset, HASH_SIZE) {
             host_call_panic!()
@@ -372,15 +372,15 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         tracing::debug!("Hostcall invoked: TRANSFER");
         let x = get_mut_accumulate_x!(context);
 
-        let transfer_gas_limit = vm.regs[9].value();
+        let transfer_gas_limit = vm.read_reg(9);
         let gas_charge = HOSTCALL_BASE_GAS_CHARGE + transfer_gas_limit;
         check_out_of_gas!(vm.gas_counter, gas_charge);
 
-        let Ok(dest) = vm.regs[7].as_service_id() else {
+        let Ok(dest) = vm.read_reg_as_service_id(7) else {
             continue_who!()
         };
-        let amount = vm.regs[8].value();
-        let Ok(offset) = vm.regs[10].as_mem_address() else {
+        let amount = vm.read_reg(8);
+        let Ok(offset) = vm.read_reg_as_mem_address(10) else {
             host_call_panic!()
         };
 
@@ -447,10 +447,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(eject_service_id) = vm.regs[7].as_service_id() else {
+        let Ok(eject_service_id) = vm.read_reg_as_service_id(7) else {
             continue_who!()
         };
-        let Ok(offset) = vm.regs[8].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
 
@@ -530,10 +530,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let Ok(preimage_size) = vm.regs[8].as_u32() else {
+        let Ok(preimage_size) = vm.read_reg_as_u32(8) else {
             continue_none!()
         };
 
@@ -609,13 +609,13 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
         // TODO: Determine whether lookups size larger than `u32::MAX` should be allowed.
         // TODO: For now, continues with `FULL` code with no further threshold balance check.
         // TODO: Also check `host_query`, `host_forget`, `host_eject` which assume those lookups entry doesn't exist.
-        let Ok(lookups_size) = vm.regs[8].as_u32() else {
+        let Ok(lookups_size) = vm.read_reg_as_u32(8) else {
             continue_full!()
         };
 
@@ -731,10 +731,10 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let Ok(lookup_len) = vm.regs[8].as_u32() else {
+        let Ok(lookup_len) = vm.read_reg_as_u32(8) else {
             continue_huh!()
         };
 
@@ -951,7 +951,7 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
 
@@ -980,11 +980,11 @@ impl<S: HostStateProvider> AccumulateHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_accumulate_x!(context);
 
-        let service_id_reg = vm.regs[7].value();
-        let Ok(offset) = vm.regs[8].as_mem_address() else {
+        let service_id_reg = vm.read_reg(7);
+        let Ok(offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(preimage_size) = vm.regs[9].as_usize() else {
+        let Ok(preimage_size) = vm.read_reg_as_usize(9) else {
             host_call_panic!()
         };
 

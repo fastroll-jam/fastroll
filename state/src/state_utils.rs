@@ -302,6 +302,7 @@ pub async fn add_all_simple_state_entries(
     Ok(())
 }
 
+#[inline(always)]
 const fn construct_state_key(i: u8) -> StateKey {
     let mut key = [0u8; STATE_KEY_SIZE];
     key[0] = i;
@@ -327,6 +328,7 @@ pub const STATE_KEYS: [StateKey; 16] = [
     construct_state_key(StateKeyConstant::LastAccumulateOutputs as u8),
 ];
 
+#[inline(always)]
 pub fn get_simple_state_key(key: StateKeyConstant) -> StateKey {
     STATE_KEYS[key as usize - 1].clone()
 }

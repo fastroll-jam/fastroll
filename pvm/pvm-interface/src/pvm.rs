@@ -122,10 +122,10 @@ impl PVM {
     }
 
     pub fn initialize_registers(&mut self, args_len: usize) {
-        self.state.regs[0].value = (1 << 32) - (1 << 16);
-        self.state.regs[1].value = (1 << 32) - (2 * INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
-        self.state.regs[7].value = (1 << 32) - (INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
-        self.state.regs[8].value = args_len as RegValue;
+        self.state.regs[0] = (1 << 32) - (1 << 16);
+        self.state.regs[1] = (1 << 32) - (2 * INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
+        self.state.regs[7] = (1 << 32) - (INIT_ZONE_SIZE + INIT_INPUT_SIZE) as RegValue;
+        self.state.regs[8] = args_len as RegValue;
     }
 
     /// Reads a specified number of bytes from memory starting at the given address
