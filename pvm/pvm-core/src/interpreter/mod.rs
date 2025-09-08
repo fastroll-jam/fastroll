@@ -43,6 +43,7 @@ impl Interpreter {
 
     /// Get the next pc value from the current VM state and the skip function
     /// for normal instruction execution completion
+    #[inline(always)]
     pub fn next_pc(vm_state: &VMState, program_state: &ProgramState) -> RegValue {
         vm_state.pc
             + 1

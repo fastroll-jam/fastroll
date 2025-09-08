@@ -308,22 +308,27 @@ impl Instruction {
         }
     }
 
+    #[inline(always)]
     pub fn imm1(&self) -> Result<RegValue, VMCoreError> {
         self.imm1.ok_or(VMCoreError::ImmValNotFound(self.op))
     }
 
+    #[inline(always)]
     pub fn imm2(&self) -> Result<RegValue, VMCoreError> {
         self.imm2.ok_or(VMCoreError::ImmValNotFound(self.op))
     }
 
+    #[inline(always)]
     pub fn rs1(&self) -> Result<RegIndex, VMCoreError> {
         self.rs1.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
+    #[inline(always)]
     pub fn rs2(&self) -> Result<RegIndex, VMCoreError> {
         self.rs2.ok_or(VMCoreError::SourceRegIdxNotFound(self.op))
     }
 
+    #[inline(always)]
     pub fn rd(&self) -> Result<RegIndex, VMCoreError> {
         self.rd
             .ok_or(VMCoreError::DestinationRegIdxNotFound(self.op))

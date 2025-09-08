@@ -5,6 +5,7 @@ pub struct GasCharger;
 impl GasCharger {
     /// Deducts gas counter of `VMState` with the given `gas_charge`, returning the posterior gas
     /// which could be negative on out-of-gas error.
+    #[inline(always)]
     pub fn apply_gas_cost(
         vm_state: &mut VMState,
         gas_charge: UnsignedGas,
