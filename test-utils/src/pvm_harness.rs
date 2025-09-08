@@ -4,8 +4,7 @@ use fr_pvm_core::{
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
-        register::Register,
-        vm_state::VMState,
+        vm_state::{Registers, VMState},
     },
 };
 use fr_pvm_interface::pvm::PVM;
@@ -19,7 +18,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-
+use tracing::instrument;
 // --- Types
 
 #[allow(non_camel_case_types)]
@@ -148,10 +147,11 @@ impl PVMHarness {
         serde_json::from_str(&json_str).expect("Failed to parse JSON")
     }
 
+    #[instrument(level = "debug", skip_all, name = "setup")]
     pub fn parse_test_case(test_case: TestCase) -> ParsedTestCase {
         // --- Initial VM State
         let mut initial_vm = VMState {
-            regs: [Register::default(); 13],
+            regs: Registers::default(),
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.initial_pc as RegValue,
             gas_counter: test_case.initial_gas,
@@ -159,7 +159,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.initial_regs.iter().enumerate() {
-            initial_vm.regs[i] = Register::new(*val);
+            initial_vm.regs[i] = *val;
         }
 
         // Give ReadWrite access during memory setup
@@ -179,7 +179,7 @@ impl PVMHarness {
 
         // --- Expected VM State after program run
         let mut expected_vm = VMState {
-            regs: [Register::default(); 13],
+            regs: Registers::default(),
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.expected_pc as RegValue,
             gas_counter: test_case.expected_gas,
@@ -187,7 +187,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.expected_regs.iter().enumerate() {
-            expected_vm.regs[i] = Register::new(*val);
+            expected_vm.regs[i] = *val;
         }
 
         // Give ReadWrite access during memory setup
@@ -215,6 +215,24 @@ impl PVMHarness {
     }
 }
 
+/// Compare only the accessible memory ranges
+fn assert_mem_eq(actual_memory: &Memory, expected_memory: &Memory, test_case: &TestCase) {
+    for page_map in &test_case.initial_page_map {
+        let range_start = page_map.address;
+        let range_len = page_map.length as usize;
+
+        let actual_bytes = actual_memory
+            .read_bytes(range_start, range_len)
+            .expect("Failed to read actual mem in range: {range:?}");
+
+        let expected_bytes = expected_memory
+            .read_bytes(range_start, range_len)
+            .expect("Failed to read expected mem in range: {range:?}");
+
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+}
+
 pub fn run_test_case(filename: &str) {
     // Config tracing subscriber
     setup_timed_tracing();
@@ -228,7 +246,7 @@ pub fn run_test_case(filename: &str) {
         expected_vm,
         expected_status,
         expected_page_fault_address,
-    } = PVMHarness::parse_test_case(test_case);
+    } = PVMHarness::parse_test_case(test_case.clone());
 
     // initialize PVM
     let mut pvm = PVM {
@@ -257,9 +275,30 @@ pub fn run_test_case(filename: &str) {
 
     // assert_eq!(pvm.state, expected_vm);
     // assert_eq!(pvm.state.gas_counter, expected_vm.gas_counter); // FIXME: PageFault: Skipped due to issues in page-fault test cases
-    assert_eq!(pvm.state.pc, expected_vm.pc);
-    assert_eq!(pvm.state.regs, expected_vm.regs);
-    assert_eq!(pvm.state.memory, expected_vm.memory);
-    assert_eq!(actual_status, expected_status);
-    assert_eq!(actual_page_fault_address, expected_page_fault_address);
+
+    {
+        let span = tracing::trace_span!("assert_eq_pc");
+        let _e = span.enter();
+        assert_eq!(pvm.state.pc, expected_vm.pc);
+    }
+    {
+        let span = tracing::trace_span!("assert_eq_regs");
+        let _e = span.enter();
+        assert_eq!(pvm.state.regs, expected_vm.regs);
+    }
+    {
+        let span = tracing::trace_span!("assert_eq_memory");
+        let _e = span.enter();
+        assert_mem_eq(&pvm.state.memory, &expected_vm.memory, &test_case);
+    }
+    {
+        let span = tracing::trace_span!("assert_eq_status");
+        let _e = span.enter();
+        assert_eq!(actual_status, expected_status);
+    }
+    {
+        let span = tracing::trace_span!("assert_eq_fault_addr");
+        let _e = span.enter();
+        assert_eq!(actual_page_fault_address, expected_page_fault_address);
+    }
 }

@@ -14,13 +14,14 @@ use fr_pvm_core::{
     interpreter::Interpreter,
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
-        memory::AccessType, register::Register, state_change::HostCallVMStateChange,
-        vm_state::VMState,
+        memory::AccessType,
+        state_change::HostCallVMStateChange,
+        vm_state::{Registers, VMState},
     },
 };
 use fr_pvm_types::{
     common::{ExportDataSegment, MemAddress, RegValue},
-    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE, REGISTERS_COUNT},
+    constants::{HOSTCALL_BASE_GAS_CHARGE, PAGE_SIZE},
     exit_reason::ExitReason,
 };
 use fr_state::{provider::HostStateProvider, types::Timeslot};
@@ -45,11 +46,11 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
-        let service_id_reg = vm.regs[7].value();
-        let Ok(hash_offset) = vm.regs[8].as_mem_address() else {
+        let service_id_reg = vm.read_reg(7);
+        let Ok(hash_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(buf_offset) = vm.regs[9].as_mem_address() else {
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
             host_call_panic!()
         };
 
@@ -58,7 +59,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         {
             refine_service_id
         } else {
-            let Ok(service_id_reg) = vm.regs[7].as_service_id() else {
+            let Ok(service_id_reg) = vm.read_reg_as_service_id(7) else {
                 continue_none!()
             };
             if state_provider.account_exists(service_id_reg).await? {
@@ -88,13 +89,13 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             continue_none!()
         };
 
-        let preimage_offset = vm.regs[10]
-            .as_usize()
+        let preimage_offset = vm
+            .read_reg_as_usize(10)
             .unwrap_or(preimage.len())
             .min(preimage.len());
         let min_preimage_len = preimage.len().saturating_sub(preimage_offset);
-        let lookup_size = vm.regs[11]
-            .as_usize()
+        let lookup_size = vm
+            .read_reg_as_usize(11)
             .unwrap_or(min_preimage_len)
             .min(min_preimage_len);
 
@@ -121,11 +122,11 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(offset) = vm.regs[7].as_mem_address() else {
+        let Ok(offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let export_size = vm.regs[8]
-            .as_usize()
+        let export_size = vm
+            .read_reg_as_usize(8)
             .unwrap_or(SEGMENT_SIZE)
             .min(SEGMENT_SIZE);
 
@@ -163,13 +164,13 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(program_offset) = vm.regs[7].as_mem_address() else {
+        let Ok(program_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let Ok(program_size) = vm.regs[8].as_usize() else {
+        let Ok(program_size) = vm.read_reg_as_usize(8) else {
             host_call_panic!()
         };
-        let initial_pc = vm.regs[9].value();
+        let initial_pc = vm.read_reg(9);
 
         if !vm
             .memory
@@ -204,16 +205,16 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
-        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+        let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(inner_memory_offset) = vm.regs[9].as_mem_address() else {
+        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
             continue_oob!()
         };
-        let Ok(data_size) = vm.regs[10].as_usize() else {
+        let Ok(data_size) = vm.read_reg_as_usize(10) else {
             continue_oob!()
         };
 
@@ -249,16 +250,16 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
-        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+        let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(inner_memory_offset) = vm.regs[9].as_mem_address() else {
+        let Ok(inner_memory_offset) = vm.read_reg_as_mem_address(9) else {
             continue_oob!()
         };
-        let Ok(data_size) = vm.regs[10].as_usize() else {
+        let Ok(data_size) = vm.read_reg_as_usize(10) else {
             continue_oob!()
         };
 
@@ -297,16 +298,16 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
-        let Ok(inner_memory_page_offset) = vm.regs[8].as_usize() else {
+        let Ok(inner_memory_page_offset) = vm.read_reg_as_usize(8) else {
             continue_huh!()
         };
-        let Ok(pages_count) = vm.regs[9].as_usize() else {
+        let Ok(pages_count) = vm.read_reg_as_usize(9) else {
             continue_huh!()
         };
-        let Ok(mode) = vm.regs[10].as_usize() else {
+        let Ok(mode) = vm.read_reg_as_usize(10) else {
             continue_huh!()
         };
 
@@ -367,10 +368,10 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
-        let Ok(memory_offset) = vm.regs[8].as_mem_address() else {
+        let Ok(memory_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
 
@@ -387,7 +388,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         };
         let gas_limit = UnsignedGas::decode_fixed(&mut gas_limit_octets.as_slice(), 8)?;
 
-        let mut regs = [Register::default(); REGISTERS_COUNT];
+        let mut regs = Registers::default();
         for (i, reg) in regs.iter_mut().enumerate() {
             let Ok(read_val) = vm
                 .memory
@@ -395,7 +396,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
             else {
                 host_call_panic!()
             };
-            reg.value = RegValue::decode_fixed(&mut read_val.as_slice(), 8)?;
+            *reg = RegValue::decode_fixed(&mut read_val.as_slice(), 8)?;
         }
 
         // Construct a new `VMState` and `ProgramState` for the general invocation function.
@@ -424,7 +425,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         let mut host_buf = vec![];
         (inner_vm_state_copy.gas_counter as UnsignedGas).encode_to_fixed(&mut host_buf, 8)?;
         for reg in inner_vm_state_copy.regs {
-            reg.value.encode_to_fixed(&mut host_buf, 8)?;
+            reg.encode_to_fixed(&mut host_buf, 8)?;
         }
 
         tracing::debug!("INVOKE instance_id={inner_vm_id} exit_reason={inner_vm_exit_reason:?}");
@@ -481,7 +482,7 @@ impl<S: HostStateProvider> RefineHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let x = get_mut_refine_x!(context);
 
-        let Ok(inner_vm_id) = vm.regs[7].as_usize() else {
+        let Ok(inner_vm_id) = vm.read_reg_as_usize(7) else {
             continue_who!()
         };
 
