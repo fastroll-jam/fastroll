@@ -30,3 +30,4 @@ tracing = { workspace = true }
 [features]
 tiny = []
 full = []
+fuzz = []
