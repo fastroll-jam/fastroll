@@ -12,8 +12,11 @@ pub async fn transition_timeslot(
     state_manager: Arc<StateManager>,
     header_timeslot: &Timeslot,
 ) -> Result<(), TransitionError> {
-    let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.
-    validate_timeslot(&prior_timeslot, header_timeslot)?;
+    #[cfg(not(feature = "fuzz"))]
+    {
+        let prior_timeslot = state_manager.get_timeslot().await?; // Timeslot of the parent block.
+        validate_timeslot(&prior_timeslot, header_timeslot)?;
+    }
 
     state_manager
         .with_mut_timeslot(
@@ -27,6 +30,7 @@ pub async fn transition_timeslot(
     Ok(())
 }
 
+#[cfg(not(feature = "fuzz"))]
 fn validate_timeslot(
     prior_timeslot: &Timeslot,
     current_timeslot: &Timeslot,
