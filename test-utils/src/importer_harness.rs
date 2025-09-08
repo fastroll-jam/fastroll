@@ -164,7 +164,7 @@ impl BlockImportHarness {
         storage: Arc<NodeStorage>,
         block: Block,
     ) -> Result<(StateRoot, AccountStateChanges), Box<dyn Error>> {
-        let import_result = BlockImporter::import_block(storage, block, false, false).await?;
+        let import_result = BlockImporter::import_block(storage, block, false).await?;
         Ok(import_result)
     }
 

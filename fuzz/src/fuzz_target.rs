@@ -224,7 +224,6 @@ impl FuzzTargetRunner {
                 let post_state_root = match BlockImporter::import_block(
                     storage.clone(),
                     block,
-                    true,
                     *is_first_block,
                 )
                 .await

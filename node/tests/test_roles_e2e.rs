@@ -86,7 +86,7 @@ async fn author_importer_e2e() -> Result<(), Box<dyn Error>> {
 
     // Block importer role
     let (importer_post_state_root, _) =
-        BlockImporter::import_block(importer_node.storage(), new_block, false, false).await?;
+        BlockImporter::import_block(importer_node.storage(), new_block, false).await?;
     assert_eq!(author_post_state_root, importer_post_state_root);
 
     Ok(())
