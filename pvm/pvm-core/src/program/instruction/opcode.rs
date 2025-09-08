@@ -293,10 +293,12 @@ impl From<u8> for Opcode {
 }
 
 impl Opcode {
+    #[inline(always)]
     pub fn from_u8(value: u8) -> Self {
         Self::from(value)
     }
 
+    #[inline(always)]
     pub fn is_termination_opcode(&self) -> bool {
         use Opcode::*;
         matches!(

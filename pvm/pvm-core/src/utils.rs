@@ -59,6 +59,7 @@ impl VMUtils {
     }
 
     /// Returns the starting address of the memory page containing the given address.
+    #[inline(always)]
     pub fn page_start_address(address: MemAddress) -> MemAddress {
         // Z_P * floor(address mod 2^32 / Z_P)
         PAGE_SIZE as MemAddress * (address / (PAGE_SIZE as MemAddress))
@@ -115,6 +116,7 @@ impl VMUtils {
     }
 
     /// `Z_n` function with `n = 1`
+    #[inline(always)]
     pub fn u8_to_i8(a: u8) -> i8 {
         let n = 1i8;
         if a < 1u8 << (8 * n - 1) {
@@ -125,6 +127,7 @@ impl VMUtils {
     }
 
     /// `Z_n` function with `n = 2`
+    #[inline(always)]
     pub fn u16_to_i16(a: u16) -> i16 {
         let n = 2i16;
         if a < 1u16 << (8 * n - 1) {
@@ -135,6 +138,7 @@ impl VMUtils {
     }
 
     /// `Z_n` function with `n = 4`
+    #[inline(always)]
     pub fn u32_to_i32(a: u32) -> i32 {
         let n = 4i32;
         if a < 1u32 << (8 * n - 1) {
@@ -145,6 +149,7 @@ impl VMUtils {
     }
 
     /// `Z_n` function with `n = 8`
+    #[inline(always)]
     pub fn u64_to_i64(a: u64) -> i64 {
         let n = 8i64;
         if a < 1u64 << (8 * n - 1) {
@@ -155,6 +160,7 @@ impl VMUtils {
     }
 
     /// `{Z_n}^-1` function with `n = 1`
+    #[inline(always)]
     pub fn i8_to_u8(a: i8) -> u8 {
         let n = 1;
         let modulus: i16 = 1 << (8 * n);
@@ -162,6 +168,7 @@ impl VMUtils {
     }
 
     /// `{Z_n}^-1` function with `n = 2`
+    #[inline(always)]
     pub fn i16_to_u16(a: i16) -> u16 {
         let n = 2;
         let modulus: i32 = 1 << (8 * n);
@@ -169,6 +176,7 @@ impl VMUtils {
     }
 
     /// `{Z_n}^-1` function with `n = 3`
+    #[inline(always)]
     pub fn i32_to_u32(a: i32) -> u32 {
         let n = 4;
         let modulus: i64 = 1 << (8 * n);
@@ -176,6 +184,7 @@ impl VMUtils {
     }
 
     /// `{Z_n}^-1` function with `n = 4`
+    #[inline(always)]
     pub fn i64_to_u64(a: i64) -> u64 {
         let n = 8;
         let modulus: i128 = 1 << (8 * n);
@@ -279,6 +288,7 @@ impl VMUtils {
     /// # Returns
     ///
     /// The sign-extended 64-bit unsigned integer.
+    #[inline(always)]
     pub fn sext<T>(compact_val: T, n: SextInputSize) -> RegValue
     where
         T: Into<i128> + Copy,
@@ -298,6 +308,7 @@ impl VMUtils {
     }
 
     /// Signed modulo operations for i32
+    #[inline(always)]
     pub fn smod_32(a: i32, b: i32) -> i32 {
         if b == 0 {
             a
@@ -308,6 +319,7 @@ impl VMUtils {
     }
 
     /// Signed modulo operations for i64
+    #[inline(always)]
     pub fn smod_64(a: i64, b: i64) -> i64 {
         if b == 0 {
             a

@@ -10,7 +10,6 @@ use fr_common::{
 };
 use fr_pvm_core::state::{
     memory::{AccessType, Memory},
-    register::Register,
     vm_state::VMState,
 };
 use fr_pvm_types::{
@@ -201,7 +200,7 @@ impl MockStateManager {
 
 #[derive(Default)]
 pub(crate) struct VMStateBuilder {
-    pub regs: [Register; REGISTERS_COUNT],
+    pub regs: [RegValue; REGISTERS_COUNT],
     pub memory: Memory,
     pub pc: RegValue,
     pub gas_counter: SignedGas,
@@ -220,7 +219,7 @@ impl VMStateBuilder {
         if reg_idx >= REGISTERS_COUNT {
             panic!("Register index out of bounds: {reg_idx:?}");
         }
-        self.regs[reg_idx].value = reg_val.into();
+        self.regs[reg_idx] = reg_val.into();
         self
     }
 

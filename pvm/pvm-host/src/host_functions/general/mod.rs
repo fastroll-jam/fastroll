@@ -13,9 +13,7 @@ use fr_common::{
     Octets, ServiceId, SignedGas, UnsignedGas,
 };
 use fr_crypto::octets_to_hash32;
-use fr_pvm_core::state::{
-    register::Register, state_change::HostCallVMStateChange, vm_state::VMState,
-};
+use fr_pvm_core::state::{state_change::HostCallVMStateChange, vm_state::VMState};
 use fr_pvm_types::{
     common::RegValue, constants::HOSTCALL_BASE_GAS_CHARGE, invoke_args::RefineInvokeArgs,
 };
@@ -48,7 +46,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         context: &mut InvocationContext<S>,
     ) -> Result<HostCallResult, HostCallError> {
         tracing::debug!("Hostcall invoked: FETCH");
-        let Ok(data_id) = vm.regs[10].as_usize() else {
+        let Ok(data_id) = vm.read_reg_as_usize(10) else {
             continue_none!()
         };
 
@@ -57,7 +55,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 0 => &encode_constants_for_fetch_hostcall()?,
                 id @ 7..=13 => {
                     let work_package = &ctx.invoke_args.package;
-                    match Self::fetch_work_package_data(work_package, id, &vm.regs) {
+                    match Self::fetch_work_package_data(work_package, id, vm) {
                         Some(data) => &data.clone(),
                         None => continue_none!(),
                     }
@@ -68,15 +66,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 0 => &encode_constants_for_fetch_hostcall()?,
                 1 => ctx.refine_entropy.as_slice(),
                 2 => &ctx.invoke_args.auth_trace,
-                id @ 3..=6 => {
-                    match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, &vm.regs) {
-                        Some(data) => &data.clone(),
-                        None => continue_none!(),
-                    }
-                }
+                id @ 3..=6 => match Self::fetch_imports_extrinsics_data(&ctx.invoke_args, id, vm) {
+                    Some(data) => &data.clone(),
+                    None => continue_none!(),
+                },
                 id @ 7..=13 => {
                     let work_package = &ctx.invoke_args.package;
-                    match Self::fetch_work_package_data(work_package, id, &vm.regs) {
+                    match Self::fetch_work_package_data(work_package, id, vm) {
                         Some(data) => &data.clone(),
                         None => continue_none!(),
                     }
@@ -91,7 +87,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                     14 => &x.invoke_args.inputs.inputs().encode()?,
                     15 => {
                         let acc_inputs = x.invoke_args.inputs.inputs();
-                        let Ok(acc_input_idx) = vm.regs[11].as_usize() else {
+                        let Ok(acc_input_idx) = vm.read_reg_as_usize(11) else {
                             continue_none!()
                         };
                         if acc_input_idx < acc_inputs.len() {
@@ -105,13 +101,16 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             }
         };
 
-        let Ok(buf_offset) = vm.regs[7].as_mem_address() else {
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let data_read_offset = vm.regs[8].as_usize().unwrap_or(data.len()).min(data.len());
+        let data_read_offset = vm
+            .read_reg_as_usize(8)
+            .unwrap_or(data.len())
+            .min(data.len());
         let min_data_read_size = data.len().saturating_sub(data_read_offset);
-        let data_read_size = vm.regs[9]
-            .as_usize()
+        let data_read_size = vm
+            .read_reg_as_usize(9)
             .unwrap_or(min_data_read_size)
             .min(min_data_read_size);
 
@@ -133,7 +132,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     fn fetch_work_package_data(
         package: &WorkPackage,
         data_id: usize,
-        regs: &[Register],
+        vm: &VMState,
     ) -> Option<Vec<u8>> {
         match data_id {
             7 => package.encode().ok(),
@@ -161,7 +160,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 work_items_buf.encode().ok()
             }
             12 => {
-                let work_item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let work_item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
                 if work_item_idx >= package.work_items.len() {
                     return None;
                 }
@@ -169,7 +168,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 work_item.encode_for_fetch_hostcall().ok()
             }
             13 => {
-                let work_item_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let work_item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
                 if work_item_idx >= package.work_items.len() {
                     return None;
                 }
@@ -183,13 +182,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
     fn fetch_imports_extrinsics_data(
         invoke_args: &RefineInvokeArgs,
         data_id: usize,
-        regs: &[Register],
+        vm: &VMState,
     ) -> Option<Vec<u8>> {
         match data_id {
             3 => {
                 let items = &invoke_args.package.work_items;
-                let item_idx = regs[11].as_usize().expect("11 is a valid reg index");
-                let xt_idx = regs[12].as_usize().expect("12 is a valid reg index");
+                let item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let xt_idx = vm.read_reg_as_usize(12).expect("12 is a valid reg index");
                 if item_idx < items.len() && xt_idx < items[item_idx].extrinsic_data_info.len() {
                     let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
                     invoke_args.extrinsic_data_map.get(xt_info).cloned()
@@ -200,7 +199,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             4 => {
                 let items = &invoke_args.package.work_items;
                 let item_idx = invoke_args.item_idx;
-                let xt_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let xt_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
                 if xt_idx < items[item_idx].extrinsic_data_info.len() {
                     let xt_info = &items[item_idx].extrinsic_data_info[xt_idx];
                     invoke_args.extrinsic_data_map.get(xt_info).cloned()
@@ -209,8 +208,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
                 }
             }
             5 => {
-                let item_idx = regs[11].as_usize().expect("11 is a valid reg index");
-                let segment_idx = regs[12].as_usize().expect("12 is a valid reg index");
+                let item_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
+                let segment_idx = vm.read_reg_as_usize(12).expect("12 is a valid reg index");
                 let imports = &invoke_args.import_segments;
                 if item_idx < imports.len() && segment_idx < imports[item_idx].len() {
                     Some(imports[item_idx][segment_idx].as_ref().to_vec())
@@ -220,7 +219,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             }
             6 => {
                 let item_idx = invoke_args.item_idx;
-                let segment_idx = regs[11].as_usize().expect("11 is a valid reg index");
+                let segment_idx = vm.read_reg_as_usize(11).expect("11 is a valid reg index");
                 let imports = &invoke_args.import_segments;
                 if segment_idx < imports[item_idx].len() {
                     Some(imports[item_idx][segment_idx].as_ref().to_vec())
@@ -244,11 +243,11 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let service_id_reg = vm.regs[7].value();
-        let Ok(hash_offset) = vm.regs[8].as_mem_address() else {
+        let service_id_reg = vm.read_reg(7);
+        let Ok(hash_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(buf_offset) = vm.regs[9].as_mem_address() else {
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(9) else {
             host_call_panic!()
         };
 
@@ -277,13 +276,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         };
 
         let preimage_size = entry.value.len();
-        let preimage_offset = vm.regs[10]
-            .as_usize()
+        let preimage_offset = vm
+            .read_reg_as_usize(10)
             .unwrap_or(preimage_size)
             .min(preimage_size);
         let min_lookup_size = preimage_size.saturating_sub(preimage_offset);
-        let lookup_size = vm.regs[11]
-            .as_usize()
+        let lookup_size = vm
+            .read_reg_as_usize(11)
             .unwrap_or(min_lookup_size)
             .min(min_lookup_size);
 
@@ -311,14 +310,14 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let service_id_reg = vm.regs[7].value();
-        let Ok(key_offset) = vm.regs[8].as_mem_address() else {
+        let service_id_reg = vm.read_reg(7);
+        let Ok(key_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
-        let Ok(key_size) = vm.regs[9].as_usize() else {
+        let Ok(key_size) = vm.read_reg_as_usize(9) else {
             host_call_panic!()
         };
-        let Ok(buf_offset) = vm.regs[10].as_mem_address() else {
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(10) else {
             host_call_panic!()
         };
 
@@ -345,13 +344,13 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         };
 
         let storage_val_size = entry.value.len();
-        let storage_val_offset = vm.regs[11]
-            .as_usize()
+        let storage_val_offset = vm
+            .read_reg_as_usize(11)
             .unwrap_or(storage_val_size)
             .min(storage_val_size);
         let min_read_len = storage_val_size.saturating_sub(storage_val_offset);
-        let read_len = vm.regs[12]
-            .as_usize()
+        let read_len = vm
+            .read_reg_as_usize(12)
             .unwrap_or(min_read_len)
             .min(min_read_len);
 
@@ -381,16 +380,16 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let Ok(key_offset) = vm.regs[7].as_mem_address() else {
+        let Ok(key_offset) = vm.read_reg_as_mem_address(7) else {
             host_call_panic!()
         };
-        let Ok(key_size) = vm.regs[8].as_usize() else {
+        let Ok(key_size) = vm.read_reg_as_usize(8) else {
             host_call_panic!()
         };
-        let Ok(value_offset) = vm.regs[9].as_mem_address() else {
+        let Ok(value_offset) = vm.read_reg_as_mem_address(9) else {
             host_call_panic!()
         };
-        let Ok(value_size) = vm.regs[10].as_usize() else {
+        let Ok(value_size) = vm.read_reg_as_usize(10) else {
             host_call_panic!()
         };
 
@@ -507,8 +506,8 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
         check_out_of_gas!(vm.gas_counter);
         let accounts_sandbox = get_mut_accounts_sandbox!(context);
 
-        let service_id_reg = vm.regs[7].value();
-        let Ok(buf_offset) = vm.regs[8].as_mem_address() else {
+        let service_id_reg = vm.read_reg(7);
+        let Ok(buf_offset) = vm.read_reg_as_mem_address(8) else {
             host_call_panic!()
         };
 
@@ -530,7 +529,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
 
         // TODO: check - GP using reg indices 11 & 12 for f & l
         // f
-        let info_read_offset = match vm.regs[9].as_usize() {
+        let info_read_offset = match vm.read_reg_as_usize(9) {
             Ok(info_read_offset_reg) => info_read_offset_reg.min(info.len()),
             Err(_) => info.len(),
         };
@@ -540,7 +539,7 @@ impl<S: HostStateProvider> GeneralHostFunction<S> {
             .expect("info_read_offset is less than info blob length");
 
         // l
-        let info_write_len = match vm.regs[10].as_usize() {
+        let info_write_len = match vm.read_reg_as_usize(10) {
             Ok(info_write_len_reg) => info_write_len_reg.min(info_blob_len_minus_offset),
             Err(_) => info_blob_len_minus_offset,
         };
