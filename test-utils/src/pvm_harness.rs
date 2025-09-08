@@ -4,8 +4,7 @@ use fr_pvm_core::{
     program::{loader::ProgramLoader, types::program_state::ProgramState},
     state::{
         memory::{AccessType, Memory},
-        register::Register,
-        vm_state::VMState,
+        vm_state::{Registers, VMState},
     },
 };
 use fr_pvm_interface::pvm::PVM;
@@ -152,7 +151,7 @@ impl PVMHarness {
     pub fn parse_test_case(test_case: TestCase) -> ParsedTestCase {
         // --- Initial VM State
         let mut initial_vm = VMState {
-            regs: [Register::default(); 13],
+            regs: Registers::default(),
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.initial_pc as RegValue,
             gas_counter: test_case.initial_gas,
@@ -160,7 +159,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.initial_regs.iter().enumerate() {
-            initial_vm.regs[i] = Register::new(*val);
+            initial_vm.regs[i] = *val;
         }
 
         // Give ReadWrite access during memory setup
@@ -180,7 +179,7 @@ impl PVMHarness {
 
         // --- Expected VM State after program run
         let mut expected_vm = VMState {
-            regs: [Register::default(); 13],
+            regs: Registers::default(),
             memory: Memory::new(MEMORY_SIZE, PAGE_SIZE),
             pc: test_case.expected_pc as RegValue,
             gas_counter: test_case.expected_gas,
@@ -188,7 +187,7 @@ impl PVMHarness {
 
         // Setup registers
         for (i, val) in test_case.expected_regs.iter().enumerate() {
-            expected_vm.regs[i] = Register::new(*val);
+            expected_vm.regs[i] = *val;
         }
 
         // Give ReadWrite access during memory setup

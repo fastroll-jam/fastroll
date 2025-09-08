@@ -3,7 +3,6 @@ use crate::{
     gas::GasCharger,
     state::{
         memory::MemoryError,
-        register::Register,
         vm_state::{RegIndex, VMState},
     },
     utils::VMUtils,
@@ -94,7 +93,7 @@ impl VMStateMutator {
             if reg_index >= REGISTERS_COUNT {
                 return Err(VMCoreError::InvalidRegIndex(reg_index));
             }
-            vm_state.regs[reg_index] = Register::new(new_val);
+            vm_state.regs[reg_index] = new_val;
         }
 
         // Apply memory change
@@ -126,10 +125,10 @@ impl VMStateMutator {
     ) -> Result<SignedGas, VMCoreError> {
         // Apply register changes (register index 7 & 8)
         if let Some(r7) = change.r7_write {
-            vm_state.regs[7].value = r7;
+            vm_state.regs[7] = r7;
         }
         if let Some(r8) = change.r8_write {
-            vm_state.regs[8].value = r8;
+            vm_state.regs[8] = r8;
         }
 
         // Apply memory change
