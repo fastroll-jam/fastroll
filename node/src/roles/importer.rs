@@ -14,7 +14,7 @@ use fr_block::{
     },
 };
 use fr_codec::prelude::*;
-use fr_common::{ByteEncodable, EntropyHash, StateRoot, X_E, X_F, X_T};
+use fr_common::{ByteEncodable, EntropyHash, StateRoot, HASH_SIZE, X_E, X_F, X_T};
 use fr_crypto::{
     error::CryptoError, traits::VrfSignature, types::BandersnatchPubKey,
     vrf::bandersnatch_vrf::VrfVerifier,
@@ -305,6 +305,7 @@ impl BlockImporter {
     /// Gets posterior state values required for header signatures validation.
     ///
     /// Note: this method is called after running the initial STFs.
+    #[instrument(level = "debug", skip_all, name = "get_post_state")]
     async fn get_post_states_for_header_validation(
         storage: &NodeStorage,
         block: &Block,
@@ -335,16 +336,27 @@ impl BlockImporter {
         block: &Block,
         markers: BlockExecutionHeaderMarkers,
     ) -> Result<(), BlockImportError> {
+        let block_cloned = block.clone();
         let (curr_slot_sealer, curr_author_bandersnatch_key, curr_entropy_3) =
             Self::get_post_states_for_header_validation(storage, block).await?;
 
-        Self::verify_block_seal(
-            block,
-            &curr_slot_sealer,
-            &curr_author_bandersnatch_key,
-            &curr_entropy_3,
-        )?;
-        Self::verify_vrf_output(block, &curr_author_bandersnatch_key)?;
+        tokio::task::spawn_blocking(move || -> Result<(), BlockImportError> {
+            let (seal_result, vrf_result) = rayon::join(
+                || {
+                    Self::verify_block_seal(
+                        &block_cloned,
+                        &curr_slot_sealer,
+                        &curr_author_bandersnatch_key,
+                        &curr_entropy_3,
+                    )
+                },
+                || Self::verify_vrf_output(&block_cloned, &curr_author_bandersnatch_key),
+            );
+            seal_result?;
+            vrf_result?;
+            Ok(())
+        })
+        .await??;
         Self::validate_header_markers(block, markers)?;
         Ok(())
     }
@@ -409,6 +421,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, name = "verify_seal")]
     fn verify_block_seal(
         block: &Block,
         curr_slot_sealer: &SlotSealer,
@@ -421,7 +434,11 @@ impl BlockImporter {
             SlotSealer::Ticket(ticket) => {
                 validate_author_block_seal(block_seal, ticket)
                     .map_err(|_| BlockImportError::InvalidBlockSealOutput)?;
-                [X_T, curr_entropy_3.as_slice(), &[ticket.attempt]].concat()
+                let mut vrf_input = Vec::with_capacity(X_T.len() + HASH_SIZE + 1);
+                vrf_input.extend_from_slice(X_T);
+                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
+                vrf_input.push(ticket.attempt);
+                vrf_input
             }
             SlotSealer::BandersnatchPubKeys(key) => {
                 if key != curr_author_bandersnatch_key {
@@ -430,7 +447,10 @@ impl BlockImporter {
                         author_key: curr_author_bandersnatch_key.to_hex(),
                     });
                 }
-                [X_F, curr_entropy_3.as_slice()].concat()
+                let mut vrf_input = Vec::with_capacity(X_F.len() + HASH_SIZE);
+                vrf_input.extend_from_slice(X_F);
+                vrf_input.extend_from_slice(curr_entropy_3.as_slice());
+                vrf_input
             }
         };
         let aux_data = block.header.data.encode()?;
@@ -444,13 +464,16 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, name = "verify_vrf")]
     fn verify_vrf_output(
         block: &Block,
         curr_author_bandersnatch_key: &BandersnatchPubKey,
     ) -> Result<(), BlockImportError> {
         let block_seal_output_hash = block.header.block_seal.output_hash()?;
 
-        let vrf_input = [X_E, block_seal_output_hash.as_slice()].concat();
+        let mut vrf_input = Vec::with_capacity(X_E.len() + HASH_SIZE);
+        vrf_input.extend_from_slice(X_E);
+        vrf_input.extend_from_slice(block_seal_output_hash.as_slice());
         let aux_data = vec![]; // no message signed
 
         VrfVerifier::verify_vrf(
@@ -462,6 +485,7 @@ impl BlockImporter {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, name = "val_markers")]
     fn validate_header_markers(
         block: &Block,
         expected_markers: BlockExecutionHeaderMarkers,
