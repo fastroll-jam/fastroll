@@ -54,11 +54,13 @@ async fn setup(file_path: &Path) -> (Arc<NodeStorage>, TestCase) {
 fn bench_block_import(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("block_import");
-    // group.sample_size(10);
 
-    let test_kind = "storage";
-    let test_file = "00000008.json";
-    let bench_id = [test_kind, "-", test_file].concat();
+    let test_kind = env::var("KIND").unwrap_or("fallback".to_string());
+    let block_num = env::var("BLOCK").unwrap_or("1".to_string());
+    let block_num: u32 = block_num.parse().expect("Failed to parse BLOCK env");
+    let test_file = format!("{block_num:08}.json");
+
+    let bench_id = format!("{test_kind}-{test_file}");
     let test_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("../integration")
         .join("jamtestvectors-polkajam/traces")
