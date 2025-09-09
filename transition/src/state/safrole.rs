@@ -17,7 +17,7 @@ use fr_state::{
     },
 };
 use std::sync::Arc;
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 /// State transition function of `SafroleState`.
 ///
@@ -66,8 +66,16 @@ async fn handle_new_epoch_transition(
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
     // Note: prior_staging_set is equivalent to current_pending_set
-    let ring_vrf_verifier = RingVrfVerifier::new(&prior_staging_set)?;
-    let curr_ring_root = ring_vrf_verifier.compute_ring_root()?;
+    let ring_vrf_verifier = {
+        let span = debug_span!("safrole_stf_construct_ring_verifier");
+        let _e = span.enter();
+        RingVrfVerifier::new(&prior_staging_set)?
+    };
+    let curr_ring_root = {
+        let span = debug_span!("safrole_stf_compute_ring_root");
+        let _e = span.enter();
+        ring_vrf_verifier.compute_ring_root()?
+    };
     // Store the new `RingVrfVerifier` to the cache
     state_manager
         .update_ring_vrf_verifier_cache(ring_vrf_verifier)

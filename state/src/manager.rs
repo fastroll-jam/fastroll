@@ -205,7 +205,11 @@ impl StateManager {
         }
         // Generate `RingVrfVerifier` with the current pending set (γP′) and cache it to the `StateManager`
         let curr_pending_set = self.get_safrole().await?.pending_set;
-        let verifier = RingVrfVerifier::new(&curr_pending_set)?;
+        let verifier = {
+            let span = debug_span!("construct_ring_verifier(val_tickets)");
+            let _e = span.enter();
+            RingVrfVerifier::new(&curr_pending_set)?
+        };
         self.update_ring_vrf_verifier_cache(verifier.clone())
             .await?;
         Ok(verifier)
