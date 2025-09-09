@@ -34,7 +34,7 @@ use fr_transition::state::services::AccountStateChanges;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::{sync::mpsc, try_join};
-use tracing::instrument;
+use tracing::{instrument, Span};
 
 #[derive(Debug, Error)]
 pub enum BlockImportError {
@@ -340,23 +340,31 @@ impl BlockImporter {
         let (curr_slot_sealer, curr_author_bandersnatch_key, curr_entropy_3) =
             Self::get_post_states_for_header_validation(storage, block).await?;
 
+        let curr_span = Span::current();
         tokio::task::spawn_blocking(move || -> Result<(), BlockImportError> {
             let (seal_result, vrf_result) = rayon::join(
                 || {
-                    Self::verify_block_seal(
-                        &block_cloned,
-                        &curr_slot_sealer,
-                        &curr_author_bandersnatch_key,
-                        &curr_entropy_3,
-                    )
+                    curr_span.clone().in_scope(|| {
+                        Self::verify_block_seal(
+                            &block_cloned,
+                            &curr_slot_sealer,
+                            &curr_author_bandersnatch_key,
+                            &curr_entropy_3,
+                        )
+                    })
                 },
-                || Self::verify_vrf_output(&block_cloned, &curr_author_bandersnatch_key),
+                || {
+                    curr_span.in_scope(|| {
+                        Self::verify_vrf_output(&block_cloned, &curr_author_bandersnatch_key)
+                    })
+                },
             );
             seal_result?;
             vrf_result?;
             Ok(())
         })
         .await??;
+
         Self::validate_header_markers(block, markers)?;
         Ok(())
     }
