@@ -67,12 +67,12 @@ async fn handle_new_epoch_transition(
 
     // Note: prior_staging_set is equivalent to current_pending_set
     let ring_vrf_verifier = {
-        let span = debug_span!("safrole_stf_construct_ring_verifier");
+        let span = debug_span!("new_verifier");
         let _e = span.enter();
         RingVrfVerifier::new(&prior_staging_set)?
     };
     let curr_ring_root = {
-        let span = debug_span!("safrole_stf_compute_ring_root");
+        let span = debug_span!("new_ring_root");
         let _e = span.enter();
         ring_vrf_verifier.compute_ring_root()?
     };

@@ -38,7 +38,7 @@ use fr_transition::{
 };
 use thiserror::Error;
 use tokio::try_join;
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 #[derive(Debug, Error)]
 pub enum BlockExecutionError {
@@ -140,19 +140,23 @@ impl BlockExecutor {
         active_set_res?;
         history_res?;
 
-        // Safrole STF
-        let manager = storage.state_manager();
-        spawn_timed("safrole_stf", async move {
-            transition_safrole(
-                manager,
-                &prev_timeslot,
-                &curr_timeslot,
-                epoch_progressed,
-                &tickets_xt,
-            )
-            .await
-        })
-        .await??;
+        {
+            let span = debug_span!("safrole_stf");
+            let _e = span.enter();
+            // Safrole STF
+            let manager = storage.state_manager();
+            spawn_timed("safrole_stf", async move {
+                transition_safrole(
+                    manager,
+                    &prev_timeslot,
+                    &curr_timeslot,
+                    epoch_progressed,
+                    &tickets_xt,
+                )
+                .await
+            })
+            .await??;
+        }
 
         // Collect header markers
         let safrole_markers =
