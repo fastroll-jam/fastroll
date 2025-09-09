@@ -102,5 +102,6 @@ thiserror = "2.0.16"
 time = { version = "0.3.41", features = ["macros", "local-offset"] }
 tokio = { version = "1.47.1", features = ["rt", "rt-multi-thread", "time", "sync", "macros", "net", "io-util"] }
 tracing = "0.1.41"
+tracing-flame = "0.2.0"
 tracing-subscriber = { version = "0.3.19", features = ["std", "fmt", "time", "env-filter"] }
 zeroize = "1.8.1"
