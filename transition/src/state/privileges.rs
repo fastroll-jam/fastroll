@@ -12,9 +12,8 @@ pub(crate) async fn run_privileged_transitions(
         // Schedule ring cache update with a new `RingVrfVerifier` and its ring root.
         let new_staging_set_cloned = new_staging_set.clone();
         let curr_punish_set = state_manager.get_disputes().await?.punish_set;
-        let next_epoch_index = state_manager
-            .get_timeslot()
-            .await?
+        let curr_timeslot = state_manager.get_timeslot().await?;
+        let next_epoch_index = curr_timeslot
             .epoch()
             .checked_add(1)
             .ok_or(TransitionError::EpochIndexOverflow)?;
@@ -23,6 +22,7 @@ pub(crate) async fn run_privileged_transitions(
         schedule_ring_cache_update(
             state_manager_cloned,
             next_epoch_index,
+            curr_timeslot.slot(),
             new_staging_set_cloned,
             curr_punish_set,
         );
@@ -36,6 +36,7 @@ pub(crate) async fn run_privileged_transitions(
                 },
             )
             .await?;
+        state_manager.update_last_staging_set_transition_slot(curr_timeslot.slot());
     }
 
     // Transition auth queue

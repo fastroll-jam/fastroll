@@ -58,11 +58,19 @@ impl StateCommitArtifact {
     }
 }
 
+struct RingCacheEntry {
+    inserted_at: TimeslotIndex,
+    epoch_index: EpochIndex,
+    verifier: RingVrfVerifier,
+    ring_root: BandersnatchRingRoot,
+}
+
 pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
     merkle_manager: MerkleManagerHandle,
-    ring_cache: RwLock<Option<(EpochIndex, RingVrfVerifier, BandersnatchRingRoot)>>,
+    ring_cache: RwLock<Option<RingCacheEntry>>,
+    last_staging_set_transition_slot: RwLock<TimeslotIndex>,
 }
 
 macro_rules! impl_simple_state_accessors {
@@ -192,19 +200,35 @@ impl StateManager {
                 sender: merkle_mpsc_send,
             },
             ring_cache: RwLock::new(None),
+            last_staging_set_transition_slot: RwLock::new(0),
         }
+    }
+
+    pub fn last_staging_set_transition_slot(&self) -> TimeslotIndex {
+        *self.last_staging_set_transition_slot.read().unwrap()
+    }
+
+    pub fn update_last_staging_set_transition_slot(&self, slot: TimeslotIndex) {
+        let mut guard = self.last_staging_set_transition_slot.write().unwrap();
+        *guard = slot;
     }
 
     pub async fn get_or_generate_ring_verifier_and_root(
         &self,
-        epoch_index: EpochIndex,
+        epoch_index: EpochIndex, // TODO: check callsites
+        curr_timeslot_index: TimeslotIndex,
         validator_set: &ValidatorKeySet,
     ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
-        if let Some((cache_epoch_index, verifier, ring_root)) =
-            self.ring_cache.read().unwrap().as_ref()
+        if let Some(RingCacheEntry {
+            epoch_index: _epoch_index,
+            inserted_at,
+            verifier,
+            ring_root,
+        }) = self.ring_cache.read().unwrap().as_ref()
         {
-            if *cache_epoch_index == epoch_index {
+            // StagingSet entry was not updated after insertion of the ring cache entry
+            if self.last_staging_set_transition_slot() <= *inserted_at {
                 return Ok((verifier.clone(), ring_root.clone()));
             }
         }
@@ -216,24 +240,35 @@ impl StateManager {
             RingVrfVerifier::new(validator_set)?
         };
         let ring_root = verifier.compute_ring_root()?;
-        self.update_ring_cache(epoch_index, verifier.clone(), ring_root.clone());
+        self.update_ring_cache(
+            epoch_index,
+            curr_timeslot_index,
+            verifier.clone(),
+            ring_root.clone(),
+        );
         Ok((verifier, ring_root))
     }
 
     pub fn update_ring_cache(
         &self,
         curr_epoch: EpochIndex,
+        curr_timeslot_index: TimeslotIndex,
         verifier: RingVrfVerifier,
         ring_root: BandersnatchRingRoot,
     ) {
         let mut guard = self.ring_cache.write().unwrap();
-        if let Some((cached_epoch, _verifier, _root)) = &*guard {
-            if *cached_epoch >= curr_epoch {
+        if let Some(ring_cache_entry) = &*guard {
+            if ring_cache_entry.epoch_index >= curr_epoch {
                 // Do not update if the incoming cache entry is outdated
                 return;
             }
         }
-        *guard = Some((curr_epoch, verifier, ring_root));
+        *guard = Some(RingCacheEntry {
+            epoch_index: curr_epoch,
+            inserted_at: curr_timeslot_index,
+            verifier,
+            ring_root,
+        })
     }
 
     pub async fn get_raw_state_entry(
