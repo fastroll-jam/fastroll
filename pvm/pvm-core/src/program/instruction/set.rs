@@ -170,7 +170,8 @@ impl InstructionSet {
     ) -> Result<SingleStepResult, VMCoreError> {
         let imm_host_call_type = reg_to_u8(ins.imm1()?);
         let exit_reason = ExitReason::HostCall(
-            HostCallType::from_u8(imm_host_call_type).ok_or(VMCoreError::InvalidHostCallType)?,
+            HostCallType::from_u8(imm_host_call_type)
+                .ok_or(VMCoreError::InvalidHostCallType(imm_host_call_type))?,
         );
 
         Ok(SingleStepResult {

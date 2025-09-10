@@ -110,20 +110,44 @@ fn generate_fuzz_block_import_tests() {
     println!("cargo:rerun-if-changed={}", full_path.display());
 
     let traces_folders = [
-        "1756548459",
-        "1756548583",
-        "1756548667",
-        "1756548706",
-        "1756548741",
-        "1756548767",
-        "1756548796",
-        "1756548916",
-        "1756572122",
-        "1756790723",
-        "1756791458",
-        "1756792661",
-        "1756814312",
-        "1756832925",
+        // "1756548459",
+        // "1756548583",
+        // "1756548667",
+        // "1756548706",
+        // "1756548741",
+        // "1756548767",
+        // "1756548796",
+        // "1756548916",
+        // "1756572122",
+        // "1756790723",
+        // "1756791458",
+        // "1756792661",
+        // "1756814312",
+        // "1756832925",
+        // ----- New reports batch
+        "1757406079",
+        "1757406238", // fail [03, 10]
+        "1757406356", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757406441", // fail [FALSE SUCCESS]
+        "1757406516", // fail (success-on-fuzz)
+        "1757406558", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757406598", // fail [03, 10]
+        "1757421101", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757421743",
+        "1757421824", // fail [FALSE FAIL] -- Mem OutOfRange
+        "1757421952",
+        "1757422106", // fail [FALSE SUCCESS]
+        "1757422178", // fail [03, 10]
+        "1757422206", // fail [FALSE FAIL] -- InvalidHostCallType
+        "1757422550",
+        "1757422647",
+        "1757422771", // fail-on-fuzz [FORKING]
+        "1757423102", // fail-on-fuzz [FORKING]
+        "1757423195",
+        "1757423271",
+        "1757423365", // fail-on-fuzz [FORKING]
+        "1757423433",
+        "1757423902", // fail [FORKING] (success-on-fuzz)
     ];
 
     let mut test_case_contents = String::new();
