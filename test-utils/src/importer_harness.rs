@@ -1,3 +1,4 @@
+use crate::state_display::display_state_entry;
 use fr_asn_types::common::{AsnBlock, AsnHeader, AsnOpaqueHash};
 use fr_block::types::block::{Block, BlockHeader};
 use fr_common::{
@@ -182,21 +183,22 @@ impl BlockImportHarness {
     ) {
         for kv in expected_post_state.keyvals {
             if let Some(actual_val) = state_manager.get_raw_state_entry(&kv.key).await.unwrap() {
-                let actual_encoded = hex::encode(&actual_val);
-                let expected_encoded = hex::encode(&*kv.value);
-                if actual_encoded != expected_encoded {
-                    tracing::error!(
-                        "State mismatch. Key: {}, actual: {}, expected: {}",
-                        kv.key,
-                        actual_encoded,
-                        expected_encoded
-                    );
+                if actual_val.as_slice() != &*kv.value {
+                    tracing::error!("State mismatch. Key: {}", kv.key);
+                    println!("Actual:");
+                    display_state_entry(kv.key.as_slice(), &actual_val);
+                    println!("\nExpected:");
+                    display_state_entry(kv.key.as_slice(), &*kv.value);
+                    println!("\n");
                 }
             } else {
                 tracing::warn!("Raw state entry not found. Key: {}", kv.key.encode_hex());
             };
         }
-        assert_eq!(actual_post_state_root, expected_post_state.state_root);
+        assert_eq!(
+            hex::encode(&actual_post_state_root),
+            hex::encode(&expected_post_state.state_root)
+        );
     }
 }
 
