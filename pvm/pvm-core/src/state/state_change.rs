@@ -12,7 +12,6 @@ use fr_pvm_types::{
     common::{MemAddress, RegValue},
     constants::{HOSTCALL_BASE_GAS_CHARGE, INIT_ZONE_SIZE, INST_BASE_GAS_CHARGE, REGISTERS_COUNT},
 };
-use tracing::instrument;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MemWrite {
@@ -77,7 +76,6 @@ impl VMStateMutator {
     ///
     /// The amount of remaining gas allocation after applying the state change.
     /// This might be negative, which will trigger the out-of-gas exit reason of the general invocation.
-    #[instrument(level = "debug", skip_all, name = "app_change")]
     pub fn apply_state_change(
         vm_state: &mut VMState,
         change: &VMStateChange,
@@ -118,7 +116,6 @@ impl VMStateMutator {
         Ok(post_gas)
     }
 
-    #[instrument(level = "debug", skip_all, name = "app_hc_change")]
     pub fn apply_host_call_state_change(
         vm_state: &mut VMState,
         change: &HostCallVMStateChange,
