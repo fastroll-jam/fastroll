@@ -1364,6 +1364,7 @@ dependencies = [
  "fr-pvm-types",
  "fr-state",
  "thiserror 2.0.16",
+ "tokio",
  "tracing",
 ]
 

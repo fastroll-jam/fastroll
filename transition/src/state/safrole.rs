@@ -4,7 +4,7 @@ use fr_block::types::{
     extrinsics::tickets::TicketsXt,
 };
 use fr_common::{EntropyHash, TICKET_CONTEST_DURATION, VALIDATOR_COUNT};
-use fr_crypto::{types::ValidatorKeySet, vrf::bandersnatch_vrf::RingVrfVerifier};
+use fr_crypto::types::ValidatorKeySet;
 use fr_extrinsics::validation::{error::XtError, tickets::TicketsXtValidator};
 use fr_limited_vec::FixedVec;
 use fr_state::{
@@ -17,7 +17,7 @@ use fr_state::{
     },
 };
 use std::sync::Arc;
-use tracing::{debug_span, instrument};
+use tracing::instrument;
 
 /// State transition function of `SafroleState`.
 ///
@@ -65,20 +65,8 @@ async fn handle_new_epoch_transition(
     // Remove punished validators from the staging set (iota).
     prior_staging_set.nullify_punished_validators(&current_punish_set);
 
-    // Note: prior_staging_set is equivalent to current_pending_set
-    let ring_vrf_verifier = {
-        let span = debug_span!("new_verifier");
-        let _e = span.enter();
-        RingVrfVerifier::new(&prior_staging_set)?
-    };
-    let curr_ring_root = {
-        let span = debug_span!("new_ring_root");
-        let _e = span.enter();
-        ring_vrf_verifier.compute_ring_root()?
-    };
-    // Store the new `RingVrfVerifier` to the cache
-    state_manager
-        .update_ring_vrf_verifier_cache(ring_vrf_verifier)
+    let (_verifier, curr_ring_root) = state_manager
+        .get_or_generate_ring_verifier_and_root(curr_timeslot.epoch(), &prior_staging_set)
         .await?;
 
     let curr_active_set = state_manager.get_active_set().await?;

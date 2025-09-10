@@ -27,7 +27,10 @@ use fr_common::{
     StorageKey, TimeslotIndex, MIN_PUBLIC_SERVICE_ID,
 };
 use fr_config::StorageConfig;
-use fr_crypto::vrf::bandersnatch_vrf::RingVrfVerifier;
+use fr_crypto::{
+    types::{BandersnatchRingRoot, ValidatorKeySet},
+    vrf::bandersnatch_vrf::RingVrfVerifier,
+};
 use fr_db::{
     core::{
         cached_db::{CacheItem, DBKey},
@@ -41,7 +44,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tokio::sync::mpsc;
-use tracing::instrument;
+use tracing::{debug_span, instrument};
 
 #[derive(Clone)]
 pub struct StateCommitArtifact {
@@ -59,7 +62,7 @@ pub struct StateManager {
     state_db: StateDB,
     cache: StateCache,
     merkle_manager: MerkleManagerHandle,
-    ring_vrf_verifier_cache: RwLock<Option<(EpochIndex, RingVrfVerifier)>>,
+    ring_cache: RwLock<Option<(EpochIndex, RingVrfVerifier, BandersnatchRingRoot)>>,
 }
 
 macro_rules! impl_simple_state_accessors {
@@ -188,43 +191,52 @@ impl StateManager {
             merkle_manager: MerkleManagerHandle {
                 sender: merkle_mpsc_send,
             },
-            ring_vrf_verifier_cache: RwLock::new(None),
+            ring_cache: RwLock::new(None),
         }
     }
 
-    pub async fn get_or_generate_ring_vrf_verifier(
+    pub async fn get_or_generate_ring_verifier_and_root(
         &self,
-    ) -> Result<RingVrfVerifier, StateManagerError> {
-        let curr_epoch_index = self.get_timeslot().await?.epoch();
+        epoch_index: EpochIndex,
+        validator_set: &ValidatorKeySet,
+    ) -> Result<(RingVrfVerifier, BandersnatchRingRoot), StateManagerError> {
         // Check the cache
-        if let Some((epoch_index, verifier)) = self.ring_vrf_verifier_cache.read().unwrap().as_ref()
+        if let Some((cache_epoch_index, verifier, ring_root)) =
+            self.ring_cache.read().unwrap().as_ref()
         {
-            if *epoch_index == curr_epoch_index {
-                return Ok(verifier.clone());
+            if *cache_epoch_index == epoch_index {
+                return Ok((verifier.clone(), ring_root.clone()));
             }
         }
-        // Generate `RingVrfVerifier` with the current pending set (γP′) and cache it to the `StateManager`
-        let curr_pending_set = self.get_safrole().await?.pending_set;
+        // Generate `RingVrfVerifier` with the current pending set after per-epoch Safrole STF (γP′)
+        // and cache it to the `StateManager`.
         let verifier = {
-            let span = debug_span!("construct_ring_verifier(val_tickets)");
+            let span = debug_span!("new_ring_verifier");
             let _e = span.enter();
-            RingVrfVerifier::new(&curr_pending_set)?
+            RingVrfVerifier::new(validator_set)?
         };
-        self.update_ring_vrf_verifier_cache(verifier.clone())
-            .await?;
-        Ok(verifier)
+        let ring_root = verifier.compute_ring_root()?;
+        self.update_ring_cache(epoch_index, verifier.clone(), ring_root.clone());
+        Ok((verifier, ring_root))
     }
 
-    pub async fn update_ring_vrf_verifier_cache(
+    pub fn update_ring_cache(
         &self,
+        curr_epoch: EpochIndex,
         verifier: RingVrfVerifier,
-    ) -> Result<(), StateManagerError> {
-        let curr_epoch_index = self.get_timeslot().await?.epoch();
-        self.ring_vrf_verifier_cache
+        ring_root: BandersnatchRingRoot,
+    ) {
+        if let Some((cached_epoch, _verifier, _root)) = self.ring_cache.read().unwrap().clone() {
+            if cached_epoch >= curr_epoch {
+                // Do not update if the incoming cache entry is outdated
+                return;
+            }
+        }
+
+        self.ring_cache
             .write()
             .unwrap()
-            .replace((curr_epoch_index, verifier));
-        Ok(())
+            .replace((curr_epoch, verifier, ring_root));
     }
 
     pub async fn get_raw_state_entry(
