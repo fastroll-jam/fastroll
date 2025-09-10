@@ -125,8 +125,8 @@ impl PVMInterface {
         match result.exit_reason {
             ExitReason::OutOfGas => Ok(PVMInvocationResult::out_of_gas(gas_used)),
             ExitReason::RegularHalt => {
-                let start_address = pvm.state.read_reg_as_mem_address(10)?;
-                let data_len = pvm.state.read_reg(11) as usize;
+                let start_address = pvm.state.read_reg_as_mem_address(7)?;
+                let data_len = pvm.state.read_reg(8) as usize;
                 if !pvm
                     .state
                     .memory
@@ -225,7 +225,6 @@ impl PVMInterface {
         curr_timeslot_index: Option<TimeslotIndex>,
         h: &HostCallType,
     ) -> Result<HostCallResult, PVMError> {
-        tracing::trace!("{:?}", h);
         let result = match h {
             // --- General Functions
             HostCallType::GAS => GeneralHostFunction::<StateManager>::host_gas(&pvm.state)?,
