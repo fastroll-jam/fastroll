@@ -226,17 +226,14 @@ impl StateManager {
         verifier: RingVrfVerifier,
         ring_root: BandersnatchRingRoot,
     ) {
-        if let Some((cached_epoch, _verifier, _root)) = self.ring_cache.read().unwrap().clone() {
-            if cached_epoch >= curr_epoch {
+        let mut guard = self.ring_cache.write().unwrap();
+        if let Some((cached_epoch, _verifier, _root)) = &*guard {
+            if *cached_epoch >= curr_epoch {
                 // Do not update if the incoming cache entry is outdated
                 return;
             }
         }
-
-        self.ring_cache
-            .write()
-            .unwrap()
-            .replace((curr_epoch, verifier, ring_root));
+        *guard = Some((curr_epoch, verifier, ring_root));
     }
 
     pub async fn get_raw_state_entry(
